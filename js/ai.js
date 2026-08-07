@@ -40,6 +40,28 @@ export class AIController {
     this.events.publish("ai:configured", { config: { ...this.config } });
   }
 
+  async testConnection(config) {
+    const endpoint = (config?.endpoint || PROVIDER_DEFAULTS.ollama.endpoint).trim().replace(/\/$/, "");
+    const model = (config?.model || "").trim();
+    if ((config?.provider || "ollama") !== "ollama") {
+      throw new Error("The connection test currently supports local Ollama only.");
+    }
+    const response = await this.#fetchOllama(`${endpoint}/api/tags`, {}, endpoint);
+    if (!response.ok) throw new Error(`Ollama returned ${response.status} while listing models.`);
+    const payload = await response.json();
+    const models = (payload.models ?? []).map((item) => item.name || item.model).filter(Boolean);
+    if (model && !models.includes(model)) {
+      const suggestion = models.find((name) => name === model || name.startsWith(`${model}:`));
+      const installed = models.length ? models.join(", ") : "none reported";
+      throw new Error(
+        suggestion
+          ? `Connected to Ollama, but use the exact model tag “${suggestion}”.`
+          : `Connected to Ollama, but “${model}” is not installed. Installed models: ${installed}.`,
+      );
+    }
+    return { endpoint, models };
+  }
+
   disable() {
     this.config = null;
     this.token = "";
@@ -67,12 +89,19 @@ export class AIController {
     try {
       let text;
       if (this.config.provider === "ollama") {
-        const response = await fetch(`${this.config.endpoint}/api/chat`, {
+        const response = await this.#fetchOllama(`${this.config.endpoint}/api/chat`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ model: this.config.model, messages, stream: false }),
-        });
-        if (!response.ok) throw new Error(`Ollama returned ${response.status}.`);
+        }, this.config.endpoint, 120000);
+        if (!response.ok) {
+          if (response.status === 404) {
+            throw new Error(
+              `Ollama could not find “${this.config.model}”. Open Tools → Configure AI, use the exact installed model tag, and test again.`,
+            );
+          }
+          throw new Error(`Ollama returned ${response.status}.`);
+        }
         text = (await response.json()).message?.content;
       } else if (this.config.provider === "anthropic") {
         const response = await fetch(`${this.config.endpoint}/messages`, {
@@ -110,6 +139,28 @@ export class AIController {
     } catch (error) {
       this.events.publish("ai:error", { error });
       throw error;
+    }
+  }
+
+  async #fetchOllama(url, options, endpoint, timeoutMs = 8000) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      return await fetch(url, { ...options, signal: controller.signal });
+    } catch (error) {
+      const origin = globalThis.location?.origin || "this site";
+      if (error?.name === "AbortError") {
+        throw new Error(`Ollama at ${endpoint} did not respond before the connection timed out.`);
+      }
+      if (error instanceof TypeError || /failed to fetch|network/i.test(error?.message || "")) {
+        throw new Error(
+          `Ollama at ${endpoint} could not be reached from ${origin}. ` +
+          `It may be offline or blocking this origin; open Tools → Configure AI for setup instructions.`,
+        );
+      }
+      throw error;
+    } finally {
+      clearTimeout(timeout);
     }
   }
 

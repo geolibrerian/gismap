@@ -32,6 +32,7 @@ Then open `http://localhost:8080`.
 - ArcGIS MapServer sublayer URLs are detected automatically, including raster sublayers that must be loaded through their parent `MapImageLayer`.
 - Vector operational layers are explicitly draped on the scene ground so Z-enabled feeds such as USGS earthquake data do not fall beneath terrain.
 - AI controls appear in Intelligence only while a provider is fully configured. Online API tokens are never persisted or included in exports.
+- Browser access to local Ollama is connection-tested before enabling AI. On macOS, allow only this site's origin with `launchctl setenv OLLAMA_ORIGINS "https://gismap.online"`, fully quit Ollama, and reopen it.
 - Local KML/KMZ is converted to GeoJSON in the browser; uncommon KML extensions may not be preserved.
 - A zipped shapefile must include its `.shp`, `.shx`, and `.dbf` components.
 - Local project saves cannot reopen local files after a browser restart. Export a project package to bundle them.

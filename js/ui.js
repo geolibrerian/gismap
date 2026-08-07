@@ -412,11 +412,45 @@ export class UIController {
   #aiDialog() {
     const config = this.aiController.config ?? {};
     const provider = config.provider || "ollama";
+    const appOrigin = location.origin;
     const defaults = {
       ollama: ["http://localhost:11434", "llama3.2"],
       openai: ["https://api.openai.com/v1", "gpt-5-mini"],
       anthropic: ["https://api.anthropic.com/v1", "claude-sonnet-5"],
       "openai-compatible": ["", ""],
+    };
+    const readForm = () => ({
+      provider: this.dialog.querySelector("#ai-provider").value,
+      endpoint: this.dialog.querySelector("#ai-endpoint").value,
+      model: this.dialog.querySelector("#ai-model").value,
+      token: this.dialog.querySelector("#ai-token").value,
+    });
+    const setConnectionStatus = (state, message) => {
+      const status = this.dialog.querySelector("#ai-connection-status");
+      status.className = `connection-status connection-status--${state}`;
+      status.textContent = message;
+      status.hidden = false;
+    };
+    const testOllama = async () => {
+      const pending = readForm();
+      if (pending.provider !== "ollama") {
+        throw new Error("The connection test is for local Ollama. Online providers are checked when enabled.");
+      }
+      setConnectionStatus("testing", "Checking Ollama and installed models…");
+      try {
+        const result = await this.aiController.testConnection(pending);
+        this.dialog.querySelector("#ollama-models").innerHTML = result.models
+          .map((name) => `<option value="${escapeHtml(name)}"></option>`)
+          .join("");
+        setConnectionStatus(
+          "success",
+          `Connected. ${result.models.length} installed model${result.models.length === 1 ? "" : "s"} found.`,
+        );
+        return result;
+      } catch (error) {
+        setConnectionStatus("error", error.message);
+        throw error;
+      }
     };
     const actions = [];
     if (config.provider) {
@@ -426,18 +460,28 @@ export class UIController {
         this.toast("AI intelligence disabled.");
       }});
     }
-    actions.push({ label: "Use for this tab", primary: true, handler: () => {
+    actions.push({ label: "Test Ollama", handler: async () => {
       try {
-        this.aiController.configure({
-          provider: this.dialog.querySelector("#ai-provider").value,
-          endpoint: this.dialog.querySelector("#ai-endpoint").value,
-          model: this.dialog.querySelector("#ai-model").value,
-          token: this.dialog.querySelector("#ai-token").value,
-        });
+        await testOllama();
+      } catch (error) {
+        this.error(error.message);
+      }
+    }});
+    actions.push({ label: "Use for this tab", primary: true, handler: async () => {
+      const button = this.dialog.querySelector(".button--primary");
+      button.disabled = true;
+      button.textContent = "Checking…";
+      try {
+        const pending = readForm();
+        if (pending.provider === "ollama") await testOllama();
+        this.aiController.configure(pending);
         this.dialog.close();
         this.toast("AI enabled for this tab.");
       } catch (error) {
         this.error(error.message);
+      } finally {
+        button.disabled = false;
+        button.textContent = "Use for this tab";
       }
     }});
     this.openDialog({
@@ -445,9 +489,17 @@ export class UIController {
       title: "Configure intelligence provider",
       content: `<label class="field"><span>Provider</span><select id="ai-provider"><option value="ollama" ${provider === "ollama" ? "selected" : ""}>Ollama (local)</option><option value="openai" ${provider === "openai" ? "selected" : ""}>OpenAI</option><option value="anthropic" ${provider === "anthropic" ? "selected" : ""}>Anthropic Claude</option><option value="openai-compatible" ${provider === "openai-compatible" ? "selected" : ""}>OpenAI-compatible endpoint</option></select></label>
         <label class="field"><span>Endpoint</span><input id="ai-endpoint" type="url" value="${escapeHtml(config.endpoint || defaults[provider][0])}" /></label>
-        <label class="field"><span>Model</span><input id="ai-model" value="${escapeHtml(config.model || defaults[provider][1])}" /></label>
+        <label class="field"><span>Model</span><input id="ai-model" list="ollama-models" value="${escapeHtml(config.model || defaults[provider][1])}" /><datalist id="ollama-models"></datalist><small>Use the complete Ollama tag, including a suffix such as <code>:27b</code>.</small></label>
         <label class="field"><span>API token <small>online providers only</small></span><input id="ai-token" type="password" autocomplete="off" /></label>
-        <p class="form-note">Provider, endpoint, and model may be remembered locally. API tokens remain only in page memory and are never saved or exported; re-enter them after a reload. Direct browser keys are appropriate only for personal testing. Use a controlled proxy for a public paid service. Ollama must allow this site's origin.</p>`,
+        <section id="ollama-setup" class="ollama-setup" ${provider === "ollama" ? "" : "hidden"}>
+          <strong>One-time Ollama browser access on macOS</strong>
+          <p>Ollama must allow this exact site origin. Run this in Terminal:</p>
+          <code>launchctl setenv OLLAMA_ORIGINS &quot;${escapeHtml(appOrigin)}&quot;</code>
+          <p>Then fully quit Ollama from its menu-bar icon, reopen it, and choose <b>Test Ollama</b>.</p>
+          <small>Keeping the permission scoped to ${escapeHtml(appOrigin)} is safer than using <code>*</code>. Ollama's local API has no authentication.</small>
+        </section>
+        <div id="ai-connection-status" class="connection-status" hidden></div>
+        <p class="form-note">Provider, endpoint, and model may be remembered locally. API tokens remain only in page memory and are never saved or exported; re-enter them after a reload. Direct browser keys are appropriate only for personal testing. Use a controlled proxy for a public paid service.</p>`,
       actions,
     });
     const providerInput = this.dialog.querySelector("#ai-provider");
@@ -455,6 +507,8 @@ export class UIController {
       const [endpoint, model] = defaults[providerInput.value];
       this.dialog.querySelector("#ai-endpoint").value = endpoint;
       this.dialog.querySelector("#ai-model").value = model;
+      this.dialog.querySelector("#ollama-setup").hidden = providerInput.value !== "ollama";
+      this.dialog.querySelector("#ai-connection-status").hidden = true;
     });
   }
 

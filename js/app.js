@@ -3,9 +3,9 @@ import { MapController } from "./map.js?v=0.3.2";
 import { ProjectManager } from "./project.js?v=0.3.2";
 import { IdentifyController } from "./identify.js?v=0.3.2";
 import { AttributeTableController } from "./attribute-table.js?v=0.3.2";
-import { AIController } from "./ai.js?v=0.2.6";
+import { AIController } from "./ai.js?v=0.3.3";
 import { ToolManager } from "./tool-manager.js?v=0.2.0";
-import { UIController } from "./ui.js?v=0.3.2";
+import { UIController } from "./ui.js?v=0.3.3";
 
 async function start() {
   const mapController = new MapController(events);
