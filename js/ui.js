@@ -20,11 +20,18 @@ export class UIController {
 
   initialize() {
     if (matchMedia("(max-width: 640px)").matches) this.#setSidebarCollapsed(true);
+    this.#buildMobileMenu();
     this.#bindMenus();
     this.#bindStaticActions();
     this.#bindMapEvents();
     this.#renderBookmarks();
     this.#renderLayers();
+  }
+
+  #buildMobileMenu() {
+    const drawer = document.querySelector("#mobile-menu-drawer");
+    const desktopMenu = document.querySelector("#sidebar > .menu-bar");
+    drawer.replaceChildren(desktopMenu.cloneNode(true));
   }
 
   #bindMenus() {
@@ -85,6 +92,20 @@ export class UIController {
     );
     document.querySelector("#sidebar-close").addEventListener("click", () => this.#setSidebarCollapsed(true));
     document.querySelector("#sidebar-open").addEventListener("click", () => this.#setSidebarCollapsed(false));
+    document.querySelector("#mobile-menu-toggle").addEventListener("click", (event) => {
+      event.stopPropagation();
+      const drawer = document.querySelector("#mobile-menu-drawer");
+      const opening = drawer.hidden;
+      drawer.hidden = !opening;
+      event.currentTarget.setAttribute("aria-expanded", String(opening));
+      event.currentTarget.setAttribute("aria-label", `${opening ? "Close" : "Open"} application menu`);
+      if (!opening) this.#closeMenus();
+    });
+    document.querySelectorAll("[data-mobile-panel]").forEach((button) =>
+      button.addEventListener("click", () => this.#activateMobilePanel(button.dataset.mobilePanel)),
+    );
+    document.querySelector("#mobile-panel-close").addEventListener("click", () => this.#setSidebarCollapsed(true));
+    this.#activateMobilePanel("places-panel", false);
     document.querySelector("#insights-close").addEventListener("click", () => {
       document.querySelector("#insights-overlay").hidden = true;
     });
@@ -120,7 +141,7 @@ export class UIController {
       this.#showProject(project, "Saved");
       this.toast("Project saved in this browser.");
     });
-    this.events.subscribe("project:exported", ({ kind }) => this.toast(`${kind === "package" ? "Project package" : "Project JSON"} downloaded.`));
+    this.events.subscribe("project:exported", ({ kind }) => this.toast(`${kind === "package" ? "Project package (.gmop)" : "Project file (.gmo)"} downloaded.`));
     this.events.subscribe("bookmarks:changed", () => this.#renderBookmarks());
     this.events.subscribe("identify:start", () => {
       document.querySelector("#insights-overlay").hidden = true;
@@ -144,6 +165,20 @@ export class UIController {
     document.body.classList.toggle("sidebar-collapsed", collapsed);
     document.querySelector("#sidebar").setAttribute("aria-hidden", String(collapsed));
     document.querySelector("#sidebar-open").setAttribute("aria-expanded", String(!collapsed));
+  }
+
+  #activateMobilePanel(panelId, openSidebar = true) {
+    document.querySelectorAll("[data-mobile-panel]").forEach((button) => {
+      const active = button.dataset.mobilePanel === panelId;
+      button.classList.toggle("is-active", active);
+      button.setAttribute("aria-pressed", String(active));
+    });
+    document.querySelectorAll(".sidebar__scroll > .panel").forEach((panel) => {
+      const active = panel.id === panelId;
+      panel.classList.toggle("is-mobile-active", active);
+      if (active) panel.open = true;
+    });
+    if (openSidebar) this.#setSidebarCollapsed(false);
   }
 
   async #handleAction(action) {
@@ -590,9 +625,15 @@ export class UIController {
     const point = payload.point;
     const coord = point ? `${point.latitude.toFixed(6)}, ${point.longitude.toFixed(6)}` : "Unknown location";
     const results = payload.results ?? [];
-    const resultHtml = results.slice(0, 12).map((result, index) => {
+    const visibleResults = results.slice(0, 12);
+    const tabsHtml = visibleResults.length > 1
+      ? `<div class="insight-tabs" role="tablist" aria-label="Identified features">${visibleResults.map((result, index) =>
+          `<button type="button" role="tab" id="insight-tab-${index}" data-insight-tab="${index}" aria-controls="insight-panel-${index}" aria-selected="${index === 0}">${escapeHtml(result.layerTitle)} ${index + 1}</button>`,
+        ).join("")}</div>`
+      : "";
+    const resultHtml = visibleResults.map((result, index) => {
         const entries = Object.entries(result.attributes ?? {}).filter(([, value]) => value !== null && value !== "").slice(0, 12);
-        return `<details class="result-card" ${index === 0 ? "open" : ""}><summary><span>${escapeHtml(result.layerTitle)}</span><small>${escapeHtml(result.kind)}</small></summary><dl>${entries.map(([key, value]) => `<div><dt>${escapeHtml(key)}</dt><dd>${escapeHtml(typeof value === "object" ? JSON.stringify(value) : value)}</dd></div>`).join("") || "<div><dd>No attributes returned.</dd></div>"}</dl></details>`;
+        return `<article class="insight-panel" id="insight-panel-${index}" role="tabpanel" aria-labelledby="insight-tab-${index}" ${index === 0 ? "" : "hidden"}><header><strong>${escapeHtml(result.layerTitle)}</strong><small>${escapeHtml(result.kind)}</small></header><dl>${entries.map(([key, value]) => `<div><dt>${escapeHtml(key)}</dt><dd>${escapeHtml(typeof value === "object" ? JSON.stringify(value) : value)}</dd></div>`).join("") || "<div><dd>No attributes returned.</dd></div>"}</dl></article>`;
       }).join("");
     const aiForm = this.aiController.isConfigured()
       ? '<form id="ai-question" class="ai-question"><label for="ai-prompt">Ask about this map context</label><div><input id="ai-prompt" placeholder="What stands out here?" /><button>Ask AI</button></div></form>'
@@ -604,8 +645,11 @@ export class UIController {
     if (results.length) {
       document.querySelector("#insights-title").textContent =
         results.length === 1 ? results[0].layerTitle : `${results.length} features`;
-      document.querySelector("#insights-content").innerHTML = resultHtml;
+      document.querySelector("#insights-content").innerHTML = `${tabsHtml}${resultHtml}`;
       overlay.hidden = false;
+      document.querySelectorAll("[data-insight-tab]").forEach((button) =>
+        button.addEventListener("click", () => this.#activateInsightTab(Number(button.dataset.insightTab))),
+      );
     } else {
       document.querySelector("#insights-content").replaceChildren();
       overlay.hidden = true;
@@ -614,6 +658,17 @@ export class UIController {
       event.preventDefault();
       const prompt = event.currentTarget.querySelector("input").value.trim();
       if (prompt) this.aiController.ask(prompt, payload).catch(() => {});
+    });
+  }
+
+  #activateInsightTab(index) {
+    document.querySelectorAll("[data-insight-tab]").forEach((button) => {
+      const active = Number(button.dataset.insightTab) === index;
+      button.setAttribute("aria-selected", String(active));
+      button.tabIndex = active ? 0 : -1;
+    });
+    document.querySelectorAll(".insight-panel").forEach((panel, panelIndex) => {
+      panel.hidden = panelIndex !== index;
     });
   }
 
@@ -666,5 +721,13 @@ export class UIController {
 
   #closeMenus() {
     document.querySelectorAll(".menu.is-open").forEach((menu) => menu.classList.remove("is-open"));
+    document.querySelectorAll(".menu__trigger").forEach((trigger) => trigger.setAttribute("aria-expanded", "false"));
+    const drawer = document.querySelector("#mobile-menu-drawer");
+    if (drawer && !drawer.hidden) {
+      drawer.hidden = true;
+      const toggle = document.querySelector("#mobile-menu-toggle");
+      toggle.setAttribute("aria-expanded", "false");
+      toggle.setAttribute("aria-label", "Open application menu");
+    }
   }
 }

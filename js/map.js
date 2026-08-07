@@ -142,7 +142,8 @@ export class MapController {
   async addService(config) {
     const cleanUrl = config.url?.trim().replace(/\/$/, "");
     if (!cleanUrl) throw new Error("A service URL is required.");
-    const serviceType = this.#serviceTypeFromUrl(config.serviceType, cleanUrl);
+    let serviceType = this.#serviceTypeFromUrl(config.serviceType, cleanUrl);
+    const mapSublayer = this.#parseMapSublayerUrl(cleanUrl);
     let layer;
     const common = {
       url: cleanUrl,
@@ -152,38 +153,78 @@ export class MapController {
       popupEnabled: false,
     };
 
-    switch (serviceType) {
-      case "feature":
-        layer = new this.modules.FeatureLayer(common);
-        break;
-      case "map-image":
-        layer = new this.modules.MapImageLayer(common);
-        break;
-      case "imagery":
-        layer = new this.modules.ImageryLayer(common);
-        break;
-      case "wms":
-        layer = new this.modules.WMSLayer(common);
-        break;
-      case "kml":
-        layer = new this.modules.KMLLayer(common);
-        break;
-      case "geojson":
-        layer = new this.modules.GeoJSONLayer(common);
-        break;
-      default:
-        layer = await this.modules.Layer.fromArcGISServerUrl({ url: cleanUrl });
-        if (common.title) layer.title = common.title;
-        layer.opacity = common.opacity;
-        layer.visible = common.visible;
-        break;
-    }
-
-    return this.#addLayer(layer, {
-      sourceType: serviceType,
-      url: cleanUrl,
-      refreshInterval: Number(config.refreshInterval) || 0,
+    const buildMapSublayer = () => new this.modules.MapImageLayer({
+      ...common,
+      url: mapSublayer.rootUrl,
+      sublayers: [{ id: mapSublayer.id }],
     });
+
+    try {
+      switch (serviceType) {
+        case "feature":
+          layer = new this.modules.FeatureLayer(common);
+          break;
+        case "map-image":
+          layer = mapSublayer ? buildMapSublayer() : new this.modules.MapImageLayer(common);
+          break;
+        case "imagery":
+          if (mapSublayer) {
+            serviceType = "map-image";
+            layer = buildMapSublayer();
+          } else {
+            layer = new this.modules.ImageryLayer(common);
+          }
+          break;
+        case "wms":
+          layer = new this.modules.WMSLayer(common);
+          break;
+        case "kml":
+          layer = new this.modules.KMLLayer(common);
+          break;
+        case "geojson":
+          layer = new this.modules.GeoJSONLayer(common);
+          break;
+        default:
+          layer = await this.modules.Layer.fromArcGISServerUrl({ url: cleanUrl });
+          if (common.title) layer.title = common.title;
+          layer.opacity = common.opacity;
+          layer.visible = common.visible;
+          break;
+      }
+
+      return await this.#addLayer(layer, {
+        sourceType: serviceType,
+        url: cleanUrl,
+        title: common.title,
+        serviceLayerId: mapSublayer?.id ?? null,
+        elevationInfo: config.elevationInfo ?? null,
+        refreshInterval: Number(config.refreshInterval) || 0,
+      });
+    } catch (error) {
+      if (!mapSublayer || serviceType !== "arcgis-auto") throw error;
+      serviceType = "map-image";
+      layer = buildMapSublayer();
+      return this.#addLayer(layer, {
+        sourceType: serviceType,
+        url: cleanUrl,
+        title: common.title,
+        serviceLayerId: mapSublayer.id,
+        refreshInterval: Number(config.refreshInterval) || 0,
+      });
+    }
+  }
+
+  #parseMapSublayerUrl(url) {
+    try {
+      const parsed = new URL(url, location.href);
+      const match = parsed.pathname.match(/^(.*\/MapServer)\/(\d+)$/i);
+      if (!match) return null;
+      parsed.pathname = match[1];
+      return { rootUrl: parsed.href.replace(/\/$/, ""), id: Number(match[2]) };
+    } catch {
+      const match = String(url).match(/^(.*\/MapServer)\/(\d+)(?:[?#].*)?$/i);
+      return match ? { rootUrl: match[1], id: Number(match[2]) } : null;
+    }
   }
 
   #serviceTypeFromUrl(requestedType, url) {
@@ -257,9 +298,18 @@ export class MapController {
     if (config.refreshInterval > 0 && "refreshInterval" in layer) {
       layer.refreshInterval = config.refreshInterval;
     }
-    this.map.add(layer, Math.max(0, this.map.layers.length - 1));
     await layer.load();
-    if (!layer.title?.trim()) layer.title = this.#titleFromUrl(config.url || layer.url);
+    if ("elevationInfo" in layer) {
+      layer.elevationInfo = config.elevationInfo || { mode: "on-the-ground" };
+    }
+    if (config.serviceLayerId != null && !config.title) {
+      const sublayer = layer.findSublayerById?.(config.serviceLayerId);
+      const serviceTitle = this.#titleFromUrl(config.url || layer.url);
+      layer.title = sublayer?.title ? `${serviceTitle} — ${sublayer.title}` : serviceTitle;
+    } else if (!layer.title?.trim()) {
+      layer.title = this.#titleFromUrl(config.url || layer.url);
+    }
+    this.map.add(layer, Math.max(0, this.map.layers.length - 1));
     this.layerConfigs.set(layer.uid, { ...config });
     this.events.publish("layer:added", { layer, config: this.getLayerConfig(layer) });
     return layer;
@@ -308,6 +358,7 @@ export class MapController {
       visible: layer.visible,
       opacity: layer.opacity,
       refreshInterval: "refreshInterval" in layer ? layer.refreshInterval ?? 0 : 0,
+      elevationInfo: layer.elevationInfo?.toJSON?.() ?? source.elevationInfo ?? null,
       renderer: layer.renderer?.toJSON?.() ?? null,
     };
   }

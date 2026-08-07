@@ -19,6 +19,7 @@ export class IdentifyController {
     }
     try {
       const operationalLayers = this.mapController.getOperationalLayers();
+      const addressPromise = this.mapController.reverseGeocode(event.mapPoint);
       const response = operationalLayers.length
         ? await view.hitTest(event, { include: operationalLayers })
         : { results: [] };
@@ -32,9 +33,11 @@ export class IdentifyController {
         if (normalized.layerUid) hitLayerUids.add(normalized.layerUid);
       }
 
-      const fallback = await this.#queryQueryableLayers(event, hitLayerUids);
+      const [fallback, address] = await Promise.all([
+        this.#queryQueryableLayers(event, hitLayerUids),
+        addressPromise,
+      ]);
       results.push(...fallback);
-      const address = await this.mapController.reverseGeocode(event.mapPoint);
       if (requestId !== this.requestId) return;
       this.events.publish("identify:complete", {
         point: event.mapPoint,
@@ -51,11 +54,12 @@ export class IdentifyController {
     if (hit.type === "graphic" || hit.graphic) {
       const graphic = hit.graphic;
       const layer = graphic?.layer || graphic?.sourceLayer || graphic?.origin?.layer;
-      if (!this.#isOperationalLayer(layer)) return null;
+      const root = this.#operationalRoot(layer);
+      if (!root) return null;
       return {
         kind: "feature",
-        layerUid: layer?.uid ?? null,
-        layerTitle: layer?.title ?? "Map feature",
+        layerUid: root.uid,
+        layerTitle: graphic?.sourceLayer?.title ?? layer?.title ?? root.title ?? "Map feature",
         attributes: graphic?.attributes ?? {},
         geometry: graphic?.geometry ?? null,
         graphic,
@@ -75,22 +79,25 @@ export class IdentifyController {
     return null;
   }
 
-  #isOperationalLayer(layer) {
-    if (!layer) return false;
+  #operationalRoot(layer) {
+    if (!layer) return null;
     const roots = this.mapController.getOperationalLayers();
     let current = layer;
     while (current) {
-      if (roots.includes(current)) return true;
+      if (roots.includes(current)) return current;
       current = current.parent;
     }
-    return roots.some((root) => root.allSublayers?.includes?.(layer));
+    return roots.find((root) => root.allSublayers?.includes?.(layer)) ?? null;
   }
 
   async #queryQueryableLayers(event, hitLayerUids) {
     const layers = this.#flattenQueryableLayers(this.mapController.getOperationalLayers());
     const extent = this.#clickExtent(event);
     const jobs = layers
-      .filter((layer) => layer.visible !== false && !hitLayerUids.has(layer.uid))
+      .filter((layer) => {
+        const root = this.#operationalRoot(layer);
+        return layer.visible !== false && root?.visible !== false && !hitLayerUids.has(root?.uid);
+      })
       .map(async (layer) => {
         try {
           if (typeof layer.queryFeatures === "function") {
@@ -103,9 +110,10 @@ export class IdentifyController {
               num: 10,
             });
             const set = await layer.queryFeatures(query);
+            const root = this.#operationalRoot(layer);
             return (set.features ?? []).map((graphic) => ({
               kind: "feature",
-              layerUid: layer.uid,
+              layerUid: root?.uid ?? layer.uid,
               layerTitle: layer.title ?? layer.parent?.title ?? "Layer",
               attributes: graphic.attributes ?? {},
               geometry: graphic.geometry ?? null,
@@ -141,26 +149,37 @@ export class IdentifyController {
 
   #clickExtent(event) {
     const view = this.mapController.view;
-    const a = view.toMap({ x: event.x - 5, y: event.y - 5 });
-    const b = view.toMap({ x: event.x + 5, y: event.y + 5 });
-    if (!a || !b) {
-      const tolerance = Math.max(view.resolution * 6, 0.00001);
+    const samples = [
+      event.mapPoint,
+      view.toMap({ x: event.x - 8, y: event.y }),
+      view.toMap({ x: event.x + 8, y: event.y }),
+      view.toMap({ x: event.x, y: event.y - 8 }),
+      view.toMap({ x: event.x, y: event.y + 8 }),
+    ].filter(Boolean);
+    if (samples.length > 1) {
       return {
         type: "extent",
-        xmin: event.mapPoint.x - tolerance,
-        ymin: event.mapPoint.y - tolerance,
-        xmax: event.mapPoint.x + tolerance,
-        ymax: event.mapPoint.y + tolerance,
+        xmin: Math.min(...samples.map((point) => point.x)),
+        ymin: Math.min(...samples.map((point) => point.y)),
+        xmax: Math.max(...samples.map((point) => point.x)),
+        ymax: Math.max(...samples.map((point) => point.y)),
         spatialReference: event.mapPoint.spatialReference,
       };
     }
+    const groundMeters = Math.max(5, Number(view.scale || 10000) * 0.000264583 * 8);
+    const geographic = Boolean(event.mapPoint.spatialReference?.isGeographic);
+    const latitude = event.mapPoint.latitude ?? event.mapPoint.y;
+    const dx = geographic
+      ? groundMeters / Math.max(111320 * Math.cos((latitude * Math.PI) / 180), 1000)
+      : groundMeters;
+    const dy = geographic ? groundMeters / 110540 : groundMeters;
     return {
       type: "extent",
-      xmin: Math.min(a.x, b.x),
-      ymin: Math.min(a.y, b.y),
-      xmax: Math.max(a.x, b.x),
-      ymax: Math.max(a.y, b.y),
-      spatialReference: view.spatialReference,
+      xmin: event.mapPoint.x - dx,
+      ymin: event.mapPoint.y - dy,
+      xmax: event.mapPoint.x + dx,
+      ymax: event.mapPoint.y + dy,
+      spatialReference: event.mapPoint.spatialReference,
     };
   }
 

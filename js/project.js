@@ -110,6 +110,7 @@ export class ProjectManager {
             serviceType: this.#serviceTypeFor(layer),
             opacity: layer.opacity,
             visible: layer.visible,
+            elevationInfo: layer.elevationInfo,
             refreshInterval: layer.refreshInterval,
           });
           await this.#restoreLayerPresentation(added, layer);
@@ -148,8 +149,10 @@ export class ProjectManager {
 
   exportJson() {
     const project = this.snapshot();
-    const blob = new Blob([JSON.stringify(project, null, 2)], { type: "application/json" });
-    downloadBlob(blob, `${this.#exportName(project)}.gismap.json`);
+    const blob = new Blob([JSON.stringify(project, null, 2)], {
+      type: "application/vnd.gismap.online.project+json",
+    });
+    downloadBlob(blob, `${this.#exportName(project)}.gmo`);
     this.events.publish("project:exported", { kind: "json" });
   }
 
@@ -168,12 +171,12 @@ export class ProjectManager {
       "GIS Map Online project package\nOpen https://gismap.online and choose Project > Import project file.\n",
     );
     const blob = await zip.generateAsync({ type: "blob", compression: "DEFLATE" });
-    downloadBlob(blob, `${this.#exportName(project)}.gismap.zip`);
+    downloadBlob(blob, `${this.#exportName(project)}.gmop`);
     this.events.publish("project:exported", { kind: "package" });
   }
 
   async importFile(file) {
-    if (/\.zip$/i.test(file.name) || /\.gismap$/i.test(file.name)) {
+    if (/\.(?:zip|gmop|gismap)$/i.test(file.name)) {
       if (!globalThis.JSZip) throw new Error("The ZIP library did not load.");
       const zip = await JSZip.loadAsync(file);
       const projectEntry = zip.file("project.json");
@@ -219,7 +222,7 @@ export class ProjectManager {
   #exportName(project) {
     const date = new Date(project.updatedAt || Date.now());
     const pad = (value) => String(value).padStart(2, "0");
-    const timestamp = `${date.getFullYear()}${pad(date.getMonth() + 1)}${pad(date.getDate())}${pad(date.getHours())}${pad(date.getSeconds())}`;
+    const timestamp = `${date.getFullYear()}${pad(date.getMonth() + 1)}${pad(date.getDate())}${pad(date.getHours())}${pad(date.getMinutes())}`;
     return `${timestamp}-${this.#safeName(project.name)}`;
   }
 }

@@ -17,8 +17,8 @@ Then open `http://localhost:8080`.
 - `js/map.js` — 3D scene/camera lifecycle, elevation ground, layer adapters, drawing, refresh, rendering, navigation
 - `js/identify.js` — popup-free hit testing and query fallback normalized across layer types
 - `js/ui.js` — sidebar, menus, dialogs, layer controls, places, and insight rendering
-- `js/project.js` — local projects plus JSON/ZIP import and export
-- `js/attribute-table.js` — paginated queryable layer table
+- `js/project.js` — local projects plus `.gmo` project and `.gmop` package import/export (legacy JSON/ZIP files remain supported)
+- `js/attribute-table.js` — searchable, paginated queryable layer table in a non-modal map drawer
 - `js/ai.js` — optional Ollama, OpenAI, Anthropic, and OpenAI-compatible adapters; online tokens stay in memory only
 - `js/tool-manager.js` — opt-in local JavaScript tool registration
 - `js/events.js` — pub/sub event bus
@@ -29,6 +29,8 @@ Then open `http://localhost:8080`.
 
 - Remote GIS/AI services must allow this site's origin through CORS.
 - GeoJSON URLs load as native, queryable `GeoJSONLayer` instances and retain refresh, styling, and table settings in project files.
+- ArcGIS MapServer sublayer URLs are detected automatically, including raster sublayers that must be loaded through their parent `MapImageLayer`.
+- Vector operational layers are explicitly draped on the scene ground so Z-enabled feeds such as USGS earthquake data do not fall beneath terrain.
 - AI controls appear in Intelligence only while a provider is fully configured. Online API tokens are never persisted or included in exports.
 - Local KML/KMZ is converted to GeoJSON in the browser; uncommon KML extensions may not be preserved.
 - A zipped shapefile must include its `.shp`, `.shx`, and `.dbf` components.

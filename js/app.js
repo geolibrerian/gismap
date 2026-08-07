@@ -1,11 +1,11 @@
-import { events } from "./events.js?v=0.2.0";
-import { MapController } from "./map.js?v=0.2.6";
-import { ProjectManager } from "./project.js?v=0.2.6";
-import { IdentifyController } from "./identify.js?v=0.2.3";
-import { AttributeTableController } from "./attribute-table.js?v=0.2.0";
+import { events } from "./events.js?v=0.3.2";
+import { MapController } from "./map.js?v=0.3.2";
+import { ProjectManager } from "./project.js?v=0.3.2";
+import { IdentifyController } from "./identify.js?v=0.3.2";
+import { AttributeTableController } from "./attribute-table.js?v=0.3.2";
 import { AIController } from "./ai.js?v=0.2.6";
 import { ToolManager } from "./tool-manager.js?v=0.2.0";
-import { UIController } from "./ui.js?v=0.2.6";
+import { UIController } from "./ui.js?v=0.3.2";
 
 async function start() {
   const mapController = new MapController(events);

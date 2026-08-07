@@ -11,12 +11,28 @@
     <link rel="icon" href="./assets/favicon.ico" sizes="any" />
     <link rel="preconnect" href="https://js.arcgis.com" />
     <link rel="stylesheet" href="https://js.arcgis.com/5.0/esri/themes/light/main.css" />
-    <link rel="stylesheet" href="./css/app.css?v=0.2.4" />
+    <link rel="stylesheet" href="./css/app.css?v=0.3.2" />
     <script type="module" src="https://js.arcgis.com/5.0/"></script>
     <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
   </head>
   <body>
     <div id="app" class="app-shell">
+      <header class="mobile-app-bar">
+        <div class="mobile-app-bar__title">
+          <img src="./assets/favicon.ico" alt="" />
+          <strong>GIS Map Online</strong>
+        </div>
+        <button
+          id="mobile-menu-toggle"
+          class="mobile-app-bar__menu"
+          type="button"
+          aria-label="Open application menu"
+          aria-controls="mobile-menu-drawer"
+          aria-expanded="false"
+        >☰</button>
+      </header>
+      <div id="mobile-menu-drawer" class="mobile-menu-drawer" hidden></div>
+
       <aside id="sidebar" class="sidebar" aria-label="GIS Map Online tools">
         <header class="brand">
           <img src="./assets/gis-map-online-logo.png" alt="GIS Map Online" class="brand__logo" />
@@ -31,8 +47,8 @@
               <button data-action="project-create">Create project</button>
               <button data-action="project-save">Save project</button>
               <hr />
-              <button data-action="project-export">Export project JSON</button>
-              <button data-action="project-package">Export project package</button>
+              <button data-action="project-export">Export project (.gmo)</button>
+              <button data-action="project-package">Export package (.gmop)</button>
               <button data-action="project-import">Import project file</button>
             </div>
           </div>
@@ -58,6 +74,13 @@
               <button data-basemap="dark-gray-3d">3D Dark gray</button>
               <button data-basemap="streets-3d">3D Streets</button>
               <button data-basemap="streets-dark-3d">3D Streets — dark</button>
+              <span class="menu__label">2D basemaps</span>
+              <button data-basemap="topo-vector">Topographic</button>
+              <button data-basemap="streets-vector">Streets</button>
+              <button data-basemap="navigation">Navigation</button>
+              <button data-basemap="gray-vector">Light gray</button>
+              <button data-basemap="dark-gray-vector">Dark gray</button>
+              <button data-basemap="osm">OpenStreetMap</button>
               <span class="menu__label">Imagery</span>
               <button data-basemap="satellite">Satellite</button>
               <button data-basemap="hybrid">Satellite + labels</button>
@@ -82,8 +105,16 @@
           </div>
         </nav>
 
+        <nav class="mobile-panel-nav" aria-label="Panel sections">
+          <button type="button" data-mobile-panel="places-panel" aria-label="Places" title="Places">⌖</button>
+          <button type="button" data-mobile-panel="draw-panel" aria-label="Draw" title="Draw">✎</button>
+          <button type="button" data-mobile-panel="intelligence-panel" aria-label="Intelligence" title="Intelligence">i</button>
+          <button type="button" data-mobile-panel="layers-panel" aria-label="Layers" title="Layers">▱</button>
+          <button id="mobile-panel-close" type="button" aria-label="Close tools panel" title="Close panel">⌄</button>
+        </nav>
+
         <div class="sidebar__scroll">
-          <details class="panel" open>
+          <details id="places-panel" class="panel is-mobile-active" open>
             <summary><span>Places</span><small>Search &amp; bookmarks</small></summary>
             <div class="panel__body">
               <form id="place-search" class="search-row">
@@ -100,7 +131,7 @@
             </div>
           </details>
 
-          <details class="panel">
+          <details id="draw-panel" class="panel">
             <summary><span>Draw</span><small>Graphics layer</small></summary>
             <div class="panel__body draw-tools">
               <button data-draw="point">Point</button>
@@ -118,7 +149,7 @@
             </div>
           </details>
 
-          <details class="panel layers-panel" open>
+          <details id="layers-panel" class="panel layers-panel" open>
             <summary><span>Layers</span><small id="layer-count">0 loaded</small></summary>
             <div class="panel__body">
               <div id="layers-list" class="layers-list">
@@ -142,7 +173,7 @@
           aria-label="Open panel"
           aria-controls="sidebar"
           aria-expanded="false"
-        >☰</button>
+        >▦</button>
         <div class="map-nav" aria-label="Map navigation">
           <button data-nav="home" title="Default extent">⌂</button>
           <button data-nav="locate" title="My location">◎</button>
@@ -182,7 +213,15 @@
           <div><span class="eyebrow">Attribute table</span><h2 id="table-title">Layer</h2></div>
           <button id="table-close" class="icon-button" aria-label="Close">×</button>
         </header>
-        <div id="table-summary" class="table-summary"></div>
+        <div class="table-tools">
+          <div id="table-summary" class="table-summary"></div>
+          <form id="table-search" class="table-search">
+            <label class="sr-only" for="table-search-input">Search layer attributes</label>
+            <input id="table-search-input" type="search" placeholder="Search features…" autocomplete="off" />
+            <button type="submit">Search</button>
+            <button id="table-search-clear" type="button" class="button--quiet" hidden>Clear</button>
+          </form>
+        </div>
         <div id="table-content" class="table-scroll"></div>
         <footer class="table-footer">
           <button id="table-prev">← Previous</button>
@@ -192,11 +231,11 @@
       </div>
     </dialog>
 
-    <input id="project-file-input" type="file" accept=".json,.gismap,.zip" hidden />
+    <input id="project-file-input" type="file" accept=".gmo,.gmop,.json,.gismap,.zip" hidden />
     <input id="data-file-input" type="file" accept=".json,.geojson,.kml,.kmz,.zip" multiple hidden />
     <input id="tool-file-input" type="file" accept=".js,.mjs" hidden />
 
     <noscript>GIS Map Online requires JavaScript.</noscript>
-    <script type="module" src="./js/app.js?v=0.2.6"></script>
+    <script type="module" src="./js/app.js?v=0.3.2"></script>
   </body>
 </html>
