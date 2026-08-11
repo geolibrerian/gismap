@@ -179,6 +179,27 @@ dialog::backdrop { background: rgb(12 28 23 / 48%); backdrop-filter: blur(3px); 
 .connection-status--testing { color: #71520e; background: #f8ebc8; }
 .connection-status--success { color: #145642; background: #dff2ea; }
 .connection-status--error { color: #70291f; background: #fbebe8; }
+.connection-manager { display: grid; gap: 14px; }
+.connection-list { display: grid; gap: 8px; }
+.connection-card { display: grid; gap: 9px; padding: 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
+.connection-card__head { display: flex; justify-content: space-between; align-items: start; gap: 12px; }
+.connection-card__head strong, .connection-card__head small { display: block; }
+.connection-card__head strong { font-size: 13px; }
+.connection-card__head small { margin-top: 2px; color: var(--muted); font-size: 9px; text-transform: uppercase; letter-spacing: .06em; }
+.connection-card > code { overflow: hidden; color: var(--muted); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+.connection-card__actions { display: flex; gap: 6px; }
+.connection-card__actions button, .inline-primary, .copy-field button { border: 1px solid var(--line); border-radius: 6px; padding: 7px 10px; background: var(--surface); cursor: pointer; font-size: 11px; }
+.connection-card__actions button:first-child, .inline-primary { border-color: var(--green); color: white; background: var(--green); }
+.connection-card__actions button:disabled, .inline-primary:disabled { opacity: .6; cursor: wait; }
+.connection-badge { flex: 0 0 auto; padding: 4px 7px; border-radius: 999px; color: #71520e; background: #f8ebc8; font-size: 9px; }
+.connection-badge.is-connected { color: #145642; background: #dff2ea; }
+.connection-setup { border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
+.connection-setup > summary { padding: 12px; cursor: pointer; font-size: 12px; font-weight: 700; }
+.connection-setup > summary small { color: var(--muted); font-weight: 400; }
+.connection-setup__body { padding: 2px 12px 14px; border-top: 1px solid var(--surface-2); }
+.copy-field { display: grid; grid-template-columns: 1fr auto; gap: 6px; }
+.copy-field input { min-width: 0; }
+.connection-security { font-size: 11px; }
 .warning-box { padding: 14px; border: 1px solid #e3b1a9; border-radius: 8px; color: #70291f; background: #fbebe8; font-size: 12px; }
 .warning-box p { margin: 5px 0 0; }
 .project-list, .catalog-list { display: grid; gap: 8px; }

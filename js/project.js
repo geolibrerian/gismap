@@ -14,9 +14,10 @@ function downloadBlob(blob, fileName) {
 }
 
 export class ProjectManager {
-  constructor(events, mapController) {
+  constructor(events, mapController, authController = null) {
     this.events = events;
     this.mapController = mapController;
+    this.authController = authController;
     this.current = this.#blank("Untitled project");
   }
 
@@ -35,6 +36,7 @@ export class ProjectManager {
       bookmarks: [],
       tools: [],
       ai: { provider: null, model: null },
+      connections: [],
     };
   }
 
@@ -63,6 +65,7 @@ export class ProjectManager {
       ground: this.mapController.getGroundId(),
       view: this.mapController.getViewState(),
       layers: this.mapController.getAllLayerConfigs().map(({ uid, ...layer }) => layer),
+      connections: this.authController?.exportConnections() ?? this.current.connections ?? [],
     };
     return structuredClone(this.current);
   }
@@ -88,6 +91,7 @@ export class ProjectManager {
     if (!project || project.version !== 1 || !Array.isArray(project.layers)) {
       throw new Error("This is not a supported GIS Map Online project file.");
     }
+    this.authController?.importConnections(project.connections ?? []);
     await this.mapController.clearOperationalLayers();
     this.mapController.setBasemap(project.basemap || "topo-3d");
     this.mapController.setGround(project.ground || "world-elevation");

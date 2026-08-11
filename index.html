@@ -11,7 +11,7 @@
     <link rel="icon" href="./assets/favicon.ico" sizes="any" />
     <link rel="preconnect" href="https://js.arcgis.com" />
     <link rel="stylesheet" href="https://js.arcgis.com/5.0/esri/themes/light/main.css" />
-    <link rel="stylesheet" href="./css/app.css?v=0.3.3" />
+    <link rel="stylesheet" href="./css/app.css?v=0.4.0" />
     <script type="module" src="https://js.arcgis.com/5.0/"></script>
     <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
   </head>
@@ -98,6 +98,8 @@
           <div class="menu">
             <button class="menu__trigger" aria-expanded="false">Tools <span>⌄</span></button>
             <div class="menu__content" role="menu">
+              <button data-action="tools-connections">ArcGIS connections</button>
+              <hr />
               <button data-action="tools-custom">Load custom JavaScript tool</button>
               <button data-action="tools-ai">Configure AI</button>
               <button data-action="tools-about">About this build</button>
@@ -236,6 +238,6 @@
     <input id="tool-file-input" type="file" accept=".js,.mjs" hidden />
 
     <noscript>GIS Map Online requires JavaScript.</noscript>
-    <script type="module" src="./js/app.js?v=0.3.3"></script>
+    <script type="module" src="./js/app.js?v=0.4.0"></script>
   </body>
 </html>

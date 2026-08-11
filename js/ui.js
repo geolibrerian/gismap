@@ -11,8 +11,8 @@ const escapeHtml = (value) =>
   })[char]);
 
 export class UIController {
-  constructor(events, mapController, projectManager, aiController, toolManager) {
-    Object.assign(this, { events, mapController, projectManager, aiController, toolManager });
+  constructor(events, mapController, projectManager, authController, aiController, toolManager) {
+    Object.assign(this, { events, mapController, projectManager, authController, aiController, toolManager });
     this.dialog = document.querySelector("#app-dialog");
     this.searchResults = [];
     this.lastInsight = null;
@@ -158,6 +158,9 @@ export class UIController {
       }),
     );
     this.events.subscribe("tool:loaded", ({ tool }) => this.toast(`Custom tool loaded: ${tool.title || tool.id}`));
+    this.events.subscribe("auth:status-changed", ({ connection, status }) => {
+      if (connection && status?.signedIn) this.toast(`Connected to ${connection.name}${status.userId ? ` as ${status.userId}` : ""}.`);
+    });
     this.events.subscribe("app:error", ({ message }) => this.error(message));
   }
 
@@ -219,6 +222,9 @@ export class UIController {
           break;
         case "tools-custom":
           this.#customToolDialog();
+          break;
+        case "tools-connections":
+          this.#connectionsDialog();
           break;
         case "tools-ai":
           this.#aiDialog();
@@ -294,7 +300,7 @@ export class UIController {
         <label class="field"><span>Layer title <small>optional</small></span><input id="service-title" /></label>
         ${isWms || isGeoJson ? "" : `<label class="field"><span>Service type</span><select id="service-type"><option value="arcgis-auto">Detect automatically</option><option value="feature">Feature service / layer</option><option value="map-image">Map service</option><option value="imagery">Image service</option></select></label>`}
         <label class="field"><span>Refresh every <small>minutes; 0 disables</small></span><input id="service-refresh" type="number" min="0" step="0.5" value="0" /></label>
-        <p class="form-note">${isGeoJson ? "The URL must return RFC 7946 GeoJSON and allow browser requests through CORS. It will load as a native ArcGIS GeoJSONLayer with querying, styling, tables, and refresh support." : "The remote server must allow cross-origin browser requests (CORS). Secured services may require a token or configured portal."}</p>`,
+        <p class="form-note">${isGeoJson ? "The URL must return RFC 7946 GeoJSON and allow browser requests through CORS. It will load as a native ArcGIS GeoJSONLayer with querying, styling, tables, and refresh support." : "The remote server must allow cross-origin browser requests (CORS). For secured services, configure and sign in under Tools → ArcGIS connections first."}</p>`,
       actions: [{ label: isGeoJson ? "Add GeoJSON feed" : "Add service", primary: true, handler: async () => {
         const button = this.dialog.querySelector(".button--primary");
         button.disabled = true;
@@ -409,6 +415,144 @@ export class UIController {
     });
   }
 
+  #connectionsDialog() {
+    const callbackUrl = this.authController.getCallbackUrl();
+    const connections = this.authController.list();
+    const connectionCards = connections.length
+      ? connections.map((connection) => {
+          const url = connection.type === "portal" ? connection.portalUrl : connection.serverUrl;
+          return `<article class="connection-card" data-connection-id="${escapeHtml(connection.id)}">
+            <div class="connection-card__head">
+              <div><strong>${escapeHtml(connection.name)}</strong><small>${connection.type === "portal" ? "Portal / ArcGIS Online OAuth" : "Standalone ArcGIS Server"}</small></div>
+              <span class="connection-badge" data-connection-status>Checking…</span>
+            </div>
+            <code title="${escapeHtml(url)}">${escapeHtml(url)}</code>
+            <div class="connection-card__actions">
+              <button type="button" data-connect-id="${escapeHtml(connection.id)}">Connect</button>
+              <button type="button" class="button--quiet" data-remove-connection="${escapeHtml(connection.id)}">Remove</button>
+            </div>
+          </article>`;
+        }).join("")
+      : '<div class="empty-state">No ArcGIS identity connections are configured in this browser.</div>';
+
+    this.openDialog({
+      eyebrow: "IdentityManager + OAuthInfo",
+      title: "ArcGIS connections",
+      content: `<section class="connection-manager">
+          <div id="connection-list" class="connection-list">${connectionCards}</div>
+
+          <details class="connection-setup" open>
+            <summary>Add Portal or ArcGIS Online</summary>
+            <div class="connection-setup__body">
+              <div class="field-grid">
+                <label class="field"><span>Connection name <small>optional</small></span><input id="portal-connection-name" placeholder="Acme GIS" /></label>
+                <label class="field"><span>Portal URL</span><input id="portal-connection-url" type="url" value="https://www.arcgis.com" placeholder="https://gis.example.com/portal" /></label>
+              </div>
+              <label class="field"><span>GIS Map application / Client ID</span><input id="portal-client-id" autocomplete="off" placeholder="Public OAuth application ID" /></label>
+              <label class="field"><span>Redirect URI to register in Portal</span><div class="copy-field"><input id="portal-callback-url" readonly value="${escapeHtml(callbackUrl)}" /><button type="button" id="copy-callback-url">Copy</button></div></label>
+              <button type="button" id="add-portal-connection" class="inline-primary">Save &amp; connect</button>
+              <p class="form-note">The organization administrator registers GIS Map Online once and supplies this public Client ID. Sign-in uses OAuth authorization code + PKCE when supported; no client secret belongs in this browser app.</p>
+            </div>
+          </details>
+
+          <details class="connection-setup">
+            <summary>Add standalone ArcGIS Server <small>secondary method</small></summary>
+            <div class="connection-setup__body">
+              <label class="field"><span>Connection name <small>optional</small></span><input id="server-connection-name" placeholder="Parcel server" /></label>
+              <label class="field"><span>ArcGIS Server root URL</span><input id="server-connection-url" type="url" placeholder="https://gis.example.com/server" /></label>
+              <label class="field"><span>Token service URL <small>defaults to /tokens/</small></span><input id="server-token-url" type="url" placeholder="https://gis.example.com/server/tokens/" /></label>
+              <button type="button" id="add-server-connection" class="inline-primary">Register &amp; sign in</button>
+              <p class="form-note">Use this only for a secured, non-federated ArcGIS Server. IdentityManager owns the credential challenge and token; GIS Map Online does not read or serialize the username, password, or token.</p>
+            </div>
+          </details>
+
+          <div class="warning-box connection-security"><strong>Project portability and security</strong><p>Connection names, URLs, and public Client IDs are saved locally and included in project exports. Credentials and access tokens are never added to a .gmo or .gmop file. Imported projects require a fresh sign-in. The Portal/Server must use HTTPS and allow this site through CORS.</p></div>
+        </section>`,
+      actions: connections.length ? [{ label: "Sign out all", handler: () => {
+        this.authController.signOutAll();
+        this.#connectionsDialog();
+        this.toast("Signed out of ArcGIS connections for this browser session.");
+      }}] : [],
+    });
+
+    const setBusy = (button, busy, label) => {
+      button.disabled = busy;
+      button.textContent = busy ? "Connecting…" : label;
+    };
+    this.dialog.querySelector("#copy-callback-url").addEventListener("click", async () => {
+      try {
+        await navigator.clipboard.writeText(callbackUrl);
+        this.toast("Redirect URI copied.");
+      } catch {
+        const input = this.dialog.querySelector("#portal-callback-url");
+        input.select();
+        this.toast("Redirect URI selected. Copy it from the field.");
+      }
+    });
+    this.dialog.querySelector("#add-portal-connection").addEventListener("click", async (event) => {
+      const button = event.currentTarget;
+      setBusy(button, true, "Save & connect");
+      try {
+        const connection = this.authController.addPortal({
+          name: this.dialog.querySelector("#portal-connection-name").value,
+          portalUrl: this.dialog.querySelector("#portal-connection-url").value,
+          clientId: this.dialog.querySelector("#portal-client-id").value,
+        });
+        await this.authController.connect(connection.id);
+        this.#connectionsDialog();
+      } catch (error) {
+        setBusy(button, false, "Save & connect");
+        this.error(error.message);
+      }
+    });
+    this.dialog.querySelector("#add-server-connection").addEventListener("click", async (event) => {
+      const button = event.currentTarget;
+      setBusy(button, true, "Register & sign in");
+      try {
+        const connection = this.authController.addServer({
+          name: this.dialog.querySelector("#server-connection-name").value,
+          serverUrl: this.dialog.querySelector("#server-connection-url").value,
+          tokenServiceUrl: this.dialog.querySelector("#server-token-url").value,
+        });
+        await this.authController.connect(connection.id);
+        this.#connectionsDialog();
+      } catch (error) {
+        setBusy(button, false, "Register & sign in");
+        this.error(error.message);
+      }
+    });
+    this.dialog.querySelectorAll("[data-connect-id]").forEach((button) => {
+      button.addEventListener("click", async () => {
+        setBusy(button, true, "Connect");
+        try {
+          await this.authController.connect(button.dataset.connectId);
+          this.#connectionsDialog();
+        } catch (error) {
+          setBusy(button, false, "Connect");
+          this.error(error.message);
+        }
+      });
+    });
+    this.dialog.querySelectorAll("[data-remove-connection]").forEach((button) => {
+      button.addEventListener("click", () => {
+        if (!confirm("Remove this connection definition and sign out of all ArcGIS connections?")) return;
+        this.authController.remove(button.dataset.removeConnection);
+        this.#connectionsDialog();
+      });
+    });
+    this.authController.getStatuses().then((items) => {
+      for (const { connection, status } of items) {
+        const card = this.dialog.querySelector(`[data-connection-id="${CSS.escape(connection.id)}"]`);
+        const badge = card?.querySelector("[data-connection-status]");
+        const connect = card?.querySelector("[data-connect-id]");
+        if (!badge) continue;
+        badge.textContent = status.signedIn ? status.userId || "Connected" : "Not signed in";
+        badge.classList.toggle("is-connected", status.signedIn);
+        if (connect) connect.textContent = status.signedIn ? "Reconnect" : "Connect";
+      }
+    }).catch(() => {});
+  }
+
   #aiDialog() {
     const config = this.aiController.config ?? {};
     const provider = config.provider || "ollama";
@@ -516,7 +660,7 @@ export class UIController {
     this.openDialog({
       eyebrow: "Foundation build",
       title: "GIS Map Online",
-      content: `<div class="about-copy"><p>A browser-only GIS viewer built around ArcGIS Maps SDK for JavaScript 5.0 and a topic-based event bus.</p><dl><div><dt>Runtime</dt><dd>Static HTML + ES modules</dd></div><div><dt>Persistence</dt><dd>localStorage + portable ZIP</dd></div><div><dt>Identify</dt><dd>Popup-free normalized results</dd></div><div><dt>Privacy</dt><dd>No application login or database</dd></div></dl></div>`,
+      content: `<div class="about-copy"><p>A browser-only GIS viewer built around ArcGIS Maps SDK for JavaScript 5.0 and a topic-based event bus.</p><dl><div><dt>Runtime</dt><dd>Static HTML + ES modules</dd></div><div><dt>Persistence</dt><dd>localStorage + portable ZIP</dd></div><div><dt>Identify</dt><dd>Popup-free normalized results</dd></div><div><dt>Identity</dt><dd>Optional ArcGIS OAuth / token authentication managed by the Esri SDK</dd></div><div><dt>Privacy</dt><dd>No GIS Map Online account or database; credentials are excluded from projects</dd></div></dl></div>`,
     });
   }
 
