@@ -1,5 +1,10 @@
 import assert from "node:assert/strict";
-import { MapController, parseArcGISFeatureQueryUrl } from "../js/map.js";
+import { MapController, parseArcGISFeatureQueryUrl, parseWfsUrl } from "../js/map.js";
+
+const wfs = parseWfsUrl("https://firms.modaps.eosdis.nasa.gov/mapserver/wfs/Canada/YourMapKey/?SERVICE=WFS&REQUEST=GetFeature&VERSION=2.0.0&TYPENAME=ms%3Afires_modis_24hrs&STARTINDEX=0&COUNT=1000&SRSNAME=urn%3Aogc%3Adef%3Acrs%3AEPSG%3A%3A4326&BBOX=-90%2C-180%2C90%2C180%2Curn%3Aogc%3Adef%3Acrs%3AEPSG%3A%3A4326&outputformat=csv");
+assert.equal(wfs.serviceUrl, "https://firms.modaps.eosdis.nasa.gov/mapserver/wfs/Canada/YourMapKey");
+assert.equal(wfs.wfsName, "ms:fires_modis_24hrs");
+assert.deepEqual(wfs.customParameters, {});
 
 const parsed = parseArcGISFeatureQueryUrl(
   "https://services3.arcgis.com/T4QMspbfLg3qTGWY/arcgis/rest/services/WFIGS_Interagency_Perimeters/FeatureServer/0/query?where=1%3D1&outFields=*&outSR=4326&f=json",
@@ -27,10 +32,19 @@ class FakeFeatureLayer {
   async load() {}
 }
 
+class FakeWFSLayer extends FakeFeatureLayer {
+  constructor(properties) {
+    super(properties);
+    this.uid = "wfs-layer";
+    this.type = "wfs";
+  }
+}
+
 const controller = new MapController({ publish() {} });
 controller.setDefaultBasemap("hybrid");
 assert.equal(controller.getDefaultBasemapId(), "hybrid");
 controller.modules.FeatureLayer = FakeFeatureLayer;
+controller.modules.WFSLayer = FakeWFSLayer;
 controller.map = {
   layers: { length: 1 },
   add(layer) { this.added = layer; },
@@ -52,6 +66,13 @@ const directLayer = await controller.addService({
   serviceType: "feature",
 });
 assert.deepEqual(directLayer.outFields, ["*"]);
+const wfsLayer = await controller.addService({
+  url: "https://example.com/wfs?SERVICE=WFS&REQUEST=GetFeature&TYPENAME=demo%3Afires&token=public-key",
+  serviceType: "wfs",
+});
+assert.equal(wfsLayer.url, "https://example.com/wfs");
+assert.equal(wfsLayer.name, "demo:fires");
+assert.deepEqual(wfsLayer.customParameters, { token: "public-key" });
 
 let navigation;
 controller.view = { goTo(value) { navigation = value; } };

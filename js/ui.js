@@ -234,6 +234,9 @@ export class UIController {
         case "data-wms":
           this.#serviceDialog("wms");
           break;
+        case "data-wfs":
+          this.#serviceDialog("wfs");
+          break;
         case "data-popular":
           this.#popularDataDialog();
           break;
@@ -347,22 +350,26 @@ export class UIController {
 
   #serviceDialog(serviceType) {
     const isWms = serviceType === "wms";
+    const isWfs = serviceType === "wfs";
     const isGeoJson = serviceType === "geojson";
-    const title = isWms ? "Add WMS service" : isGeoJson ? "Add GeoJSON URL / feed" : "Add ArcGIS REST service";
+    const title = isWms ? "Add WMS service" : isWfs ? "Add WFS service" : isGeoJson ? "Add GeoJSON URL / feed" : "Add ArcGIS REST service";
     const placeholder = isWms
       ? "https://server.example/geoserver/wms"
+      : isWfs
+        ? "https://server.example/geoserver/wfs?SERVICE=WFS&REQUEST=GetFeature&TYPENAMES=workspace:layer"
       : isGeoJson
         ? "https://example.org/data/feed.geojson"
         : "https://server.example/arcgis/rest/services/...";
     this.openDialog({
-      eyebrow: isGeoJson ? "Open vector data feed" : isWms ? "Open geospatial service" : "ArcGIS Enterprise / Online",
+      eyebrow: isGeoJson ? "Open vector data feed" : isWms || isWfs ? "Open geospatial service" : "ArcGIS Enterprise / Online",
       title,
-      content: `<label class="field"><span>${isGeoJson ? "GeoJSON URL" : "Service URL"}</span><input id="service-url" type="url" placeholder="${placeholder}" /></label>
+      content: `<label class="field"><span>${isGeoJson ? "GeoJSON URL" : isWfs ? "WFS endpoint or GetFeature URL" : "Service URL"}</span><input id="service-url" type="url" placeholder="${placeholder}" /></label>
         <label class="field"><span>Layer title <small>optional</small></span><input id="service-title" /></label>
-        ${isWms || isGeoJson ? "" : `<label class="field"><span>Service type</span><select id="service-type"><option value="arcgis-auto">Detect automatically</option><option value="feature">Feature service / layer</option><option value="map-image">Map service</option><option value="imagery">Image service</option></select></label>`}
+        ${isWfs ? '<label class="field"><span>Feature type <small>optional when included as TYPENAME in the URL</small></span><input id="wfs-name" placeholder="workspace:layer_name" /></label>' : ""}
+        ${isWms || isWfs || isGeoJson ? "" : `<label class="field"><span>Service type</span><select id="service-type"><option value="arcgis-auto">Detect automatically</option><option value="feature">Feature service / layer</option><option value="map-image">Map service</option><option value="imagery">Image service</option></select></label>`}
         <label class="field"><span>Refresh every <small>minutes; 0 disables</small></span><input id="service-refresh" type="number" min="0" step="0.5" value="0" /></label>
-        <p class="form-note">${isGeoJson ? "The URL must return RFC 7946 GeoJSON and allow browser requests through CORS. It will load as a native ArcGIS GeoJSONLayer with querying, styling, tables, and refresh support." : "Layer URLs and FeatureServer /query URLs are supported. Query URLs apply their where and outFields parameters; geometry is projected into the map automatically. The remote server must allow cross-origin browser requests (CORS)."}</p>`,
-      actions: [{ label: isGeoJson ? "Add GeoJSON feed" : "Add service", primary: true, handler: async () => {
+        <p class="form-note">${isGeoJson ? "The URL must return RFC 7946 GeoJSON and allow browser requests through CORS. It will load as a native ArcGIS GeoJSONLayer with querying, styling, tables, and refresh support." : isWfs ? "Requires WFS 2.0, GeoJSON output advertised by the server, and browser CORS access. Full GetFeature URLs are reduced to the service endpoint and their TYPENAME is detected automatically." : "Layer URLs and FeatureServer /query URLs are supported. Query URLs apply their where and outFields parameters; geometry is projected into the map automatically. The remote server must allow cross-origin browser requests (CORS)."}</p>`,
+      actions: [{ label: isGeoJson ? "Add GeoJSON feed" : isWfs ? "Add WFS layer" : "Add service", primary: true, handler: async () => {
         const button = this.dialog.querySelector(".button--primary");
         button.disabled = true;
         button.textContent = "Adding…";
@@ -370,7 +377,8 @@ export class UIController {
           const layer = await this.mapController.addService({
             url: this.dialog.querySelector("#service-url").value,
             title: this.dialog.querySelector("#service-title").value,
-            serviceType: isWms ? "wms" : isGeoJson ? "geojson" : this.dialog.querySelector("#service-type").value,
+            serviceType: isWms ? "wms" : isWfs ? "wfs" : isGeoJson ? "geojson" : this.dialog.querySelector("#service-type").value,
+            wfsName: isWfs ? this.dialog.querySelector("#wfs-name").value : undefined,
             refreshInterval: Number(this.dialog.querySelector("#service-refresh").value),
           });
           this.dialog.close();
@@ -378,7 +386,7 @@ export class UIController {
           if (layer.fullExtent) await this.mapController.goToLayer(layer).catch(() => {});
         } catch (error) {
           button.disabled = false;
-          button.textContent = isGeoJson ? "Add GeoJSON feed" : "Add service";
+          button.textContent = isGeoJson ? "Add GeoJSON feed" : isWfs ? "Add WFS layer" : "Add service";
           this.error(error.message);
         }
       }}],

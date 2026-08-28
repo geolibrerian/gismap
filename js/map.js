@@ -28,6 +28,27 @@ export function parseArcGISFeatureQueryUrl(value) {
   }
 }
 
+export function parseWfsUrl(value) {
+  const parsed = new URL(String(value).trim());
+  const parameter = (name) => [...parsed.searchParams]
+    .find(([key]) => key.toLowerCase() === name.toLowerCase())?.[1]?.trim() || null;
+  const wfsName = parameter("typeNames") || parameter("typeName");
+  const standard = new Set([
+    "service", "request", "version", "typenames", "typename", "startindex", "count",
+    "srsname", "bbox", "outputformat",
+  ]);
+  const customParameters = Object.fromEntries(
+    [...parsed.searchParams].filter(([key]) => !standard.has(key.toLowerCase())),
+  );
+  parsed.search = "";
+  parsed.hash = "";
+  return {
+    serviceUrl: parsed.href.replace(/\/$/, ""),
+    wfsName,
+    customParameters,
+  };
+}
+
 export class MapController {
   constructor(events) {
     this.events = events;
@@ -59,6 +80,7 @@ export class MapController {
       "@arcgis/core/layers/MapImageLayer.js",
       "@arcgis/core/layers/ImageryLayer.js",
       "@arcgis/core/layers/WMSLayer.js",
+      "@arcgis/core/layers/WFSLayer.js",
       "@arcgis/core/layers/KMLLayer.js",
       "@arcgis/core/layers/GeoJSONLayer.js",
       "@arcgis/core/layers/GraphicsLayer.js",
@@ -76,6 +98,7 @@ export class MapController {
       MapImageLayer,
       ImageryLayer,
       WMSLayer,
+      WFSLayer,
       KMLLayer,
       GeoJSONLayer,
       GraphicsLayer,
@@ -94,6 +117,7 @@ export class MapController {
       MapImageLayer,
       ImageryLayer,
       WMSLayer,
+      WFSLayer,
       KMLLayer,
       GeoJSONLayer,
       GraphicsLayer,
@@ -171,12 +195,13 @@ export class MapController {
     const cleanUrl = config.url?.trim().replace(/\/$/, "");
     if (!cleanUrl) throw new Error("A service URL is required.");
     const featureQuery = parseArcGISFeatureQueryUrl(cleanUrl);
+    const wfs = config.serviceType === "wfs" ? parseWfsUrl(cleanUrl) : null;
     let serviceType = this.#serviceTypeFromUrl(config.serviceType, cleanUrl);
     if (featureQuery) serviceType = "feature";
     const mapSublayer = this.#parseMapSublayerUrl(cleanUrl);
     let layer;
     const common = {
-      url: featureQuery?.layerUrl ?? cleanUrl,
+      url: wfs?.serviceUrl ?? featureQuery?.layerUrl ?? cleanUrl,
       title: config.title?.trim() || undefined,
       opacity: Number.isFinite(config.opacity) ? config.opacity : 1,
       visible: config.visible !== false,
@@ -212,6 +237,13 @@ export class MapController {
         case "wms":
           layer = new this.modules.WMSLayer(common);
           break;
+        case "wfs":
+          layer = new this.modules.WFSLayer({
+            ...common,
+            name: config.wfsName?.trim() || wfs?.wfsName || undefined,
+            customParameters: config.customParameters ?? wfs?.customParameters,
+          });
+          break;
         case "kml":
           layer = new this.modules.KMLLayer(common);
           break;
@@ -234,6 +266,8 @@ export class MapController {
         elevationInfo: config.elevationInfo ?? null,
         refreshInterval: Number(config.refreshInterval) || 0,
         definitionExpression: config.definitionExpression ?? featureQuery?.definitionExpression ?? null,
+        wfsName: config.wfsName?.trim() || wfs?.wfsName || null,
+        customParameters: config.customParameters ?? wfs?.customParameters ?? null,
       });
     } catch (error) {
       if (!mapSublayer || serviceType !== "arcgis-auto") throw error;
@@ -394,6 +428,8 @@ export class MapController {
       opacity: layer.opacity,
       refreshInterval: "refreshInterval" in layer ? layer.refreshInterval ?? 0 : 0,
       definitionExpression: layer.definitionExpression || source.definitionExpression || null,
+      wfsName: source.wfsName ?? layer.name ?? null,
+      customParameters: source.customParameters ?? layer.customParameters ?? null,
       elevationInfo: layer.elevationInfo?.toJSON?.() ?? source.elevationInfo ?? null,
       renderer: layer.renderer?.toJSON?.() ?? null,
     };

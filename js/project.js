@@ -120,6 +120,8 @@ export class ProjectManager {
             elevationInfo: layer.elevationInfo,
             refreshInterval: layer.refreshInterval,
             definitionExpression: layer.definitionExpression,
+            wfsName: layer.wfsName,
+            customParameters: layer.customParameters,
           });
           await this.#restoreLayerPresentation(added, layer);
         }
@@ -154,6 +156,7 @@ export class ProjectManager {
       wms: "wms",
       kml: "kml",
       geojson: "geojson",
+      wfs: "wfs",
     };
     return lookup[type] || "arcgis-auto";
   }
