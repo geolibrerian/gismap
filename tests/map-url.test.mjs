@@ -32,6 +32,7 @@ controller.modules.FeatureLayer = FakeFeatureLayer;
 controller.map = {
   layers: { length: 1 },
   add(layer) { this.added = layer; },
+  allLayers: { find(predicate) { return predicate(controller.map.added) ? controller.map.added : null; } },
 };
 const layer = await controller.addService({
   url: "https://example.com/arcgis/rest/services/Fires/FeatureServer/2/query?where=STATE%3D%27CA%27&outFields=NAME%2CACRES&outSR=4326&f=json",
@@ -41,6 +42,9 @@ assert.equal(layer.url, "https://example.com/arcgis/rest/services/Fires/FeatureS
 assert.equal(layer.definitionExpression, "STATE='CA'");
 assert.deepEqual(layer.outFields, ["NAME", "ACRES"]);
 assert.match(controller.getLayerConfig(layer).url, /\/query\?/);
+controller.setDefinitionExpression(layer.uid, "ACRES >= 1000");
+assert.equal(layer.definitionExpression, "ACRES >= 1000");
+assert.equal(controller.getLayerConfig(layer).definitionExpression, "ACRES >= 1000");
 
 let navigation;
 controller.view = { goTo(value) { navigation = value; } };

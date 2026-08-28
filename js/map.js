@@ -193,7 +193,7 @@ export class MapController {
         case "feature":
           layer = new this.modules.FeatureLayer({
             ...common,
-            definitionExpression: featureQuery?.definitionExpression,
+            definitionExpression: config.definitionExpression ?? featureQuery?.definitionExpression,
             outFields: featureQuery?.outFields,
           });
           break;
@@ -232,6 +232,7 @@ export class MapController {
         serviceLayerId: mapSublayer?.id ?? null,
         elevationInfo: config.elevationInfo ?? null,
         refreshInterval: Number(config.refreshInterval) || 0,
+        definitionExpression: config.definitionExpression ?? featureQuery?.definitionExpression ?? null,
       });
     } catch (error) {
       if (!mapSublayer || serviceType !== "arcgis-auto") throw error;
@@ -391,6 +392,7 @@ export class MapController {
       visible: layer.visible,
       opacity: layer.opacity,
       refreshInterval: "refreshInterval" in layer ? layer.refreshInterval ?? 0 : 0,
+      definitionExpression: layer.definitionExpression || source.definitionExpression || null,
       elevationInfo: layer.elevationInfo?.toJSON?.() ?? source.elevationInfo ?? null,
       renderer: layer.renderer?.toJSON?.() ?? null,
     };
@@ -422,6 +424,20 @@ export class MapController {
     config.refreshInterval = layer.refreshInterval;
     this.layerConfigs.set(uid, config);
     this.events.publish("layer:changed", { uid });
+  }
+
+  setDefinitionExpression(uid, expression) {
+    const layer = this.findLayer(uid);
+    if (!layer || !("definitionExpression" in layer)) {
+      throw new Error("This layer type does not support attribute filters.");
+    }
+    const value = String(expression || "").trim() || null;
+    layer.definitionExpression = value;
+    const config = this.layerConfigs.get(uid) ?? {};
+    config.definitionExpression = value;
+    this.layerConfigs.set(uid, config);
+    this.events.publish("layer:changed", { uid });
+    return value;
   }
 
   restoreRenderer(layer, rendererJson) {

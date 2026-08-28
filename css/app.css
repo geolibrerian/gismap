@@ -103,7 +103,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, summary:focus-v
 .opacity-row { display: grid; grid-template-columns: 46px 1fr 34px; align-items: center; gap: 8px; margin-top: 9px; color: var(--muted); font-size: 9px; text-transform: uppercase; letter-spacing: .06em; }
 .opacity-row input { accent-color: var(--green-2); width: 100%; }
 .opacity-row output { text-align: right; }
-.layer-card__actions { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; margin-top: 8px; }
+.layer-card__actions { display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; margin-top: 8px; }
 .layer-card__actions button { padding: 6px 2px; font-size: 10px; }
 
 .result-card { border: 1px solid var(--line); border-radius: 7px; background: var(--surface); margin-top: 8px; overflow: hidden; }

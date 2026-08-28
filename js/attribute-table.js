@@ -111,7 +111,7 @@ export class AttributeTableController {
   async #loadIndex() {
     const { layer, where } = this.state;
     const query = layer.createQuery?.() ?? {};
-    query.where = where;
+    query.where = this.#combinedWhere(layer, where);
     if (typeof layer.queryObjectIds === "function") {
       const objectIds = (await layer.queryObjectIds(query)) ?? [];
       this.state.objectIds = objectIds;
@@ -143,7 +143,7 @@ export class AttributeTableController {
       }
       if (usesObjectIds) query.objectIds = ids;
       else {
-        query.where = where;
+        query.where = this.#combinedWhere(layer, where);
         query.num = pageSize;
         query.start = page * pageSize;
       }
@@ -157,6 +157,14 @@ export class AttributeTableController {
     document.querySelector("#table-page").textContent = `Page ${page + 1} of ${totalPages}`;
     document.querySelector("#table-prev").disabled = page === 0;
     document.querySelector("#table-next").disabled = page >= totalPages - 1;
+  }
+
+  #combinedWhere(layer, tableWhere) {
+    const layerWhere = String(layer?.definitionExpression || "").trim();
+    const localWhere = String(tableWhere || "1=1").trim();
+    if (!layerWhere) return localWhere;
+    if (!localWhere || localWhere === "1=1") return `(${layerWhere})`;
+    return `(${layerWhere}) AND (${localWhere})`;
   }
 
   #render(features, fields) {

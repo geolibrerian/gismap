@@ -791,9 +791,9 @@ export class UIController {
       ? layers.map((layer) => {
         const config = this.mapController.getLayerConfig(layer);
         return `<article class="layer-card" data-layer-uid="${escapeHtml(layer.uid)}">
-          <div class="layer-card__head"><label class="layer-toggle"><input type="checkbox" data-layer-visible ${layer.visible ? "checked" : ""} /><span></span></label><div><strong title="${escapeHtml(layer.title)}">${escapeHtml(layer.title)}</strong><small>${escapeHtml(config.sourceType)}${config.refreshInterval ? ` · ${config.refreshInterval}m refresh` : ""}</small></div><button data-layer-action="remove" title="Remove layer">×</button></div>
+          <div class="layer-card__head"><label class="layer-toggle"><input type="checkbox" data-layer-visible ${layer.visible ? "checked" : ""} /><span></span></label><div><strong title="${escapeHtml(layer.title)}">${escapeHtml(layer.title)}</strong><small>${escapeHtml(config.sourceType)}${config.definitionExpression ? " · Filtered" : ""}${config.refreshInterval ? ` · ${config.refreshInterval}m refresh` : ""}</small></div><button data-layer-action="remove" title="Remove layer">×</button></div>
           <label class="opacity-row"><span>Opacity</span><input data-layer-opacity type="range" min="0" max="1" step="0.05" value="${layer.opacity}" /><output>${Math.round(layer.opacity * 100)}%</output></label>
-          <div class="layer-card__actions"><button data-layer-action="zoom">Zoom</button><button data-layer-action="table">Table</button><button data-layer-action="style">Style</button><button data-layer-action="refresh">Refresh</button></div>
+          <div class="layer-card__actions"><button data-layer-action="zoom">Zoom</button><button data-layer-action="table">Table</button><button data-layer-action="filter">Filter</button><button data-layer-action="style">Style</button><button data-layer-action="refresh">Refresh</button></div>
         </article>`;
       }).join("")
       : '<div class="empty-state">Add a file or service from the Data menu.</div>';
@@ -813,10 +813,91 @@ export class UIController {
         case "remove": this.mapController.removeLayer(uid); break;
         case "zoom": if (layer?.fullExtent) await this.mapController.goToLayer(layer); break;
         case "table": this.events.publish("table:open", { uid }); break;
+        case "filter": await this.#filterDialog(uid); break;
         case "style": this.#symbologyDialog(uid); break;
         case "refresh": this.#refreshDialog(uid); break;
       }
     }));
+  }
+
+  async #filterDialog(uid) {
+    const layer = this.mapController.findLayer(uid);
+    if (!layer || !("definitionExpression" in layer)) {
+      throw new Error("This layer does not support attribute filters.");
+    }
+    await layer.load?.();
+    const fields = (layer.fields ?? []).filter((field) => field.name);
+    if (!fields.length) throw new Error("This layer does not expose fields that can be filtered.");
+    const fieldOptions = fields.map((field) =>
+      `<option value="${escapeHtml(field.name)}" data-field-type="${escapeHtml(field.type || "string")}">${escapeHtml(field.alias || field.name)}</option>`,
+    ).join("");
+    this.openDialog({
+      eyebrow: "Attribute query",
+      title: `Filter ${layer.title || "layer"}`,
+      content: `<div class="filter-builder"><label class="field"><span>Field</span><select id="filter-field">${fieldOptions}</select></label><label class="field"><span>Operator</span><select id="filter-operator"></select></label><label class="field" id="filter-value-field"><span>Value</span><input id="filter-value" autocomplete="off" /></label></div>${layer.definitionExpression ? `<p class="form-note"><strong>Current filter:</strong> <code>${escapeHtml(layer.definitionExpression)}</code></p>` : '<p class="form-note">Only matching features will draw, appear in identify results, and be returned by the attribute table.</p>'}`,
+      actions: [
+        { label: "Clear filter", handler: () => {
+          this.mapController.setDefinitionExpression(uid, null);
+          this.dialog.close();
+          this.toast("Layer filter cleared.");
+        }},
+        { label: "Apply filter", primary: true, handler: () => {
+          try {
+            const field = fields.find((item) => item.name === this.dialog.querySelector("#filter-field").value);
+            const operator = this.dialog.querySelector("#filter-operator").value;
+            const value = this.dialog.querySelector("#filter-value").value;
+            const expression = this.#buildFilterExpression(field, operator, value);
+            this.mapController.setDefinitionExpression(uid, expression);
+            this.dialog.close();
+            this.toast(`Filter applied: ${expression}`);
+          } catch (error) { this.error(error.message); }
+        }},
+      ],
+    });
+
+    const fieldSelect = this.dialog.querySelector("#filter-field");
+    const operatorSelect = this.dialog.querySelector("#filter-operator");
+    const valueField = this.dialog.querySelector("#filter-value-field");
+    const valueInput = this.dialog.querySelector("#filter-value");
+    const updateOperators = () => {
+      const field = fields.find((item) => item.name === fieldSelect.value);
+      const type = String(field?.type || "string").toLowerCase();
+      const comparable = !type.includes("string") && !type.includes("guid") && !type.includes("global-id");
+      const operators = comparable
+        ? [["eq", "equals"], ["ne", "does not equal"], ["gt", "is greater than"], ["gte", "is at least"], ["lt", "is less than"], ["lte", "is at most"], ["null", "is empty"], ["not-null", "is not empty"]]
+        : [["eq", "equals"], ["ne", "does not equal"], ["contains", "contains"], ["starts", "starts with"], ["null", "is empty"], ["not-null", "is not empty"]];
+      operatorSelect.innerHTML = operators.map(([value, label]) => `<option value="${value}">${label}</option>`).join("");
+      valueInput.type = type.includes("date") ? "date" : comparable ? "number" : "text";
+      valueInput.step = "any";
+      valueInput.value = "";
+      valueField.hidden = false;
+    };
+    fieldSelect.addEventListener("change", updateOperators);
+    operatorSelect.addEventListener("change", () => {
+      valueField.hidden = ["null", "not-null"].includes(operatorSelect.value);
+    });
+    updateOperators();
+  }
+
+  #buildFilterExpression(field, operator, rawValue) {
+    if (!field?.name) throw new Error("Choose a field to filter.");
+    if (operator === "null") return `${field.name} IS NULL`;
+    if (operator === "not-null") return `${field.name} IS NOT NULL`;
+    const value = String(rawValue ?? "").trim();
+    if (!value) throw new Error("Enter a filter value.");
+    const type = String(field.type || "string").toLowerCase();
+    let literal;
+    if (type.includes("date")) literal = `DATE '${value.replaceAll("'", "''")}'`;
+    else if (!type.includes("string") && !type.includes("guid") && !type.includes("global-id")) {
+      const number = Number(value);
+      if (!Number.isFinite(number)) throw new Error("Enter a valid numeric value.");
+      literal = String(number);
+    } else literal = `'${value.replaceAll("'", "''")}'`;
+    const comparisons = { eq: "=", ne: "<>", gt: ">", gte: ">=", lt: "<", lte: "<=" };
+    if (comparisons[operator]) return `${field.name} ${comparisons[operator]} ${literal}`;
+    if (operator === "contains") return `${field.name} LIKE '%${value.replaceAll("'", "''")}%'`;
+    if (operator === "starts") return `${field.name} LIKE '${value.replaceAll("'", "''")}%'`;
+    throw new Error("Choose a valid filter operator.");
   }
 
   #symbologyDialog(uid) {

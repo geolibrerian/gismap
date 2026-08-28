@@ -116,6 +116,7 @@ export class ProjectManager {
             visible: layer.visible,
             elevationInfo: layer.elevationInfo,
             refreshInterval: layer.refreshInterval,
+            definitionExpression: layer.definitionExpression,
           });
           await this.#restoreLayerPresentation(added, layer);
         }
@@ -136,6 +137,9 @@ export class ProjectManager {
     layer.visible = config.visible !== false;
     layer.opacity = Number.isFinite(config.opacity) ? config.opacity : 1;
     if (config.renderer) this.mapController.restoreRenderer(layer, config.renderer);
+    if (config.definitionExpression != null) {
+      this.mapController.setDefinitionExpression(layer.uid, config.definitionExpression);
+    }
   }
 
   #serviceTypeFor(layer) {
