@@ -40,6 +40,7 @@ export class MapController {
     this.widgets = new Map();
     this.sketch = null;
     this.defaultViewpoint = { center: [-98.5, 39.5], zoom: 4, tilt: 35, heading: 0 };
+    this.defaultBasemapId = "topo-3d";
     this.basemapId = "topo-3d";
     this.groundId = "world-elevation";
   }
@@ -494,6 +495,15 @@ export class MapController {
 
   getBasemapId() {
     return this.basemapId;
+  }
+
+  setDefaultBasemap(id) {
+    this.defaultBasemapId = String(id || "topo-3d");
+    if (!this.map) this.basemapId = this.defaultBasemapId;
+  }
+
+  getDefaultBasemapId() {
+    return this.defaultBasemapId;
   }
 
   setGround(id) {

@@ -3,6 +3,17 @@ import { ENTERPRISE_CATALOGS, EnterpriseCatalog } from "./enterprise-catalog.js"
 
 const DISPLAY_SETTINGS_KEY = "gismap-online:display:v1";
 const INSIGHT_POSITIONS = new Set(["upper-left", "lower-left", "bottom"]);
+const BASEMAP_OPTIONS = [
+  ["topo-3d", "3D Topographic"], ["navigation-3d", "3D Navigation"],
+  ["navigation-dark-3d", "3D Navigation — dark"], ["osm-3d", "3D OpenStreetMap"],
+  ["gray-3d", "3D Light gray"], ["dark-gray-3d", "3D Dark gray"],
+  ["streets-3d", "3D Streets"], ["streets-dark-3d", "3D Streets — dark"],
+  ["topo-vector", "2D Topographic"], ["streets-vector", "2D Streets"],
+  ["navigation", "2D Navigation"], ["gray-vector", "2D Light gray"],
+  ["dark-gray-vector", "2D Dark gray"], ["osm", "2D OpenStreetMap"],
+  ["satellite", "Satellite"], ["hybrid", "Satellite + labels"],
+];
+const BASEMAP_IDS = new Set(BASEMAP_OPTIONS.map(([id]) => id));
 
 const escapeHtml = (value) =>
   String(value ?? "").replace(/[&<>"']/g, (char) => ({
@@ -296,26 +307,33 @@ export class UIController {
   #readDisplaySettings() {
     try {
       const saved = JSON.parse(localStorage.getItem(DISPLAY_SETTINGS_KEY)) ?? {};
-      return { insightPosition: INSIGHT_POSITIONS.has(saved.insightPosition) ? saved.insightPosition : "upper-left" };
+      return {
+        insightPosition: INSIGHT_POSITIONS.has(saved.insightPosition) ? saved.insightPosition : "upper-left",
+        defaultBasemap: BASEMAP_IDS.has(saved.defaultBasemap) ? saved.defaultBasemap : "topo-3d",
+      };
     } catch {
-      return { insightPosition: "upper-left" };
+      return { insightPosition: "upper-left", defaultBasemap: "topo-3d" };
     }
   }
 
   #applyDisplaySettings(settings) {
     document.body.dataset.insightsPosition = settings.insightPosition;
+    this.mapController.setDefaultBasemap(settings.defaultBasemap);
   }
 
   #displaySettingsDialog() {
     const { insightPosition } = this.#readDisplaySettings();
+    const defaultBasemap = this.mapController.getDefaultBasemapId();
     const option = (value, title, description) => `<label class="display-choice"><input type="radio" name="insight-position" value="${value}" ${insightPosition === value ? "checked" : ""} /><span><strong>${title}</strong><small>${description}</small></span></label>`;
+    const basemapOptions = BASEMAP_OPTIONS.map(([id, label]) => `<option value="${id}" ${defaultBasemap === id ? "selected" : ""}>${label}</option>`).join("");
     this.openDialog({
       eyebrow: "Interface preferences",
       title: "Display settings",
-      content: `<fieldset class="display-choices"><legend>Map insight position</legend>${option("upper-left", "Upper left", "Default; keeps map navigation controls clear.")}${option("lower-left", "Lower left", "Anchors the window above the map status area.")}${option("bottom", "Bottom drawer", "Uses a wide panel similar to the attribute table.")}</fieldset><p class="form-note">This preference is saved in this browser.</p>`,
+      content: `<fieldset class="display-choices"><legend>Map insight position</legend>${option("upper-left", "Upper left", "Default; keeps map navigation controls clear.")}${option("lower-left", "Lower left", "Anchors the window above the map status area.")}${option("bottom", "Bottom drawer", "Uses a wide panel similar to the attribute table.")}</fieldset><label class="field display-basemap"><span>Default basemap</span><select id="default-basemap">${basemapOptions}</select></label><p class="form-note">The default is used for new projects and included in saved project files. The current project's active basemap remains unchanged.</p>`,
       actions: [{ label: "Save settings", primary: true, handler: () => {
         const insightPosition = this.dialog.querySelector('input[name="insight-position"]:checked')?.value ?? "upper-left";
-        const settings = { insightPosition };
+        const defaultBasemap = this.dialog.querySelector("#default-basemap").value;
+        const settings = { insightPosition, defaultBasemap };
         localStorage.setItem(DISPLAY_SETTINGS_KEY, JSON.stringify(settings));
         this.#applyDisplaySettings(settings);
         this.dialog.close();

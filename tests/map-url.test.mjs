@@ -28,6 +28,8 @@ class FakeFeatureLayer {
 }
 
 const controller = new MapController({ publish() {} });
+controller.setDefaultBasemap("hybrid");
+assert.equal(controller.getDefaultBasemapId(), "hybrid");
 controller.modules.FeatureLayer = FakeFeatureLayer;
 controller.map = {
   layers: { length: 1 },

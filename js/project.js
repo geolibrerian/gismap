@@ -29,7 +29,8 @@ export class ProjectManager {
       name,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
-      basemap: "topo-3d",
+      basemap: this.mapController?.getDefaultBasemapId?.() ?? "topo-3d",
+      defaultBasemap: this.mapController?.getDefaultBasemapId?.() ?? "topo-3d",
       ground: "world-elevation",
       view: { type: "scene", center: [-98.5, 39.5], zoom: 4, heading: 0, tilt: 35 },
       layers: [],
@@ -49,7 +50,7 @@ export class ProjectManager {
   async create(name = "Untitled project") {
     await this.mapController.clearOperationalLayers();
     this.mapController.drawLayer?.removeAll();
-    this.mapController.setBasemap("topo-3d");
+    this.mapController.setBasemap(this.mapController.getDefaultBasemapId());
     this.mapController.setGround("world-elevation");
     await this.mapController.restoreView({ center: [-98.5, 39.5], zoom: 4, heading: 0, tilt: 35 });
     this.current = this.#blank(name.trim() || "Untitled project");
@@ -62,6 +63,7 @@ export class ProjectManager {
       ...this.current,
       updatedAt: new Date().toISOString(),
       basemap: this.mapController.getBasemapId(),
+      defaultBasemap: this.mapController.getDefaultBasemapId(),
       ground: this.mapController.getGroundId(),
       view: this.mapController.getViewState(),
       layers: this.mapController.getAllLayerConfigs().map(({ uid, ...layer }) => layer),
@@ -93,7 +95,8 @@ export class ProjectManager {
     }
     this.authController?.importConnections(project.connections ?? []);
     await this.mapController.clearOperationalLayers();
-    this.mapController.setBasemap(project.basemap || "topo-3d");
+    this.mapController.setDefaultBasemap(project.defaultBasemap || this.mapController.getDefaultBasemapId());
+    this.mapController.setBasemap(project.basemap || this.mapController.getDefaultBasemapId());
     this.mapController.setGround(project.ground || "world-elevation");
     const missingFiles = [];
 
