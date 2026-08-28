@@ -951,7 +951,7 @@ export class UIController {
         ).join("")}</div>`
       : "";
     const resultHtml = visibleResults.map((result, index) => {
-        const entries = Object.entries(result.attributes ?? {}).filter(([, value]) => value !== null && value !== "").slice(0, 12);
+        const entries = Object.entries(result.attributes ?? {}).filter(([, value]) => value !== null && value !== "");
         return `<article class="insight-panel" id="insight-panel-${index}" role="tabpanel" aria-labelledby="insight-tab-${index}" ${index === 0 ? "" : "hidden"}><header><strong>${escapeHtml(result.layerTitle)}</strong><small>${escapeHtml(result.kind)}</small></header><dl>${entries.map(([key, value]) => `<div><dt>${escapeHtml(key)}</dt><dd>${escapeHtml(typeof value === "object" ? JSON.stringify(value) : value)}</dd></div>`).join("") || "<div><dd>No attributes returned.</dd></div>"}</dl></article>`;
       }).join("");
     const aiForm = this.aiController.isConfigured()

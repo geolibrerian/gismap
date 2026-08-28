@@ -45,6 +45,11 @@ assert.match(controller.getLayerConfig(layer).url, /\/query\?/);
 controller.setDefinitionExpression(layer.uid, "ACRES >= 1000");
 assert.equal(layer.definitionExpression, "ACRES >= 1000");
 assert.equal(controller.getLayerConfig(layer).definitionExpression, "ACRES >= 1000");
+const directLayer = await controller.addService({
+  url: "https://example.com/arcgis/rest/services/Hotspots/FeatureServer/0",
+  serviceType: "feature",
+});
+assert.deepEqual(directLayer.outFields, ["*"]);
 
 let navigation;
 controller.view = { goTo(value) { navigation = value; } };

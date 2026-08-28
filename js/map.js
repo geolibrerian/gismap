@@ -194,7 +194,7 @@ export class MapController {
           layer = new this.modules.FeatureLayer({
             ...common,
             definitionExpression: config.definitionExpression ?? featureQuery?.definitionExpression,
-            outFields: featureQuery?.outFields,
+            outFields: featureQuery?.outFields ?? ["*"],
           });
           break;
         case "map-image":

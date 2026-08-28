@@ -24,25 +24,22 @@ export class IdentifyController {
         ? await view.hitTest(event, { include: operationalLayers })
         : { results: [] };
       const results = [];
-      const hitLayerUids = new Set();
 
       for (const hit of response.results ?? []) {
         const normalized = this.#normalizeHit(hit);
         if (!normalized) continue;
         results.push(normalized);
-        if (normalized.layerUid) hitLayerUids.add(normalized.layerUid);
       }
 
       const [fallback, address] = await Promise.all([
-        this.#queryQueryableLayers(event, hitLayerUids),
+        this.#queryQueryableLayers(event),
         addressPromise,
       ]);
-      results.push(...fallback);
       if (requestId !== this.requestId) return;
       this.events.publish("identify:complete", {
         point: event.mapPoint,
         address,
-        results: this.#dedupe(results),
+        results: this.#dedupe([...fallback, ...results]),
       });
     } catch (error) {
       if (requestId !== this.requestId) return;
@@ -90,13 +87,13 @@ export class IdentifyController {
     return roots.find((root) => root.allSublayers?.includes?.(layer)) ?? null;
   }
 
-  async #queryQueryableLayers(event, hitLayerUids) {
+  async #queryQueryableLayers(event) {
     const layers = this.#flattenQueryableLayers(this.mapController.getOperationalLayers());
     const extent = this.#clickExtent(event);
     const jobs = layers
       .filter((layer) => {
         const root = this.#operationalRoot(layer);
-        return layer.visible !== false && root?.visible !== false && !hitLayerUids.has(root?.uid);
+        return layer.visible !== false && root?.visible !== false;
       })
       .map(async (layer) => {
         try {
