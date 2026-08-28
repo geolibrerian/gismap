@@ -329,13 +329,16 @@ export class UIController {
     this.openDialog({
       eyebrow: "Interface preferences",
       title: "Display settings",
-      content: `<fieldset class="display-choices"><legend>Map insight position</legend>${option("upper-left", "Upper left", "Default; keeps map navigation controls clear.")}${option("lower-left", "Lower left", "Anchors the window above the map status area.")}${option("bottom", "Bottom drawer", "Uses a wide panel similar to the attribute table.")}</fieldset><label class="field display-basemap"><span>Default basemap</span><select id="default-basemap">${basemapOptions}</select></label><p class="form-note">The default is used for new projects and included in saved project files. The current project's active basemap remains unchanged.</p>`,
+      content: `<fieldset class="display-choices"><legend>Map insight position</legend>${option("upper-left", "Upper left", "Default; keeps map navigation controls clear.")}${option("lower-left", "Lower left", "Anchors the window above the map status area.")}${option("bottom", "Bottom drawer", "Uses a wide panel similar to the attribute table.")}</fieldset><label class="field display-basemap"><span>Default basemap</span><select id="default-basemap">${basemapOptions}</select></label><label class="display-checkbox"><input id="apply-default-basemap" type="checkbox" /><span>Apply this basemap to the current map</span></label><p class="form-note">The default is used for new projects and included in saved project files. Select the checkbox to also change the open project.</p>`,
       actions: [{ label: "Save settings", primary: true, handler: () => {
         const insightPosition = this.dialog.querySelector('input[name="insight-position"]:checked')?.value ?? "upper-left";
         const defaultBasemap = this.dialog.querySelector("#default-basemap").value;
         const settings = { insightPosition, defaultBasemap };
         localStorage.setItem(DISPLAY_SETTINGS_KEY, JSON.stringify(settings));
         this.#applyDisplaySettings(settings);
+        if (this.dialog.querySelector("#apply-default-basemap").checked) {
+          this.mapController.setBasemap(defaultBasemap);
+        }
         this.dialog.close();
         this.toast("Display settings saved.");
       }}],
