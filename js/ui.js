@@ -1,6 +1,9 @@
 import { POPULAR_SERVICES } from "./catalog.js";
 import { ENTERPRISE_CATALOGS, EnterpriseCatalog } from "./enterprise-catalog.js";
 
+const DISPLAY_SETTINGS_KEY = "gismap-online:display:v1";
+const INSIGHT_POSITIONS = new Set(["upper-left", "lower-left", "bottom"]);
+
 const escapeHtml = (value) =>
   String(value ?? "").replace(/[&<>"']/g, (char) => ({
     "&": "&amp;",
@@ -19,6 +22,7 @@ export class UIController {
   }
 
   initialize() {
+    this.#applyDisplaySettings(this.#readDisplaySettings());
     if (matchMedia("(max-width: 640px)").matches) this.#setSidebarCollapsed(true);
     this.#buildMobileMenu();
     this.#bindMenus();
@@ -148,6 +152,7 @@ export class UIController {
       document.querySelector("#intelligence-content").innerHTML = '<div class="loading-row"><span></span> Inspecting location…</div>';
     });
     this.events.subscribe("identify:complete", (payload) => this.#renderInsight(payload));
+    this.events.subscribe("table:open", () => { document.querySelector("#insights-overlay").hidden = true; });
     this.events.subscribe("identify:error", ({ error }) => this.error(`Identify failed: ${error.message}`));
     this.events.subscribe("ai:start", () => this.toast("Asking the configured model…"));
     this.events.subscribe("ai:complete", ({ text }) => this.#showAIResponse(text));
@@ -229,6 +234,9 @@ export class UIController {
         case "tools-ai":
           this.#aiDialog();
           break;
+        case "tools-display":
+          this.#displaySettingsDialog();
+          break;
         case "tools-about":
           this.#aboutDialog();
           break;
@@ -280,6 +288,37 @@ export class UIController {
       actions: [{ label: "Save locally", primary: true, handler: () => {
         this.projectManager.save(this.dialog.querySelector("#save-project-name").value);
         this.dialog.close();
+      }}],
+    });
+  }
+
+  #readDisplaySettings() {
+    try {
+      const saved = JSON.parse(localStorage.getItem(DISPLAY_SETTINGS_KEY)) ?? {};
+      return { insightPosition: INSIGHT_POSITIONS.has(saved.insightPosition) ? saved.insightPosition : "upper-left" };
+    } catch {
+      return { insightPosition: "upper-left" };
+    }
+  }
+
+  #applyDisplaySettings(settings) {
+    document.body.dataset.insightsPosition = settings.insightPosition;
+  }
+
+  #displaySettingsDialog() {
+    const { insightPosition } = this.#readDisplaySettings();
+    const option = (value, title, description) => `<label class="display-choice"><input type="radio" name="insight-position" value="${value}" ${insightPosition === value ? "checked" : ""} /><span><strong>${title}</strong><small>${description}</small></span></label>`;
+    this.openDialog({
+      eyebrow: "Interface preferences",
+      title: "Display settings",
+      content: `<fieldset class="display-choices"><legend>Map insight position</legend>${option("upper-left", "Upper left", "Default; keeps map navigation controls clear.")}${option("lower-left", "Lower left", "Anchors the window above the map status area.")}${option("bottom", "Bottom drawer", "Uses a wide panel similar to the attribute table.")}</fieldset><p class="form-note">This preference is saved in this browser.</p>`,
+      actions: [{ label: "Save settings", primary: true, handler: () => {
+        const insightPosition = this.dialog.querySelector('input[name="insight-position"]:checked')?.value ?? "upper-left";
+        const settings = { insightPosition };
+        localStorage.setItem(DISPLAY_SETTINGS_KEY, JSON.stringify(settings));
+        this.#applyDisplaySettings(settings);
+        this.dialog.close();
+        this.toast("Display settings saved.");
       }}],
     });
   }

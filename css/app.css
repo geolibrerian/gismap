@@ -131,7 +131,10 @@ button:focus-visible, input:focus-visible, select:focus-visible, summary:focus-v
 .map-nav button, .map-button { width: 38px; height: 38px; font-size: 19px; box-shadow: 0 6px 20px rgb(20 46 39 / 18%); }
 .sidebar__open { display: none; position: absolute; z-index: 9; top: 18px; left: 18px; }
 .map-status { position: absolute; z-index: 7; right: 12px; bottom: 24px; padding: 6px 9px; border-radius: 4px; color: white; background: rgb(18 63 53 / 86%); backdrop-filter: blur(8px); font-size: 10px; letter-spacing: .02em; pointer-events: none; }
-.insights-overlay { position: absolute; z-index: 8; top: 18px; right: 70px; width: min(390px, calc(100% - 100px)); max-height: calc(100% - 70px); overflow: auto; border: 1px solid rgb(255 255 255 / 30%); border-radius: 12px; background: rgb(244 241 232 / 94%); box-shadow: var(--shadow); backdrop-filter: blur(14px); }
+.insights-overlay { position: absolute; z-index: 8; top: 18px; left: 18px; width: min(390px, calc(100% - 36px)); max-height: calc(100% - 70px); overflow: auto; border: 1px solid rgb(255 255 255 / 30%); border-radius: 12px; background: rgb(244 241 232 / 94%); box-shadow: var(--shadow); backdrop-filter: blur(14px); }
+body.sidebar-collapsed[data-insights-position="upper-left"] .insights-overlay { left: 70px; }
+body[data-insights-position="lower-left"] .insights-overlay { top: auto; bottom: 54px; }
+body[data-insights-position="bottom"] .insights-overlay { inset: auto 14px 14px; width: auto; max-height: min(44vh, 470px); }
 .insights-overlay > header { position: sticky; top: 0; z-index: 1; display: flex; justify-content: space-between; align-items: start; padding: 16px; border-bottom: 1px solid var(--line); background: rgb(244 241 232 / 94%); }
 .insights-overlay h2 { margin: 2px 0 0; font: 600 20px/1.15 "Newsreader", Georgia, serif; }
 #insights-content { padding: 8px 14px 16px; }
@@ -166,6 +169,13 @@ dialog::backdrop { background: rgb(12 28 23 / 48%); backdrop-filter: blur(3px); 
 .dialog__actions:empty { display: none; }
 .dialog__actions .button--primary { color: white; border-color: var(--green); background: var(--green); }
 .dialog__actions button:disabled { opacity: .6; cursor: wait; }
+.display-choices { display: grid; gap: 8px; margin: 0; padding: 0; border: 0; }
+.display-choices legend { margin-bottom: 9px; color: var(--muted); font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; }
+.display-choice { display: flex; align-items: start; gap: 10px; padding: 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); cursor: pointer; }
+.display-choice:has(input:checked) { border-color: var(--green-2); box-shadow: inset 0 0 0 1px var(--green-2); }
+.display-choice input { margin-top: 3px; accent-color: var(--green-2); }
+.display-choice span { display: grid; gap: 2px; }
+.display-choice small { color: var(--muted); }
 .field { display: grid; gap: 6px; margin-bottom: 14px; }
 .field > span { font-size: 11px; font-weight: 700; }
 .field small { color: var(--muted); font-weight: 400; }
@@ -260,7 +270,6 @@ body.sidebar-collapsed .table-dialog { left: 14px; }
   .sidebar { position: absolute; inset: 0 auto 0 0; width: var(--sidebar); }
   .sidebar__open { display: block; }
   body:not(.sidebar-collapsed) .sidebar__open { display: none; }
-  .insights-overlay { top: auto; right: 12px; bottom: 54px; width: calc(100% - 24px); max-height: 45%; }
   .table-dialog { left: 14px; }
 }
 
