@@ -300,7 +300,7 @@ export class UIController {
         <label class="field"><span>Layer title <small>optional</small></span><input id="service-title" /></label>
         ${isWms || isGeoJson ? "" : `<label class="field"><span>Service type</span><select id="service-type"><option value="arcgis-auto">Detect automatically</option><option value="feature">Feature service / layer</option><option value="map-image">Map service</option><option value="imagery">Image service</option></select></label>`}
         <label class="field"><span>Refresh every <small>minutes; 0 disables</small></span><input id="service-refresh" type="number" min="0" step="0.5" value="0" /></label>
-        <p class="form-note">${isGeoJson ? "The URL must return RFC 7946 GeoJSON and allow browser requests through CORS. It will load as a native ArcGIS GeoJSONLayer with querying, styling, tables, and refresh support." : "The remote server must allow cross-origin browser requests (CORS). For secured services, configure and sign in under Tools → ArcGIS connections first."}</p>`,
+        <p class="form-note">${isGeoJson ? "The URL must return RFC 7946 GeoJSON and allow browser requests through CORS. It will load as a native ArcGIS GeoJSONLayer with querying, styling, tables, and refresh support." : "Layer URLs and FeatureServer /query URLs are supported. Query URLs apply their where and outFields parameters; geometry is projected into the map automatically. The remote server must allow cross-origin browser requests (CORS)."}</p>`,
       actions: [{ label: isGeoJson ? "Add GeoJSON feed" : "Add service", primary: true, handler: async () => {
         const button = this.dialog.querySelector(".button--primary");
         button.disabled = true;

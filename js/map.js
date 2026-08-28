@@ -1,6 +1,34 @@
 const ARCGIS_WORLD_GEOCODER =
   "https://geocode.arcgis.com/arcgis/rest/services/World/GeocodeServer";
 
+export function parseArcGISFeatureQueryUrl(value) {
+  try {
+    const parsed = new URL(value);
+    const match = parsed.pathname.match(/^(.*\/FeatureServer\/\d+)\/query\/?$/i);
+    if (!match) return null;
+
+    const parameter = (name) => {
+      const entry = [...parsed.searchParams].find(([key]) => key.toLowerCase() === name.toLowerCase());
+      return entry?.[1]?.trim() || null;
+    };
+    const layerUrl = new URL(parsed.href);
+    layerUrl.pathname = match[1];
+    layerUrl.search = "";
+    layerUrl.hash = "";
+
+    const where = parameter("where");
+    const outFields = parameter("outFields");
+    return {
+      layerUrl: layerUrl.href.replace(/\/$/, ""),
+      definitionExpression: where && where !== "1=1" ? where : undefined,
+      outFields: outFields ? outFields.split(",").map((field) => field.trim()).filter(Boolean) : undefined,
+      requestedOutSpatialReference: parameter("outSR"),
+    };
+  } catch {
+    return null;
+  }
+}
+
 export class MapController {
   constructor(events) {
     this.events = events;
@@ -142,11 +170,13 @@ export class MapController {
   async addService(config) {
     const cleanUrl = config.url?.trim().replace(/\/$/, "");
     if (!cleanUrl) throw new Error("A service URL is required.");
+    const featureQuery = parseArcGISFeatureQueryUrl(cleanUrl);
     let serviceType = this.#serviceTypeFromUrl(config.serviceType, cleanUrl);
+    if (featureQuery) serviceType = "feature";
     const mapSublayer = this.#parseMapSublayerUrl(cleanUrl);
     let layer;
     const common = {
-      url: cleanUrl,
+      url: featureQuery?.layerUrl ?? cleanUrl,
       title: config.title?.trim() || undefined,
       opacity: Number.isFinite(config.opacity) ? config.opacity : 1,
       visible: config.visible !== false,
@@ -162,7 +192,11 @@ export class MapController {
     try {
       switch (serviceType) {
         case "feature":
-          layer = new this.modules.FeatureLayer(common);
+          layer = new this.modules.FeatureLayer({
+            ...common,
+            definitionExpression: featureQuery?.definitionExpression,
+            outFields: featureQuery?.outFields,
+          });
           break;
         case "map-image":
           layer = mapSublayer ? buildMapSublayer() : new this.modules.MapImageLayer(common);
