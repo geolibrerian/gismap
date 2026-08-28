@@ -113,6 +113,7 @@ export class UIController {
     document.querySelector("#insights-close").addEventListener("click", () => {
       document.querySelector("#insights-overlay").hidden = true;
     });
+    document.querySelector("#insights-settings").addEventListener("click", () => this.#displaySettingsDialog());
     document.querySelector("#place-search").addEventListener("submit", (event) => this.#search(event));
     document.querySelector("#bookmark-add").addEventListener("click", () => this.#addBookmark());
     document.querySelector("#project-file-input").addEventListener("change", (event) => this.#importProject(event));

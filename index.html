@@ -190,7 +190,10 @@
         <aside id="insights-overlay" class="insights-overlay" hidden aria-live="polite">
           <header>
             <div><span class="eyebrow">Map insight</span><h2 id="insights-title">Location</h2></div>
-            <button id="insights-close" class="icon-button" aria-label="Close insights">×</button>
+            <div class="insights-actions">
+              <button id="insights-settings" class="icon-button" aria-label="Change insight window position" title="Insight window position">⚙</button>
+              <button id="insights-close" class="icon-button" aria-label="Close insights">×</button>
+            </div>
           </header>
           <div id="insights-content"></div>
         </aside>
@@ -239,6 +242,6 @@
     <input id="tool-file-input" type="file" accept=".js,.mjs" hidden />
 
     <noscript>GIS Map Online requires JavaScript.</noscript>
-    <script type="module" src="./js/app.js?v=0.4.0"></script>
+    <script type="module" src="./js/app.js?v=0.4.1"></script>
   </body>
 </html>
