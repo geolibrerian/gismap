@@ -13,6 +13,7 @@ export class AttributeTableController {
       where: "1=1",
       search: "",
     };
+    this.visibleFeatures = [];
   }
 
   initialize() {
@@ -30,6 +31,17 @@ export class AttributeTableController {
       this.#applySearch("").catch((error) =>
         this.events.publish("app:error", { message: error.message }),
       );
+    });
+    document.querySelector("#table-content").addEventListener("click", (event) => {
+      const row = event.target.closest("tr[data-feature-index]");
+      if (row) this.#zoomToFeature(Number(row.dataset.featureIndex));
+    });
+    document.querySelector("#table-content").addEventListener("keydown", (event) => {
+      const row = event.target.closest("tr[data-feature-index]");
+      if (row && (event.key === "Enter" || event.key === " ")) {
+        event.preventDefault();
+        this.#zoomToFeature(Number(row.dataset.featureIndex));
+      }
     });
     this.events.subscribe("table:open", ({ uid }) => this.open(uid));
   }
@@ -125,7 +137,10 @@ export class AttributeTableController {
       const ids = objectIds.slice(page * pageSize, (page + 1) * pageSize);
       const query = layer.createQuery?.() ?? {};
       query.outFields = ["*"];
-      query.returnGeometry = false;
+      query.returnGeometry = true;
+      if (this.mapController.view?.spatialReference) {
+        query.outSpatialReference = this.mapController.view.spatialReference;
+      }
       if (usesObjectIds) query.objectIds = ids;
       else {
         query.where = where;
@@ -145,6 +160,7 @@ export class AttributeTableController {
   }
 
   #render(features, fields) {
+    this.visibleFeatures = features;
     const container = document.querySelector("#table-content");
     const aliases = new Map(fields.map((field) => [field.name, field.alias || field.name]));
     const keys = [...new Set(features.flatMap((feature) => Object.keys(feature.attributes ?? {})))];
@@ -156,7 +172,16 @@ export class AttributeTableController {
       "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
     })[char]);
     container.innerHTML = `<table><thead><tr>${keys.map((key) => `<th>${escape(aliases.get(key) || key)}</th>`).join("")}</tr></thead><tbody>${features
-      .map((feature) => `<tr>${keys.map((key) => `<td>${escape(feature.attributes?.[key])}</td>`).join("")}</tr>`)
+      .map((feature, index) => `<tr data-feature-index="${index}" tabindex="0" title="Zoom to this feature">${keys.map((key) => `<td>${escape(feature.attributes?.[key])}</td>`).join("")}</tr>`)
       .join("")}</tbody></table>`;
+  }
+
+  #zoomToFeature(index) {
+    const feature = this.visibleFeatures[index];
+    if (!feature) return;
+    this.dialog.close();
+    this.mapController.goToFeature(feature).catch((error) =>
+      this.events.publish("app:error", { message: error.message }),
+    );
   }
 }

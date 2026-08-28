@@ -238,6 +238,9 @@ button.enterprise-row:hover { border-color: var(--green-2); }
 .table-scroll th { position: sticky; top: 0; z-index: 1; background: var(--green); color: white; text-align: left; }
 .table-scroll th, .table-scroll td { max-width: 320px; padding: 8px 10px; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .table-scroll tbody tr:nth-child(even) { background: #f8f6ef; }
+.table-scroll tbody tr[data-feature-index] { cursor: pointer; }
+.table-scroll tbody tr[data-feature-index]:hover,
+.table-scroll tbody tr[data-feature-index]:focus { background: #e8f1ed; outline: 2px solid var(--green-2); outline-offset: -2px; }
 .table-footer { display: flex; align-items: center; justify-content: center; gap: 14px; padding: 12px; font-size: 11px; }
 .table-footer button:disabled { opacity: .4; cursor: default; }
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }

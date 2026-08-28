@@ -15,7 +15,6 @@ export function parseArcGISFeatureQueryUrl(value) {
     layerUrl.pathname = match[1];
     layerUrl.search = "";
     layerUrl.hash = "";
-
     const where = parameter("where");
     const outFields = parameter("outFields");
     return {
@@ -570,7 +569,46 @@ export class MapController {
   async goToLayer(layerOrUid) {
     const layer = typeof layerOrUid === "string" ? this.findLayer(layerOrUid) : layerOrUid;
     if (!layer?.fullExtent) return;
-    return this.view.goTo({ target: layer.fullExtent, tilt: 55 });
+    let target = layer.fullExtent;
+    if (!this.#isPlausibleExtent(target) && typeof layer.queryFeatures === "function") {
+      const query = layer.createQuery?.() ?? {};
+      query.where = layer.definitionExpression || "1=1";
+      query.returnGeometry = true;
+      query.outFields = [];
+      query.num = 2000;
+      query.outSpatialReference = target.spatialReference ?? this.view?.spatialReference;
+      const { features = [] } = await layer.queryFeatures(query);
+      const extents = features.map((feature) => feature.geometry?.extent).filter((extent) => this.#isPlausibleExtent(extent));
+      if (extents.length) {
+        const first = extents[0];
+        target = {
+          type: "extent",
+          xmin: Math.min(...extents.map((extent) => extent.xmin)),
+          ymin: Math.min(...extents.map((extent) => extent.ymin)),
+          xmax: Math.max(...extents.map((extent) => extent.xmax)),
+          ymax: Math.max(...extents.map((extent) => extent.ymax)),
+          spatialReference: first.spatialReference ?? this.view.spatialReference,
+        };
+      }
+    }
+    return this.view.goTo({ target, tilt: 55 });
+  }
+
+  #isPlausibleExtent(extent) {
+    if (!extent) return false;
+    const wkid = extent.spatialReference?.latestWkid ?? extent.spatialReference?.wkid;
+    if (![4326, 4269].includes(wkid)) return true;
+    return extent.xmin >= -180 && extent.xmax <= 180 && extent.ymin >= -90 && extent.ymax <= 90;
+  }
+
+  async goToFeature(feature) {
+    const geometry = feature?.geometry;
+    if (!geometry) throw new Error("This record does not have a geometry to zoom to.");
+    if (geometry.type === "point") {
+      return this.view.goTo({ center: geometry, zoom: 15, tilt: 55 });
+    }
+    const target = geometry.extent?.expand?.(1.25) ?? geometry.extent ?? geometry;
+    return this.view.goTo({ target, tilt: 55 });
   }
 
   async reverseGeocode(point) {
