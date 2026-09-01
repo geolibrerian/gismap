@@ -5,6 +5,7 @@ export class AttributeTableController {
     this.dialog = document.querySelector("#table-dialog");
     this.state = {
       layer: null,
+      rootUid: null,
       objectIds: [],
       usesObjectIds: true,
       total: 0,
@@ -14,22 +15,23 @@ export class AttributeTableController {
       search: "",
     };
     this.visibleFeatures = [];
+    this.operationId = 0;
   }
 
   initialize() {
-    document.querySelector("#table-close").addEventListener("click", () => this.dialog.close());
-    document.querySelector("#table-prev").addEventListener("click", () => this.goToPage(this.state.page - 1));
-    document.querySelector("#table-next").addEventListener("click", () => this.goToPage(this.state.page + 1));
+    document.querySelector("#table-close").addEventListener("click", () => this.#cancelAndReset());
+    document.querySelector("#table-prev").addEventListener("click", () => this.goToPage(this.state.page - 1).catch((error) => this.#reportError(error)));
+    document.querySelector("#table-next").addEventListener("click", () => this.goToPage(this.state.page + 1).catch((error) => this.#reportError(error)));
     document.querySelector("#table-search").addEventListener("submit", (event) => {
       event.preventDefault();
       this.#applySearch(document.querySelector("#table-search-input").value).catch((error) =>
-        this.events.publish("app:error", { message: error.message }),
+        this.#reportError(error),
       );
     });
     document.querySelector("#table-search-clear").addEventListener("click", () => {
       document.querySelector("#table-search-input").value = "";
       this.#applySearch("").catch((error) =>
-        this.events.publish("app:error", { message: error.message }),
+        this.#reportError(error),
       );
     });
     document.querySelector("#table-content").addEventListener("click", (event) => {
@@ -44,9 +46,15 @@ export class AttributeTableController {
       }
     });
     this.events.subscribe("table:open", ({ uid }) => this.open(uid));
+    this.events.subscribe("layer:removed", ({ uid }) => {
+      if (this.state.rootUid === uid) this.#cancelAndReset();
+    });
+    this.events.subscribe("layers:reset", () => this.#cancelAndReset());
   }
 
   async open(uid) {
+    const operationId = ++this.operationId;
+    this.#clearRenderedTable("Loading table…");
     try {
       let layer = this.mapController.findLayer(uid);
       layer = this.#firstQueryable(layer);
@@ -54,9 +62,11 @@ export class AttributeTableController {
         throw new Error("This layer does not expose a queryable attribute table.");
       }
       await layer.load?.();
+      if (operationId !== this.operationId) return;
       this.state = {
         ...this.state,
         layer,
+        rootUid: uid,
         objectIds: [],
         page: 0,
         where: "1=1",
@@ -66,9 +76,11 @@ export class AttributeTableController {
       document.querySelector("#table-search-input").value = "";
       document.querySelector("#table-search-clear").hidden = true;
       if (!this.dialog.open) this.dialog.show();
-      await this.#loadIndex();
-      await this.goToPage(0);
+      if (!await this.#loadIndex(operationId)) return;
+      await this.goToPage(0, operationId);
     } catch (error) {
+      if (operationId !== this.operationId) return;
+      this.#cancelAndReset();
       this.events.publish("app:error", { message: error.message });
     }
   }
@@ -84,12 +96,13 @@ export class AttributeTableController {
   }
 
   async #applySearch(value) {
+    const operationId = ++this.operationId;
     const search = value.trim();
     this.state.search = search;
     this.state.where = this.#searchWhere(search);
     document.querySelector("#table-search-clear").hidden = !search;
-    await this.#loadIndex();
-    await this.goToPage(0);
+    if (!await this.#loadIndex(operationId)) return;
+    await this.goToPage(0, operationId);
   }
 
   #searchWhere(search) {
@@ -108,25 +121,30 @@ export class AttributeTableController {
     return `(${clauses.join(" OR ")})`;
   }
 
-  async #loadIndex() {
+  async #loadIndex(operationId) {
     const { layer, where } = this.state;
     const query = layer.createQuery?.() ?? {};
     query.where = this.#combinedWhere(layer, where);
     if (typeof layer.queryObjectIds === "function") {
       const objectIds = (await layer.queryObjectIds(query)) ?? [];
+      if (operationId !== this.operationId) return false;
       this.state.objectIds = objectIds;
       this.state.total = objectIds.length;
       this.state.usesObjectIds = true;
-      return;
+      return true;
     }
     this.state.objectIds = [];
-    this.state.total = typeof layer.queryFeatureCount === "function"
+    const total = typeof layer.queryFeatureCount === "function"
       ? await layer.queryFeatureCount(query)
       : 0;
+    if (operationId !== this.operationId) return false;
+    this.state.total = total;
     this.state.usesObjectIds = false;
+    return true;
   }
 
-  async goToPage(page) {
+  async goToPage(page, existingOperationId = null) {
+    const operationId = existingOperationId ?? ++this.operationId;
     const { layer, objectIds, pageSize, total, usesObjectIds, where } = this.state;
     if (!layer) return;
     const totalPages = Math.max(1, Math.ceil(total / pageSize));
@@ -148,8 +166,10 @@ export class AttributeTableController {
         query.start = page * pageSize;
       }
       const set = await layer.queryFeatures(query);
+      if (operationId !== this.operationId) return;
       features = set.features ?? [];
     }
+    if (operationId !== this.operationId) return;
     this.#render(features, layer.fields ?? []);
     const suffix = this.state.search ? ` matching “${this.state.search}”` : "";
     document.querySelector("#table-summary").textContent =
@@ -187,9 +207,40 @@ export class AttributeTableController {
   #zoomToFeature(index) {
     const feature = this.visibleFeatures[index];
     if (!feature) return;
-    this.dialog.close();
+    this.#cancelAndReset();
     this.mapController.goToFeature(feature).catch((error) =>
       this.events.publish("app:error", { message: error.message }),
     );
+  }
+
+  #clearRenderedTable(message = "") {
+    this.visibleFeatures = [];
+    document.querySelector("#table-title").textContent = "Attribute table";
+    document.querySelector("#table-summary").textContent = "";
+    document.querySelector("#table-page").textContent = "Page 1";
+    document.querySelector("#table-content").innerHTML = message
+      ? `<div class="loading-row"><span></span>${message}</div>`
+      : "";
+  }
+
+  #cancelAndReset() {
+    this.operationId += 1;
+    this.state = {
+      ...this.state,
+      layer: null,
+      rootUid: null,
+      objectIds: [],
+      total: 0,
+      page: 0,
+      where: "1=1",
+      search: "",
+    };
+    this.#clearRenderedTable();
+    if (this.dialog.open) this.dialog.close();
+  }
+
+  #reportError(error) {
+    if (error?.name === "AbortError" || /aborted/i.test(error?.message || "")) return;
+    this.events.publish("app:error", { message: error.message });
   }
 }
