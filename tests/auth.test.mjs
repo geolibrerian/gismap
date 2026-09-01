@@ -35,7 +35,9 @@ const portal = auth.addPortal({
   clientId: "public-client-id",
 });
 assert.equal(portal.portalUrl, "https://gis.acme.example/portal");
+assert.equal(portal.loginMode, "popup");
 assert.equal(registrations.oauth[0].flowType, "auto");
+assert.equal(registrations.oauth[0].popup, true);
 assert.equal(registrations.oauth[0].popupCallbackUrl, "oauth-callback.html");
 
 // Re-importing a project definition must not register the same OAuthInfo twice.
@@ -48,8 +50,40 @@ const server = auth.addServer({
   tokenServiceUrl: "",
 });
 assert.equal(server.serverUrl, "https://gis.acme.example/server");
-assert.equal(server.tokenServiceUrl, "https://gis.acme.example/server/tokens/");
+assert.equal(server.authMode, "token");
+assert.equal(server.tokenServiceUrl, "https://gis.acme.example/server/tokens/generateToken");
 assert.equal(registrations.servers[0].hasServer, true);
+
+const webServer = auth.addServer({
+  name: "Internal GIS",
+  serverUrl: "https://internal.acme.example/arcgis/rest/services",
+  authMode: "web-tier",
+});
+assert.equal(webServer.authMode, "web-tier");
+assert.equal(webServer.tokenServiceUrl, null);
+assert.equal(registrations.servers[1].webTierAuth, true);
+
+const originalFetch = globalThis.fetch;
+globalThis.fetch = async (url, options = {}) => {
+  if (String(url).includes("/sharing/rest/info")) {
+    return { ok: true, json: async () => ({ currentVersion: "11.4", authInfo: { supportsOAuth: true, tokenServicesUrl: "https://gis.acme.example/portal/sharing/rest/generateToken" } }) };
+  }
+  if (String(url).includes("/sharing/rest/portals/self")) {
+    return { ok: true, json: async () => ({ name: "Acme GIS" }) };
+  }
+  assert.equal(options.credentials, "same-origin");
+  return { ok: true, json: async () => ({ currentVersion: 11.4, owningSystemUrl: "https://gis.acme.example/portal", authInfo: { tokenServicesUrl: "https://gis.acme.example/portal/sharing/rest/generateToken" } }) };
+};
+
+const portalReport = await auth.inspectPortal(portal.portalUrl);
+assert.equal(portalReport.authentication, "OAuth 2.0 / PKCE");
+assert.equal(portalReport.organization, "Acme GIS");
+
+const serverReport = await auth.inspectServer("https://gis.acme.example/server/rest/services/Parcels/FeatureServer/0");
+assert.equal(serverReport.federated, true);
+assert.equal(serverReport.owningSystemUrl, portal.portalUrl);
+assert.equal(serverReport.portalConnectionId, portal.id);
+globalThis.fetch = originalFetch;
 
 const status = await auth.connect(portal.id);
 assert.deepEqual(status, { signedIn: true, userId: "test-user", expires: 123 });

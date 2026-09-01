@@ -50,8 +50,9 @@ export function parseWfsUrl(value) {
 }
 
 export class MapController {
-  constructor(events) {
+  constructor(events, authController = null) {
     this.events = events;
+    this.authController = authController;
     this.map = null;
     this.view = null;
     this.drawLayer = null;
@@ -194,6 +195,9 @@ export class MapController {
   async addService(config) {
     const cleanUrl = config.url?.trim().replace(/\/$/, "");
     if (!cleanUrl) throw new Error("A service URL is required.");
+    if (!["wms", "wfs", "kml", "geojson"].includes(config.serviceType)) {
+      await this.authController?.prepareService(cleanUrl);
+    }
     const featureQuery = parseArcGISFeatureQueryUrl(cleanUrl);
     const wfs = config.serviceType === "wfs" ? parseWfsUrl(cleanUrl) : null;
     let serviceType = this.#serviceTypeFromUrl(config.serviceType, cleanUrl);

@@ -502,18 +502,20 @@ export class UIController {
 
   #connectionsDialog() {
     const callbackUrl = this.authController.getCallbackUrl();
+    const redirectUrl = this.authController.getRedirectUrl();
     const connections = this.authController.list();
     const connectionCards = connections.length
       ? connections.map((connection) => {
           const url = connection.type === "portal" ? connection.portalUrl : connection.serverUrl;
           return `<article class="connection-card" data-connection-id="${escapeHtml(connection.id)}">
             <div class="connection-card__head">
-              <div><strong>${escapeHtml(connection.name)}</strong><small>${connection.type === "portal" ? "Portal / ArcGIS Online OAuth" : "Standalone ArcGIS Server"}</small></div>
+              <div><strong>${escapeHtml(connection.name)}</strong><small>${connection.type === "portal" ? `Portal OAuth · ${connection.loginMode || "popup"}` : connection.authMode === "web-tier" ? "Standalone Server · web-tier" : "Standalone Server · token"}</small></div>
               <span class="connection-badge" data-connection-status>Checking…</span>
             </div>
             <code title="${escapeHtml(url)}">${escapeHtml(url)}</code>
             <div class="connection-card__actions">
               <button type="button" data-connect-id="${escapeHtml(connection.id)}">Connect</button>
+              <button type="button" data-test-connection-id="${escapeHtml(connection.id)}">Test</button>
               <button type="button" class="button--quiet" data-remove-connection="${escapeHtml(connection.id)}">Remove</button>
             </div>
           </article>`;
@@ -534,22 +536,36 @@ export class UIController {
                 <label class="field"><span>Portal URL</span><input id="portal-connection-url" type="url" value="https://www.arcgis.com" placeholder="https://gis.example.com/portal" /></label>
               </div>
               <label class="field"><span>GIS Map application / Client ID</span><input id="portal-client-id" autocomplete="off" placeholder="Public OAuth application ID" /></label>
-              <label class="field"><span>Redirect URI to register in Portal</span><div class="copy-field"><input id="portal-callback-url" readonly value="${escapeHtml(callbackUrl)}" /><button type="button" id="copy-callback-url">Copy</button></div></label>
+              <label class="field"><span>Sign-in presentation</span><select id="portal-login-mode"><option value="popup">Popup window</option><option value="redirect">Full-page redirect</option></select></label>
+              <label class="field"><span>URI to register for popup mode</span><div class="copy-field"><input id="portal-callback-url" readonly value="${escapeHtml(callbackUrl)}" /><button type="button" data-copy-uri="${escapeHtml(callbackUrl)}">Copy</button></div></label>
+              <label class="field"><span>URI to register for redirect mode</span><div class="copy-field"><input id="portal-redirect-url" readonly value="${escapeHtml(redirectUrl)}" /><button type="button" data-copy-uri="${escapeHtml(redirectUrl)}">Copy</button></div></label>
               <button type="button" id="add-portal-connection" class="inline-primary">Save &amp; connect</button>
               <p class="form-note">The organization administrator registers GIS Map Online once and supplies this public Client ID. Sign-in uses OAuth authorization code + PKCE when supported; no client secret belongs in this browser app.</p>
             </div>
           </details>
 
           <details class="connection-setup">
-            <summary>Add standalone ArcGIS Server <small>secondary method</small></summary>
+            <summary>Standalone ArcGIS Server — token authentication</summary>
             <div class="connection-setup__body">
-              <label class="field"><span>Connection name <small>optional</small></span><input id="server-connection-name" placeholder="Parcel server" /></label>
-              <label class="field"><span>ArcGIS Server root URL</span><input id="server-connection-url" type="url" placeholder="https://gis.example.com/server" /></label>
-              <label class="field"><span>Token service URL <small>defaults to /tokens/</small></span><input id="server-token-url" type="url" placeholder="https://gis.example.com/server/tokens/" /></label>
-              <button type="button" id="add-server-connection" class="inline-primary">Register &amp; sign in</button>
+              <label class="field"><span>Connection name <small>optional</small></span><input id="token-server-name" placeholder="Parcel server" /></label>
+              <label class="field"><span>ArcGIS Server root URL</span><input id="token-server-url" type="url" placeholder="https://gis.example.com/server" /></label>
+              <label class="field"><span>Token service URL <small>discovered automatically when possible</small></span><input id="token-server-token-url" type="url" placeholder="https://gis.example.com/server/tokens/generateToken" /></label>
+              <button type="button" id="add-token-server" class="inline-primary">Save &amp; connect</button>
               <p class="form-note">Use this only for a secured, non-federated ArcGIS Server. IdentityManager owns the credential challenge and token; GIS Map Online does not read or serialize the username, password, or token.</p>
             </div>
           </details>
+
+          <details class="connection-setup">
+            <summary>Standalone ArcGIS Server — web-tier authentication <small>advanced</small></summary>
+            <div class="connection-setup__body">
+              <label class="field"><span>Connection name <small>optional</small></span><input id="web-server-name" placeholder="Internal GIS" /></label>
+              <label class="field"><span>ArcGIS Server root URL</span><input id="web-server-url" type="url" placeholder="https://gis.internal.example/arcgis" /></label>
+              <button type="button" id="add-web-server" class="inline-primary">Save &amp; test browser access</button>
+              <p class="form-note">For IWA, PKI, or reverse-proxy authentication managed by the browser and web tier. This requires correct TLS, credentialed CORS, and usually the organization's network or VPN.</p>
+            </div>
+          </details>
+
+          <section id="connection-test-report" class="connection-report" hidden></section>
 
           <div class="warning-box connection-security"><strong>Project portability and security</strong><p>Connection names, URLs, and public Client IDs are saved locally and included in project exports. Credentials and access tokens are never added to a .gmo or .gmop file. Imported projects require a fresh sign-in. The Portal/Server must use HTTPS and allow this site through CORS.</p></div>
         </section>`,
@@ -564,16 +580,32 @@ export class UIController {
       button.disabled = busy;
       button.textContent = busy ? "Connecting…" : label;
     };
-    this.dialog.querySelector("#copy-callback-url").addEventListener("click", async () => {
+    const renderReport = (report) => {
+      const target = this.dialog.querySelector("#connection-test-report");
+      const rows = [
+        ["Endpoint", report.url],
+        ["ArcGIS version", report.version || "Not reported"],
+        ["Authentication", report.authentication],
+        ["Token endpoint", report.tokenServiceUrl || "Not advertised"],
+        ["CORS", report.cors ? "Browser request succeeded" : "Failed"],
+        ["Federated", report.federated == null ? "Not applicable" : report.federated ? "Yes" : "No"],
+        ["Owning Portal", report.owningSystemUrl || "None"],
+        ["Organization", report.organization || "Not reported"],
+        ["Response time", `${report.responseMs} ms`],
+      ];
+      target.innerHTML = `<strong>Connection test</strong><dl>${rows.map(([key, value]) => `<div><dt>${escapeHtml(key)}</dt><dd>${escapeHtml(String(value))}</dd></div>`).join("")}</dl>${report.federated && !report.portalConnectionId ? `<p>Add the owning Portal above with an OAuth Client ID. Federated Server credentials must be issued by that Portal.</p>` : ""}`;
+      target.hidden = false;
+      target.scrollIntoView({ block: "nearest" });
+    };
+    this.dialog.querySelectorAll("[data-copy-uri]").forEach((button) => button.addEventListener("click", async () => {
       try {
-        await navigator.clipboard.writeText(callbackUrl);
-        this.toast("Redirect URI copied.");
+        await navigator.clipboard.writeText(button.dataset.copyUri);
+        this.toast("URI copied.");
       } catch {
-        const input = this.dialog.querySelector("#portal-callback-url");
-        input.select();
-        this.toast("Redirect URI selected. Copy it from the field.");
+        button.previousElementSibling.select();
+        this.toast("URI selected. Copy it from the field.");
       }
-    });
+    }));
     this.dialog.querySelector("#add-portal-connection").addEventListener("click", async (event) => {
       const button = event.currentTarget;
       setBusy(button, true, "Save & connect");
@@ -582,6 +614,7 @@ export class UIController {
           name: this.dialog.querySelector("#portal-connection-name").value,
           portalUrl: this.dialog.querySelector("#portal-connection-url").value,
           clientId: this.dialog.querySelector("#portal-client-id").value,
+          loginMode: this.dialog.querySelector("#portal-login-mode").value,
         });
         await this.authController.connect(connection.id);
         this.#connectionsDialog();
@@ -590,19 +623,41 @@ export class UIController {
         this.error(error.message);
       }
     });
-    this.dialog.querySelector("#add-server-connection").addEventListener("click", async (event) => {
+    this.dialog.querySelector("#add-token-server").addEventListener("click", async (event) => {
       const button = event.currentTarget;
-      setBusy(button, true, "Register & sign in");
+      setBusy(button, true, "Save & connect");
       try {
+        const serverUrl = this.dialog.querySelector("#token-server-url").value;
+        const report = await this.authController.inspectServer(serverUrl, "token");
+        if (report.federated) throw new Error(`This Server is federated. Add its owning Portal (${report.owningSystemUrl}) and use Portal OAuth instead.`);
         const connection = this.authController.addServer({
-          name: this.dialog.querySelector("#server-connection-name").value,
-          serverUrl: this.dialog.querySelector("#server-connection-url").value,
-          tokenServiceUrl: this.dialog.querySelector("#server-token-url").value,
+          name: this.dialog.querySelector("#token-server-name").value,
+          serverUrl,
+          tokenServiceUrl: this.dialog.querySelector("#token-server-token-url").value || report.tokenServiceUrl,
+          authMode: "token",
         });
         await this.authController.connect(connection.id);
         this.#connectionsDialog();
       } catch (error) {
-        setBusy(button, false, "Register & sign in");
+        setBusy(button, false, "Save & connect");
+        this.error(error.message);
+      }
+    });
+    this.dialog.querySelector("#add-web-server").addEventListener("click", async (event) => {
+      const button = event.currentTarget;
+      setBusy(button, true, "Save & test browser access");
+      try {
+        const serverUrl = this.dialog.querySelector("#web-server-url").value;
+        const report = await this.authController.inspectServer(serverUrl, "web-tier");
+        if (report.federated) throw new Error(`This Server is federated. Add its owning Portal (${report.owningSystemUrl}) and use Portal OAuth instead.`);
+        this.authController.addServer({
+          name: this.dialog.querySelector("#web-server-name").value,
+          serverUrl,
+          authMode: "web-tier",
+        });
+        this.#connectionsDialog();
+      } catch (error) {
+        setBusy(button, false, "Save & test browser access");
         this.error(error.message);
       }
     });
@@ -614,6 +669,18 @@ export class UIController {
           this.#connectionsDialog();
         } catch (error) {
           setBusy(button, false, "Connect");
+          this.error(error.message);
+        }
+      });
+    });
+    this.dialog.querySelectorAll("[data-test-connection-id]").forEach((button) => {
+      button.addEventListener("click", async () => {
+        setBusy(button, true, "Test");
+        try {
+          renderReport(await this.authController.testConnection(button.dataset.testConnectionId));
+          setBusy(button, false, "Test");
+        } catch (error) {
+          setBusy(button, false, "Test");
           this.error(error.message);
         }
       });

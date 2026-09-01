@@ -218,6 +218,13 @@ dialog::backdrop { background: rgb(12 28 23 / 48%); backdrop-filter: blur(3px); 
 .copy-field { display: grid; grid-template-columns: 1fr auto; gap: 6px; }
 .copy-field input { min-width: 0; }
 .connection-security { font-size: 11px; }
+.connection-report { padding: 13px; border: 1px solid #c7d8d2; border-radius: 8px; background: #edf5f2; font-size: 11px; }
+.connection-report > strong { display: block; margin-bottom: 8px; font-size: 12px; }
+.connection-report dl { display: grid; gap: 5px; margin: 0; }
+.connection-report dl div { display: grid; grid-template-columns: 120px minmax(0, 1fr); gap: 10px; }
+.connection-report dt { color: var(--muted); }
+.connection-report dd { min-width: 0; margin: 0; overflow-wrap: anywhere; }
+.connection-report p { margin: 10px 0 0; color: #70291f; line-height: 1.45; }
 .warning-box { padding: 14px; border: 1px solid #e3b1a9; border-radius: 8px; color: #70291f; background: #fbebe8; font-size: 12px; }
 .warning-box p { margin: 5px 0 0; }
 .project-list, .catalog-list { display: grid; gap: 8px; }

@@ -36,7 +36,25 @@ function normalizeServerUrl(value) {
 }
 
 function normalizeTokenServiceUrl(value, serverUrl) {
-  return cleanUrl(value || `${serverUrl}/tokens/`, "Token service URL").href.replace(/\/$/, "") + "/";
+  const url = cleanUrl(value || `${serverUrl}/tokens/generateToken`, "Token service URL");
+  if (/\/tokens$/i.test(url.pathname)) url.pathname += "/generateToken";
+  return url.href.replace(/\/$/, "");
+}
+
+function serverRootFromResource(value) {
+  const url = cleanUrl(value, "Service URL");
+  const restIndex = url.pathname.toLowerCase().indexOf("/rest/");
+  if (restIndex < 0) return normalizeServerUrl(url.href);
+  url.pathname = url.pathname.slice(0, restIndex);
+  return url.href.replace(/\/$/, "");
+}
+
+function portalLoginMode(value) {
+  return value === "redirect" ? "redirect" : "popup";
+}
+
+function serverAuthMode(value) {
+  return value === "web-tier" ? "web-tier" : "token";
 }
 
 function publicCredentialSummary(credential) {
@@ -58,6 +76,7 @@ export class AuthController {
     this.connections = [];
     this.oauthInfos = new Map();
     this.serverInfos = new Map();
+    this.discoveredServers = new Map();
   }
 
   async initialize() {
@@ -80,7 +99,14 @@ export class AuthController {
     return new URL("oauth-callback.html", document.baseURI).href;
   }
 
-  addPortal({ name, portalUrl, clientId }) {
+  getRedirectUrl() {
+    const url = new URL(document.baseURI);
+    url.hash = "";
+    url.search = "";
+    return url.href;
+  }
+
+  addPortal({ name, portalUrl, clientId, loginMode = "popup" }) {
     const normalizedUrl = normalizePortalUrl(portalUrl);
     const normalizedClientId = String(clientId || "").trim();
     if (!normalizedClientId) throw new Error("A Portal application Client ID is required.");
@@ -94,19 +120,24 @@ export class AuthController {
       name: String(name || "").trim() || (normalizedUrl === "https://www.arcgis.com" ? "ArcGIS Online" : new URL(normalizedUrl).hostname),
       portalUrl: normalizedUrl,
       clientId: normalizedClientId,
+      loginMode: portalLoginMode(loginMode),
     };
     this.#upsert(connection);
     return structuredClone(connection);
   }
 
-  addServer({ name, serverUrl, tokenServiceUrl }) {
+  addServer({ name, serverUrl, tokenServiceUrl, authMode = "token" }) {
     const normalizedUrl = normalizeServerUrl(serverUrl);
+    const normalizedAuthMode = serverAuthMode(authMode);
     const connection = {
       id: this.connections.find((item) => item.type === "server" && item.serverUrl === normalizedUrl)?.id || makeId(),
       type: "server",
       name: String(name || "").trim() || new URL(normalizedUrl).hostname,
       serverUrl: normalizedUrl,
-      tokenServiceUrl: normalizeTokenServiceUrl(tokenServiceUrl, normalizedUrl),
+      authMode: normalizedAuthMode,
+      tokenServiceUrl: normalizedAuthMode === "token"
+        ? normalizeTokenServiceUrl(tokenServiceUrl, normalizedUrl)
+        : null,
     };
     this.#upsert(connection);
     return structuredClone(connection);
@@ -114,6 +145,12 @@ export class AuthController {
 
   async connect(id) {
     const connection = this.#find(id);
+    if (connection.type === "server" && connection.authMode === "web-tier") {
+      const report = await this.inspectServer(connection.serverUrl, "web-tier");
+      const status = { signedIn: true, userId: "Browser session", expires: null };
+      this.events.publish("auth:status-changed", { connection: structuredClone(connection), status, report });
+      return status;
+    }
     const resource = this.#resourceUrl(connection);
     const options = connection.type === "portal" ? { oAuthPopupConfirmation: false } : undefined;
     const credential = await this.identityManager.getCredential(resource, options);
@@ -122,8 +159,95 @@ export class AuthController {
     return status;
   }
 
+  async testConnection(id) {
+    const connection = this.#find(id);
+    return connection.type === "portal"
+      ? this.inspectPortal(connection.portalUrl)
+      : this.inspectServer(connection.serverUrl, connection.authMode);
+  }
+
+  async inspectPortal(value) {
+    const portalUrl = normalizePortalUrl(value);
+    const started = performance.now();
+    const info = await this.#fetchJson(`${portalUrl}/sharing/rest/info?f=json`);
+    const portal = await this.#fetchJson(`${portalUrl}/sharing/rest/portals/self?f=json`);
+    return {
+      kind: "portal",
+      url: portalUrl,
+      cors: true,
+      responseMs: Math.round(performance.now() - started),
+      version: info.currentVersion || portal.currentVersion || null,
+      organization: portal.name || portal.portalName || null,
+      authentication: info.authInfo?.supportsOAuth === false ? "Portal token authentication" : "OAuth 2.0 / PKCE",
+      tokenServiceUrl: info.authInfo?.tokenServicesUrl || `${portalUrl}/sharing/rest/generateToken`,
+      supportsOAuth: info.authInfo?.supportsOAuth !== false,
+      federated: null,
+    };
+  }
+
+  async inspectServer(value, configuredMode = null) {
+    const serverUrl = serverRootFromResource(value);
+    const started = performance.now();
+    const info = await this.#fetchJson(`${serverUrl}/rest/info?f=json`, {
+      credentials: configuredMode === "web-tier" ? "include" : "same-origin",
+    });
+    const owningSystemUrl = info.owningSystemUrl ? normalizePortalUrl(info.owningSystemUrl) : null;
+    const tokenServiceUrl = info.authInfo?.tokenServicesUrl || null;
+    const webTier = configuredMode === "web-tier" || info.authInfo?.isTokenBasedSecurity === false;
+    const portalConnectionId = owningSystemUrl
+      ? this.connections.find((connection) => connection.type === "portal" && connection.portalUrl === owningSystemUrl)?.id || null
+      : null;
+    return {
+      kind: "server",
+      url: serverUrl,
+      cors: true,
+      responseMs: Math.round(performance.now() - started),
+      version: info.currentVersion || null,
+      organization: null,
+      authentication: owningSystemUrl ? "Federated Portal" : webTier ? "Web-tier (IWA / PKI / reverse proxy)" : "ArcGIS Server token",
+      tokenServiceUrl,
+      supportsOAuth: Boolean(owningSystemUrl),
+      federated: Boolean(owningSystemUrl),
+      owningSystemUrl,
+      portalConnectionId,
+    };
+  }
+
+  async prepareService(value) {
+    let serverUrl;
+    try {
+      serverUrl = serverRootFromResource(value);
+    } catch {
+      return null;
+    }
+    if (this.discoveredServers.has(serverUrl)) return this.discoveredServers.get(serverUrl);
+    let report;
+    try {
+      report = await this.inspectServer(value);
+    } catch {
+      return null;
+    }
+    const info = new this.ServerInfo({
+      server: report.url,
+      tokenServiceUrl: report.tokenServiceUrl || undefined,
+      hasServer: true,
+      webTierAuth: report.authentication.startsWith("Web-tier"),
+    });
+    this.identityManager.registerServers([info]);
+    this.discoveredServers.set(report.url, report);
+    return report;
+  }
+
   async getStatus(id) {
     const connection = this.#find(id);
+    if (connection.type === "server" && connection.authMode === "web-tier") {
+      try {
+        await this.inspectServer(connection.serverUrl, "web-tier");
+        return { signedIn: true, userId: "Browser access", expires: null };
+      } catch {
+        return { signedIn: false, userId: null, expires: null };
+      }
+    }
     try {
       const credential = await this.identityManager.checkSignInStatus(this.#resourceUrl(connection));
       return publicCredentialSummary(credential);
@@ -188,7 +312,7 @@ export class AuthController {
       const info = new this.OAuthInfo({
         appId: connection.clientId,
         portalUrl: connection.portalUrl,
-        popup: true,
+        popup: connection.loginMode !== "redirect",
         popupCallbackUrl: "oauth-callback.html",
         flowType: "auto",
         authNamespace: `gismap-online:${connection.id}`,
@@ -201,8 +325,9 @@ export class AuthController {
       if (this.serverInfos.has(connection.id)) return;
       const info = new this.ServerInfo({
         server: connection.serverUrl,
-        tokenServiceUrl: connection.tokenServiceUrl,
+        tokenServiceUrl: connection.tokenServiceUrl || undefined,
         hasServer: true,
+        webTierAuth: connection.authMode === "web-tier",
       });
       this.serverInfos.set(connection.id, info);
       this.identityManager.registerServers([info]);
@@ -219,6 +344,19 @@ export class AuthController {
     return connection;
   }
 
+  async #fetchJson(url, options = {}) {
+    let response;
+    try {
+      response = await fetch(url, { mode: "cors", ...options });
+    } catch (error) {
+      throw new Error(`Could not reach ${new URL(url).origin}. Check CORS, TLS, network access, and web-tier credentials. ${error.message}`);
+    }
+    if (!response.ok) throw new Error(`Connection test returned HTTP ${response.status} from ${url}.`);
+    const data = await response.json();
+    if (data?.error) throw new Error(data.error.message || "The ArcGIS endpoint returned an error.");
+    return data;
+  }
+
   #readStore() {
     try {
       const definitions = JSON.parse(localStorage.getItem(STORAGE_KEY)) || [];
@@ -229,10 +367,11 @@ export class AuthController {
           if (definition?.type === "portal") {
             const portalUrl = normalizePortalUrl(definition.portalUrl);
             const clientId = String(definition.clientId || "").trim();
-            if (clientId) valid.push({ id: definition.id || makeId(), type: "portal", name: definition.name || new URL(portalUrl).hostname, portalUrl, clientId });
+            if (clientId) valid.push({ id: definition.id || makeId(), type: "portal", name: definition.name || new URL(portalUrl).hostname, portalUrl, clientId, loginMode: portalLoginMode(definition.loginMode) });
           } else if (definition?.type === "server") {
             const serverUrl = normalizeServerUrl(definition.serverUrl);
-            valid.push({ id: definition.id || makeId(), type: "server", name: definition.name || new URL(serverUrl).hostname, serverUrl, tokenServiceUrl: normalizeTokenServiceUrl(definition.tokenServiceUrl, serverUrl) });
+            const authMode = serverAuthMode(definition.authMode);
+            valid.push({ id: definition.id || makeId(), type: "server", name: definition.name || new URL(serverUrl).hostname, serverUrl, authMode, tokenServiceUrl: authMode === "token" ? normalizeTokenServiceUrl(definition.tokenServiceUrl, serverUrl) : null });
           }
         } catch {
           // Ignore malformed legacy browser settings instead of preventing startup.
