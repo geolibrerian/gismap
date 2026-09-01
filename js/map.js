@@ -607,7 +607,6 @@ export class MapController {
     const coordinates = text.match(/^\s*(-?\d+(?:\.\d+)?)\s*[, ]\s*(-?\d+(?:\.\d+)?)\s*$/);
     if (coordinates) {
       const center = [Number(coordinates[1]), Number(coordinates[2])];
-      await this.view.goTo({ center, zoom: 14, tilt: 55 });
       return [{ label: `${center[0].toFixed(5)}, ${center[1].toFixed(5)}`, location: center }];
     }
     const response = await this.modules.locator.addressToLocations(ARCGIS_WORLD_GEOCODER, {

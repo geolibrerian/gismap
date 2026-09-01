@@ -29,6 +29,9 @@ export class UIController {
     Object.assign(this, { events, mapController, projectManager, authController, aiController, toolManager });
     this.dialog = document.querySelector("#app-dialog");
     this.searchResults = [];
+    this.searchTimer = null;
+    this.searchRequestId = 0;
+    this.searchSelection = -1;
     this.lastInsight = null;
   }
 
@@ -125,7 +128,20 @@ export class UIController {
       document.querySelector("#insights-overlay").hidden = true;
     });
     document.querySelector("#insights-settings").addEventListener("click", () => this.#displaySettingsDialog());
+    const placeInput = document.querySelector("#place-query");
     document.querySelector("#place-search").addEventListener("submit", (event) => this.#search(event));
+    placeInput.addEventListener("input", () => this.#schedulePlaceSearch(placeInput.value));
+    placeInput.addEventListener("keydown", (event) => {
+      if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+        event.preventDefault();
+        this.#moveSearchSelection(event.key === "ArrowDown" ? 1 : -1);
+      } else if (event.key === "Escape") {
+        this.#clearSearchResults();
+      }
+    });
+    document.addEventListener("click", (event) => {
+      if (!event.target.closest(".place-search-combobox")) this.#clearSearchResults();
+    });
     document.querySelector("#bookmark-add").addEventListener("click", () => this.#addBookmark());
     document.querySelector("#project-file-input").addEventListener("change", (event) => this.#importProject(event));
     document.querySelector("#data-file-input").addEventListener("change", (event) => this.#addFiles(event));
@@ -773,20 +789,81 @@ export class UIController {
   async #search(event) {
     event.preventDefault();
     const input = document.querySelector("#place-query");
+    if (this.searchSelection >= 0 && this.searchResults[this.searchSelection]) {
+      await this.#selectSearchResult(this.searchSelection);
+      return;
+    }
+    await this.#runPlaceSearch(input.value, true);
+  }
+
+  #schedulePlaceSearch(value) {
+    clearTimeout(this.searchTimer);
+    this.searchRequestId += 1;
+    const query = value.trim();
+    if (query.length < 2) {
+      this.searchRequestId += 1;
+      this.#clearSearchResults();
+      return;
+    }
+    this.searchTimer = setTimeout(() => this.#runPlaceSearch(query), 250);
+  }
+
+  async #runPlaceSearch(value, fromSubmit = false) {
+    const input = document.querySelector("#place-query");
     const container = document.querySelector("#search-results");
-    if (!input.value.trim()) return;
+    const query = value.trim();
+    if (!query) {
+      this.#clearSearchResults();
+      return;
+    }
+    const requestId = ++this.searchRequestId;
+    container.hidden = false;
+    input.setAttribute("aria-expanded", "true");
     container.innerHTML = '<div class="loading-row"><span></span> Searching…</div>';
     try {
-      this.searchResults = await this.mapController.searchPlaces(input.value);
+      const results = await this.mapController.searchPlaces(query);
+      if (requestId !== this.searchRequestId || input.value.trim() !== query) return;
+      this.searchResults = results;
+      this.searchSelection = fromSubmit && results.length === 1 ? 0 : -1;
       container.innerHTML = this.searchResults.length
-        ? this.searchResults.map((result, index) => `<button data-search-index="${index}">${escapeHtml(result.label)}</button>`).join("")
+        ? this.searchResults.map((result, index) => `<button type="button" role="option" data-search-index="${index}" aria-selected="${index === this.searchSelection}">${escapeHtml(result.label)}</button>`).join("")
         : '<div class="empty-state">No matching places found.</div>';
       container.querySelectorAll("[data-search-index]").forEach((button) =>
-        button.addEventListener("click", () => this.mapController.goToSearchResult(this.searchResults[button.dataset.searchIndex])),
+        button.addEventListener("click", () => this.#selectSearchResult(Number(button.dataset.searchIndex))),
       );
+      if (fromSubmit && this.searchResults.length === 1) await this.#selectSearchResult(0);
     } catch (error) {
+      if (requestId !== this.searchRequestId) return;
       container.innerHTML = `<div class="empty-state">${escapeHtml(error.message)}</div>`;
     }
+  }
+
+  #moveSearchSelection(delta) {
+    if (!this.searchResults.length || document.querySelector("#search-results").hidden) return;
+    this.searchSelection = (this.searchSelection + delta + this.searchResults.length) % this.searchResults.length;
+    document.querySelectorAll("#search-results [data-search-index]").forEach((button, index) => {
+      button.setAttribute("aria-selected", String(index === this.searchSelection));
+      if (index === this.searchSelection) button.scrollIntoView({ block: "nearest" });
+    });
+  }
+
+  async #selectSearchResult(index) {
+    const result = this.searchResults[index];
+    if (!result) return;
+    document.querySelector("#place-query").value = result.label;
+    this.#clearSearchResults();
+    await this.mapController.goToSearchResult(result);
+  }
+
+  #clearSearchResults() {
+    clearTimeout(this.searchTimer);
+    this.searchRequestId += 1;
+    this.searchResults = [];
+    this.searchSelection = -1;
+    const container = document.querySelector("#search-results");
+    container.replaceChildren();
+    container.hidden = true;
+    document.querySelector("#place-query").setAttribute("aria-expanded", "false");
   }
 
   #addBookmark() {

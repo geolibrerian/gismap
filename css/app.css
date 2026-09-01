@@ -70,6 +70,10 @@ button:focus-visible, input:focus-visible, select:focus-visible, summary:focus-v
 .panel summary small { margin-right: 20px; color: var(--muted); font-size: 10px; text-transform: uppercase; letter-spacing: .08em; }
 .panel__body { padding: 0 16px 18px; }
 .search-row { display: grid; grid-template-columns: 1fr 38px; gap: 6px; }
+.place-search-combobox { position: relative; z-index: 4; }
+.search-suggestions { position: absolute; top: calc(100% + 4px); right: 0; left: 0; max-height: 260px; margin: 0; padding: 5px; overflow-y: auto; border: 1px solid var(--line); border-radius: 7px; background: var(--surface); box-shadow: var(--shadow); }
+.search-suggestions > button { width: 100%; }
+.search-suggestions > button[aria-selected="true"] { background: var(--surface-2); color: var(--green-2); }
 .search-row input, .field input, .field select, .ai-question input { width: 100%; min-width: 0; border: 1px solid var(--line); border-radius: 6px; padding: 10px 11px; background: var(--surface); color: var(--ink); }
 .search-row button, .ai-question button, .map-nav button, .map-button { border: 0; border-radius: 6px; color: white; background: var(--green); cursor: pointer; }
 .compact-list { display: grid; gap: 3px; margin-top: 8px; font-size: 12px; }

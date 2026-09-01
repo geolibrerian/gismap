@@ -11,7 +11,7 @@
     <link rel="icon" href="./assets/favicon.ico" sizes="any" />
     <link rel="preconnect" href="https://js.arcgis.com" />
     <link rel="stylesheet" href="https://js.arcgis.com/5.0/esri/themes/light/main.css" />
-    <link rel="stylesheet" href="./css/app.css?v=0.4.0" />
+    <link rel="stylesheet" href="./css/app.css?v=0.4.6" />
     <script type="module" src="https://js.arcgis.com/5.0/"></script>
     <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
   </head>
@@ -121,12 +121,14 @@
           <details id="places-panel" class="panel is-mobile-active" open>
             <summary><span>Places</span><small>Search &amp; bookmarks</small></summary>
             <div class="panel__body">
-              <form id="place-search" class="search-row">
-                <label class="sr-only" for="place-query">Search for a place</label>
-                <input id="place-query" type="search" placeholder="City, address, or coordinates" autocomplete="off" />
-                <button type="submit" title="Search">→</button>
-              </form>
-              <div id="search-results" class="compact-list" aria-live="polite"></div>
+              <div class="place-search-combobox">
+                <form id="place-search" class="search-row">
+                  <label class="sr-only" for="place-query">Search for a place</label>
+                  <input id="place-query" type="search" placeholder="City, address, or coordinates" autocomplete="off" role="combobox" aria-autocomplete="list" aria-controls="search-results" aria-expanded="false" />
+                  <button type="submit" title="Search">→</button>
+                </form>
+                <div id="search-results" class="compact-list search-suggestions" role="listbox" aria-label="Place suggestions" aria-live="polite" hidden></div>
+              </div>
               <div class="section-heading">
                 <span>Bookmarks</span>
                 <button id="bookmark-add" class="text-button">+ Current view</button>
@@ -243,6 +245,6 @@
     <input id="tool-file-input" type="file" accept=".js,.mjs" hidden />
 
     <noscript>GIS Map Online requires JavaScript.</noscript>
-    <script type="module" src="./js/app.js?v=0.4.5"></script>
+    <script type="module" src="./js/app.js?v=0.4.6"></script>
   </body>
 </html>
