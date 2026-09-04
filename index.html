@@ -11,7 +11,7 @@
     <link rel="icon" href="./assets/favicon.ico" sizes="any" />
     <link rel="preconnect" href="https://js.arcgis.com" />
     <link rel="stylesheet" href="https://js.arcgis.com/5.0/esri/themes/light/main.css" />
-    <link rel="stylesheet" href="./css/app.css?v=0.5.2" />
+    <link rel="stylesheet" href="./css/app.css?v=0.6.1" />
     <script type="module" src="https://js.arcgis.com/5.0/"></script>
     <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
   </head>
@@ -191,6 +191,7 @@
           <button data-nav="tilt-down" title="Tilt camera down">▼</button>
         </div>
         <aside id="insights-overlay" class="insights-overlay" hidden aria-live="polite">
+          <div id="insights-resizer" class="insights-resizer" role="separator" tabindex="0" aria-label="Resize Map Insight panel"></div>
           <header>
             <div><span class="eyebrow">Map insight</span><h2 id="insights-title">Location</h2></div>
             <div class="insights-actions">
@@ -217,6 +218,7 @@
     </dialog>
 
     <dialog id="table-dialog" class="table-dialog">
+      <div id="table-resizer" class="table-resizer" role="separator" tabindex="0" aria-label="Resize attribute table"></div>
       <div class="table-dialog__shell">
         <header class="dialog__header">
           <div><span class="eyebrow">Attribute table</span><h2 id="table-title">Layer</h2></div>
@@ -245,6 +247,6 @@
     <input id="tool-file-input" type="file" accept=".js,.mjs" hidden />
 
     <noscript>GIS Map Online requires JavaScript.</noscript>
-    <script type="module" src="./js/app.js?v=0.5.2"></script>
+    <script type="module" src="./js/app.js?v=0.6.1"></script>
   </body>
 </html>

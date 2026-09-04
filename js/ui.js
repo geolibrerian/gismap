@@ -2,7 +2,8 @@ import { POPULAR_SERVICES } from "./catalog.js";
 import { ENTERPRISE_CATALOGS, EnterpriseCatalog } from "./enterprise-catalog.js";
 
 const DISPLAY_SETTINGS_KEY = "gismap-online:display:v1";
-const INSIGHT_POSITIONS = new Set(["upper-left", "lower-left", "bottom"]);
+const INSIGHT_POSITIONS = new Set(["upper-left", "lower-left", "bottom", "dock-left", "dock-right", "dock-bottom"]);
+const TABLE_POSITIONS = new Set(["overlay-bottom", "dock-left", "dock-right", "dock-bottom"]);
 const BASEMAP_OPTIONS = [
   ["topo-3d", "3D Topographic"], ["navigation-3d", "3D Navigation"],
   ["navigation-dark-3d", "3D Navigation — dark"], ["osm-3d", "3D OpenStreetMap"],
@@ -41,6 +42,7 @@ export class UIController {
     this.#buildMobileMenu();
     this.#bindMenus();
     this.#bindStaticActions();
+    this.#bindInsightResize();
     this.#bindMapEvents();
     this.#renderBookmarks();
     this.#renderLayers();
@@ -125,7 +127,7 @@ export class UIController {
     document.querySelector("#mobile-panel-close").addEventListener("click", () => this.#setSidebarCollapsed(true));
     this.#activateMobilePanel("places-panel", false);
     document.querySelector("#insights-close").addEventListener("click", () => {
-      document.querySelector("#insights-overlay").hidden = true;
+      this.#setInsightsOpen(false);
     });
     document.querySelector("#insights-settings").addEventListener("click", () => this.#displaySettingsDialog());
     const placeInput = document.querySelector("#place-query");
@@ -176,11 +178,11 @@ export class UIController {
     this.events.subscribe("project:exported", ({ kind }) => this.toast(`${kind === "package" ? "Project package (.gmop)" : "Project file (.gmo)"} downloaded.`));
     this.events.subscribe("bookmarks:changed", () => this.#renderBookmarks());
     this.events.subscribe("identify:start", () => {
-      document.querySelector("#insights-overlay").hidden = true;
+      this.#setInsightsOpen(false);
       document.querySelector("#intelligence-content").innerHTML = '<div class="loading-row"><span></span> Inspecting location…</div>';
     });
     this.events.subscribe("identify:complete", (payload) => this.#renderInsight(payload));
-    this.events.subscribe("table:open", () => { document.querySelector("#insights-overlay").hidden = true; });
+    this.events.subscribe("table:open", () => this.#setInsightsOpen(false));
     this.events.subscribe("identify:error", ({ error }) => this.error(`Identify failed: ${error.message}`));
     this.events.subscribe("ai:start", () => this.toast("Asking the configured model…"));
     this.events.subscribe("ai:complete", ({ text }) => this.#showAIResponse(text));
@@ -329,30 +331,48 @@ export class UIController {
       return {
         insightPosition: INSIGHT_POSITIONS.has(saved.insightPosition) ? saved.insightPosition : "upper-left",
         defaultBasemap: BASEMAP_IDS.has(saved.defaultBasemap) ? saved.defaultBasemap : "topo-3d",
+        insightDockWidth: Number.isFinite(saved.insightDockWidth) ? Math.min(720, Math.max(300, saved.insightDockWidth)) : 420,
+        insightDockHeight: Number.isFinite(saved.insightDockHeight) ? Math.min(620, Math.max(220, saved.insightDockHeight)) : 360,
+        tablePosition: TABLE_POSITIONS.has(saved.tablePosition) ? saved.tablePosition : "overlay-bottom",
+        tableDockWidth: Number.isFinite(saved.tableDockWidth) ? Math.min(820, Math.max(360, saved.tableDockWidth)) : 520,
+        tableDockHeight: Number.isFinite(saved.tableDockHeight) ? Math.min(680, Math.max(240, saved.tableDockHeight)) : 420,
       };
     } catch {
-      return { insightPosition: "upper-left", defaultBasemap: "topo-3d" };
+      return { insightPosition: "upper-left", defaultBasemap: "topo-3d", insightDockWidth: 420, insightDockHeight: 360, tablePosition: "overlay-bottom", tableDockWidth: 520, tableDockHeight: 420 };
     }
   }
 
   #applyDisplaySettings(settings) {
     document.body.dataset.insightsPosition = settings.insightPosition;
+    document.body.style.setProperty("--insights-dock-width", `${settings.insightDockWidth ?? 420}px`);
+    document.body.style.setProperty("--insights-dock-height", `${settings.insightDockHeight ?? 360}px`);
+    document.body.dataset.tablePosition = settings.tablePosition ?? "overlay-bottom";
+    document.body.style.setProperty("--table-dock-width", `${settings.tableDockWidth ?? 520}px`);
+    document.body.style.setProperty("--table-dock-height", `${settings.tableDockHeight ?? 420}px`);
+    const resizer = document.querySelector("#insights-resizer");
+    if (resizer) resizer.setAttribute("aria-orientation", settings.insightPosition === "dock-bottom" ? "horizontal" : "vertical");
+    const tableResizer = document.querySelector("#table-resizer");
+    if (tableResizer) tableResizer.setAttribute("aria-orientation", settings.tablePosition === "dock-bottom" ? "horizontal" : "vertical");
     this.mapController.setDefaultBasemap(settings.defaultBasemap);
+    requestAnimationFrame(() => this.mapController.resize());
   }
 
   #displaySettingsDialog() {
     const { insightPosition } = this.#readDisplaySettings();
+    const { tablePosition } = this.#readDisplaySettings();
     const defaultBasemap = this.mapController.getDefaultBasemapId();
     const option = (value, title, description) => `<label class="display-choice"><input type="radio" name="insight-position" value="${value}" ${insightPosition === value ? "checked" : ""} /><span><strong>${title}</strong><small>${description}</small></span></label>`;
+    const tableOption = (value, title, description) => `<label class="display-choice"><input type="radio" name="table-position" value="${value}" ${tablePosition === value ? "checked" : ""} /><span><strong>${title}</strong><small>${description}</small></span></label>`;
     const basemapOptions = BASEMAP_OPTIONS.map(([id, label]) => `<option value="${id}" ${defaultBasemap === id ? "selected" : ""}>${label}</option>`).join("");
     this.openDialog({
       eyebrow: "Interface preferences",
       title: "Display settings",
-      content: `<fieldset class="display-choices"><legend>Map insight position</legend>${option("upper-left", "Upper left", "Default; keeps map navigation controls clear.")}${option("lower-left", "Lower left", "Anchors the window above the map status area.")}${option("bottom", "Bottom drawer", "Uses a wide panel similar to the attribute table.")}</fieldset><label class="field display-basemap"><span>Default basemap</span><select id="default-basemap">${basemapOptions}</select></label><label class="display-checkbox"><input id="apply-default-basemap" type="checkbox" /><span>Apply this basemap to the current map</span></label><p class="form-note">The default is used for new projects and included in saved project files. Select the checkbox to also change the open project.</p>`,
+      content: `<fieldset class="display-choices"><legend>Map Insight — floating</legend>${option("upper-left", "Upper left", "Default; keeps map navigation controls clear.")}${option("lower-left", "Lower left", "Anchors the window above the map status area.")}${option("bottom", "Bottom overlay", "A wide panel layered over the bottom of the map.")}</fieldset><fieldset class="display-choices display-choices--docked"><legend>Map Insight — dashboard</legend>${option("dock-left", "Dock left", "Attaches beside the map with a draggable right edge.")}${option("dock-right", "Dock right", "Attaches beside the map with a draggable left edge.")}${option("dock-bottom", "Dock bottom", "Attaches below the map with a draggable top edge.")}</fieldset><fieldset class="display-choices display-choices--docked"><legend>Attribute table</legend>${tableOption("overlay-bottom", "Bottom overlay", "Current behavior; floats above the map.")}${tableOption("dock-left", "Dock left", "A resizable table beside the map.")}${tableOption("dock-right", "Dock right", "A resizable table beside the map.")}${tableOption("dock-bottom", "Dock bottom", "A resizable table below the map.")}</fieldset><label class="field display-basemap"><span>Default basemap</span><select id="default-basemap">${basemapOptions}</select></label><label class="display-checkbox"><input id="apply-default-basemap" type="checkbox" /><span>Apply this basemap to the current map</span></label><p class="form-note">Docked panels resize the map instead of covering it. Drag their divider or focus it and use the arrow keys; sizes are saved in this browser.</p>`,
       actions: [{ label: "Save settings", primary: true, handler: () => {
         const insightPosition = this.dialog.querySelector('input[name="insight-position"]:checked')?.value ?? "upper-left";
+        const tablePosition = this.dialog.querySelector('input[name="table-position"]:checked')?.value ?? "overlay-bottom";
         const defaultBasemap = this.dialog.querySelector("#default-basemap").value;
-        const settings = { insightPosition, defaultBasemap };
+        const settings = { ...this.#readDisplaySettings(), insightPosition, tablePosition, defaultBasemap };
         localStorage.setItem(DISPLAY_SETTINGS_KEY, JSON.stringify(settings));
         this.#applyDisplaySettings(settings);
         if (this.dialog.querySelector("#apply-default-basemap").checked) {
@@ -361,6 +381,66 @@ export class UIController {
         this.dialog.close();
         this.toast("Display settings saved.");
       }}],
+    });
+  }
+
+  #setInsightsOpen(open) {
+    document.querySelector("#insights-overlay").hidden = !open;
+    document.body.classList.toggle("insights-open", open);
+    requestAnimationFrame(() => this.mapController.resize());
+  }
+
+  #bindInsightResize() {
+    const handle = document.querySelector("#insights-resizer");
+    const resizeBy = (amount) => {
+      const settings = this.#readDisplaySettings();
+      if (settings.insightPosition === "dock-bottom") {
+        settings.insightDockHeight = Math.min(window.innerHeight * 0.65, Math.max(220, settings.insightDockHeight + amount));
+      } else if (["dock-left", "dock-right"].includes(settings.insightPosition)) {
+        settings.insightDockWidth = Math.min(window.innerWidth * 0.55, Math.max(300, settings.insightDockWidth + amount));
+      } else return;
+      localStorage.setItem(DISPLAY_SETTINGS_KEY, JSON.stringify(settings));
+      this.#applyDisplaySettings(settings);
+    };
+    handle.addEventListener("keydown", (event) => {
+      const position = document.body.dataset.insightsPosition;
+      const direction = position === "dock-bottom"
+        ? ({ ArrowUp: 16, ArrowDown: -16 })[event.key]
+        : ({ ArrowLeft: position === "dock-right" ? 16 : -16, ArrowRight: position === "dock-right" ? -16 : 16 })[event.key];
+      if (direction == null) return;
+      event.preventDefault();
+      resizeBy(direction);
+    });
+    handle.addEventListener("pointerdown", (event) => {
+      const position = document.body.dataset.insightsPosition;
+      if (!["dock-left", "dock-right", "dock-bottom"].includes(position)) return;
+      event.preventDefault();
+      const settings = this.#readDisplaySettings();
+      const startX = event.clientX;
+      const startY = event.clientY;
+      const startWidth = settings.insightDockWidth;
+      const startHeight = settings.insightDockHeight;
+      document.body.classList.add("insights-resizing");
+      const move = (moveEvent) => {
+        if (position === "dock-bottom") {
+          settings.insightDockHeight = Math.min(window.innerHeight * 0.65, Math.max(220, startHeight + startY - moveEvent.clientY));
+        } else {
+          const delta = position === "dock-left" ? moveEvent.clientX - startX : startX - moveEvent.clientX;
+          settings.insightDockWidth = Math.min(window.innerWidth * 0.55, Math.max(300, startWidth + delta));
+        }
+        this.#applyDisplaySettings(settings);
+      };
+      const finish = () => {
+        window.removeEventListener("pointermove", move);
+        window.removeEventListener("pointerup", finish);
+        window.removeEventListener("pointercancel", finish);
+        document.body.classList.remove("insights-resizing");
+        localStorage.setItem(DISPLAY_SETTINGS_KEY, JSON.stringify(settings));
+        this.mapController.resize();
+      };
+      window.addEventListener("pointermove", move);
+      window.addEventListener("pointerup", finish);
+      window.addEventListener("pointercancel", finish);
     });
   }
 
@@ -1138,13 +1218,13 @@ export class UIController {
       document.querySelector("#insights-title").textContent =
         results.length === 1 ? results[0].layerTitle : `${results.length} features`;
       document.querySelector("#insights-content").innerHTML = `${tabsHtml}${resultHtml}`;
-      overlay.hidden = false;
+      this.#setInsightsOpen(true);
       document.querySelectorAll("[data-insight-tab]").forEach((button) =>
         button.addEventListener("click", () => this.#activateInsightTab(Number(button.dataset.insightTab))),
       );
     } else {
       document.querySelector("#insights-content").replaceChildren();
-      overlay.hidden = true;
+      this.#setInsightsOpen(false);
     }
     document.querySelector("#ai-question")?.addEventListener("submit", (event) => {
       event.preventDefault();

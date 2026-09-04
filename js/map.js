@@ -631,6 +631,10 @@ export class MapController {
       : this.view.goTo({ center: result.location, zoom: 14, tilt: 55 });
   }
 
+  resize() {
+    this.view?.resize?.();
+  }
+
   async goToLayer(layerOrUid) {
     const layer = typeof layerOrUid === "string" ? this.findLayer(layerOrUid) : layerOrUid;
     if (!layer?.fullExtent) return;

@@ -1,3 +1,6 @@
+const DISPLAY_SETTINGS_KEY = "gismap-online:display:v1";
+const TABLE_POSITIONS = new Set(["overlay-bottom", "dock-left", "dock-right", "dock-bottom"]);
+
 export class AttributeTableController {
   constructor(events, mapController) {
     this.events = events;
@@ -20,6 +23,14 @@ export class AttributeTableController {
 
   initialize() {
     document.querySelector("#table-close").addEventListener("click", () => this.#cancelAndReset());
+    this.dialog.addEventListener("cancel", (event) => {
+      event.preventDefault();
+      this.#cancelAndReset();
+    });
+    this.dialog.addEventListener("close", () => {
+      document.body.classList.remove("table-open", "table-resizing");
+      requestAnimationFrame(() => this.mapController.resize());
+    });
     document.querySelector("#table-prev").addEventListener("click", () => this.goToPage(this.state.page - 1).catch((error) => this.#reportError(error)));
     document.querySelector("#table-next").addEventListener("click", () => this.goToPage(this.state.page + 1).catch((error) => this.#reportError(error)));
     document.querySelector("#table-search").addEventListener("submit", (event) => {
@@ -45,7 +56,9 @@ export class AttributeTableController {
         this.#zoomToFeature(Number(row.dataset.featureIndex));
       }
     });
+    this.#bindResize();
     this.events.subscribe("table:open", ({ uid }) => this.open(uid));
+    this.events.subscribe("identify:start", () => this.#cancelAndReset());
     this.events.subscribe("layer:removed", ({ uid }) => {
       if (this.state.rootUid === uid) this.#cancelAndReset();
     });
@@ -76,6 +89,8 @@ export class AttributeTableController {
       document.querySelector("#table-search-input").value = "";
       document.querySelector("#table-search-clear").hidden = true;
       if (!this.dialog.open) this.dialog.show();
+      document.body.classList.add("table-open");
+      requestAnimationFrame(() => this.mapController.resize());
       if (!await this.#loadIndex(operationId)) return;
       await this.goToPage(0, operationId);
     } catch (error) {
@@ -237,6 +252,82 @@ export class AttributeTableController {
     };
     this.#clearRenderedTable();
     if (this.dialog.open) this.dialog.close();
+    document.body.classList.remove("table-open", "table-resizing");
+    requestAnimationFrame(() => this.mapController.resize());
+  }
+
+  #displaySettings() {
+    try {
+      const saved = JSON.parse(localStorage.getItem(DISPLAY_SETTINGS_KEY)) ?? {};
+      return {
+        ...saved,
+        tablePosition: TABLE_POSITIONS.has(saved.tablePosition) ? saved.tablePosition : "overlay-bottom",
+        tableDockWidth: Number.isFinite(saved.tableDockWidth) ? saved.tableDockWidth : 520,
+        tableDockHeight: Number.isFinite(saved.tableDockHeight) ? saved.tableDockHeight : 420,
+      };
+    } catch {
+      return { tablePosition: "overlay-bottom", tableDockWidth: 520, tableDockHeight: 420 };
+    }
+  }
+
+  #applyTableSize(settings) {
+    document.body.style.setProperty("--table-dock-width", `${settings.tableDockWidth}px`);
+    document.body.style.setProperty("--table-dock-height", `${settings.tableDockHeight}px`);
+    requestAnimationFrame(() => this.mapController.resize());
+  }
+
+  #bindResize() {
+    const handle = document.querySelector("#table-resizer");
+    const resizeBy = (amount) => {
+      const settings = this.#displaySettings();
+      if (settings.tablePosition === "dock-bottom") {
+        settings.tableDockHeight = Math.min(window.innerHeight * 0.7, Math.max(240, settings.tableDockHeight + amount));
+      } else if (["dock-left", "dock-right"].includes(settings.tablePosition)) {
+        settings.tableDockWidth = Math.min(window.innerWidth * 0.65, Math.max(360, settings.tableDockWidth + amount));
+      } else return;
+      localStorage.setItem(DISPLAY_SETTINGS_KEY, JSON.stringify(settings));
+      this.#applyTableSize(settings);
+    };
+    handle.addEventListener("keydown", (event) => {
+      const position = document.body.dataset.tablePosition;
+      const direction = position === "dock-bottom"
+        ? ({ ArrowUp: 20, ArrowDown: -20 })[event.key]
+        : ({ ArrowLeft: position === "dock-right" ? 20 : -20, ArrowRight: position === "dock-right" ? -20 : 20 })[event.key];
+      if (direction == null) return;
+      event.preventDefault();
+      resizeBy(direction);
+    });
+    handle.addEventListener("pointerdown", (event) => {
+      const position = document.body.dataset.tablePosition;
+      if (!["dock-left", "dock-right", "dock-bottom"].includes(position)) return;
+      event.preventDefault();
+      const settings = this.#displaySettings();
+      const startX = event.clientX;
+      const startY = event.clientY;
+      const startWidth = settings.tableDockWidth;
+      const startHeight = settings.tableDockHeight;
+      document.body.classList.add("table-resizing");
+      const move = (moveEvent) => {
+        if (position === "dock-bottom") {
+          settings.tableDockHeight = Math.min(window.innerHeight * 0.7, Math.max(240, startHeight + startY - moveEvent.clientY));
+        } else {
+          const delta = position === "dock-left" ? moveEvent.clientX - startX : startX - moveEvent.clientX;
+          settings.tableDockWidth = Math.min(window.innerWidth * 0.65, Math.max(360, startWidth + delta));
+        }
+        this.#applyTableSize(settings);
+      };
+      const finish = () => {
+        window.removeEventListener("pointermove", move);
+        window.removeEventListener("pointerup", finish);
+        window.removeEventListener("pointercancel", finish);
+        document.body.classList.remove("table-resizing");
+        localStorage.setItem(DISPLAY_SETTINGS_KEY, JSON.stringify(settings));
+        this.mapController.resize();
+      };
+      window.addEventListener("pointermove", move);
+      window.addEventListener("pointerup", finish);
+      window.addEventListener("pointercancel", finish);
+    });
   }
 
   #reportError(error) {
