@@ -635,6 +635,18 @@ export class MapController {
     const layer = typeof layerOrUid === "string" ? this.findLayer(layerOrUid) : layerOrUid;
     if (!layer?.fullExtent) return;
     let target = layer.fullExtent;
+    if (typeof layer.queryExtent === "function") {
+      try {
+        const query = layer.createQuery?.() ?? {};
+        query.where = layer.definitionExpression || "1=1";
+        query.outSpatialReference = this.view?.spatialReference;
+        const result = await layer.queryExtent(query);
+        if (result?.extent && this.#isPlausibleExtent(result.extent)) target = result.extent;
+      } catch {
+        // Some layer types advertise query support but reject extent-only queries.
+        // Fall through to the metadata/fallback feature extent handling below.
+      }
+    }
     if (!this.#isPlausibleExtent(target) && typeof layer.queryFeatures === "function") {
       const query = layer.createQuery?.() ?? {};
       query.where = layer.definitionExpression || "1=1";

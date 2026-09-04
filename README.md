@@ -34,7 +34,7 @@ Then open `http://localhost:8080`.
 - ArcGIS connection tests report version, authentication model, token endpoint, CORS reachability, federation, and owning Portal. Only connection metadata is exported with projects; credentials and tokens are never serialized.
 - GeoJSON URLs load as native, queryable `GeoJSONLayer` instances and retain refresh, styling, and table settings in project files.
 - ArcGIS MapServer sublayer URLs are detected automatically, including raster sublayers that must be loaded through their parent `MapImageLayer`.
-- ArcGIS FeatureServer `/query` URLs are accepted and normalized to their layer endpoint; `where` and `outFields` are applied to the native feature layer. Implausible geographic service extents are ignored when zooming.
+- ArcGIS FeatureServer `/query` URLs are accepted and normalized to their layer endpoint; `where` and `outFields` are applied to the native feature layer. Layer zoom uses a live, filter-aware feature extent when supported, avoiding stale or malformed service extents.
 - WFS 2.0 services with advertised GeoJSON output can be added from either a service endpoint or a full GetFeature URL; feature type names and nonstandard custom parameters are retained automatically.
 - Vector operational layers are explicitly draped on the scene ground so Z-enabled feeds such as USGS earthquake data do not fall beneath terrain.
 - AI controls appear in Intelligence only while a provider is fully configured. Online API tokens are never persisted or included in exports.

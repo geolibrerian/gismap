@@ -97,4 +97,19 @@ await controller.goToLayer({
 assert.equal(navigation.target.xmin, -121);
 assert.equal(navigation.target.ymax, 40);
 
+let extentQuery;
+await controller.goToLayer({
+  fullExtent: { xmin: -12774183, ymin: 0, xmax: 0, ymax: 4439313, spatialReference: { wkid: 3857 } },
+  definitionExpression: "Severity = 'High'",
+  createQuery: () => ({}),
+  queryExtent: async (query) => {
+    extentQuery = query;
+    return { extent: { xmin: -114.38, ymin: 31.33, xmax: -109.10, ymax: 36.22, spatialReference: { wkid: 4326 } } };
+  },
+});
+assert.equal(extentQuery.where, "Severity = 'High'");
+assert.equal(extentQuery.outSpatialReference.wkid, 4326);
+assert.equal(navigation.target.xmin, -114.38);
+assert.equal(navigation.target.ymax, 36.22);
+
 console.log("ArcGIS feature query URL tests passed");
