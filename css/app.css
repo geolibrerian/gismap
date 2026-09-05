@@ -278,6 +278,15 @@ dialog::backdrop { background: rgb(12 28 23 / 48%); backdrop-filter: blur(3px); 
 .warning-box { padding: 14px; border: 1px solid #e3b1a9; border-radius: 8px; color: #70291f; background: #fbebe8; font-size: 12px; }
 .warning-box p { margin: 5px 0 0; }
 .project-list, .catalog-list { display: grid; gap: 8px; }
+.server-directory-card { display: grid; gap: 12px; margin-bottom: 14px; padding: 14px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface-2); }
+.server-directory-card h3 { margin: 3px 0 4px; font-size: 15px; }
+.server-directory-card > div > p { margin: 0 0 7px; color: var(--muted); font-size: 11px; line-height: 1.5; }
+.server-directory-card a { color: var(--green-2); font-size: 11px; font-weight: 700; }
+.server-directory-form { display: grid; gap: 6px; }
+.server-directory-form .field { margin: 0; }
+.server-directory-input { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 7px; }
+.server-directory-input input { min-width: 0; }
+.server-directory-input button { border: 1px solid var(--green); border-radius: 6px; padding: 8px 11px; color: white; background: var(--green); cursor: pointer; font-size: 11px; }
 .catalog-path { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
 .catalog-path button { border: 1px solid var(--line); border-radius: 6px; padding: 6px 9px; background: var(--surface); cursor: pointer; }
 .catalog-path button:disabled { opacity: .35; cursor: default; }
@@ -296,6 +305,7 @@ button.enterprise-row:hover { border-color: var(--green-2); }
 .catalog-card { display: grid; grid-template-columns: 1fr auto; gap: 12px; align-items: center; padding: 13px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
 .catalog-card h3 { margin: 3px 0; font-size: 13px; }
 .catalog-card p { margin: 0; color: var(--muted); font-size: 10px; line-height: 1.45; }
+@media (max-width: 560px) { .server-directory-input { grid-template-columns: 1fr; } }
 .about-copy p { margin-top: 0; line-height: 1.6; }
 .about-copy dl { padding: 0; }
 

@@ -7,9 +7,31 @@ export const ENTERPRISE_CATALOGS = [
   },
 ];
 
+export function normalizeArcGisDirectoryUrl(value) {
+  let url;
+  try {
+    url = new URL(String(value ?? "").trim());
+  } catch {
+    throw new Error("Enter a valid ArcGIS server directory URL.");
+  }
+  if (!/^https?:$/.test(url.protocol)) {
+    throw new Error("The server directory must use HTTP or HTTPS.");
+  }
+  url.pathname = url.pathname.replace(/\/+$/, "");
+  url.search = "";
+  url.hash = "";
+  if (!/\/rest\/services$/i.test(url.pathname)) {
+    throw new Error("Use the top-level ArcGIS endpoint ending in /rest/services.");
+  }
+  return url.toString().replace(/\/$/, "");
+}
+
 export class EnterpriseCatalog {
   constructor(definition) {
-    this.definition = definition;
+    this.definition = {
+      ...definition,
+      rootUrl: normalizeArcGisDirectoryUrl(definition.rootUrl),
+    };
   }
 
   async browse(folder = "") {

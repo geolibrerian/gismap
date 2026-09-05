@@ -18,6 +18,8 @@ All notable changes to GIS Map Online are documented here. This project follows
 - USGS NAIP Plus imagery in the Popular data services catalog.
 - Recent MODIS hotspots, active hurricanes, PM2.5 observations, USGS seismic
   activity, NDFD wind gusts, and NDFD precipitation in Popular data services.
+- A GIS Server Directory link and live ArcGIS server-endpoint browser in Popular
+  data services, without copying or indexing the external directory.
 
 ### Changed
 

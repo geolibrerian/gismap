@@ -1,5 +1,5 @@
 import { POPULAR_SERVICES } from "./catalog.js?v=0.9.0";
-import { ENTERPRISE_CATALOGS, EnterpriseCatalog } from "./enterprise-catalog.js?v=0.9.0";
+import { ENTERPRISE_CATALOGS, EnterpriseCatalog, normalizeArcGisDirectoryUrl } from "./enterprise-catalog.js?v=0.9.0";
 
 const DISPLAY_SETTINGS_KEY = "gismap-online:display:v1";
 const INSIGHT_POSITIONS = new Set(["upper-left", "lower-left", "bottom", "dock-left", "dock-right", "dock-bottom"]);
@@ -699,11 +699,42 @@ export class UIController {
     this.openDialog({
       eyebrow: "Starter catalog",
       title: "Popular data services",
-      content: `<div class="catalog-list">${POPULAR_SERVICES.map((service) => `
+      content: `<section class="server-directory-card" aria-labelledby="server-directory-title">
+        <div>
+          <span class="eyebrow">MappingSupport.com</span>
+          <h3 id="server-directory-title">GIS Server Directory</h3>
+          <p>Search the original directory of public government ArcGIS servers, then paste a selected top-level endpoint below.</p>
+          <a href="https://mappingsupport.com/p/surf_gis/list-federal-state-county-city-GIS-servers.pdf" target="_blank" rel="noopener noreferrer">Open the original GIS Server Directory (PDF) ↗</a>
+        </div>
+        <form id="server-directory-form" class="server-directory-form">
+          <label class="field" for="server-directory-url"><span>ArcGIS server endpoint</span></label>
+          <div class="server-directory-input">
+            <input id="server-directory-url" type="url" required spellcheck="false" placeholder="https://server.example/arcgis/rest/services" />
+            <button type="submit">Browse services</button>
+          </div>
+          <p class="form-note">Use a top-level address ending in <code>/rest/services</code>. GIS Map reads its folders and services live; the directory itself is not copied or indexed.</p>
+        </form>
+      </section>
+      <div class="catalog-list">${POPULAR_SERVICES.map((service) => `
         <article class="catalog-card">
           <div><span class="eyebrow">${escapeHtml(service.provider)}</span><h3>${escapeHtml(service.title)}</h3><p>${escapeHtml(service.description)}</p></div>
           <button data-catalog-id="${escapeHtml(service.id)}">Add</button>
         </article>`).join("")}</div><p class="form-note">Edit <code>js/catalog.js</code> to curate this list.</p>`,
+    });
+    this.dialog.querySelector("#server-directory-form").addEventListener("submit", async (event) => {
+      event.preventDefault();
+      try {
+        const rootUrl = normalizeArcGisDirectoryUrl(this.dialog.querySelector("#server-directory-url").value);
+        const hostname = new URL(rootUrl).hostname;
+        await this.#enterpriseCatalogDialog({
+          id: "external-directory",
+          title: `${hostname} services`,
+          rootUrl,
+          version: "Live ArcGIS server directory",
+        });
+      } catch (error) {
+        this.error(error.message);
+      }
     });
     this.dialog.querySelectorAll("[data-catalog-id]").forEach((button) =>
       button.addEventListener("click", async () => {
@@ -721,8 +752,11 @@ export class UIController {
     );
   }
 
-  async #enterpriseCatalogDialog(catalogId) {
-    const definition = ENTERPRISE_CATALOGS.find((item) => item.id === catalogId);
+  async #enterpriseCatalogDialog(catalogIdOrDefinition) {
+    const definition = typeof catalogIdOrDefinition === "string"
+      ? ENTERPRISE_CATALOGS.find((item) => item.id === catalogIdOrDefinition)
+      : catalogIdOrDefinition;
+    if (!definition) throw new Error("That ArcGIS service directory is not configured.");
     const catalog = new EnterpriseCatalog(definition);
     this.openDialog({
       eyebrow: definition.version,
