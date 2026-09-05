@@ -269,9 +269,10 @@ button.enterprise-row:hover { border-color: var(--green-2); }
 .table-dialog { position: fixed; inset: auto 14px 14px calc(var(--sidebar) + 14px); width: auto; max-width: none; height: min(44vh, 470px); max-height: none; margin: 0; z-index: 40; resize: vertical; }
 .table-resizer { display: none; position: absolute; z-index: 3; touch-action: none; }
 .table-dialog__shell { display: grid; grid-template-rows: auto auto 1fr auto; width: 100%; height: 100%; }
-.table-dialog .dialog__header { padding: 12px 16px 9px; }
-.table-dialog .dialog__header h2 { font-size: 21px; }
-.table-tools { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 7px 14px; }
+.table-dialog .dialog__header { align-items: center; padding: 7px 14px 5px; }
+.table-dialog .dialog__header h2 { display: inline; margin-left: 8px; font-size: 18px; }
+.table-dialog .dialog__header .eyebrow { display: inline; }
+.table-tools { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 4px 14px; }
 .table-summary { min-width: 0; color: var(--muted); font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .table-search { display: flex; gap: 5px; min-width: min(440px, 50%); }
 .table-search input { min-width: 0; flex: 1; padding: 7px 9px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); }
@@ -279,12 +280,12 @@ button.enterprise-row:hover { border-color: var(--green-2); }
 .table-scroll { min-height: 0; overflow: auto; margin: 0 14px; border: 1px solid var(--line); background: var(--surface); }
 .table-scroll table { border-collapse: collapse; min-width: 100%; font-size: 11px; }
 .table-scroll th { position: sticky; top: 0; z-index: 1; background: var(--green); color: white; text-align: left; }
-.table-scroll th, .table-scroll td { max-width: 320px; padding: 8px 10px; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.table-scroll th, .table-scroll td { max-width: 320px; padding: 6px 9px; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .table-scroll tbody tr:nth-child(even) { background: #f8f6ef; }
 .table-scroll tbody tr[data-feature-index] { cursor: pointer; }
 .table-scroll tbody tr[data-feature-index]:hover,
 .table-scroll tbody tr[data-feature-index]:focus { background: #e8f1ed; outline: 2px solid var(--green-2); outline-offset: -2px; }
-.table-footer { display: flex; align-items: center; justify-content: center; gap: 14px; padding: 12px; font-size: 11px; }
+.table-footer { display: flex; align-items: center; justify-content: center; gap: 10px; padding: 5px 10px; font-size: 10px; }
 .table-footer button:disabled { opacity: .4; cursor: default; }
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
 
@@ -436,6 +437,60 @@ body.sidebar-collapsed .table-dialog { left: 14px; }
   body.insights-resizing { cursor: col-resize; user-select: none; }
   body.insights-resizing[data-insights-position="dock-bottom"] { cursor: row-resize; }
   body.insights-resizing iframe, body.insights-resizing canvas { pointer-events: none; }
+}
+
+@media (min-width: 881px) {
+  body[data-navigation-layout="top"] .app-shell {
+    grid-template: 64px minmax(0, 1fr) / minmax(0, 1fr);
+  }
+  body[data-navigation-layout="top"] .sidebar {
+    z-index: 45;
+    display: grid;
+    grid-template: 64px / 190px 340px minmax(0, 1fr) auto;
+    width: 100%;
+    height: 64px;
+    overflow: visible;
+    border-right: 0;
+    border-bottom: 1px solid var(--line);
+    box-shadow: 0 8px 24px rgb(17 39 33 / 8%);
+  }
+  body[data-navigation-layout="top"] .brand { height: 64px; padding: 5px 10px; border: 0; border-right: 1px solid var(--line); }
+  body[data-navigation-layout="top"] .brand__mark { width: 46px; height: 46px; }
+  body[data-navigation-layout="top"] .brand__wordmark strong { font-size: 18px; }
+  body[data-navigation-layout="top"] .brand__wordmark span { margin-top: 3px; font-size: 7px; }
+  body[data-navigation-layout="top"] .brand__wordmark small,
+  body[data-navigation-layout="top"] .sidebar__close { display: none; }
+  body[data-navigation-layout="top"] .menu-bar { align-self: stretch; border: 0; border-right: 1px solid var(--line); }
+  body[data-navigation-layout="top"] .menu__trigger { height: 64px; }
+  body[data-navigation-layout="top"] .sidebar__scroll { display: flex; align-items: stretch; overflow: visible; }
+  body[data-navigation-layout="top"] .panel { position: relative; border: 0; }
+  body[data-navigation-layout="top"] .panel summary { height: 64px; gap: 0; padding: 0 16px; align-items: center; }
+  body[data-navigation-layout="top"] .panel summary span { font: 700 12px/1 system-ui, sans-serif; }
+  body[data-navigation-layout="top"] .panel summary small,
+  body[data-navigation-layout="top"] .panel summary::after { display: none; }
+  body[data-navigation-layout="top"] .panel[open] summary { color: var(--green-2); background: var(--surface-2); }
+  body[data-navigation-layout="top"] .panel .panel__body {
+    position: absolute;
+    z-index: 50;
+    top: calc(100% + 1px);
+    left: 0;
+    width: min(370px, 90vw);
+    max-height: calc(100vh - 82px);
+    overflow: auto;
+    padding: 14px;
+    border: 1px solid var(--line);
+    border-radius: 0 0 9px 9px;
+    background: var(--paper);
+    box-shadow: var(--shadow);
+  }
+  body[data-navigation-layout="top"] .sidebar__footer { align-items: center; border: 0; border-left: 1px solid var(--line); }
+  body[data-navigation-layout="top"] .map-workspace { height: auto; min-height: 0; }
+  body[data-navigation-layout="top"].sidebar-collapsed .app-shell { grid-template-rows: 0 minmax(0, 1fr); grid-template-columns: 1fr; }
+  body[data-navigation-layout="top"].sidebar-collapsed .sidebar { transform: translateY(-100%); }
+  body[data-navigation-layout="top"].sidebar-collapsed .sidebar__open { display: block; }
+  body[data-navigation-layout="top"] .table-dialog,
+  body[data-navigation-layout="top"].table-open[data-table-position="dock-left"] .table-dialog,
+  body[data-navigation-layout="top"].table-open[data-table-position="dock-bottom"] .table-dialog { left: 0; }
 }
 
 @media (max-width: 880px) {

@@ -11,7 +11,7 @@
     <link rel="icon" href="./assets/gis-map-online-mark-v2.png" type="image/png" />
     <link rel="preconnect" href="https://js.arcgis.com" />
     <link rel="stylesheet" href="https://js.arcgis.com/5.0/esri/themes/light/main.css" />
-    <link rel="stylesheet" href="./css/app.css?v=0.7.3" />
+    <link rel="stylesheet" href="./css/app.css?v=0.7.4" />
     <script type="module" src="https://js.arcgis.com/5.0/"></script>
     <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
   </head>
@@ -70,6 +70,7 @@
               <label class="menu__field"><span>Basemap</span><select data-basemap-picker><optgroup label="3D basemaps"><option value="topo-3d">3D Topographic</option><option value="navigation-3d">3D Navigation</option><option value="navigation-dark-3d">3D Navigation — dark</option><option value="osm-3d">3D OpenStreetMap</option><option value="gray-3d">3D Light gray</option><option value="dark-gray-3d">3D Dark gray</option><option value="streets-3d">3D Streets</option><option value="streets-dark-3d">3D Streets — dark</option></optgroup><optgroup label="2D basemaps"><option value="topo-vector">Topographic</option><option value="streets-vector">Streets</option><option value="navigation">Navigation</option><option value="gray-vector">Light gray</option><option value="dark-gray-vector">Dark gray</option><option value="osm">OpenStreetMap</option></optgroup><optgroup label="Imagery"><option value="satellite">Satellite</option><option value="hybrid">Satellite + labels</option></optgroup></select></label>
               <label class="menu__field"><span>Terrain surface</span><select data-ground-picker><option value="world-elevation">World elevation</option><option value="world-topobathymetry">Elevation + bathymetry</option><option value="flat">Flat ground</option></select></label>
               <hr />
+              <button data-action="tools-display">Layout &amp; display…</button>
               <button data-widget="basemapGallery">3D basemap gallery</button>
               <button data-widget="compass">Compass</button>
               <button data-widget="measurement">Measurement</button>
@@ -80,8 +81,6 @@
             <button class="menu__trigger" aria-expanded="false">Tools <span>⌄</span></button>
             <div class="menu__content" role="menu">
               <button data-action="tools-connections">ArcGIS connections</button>
-              <button data-action="tools-display">Display settings</button>
-              <hr />
               <button data-action="tools-custom">Load custom JavaScript tool</button>
               <button data-action="tools-ai">Configure AI</button>
               <button data-action="tools-about">About this build</button>
@@ -175,7 +174,6 @@
           <header>
             <div><span class="eyebrow">Map insight</span><h2 id="insights-title">Location</h2></div>
             <div class="insights-actions">
-              <button id="insights-settings" class="icon-button" aria-label="Change insight window position" title="Insight window position">⚙</button>
               <button id="insights-close" class="icon-button" aria-label="Close insights">×</button>
             </div>
           </header>
@@ -227,6 +225,6 @@
     <input id="tool-file-input" type="file" accept=".js,.mjs" hidden />
 
     <noscript>GIS Map Online requires JavaScript.</noscript>
-    <script type="module" src="./js/app.js?v=0.7.3"></script>
+    <script type="module" src="./js/app.js?v=0.7.4"></script>
   </body>
 </html>

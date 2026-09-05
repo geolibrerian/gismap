@@ -281,7 +281,7 @@ export class AttributeTableController {
     const resizeBy = (amount) => {
       const settings = this.#displaySettings();
       if (settings.tablePosition === "dock-bottom") {
-        settings.tableDockHeight = Math.min(window.innerHeight * 0.7, Math.max(240, settings.tableDockHeight + amount));
+        settings.tableDockHeight = Math.min(window.innerHeight * 0.7, Math.max(170, settings.tableDockHeight + amount));
       } else if (["dock-left", "dock-right"].includes(settings.tablePosition)) {
         settings.tableDockWidth = Math.min(window.innerWidth * 0.65, Math.max(360, settings.tableDockWidth + amount));
       } else return;
@@ -309,7 +309,7 @@ export class AttributeTableController {
       document.body.classList.add("table-resizing");
       const move = (moveEvent) => {
         if (position === "dock-bottom") {
-          settings.tableDockHeight = Math.min(window.innerHeight * 0.7, Math.max(240, startHeight + startY - moveEvent.clientY));
+          settings.tableDockHeight = Math.min(window.innerHeight * 0.7, Math.max(170, startHeight + startY - moveEvent.clientY));
         } else {
           const delta = position === "dock-left" ? moveEvent.clientX - startX : startX - moveEvent.clientX;
           settings.tableDockWidth = Math.min(window.innerWidth * 0.65, Math.max(360, startWidth + delta));

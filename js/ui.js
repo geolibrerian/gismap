@@ -144,7 +144,14 @@ export class UIController {
       this.mapController.clearFeatureHighlight();
       this.#setInsightsOpen(false);
     });
-    document.querySelector("#insights-settings").addEventListener("click", () => this.#displaySettingsDialog());
+    document.querySelectorAll(".sidebar__scroll > .panel > summary").forEach((summary) =>
+      summary.addEventListener("click", () => {
+        if (document.body.dataset.navigationLayout !== "top") return;
+        document.querySelectorAll(".sidebar__scroll > .panel[open]").forEach((panel) => {
+          if (panel !== summary.parentElement) panel.open = false;
+        });
+      }),
+    );
     const placeInput = document.querySelector("#place-query");
     document.querySelector("#place-search").addEventListener("submit", (event) => this.#search(event));
     placeInput.addEventListener("input", () => this.#schedulePlaceSearch(placeInput.value));
@@ -357,13 +364,14 @@ export class UIController {
         insightDockHeight: Number.isFinite(saved.insightDockHeight) ? Math.min(620, Math.max(220, saved.insightDockHeight)) : 360,
         tablePosition: TABLE_POSITIONS.has(saved.tablePosition) ? saved.tablePosition : "overlay-bottom",
         tableDockWidth: Number.isFinite(saved.tableDockWidth) ? Math.min(820, Math.max(360, saved.tableDockWidth)) : 520,
-        tableDockHeight: Number.isFinite(saved.tableDockHeight) ? Math.min(680, Math.max(240, saved.tableDockHeight)) : 420,
+        tableDockHeight: Number.isFinite(saved.tableDockHeight) ? Math.min(680, Math.max(170, saved.tableDockHeight)) : 420,
         highlightEnabled: saved.highlightEnabled !== false,
         clickMarkerEnabled: saved.clickMarkerEnabled !== false,
         highlightColor: /^#[0-9a-f]{6}$/i.test(saved.highlightColor) ? saved.highlightColor : "#00b8d9",
+        navigationLayout: saved.navigationLayout === "top" ? "top" : "side",
       };
     } catch {
-      return { insightPosition: "upper-left", defaultBasemap: "topo-3d", insightDockWidth: 420, insightDockHeight: 360, tablePosition: "overlay-bottom", tableDockWidth: 520, tableDockHeight: 420, highlightEnabled: true, clickMarkerEnabled: true, highlightColor: "#00b8d9" };
+      return { insightPosition: "upper-left", defaultBasemap: "topo-3d", insightDockWidth: 420, insightDockHeight: 360, tablePosition: "overlay-bottom", tableDockWidth: 520, tableDockHeight: 420, highlightEnabled: true, clickMarkerEnabled: true, highlightColor: "#00b8d9", navigationLayout: "side" };
     }
   }
 
@@ -372,6 +380,10 @@ export class UIController {
     document.body.style.setProperty("--insights-dock-width", `${settings.insightDockWidth ?? 420}px`);
     document.body.style.setProperty("--insights-dock-height", `${settings.insightDockHeight ?? 360}px`);
     document.body.dataset.tablePosition = settings.tablePosition ?? "overlay-bottom";
+    document.body.dataset.navigationLayout = settings.navigationLayout ?? "side";
+    if (settings.navigationLayout === "top") {
+      document.querySelectorAll(".sidebar__scroll > .panel").forEach((panel) => { panel.open = false; });
+    }
     document.body.style.setProperty("--table-dock-width", `${settings.tableDockWidth ?? 520}px`);
     document.body.style.setProperty("--table-dock-height", `${settings.tableDockHeight ?? 420}px`);
     const resizer = document.querySelector("#insights-resizer");
@@ -391,12 +403,13 @@ export class UIController {
     this.openDialog({
       eyebrow: "Interface preferences",
       title: "Display settings",
-      content: `<div class="display-settings-grid"><label class="field"><span>Map Insight position</span><select id="insight-position"><optgroup label="Floating"><option value="upper-left">Upper left</option><option value="lower-left">Lower left</option><option value="bottom">Bottom overlay</option></optgroup><optgroup label="Dashboard"><option value="dock-left">Dock left</option><option value="dock-right">Dock right</option><option value="dock-bottom">Dock bottom</option></optgroup></select></label><label class="field"><span>Attribute table position</span><select id="table-position"><option value="overlay-bottom">Bottom overlay</option><option value="dock-left">Dock left</option><option value="dock-right">Dock right</option><option value="dock-bottom">Dock bottom</option></select></label><label class="field display-basemap"><span>Default basemap</span><select id="default-basemap">${basemapOptions}</select></label></div><fieldset class="feedback-settings"><legend>Map click feedback</legend><label class="display-checkbox"><input id="click-marker-enabled" type="checkbox" ${current.clickMarkerEnabled ? "checked" : ""} /><span>Show a crosshair where the map is clicked</span></label><label class="display-checkbox"><input id="highlight-enabled" type="checkbox" ${current.highlightEnabled ? "checked" : ""} /><span>Highlight the feature selected in Map Insight</span></label><label class="highlight-color"><span>Feedback color</span><input id="highlight-color" type="color" value="${current.highlightColor}" /><output>${current.highlightColor.toUpperCase()}</output></label></fieldset><label class="display-checkbox"><input id="apply-default-basemap" type="checkbox" /><span>Apply the default basemap to the current map</span></label><p class="form-note">Docked panels resize the map instead of covering it. Drag their divider or focus it and use the arrow keys; sizes and feedback preferences are saved in this browser.</p>`,
+      content: `<div class="display-settings-grid"><label class="field"><span>Application navigation</span><select id="navigation-layout"><option value="side">Side panel</option><option value="top">Top navigation bar</option></select></label><label class="field"><span>Map Insight position</span><select id="insight-position"><optgroup label="Floating"><option value="upper-left">Upper left</option><option value="lower-left">Lower left</option><option value="bottom">Bottom overlay</option></optgroup><optgroup label="Dashboard"><option value="dock-left">Dock left</option><option value="dock-right">Dock right</option><option value="dock-bottom">Dock bottom</option></optgroup></select></label><label class="field"><span>Attribute table position</span><select id="table-position"><option value="overlay-bottom">Bottom overlay</option><option value="dock-left">Dock left</option><option value="dock-right">Dock right</option><option value="dock-bottom">Dock bottom</option></select></label><label class="field display-basemap"><span>Default basemap</span><select id="default-basemap">${basemapOptions}</select></label></div><fieldset class="feedback-settings"><legend>Map click feedback</legend><label class="display-checkbox"><input id="click-marker-enabled" type="checkbox" ${current.clickMarkerEnabled ? "checked" : ""} /><span>Show a crosshair where the map is clicked</span></label><label class="display-checkbox"><input id="highlight-enabled" type="checkbox" ${current.highlightEnabled ? "checked" : ""} /><span>Highlight the feature selected in Map Insight</span></label><label class="highlight-color"><span>Feedback color</span><input id="highlight-color" type="color" value="${current.highlightColor}" /><output>${current.highlightColor.toUpperCase()}</output></label></fieldset><label class="display-checkbox"><input id="apply-default-basemap" type="checkbox" /><span>Apply the default basemap to the current map</span></label><p class="form-note">Docked panels resize the map instead of covering it. Drag their divider or focus it and use the arrow keys; sizes, navigation, and feedback preferences are saved in this browser.</p>`,
       actions: [{ label: "Save settings", primary: true, handler: () => {
         const insightPosition = this.dialog.querySelector("#insight-position").value;
         const tablePosition = this.dialog.querySelector("#table-position").value;
+        const navigationLayout = this.dialog.querySelector("#navigation-layout").value;
         const defaultBasemap = this.dialog.querySelector("#default-basemap").value;
-        const settings = { ...this.#readDisplaySettings(), insightPosition, tablePosition, defaultBasemap, highlightEnabled: this.dialog.querySelector("#highlight-enabled").checked, clickMarkerEnabled: this.dialog.querySelector("#click-marker-enabled").checked, highlightColor: this.dialog.querySelector("#highlight-color").value };
+        const settings = { ...this.#readDisplaySettings(), insightPosition, tablePosition, navigationLayout, defaultBasemap, highlightEnabled: this.dialog.querySelector("#highlight-enabled").checked, clickMarkerEnabled: this.dialog.querySelector("#click-marker-enabled").checked, highlightColor: this.dialog.querySelector("#highlight-color").value };
         localStorage.setItem(DISPLAY_SETTINGS_KEY, JSON.stringify(settings));
         this.#applyDisplaySettings(settings);
         if (this.dialog.querySelector("#apply-default-basemap").checked) {
@@ -408,6 +421,7 @@ export class UIController {
     });
     this.dialog.querySelector("#insight-position").value = insightPosition;
     this.dialog.querySelector("#table-position").value = tablePosition;
+    this.dialog.querySelector("#navigation-layout").value = current.navigationLayout;
     this.dialog.querySelector("#highlight-color").addEventListener("input", (event) => {
       event.currentTarget.nextElementSibling.value = event.currentTarget.value.toUpperCase();
     });
