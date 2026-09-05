@@ -1,5 +1,13 @@
 import { graphicToGeoJSONFeature, safeExportName } from "./export-core.js?v=0.9.0";
 
+const DRAWINGS_UID = "__gismap_drawings__";
+const FORMAT_DETAILS = {
+  geojson: { extension: "geojson", label: "GeoJSON" },
+  kml: { extension: "kml", label: "KML" },
+  kmz: { extension: "kmz", label: "KMZ" },
+  shapefile: { extension: "zip", label: "zipped Shapefile" },
+};
+
 function firstQueryable(layer) {
   if (!layer) return null;
   if (typeof layer.queryFeatures === "function") return layer;
@@ -26,10 +34,14 @@ export class ExportController {
   }
 
   listExportableLayers() {
-    return this.mapController.getOperationalLayers().map((root) => {
+    const layers = this.mapController.getOperationalLayers().map((root) => {
       const layer = firstQueryable(root);
-      return layer ? { uid: root.uid, title: layer.title || root.title || "Untitled layer" } : null;
+      return layer ? { uid: root.uid, title: layer.title || root.title || "Untitled layer", kind: "layer" } : null;
     }).filter(Boolean);
+    if (this.mapController.drawLayer?.graphics?.length) {
+      layers.unshift({ uid: DRAWINGS_UID, title: "Drawings", kind: "drawings" });
+    }
+    return layers;
   }
 
   cancel() {
@@ -43,69 +55,83 @@ export class ExportController {
     return true;
   }
 
-  async exportLayer({ uid, scope = "filtered", fileName } = {}) {
+  async exportLayer({ uid, scope = "filtered", fileName, format = "geojson" } = {}) {
     if (this.activeJob) throw new Error("Another export is already running.");
-    const root = this.mapController.findLayer(uid);
-    const layer = firstQueryable(root);
-    if (!layer) throw new Error("This layer does not expose queryable vector features.");
-    await layer.load?.();
+    const formatDetails = FORMAT_DETAILS[format];
+    if (!formatDetails) throw new Error("That export format is not supported.");
+    const drawings = uid === DRAWINGS_UID;
+    const root = drawings ? null : this.mapController.findLayer(uid);
+    const layer = drawings ? null : firstQueryable(root);
+    if (!drawings && !layer) throw new Error("This layer does not expose queryable vector features.");
+    await layer?.load?.();
 
     const id = globalThis.crypto?.randomUUID?.() ?? `export-${Date.now()}`;
     const worker = new Worker(new URL("./export-worker.js?v=0.9.0", import.meta.url), { type: "module" });
     const abortController = new AbortController();
-    const title = layer.title || root?.title || "layer";
-    const outputName = `${safeExportName(fileName || title)}.geojson`;
+    const title = drawings ? "Drawings" : layer.title || root?.title || "layer";
+    const baseName = safeExportName(fileName || title);
+    const outputName = `${baseName}.${formatDetails.extension}`;
     const job = { id, worker, abortController };
     this.activeJob = job;
-    this.events.publish("export:start", { id, title, scope });
+    this.events.publish("export:start", { id, title, scope, format });
 
     try {
-      worker.postMessage({ type: "start", id, metadata: { name: title } });
-      const query = layer.createQuery?.() ?? {};
-      query.outFields = ["*"];
-      query.returnGeometry = true;
-      query.outSpatialReference = { wkid: 4326 };
-      if (scope === "source") query.where = "1=1";
-      if (scope === "extent") {
-        query.geometry = this.mapController.view?.extent;
-        query.spatialRelationship = "intersects";
-      }
-
-      const options = { signal: abortController.signal };
-      const objectIds = typeof layer.queryObjectIds === "function"
-        ? ((await layer.queryObjectIds(query, options)) ?? [])
-        : null;
-      const total = objectIds
-        ? objectIds.length
-        : (typeof layer.queryFeatureCount === "function" ? await layer.queryFeatureCount(query, options) : 0);
-      const batchSize = Math.max(100, Math.min(2000, layer.capabilities?.query?.maxRecordCount || 1000));
+      worker.postMessage({ type: "start", id, metadata: { name: title }, format });
       let retrieved = 0;
+      let total = 0;
 
-      if (objectIds) {
-        for (let start = 0; start < objectIds.length; start += batchSize) {
-          this.#assertActive(job);
-          const pageQuery = layer.createQuery?.() ?? {};
-          Object.assign(pageQuery, query, { objectIds: objectIds.slice(start, start + batchSize) });
-          const result = await layer.queryFeatures(pageQuery, options);
-          const features = (result.features ?? []).map(graphicToGeoJSONFeature);
-          retrieved += features.length;
-          worker.postMessage({ type: "batch", id, features });
-          this.events.publish("export:progress", { id, stage: "retrieving", completed: retrieved, total });
-        }
+      if (drawings) {
+        const features = this.mapController.getDrawGraphicsForExport(scope).map(graphicToGeoJSONFeature);
+        retrieved = features.length;
+        total = features.length;
+        worker.postMessage({ type: "batch", id, features });
+        this.events.publish("export:progress", { id, stage: "retrieving", completed: retrieved, total });
       } else {
-        let start = 0;
-        do {
-          this.#assertActive(job);
-          const pageQuery = layer.createQuery?.() ?? {};
-          Object.assign(pageQuery, query, { start, num: batchSize });
-          const result = await layer.queryFeatures(pageQuery, options);
-          const features = (result.features ?? []).map(graphicToGeoJSONFeature);
-          retrieved += features.length;
-          worker.postMessage({ type: "batch", id, features });
-          this.events.publish("export:progress", { id, stage: "retrieving", completed: retrieved, total });
-          start += features.length;
-          if (!features.length || (!result.exceededTransferLimit && features.length < batchSize)) break;
-        } while (true);
+        const query = layer.createQuery?.() ?? {};
+        query.outFields = ["*"];
+        query.returnGeometry = true;
+        query.outSpatialReference = { wkid: 4326 };
+        if (scope === "source") query.where = "1=1";
+        if (scope === "extent") {
+          query.geometry = this.mapController.view?.extent;
+          query.spatialRelationship = "intersects";
+        }
+
+        const options = { signal: abortController.signal };
+        const objectIds = typeof layer.queryObjectIds === "function"
+          ? ((await layer.queryObjectIds(query, options)) ?? [])
+          : null;
+        total = objectIds
+          ? objectIds.length
+          : (typeof layer.queryFeatureCount === "function" ? await layer.queryFeatureCount(query, options) : 0);
+        const batchSize = Math.max(100, Math.min(2000, layer.capabilities?.query?.maxRecordCount || 1000));
+
+        if (objectIds) {
+          for (let start = 0; start < objectIds.length; start += batchSize) {
+            this.#assertActive(job);
+            const pageQuery = layer.createQuery?.() ?? {};
+            Object.assign(pageQuery, query, { objectIds: objectIds.slice(start, start + batchSize) });
+            const result = await layer.queryFeatures(pageQuery, options);
+            const features = (result.features ?? []).map(graphicToGeoJSONFeature);
+            retrieved += features.length;
+            worker.postMessage({ type: "batch", id, features });
+            this.events.publish("export:progress", { id, stage: "retrieving", completed: retrieved, total });
+          }
+        } else {
+          let start = 0;
+          do {
+            this.#assertActive(job);
+            const pageQuery = layer.createQuery?.() ?? {};
+            Object.assign(pageQuery, query, { start, num: batchSize });
+            const result = await layer.queryFeatures(pageQuery, options);
+            const features = (result.features ?? []).map(graphicToGeoJSONFeature);
+            retrieved += features.length;
+            worker.postMessage({ type: "batch", id, features });
+            this.events.publish("export:progress", { id, stage: "retrieving", completed: retrieved, total });
+            start += features.length;
+            if (!features.length || (!result.exceededTransferLimit && features.length < batchSize)) break;
+          } while (true);
+        }
       }
 
       this.#assertActive(job);
@@ -120,8 +146,9 @@ export class ExportController {
       worker.postMessage({ type: "finish", id });
       const result = await completed;
       this.#assertActive(job);
-      downloadBlob(result.blob, outputName);
-      this.events.publish("export:complete", { id, title, fileName: outputName, featureCount: result.featureCount });
+      const blob = await this.#packageResult(result, format, baseName);
+      downloadBlob(blob, outputName);
+      this.events.publish("export:complete", { id, title, format, formatLabel: formatDetails.label, fileName: outputName, featureCount: result.featureCount });
       return result;
     } catch (error) {
       if (error?.name === "AbortError" || this.activeJob !== job) return null;
@@ -137,5 +164,24 @@ export class ExportController {
     if (this.activeJob !== job || job.abortController.signal.aborted) {
       throw new DOMException("Export cancelled", "AbortError");
     }
+  }
+
+  async #packageResult(result, format, baseName) {
+    if (format === "geojson" || format === "kml") return result.blob;
+    if (format === "kmz") {
+      if (!globalThis.JSZip) throw new Error("KMZ packaging library is unavailable.");
+      const archive = new globalThis.JSZip();
+      archive.file("doc.kml", await result.blob.text());
+      return archive.generateAsync({ type: "blob", compression: "DEFLATE" });
+    }
+    if (!globalThis.shpwrite?.zip) throw new Error("Shapefile export library is unavailable.");
+    const output = await globalThis.shpwrite.zip(result.collection, {
+      folder: baseName,
+      filename: baseName,
+      outputType: "blob",
+      compression: "STORE",
+      types: { point: "points", polygon: "polygons", polyline: "lines" },
+    });
+    return output instanceof Blob ? output : new Blob([output], { type: "application/zip" });
   }
 }

@@ -102,6 +102,54 @@ export function createFeatureCollection(features, metadata = {}) {
   };
 }
 
+function escapeXml(value) {
+  return String(value ?? "").replace(/[&<>"']/g, (character) => ({
+    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&apos;",
+  })[character]);
+}
+
+function coordinateText(coordinates = []) {
+  return coordinates.map((coordinate) => coordinate.slice(0, 3).join(",")).join(" ");
+}
+
+function geometryToKml(geometry) {
+  if (!geometry) return "";
+  switch (geometry.type) {
+    case "Point":
+      return `<Point><coordinates>${coordinateText([geometry.coordinates])}</coordinates></Point>`;
+    case "MultiPoint":
+      return `<MultiGeometry>${geometry.coordinates.map((point) => geometryToKml({ type: "Point", coordinates: point })).join("")}</MultiGeometry>`;
+    case "LineString":
+      return `<LineString><tessellate>1</tessellate><coordinates>${coordinateText(geometry.coordinates)}</coordinates></LineString>`;
+    case "MultiLineString":
+      return `<MultiGeometry>${geometry.coordinates.map((line) => geometryToKml({ type: "LineString", coordinates: line })).join("")}</MultiGeometry>`;
+    case "Polygon": {
+      const [outer, ...holes] = geometry.coordinates;
+      if (!outer) return "";
+      return `<Polygon><tessellate>1</tessellate><outerBoundaryIs><LinearRing><coordinates>${coordinateText(outer)}</coordinates></LinearRing></outerBoundaryIs>${holes.map((hole) => `<innerBoundaryIs><LinearRing><coordinates>${coordinateText(hole)}</coordinates></LinearRing></innerBoundaryIs>`).join("")}</Polygon>`;
+    }
+    case "MultiPolygon":
+      return `<MultiGeometry>${geometry.coordinates.map((polygon) => geometryToKml({ type: "Polygon", coordinates: polygon })).join("")}</MultiGeometry>`;
+    default:
+      throw new Error(`Unsupported KML geometry: ${geometry.type || "unknown"}.`);
+  }
+}
+
+export function featureCollectionToKml(collection) {
+  const documentName = escapeXml(collection.name || "GIS Map Online export");
+  const placemarks = (collection.features ?? []).map((feature, index) => {
+    const properties = feature.properties ?? {};
+    const name = escapeXml(properties.name ?? properties.title ?? `Feature ${index + 1}`);
+    const description = properties.description == null ? "" : `<description>${escapeXml(properties.description)}</description>`;
+    const data = Object.entries(properties).map(([key, value]) => {
+      const normalized = value != null && typeof value === "object" ? JSON.stringify(value) : value;
+      return `<Data name="${escapeXml(key)}"><value>${escapeXml(normalized)}</value></Data>`;
+    }).join("");
+    return `<Placemark><name>${name}</name>${description}<ExtendedData>${data}</ExtendedData>${geometryToKml(feature.geometry)}</Placemark>`;
+  }).join("");
+  return `<?xml version="1.0" encoding="UTF-8"?><kml xmlns="http://www.opengis.net/kml/2.2"><Document><name>${documentName}</name>${placemarks}</Document></kml>`;
+}
+
 export function safeExportName(value, fallback = "layer") {
   const name = String(value || fallback)
     .normalize("NFKD")

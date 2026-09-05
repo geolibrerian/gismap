@@ -97,6 +97,7 @@ export class MapController {
       "@arcgis/core/renderers/support/jsonUtils.js",
       "@arcgis/core/rest/locator.js",
       "@arcgis/core/widgets/Sketch/SketchViewModel.js",
+      "@arcgis/core/geometry/support/webMercatorUtils.js",
     ];
     const [
       ArcGISMap,
@@ -115,6 +116,7 @@ export class MapController {
       rendererJsonUtils,
       locator,
       SketchViewModel,
+      webMercatorUtils,
     ] = await $arcgis.import(moduleIds);
 
     Object.assign(this.modules, {
@@ -134,6 +136,7 @@ export class MapController {
       rendererJsonUtils,
       locator,
       SketchViewModel,
+      webMercatorUtils,
     });
 
     this.drawLayer = new GraphicsLayer({ title: "Drawings", listMode: "hide" });
@@ -202,6 +205,30 @@ export class MapController {
       return;
     }
     this.sketch?.create(type);
+  }
+
+  getDrawGraphicsForExport(scope = "all") {
+    const extent = this.view?.extent;
+    return (this.drawLayer?.graphics?.toArray?.() ?? [])
+      .filter((graphic) => scope !== "extent" || !extent || extent.intersects(graphic.geometry))
+      .map((graphic, index) => {
+        const spatialReference = graphic.geometry?.spatialReference;
+        let geometry = graphic.geometry;
+        if (!spatialReference?.isGeographic) {
+          if (!this.modules.webMercatorUtils?.canProject(geometry, { wkid: 4326 })) {
+            throw new Error("A drawing could not be projected to EPSG:4326 for export.");
+          }
+          geometry = this.modules.webMercatorUtils.project(geometry, { wkid: 4326 });
+        }
+        return {
+          geometry,
+          attributes: {
+            drawing_id: index + 1,
+            geometry_type: graphic.geometry?.type || "unknown",
+            ...(graphic.attributes ?? {}),
+          },
+        };
+      });
   }
 
   async addService(config) {

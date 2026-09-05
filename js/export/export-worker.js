@@ -1,11 +1,11 @@
-import { createFeatureCollection } from "./export-core.js?v=0.9.0";
+import { createFeatureCollection, featureCollectionToKml } from "./export-core.js?v=0.9.0";
 
 let activeJob = null;
 
 self.addEventListener("message", (event) => {
   const message = event.data ?? {};
   if (message.type === "start") {
-    activeJob = { id: message.id, metadata: message.metadata ?? {}, features: [] };
+    activeJob = { id: message.id, metadata: message.metadata ?? {}, format: message.format ?? "geojson", features: [] };
     return;
   }
   if (!activeJob || message.id !== activeJob.id) return;
@@ -20,8 +20,16 @@ self.addEventListener("message", (event) => {
   }
   if (message.type === "finish") {
     const collection = createFeatureCollection(activeJob.features, activeJob.metadata);
-    const blob = new Blob([JSON.stringify(collection)], { type: "application/geo+json" });
-    self.postMessage({ type: "complete", id: activeJob.id, blob, featureCount: activeJob.features.length });
+    if (activeJob.format === "shapefile") {
+      self.postMessage({ type: "complete", id: activeJob.id, collection, featureCount: activeJob.features.length });
+    } else {
+      const kml = activeJob.format === "kml" || activeJob.format === "kmz";
+      const blob = new Blob(
+        [kml ? featureCollectionToKml(collection) : JSON.stringify(collection)],
+        { type: kml ? "application/vnd.google-earth.kml+xml" : "application/geo+json" },
+      );
+      self.postMessage({ type: "complete", id: activeJob.id, blob, featureCount: activeJob.features.length });
+    }
     activeJob = null;
   }
 });

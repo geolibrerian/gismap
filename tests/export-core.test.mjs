@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import {
   createFeatureCollection,
+  featureCollectionToKml,
   geometryToGeoJSON,
   graphicToGeoJSONFeature,
   safeExportName,
@@ -50,5 +51,24 @@ assert.deepEqual(createFeatureCollection([feature], { name: "Places" }), {
 });
 assert.equal(safeExportName("  Las Végaș / Events  "), "Las-Vegas-Events");
 assert.equal(safeExportName("***"), "layer");
+
+const kml = featureCollectionToKml({
+  type: "FeatureCollection",
+  name: "Drawings & notes",
+  features: [{
+    type: "Feature",
+    geometry: { type: "Point", coordinates: [-118.4, 34.1] },
+    properties: { name: "Monitor <A>", value: 10.8 },
+  }, {
+    type: "Feature",
+    geometry: { type: "Polygon", coordinates: [[[-118.5, 34], [-118.4, 34], [-118.4, 34.1], [-118.5, 34]]] },
+    properties: { description: "Area & boundary" },
+  }],
+});
+assert.match(kml, /<name>Drawings &amp; notes<\/name>/);
+assert.match(kml, /<name>Monitor &lt;A&gt;<\/name>/);
+assert.match(kml, /<Point><coordinates>-118\.4,34\.1<\/coordinates><\/Point>/);
+assert.match(kml, /<Polygon>/);
+assert.match(kml, /Area &amp; boundary/);
 
 console.log("Export conversion tests passed");

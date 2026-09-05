@@ -20,6 +20,9 @@ All notable changes to GIS Map Online are documented here. This project follows
   activity, NDFD wind gusts, and NDFD precipitation in Popular data services.
 - A GIS Server Directory link and live ArcGIS server-endpoint browser in Popular
   data services, without copying or indexing the external directory.
+- KML, KMZ, and zipped Shapefile downloads for queryable vector layers.
+- GeoJSON, KML, KMZ, and zipped Shapefile export for user-drawn points, lines,
+  polygons, and rectangles, including an optional current-extent scope.
 
 ### Changed
 

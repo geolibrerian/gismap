@@ -146,6 +146,14 @@ export class UIController {
     document.querySelectorAll("[data-draw]").forEach((button) =>
       button.addEventListener("click", () => this.mapController.draw(button.dataset.draw)),
     );
+    document.querySelector("#draw-export").addEventListener("click", () => {
+      const drawings = this.exportController.listExportableLayers().find((item) => item.kind === "drawings");
+      if (!drawings) {
+        this.error("Draw at least one point, line, polygon, or rectangle before exporting.");
+        return;
+      }
+      this.#exportDialog(drawings.uid);
+    });
     document.querySelectorAll("[data-nav]").forEach((button) =>
       button.addEventListener("click", () => this.mapController.navigate(button.dataset.nav).catch((e) => this.error(e.message))),
     );
@@ -417,23 +425,41 @@ export class UIController {
       eyebrow: "Download vector data",
       title: "Export data",
       content: `<label class="field"><span>Layer</span><select id="export-layer">${layers.map((layer) => `<option value="${escapeHtml(layer.uid)}" ${layer.uid === selectedUid ? "selected" : ""}>${escapeHtml(layer.title)}</option>`).join("")}</select></label>
-        <label class="field"><span>Features</span><select id="export-scope"><option value="filtered">All features matching the current layer filter</option><option value="extent">Filtered features in the current map extent</option><option value="source">Entire source layer (ignore the current filter)</option></select></label>
-        <label class="field"><span>Format</span><select id="export-format"><option value="geojson">GeoJSON (.geojson)</option></select></label>
+        <label class="field"><span>Features</span><select id="export-scope"></select></label>
+        <label class="field"><span>Format</span><select id="export-format"><option value="geojson">GeoJSON (.geojson)</option><option value="kml">KML (.kml)</option><option value="kmz">Compressed KML (.kmz)</option><option value="shapefile">Shapefile (.zip)</option></select></label>
         <label class="field"><span>File name</span><input id="export-file-name" value="${escapeHtml(layers.find((layer) => layer.uid === selectedUid)?.title || "layer")}" /></label>
-        <p class="form-note">Geometry is exported as longitude and latitude in EPSG:4326. Retrieval is paginated and conversion runs in a background worker, so the map remains responsive.</p>`,
+        <p class="form-note">Geometry is exported as longitude and latitude in EPSG:4326. Shapefiles are delivered as ZIP archives and split into point, line, and polygon datasets when needed. Retrieval is paginated and conversion runs in a background worker.</p>`,
       actions: [{ label: "Export GeoJSON", primary: true, handler: () => this.#runExport() }],
     });
     const layerSelect = this.dialog.querySelector("#export-layer");
+    const formatSelect = this.dialog.querySelector("#export-format");
+    const scopeSelect = this.dialog.querySelector("#export-scope");
+    const exportButton = this.dialog.querySelector(".button--primary");
+    const updateScope = () => {
+      const drawingSource = layers.find((item) => item.uid === layerSelect.value)?.kind === "drawings";
+      scopeSelect.innerHTML = drawingSource
+        ? '<option value="all">All drawings</option><option value="extent">Drawings in the current map extent</option>'
+        : '<option value="filtered">All features matching the current layer filter</option><option value="extent">Filtered features in the current map extent</option><option value="source">Entire source layer (ignore the current filter)</option>';
+    };
+    const updateFormat = () => {
+      const label = formatSelect.selectedOptions[0]?.textContent.replace(/\s*\([^)]*\)\s*$/, "") || "data";
+      exportButton.textContent = `Export ${label}`;
+    };
     layerSelect.addEventListener("change", () => {
       const layer = layers.find((item) => item.uid === layerSelect.value);
       this.dialog.querySelector("#export-file-name").value = layer?.title || "layer";
+      updateScope();
     });
+    formatSelect.addEventListener("change", updateFormat);
+    updateScope();
+    updateFormat();
   }
 
   async #runExport() {
     const options = {
       uid: this.dialog.querySelector("#export-layer").value,
       scope: this.dialog.querySelector("#export-scope").value,
+      format: this.dialog.querySelector("#export-format").value,
       fileName: this.dialog.querySelector("#export-file-name").value,
     };
     document.querySelector("#dialog-title").textContent = "Preparing download";
@@ -452,7 +478,8 @@ export class UIController {
       const result = await this.exportController.exportLayer(options);
       if (!result) return;
       this.dialog.close();
-      this.toast(`Exported ${result.featureCount.toLocaleString()} features as GeoJSON.`);
+      const formatLabel = { geojson: "GeoJSON", kml: "KML", kmz: "KMZ", shapefile: "a zipped Shapefile" }[options.format];
+      this.toast(`Exported ${result.featureCount.toLocaleString()} features as ${formatLabel}.`);
     } catch (error) {
       this.error(`Export failed: ${error.message}`);
       this.dialog.close();
