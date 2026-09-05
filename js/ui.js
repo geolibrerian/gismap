@@ -65,7 +65,9 @@ export class UIController {
       trigger.addEventListener("click", (event) => {
         event.stopPropagation();
         const menu = trigger.closest(".menu");
-        const open = !menu.classList.contains("is-open");
+        const selectingConsolidated = document.body.dataset.navigationLayout === "top"
+          && menu.closest(".menu-bar")?.classList.contains("is-consolidated-open");
+        const open = selectingConsolidated || !menu.classList.contains("is-open");
         document.querySelectorAll(".menu.is-open").forEach((item) => item.classList.remove("is-open"));
         menu.classList.toggle("is-open", open);
         trigger.setAttribute("aria-expanded", String(open));
@@ -79,6 +81,11 @@ export class UIController {
         document.querySelectorAll(".menu-bar.is-consolidated-open").forEach((item) => item.classList.remove("is-consolidated-open"));
         menuBar.classList.toggle("is-consolidated-open", open);
         trigger.setAttribute("aria-expanded", String(open));
+        if (open && !menuBar.querySelector(".menu.is-open")) {
+          const firstMenu = menuBar.querySelector(".menu");
+          firstMenu?.classList.add("is-open");
+          firstMenu?.querySelector(".menu__trigger")?.setAttribute("aria-expanded", "true");
+        }
       });
     });
     document.addEventListener("click", () => {
@@ -157,6 +164,9 @@ export class UIController {
       button.addEventListener("click", () => this.#activateMobilePanel(button.dataset.mobilePanel)),
     );
     document.querySelector("#mobile-panel-close").addEventListener("click", () => this.#setSidebarCollapsed(true));
+    document.querySelector("#places-top-view").addEventListener("change", (event) => {
+      document.querySelector("#places-panel").dataset.topView = event.currentTarget.value;
+    });
     document.querySelector("#utility-close").addEventListener("click", () => {
       if (this.mapController.widgets.has("basemapGallery")) void this.mapController.toggleWidget("basemapGallery");
     });
