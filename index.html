@@ -11,7 +11,7 @@
     <link rel="icon" href="./assets/gis-map-online-mark-v2.png" type="image/png" />
     <link rel="preconnect" href="https://js.arcgis.com" />
     <link rel="stylesheet" href="https://js.arcgis.com/5.0/esri/themes/light/main.css" />
-    <link rel="stylesheet" href="./css/app.css?v=0.7.4" />
+    <link rel="stylesheet" href="./css/app.css?v=0.7.5" />
     <script type="module" src="https://js.arcgis.com/5.0/"></script>
     <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
   </head>
@@ -182,6 +182,11 @@
         <div id="map-status" class="map-status">Loading ArcGIS Maps SDK 5.0…</div>
         <div id="toast-region" class="toast-region" aria-live="polite"></div>
       </main>
+      <aside id="utility-panel" class="utility-panel" aria-label="Map tools" aria-hidden="true">
+        <div id="utility-resizer" class="utility-resizer" role="separator" tabindex="0" aria-orientation="vertical" aria-label="Resize map tools panel"></div>
+        <header><div><span class="eyebrow">Map tool</span><h2 id="utility-title">Basemap gallery</h2></div><button id="utility-close" class="icon-button" aria-label="Close map tool">×</button></header>
+        <div id="utility-content" class="utility-content"></div>
+      </aside>
     </div>
 
     <dialog id="app-dialog" class="app-dialog">
@@ -225,6 +230,6 @@
     <input id="tool-file-input" type="file" accept=".js,.mjs" hidden />
 
     <noscript>GIS Map Online requires JavaScript.</noscript>
-    <script type="module" src="./js/app.js?v=0.7.4"></script>
+    <script type="module" src="./js/app.js?v=0.7.5"></script>
   </body>
 </html>

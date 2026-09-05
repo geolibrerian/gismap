@@ -793,9 +793,11 @@ export class MapController {
   async toggleWidget(name) {
     const existing = this.widgets.get(name);
     if (existing) {
-      this.view.ui.remove(existing);
+      if (existing.closest?.("#utility-panel")) existing.remove();
+      else this.view.ui.remove(existing);
       await existing.destroy?.();
       this.widgets.delete(name);
+      this.events.publish("widget:toggled", { name, open: false });
       return false;
     }
     const componentTags = {
@@ -815,8 +817,14 @@ export class MapController {
           }
         });
       }
-      this.view.ui.add(component, "top-right");
+      if (name === "basemapGallery") {
+        const host = document.querySelector("#utility-content");
+        host.replaceChildren(component);
+      } else {
+        this.view.ui.add(component, "top-right");
+      }
       this.widgets.set(name, component);
+      this.events.publish("widget:toggled", { name, open: true });
       return true;
     }
     const definitions = {
@@ -829,6 +837,7 @@ export class MapController {
     const widget = new Widget({ view: this.view, ...definition[1] });
     this.view.ui.add(widget, definition[2]);
     this.widgets.set(name, widget);
+    this.events.publish("widget:toggled", { name, open: true });
     return true;
   }
 }

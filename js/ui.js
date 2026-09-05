@@ -43,6 +43,7 @@ export class UIController {
     this.#bindMenus();
     this.#bindStaticActions();
     this.#bindInsightResize();
+    this.#bindUtilityPanel();
     this.#bindMapEvents();
     this.#renderBookmarks();
     this.#renderLayers();
@@ -139,6 +140,9 @@ export class UIController {
       button.addEventListener("click", () => this.#activateMobilePanel(button.dataset.mobilePanel)),
     );
     document.querySelector("#mobile-panel-close").addEventListener("click", () => this.#setSidebarCollapsed(true));
+    document.querySelector("#utility-close").addEventListener("click", () => {
+      if (this.mapController.widgets.has("basemapGallery")) void this.mapController.toggleWidget("basemapGallery");
+    });
     this.#activateMobilePanel("places-panel", false);
     document.querySelector("#insights-close").addEventListener("click", () => {
       this.mapController.clearFeatureHighlight();
@@ -226,6 +230,14 @@ export class UIController {
       if (connection && status?.signedIn) this.toast(`Connected to ${connection.name}${status.userId ? ` as ${status.userId}` : ""}.`);
     });
     this.events.subscribe("app:error", ({ message }) => this.error(message));
+    this.events.subscribe("widget:toggled", ({ name, open }) => {
+      document.querySelectorAll(`[data-widget="${name}"]`).forEach((button) => button.classList.toggle("is-active", open));
+      if (name !== "basemapGallery") return;
+      document.body.classList.toggle("utility-panel-open", open);
+      document.querySelector("#utility-panel").setAttribute("aria-hidden", String(!open));
+      document.querySelector("#utility-title").textContent = "Basemap gallery";
+      requestAnimationFrame(() => this.mapController.resize());
+    });
   }
 
   #setSidebarCollapsed(collapsed) {
@@ -369,9 +381,10 @@ export class UIController {
         clickMarkerEnabled: saved.clickMarkerEnabled !== false,
         highlightColor: /^#[0-9a-f]{6}$/i.test(saved.highlightColor) ? saved.highlightColor : "#00b8d9",
         navigationLayout: saved.navigationLayout === "top" ? "top" : "side",
+        utilityPanelWidth: Number.isFinite(saved.utilityPanelWidth) ? Math.min(620, Math.max(280, saved.utilityPanelWidth)) : 360,
       };
     } catch {
-      return { insightPosition: "upper-left", defaultBasemap: "topo-3d", insightDockWidth: 420, insightDockHeight: 360, tablePosition: "overlay-bottom", tableDockWidth: 520, tableDockHeight: 420, highlightEnabled: true, clickMarkerEnabled: true, highlightColor: "#00b8d9", navigationLayout: "side" };
+      return { insightPosition: "upper-left", defaultBasemap: "topo-3d", insightDockWidth: 420, insightDockHeight: 360, tablePosition: "overlay-bottom", tableDockWidth: 520, tableDockHeight: 420, highlightEnabled: true, clickMarkerEnabled: true, highlightColor: "#00b8d9", navigationLayout: "side", utilityPanelWidth: 360 };
     }
   }
 
@@ -386,6 +399,7 @@ export class UIController {
     }
     document.body.style.setProperty("--table-dock-width", `${settings.tableDockWidth ?? 520}px`);
     document.body.style.setProperty("--table-dock-height", `${settings.tableDockHeight ?? 420}px`);
+    document.body.style.setProperty("--utility-panel-width", `${settings.utilityPanelWidth ?? 360}px`);
     const resizer = document.querySelector("#insights-resizer");
     if (resizer) resizer.setAttribute("aria-orientation", settings.insightPosition === "dock-bottom" ? "horizontal" : "vertical");
     const tableResizer = document.querySelector("#table-resizer");
@@ -486,6 +500,39 @@ export class UIController {
       window.addEventListener("pointermove", move);
       window.addEventListener("pointerup", finish);
       window.addEventListener("pointercancel", finish);
+    });
+  }
+
+  #bindUtilityPanel() {
+    const handle = document.querySelector("#utility-resizer");
+    const setWidth = (width, save = false) => {
+      const settings = this.#readDisplaySettings();
+      settings.utilityPanelWidth = Math.min(window.innerWidth * 0.55, Math.max(280, width));
+      document.body.style.setProperty("--utility-panel-width", `${settings.utilityPanelWidth}px`);
+      if (save) localStorage.setItem(DISPLAY_SETTINGS_KEY, JSON.stringify(settings));
+      requestAnimationFrame(() => this.mapController.resize());
+    };
+    handle.addEventListener("keydown", (event) => {
+      const delta = ({ ArrowLeft: 20, ArrowRight: -20 })[event.key];
+      if (delta == null) return;
+      event.preventDefault();
+      setWidth(this.#readDisplaySettings().utilityPanelWidth + delta, true);
+    });
+    handle.addEventListener("pointerdown", (event) => {
+      event.preventDefault();
+      const startX = event.clientX;
+      const startWidth = this.#readDisplaySettings().utilityPanelWidth;
+      document.body.classList.add("utility-resizing");
+      const move = (moveEvent) => setWidth(startWidth + startX - moveEvent.clientX);
+      const finish = () => {
+        window.removeEventListener("pointermove", move);
+        window.removeEventListener("pointerup", finish);
+        document.body.classList.remove("utility-resizing");
+        const width = parseFloat(getComputedStyle(document.body).getPropertyValue("--utility-panel-width"));
+        setWidth(width, true);
+      };
+      window.addEventListener("pointermove", move);
+      window.addEventListener("pointerup", finish);
     });
   }
 
