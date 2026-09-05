@@ -112,4 +112,45 @@ assert.equal(extentQuery.outSpatialReference.wkid, 4326);
 assert.equal(navigation.target.xmin, -114.38);
 assert.equal(navigation.target.ymax, 36.22);
 
+let highlightedTarget;
+let removedHighlights = 0;
+const highlightedLayer = { uid: "earthquakes", objectIdField: "OBJECTID" };
+controller.view = {
+  whenLayerView: async (candidate) => {
+    assert.equal(candidate, highlightedLayer);
+    return {
+      highlight(target) {
+        highlightedTarget = target;
+        return { remove() { removedHighlights += 1; } };
+      },
+    };
+  },
+};
+assert.equal(await controller.highlightFeature({
+  kind: "feature",
+  layerUid: "earthquakes",
+  attributes: { OBJECTID: 42 },
+  graphic: { layer: highlightedLayer, attributes: { OBJECTID: 42 } },
+}, { pulse: false }), true);
+assert.equal(highlightedTarget, 42);
+controller.clearFeatureHighlight();
+assert.equal(removedHighlights, 1);
+
+class FakeGraphic {
+  constructor(properties) { Object.assign(this, properties); }
+}
+let markerGraphics = [];
+controller.modules.Graphic = FakeGraphic;
+controller.clickFeedbackLayer = {
+  removeAll() { markerGraphics = []; },
+  addMany(graphics) { markerGraphics.push(...graphics); },
+};
+controller.configureInteractionFeedback({ highlightEnabled: true, clickMarkerEnabled: true, highlightColor: "#ff00aa" });
+controller.showClickMarker({ type: "point", x: -112, y: 33 });
+assert.equal(markerGraphics.length, 2);
+assert.equal(markerGraphics[1].symbol.style, "cross");
+assert.equal(markerGraphics[1].symbol.color, "#ff00aa");
+controller.configureInteractionFeedback({ highlightEnabled: false, clickMarkerEnabled: false, highlightColor: "invalid" });
+assert.equal(markerGraphics.length, 0);
+
 console.log("ArcGIS feature query URL tests passed");

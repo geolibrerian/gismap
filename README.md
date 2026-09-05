@@ -2,6 +2,8 @@
 
 A browser-only 3D GIS viewer targeting ArcGIS Maps SDK for JavaScript 5.0. It uses `SceneView`, native ES modules, a small topic-based event bus, local browser project storage, and portable project packages—no application login or database required.
 
+The interface uses a layered globe-and-analysis mark with an editable HTML wordmark and the descriptor “Spatial intelligence studio.”
+
 ## Run locally
 
 The SDK and browser module security require HTTP; do not open `index.html` directly from the filesystem.

@@ -93,6 +93,20 @@ export class UIController {
         this.#closeMenus();
       }),
     );
+    document.querySelectorAll("[data-basemap-picker]").forEach((select) =>
+      select.addEventListener("change", () => {
+        this.mapController.setBasemap(select.value);
+        this.toast(`Basemap changed to ${select.selectedOptions[0]?.textContent.trim()}.`);
+        this.#closeMenus();
+      }),
+    );
+    document.querySelectorAll("[data-ground-picker]").forEach((select) =>
+      select.addEventListener("change", () => {
+        this.mapController.setGround(select.value);
+        this.toast(`Terrain changed to ${select.selectedOptions[0]?.textContent.trim()}.`);
+        this.#closeMenus();
+      }),
+    );
     document.querySelectorAll("[data-widget]").forEach((button) =>
       button.addEventListener("click", async () => {
         try {
@@ -127,6 +141,7 @@ export class UIController {
     document.querySelector("#mobile-panel-close").addEventListener("click", () => this.#setSidebarCollapsed(true));
     this.#activateMobilePanel("places-panel", false);
     document.querySelector("#insights-close").addEventListener("click", () => {
+      this.mapController.clearFeatureHighlight();
       this.#setInsightsOpen(false);
     });
     document.querySelector("#insights-settings").addEventListener("click", () => this.#displaySettingsDialog());
@@ -178,12 +193,19 @@ export class UIController {
     this.events.subscribe("project:exported", ({ kind }) => this.toast(`${kind === "package" ? "Project package (.gmop)" : "Project file (.gmo)"} downloaded.`));
     this.events.subscribe("bookmarks:changed", () => this.#renderBookmarks());
     this.events.subscribe("identify:start", () => {
-      this.#setInsightsOpen(false);
+      this.mapController.clearFeatureHighlight();
+      document.querySelector("#insights-overlay").setAttribute("aria-busy", "true");
       document.querySelector("#intelligence-content").innerHTML = '<div class="loading-row"><span></span> Inspecting location…</div>';
     });
     this.events.subscribe("identify:complete", (payload) => this.#renderInsight(payload));
-    this.events.subscribe("table:open", () => this.#setInsightsOpen(false));
-    this.events.subscribe("identify:error", ({ error }) => this.error(`Identify failed: ${error.message}`));
+    this.events.subscribe("table:open", () => {
+      this.mapController.clearFeatureHighlight();
+      this.#setInsightsOpen(false);
+    });
+    this.events.subscribe("identify:error", ({ error }) => {
+      document.querySelector("#insights-overlay").setAttribute("aria-busy", "false");
+      this.error(`Identify failed: ${error.message}`);
+    });
     this.events.subscribe("ai:start", () => this.toast("Asking the configured model…"));
     this.events.subscribe("ai:complete", ({ text }) => this.#showAIResponse(text));
     this.events.subscribe("ai:error", ({ error }) => this.error(error.message));
@@ -336,9 +358,12 @@ export class UIController {
         tablePosition: TABLE_POSITIONS.has(saved.tablePosition) ? saved.tablePosition : "overlay-bottom",
         tableDockWidth: Number.isFinite(saved.tableDockWidth) ? Math.min(820, Math.max(360, saved.tableDockWidth)) : 520,
         tableDockHeight: Number.isFinite(saved.tableDockHeight) ? Math.min(680, Math.max(240, saved.tableDockHeight)) : 420,
+        highlightEnabled: saved.highlightEnabled !== false,
+        clickMarkerEnabled: saved.clickMarkerEnabled !== false,
+        highlightColor: /^#[0-9a-f]{6}$/i.test(saved.highlightColor) ? saved.highlightColor : "#00b8d9",
       };
     } catch {
-      return { insightPosition: "upper-left", defaultBasemap: "topo-3d", insightDockWidth: 420, insightDockHeight: 360, tablePosition: "overlay-bottom", tableDockWidth: 520, tableDockHeight: 420 };
+      return { insightPosition: "upper-left", defaultBasemap: "topo-3d", insightDockWidth: 420, insightDockHeight: 360, tablePosition: "overlay-bottom", tableDockWidth: 520, tableDockHeight: 420, highlightEnabled: true, clickMarkerEnabled: true, highlightColor: "#00b8d9" };
     }
   }
 
@@ -354,25 +379,24 @@ export class UIController {
     const tableResizer = document.querySelector("#table-resizer");
     if (tableResizer) tableResizer.setAttribute("aria-orientation", settings.tablePosition === "dock-bottom" ? "horizontal" : "vertical");
     this.mapController.setDefaultBasemap(settings.defaultBasemap);
+    this.mapController.configureInteractionFeedback(settings);
     requestAnimationFrame(() => this.mapController.resize());
   }
 
   #displaySettingsDialog() {
-    const { insightPosition } = this.#readDisplaySettings();
-    const { tablePosition } = this.#readDisplaySettings();
+    const current = this.#readDisplaySettings();
+    const { insightPosition, tablePosition } = current;
     const defaultBasemap = this.mapController.getDefaultBasemapId();
-    const option = (value, title, description) => `<label class="display-choice"><input type="radio" name="insight-position" value="${value}" ${insightPosition === value ? "checked" : ""} /><span><strong>${title}</strong><small>${description}</small></span></label>`;
-    const tableOption = (value, title, description) => `<label class="display-choice"><input type="radio" name="table-position" value="${value}" ${tablePosition === value ? "checked" : ""} /><span><strong>${title}</strong><small>${description}</small></span></label>`;
     const basemapOptions = BASEMAP_OPTIONS.map(([id, label]) => `<option value="${id}" ${defaultBasemap === id ? "selected" : ""}>${label}</option>`).join("");
     this.openDialog({
       eyebrow: "Interface preferences",
       title: "Display settings",
-      content: `<fieldset class="display-choices"><legend>Map Insight — floating</legend>${option("upper-left", "Upper left", "Default; keeps map navigation controls clear.")}${option("lower-left", "Lower left", "Anchors the window above the map status area.")}${option("bottom", "Bottom overlay", "A wide panel layered over the bottom of the map.")}</fieldset><fieldset class="display-choices display-choices--docked"><legend>Map Insight — dashboard</legend>${option("dock-left", "Dock left", "Attaches beside the map with a draggable right edge.")}${option("dock-right", "Dock right", "Attaches beside the map with a draggable left edge.")}${option("dock-bottom", "Dock bottom", "Attaches below the map with a draggable top edge.")}</fieldset><fieldset class="display-choices display-choices--docked"><legend>Attribute table</legend>${tableOption("overlay-bottom", "Bottom overlay", "Current behavior; floats above the map.")}${tableOption("dock-left", "Dock left", "A resizable table beside the map.")}${tableOption("dock-right", "Dock right", "A resizable table beside the map.")}${tableOption("dock-bottom", "Dock bottom", "A resizable table below the map.")}</fieldset><label class="field display-basemap"><span>Default basemap</span><select id="default-basemap">${basemapOptions}</select></label><label class="display-checkbox"><input id="apply-default-basemap" type="checkbox" /><span>Apply this basemap to the current map</span></label><p class="form-note">Docked panels resize the map instead of covering it. Drag their divider or focus it and use the arrow keys; sizes are saved in this browser.</p>`,
+      content: `<div class="display-settings-grid"><label class="field"><span>Map Insight position</span><select id="insight-position"><optgroup label="Floating"><option value="upper-left">Upper left</option><option value="lower-left">Lower left</option><option value="bottom">Bottom overlay</option></optgroup><optgroup label="Dashboard"><option value="dock-left">Dock left</option><option value="dock-right">Dock right</option><option value="dock-bottom">Dock bottom</option></optgroup></select></label><label class="field"><span>Attribute table position</span><select id="table-position"><option value="overlay-bottom">Bottom overlay</option><option value="dock-left">Dock left</option><option value="dock-right">Dock right</option><option value="dock-bottom">Dock bottom</option></select></label><label class="field display-basemap"><span>Default basemap</span><select id="default-basemap">${basemapOptions}</select></label></div><fieldset class="feedback-settings"><legend>Map click feedback</legend><label class="display-checkbox"><input id="click-marker-enabled" type="checkbox" ${current.clickMarkerEnabled ? "checked" : ""} /><span>Show a crosshair where the map is clicked</span></label><label class="display-checkbox"><input id="highlight-enabled" type="checkbox" ${current.highlightEnabled ? "checked" : ""} /><span>Highlight the feature selected in Map Insight</span></label><label class="highlight-color"><span>Feedback color</span><input id="highlight-color" type="color" value="${current.highlightColor}" /><output>${current.highlightColor.toUpperCase()}</output></label></fieldset><label class="display-checkbox"><input id="apply-default-basemap" type="checkbox" /><span>Apply the default basemap to the current map</span></label><p class="form-note">Docked panels resize the map instead of covering it. Drag their divider or focus it and use the arrow keys; sizes and feedback preferences are saved in this browser.</p>`,
       actions: [{ label: "Save settings", primary: true, handler: () => {
-        const insightPosition = this.dialog.querySelector('input[name="insight-position"]:checked')?.value ?? "upper-left";
-        const tablePosition = this.dialog.querySelector('input[name="table-position"]:checked')?.value ?? "overlay-bottom";
+        const insightPosition = this.dialog.querySelector("#insight-position").value;
+        const tablePosition = this.dialog.querySelector("#table-position").value;
         const defaultBasemap = this.dialog.querySelector("#default-basemap").value;
-        const settings = { ...this.#readDisplaySettings(), insightPosition, tablePosition, defaultBasemap };
+        const settings = { ...this.#readDisplaySettings(), insightPosition, tablePosition, defaultBasemap, highlightEnabled: this.dialog.querySelector("#highlight-enabled").checked, clickMarkerEnabled: this.dialog.querySelector("#click-marker-enabled").checked, highlightColor: this.dialog.querySelector("#highlight-color").value };
         localStorage.setItem(DISPLAY_SETTINGS_KEY, JSON.stringify(settings));
         this.#applyDisplaySettings(settings);
         if (this.dialog.querySelector("#apply-default-basemap").checked) {
@@ -382,12 +406,19 @@ export class UIController {
         this.toast("Display settings saved.");
       }}],
     });
+    this.dialog.querySelector("#insight-position").value = insightPosition;
+    this.dialog.querySelector("#table-position").value = tablePosition;
+    this.dialog.querySelector("#highlight-color").addEventListener("input", (event) => {
+      event.currentTarget.nextElementSibling.value = event.currentTarget.value.toUpperCase();
+    });
   }
 
   #setInsightsOpen(open) {
-    document.querySelector("#insights-overlay").hidden = !open;
+    const overlay = document.querySelector("#insights-overlay");
+    const wasOpen = !overlay.hidden;
+    overlay.hidden = !open;
     document.body.classList.toggle("insights-open", open);
-    requestAnimationFrame(() => this.mapController.resize());
+    if (wasOpen !== open) requestAnimationFrame(() => this.mapController.resize());
   }
 
   #bindInsightResize() {
@@ -1214,6 +1245,7 @@ export class UIController {
     document.querySelector("#intelligence-content").classList.remove("intelligence-empty");
     document.querySelector("#intelligence-content").innerHTML = html;
     const overlay = document.querySelector("#insights-overlay");
+    overlay.setAttribute("aria-busy", "false");
     if (results.length) {
       document.querySelector("#insights-title").textContent =
         results.length === 1 ? results[0].layerTitle : `${results.length} features`;
@@ -1222,7 +1254,9 @@ export class UIController {
       document.querySelectorAll("[data-insight-tab]").forEach((button) =>
         button.addEventListener("click", () => this.#activateInsightTab(Number(button.dataset.insightTab))),
       );
+      void this.mapController.highlightFeature(visibleResults[0], { pulse: false });
     } else {
+      this.mapController.clearFeatureHighlight();
       document.querySelector("#insights-content").replaceChildren();
       this.#setInsightsOpen(false);
     }
@@ -1242,6 +1276,8 @@ export class UIController {
     document.querySelectorAll(".insight-panel").forEach((panel, panelIndex) => {
       panel.hidden = panelIndex !== index;
     });
+    const result = this.lastInsight?.results?.slice(0, 12)[index];
+    void this.mapController.highlightFeature(result, { pulse: true });
   }
 
   #showAIResponse(text) {

@@ -1,12 +1,12 @@
-import { events } from "./events.js?v=0.6.1";
-import { AuthController } from "./auth.js?v=0.6.1";
-import { MapController } from "./map.js?v=0.6.1";
-import { ProjectManager } from "./project.js?v=0.6.1";
-import { IdentifyController } from "./identify.js?v=0.6.1";
-import { AttributeTableController } from "./attribute-table.js?v=0.6.1";
-import { AIController } from "./ai.js?v=0.6.1";
-import { ToolManager } from "./tool-manager.js?v=0.6.1";
-import { UIController } from "./ui.js?v=0.6.1";
+import { events } from "./events.js?v=0.7.3";
+import { AuthController } from "./auth.js?v=0.7.3";
+import { MapController } from "./map.js?v=0.7.3";
+import { ProjectManager } from "./project.js?v=0.7.3";
+import { IdentifyController } from "./identify.js?v=0.7.3";
+import { AttributeTableController } from "./attribute-table.js?v=0.7.3";
+import { AIController } from "./ai.js?v=0.7.3";
+import { ToolManager } from "./tool-manager.js?v=0.7.3";
+import { UIController } from "./ui.js?v=0.7.3";
 
 async function start() {
   const authController = new AuthController(events);

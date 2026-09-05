@@ -56,11 +56,18 @@ export class MapController {
     this.map = null;
     this.view = null;
     this.drawLayer = null;
+    this.clickFeedbackLayer = null;
     this.modules = {};
     this.layerConfigs = new Map();
     this.localAssets = new Map();
     this.widgets = new Map();
     this.sketch = null;
+    this.featureHighlight = null;
+    this.featureHighlightTimers = [];
+    this.featureHighlightRequestId = 0;
+    this.highlightEnabled = true;
+    this.clickMarkerEnabled = true;
+    this.highlightColor = "#00b8d9";
     this.defaultViewpoint = { center: [-98.5, 39.5], zoom: 4, tilt: 35, heading: 0 };
     this.defaultBasemapId = "topo-3d";
     this.basemapId = "topo-3d";
@@ -129,10 +136,11 @@ export class MapController {
     });
 
     this.drawLayer = new GraphicsLayer({ title: "Drawings", listMode: "hide" });
+    this.clickFeedbackLayer = new GraphicsLayer({ title: "Click feedback", listMode: "hide" });
     this.map = new ArcGISMap({
       basemap: this.basemapId,
       ground: this.groundId,
-      layers: [this.drawLayer],
+      layers: [this.drawLayer, this.clickFeedbackLayer],
     });
     this.view = new SceneView({
       container,
@@ -142,7 +150,7 @@ export class MapController {
       qualityProfile: "high",
       popupEnabled: false,
       ui: { components: [] },
-      highlightOptions: { color: "#d9951e", haloOpacity: 0.9, fillOpacity: 0.15 },
+      highlightOptions: { color: this.highlightColor, haloOpacity: 1, fillOpacity: 0.25 },
       environment: {
         atmosphereEnabled: true,
         starsEnabled: true,
@@ -151,7 +159,10 @@ export class MapController {
     });
     await this.view.when();
     this.view.ui.empty("top-left");
-    this.view.on("click", (event) => this.events.publish("map:click", event));
+    this.view.on("click", (event) => {
+      this.showClickMarker(event.mapPoint);
+      this.events.publish("map:click", event);
+    });
     this.view.on("layerview-create-error", ({ layer, error }) => {
       this.events.publish("app:error", {
         message: `Could not draw ${layer?.title ?? "a layer"}: ${error?.message ?? "unknown error"}`,
@@ -401,7 +412,8 @@ export class MapController {
 
   removeLayer(uid) {
     const layer = this.findLayer(uid);
-    if (!layer || layer === this.drawLayer) return;
+    if (!layer || layer === this.drawLayer || layer === this.clickFeedbackLayer) return;
+    this.clearFeatureHighlight();
     this.map.remove(layer);
     this.layerConfigs.delete(uid);
     this.localAssets.delete(uid);
@@ -412,8 +424,83 @@ export class MapController {
     return this.map?.allLayers?.find((layer) => layer.uid === uid) ?? null;
   }
 
+  clearFeatureHighlight() {
+    this.featureHighlightRequestId += 1;
+    this.featureHighlightTimers.forEach((timer) => clearTimeout(timer));
+    this.featureHighlightTimers = [];
+    this.featureHighlight?.remove?.();
+    this.featureHighlight = null;
+  }
+
+  async highlightFeature(result, { pulse = true } = {}) {
+    this.clearFeatureHighlight();
+    if (!this.highlightEnabled || !result || result.kind !== "feature" || !this.view?.whenLayerView) return false;
+
+    const requestId = this.featureHighlightRequestId;
+    const graphic = result.graphic ?? null;
+    const layer = graphic?.layer || graphic?.sourceLayer || this.findLayer(result.layerUid);
+    if (!layer) return false;
+
+    try {
+      const layerView = await this.view.whenLayerView(layer);
+      if (requestId !== this.featureHighlightRequestId) return false;
+
+      const objectIdField = layer.objectIdField || graphic?.layer?.objectIdField;
+      const objectId = objectIdField
+        ? (result.attributes?.[objectIdField] ?? graphic?.attributes?.[objectIdField])
+        : null;
+      const target = objectId != null ? objectId : graphic;
+      if (!target) return false;
+
+      const applyHighlight = () => {
+        if (requestId !== this.featureHighlightRequestId) return;
+        this.featureHighlight?.remove?.();
+        this.featureHighlight = layerView.highlight(target);
+      };
+      applyHighlight();
+
+      if (pulse) {
+        this.featureHighlightTimers.push(setTimeout(() => {
+          if (requestId !== this.featureHighlightRequestId) return;
+          this.featureHighlight?.remove?.();
+          this.featureHighlight = null;
+        }, 180));
+        this.featureHighlightTimers.push(setTimeout(applyHighlight, 300));
+      }
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  configureInteractionFeedback({ highlightEnabled, clickMarkerEnabled, highlightColor } = {}) {
+    this.highlightEnabled = highlightEnabled !== false;
+    this.clickMarkerEnabled = clickMarkerEnabled !== false;
+    if (/^#[0-9a-f]{6}$/i.test(String(highlightColor || ""))) this.highlightColor = highlightColor;
+    if (this.view) this.view.highlightOptions = { color: this.highlightColor, haloOpacity: 1, fillOpacity: 0.25 };
+    if (!this.highlightEnabled) this.clearFeatureHighlight();
+    if (!this.clickMarkerEnabled) this.clickFeedbackLayer?.removeAll();
+  }
+
+  showClickMarker(point) {
+    if (!this.clickMarkerEnabled || !point || !this.clickFeedbackLayer || !this.modules.Graphic) return;
+    const color = this.highlightColor;
+    this.clickFeedbackLayer.removeAll();
+    this.clickFeedbackLayer.addMany([
+      new this.modules.Graphic({
+        geometry: point,
+        symbol: { type: "simple-marker", style: "circle", size: 18, color: [0, 0, 0, 0], outline: { color, width: 2 } },
+      }),
+      new this.modules.Graphic({
+        geometry: point,
+        symbol: { type: "simple-marker", style: "cross", size: 14, color, outline: { color: "#ffffff", width: 1 } },
+      }),
+    ]);
+  }
+
   getOperationalLayers() {
-    return this.map?.layers?.toArray().filter((layer) => layer !== this.drawLayer) ?? [];
+    return this.map?.layers?.toArray()
+      .filter((layer) => layer !== this.drawLayer && layer !== this.clickFeedbackLayer) ?? [];
   }
 
   getLayerConfig(layer) {

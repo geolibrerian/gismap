@@ -8,10 +8,10 @@
       content="GIS Map Online — a free, browser-based 3D viewer for geospatial files and services."
     />
     <title>GIS Map Online</title>
-    <link rel="icon" href="./assets/favicon.ico" sizes="any" />
+    <link rel="icon" href="./assets/gis-map-online-mark-v2.png" type="image/png" />
     <link rel="preconnect" href="https://js.arcgis.com" />
     <link rel="stylesheet" href="https://js.arcgis.com/5.0/esri/themes/light/main.css" />
-    <link rel="stylesheet" href="./css/app.css?v=0.6.1" />
+    <link rel="stylesheet" href="./css/app.css?v=0.7.3" />
     <script type="module" src="https://js.arcgis.com/5.0/"></script>
     <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
   </head>
@@ -19,7 +19,7 @@
     <div id="app" class="app-shell">
       <header class="mobile-app-bar">
         <div class="mobile-app-bar__title">
-          <img src="./assets/favicon.ico" alt="" />
+          <img src="./assets/gis-map-online-mark-v2.png" alt="" />
           <strong>GIS Map Online</strong>
         </div>
         <button
@@ -35,7 +35,8 @@
 
       <aside id="sidebar" class="sidebar" aria-label="GIS Map Online tools">
         <header class="brand">
-          <img src="./assets/gis-map-online-logo.png" alt="GIS Map Online" class="brand__logo" />
+          <img src="./assets/gis-map-online-mark-v2.png" alt="" class="brand__mark" />
+          <div class="brand__wordmark"><strong>GIS MAP</strong><span>ONLINE</span><small>Spatial intelligence studio</small></div>
           <button id="sidebar-close" class="icon-button sidebar__close" aria-label="Close side panel">×</button>
         </header>
 
@@ -66,29 +67,8 @@
           <div class="menu">
             <button class="menu__trigger" aria-expanded="false">Map <span>⌄</span></button>
             <div class="menu__content" role="menu">
-              <span class="menu__label">3D basemaps</span>
-              <button data-basemap="topo-3d">3D Topographic</button>
-              <button data-basemap="navigation-3d">3D Navigation</button>
-              <button data-basemap="navigation-dark-3d">3D Navigation — dark</button>
-              <button data-basemap="osm-3d">3D OpenStreetMap</button>
-              <button data-basemap="gray-3d">3D Light gray</button>
-              <button data-basemap="dark-gray-3d">3D Dark gray</button>
-              <button data-basemap="streets-3d">3D Streets</button>
-              <button data-basemap="streets-dark-3d">3D Streets — dark</button>
-              <span class="menu__label">2D basemaps</span>
-              <button data-basemap="topo-vector">Topographic</button>
-              <button data-basemap="streets-vector">Streets</button>
-              <button data-basemap="navigation">Navigation</button>
-              <button data-basemap="gray-vector">Light gray</button>
-              <button data-basemap="dark-gray-vector">Dark gray</button>
-              <button data-basemap="osm">OpenStreetMap</button>
-              <span class="menu__label">Imagery</span>
-              <button data-basemap="satellite">Satellite</button>
-              <button data-basemap="hybrid">Satellite + labels</button>
-              <span class="menu__label">Terrain surface</span>
-              <button data-ground="world-elevation">World elevation</button>
-              <button data-ground="world-topobathymetry">Elevation + bathymetry</button>
-              <button data-ground="flat">Flat ground</button>
+              <label class="menu__field"><span>Basemap</span><select data-basemap-picker><optgroup label="3D basemaps"><option value="topo-3d">3D Topographic</option><option value="navigation-3d">3D Navigation</option><option value="navigation-dark-3d">3D Navigation — dark</option><option value="osm-3d">3D OpenStreetMap</option><option value="gray-3d">3D Light gray</option><option value="dark-gray-3d">3D Dark gray</option><option value="streets-3d">3D Streets</option><option value="streets-dark-3d">3D Streets — dark</option></optgroup><optgroup label="2D basemaps"><option value="topo-vector">Topographic</option><option value="streets-vector">Streets</option><option value="navigation">Navigation</option><option value="gray-vector">Light gray</option><option value="dark-gray-vector">Dark gray</option><option value="osm">OpenStreetMap</option></optgroup><optgroup label="Imagery"><option value="satellite">Satellite</option><option value="hybrid">Satellite + labels</option></optgroup></select></label>
+              <label class="menu__field"><span>Terrain surface</span><select data-ground-picker><option value="world-elevation">World elevation</option><option value="world-topobathymetry">Elevation + bathymetry</option><option value="flat">Flat ground</option></select></label>
               <hr />
               <button data-widget="basemapGallery">3D basemap gallery</button>
               <button data-widget="compass">Compass</button>
@@ -247,6 +227,6 @@
     <input id="tool-file-input" type="file" accept=".js,.mjs" hidden />
 
     <noscript>GIS Map Online requires JavaScript.</noscript>
-    <script type="module" src="./js/app.js?v=0.6.1"></script>
+    <script type="module" src="./js/app.js?v=0.7.3"></script>
   </body>
 </html>

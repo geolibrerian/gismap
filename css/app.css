@@ -42,8 +42,12 @@ button:focus-visible, input:focus-visible, select:focus-visible, summary:focus-v
   box-shadow: 8px 0 26px rgb(17 39 33 / 8%);
   transition: transform 220ms ease;
 }
-.brand { height: 88px; display: flex; align-items: center; gap: 10px; padding: 9px 14px; background: var(--surface); border-bottom: 1px solid var(--line); }
-.brand__logo { width: min(270px, calc(100% - 38px)); height: 68px; object-fit: contain; object-position: left center; mix-blend-mode: multiply; }
+.brand { height: 96px; display: flex; align-items: center; gap: 11px; padding: 10px 13px; background: linear-gradient(120deg, #fffdf8, #f1eee3); border-bottom: 1px solid var(--line); }
+.brand__mark { width: 64px; height: 64px; flex: 0 0 auto; object-fit: contain; }
+.brand__wordmark { display: grid; min-width: 0; line-height: 1; }
+.brand__wordmark strong { color: var(--green); font: 800 clamp(20px, 1.7vw, 27px)/.95 system-ui, sans-serif; letter-spacing: -.045em; white-space: nowrap; }
+.brand__wordmark span { margin-top: 5px; color: var(--amber); font-size: 10px; font-weight: 800; letter-spacing: .32em; }
+.brand__wordmark small { margin-top: 8px; color: var(--muted); font-size: 8px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; white-space: nowrap; }
 .icon-button { width: 34px; height: 34px; border: 0; border-radius: 50%; background: transparent; font-size: 25px; line-height: 1; cursor: pointer; }
 .icon-button:hover { background: var(--surface-2); }
 .sidebar__close { margin-left: auto; }
@@ -59,6 +63,8 @@ button:focus-visible, input:focus-visible, select:focus-visible, summary:focus-v
 .menu__content button:hover, .menu__content button.is-active { background: var(--surface-2); color: var(--green-2); }
 .menu__label { padding: 8px 10px 3px; color: var(--amber); font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: .1em; }
 .menu__content hr { width: 100%; border: 0; border-top: 1px solid var(--line); margin: 5px 0; }
+.menu__field { display: grid; gap: 5px; padding: 7px 8px; color: var(--muted); font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; }
+.menu__field select { width: 100%; padding: 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); color: var(--ink); font: inherit; font-size: 11px; font-weight: 500; letter-spacing: 0; text-transform: none; }
 
 .sidebar__scroll { min-height: 0; overflow-y: auto; scrollbar-width: thin; }
 .panel { border-bottom: 1px solid var(--line); }
@@ -187,6 +193,14 @@ dialog::backdrop { background: rgb(12 28 23 / 48%); backdrop-filter: blur(3px); 
 .display-basemap { margin-top: 18px; }
 .display-checkbox { display: flex; align-items: center; gap: 8px; margin-top: 11px; font-size: 12px; cursor: pointer; }
 .display-checkbox input { accent-color: var(--green-2); }
+.display-settings-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.feedback-settings { display: grid; gap: 9px; margin: 18px 0 0; padding: 14px; border: 1px solid var(--line); border-radius: 8px; }
+.feedback-settings legend { padding: 0 6px; color: var(--muted); font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; }
+.feedback-settings .display-checkbox { margin-top: 0; }
+.highlight-color { display: flex; align-items: center; gap: 9px; font-size: 12px; }
+.highlight-color input { width: 38px; height: 28px; padding: 2px; border: 1px solid var(--line); border-radius: 5px; background: var(--surface); }
+.highlight-color output { color: var(--muted); font-family: ui-monospace, monospace; font-size: 10px; }
+@media (max-width: 720px) { .display-settings-grid { grid-template-columns: 1fr; } }
 .field { display: grid; gap: 6px; margin-bottom: 14px; }
 .field > span { font-size: 11px; font-weight: 700; }
 .field small { color: var(--muted); font-weight: 400; }
