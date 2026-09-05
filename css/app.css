@@ -583,6 +583,7 @@ body.sidebar-collapsed .table-dialog { left: 14px; }
     box-shadow: none;
   }
   body[data-navigation-layout="top"] #places-panel .place-search-combobox { flex: 1 1 280px; min-width: 180px; }
+  body[data-navigation-layout="top"] #places-panel > .panel__body { overflow: visible; }
   body[data-navigation-layout="top"] #places-panel .search-row input { padding: 8px 9px; }
   body[data-navigation-layout="top"] #places-panel .search-row button { width: 38px; height: 38px; }
   body[data-navigation-layout="top"] #bookmarks-panel .section-heading { display: flex; flex: 0 0 auto; margin: 0; white-space: nowrap; }

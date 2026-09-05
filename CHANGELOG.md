@@ -15,6 +15,11 @@ All notable changes to GIS Map Online are documented here. This project follows
   accessible in every navigation layout.
 - Added Bookmarks to the compact mobile panel navigation.
 
+### Fixed
+
+- Prevented place-search suggestions from being clipped by the inline panel in
+  wide top-navigation mode.
+
 ## [0.8.0] - 2026-09-04
 
 ### Added
