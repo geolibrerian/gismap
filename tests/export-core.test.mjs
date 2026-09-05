@@ -12,6 +12,14 @@ assert.deepEqual(
 );
 
 assert.deepEqual(
+  geometryToGeoJSON({
+    type: "point",
+    toJSON: () => ({ x: -111.89, y: 40.76, spatialReference: { wkid: 4326 } }),
+  }),
+  { type: "Point", coordinates: [-111.89, 40.76] },
+);
+
+assert.deepEqual(
   geometryToGeoJSON({ type: "polyline", paths: [[[0, 0], [1, 1]], [[2, 2], [3, 3]]] }),
   { type: "MultiLineString", coordinates: [[[0, 0], [1, 1]], [[2, 2], [3, 3]]] },
 );

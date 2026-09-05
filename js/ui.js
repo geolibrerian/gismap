@@ -1,5 +1,5 @@
-import { POPULAR_SERVICES } from "./catalog.js";
-import { ENTERPRISE_CATALOGS, EnterpriseCatalog } from "./enterprise-catalog.js";
+import { POPULAR_SERVICES } from "./catalog.js?v=0.9.0";
+import { ENTERPRISE_CATALOGS, EnterpriseCatalog } from "./enterprise-catalog.js?v=0.9.0";
 
 const DISPLAY_SETTINGS_KEY = "gismap-online:display:v1";
 const INSIGHT_POSITIONS = new Set(["upper-left", "lower-left", "bottom", "dock-left", "dock-right", "dock-bottom"]);

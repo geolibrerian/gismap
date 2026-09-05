@@ -64,7 +64,12 @@ function polygonCoordinates(rings = []) {
 export function geometryToGeoJSON(geometry) {
   if (!geometry) return null;
   const source = geometry.toJSON?.() ?? geometry;
-  switch (source.type) {
+  const geometryType = geometry.type || source.type
+    || (Number.isFinite(source.x) && Number.isFinite(source.y) ? "point" : null)
+    || (source.points ? "multipoint" : null)
+    || (source.paths ? "polyline" : null)
+    || (source.rings ? "polygon" : null);
+  switch (geometryType) {
     case "point":
       return { type: "Point", coordinates: coordinatesOf(source) };
     case "multipoint":
@@ -77,7 +82,7 @@ export function geometryToGeoJSON(geometry) {
       return polygonCoordinates(source.rings);
     default:
       if (source.type && source.coordinates) return structuredClone(source);
-      throw new Error(`Unsupported export geometry: ${source.type || "unknown"}.`);
+      throw new Error(`Unsupported export geometry: ${geometryType || "unknown"}.`);
   }
 }
 

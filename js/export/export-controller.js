@@ -1,4 +1,4 @@
-import { graphicToGeoJSONFeature, safeExportName } from "./export-core.js";
+import { graphicToGeoJSONFeature, safeExportName } from "./export-core.js?v=0.9.0";
 
 function firstQueryable(layer) {
   if (!layer) return null;
@@ -51,7 +51,7 @@ export class ExportController {
     await layer.load?.();
 
     const id = globalThis.crypto?.randomUUID?.() ?? `export-${Date.now()}`;
-    const worker = new Worker(new URL("./export-worker.js", import.meta.url), { type: "module" });
+    const worker = new Worker(new URL("./export-worker.js?v=0.9.0", import.meta.url), { type: "module" });
     const abortController = new AbortController();
     const title = layer.title || root?.title || "layer";
     const outputName = `${safeExportName(fileName || title)}.geojson`;

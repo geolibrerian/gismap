@@ -1,4 +1,4 @@
-import { createFeatureCollection } from "./export-core.js";
+import { createFeatureCollection } from "./export-core.js?v=0.9.0";
 
 let activeJob = null;
 

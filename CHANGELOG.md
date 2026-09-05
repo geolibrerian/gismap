@@ -15,6 +15,9 @@ All notable changes to GIS Map Online are documented here. This project follows
 - Paginated feature retrieval with visible progress and cancellation.
 - Background Web Worker conversion and packaging to keep the map responsive.
 - EPSG:4326 geometry normalization, including multipart lines and polygons.
+- USGS NAIP Plus imagery in the Popular data services catalog.
+- Recent MODIS hotspots, active hurricanes, PM2.5 observations, USGS seismic
+  activity, NDFD wind gusts, and NDFD precipitation in Popular data services.
 
 ### Changed
 
@@ -25,6 +28,10 @@ All notable changes to GIS Map Online are documented here. This project follows
 
 ### Fixed
 
+- Preserved ArcGIS geometry types when SDK `toJSON()` output omits the type,
+  preventing valid features from failing export as unknown geometry.
+- Versioned nested catalog and export-worker modules so deployments do not retain
+  stale data or conversion code from the browser cache.
 - Prevented place-search suggestions from being clipped by the inline panel in
   wide top-navigation mode.
 

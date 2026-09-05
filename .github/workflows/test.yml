@@ -36,6 +36,8 @@ jobs:
           grep -Fq "css/app.css?v=${VERSION_NUMBER}" index.html
           grep -Fq "js/app.js?v=${VERSION_NUMBER}" index.html
           grep -Fq "events.js?v=${VERSION_NUMBER}" js/app.js
+          grep -Fq "catalog.js?v=${VERSION_NUMBER}" js/ui.js
+          grep -Fq "export-worker.js?v=${VERSION_NUMBER}" js/export/export-controller.js
 
       - name: Check JavaScript syntax
         run: |
