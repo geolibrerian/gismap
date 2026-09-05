@@ -26,8 +26,8 @@ const escapeHtml = (value) =>
   })[char]);
 
 export class UIController {
-  constructor(events, mapController, projectManager, authController, aiController, toolManager) {
-    Object.assign(this, { events, mapController, projectManager, authController, aiController, toolManager });
+  constructor(events, mapController, projectManager, authController, aiController, toolManager, exportController) {
+    Object.assign(this, { events, mapController, projectManager, authController, aiController, toolManager, exportController });
     this.dialog = document.querySelector("#app-dialog");
     this.searchResults = [];
     this.searchTimer = null;
@@ -195,6 +195,7 @@ export class UIController {
       if (!event.target.closest(".place-search-combobox")) this.#clearSearchResults();
     });
     document.querySelector("#bookmark-add").addEventListener("click", () => this.#addBookmark());
+    this.dialog.addEventListener("close", () => this.exportController.cancel());
     document.querySelector("#project-file-input").addEventListener("change", (event) => this.#importProject(event));
     document.querySelector("#data-file-input").addEventListener("change", (event) => this.#addFiles(event));
     document.querySelector("#tool-file-input").addEventListener("change", (event) => this.#loadTool(event));
@@ -226,6 +227,21 @@ export class UIController {
       this.toast("Project saved in this browser.");
     });
     this.events.subscribe("project:exported", ({ kind }) => this.toast(`${kind === "package" ? "Project package (.gmop)" : "Project file (.gmo)"} downloaded.`));
+    this.events.subscribe("export:progress", ({ stage, completed, total }) => {
+      const progress = this.dialog.querySelector("[data-export-progress]");
+      const status = this.dialog.querySelector("[data-export-status]");
+      if (!progress || !status) return;
+      if (total > 0) {
+        progress.max = total;
+        progress.value = Math.min(completed, total);
+      } else {
+        progress.removeAttribute("value");
+      }
+      status.textContent = stage === "packaging"
+        ? `Packaging ${completed.toLocaleString()} features…`
+        : `Retrieving ${completed.toLocaleString()}${total > 0 ? ` of ${total.toLocaleString()}` : ""} features…`;
+    });
+    this.events.subscribe("export:cancelled", () => this.toast("Data export cancelled."));
     this.events.subscribe("bookmarks:changed", () => this.#renderBookmarks());
     this.events.subscribe("identify:start", () => {
       this.mapController.clearFeatureHighlight();
@@ -320,6 +336,9 @@ export class UIController {
         case "data-wfs":
           this.#serviceDialog("wfs");
           break;
+        case "data-export":
+          this.#exportDialog();
+          break;
         case "data-popular":
           this.#popularDataDialog();
           break;
@@ -388,6 +407,56 @@ export class UIController {
         this.dialog.close();
       }}],
     });
+  }
+
+  #exportDialog(preselectedUid = null) {
+    const layers = this.exportController.listExportableLayers();
+    if (!layers.length) throw new Error("Add a queryable vector layer before exporting data.");
+    const selectedUid = layers.some((layer) => layer.uid === preselectedUid) ? preselectedUid : layers[0].uid;
+    this.openDialog({
+      eyebrow: "Download vector data",
+      title: "Export data",
+      content: `<label class="field"><span>Layer</span><select id="export-layer">${layers.map((layer) => `<option value="${escapeHtml(layer.uid)}" ${layer.uid === selectedUid ? "selected" : ""}>${escapeHtml(layer.title)}</option>`).join("")}</select></label>
+        <label class="field"><span>Features</span><select id="export-scope"><option value="filtered">All features matching the current layer filter</option><option value="extent">Filtered features in the current map extent</option><option value="source">Entire source layer (ignore the current filter)</option></select></label>
+        <label class="field"><span>Format</span><select id="export-format"><option value="geojson">GeoJSON (.geojson)</option></select></label>
+        <label class="field"><span>File name</span><input id="export-file-name" value="${escapeHtml(layers.find((layer) => layer.uid === selectedUid)?.title || "layer")}" /></label>
+        <p class="form-note">Geometry is exported as longitude and latitude in EPSG:4326. Retrieval is paginated and conversion runs in a background worker, so the map remains responsive.</p>`,
+      actions: [{ label: "Export GeoJSON", primary: true, handler: () => this.#runExport() }],
+    });
+    const layerSelect = this.dialog.querySelector("#export-layer");
+    layerSelect.addEventListener("change", () => {
+      const layer = layers.find((item) => item.uid === layerSelect.value);
+      this.dialog.querySelector("#export-file-name").value = layer?.title || "layer";
+    });
+  }
+
+  async #runExport() {
+    const options = {
+      uid: this.dialog.querySelector("#export-layer").value,
+      scope: this.dialog.querySelector("#export-scope").value,
+      fileName: this.dialog.querySelector("#export-file-name").value,
+    };
+    document.querySelector("#dialog-title").textContent = "Preparing download";
+    document.querySelector("#dialog-content").innerHTML = `<div class="export-progress"><progress data-export-progress></progress><strong data-export-status>Preparing feature query…</strong><small>You can continue using the map after starting the download. Cancel stops outstanding service requests and terminates the export worker.</small></div>`;
+    const footer = document.querySelector("#dialog-actions");
+    footer.innerHTML = "";
+    const cancel = document.createElement("button");
+    cancel.type = "button";
+    cancel.textContent = "Cancel export";
+    cancel.addEventListener("click", () => {
+      this.exportController.cancel();
+      this.dialog.close();
+    });
+    footer.append(cancel);
+    try {
+      const result = await this.exportController.exportLayer(options);
+      if (!result) return;
+      this.dialog.close();
+      this.toast(`Exported ${result.featureCount.toLocaleString()} features as GeoJSON.`);
+    } catch (error) {
+      this.error(`Export failed: ${error.message}`);
+      this.dialog.close();
+    }
   }
 
   #readDisplaySettings() {
@@ -1176,6 +1245,7 @@ export class UIController {
 
   #renderLayers() {
     const layers = this.mapController.getOperationalLayers().slice().reverse();
+    const exportable = new Set(this.exportController.listExportableLayers().map((layer) => layer.uid));
     document.querySelector("#layer-count").textContent = `${layers.length} loaded`;
     const container = document.querySelector("#layers-list");
     container.innerHTML = layers.length
@@ -1184,7 +1254,7 @@ export class UIController {
         return `<article class="layer-card" data-layer-uid="${escapeHtml(layer.uid)}">
           <div class="layer-card__head"><label class="layer-toggle"><input type="checkbox" data-layer-visible ${layer.visible ? "checked" : ""} /><span></span></label><div><strong title="${escapeHtml(layer.title)}">${escapeHtml(layer.title)}</strong><small>${escapeHtml(config.sourceType)}${config.definitionExpression ? " · Filtered" : ""}${config.refreshInterval ? ` · ${config.refreshInterval}m refresh` : ""}</small></div><button data-layer-action="remove" title="Remove layer">×</button></div>
           <label class="opacity-row"><span>Opacity</span><input data-layer-opacity type="range" min="0" max="1" step="0.05" value="${layer.opacity}" /><output>${Math.round(layer.opacity * 100)}%</output></label>
-          <div class="layer-card__actions"><button data-layer-action="zoom">Zoom</button><button data-layer-action="table">Table</button><button data-layer-action="filter">Filter</button><button data-layer-action="style">Style</button><button data-layer-action="refresh">Refresh</button></div>
+          <div class="layer-card__actions"><button data-layer-action="zoom">Zoom</button><button data-layer-action="table">Table</button><button data-layer-action="filter">Filter</button><button data-layer-action="export" ${exportable.has(layer.uid) ? "" : "disabled title=\"This layer is not queryable\""}>Export</button><button data-layer-action="style">Style</button><button data-layer-action="refresh">Refresh</button></div>
         </article>`;
       }).join("")
       : '<div class="empty-state">Add a file or service from the Data menu.</div>';
@@ -1205,6 +1275,7 @@ export class UIController {
         case "zoom": if (layer?.fullExtent) await this.mapController.goToLayer(layer); break;
         case "table": this.events.publish("table:open", { uid }); break;
         case "filter": await this.#filterDialog(uid); break;
+        case "export": this.#exportDialog(uid); break;
         case "style": this.#symbologyDialog(uid); break;
         case "refresh": this.#refreshDialog(uid); break;
       }

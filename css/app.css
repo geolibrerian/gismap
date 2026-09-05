@@ -142,8 +142,9 @@ body.utility-resizing iframe, body.utility-resizing canvas { pointer-events: non
 .opacity-row { display: grid; grid-template-columns: 46px 1fr 34px; align-items: center; gap: 8px; margin-top: 9px; color: var(--muted); font-size: 9px; text-transform: uppercase; letter-spacing: .06em; }
 .opacity-row input { accent-color: var(--green-2); width: 100%; }
 .opacity-row output { text-align: right; }
-.layer-card__actions { display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; margin-top: 8px; }
+.layer-card__actions { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; margin-top: 8px; }
 .layer-card__actions button { padding: 6px 2px; font-size: 10px; }
+.layer-card__actions button:disabled { opacity: .45; cursor: not-allowed; }
 
 .result-card { border: 1px solid var(--line); border-radius: 7px; background: var(--surface); margin-top: 8px; overflow: hidden; }
 .result-card summary { display: flex; justify-content: space-between; gap: 10px; padding: 10px; cursor: pointer; font-size: 12px; font-weight: 700; }
@@ -234,6 +235,10 @@ dialog::backdrop { background: rgb(12 28 23 / 48%); backdrop-filter: blur(3px); 
 .field small { color: var(--muted); font-weight: 400; }
 .field-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 12px; }
 .form-note { margin: 10px 0 0; color: var(--muted); font-size: 11px; line-height: 1.55; }
+.export-progress { display: grid; gap: 10px; }
+.export-progress progress { width: 100%; height: 12px; accent-color: var(--green-2); }
+.export-progress strong { font-size: 13px; }
+.export-progress small { color: var(--muted); line-height: 1.5; }
 .ollama-setup { margin: 4px 0 12px; padding: 13px; border: 1px solid #c7d8d2; border-radius: 8px; background: #edf5f2; font-size: 11px; line-height: 1.5; }
 .ollama-setup p { margin: 7px 0; }
 .ollama-setup > code { display: block; overflow-x: auto; padding: 9px 10px; border-radius: 5px; color: white; background: var(--green); white-space: nowrap; user-select: all; }

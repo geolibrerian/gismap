@@ -39,6 +39,7 @@ published builds and generated release notes.
 - `js/catalog.js` — editable starter list of public data services
 - `js/enterprise-catalog.js` — live ArcGIS Enterprise service-directory browser
 - `js/auth.js` — ArcGIS Online/Enterprise OAuth, standalone Server token/web-tier registration, federation discovery, and connection diagnostics
+- `js/export/` — paginated vector feature retrieval and background-worker GeoJSON conversion
 
 ## Browser and service constraints
 
@@ -52,6 +53,7 @@ published builds and generated release notes.
 - ArcGIS MapServer sublayer URLs are detected automatically, including raster sublayers that must be loaded through their parent `MapImageLayer`.
 - ArcGIS FeatureServer `/query` URLs are accepted and normalized to their layer endpoint; `where` and `outFields` are applied to the native feature layer. Layer zoom uses a live, filter-aware feature extent when supported, avoiding stale or malformed service extents.
 - WFS 2.0 services with advertised GeoJSON output can be added from either a service endpoint or a full GetFeature URL; feature type names and nonstandard custom parameters are retained automatically.
+- Queryable vector layers can be downloaded as EPSG:4326 GeoJSON. Exports can honor the active layer filter, use the current map extent, or retrieve the entire source; pagination, progress, and cancellation are handled without blocking the map.
 - Vector operational layers are explicitly draped on the scene ground so Z-enabled feeds such as USGS earthquake data do not fall beneath terrain.
 - AI controls appear in Intelligence only while a provider is fully configured. Online API tokens are never persisted or included in exports.
 - Browser access to local Ollama is connection-tested before enabling AI. On macOS, allow only this site's origin with `launchctl setenv OLLAMA_ORIGINS "https://gismap.online"`, fully quit Ollama, and reopen it.

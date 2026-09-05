@@ -44,6 +44,9 @@ jobs:
           node --check js/ui.js
           node --check js/attribute-table.js
           node --check js/auth.js
+          node --check js/export/export-core.js
+          node --check js/export/export-controller.js
+          node --check js/export/export-worker.js
 
       - name: Run tests
         run: node --test tests/*.test.mjs

@@ -6,7 +6,15 @@ All notable changes to GIS Map Online are documented here. This project follows
 
 ## [Unreleased]
 
-## [0.8.1] - 2026-09-04
+## [0.9.0] - 2026-09-04
+
+### Added
+
+- Browser-based GeoJSON downloads for queryable vector layers.
+- Filtered-layer, current-map-extent, and entire-source export scopes.
+- Paginated feature retrieval with visible progress and cancellation.
+- Background Web Worker conversion and packaging to keep the map responsive.
+- EPSG:4326 geometry normalization, including multipart lines and polygons.
 
 ### Changed
 
@@ -51,6 +59,6 @@ All notable changes to GIS Map Online are documented here. This project follows
 - Prevented search suggestions from remaining open after selection.
 - Reduced map and panel flicker during feature identification.
 
-[Unreleased]: https://github.com/geolibrerian/gismap/compare/v0.8.1...HEAD
-[0.8.1]: https://github.com/geolibrerian/gismap/compare/v0.8.0...v0.8.1
+[Unreleased]: https://github.com/geolibrerian/gismap/compare/v0.9.0...HEAD
+[0.9.0]: https://github.com/geolibrerian/gismap/compare/v0.8.0...v0.9.0
 [0.8.0]: https://github.com/geolibrerian/gismap/releases/tag/v0.8.0

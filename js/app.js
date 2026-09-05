@@ -1,12 +1,13 @@
-import { events } from "./events.js?v=0.8.1";
-import { AuthController } from "./auth.js?v=0.8.1";
-import { MapController } from "./map.js?v=0.8.1";
-import { ProjectManager } from "./project.js?v=0.8.1";
-import { IdentifyController } from "./identify.js?v=0.8.1";
-import { AttributeTableController } from "./attribute-table.js?v=0.8.1";
-import { AIController } from "./ai.js?v=0.8.1";
-import { ToolManager } from "./tool-manager.js?v=0.8.1";
-import { UIController } from "./ui.js?v=0.8.1";
+import { events } from "./events.js?v=0.9.0";
+import { AuthController } from "./auth.js?v=0.9.0";
+import { MapController } from "./map.js?v=0.9.0";
+import { ProjectManager } from "./project.js?v=0.9.0";
+import { IdentifyController } from "./identify.js?v=0.9.0";
+import { AttributeTableController } from "./attribute-table.js?v=0.9.0";
+import { AIController } from "./ai.js?v=0.9.0";
+import { ToolManager } from "./tool-manager.js?v=0.9.0";
+import { UIController } from "./ui.js?v=0.9.0";
+import { ExportController } from "./export/export-controller.js?v=0.9.0";
 
 async function start() {
   const authController = new AuthController(events);
@@ -17,6 +18,7 @@ async function start() {
   const aiController = new AIController(events, mapController);
   const toolManager = new ToolManager(events, mapController);
   const tableController = new AttributeTableController(events, mapController);
+  const exportController = new ExportController(events, mapController);
   const uiController = new UIController(
     events,
     mapController,
@@ -24,6 +26,7 @@ async function start() {
     authController,
     aiController,
     toolManager,
+    exportController,
   );
 
   identifyController.initialize();
@@ -39,6 +42,7 @@ async function start() {
     view: mapController.view,
     getProject: () => projectManager.snapshot(),
     getConnections: () => authController.list(),
+    exportData: (options) => exportController.exportLayer(options),
   });
 }
 
