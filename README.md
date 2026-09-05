@@ -1,5 +1,9 @@
 # GIS Map Online
 
+[![GitHub release](https://img.shields.io/github/v/release/geolibrerian/gismap)](https://github.com/geolibrerian/gismap/releases/latest)
+[![Tests](https://github.com/geolibrerian/gismap/actions/workflows/test.yml/badge.svg)](https://github.com/geolibrerian/gismap/actions/workflows/test.yml)
+[![License](https://img.shields.io/github/license/geolibrerian/gismap)](LICENSE)
+
 A browser-only 3D GIS viewer targeting ArcGIS Maps SDK for JavaScript 5.0. It uses `SceneView`, native ES modules, a small topic-based event bus, local browser project storage, and portable project packages—no application login or database required.
 
 The interface uses a layered globe-and-analysis mark with an editable HTML wordmark and the descriptor “Spatial intelligence studio.”
@@ -13,6 +17,14 @@ python3 -m http.server 8080
 ```
 
 Then open `http://localhost:8080`.
+
+## Releases
+
+The current application version is recorded in [`VERSION`](VERSION). Releases use
+[Semantic Versioning](https://semver.org/) and `vX.Y.Z` Git tags. See the
+[`CHANGELOG.md`](CHANGELOG.md) for feature-level history and the
+[GitHub Releases page](https://github.com/geolibrerian/gismap/releases) for
+published builds and generated release notes.
 
 ## Modules
 
