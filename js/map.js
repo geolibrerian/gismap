@@ -68,6 +68,7 @@ export class MapController {
     this.highlightEnabled = true;
     this.clickMarkerEnabled = true;
     this.highlightColor = "#00b8d9";
+    this.clickMarkerAnimation = null;
     this.defaultViewpoint = { center: [-98.5, 39.5], zoom: 4, tilt: 35, heading: 0 };
     this.defaultBasemapId = "topo-3d";
     this.basemapId = "topo-3d";
@@ -479,23 +480,52 @@ export class MapController {
     if (/^#[0-9a-f]{6}$/i.test(String(highlightColor || ""))) this.highlightColor = highlightColor;
     if (this.view) this.view.highlightOptions = { color: this.highlightColor, haloOpacity: 1, fillOpacity: 0.25 };
     if (!this.highlightEnabled) this.clearFeatureHighlight();
-    if (!this.clickMarkerEnabled) this.clickFeedbackLayer?.removeAll();
+    if (!this.clickMarkerEnabled) this.clearClickMarker();
+  }
+
+  clearClickMarker() {
+    if (this.clickMarkerAnimation != null) {
+      if (globalThis.cancelAnimationFrame) cancelAnimationFrame(this.clickMarkerAnimation);
+      else clearTimeout(this.clickMarkerAnimation);
+    }
+    this.clickMarkerAnimation = null;
+    this.clickFeedbackLayer?.removeAll();
   }
 
   showClickMarker(point) {
     if (!this.clickMarkerEnabled || !point || !this.clickFeedbackLayer || !this.modules.Graphic) return;
     const color = this.highlightColor;
-    this.clickFeedbackLayer.removeAll();
-    this.clickFeedbackLayer.addMany([
-      new this.modules.Graphic({
-        geometry: point,
-        symbol: { type: "simple-marker", style: "circle", size: 18, color: [0, 0, 0, 0], outline: { color, width: 2 } },
-      }),
-      new this.modules.Graphic({
-        geometry: point,
-        symbol: { type: "simple-marker", style: "cross", size: 14, color, outline: { color: "#ffffff", width: 1 } },
-      }),
-    ]);
+    this.clearClickMarker();
+    const graphic = new this.modules.Graphic({
+      geometry: point,
+      symbol: { type: "simple-marker", style: "cross", size: 10, color, outline: { color, width: 1 } },
+    });
+    this.clickFeedbackLayer.add(graphic);
+
+    const animationNow = () => globalThis.performance?.now?.() ?? Date.now();
+    const startedAt = animationNow();
+    const duration = 520;
+    const schedule = globalThis.requestAnimationFrame
+      ? (callback) => requestAnimationFrame(callback)
+      : (callback) => setTimeout(() => callback(animationNow()), 16);
+    const animate = (now) => {
+      const progress = Math.min(1, (now - startedAt) / duration);
+      const opacity = progress < 0.18 ? 1 : 1 - ((progress - 0.18) / 0.82);
+      const animatedColor = this.#hexToRgba(color, Math.max(0, opacity));
+      graphic.symbol = {
+        type: "simple-marker",
+        style: "cross",
+        size: 10 + (progress * 11),
+        color: animatedColor,
+        outline: { color: animatedColor, width: 1 },
+      };
+      if (progress < 1) {
+        this.clickMarkerAnimation = schedule(animate);
+      } else {
+        this.clearClickMarker();
+      }
+    };
+    this.clickMarkerAnimation = schedule(animate);
   }
 
   getOperationalLayers() {

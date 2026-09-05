@@ -143,13 +143,14 @@ let markerGraphics = [];
 controller.modules.Graphic = FakeGraphic;
 controller.clickFeedbackLayer = {
   removeAll() { markerGraphics = []; },
+  add(graphic) { markerGraphics.push(graphic); },
   addMany(graphics) { markerGraphics.push(...graphics); },
 };
 controller.configureInteractionFeedback({ highlightEnabled: true, clickMarkerEnabled: true, highlightColor: "#ff00aa" });
 controller.showClickMarker({ type: "point", x: -112, y: 33 });
-assert.equal(markerGraphics.length, 2);
-assert.equal(markerGraphics[1].symbol.style, "cross");
-assert.equal(markerGraphics[1].symbol.color, "#ff00aa");
+assert.equal(markerGraphics.length, 1);
+assert.equal(markerGraphics[0].symbol.style, "cross");
+assert.equal(markerGraphics[0].symbol.color, "#ff00aa");
 controller.configureInteractionFeedback({ highlightEnabled: false, clickMarkerEnabled: false, highlightColor: "invalid" });
 assert.equal(markerGraphics.length, 0);
 
