@@ -34,10 +34,15 @@ export class UIController {
     this.searchRequestId = 0;
     this.searchSelection = -1;
     this.lastInsight = null;
+    this.systemThemeMedia = matchMedia("(prefers-color-scheme: dark)");
   }
 
   initialize() {
     this.#applyDisplaySettings(this.#readDisplaySettings());
+    this.systemThemeMedia.addEventListener?.("change", () => {
+      const settings = this.#readDisplaySettings();
+      if (settings.appearance === "system") this.#applyDisplaySettings(settings);
+    });
     if (matchMedia("(max-width: 640px)").matches) this.#setSidebarCollapsed(true);
     this.#buildMobileMenu();
     this.#bindMenus();
@@ -66,9 +71,21 @@ export class UIController {
         trigger.setAttribute("aria-expanded", String(open));
       });
     });
+    document.querySelectorAll(".menu-bar__all-trigger").forEach((trigger) => {
+      trigger.addEventListener("click", (event) => {
+        event.stopPropagation();
+        const menuBar = trigger.closest(".menu-bar");
+        const open = !menuBar.classList.contains("is-consolidated-open");
+        document.querySelectorAll(".menu-bar.is-consolidated-open").forEach((item) => item.classList.remove("is-consolidated-open"));
+        menuBar.classList.toggle("is-consolidated-open", open);
+        trigger.setAttribute("aria-expanded", String(open));
+      });
+    });
     document.addEventListener("click", () => {
       document.querySelectorAll(".menu.is-open").forEach((item) => item.classList.remove("is-open"));
       document.querySelectorAll(".menu__trigger").forEach((item) => item.setAttribute("aria-expanded", "false"));
+      document.querySelectorAll(".menu-bar.is-consolidated-open").forEach((item) => item.classList.remove("is-consolidated-open"));
+      document.querySelectorAll(".menu-bar__all-trigger").forEach((item) => item.setAttribute("aria-expanded", "false"));
     });
     document.querySelectorAll(".menu__content").forEach((menu) => menu.addEventListener("click", (e) => e.stopPropagation()));
   }
@@ -382,13 +399,20 @@ export class UIController {
         highlightColor: /^#[0-9a-f]{6}$/i.test(saved.highlightColor) ? saved.highlightColor : "#00b8d9",
         navigationLayout: saved.navigationLayout === "top" ? "top" : "side",
         utilityPanelWidth: Number.isFinite(saved.utilityPanelWidth) ? Math.min(620, Math.max(280, saved.utilityPanelWidth)) : 360,
+        appearance: ["system", "light", "dark"].includes(saved.appearance) ? saved.appearance : "system",
+        darkBasemapEnabled: saved.darkBasemapEnabled === true,
       };
     } catch {
-      return { insightPosition: "upper-left", defaultBasemap: "topo-3d", insightDockWidth: 420, insightDockHeight: 360, tablePosition: "overlay-bottom", tableDockWidth: 520, tableDockHeight: 420, highlightEnabled: true, clickMarkerEnabled: true, highlightColor: "#00b8d9", navigationLayout: "side", utilityPanelWidth: 360 };
+      return { insightPosition: "upper-left", defaultBasemap: "topo-3d", insightDockWidth: 420, insightDockHeight: 360, tablePosition: "overlay-bottom", tableDockWidth: 520, tableDockHeight: 420, highlightEnabled: true, clickMarkerEnabled: true, highlightColor: "#00b8d9", navigationLayout: "side", utilityPanelWidth: 360, appearance: "system", darkBasemapEnabled: false };
     }
   }
 
   #applyDisplaySettings(settings) {
+    const prefersDark = matchMedia("(prefers-color-scheme: dark)").matches;
+    const resolvedTheme = settings.appearance === "system" ? (prefersDark ? "dark" : "light") : settings.appearance;
+    document.documentElement.dataset.theme = resolvedTheme;
+    document.documentElement.style.colorScheme = resolvedTheme;
+    document.body.classList.toggle("calcite-mode-dark", resolvedTheme === "dark");
     document.body.dataset.insightsPosition = settings.insightPosition;
     document.body.style.setProperty("--insights-dock-width", `${settings.insightDockWidth ?? 420}px`);
     document.body.style.setProperty("--insights-dock-height", `${settings.insightDockHeight ?? 360}px`);
@@ -405,6 +429,9 @@ export class UIController {
     const tableResizer = document.querySelector("#table-resizer");
     if (tableResizer) tableResizer.setAttribute("aria-orientation", settings.tablePosition === "dock-bottom" ? "horizontal" : "vertical");
     this.mapController.setDefaultBasemap(settings.defaultBasemap);
+    if (settings.darkBasemapEnabled) {
+      this.mapController.setBasemap(resolvedTheme === "dark" ? "navigation-dark-3d" : settings.defaultBasemap);
+    }
     this.mapController.configureInteractionFeedback(settings);
     requestAnimationFrame(() => this.mapController.resize());
   }
@@ -417,13 +444,23 @@ export class UIController {
     this.openDialog({
       eyebrow: "Interface preferences",
       title: "Display settings",
-      content: `<div class="display-settings-grid"><label class="field"><span>Application navigation</span><select id="navigation-layout"><option value="side">Side panel</option><option value="top">Top navigation bar</option></select></label><label class="field"><span>Map Insight position</span><select id="insight-position"><optgroup label="Floating"><option value="upper-left">Upper left</option><option value="lower-left">Lower left</option><option value="bottom">Bottom overlay</option></optgroup><optgroup label="Dashboard"><option value="dock-left">Dock left</option><option value="dock-right">Dock right</option><option value="dock-bottom">Dock bottom</option></optgroup></select></label><label class="field"><span>Attribute table position</span><select id="table-position"><option value="overlay-bottom">Bottom overlay</option><option value="dock-left">Dock left</option><option value="dock-right">Dock right</option><option value="dock-bottom">Dock bottom</option></select></label><label class="field display-basemap"><span>Default basemap</span><select id="default-basemap">${basemapOptions}</select></label></div><fieldset class="feedback-settings"><legend>Map click feedback</legend><label class="display-checkbox"><input id="click-marker-enabled" type="checkbox" ${current.clickMarkerEnabled ? "checked" : ""} /><span>Show a crosshair where the map is clicked</span></label><label class="display-checkbox"><input id="highlight-enabled" type="checkbox" ${current.highlightEnabled ? "checked" : ""} /><span>Highlight the feature selected in Map Insight</span></label><label class="highlight-color"><span>Feedback color</span><input id="highlight-color" type="color" value="${current.highlightColor}" /><output>${current.highlightColor.toUpperCase()}</output></label></fieldset><label class="display-checkbox"><input id="apply-default-basemap" type="checkbox" /><span>Apply the default basemap to the current map</span></label><p class="form-note">Docked panels resize the map instead of covering it. Drag their divider or focus it and use the arrow keys; sizes, navigation, and feedback preferences are saved in this browser.</p>`,
+      content: `<div class="display-settings-grid">
+        <label class="field"><span>Appearance</span><select id="appearance"><option value="system">System</option><option value="light">Light</option><option value="dark">Dark</option></select></label>
+        <label class="field"><span>Application navigation</span><select id="navigation-layout"><option value="side">Side panel</option><option value="top">Top navigation bar</option></select></label>
+        <label class="field"><span>Map Insight position</span><select id="insight-position"><optgroup label="Floating"><option value="upper-left">Upper left</option><option value="lower-left">Lower left</option><option value="bottom">Bottom overlay</option></optgroup><optgroup label="Dashboard"><option value="dock-left">Dock left</option><option value="dock-right">Dock right</option><option value="dock-bottom">Dock bottom</option></optgroup></select></label>
+        <label class="field"><span>Attribute table position</span><select id="table-position"><option value="overlay-bottom">Bottom overlay</option><option value="dock-left">Dock left</option><option value="dock-right">Dock right</option><option value="dock-bottom">Dock bottom</option></select></label>
+        <label class="field display-basemap"><span>Default basemap</span><select id="default-basemap">${basemapOptions}</select></label>
+      </div>
+      <label class="display-checkbox"><input id="dark-basemap-enabled" type="checkbox" ${current.darkBasemapEnabled ? "checked" : ""} /><span>Use a dark basemap when dark mode is enabled</span></label>
+      <fieldset class="feedback-settings"><legend>Map click feedback</legend><label class="display-checkbox"><input id="click-marker-enabled" type="checkbox" ${current.clickMarkerEnabled ? "checked" : ""} /><span>Show a crosshair where the map is clicked</span></label><label class="display-checkbox"><input id="highlight-enabled" type="checkbox" ${current.highlightEnabled ? "checked" : ""} /><span>Highlight the feature selected in Map Insight</span></label><label class="highlight-color"><span>Feedback color</span><input id="highlight-color" type="color" value="${current.highlightColor}" /><output>${current.highlightColor.toUpperCase()}</output></label></fieldset>
+      <label class="display-checkbox"><input id="apply-default-basemap" type="checkbox" /><span>Apply the default basemap to the current map</span></label><p class="form-note">Docked panels resize the map instead of covering it. Sizes, navigation, appearance, and feedback preferences are saved in this browser.</p>`,
       actions: [{ label: "Save settings", primary: true, handler: () => {
         const insightPosition = this.dialog.querySelector("#insight-position").value;
         const tablePosition = this.dialog.querySelector("#table-position").value;
         const navigationLayout = this.dialog.querySelector("#navigation-layout").value;
+        const appearance = this.dialog.querySelector("#appearance").value;
         const defaultBasemap = this.dialog.querySelector("#default-basemap").value;
-        const settings = { ...this.#readDisplaySettings(), insightPosition, tablePosition, navigationLayout, defaultBasemap, highlightEnabled: this.dialog.querySelector("#highlight-enabled").checked, clickMarkerEnabled: this.dialog.querySelector("#click-marker-enabled").checked, highlightColor: this.dialog.querySelector("#highlight-color").value };
+        const settings = { ...this.#readDisplaySettings(), insightPosition, tablePosition, navigationLayout, appearance, defaultBasemap, darkBasemapEnabled: this.dialog.querySelector("#dark-basemap-enabled").checked, highlightEnabled: this.dialog.querySelector("#highlight-enabled").checked, clickMarkerEnabled: this.dialog.querySelector("#click-marker-enabled").checked, highlightColor: this.dialog.querySelector("#highlight-color").value };
         localStorage.setItem(DISPLAY_SETTINGS_KEY, JSON.stringify(settings));
         this.#applyDisplaySettings(settings);
         if (this.dialog.querySelector("#apply-default-basemap").checked) {
@@ -436,6 +473,7 @@ export class UIController {
     this.dialog.querySelector("#insight-position").value = insightPosition;
     this.dialog.querySelector("#table-position").value = tablePosition;
     this.dialog.querySelector("#navigation-layout").value = current.navigationLayout;
+    this.dialog.querySelector("#appearance").value = current.appearance;
     this.dialog.querySelector("#highlight-color").addEventListener("input", (event) => {
       event.currentTarget.nextElementSibling.value = event.currentTarget.value.toUpperCase();
     });
@@ -1391,6 +1429,8 @@ export class UIController {
   #closeMenus() {
     document.querySelectorAll(".menu.is-open").forEach((menu) => menu.classList.remove("is-open"));
     document.querySelectorAll(".menu__trigger").forEach((trigger) => trigger.setAttribute("aria-expanded", "false"));
+    document.querySelectorAll(".menu-bar.is-consolidated-open").forEach((menu) => menu.classList.remove("is-consolidated-open"));
+    document.querySelectorAll(".menu-bar__all-trigger").forEach((trigger) => trigger.setAttribute("aria-expanded", "false"));
     const drawer = document.querySelector("#mobile-menu-drawer");
     if (drawer && !drawer.hidden) {
       drawer.hidden = true;

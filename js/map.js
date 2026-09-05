@@ -646,7 +646,7 @@ export class MapController {
 
   setBasemap(id) {
     this.basemapId = id || "topo-3d";
-    this.map.basemap = this.basemapId;
+    if (this.map) this.map.basemap = this.basemapId;
     this.events.publish("map:basemap-changed", { id: this.basemapId });
   }
 
