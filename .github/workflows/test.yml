@@ -30,6 +30,13 @@ jobs:
         with:
           node-version: 22
 
+      - name: Verify application version references
+        run: |
+          VERSION_NUMBER="$(tr -d '\r\n' < VERSION)"
+          grep -Fq "css/app.css?v=${VERSION_NUMBER}" index.html
+          grep -Fq "js/app.js?v=${VERSION_NUMBER}" index.html
+          grep -Fq "events.js?v=${VERSION_NUMBER}" js/app.js
+
       - name: Check JavaScript syntax
         run: |
           node --check js/app.js

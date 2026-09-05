@@ -11,7 +11,7 @@
     <link rel="icon" href="./assets/gis-map-online-mark-v2.png" type="image/png" />
     <link rel="preconnect" href="https://js.arcgis.com" />
     <link rel="stylesheet" href="https://js.arcgis.com/5.0/esri/themes/light/main.css" />
-    <link rel="stylesheet" href="./css/app.css?v=0.8.0" />
+    <link rel="stylesheet" href="./css/app.css?v=0.8.1" />
     <script type="module" src="https://js.arcgis.com/5.0/"></script>
     <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
   </head>
@@ -93,6 +93,7 @@
 
         <nav class="mobile-panel-nav" aria-label="Panel sections">
           <button type="button" data-mobile-panel="places-panel" aria-label="Places" title="Places">⌖</button>
+          <button type="button" data-mobile-panel="bookmarks-panel" aria-label="Bookmarks" title="Bookmarks">☆</button>
           <button type="button" data-mobile-panel="draw-panel" aria-label="Draw" title="Draw">✎</button>
           <button type="button" data-mobile-panel="intelligence-panel" aria-label="Intelligence" title="Intelligence">i</button>
           <button type="button" data-mobile-panel="layers-panel" aria-label="Layers" title="Layers">▱</button>
@@ -101,9 +102,8 @@
 
         <div class="sidebar__scroll">
           <details id="places-panel" class="panel is-mobile-active" open>
-            <summary><span>Places</span><small>Search &amp; bookmarks</small></summary>
+            <summary><span>Places</span><small>Search</small></summary>
             <div class="panel__body">
-              <label class="top-context-picker"><span>Places view</span><select id="places-top-view"><option value="search">Search</option><option value="bookmarks">Bookmarks</option></select></label>
               <div class="place-search-combobox">
                 <form id="place-search" class="search-row">
                   <label class="sr-only" for="place-query">Search for a place</label>
@@ -112,8 +112,14 @@
                 </form>
                 <div id="search-results" class="compact-list search-suggestions" role="listbox" aria-label="Place suggestions" aria-live="polite" hidden></div>
               </div>
+            </div>
+          </details>
+
+          <details id="bookmarks-panel" class="panel">
+            <summary><span>Bookmarks</span><small>Saved views</small></summary>
+            <div class="panel__body">
               <div class="section-heading">
-                <span>Bookmarks</span>
+                <span>Saved views</span>
                 <button id="bookmark-add" class="text-button">+ Current view</button>
               </div>
               <div id="bookmarks-list" class="compact-list muted">No saved locations yet.</div>
@@ -234,6 +240,6 @@
     <input id="tool-file-input" type="file" accept=".js,.mjs" hidden />
 
     <noscript>GIS Map Online requires JavaScript.</noscript>
-    <script type="module" src="./js/app.js?v=0.8.0"></script>
+    <script type="module" src="./js/app.js?v=0.8.1"></script>
   </body>
 </html>

@@ -6,6 +6,15 @@ All notable changes to GIS Map Online are documented here. This project follows
 
 ## [Unreleased]
 
+## [0.8.1] - 2026-09-04
+
+### Changed
+
+- Separated Bookmarks from Places into its own top-level workspace panel.
+- Removed the Places Search/Bookmarks switcher so place search remains directly
+  accessible in every navigation layout.
+- Added Bookmarks to the compact mobile panel navigation.
+
 ## [0.8.0] - 2026-09-04
 
 ### Added
@@ -37,5 +46,6 @@ All notable changes to GIS Map Online are documented here. This project follows
 - Prevented search suggestions from remaining open after selection.
 - Reduced map and panel flicker during feature identification.
 
-[Unreleased]: https://github.com/geolibrerian/gismap/compare/v0.8.0...HEAD
+[Unreleased]: https://github.com/geolibrerian/gismap/compare/v0.8.1...HEAD
+[0.8.1]: https://github.com/geolibrerian/gismap/compare/v0.8.0...v0.8.1
 [0.8.0]: https://github.com/geolibrerian/gismap/releases/tag/v0.8.0

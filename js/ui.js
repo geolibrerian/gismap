@@ -164,9 +164,6 @@ export class UIController {
       button.addEventListener("click", () => this.#activateMobilePanel(button.dataset.mobilePanel)),
     );
     document.querySelector("#mobile-panel-close").addEventListener("click", () => this.#setSidebarCollapsed(true));
-    document.querySelector("#places-top-view").addEventListener("change", (event) => {
-      document.querySelector("#places-panel").dataset.topView = event.currentTarget.value;
-    });
     document.querySelector("#utility-close").addEventListener("click", () => {
       if (this.mapController.widgets.has("basemapGallery")) void this.mapController.toggleWidget("basemapGallery");
     });

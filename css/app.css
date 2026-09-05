@@ -81,7 +81,6 @@ body.utility-resizing iframe, body.utility-resizing canvas { pointer-events: non
 .menu-bar { display: grid; grid-template-columns: repeat(4, 1fr); padding: 0 8px; border-bottom: 1px solid var(--line); background: var(--surface); }
 .menu-bar__all-trigger { display: none; }
 .menu-bar__categories { display: contents; }
-.top-context-picker { display: none; }
 .menu { position: relative; }
 .menu__trigger { width: 100%; display: flex; justify-content: center; gap: 5px; padding: 12px 4px; border: 0; background: transparent; font-size: 12px; font-weight: 700; cursor: pointer; }
 .menu__trigger:hover, .menu.is-open .menu__trigger { color: var(--green-2); background: var(--paper); }
@@ -583,17 +582,11 @@ body.sidebar-collapsed .table-dialog { left: 14px; }
     border-radius: 0;
     box-shadow: none;
   }
-  body[data-navigation-layout="top"] .top-context-picker { display: block; flex: 0 0 112px; }
-  body[data-navigation-layout="top"] .top-context-picker span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0,0,0,0); }
-  body[data-navigation-layout="top"] .top-context-picker select { width: 100%; padding: 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); color: var(--ink); }
   body[data-navigation-layout="top"] #places-panel .place-search-combobox { flex: 1 1 280px; min-width: 180px; }
   body[data-navigation-layout="top"] #places-panel .search-row input { padding: 8px 9px; }
   body[data-navigation-layout="top"] #places-panel .search-row button { width: 38px; height: 38px; }
-  body[data-navigation-layout="top"] #places-panel:not([data-top-view="bookmarks"]) .section-heading,
-  body[data-navigation-layout="top"] #places-panel:not([data-top-view="bookmarks"]) #bookmarks-list { display: none; }
-  body[data-navigation-layout="top"] #places-panel[data-top-view="bookmarks"] .place-search-combobox { display: none; }
-  body[data-navigation-layout="top"] #places-panel[data-top-view="bookmarks"] .section-heading { display: flex; flex: 0 0 auto; margin: 0; }
-  body[data-navigation-layout="top"] #places-panel[data-top-view="bookmarks"] #bookmarks-list { flex: 1 1 auto; min-width: 160px; max-height: 48px; overflow: auto; }
+  body[data-navigation-layout="top"] #bookmarks-panel .section-heading { display: flex; flex: 0 0 auto; margin: 0; white-space: nowrap; }
+  body[data-navigation-layout="top"] #bookmarks-panel #bookmarks-list { flex: 1 1 auto; min-width: 160px; max-height: 48px; margin: 0; overflow: auto; }
   body[data-navigation-layout="top"] #draw-panel .draw-tools { display: flex; }
   body[data-navigation-layout="top"] #draw-panel .draw-tools button { min-width: 72px; padding: 8px 10px; }
   body[data-navigation-layout="top"] #intelligence-content { white-space: nowrap; text-overflow: ellipsis; }
