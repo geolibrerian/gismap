@@ -703,19 +703,20 @@ export class UIController {
         button.disabled = true;
         button.textContent = "Adding…";
         try {
-          const layer = await this.mapController.addService({
+          const layer = await this.#addServiceOrBrowse({
             url: this.dialog.querySelector("#service-url").value,
             title: this.dialog.querySelector("#service-title").value,
             serviceType: isWms ? "wms" : isWfs ? "wfs" : isGeoJson ? "geojson" : this.dialog.querySelector("#service-type").value,
             wfsName: isWfs ? this.dialog.querySelector("#wfs-name").value : undefined,
             refreshInterval: Number(this.dialog.querySelector("#service-refresh").value),
           });
+          if (!layer) return;
           this.dialog.close();
           this.toast(`${layer.title} added.`);
           if (layer.fullExtent) await this.mapController.goToLayer(layer).catch(() => {});
         } catch (error) {
           button.disabled = false;
-          button.textContent = isGeoJson ? "Add GeoJSON feed" : isWfs ? "Add WFS layer" : "Add service";
+            button.textContent = isGeoJson ? "Add GeoJSON feed" : isWfs ? "Add WFS layer" : "Add service";
           this.error(error.message);
         }
       }}],
@@ -733,23 +734,22 @@ export class UIController {
           <p>Search the original directory of public government ArcGIS servers, then paste a selected top-level endpoint below.</p>
           <a href="https://mappingsupport.com/p/surf_gis/list-federal-state-county-city-GIS-servers.pdf" target="_blank" rel="noopener noreferrer">Open the original GIS Server Directory (PDF) ↗</a>
         </div>
-        <form id="server-directory-form" class="server-directory-form">
+        <div id="server-directory-form" class="server-directory-form">
           <label class="field" for="server-directory-url"><span>ArcGIS server endpoint</span></label>
           <div class="server-directory-input">
             <input id="server-directory-url" type="url" required spellcheck="false" placeholder="https://server.example/arcgis/rest/services" />
-            <button type="submit">Browse services</button>
+            <button id="server-directory-browse" type="button">Browse services</button>
           </div>
           <p class="form-note">Use a top-level address ending in <code>/rest/services</code>. GIS Map reads its folders and services live; the directory itself is not copied or indexed.</p>
-        </form>
+        </div>
       </section>
       <div class="catalog-list">${POPULAR_SERVICES.map((service) => `
         <article class="catalog-card">
           <div><span class="eyebrow">${escapeHtml(service.provider)}</span><h3>${escapeHtml(service.title)}</h3><p>${escapeHtml(service.description)}</p></div>
-          <button data-catalog-id="${escapeHtml(service.id)}">Add</button>
+          <button type="button" data-catalog-id="${escapeHtml(service.id)}">Add</button>
         </article>`).join("")}</div><p class="form-note">Edit <code>js/catalog.js</code> to curate this list.</p>`,
     });
-    this.dialog.querySelector("#server-directory-form").addEventListener("submit", async (event) => {
-      event.preventDefault();
+    this.dialog.querySelector("#server-directory-browse").addEventListener("click", async () => {
       try {
         const rootUrl = normalizeArcGisDirectoryUrl(this.dialog.querySelector("#server-directory-url").value);
         const hostname = new URL(rootUrl).hostname;
@@ -768,11 +768,59 @@ export class UIController {
         const service = POPULAR_SERVICES.find((item) => item.id === button.dataset.catalogId);
         button.disabled = true;
         try {
-          await this.mapController.addService(service);
-          button.textContent = "Added";
-          this.toast(`${service.title} added.`);
+          const layer = await this.#addServiceOrBrowse(service);
+          if (layer) {
+            button.textContent = "Added";
+            this.toast(`${service.title} added.`);
+          }
         } catch (error) {
           button.disabled = false;
+          this.error(error.message);
+        }
+      }),
+    );
+  }
+
+  async #addServiceOrBrowse(config) {
+    const url = config.url?.trim().replace(/\/+$/, "");
+    if (/\/FeatureServer$/i.test(url || "")) {
+      const layers = await this.mapController.discoverFeatureServiceLayers(url);
+      if (!layers.length) throw new Error("This FeatureServer does not advertise any feature layers.");
+      if (layers.length === 1) return this.mapController.addService({ ...config, url: layers[0].url, title: config.title || layers[0].name });
+      this.#featureServiceLayersDialog(config, layers);
+      return null;
+    }
+    return this.mapController.addService(config);
+  }
+
+  #featureServiceLayersDialog(config, layers) {
+    this.openDialog({
+      eyebrow: "ArcGIS feature service",
+      title: config.title?.trim() || "Select layers",
+      content: `<p class="form-note">This service contains multiple layers. Add the datasets you want individually.</p>
+        <div class="enterprise-list">${layers.map((layer) => `<div class="enterprise-row">
+          <span><strong>${escapeHtml(layer.name)}</strong><small>${escapeHtml(layer.geometryType)} · Layer ${layer.id}</small></span>
+          <button type="button" data-feature-service-layer="${escapeHtml(layer.url)}">Add</button>
+        </div>`).join("")}</div>`,
+    });
+    this.dialog.querySelectorAll("[data-feature-service-layer]").forEach((button) =>
+      button.addEventListener("click", async () => {
+        button.disabled = true;
+        button.textContent = "Adding…";
+        try {
+          const layerInfo = layers.find((item) => item.url === button.dataset.featureServiceLayer);
+          const layer = await this.mapController.addService({
+            ...config,
+            url: layerInfo.url,
+            title: layerInfo.name,
+            serviceType: "feature",
+          });
+          button.textContent = "Added";
+          this.toast(`${layer.title} added.`);
+          if (layer.fullExtent) await this.mapController.goToLayer(layer).catch(() => {});
+        } catch (error) {
+          button.disabled = false;
+          button.textContent = "Add";
           this.error(error.message);
         }
       }),

@@ -96,6 +96,7 @@ export class MapController {
       "@arcgis/core/Graphic.js",
       "@arcgis/core/renderers/support/jsonUtils.js",
       "@arcgis/core/rest/locator.js",
+      "@arcgis/core/request.js",
       "@arcgis/core/widgets/Sketch/SketchViewModel.js",
       "@arcgis/core/geometry/support/webMercatorUtils.js",
     ];
@@ -115,6 +116,7 @@ export class MapController {
       Graphic,
       rendererJsonUtils,
       locator,
+      esriRequest,
       SketchViewModel,
       webMercatorUtils,
     ] = await $arcgis.import(moduleIds);
@@ -135,6 +137,7 @@ export class MapController {
       Graphic,
       rendererJsonUtils,
       locator,
+      esriRequest,
       SketchViewModel,
       webMercatorUtils,
     });
@@ -324,6 +327,26 @@ export class MapController {
         refreshInterval: Number(config.refreshInterval) || 0,
       });
     }
+  }
+
+  async discoverFeatureServiceLayers(value) {
+    const rootUrl = String(value ?? "").trim().replace(/\/+$/, "");
+    if (!/\/FeatureServer$/i.test(new URL(rootUrl).pathname)) return [];
+    await this.authController?.prepareService(rootUrl);
+    const response = await this.modules.esriRequest(rootUrl, {
+      query: { f: "json" },
+      responseType: "json",
+    });
+    const payload = response.data ?? {};
+    if (payload.error) throw new Error(payload.error.message || "Could not inspect the feature service.");
+    return (payload.layers ?? [])
+      .filter((layer) => Number.isInteger(layer.id) && !Array.isArray(layer.subLayerIds))
+      .map((layer) => ({
+        id: layer.id,
+        name: layer.name || `Layer ${layer.id}`,
+        geometryType: layer.geometryType || "Feature Layer",
+        url: `${rootUrl}/${layer.id}`,
+      }));
   }
 
   #parseMapSublayerUrl(url) {

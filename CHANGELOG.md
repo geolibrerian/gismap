@@ -33,6 +33,10 @@ All notable changes to GIS Map Online are documented here. This project follows
 
 ### Fixed
 
+- Prevented Popular Data Service buttons from submitting the unrelated GIS
+  Server Directory URL field.
+- Added FeatureServer-root discovery so multi-layer ArcGIS services open a layer
+  picker instead of failing when treated as an individual feature layer.
 - Preserved ArcGIS geometry types when SDK `toJSON()` output omits the type,
   preventing valid features from failing export as unknown geometry.
 - Versioned nested catalog and export-worker modules so deployments do not retain
