@@ -1,7 +1,7 @@
-import { POPULAR_SERVICES } from "./catalog.js?v=0.10.0";
-import { ENTERPRISE_CATALOGS, EnterpriseCatalog, normalizeArcGisDirectoryUrl } from "./enterprise-catalog.js?v=0.10.0";
-import { createShareUrl } from "./share.js?v=0.10.0";
-import { renderMarkdown } from "./markdown.js?v=0.10.0";
+import { POPULAR_SERVICES } from "./catalog.js?v=0.10.1";
+import { ENTERPRISE_CATALOGS, EnterpriseCatalog, normalizeArcGisDirectoryUrl } from "./enterprise-catalog.js?v=0.10.1";
+import { createShareUrl } from "./share.js?v=0.10.1";
+import { renderMarkdown } from "./markdown.js?v=0.10.1";
 
 const DISPLAY_SETTINGS_KEY = "gismap-online:display:v1";
 const WELCOME_DISMISSED_KEY = "gismap-online:welcome-dismissed:v1";
@@ -110,6 +110,11 @@ export class UIController {
     });
     document.querySelectorAll("[data-action]").forEach((button) =>
       button.addEventListener("click", () => {
+        if (button.closest("#welcome-panel")) {
+          welcomePanel.dataset.dismissed = "true";
+          welcomePanel.hidden = true;
+          sessionStorage.setItem(WELCOME_DISMISSED_KEY, "true");
+        }
         this.#closeMenus();
         this.#handleAction(button.dataset.action);
       }),
@@ -1378,7 +1383,7 @@ export class UIController {
   #renderLayers() {
     const layers = this.mapController.getOperationalLayers().slice().reverse();
     const welcomePanel = document.querySelector("#welcome-panel");
-    welcomePanel.hidden = Boolean(layers.length) || welcomePanel.dataset.dismissed === "true";
+    welcomePanel.hidden = welcomePanel.dataset.dismissed === "true";
     const exportable = new Set(this.exportController.listExportableLayers().map((layer) => layer.uid));
     document.querySelector("#layer-count").textContent = `${layers.length} loaded`;
     const container = document.querySelector("#layers-list");

@@ -6,6 +6,14 @@ All notable changes to GIS Map Online are documented here. This project follows
 
 ## [Unreleased]
 
+## [0.10.1] - 2026-09-06
+
+### Fixed
+
+- Kept the first-use introduction visible while projects, shared URLs, and
+  operational layers initialize; it now closes only through its dismiss button
+  or one of its own actions.
+
 ## [0.10.0] - 2026-09-06
 
 ### Added
@@ -122,7 +130,8 @@ All notable changes to GIS Map Online are documented here. This project follows
 - Prevented search suggestions from remaining open after selection.
 - Reduced map and panel flicker during feature identification.
 
-[Unreleased]: https://github.com/geolibrerian/gismap/compare/v0.10.0...HEAD
+[Unreleased]: https://github.com/geolibrerian/gismap/compare/v0.10.1...HEAD
+[0.10.1]: https://github.com/geolibrerian/gismap/compare/v0.10.0...v0.10.1
 [0.10.0]: https://github.com/geolibrerian/gismap/compare/v0.9.0...v0.10.0
 [0.9.0]: https://github.com/geolibrerian/gismap/compare/v0.8.0...v0.9.0
 [0.8.0]: https://github.com/geolibrerian/gismap/releases/tag/v0.8.0
