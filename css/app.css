@@ -11,6 +11,8 @@
   --amber: #d9951e;
   --line: #d9d5c9;
   --danger: #a73c2e;
+  --scrollbar-thumb: #aeb8b2;
+  --scrollbar-thumb-hover: #7d8d85;
   --shadow: 0 18px 50px rgb(17 39 33 / 14%);
   --sidebar: clamp(320px, 25vw, 400px);
   color-scheme: light;
@@ -30,6 +32,8 @@
   --amber: #f0ad38;
   --line: #2a3732;
   --danger: #d96a59;
+  --scrollbar-thumb: #40534b;
+  --scrollbar-thumb-hover: #5d786d;
   --shadow: 0 18px 50px rgb(0 0 0 / 42%);
   color-scheme: dark;
 }
@@ -60,7 +64,10 @@ body.utility-resizing iframe, body.utility-resizing canvas { pointer-events: non
   position: relative;
   z-index: 20;
   display: grid;
-  grid-template-rows: auto auto 1fr auto;
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
   width: var(--sidebar);
   min-width: 0;
   background: var(--paper);
@@ -94,7 +101,17 @@ body.utility-resizing iframe, body.utility-resizing canvas { pointer-events: non
 .menu__field { display: grid; gap: 5px; padding: 7px 8px; color: var(--muted); font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; }
 .menu__field select { width: 100%; padding: 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); color: var(--ink); font: inherit; font-size: 11px; font-weight: 500; letter-spacing: 0; text-transform: none; }
 
-.sidebar__scroll { min-height: 0; overflow-y: auto; scrollbar-width: thin; }
+.sidebar__scroll {
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar-thumb) transparent;
+}
+.sidebar__scroll::-webkit-scrollbar { width: 9px; }
+.sidebar__scroll::-webkit-scrollbar-track { background: transparent; }
+.sidebar__scroll::-webkit-scrollbar-thumb { border: 2px solid transparent; border-radius: 999px; background: var(--scrollbar-thumb); background-clip: padding-box; }
+.sidebar__scroll::-webkit-scrollbar-thumb:hover { background-color: var(--scrollbar-thumb-hover); }
 .panel { border-bottom: 1px solid var(--line); }
 .panel summary { list-style: none; position: relative; display: flex; align-items: baseline; justify-content: space-between; gap: 16px; padding: 16px 18px; cursor: pointer; user-select: none; }
 .panel summary::-webkit-details-marker { display: none; }
@@ -695,7 +712,7 @@ body.sidebar-collapsed .table-dialog { left: 14px; }
     border-top: 1px solid var(--line);
     border-right: 0;
     box-shadow: 0 -10px 30px rgb(17 39 33 / 14%);
-    grid-template-rows: 1fr auto;
+    grid-template-rows: minmax(0, 1fr) auto;
     padding-left: 48px;
     transform: translateY(0);
   }

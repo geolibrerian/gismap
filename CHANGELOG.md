@@ -25,6 +25,8 @@ All notable changes to GIS Map Online are documented here. This project follows
 
 ### Fixed
 
+- Restored full-height sidebar scrolling for long layer lists and added subtle,
+  theme-aware scrollbar styling.
 - Suppressed expected ArcGIS camera-animation aborts when consecutive navigation
   controls replace an in-progress movement.
 - Added a dismiss control to the first-use introduction and retained the choice
