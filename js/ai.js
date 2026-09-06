@@ -8,6 +8,37 @@ const PROVIDER_DEFAULTS = {
   "openai-compatible": { endpoint: "", model: "" },
 };
 
+export const AI_SYSTEM_PROMPT =
+  "You are the GIS Map Online spatial analysis assistant. Treat supplied map layers, identified features, " +
+  "coordinates, and geocoder details as the primary evidence. You may also use your general knowledge to " +
+  "provide useful geographic, historical, and cultural context. Clearly distinguish map observations from " +
+  "general-knowledge inference. Do not claim that a specific landmark or feature is at the clicked coordinates " +
+  "unless the map context or geocoder confirms it. Say when a question requires current external research that " +
+  "you cannot perform, and never invent missing map attributes.";
+
+function compactAttributes(attributes) {
+  return Object.fromEntries(Object.entries(attributes ?? {})
+    .filter(([, value]) => ["string", "number", "boolean"].includes(typeof value) && value !== "")
+    .slice(0, 40)
+    .map(([key, value]) => [key, typeof value === "string" ? value.slice(0, 500) : value]));
+}
+
+export function buildAIMapContext(context, loadedLayers = []) {
+  if (!context) return { loadedLayers };
+  return {
+    coordinates: context.point
+      ? { longitude: context.point.longitude, latitude: context.point.latitude }
+      : null,
+    address: context.address?.address ?? null,
+    geocoderDetails: compactAttributes(context.address?.attributes),
+    features: (context.results ?? []).slice(0, 20).map((result) => ({
+      layer: result.layerTitle,
+      attributes: result.attributes,
+    })),
+    loadedLayers,
+  };
+}
+
 export class AIController {
   constructor(events, mapController) {
     this.events = events;
@@ -77,9 +108,7 @@ export class AIController {
 
   async ask(prompt, context = this.lastContext) {
     if (!this.isConfigured()) throw new Error("Configure an AI provider from Tools first.");
-    const system =
-      "You are the GIS Map Online spatial analysis assistant. Use only the supplied map context. " +
-      "Distinguish observations from inference and say when the loaded data cannot answer a question.";
+    const system = AI_SYSTEM_PROMPT;
     const mapContext = this.#compactContext(context);
     const messages = [
       { role: "system", content: system },
@@ -165,18 +194,9 @@ export class AIController {
   }
 
   #compactContext(context) {
-    if (!context) return { loadedLayers: this.mapController.getAllLayerConfigs() };
-    return {
-      coordinates: context.point
-        ? { longitude: context.point.longitude, latitude: context.point.latitude }
-        : null,
-      address: context.address?.address ?? null,
-      features: (context.results ?? []).slice(0, 20).map((result) => ({
-        layer: result.layerTitle,
-        attributes: result.attributes,
-      })),
-      loadedLayers: this.mapController.getAllLayerConfigs().map(({ title, type, url }) => ({ title, type, url })),
-    };
+    const layers = this.mapController.getAllLayerConfigs()
+      .map(({ title, type, url }) => ({ title, type, url }));
+    return buildAIMapContext(context, layers);
   }
 
   #readConfig() {

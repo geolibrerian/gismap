@@ -64,7 +64,7 @@ published builds and generated release notes.
 - WFS 2.0 services with advertised GeoJSON output can be added from either a service endpoint or a full GetFeature URL; feature type names and nonstandard custom parameters are retained automatically.
 - Queryable vector layers and user drawings can be downloaded as EPSG:4326 GeoJSON, KML, KMZ, or zipped Shapefiles. Layer exports can honor the active filter, use the current map extent, or retrieve the entire source; pagination, progress, and cancellation are handled without blocking the map.
 - Vector operational layers are explicitly draped on the scene ground so Z-enabled feeds such as USGS earthquake data do not fall beneath terrain.
-- AI controls appear in Intelligence only while a provider is fully configured. Online API tokens are never persisted or included in exports.
+- AI controls appear in Intelligence only while a provider is fully configured. The assistant uses map evidence and detailed reverse-geocoder context first, and may supplement it with clearly labeled general model knowledge. It does not have live web research unless a future research provider is explicitly configured. Online API tokens are never persisted or included in exports.
 - Browser access to local Ollama is connection-tested before enabling AI. On macOS, allow only this site's origin with `launchctl setenv OLLAMA_ORIGINS "https://gismap.online"`, fully quit Ollama, and reopen it.
 - Local KML/KMZ is converted to GeoJSON in the browser; uncommon KML extensions may not be preserved.
 - A zipped shapefile must include its `.shp`, `.shx`, and `.dbf` components.

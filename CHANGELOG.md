@@ -17,6 +17,11 @@ All notable changes to GIS Map Online are documented here. This project follows
   basemap, including automatic loading when a recipient opens the link.
 - A Project menu action that copies the current map's share link.
 
+### Changed
+
+- Intelligence answers can supplement map evidence with clearly distinguished
+  general model knowledge and now receive detailed reverse-geocoder attributes.
+
 ### Security
 
 - Share links reject non-web URL schemes, embedded usernames and passwords, and
