@@ -19,5 +19,6 @@ assert.match(html, /id="welcome-title">Explore GIS data instantly/);
 assert.match(html, /id="welcome-close"[^>]*aria-label="Dismiss introduction"/);
 assert.doesNotMatch(ui, /welcomePanel\.hidden\s*=\s*Boolean\(layers\.length\)/);
 assert.match(ui, /button\.closest\("#welcome-panel"\)/);
+assert.doesNotMatch(ui, /WELCOME_DISMISSED_KEY|sessionStorage/);
 assert.match(robots, /Sitemap: https:\/\/gismap\.online\/sitemap\.xml/);
 assert.match(sitemap, /<loc>https:\/\/gismap\.online\/<\/loc>/);

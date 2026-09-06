@@ -1,4 +1,4 @@
-import { graphicToGeoJSONFeature, safeExportName } from "./export-core.js?v=0.10.1";
+import { graphicToGeoJSONFeature, safeExportName } from "./export-core.js?v=0.10.2";
 
 const DRAWINGS_UID = "__gismap_drawings__";
 const FORMAT_DETAILS = {
@@ -66,7 +66,7 @@ export class ExportController {
     await layer?.load?.();
 
     const id = globalThis.crypto?.randomUUID?.() ?? `export-${Date.now()}`;
-    const worker = new Worker(new URL("./export-worker.js?v=0.10.1", import.meta.url), { type: "module" });
+    const worker = new Worker(new URL("./export-worker.js?v=0.10.2", import.meta.url), { type: "module" });
     const abortController = new AbortController();
     const title = drawings ? "Drawings" : layer.title || root?.title || "layer";
     const baseName = safeExportName(fileName || title);

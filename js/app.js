@@ -1,15 +1,15 @@
-import { events } from "./events.js?v=0.10.1";
-import { AuthController } from "./auth.js?v=0.10.1";
-import { MapController } from "./map.js?v=0.10.1";
-import { ProjectManager } from "./project.js?v=0.10.1";
-import { IdentifyController } from "./identify.js?v=0.10.1";
-import { AttributeTableController } from "./attribute-table.js?v=0.10.1";
-import { AIController } from "./ai.js?v=0.10.1";
-import { ToolManager } from "./tool-manager.js?v=0.10.1";
-import { UIController } from "./ui.js?v=0.10.1";
-import { ExportController } from "./export/export-controller.js?v=0.10.1";
-import { parseShareParameters } from "./share.js?v=0.10.1";
-import { POPULAR_SERVICES } from "./catalog.js?v=0.10.1";
+import { events } from "./events.js?v=0.10.2";
+import { AuthController } from "./auth.js?v=0.10.2";
+import { MapController } from "./map.js?v=0.10.2";
+import { ProjectManager } from "./project.js?v=0.10.2";
+import { IdentifyController } from "./identify.js?v=0.10.2";
+import { AttributeTableController } from "./attribute-table.js?v=0.10.2";
+import { AIController } from "./ai.js?v=0.10.2";
+import { ToolManager } from "./tool-manager.js?v=0.10.2";
+import { UIController } from "./ui.js?v=0.10.2";
+import { ExportController } from "./export/export-controller.js?v=0.10.2";
+import { parseShareParameters } from "./share.js?v=0.10.2";
+import { POPULAR_SERVICES } from "./catalog.js?v=0.10.2";
 
 async function loadSharedLayer(mapController, config) {
   const rootUrl = config.url.replace(/\/+$/, "");

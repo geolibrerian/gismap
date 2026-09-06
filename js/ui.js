@@ -1,10 +1,9 @@
-import { POPULAR_SERVICES } from "./catalog.js?v=0.10.1";
-import { ENTERPRISE_CATALOGS, EnterpriseCatalog, normalizeArcGisDirectoryUrl } from "./enterprise-catalog.js?v=0.10.1";
-import { createShareUrl } from "./share.js?v=0.10.1";
-import { renderMarkdown } from "./markdown.js?v=0.10.1";
+import { POPULAR_SERVICES } from "./catalog.js?v=0.10.2";
+import { ENTERPRISE_CATALOGS, EnterpriseCatalog, normalizeArcGisDirectoryUrl } from "./enterprise-catalog.js?v=0.10.2";
+import { createShareUrl } from "./share.js?v=0.10.2";
+import { renderMarkdown } from "./markdown.js?v=0.10.2";
 
 const DISPLAY_SETTINGS_KEY = "gismap-online:display:v1";
-const WELCOME_DISMISSED_KEY = "gismap-online:welcome-dismissed:v1";
 const INSIGHT_POSITIONS = new Set(["upper-left", "lower-left", "bottom", "dock-left", "dock-right", "dock-bottom"]);
 const TABLE_POSITIONS = new Set(["overlay-bottom", "dock-left", "dock-right", "dock-bottom"]);
 const BASEMAP_OPTIONS = [
@@ -102,18 +101,15 @@ export class UIController {
 
   #bindStaticActions() {
     const welcomePanel = document.querySelector("#welcome-panel");
-    if (sessionStorage.getItem(WELCOME_DISMISSED_KEY) === "true") welcomePanel.dataset.dismissed = "true";
     document.querySelector("#welcome-close").addEventListener("click", () => {
       welcomePanel.dataset.dismissed = "true";
       welcomePanel.hidden = true;
-      sessionStorage.setItem(WELCOME_DISMISSED_KEY, "true");
     });
     document.querySelectorAll("[data-action]").forEach((button) =>
       button.addEventListener("click", () => {
         if (button.closest("#welcome-panel")) {
           welcomePanel.dataset.dismissed = "true";
           welcomePanel.hidden = true;
-          sessionStorage.setItem(WELCOME_DISMISSED_KEY, "true");
         }
         this.#closeMenus();
         this.#handleAction(button.dataset.action);

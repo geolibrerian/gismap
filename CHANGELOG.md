@@ -6,6 +6,13 @@ All notable changes to GIS Map Online are documented here. This project follows
 
 ## [Unreleased]
 
+## [0.10.2] - 2026-09-06
+
+### Fixed
+
+- Removed persisted intro-card dismissal so a previous close in the same browser
+  tab cannot make the card flash and automatically disappear after reload.
+
 ## [0.10.1] - 2026-09-06
 
 ### Fixed
@@ -130,7 +137,8 @@ All notable changes to GIS Map Online are documented here. This project follows
 - Prevented search suggestions from remaining open after selection.
 - Reduced map and panel flicker during feature identification.
 
-[Unreleased]: https://github.com/geolibrerian/gismap/compare/v0.10.1...HEAD
+[Unreleased]: https://github.com/geolibrerian/gismap/compare/v0.10.2...HEAD
+[0.10.2]: https://github.com/geolibrerian/gismap/compare/v0.10.1...v0.10.2
 [0.10.1]: https://github.com/geolibrerian/gismap/compare/v0.10.0...v0.10.1
 [0.10.0]: https://github.com/geolibrerian/gismap/compare/v0.9.0...v0.10.0
 [0.9.0]: https://github.com/geolibrerian/gismap/compare/v0.8.0...v0.9.0
