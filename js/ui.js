@@ -751,7 +751,7 @@ export class UIController {
         <div id="server-directory-form" class="server-directory-form">
           <label class="field" for="server-directory-url"><span>ArcGIS server endpoint</span></label>
           <div class="server-directory-input">
-            <input id="server-directory-url" type="url" required spellcheck="false" placeholder="https://server.example/arcgis/rest/services" />
+            <input id="server-directory-url" type="url" spellcheck="false" placeholder="https://server.example/arcgis/rest/services" />
             <button id="server-directory-browse" type="button">Browse services</button>
           </div>
           <p class="form-note">Use a top-level address ending in <code>/rest/services</code>. GIS Map reads its folders and services live; the directory itself is not copied or indexed.</p>

@@ -18,6 +18,11 @@ All notable changes to GIS Map Online are documented here. This project follows
   common token, API-key, and credential query parameters. Local files are never
   included.
 
+### Fixed
+
+- Prevented the optional GIS Server Directory URL field from invoking browser
+  validation and trapping users when the Popular Data Services dialog is closed.
+
 ## [0.9.0] - 2026-09-04
 
 ### Added
