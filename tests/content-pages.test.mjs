@@ -27,4 +27,7 @@ test("featured examples and viewer guides contain canonical pages and map action
     assert.ok(html.includes(`https://gismap.online/${slug}/`));
     assert.match(html, /Browse examples/);
   }
+  const guides = await read("guides/index.html");
+  assert.match(guides, /GIS viewer guides/);
+  assert.match(guides, /arcgis-feature-service-viewer/);
 });

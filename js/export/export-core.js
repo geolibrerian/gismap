@@ -1,5 +1,34 @@
-function coordinatesOf(point) {
-  const values = [point.x, point.y];
+const WEB_MERCATOR_WKIDS = new Set([3857, 102100, 102113, 900913]);
+const WEB_MERCATOR_RADIUS = 6378137;
+
+function spatialReferenceWkid(spatialReference) {
+  return Number(spatialReference?.latestWkid || spatialReference?.wkid) || null;
+}
+
+function appearsProjected(x, y) {
+  return Math.abs(x) > 180 || Math.abs(y) > 90;
+}
+
+function coordinateToWgs84(coordinate, spatialReference) {
+  if (!Array.isArray(coordinate) || coordinate.length < 2) return coordinate;
+  const [x, y, ...rest] = coordinate;
+  const wkid = spatialReferenceWkid(spatialReference);
+  if (!WEB_MERCATOR_WKIDS.has(wkid) && !(wkid == null && appearsProjected(x, y))) return [...coordinate];
+  const longitude = (x / WEB_MERCATOR_RADIUS) * (180 / Math.PI);
+  const latitude = (2 * Math.atan(Math.exp(y / WEB_MERCATOR_RADIUS)) - (Math.PI / 2)) * (180 / Math.PI);
+  return [longitude, latitude, ...rest];
+}
+
+function coordinateTreeToWgs84(value, spatialReference) {
+  if (!Array.isArray(value)) return value;
+  if (value.length >= 2 && Number.isFinite(value[0]) && Number.isFinite(value[1])) {
+    return coordinateToWgs84(value, spatialReference);
+  }
+  return value.map((child) => coordinateTreeToWgs84(child, spatialReference));
+}
+
+function coordinatesOf(point, spatialReference) {
+  const values = coordinateToWgs84([point.x, point.y], spatialReference);
   if (Number.isFinite(point.z)) values.push(point.z);
   return values;
 }
@@ -64,6 +93,7 @@ function polygonCoordinates(rings = []) {
 export function geometryToGeoJSON(geometry) {
   if (!geometry) return null;
   const source = geometry.toJSON?.() ?? geometry;
+  const spatialReference = geometry.spatialReference || source.spatialReference;
   const geometryType = geometry.type || source.type
     || (Number.isFinite(source.x) && Number.isFinite(source.y) ? "point" : null)
     || (source.points ? "multipoint" : null)
@@ -71,15 +101,15 @@ export function geometryToGeoJSON(geometry) {
     || (source.rings ? "polygon" : null);
   switch (geometryType) {
     case "point":
-      return { type: "Point", coordinates: coordinatesOf(source) };
+      return { type: "Point", coordinates: coordinatesOf(source, spatialReference) };
     case "multipoint":
-      return { type: "MultiPoint", coordinates: source.points ?? [] };
+      return { type: "MultiPoint", coordinates: coordinateTreeToWgs84(source.points ?? [], spatialReference) };
     case "polyline":
       return (source.paths?.length ?? 0) === 1
-        ? { type: "LineString", coordinates: source.paths[0] }
-        : { type: "MultiLineString", coordinates: source.paths ?? [] };
+        ? { type: "LineString", coordinates: coordinateTreeToWgs84(source.paths[0], spatialReference) }
+        : { type: "MultiLineString", coordinates: coordinateTreeToWgs84(source.paths ?? [], spatialReference) };
     case "polygon":
-      return polygonCoordinates(source.rings);
+      return polygonCoordinates(coordinateTreeToWgs84(source.rings ?? [], spatialReference));
     default:
       if (source.type && source.coordinates) return structuredClone(source);
       throw new Error(`Unsupported export geometry: ${geometryType || "unknown"}.`);

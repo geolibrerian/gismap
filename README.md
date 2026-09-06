@@ -12,7 +12,7 @@ The interface uses a layered globe-and-analysis mark with an editable HTML wordm
 
 - [Browse public GIS data examples](https://gismap.online/examples/), including
   curated ArcGIS REST services and GeoJSON feeds that open directly in GISMap.
-- Read the viewer guides for [ArcGIS REST services](https://gismap.online/arcgis-rest-service-viewer/),
+- Browse the [viewer guide index](https://gismap.online/guides/) or read about [ArcGIS REST services](https://gismap.online/arcgis-rest-service-viewer/),
   [FeatureServers](https://gismap.online/arcgis-feature-service-viewer/),
   [MapServers](https://gismap.online/arcgis-map-service-viewer/),
   [GeoJSON](https://gismap.online/geojson-viewer/), and

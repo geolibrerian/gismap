@@ -6,6 +6,22 @@ All notable changes to GIS Map Online are documented here. This project follows
 
 ## [Unreleased]
 
+## [0.11.0] - 2026-09-06
+
+### Added
+
+- Breadcrumb navigation and `BreadcrumbList`/`WebPage` structured data across
+  examples and guides, plus a dedicated guide index and stronger internal links.
+- Consistent indexability, canonical, Open Graph, and Twitter metadata for every
+  generated content page.
+- Automated technical SEO checks for unique metadata, valid structured data,
+  sitemap coverage, and resolvable internal links.
+
+### Fixed
+
+- Normalized Web Mercator ArcGIS geometries to EPSG:4326 during vector export,
+  including defensive detection when a service omits spatial-reference metadata.
+
 ## [0.10.2] - 2026-09-06
 
 ### Fixed
@@ -137,7 +153,8 @@ All notable changes to GIS Map Online are documented here. This project follows
 - Prevented search suggestions from remaining open after selection.
 - Reduced map and panel flicker during feature identification.
 
-[Unreleased]: https://github.com/geolibrerian/gismap/compare/v0.10.2...HEAD
+[Unreleased]: https://github.com/geolibrerian/gismap/compare/v0.11.0...HEAD
+[0.11.0]: https://github.com/geolibrerian/gismap/compare/v0.10.2...v0.11.0
 [0.10.2]: https://github.com/geolibrerian/gismap/compare/v0.10.1...v0.10.2
 [0.10.1]: https://github.com/geolibrerian/gismap/compare/v0.10.0...v0.10.1
 [0.10.0]: https://github.com/geolibrerian/gismap/compare/v0.9.0...v0.10.0

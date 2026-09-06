@@ -10,14 +10,26 @@ const esc = (value = "") => String(value).replace(/[&<>"']/g, (char) => ({ "&": 
 const appLink = (item) => `/?example=${encodeURIComponent(item.slug || item.id)}`;
 const typeLabel = (type) => ({ feature: "ArcGIS FeatureServer", "map-image": "ArcGIS MapServer", imagery: "ArcGIS ImageServer", geojson: "GeoJSON" }[type] || type);
 
-function shell({ title, description, path, body, structuredData = "" }) {
+function shell({ title, description, path, body, breadcrumbs = [], structuredData = null }) {
   const canonical = `https://gismap.online${path}`;
+  const trail = [{ name: "Home", path: "/" }, ...breadcrumbs];
+  const breadcrumbSchema = {
+    "@type": "BreadcrumbList",
+    itemListElement: trail.map((item, index) => ({
+      "@type": "ListItem", position: index + 1, name: item.name,
+      item: `https://gismap.online${item.path}`,
+    })),
+  };
+  const graph = [{ "@type": "WebPage", name: title, description, url: canonical }, breadcrumbSchema];
+  if (structuredData) graph.push(structuredData);
+  const jsonLd = JSON.stringify({ "@context": "https://schema.org", "@graph": graph }).replace(/</g, "\\u003c");
+  const breadcrumbHtml = `<nav class="breadcrumbs wrap" aria-label="Breadcrumb"><ol>${trail.map((item, index) => `<li>${index === trail.length - 1 ? `<span aria-current="page">${esc(item.name)}</span>` : `<a href="${item.path}">${esc(item.name)}</a>`}</li>`).join("")}</ol></nav>`;
   return `<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>${esc(title)} | GIS Map Online</title><meta name="description" content="${esc(description)}">
-<link rel="canonical" href="${canonical}"><meta property="og:type" content="website"><meta property="og:title" content="${esc(title)} | GIS Map Online"><meta property="og:description" content="${esc(description)}"><meta property="og:url" content="${canonical}"><meta name="twitter:card" content="summary">
-<link rel="stylesheet" href="/css/content.css">${structuredData ? `<script type="application/ld+json">${structuredData}</script>` : ""}</head>
-<body><header class="site-header"><div class="site-header__inner"><a class="brand" href="/">GIS MAP ONLINE</a><nav class="site-nav" aria-label="Main navigation"><a href="/">Open map</a><a href="/examples/">Examples</a><a href="/arcgis-rest-service-viewer/">Guides</a><a href="https://github.com/geolibrerian/gismap">GitHub</a></nav></div></header>${body}<footer class="site-footer"><div class="wrap">GIS Map Online is a free, browser-based spatial intelligence studio. Public data remains subject to its publisher’s terms.</div></footer></body></html>`;
+<link rel="canonical" href="${canonical}"><meta name="robots" content="index, follow, max-image-preview:large"><meta property="og:type" content="website"><meta property="og:site_name" content="GIS Map Online"><meta property="og:title" content="${esc(title)} | GIS Map Online"><meta property="og:description" content="${esc(description)}"><meta property="og:url" content="${canonical}"><meta property="og:image" content="https://gismap.online/assets/gis-map-online-logo.png"><meta property="og:image:width" content="1536"><meta property="og:image:height" content="600"><meta property="og:image:alt" content="GIS Map Online"><meta name="twitter:card" content="summary_large_image"><meta name="twitter:title" content="${esc(title)} | GIS Map Online"><meta name="twitter:description" content="${esc(description)}"><meta name="twitter:image" content="https://gismap.online/assets/gis-map-online-logo.png"><meta name="twitter:image:alt" content="GIS Map Online">
+<link rel="stylesheet" href="/css/content.css"><script type="application/ld+json">${jsonLd}</script></head>
+<body><header class="site-header"><div class="site-header__inner"><a class="brand" href="/">GIS MAP ONLINE</a><nav class="site-nav" aria-label="Main navigation"><a href="/">Open map</a><a href="/examples/">Examples</a><a href="/guides/">Guides</a><a href="https://github.com/geolibrerian/gismap">GitHub</a></nav></div></header>${breadcrumbHtml}${body}<footer class="site-footer"><div class="wrap">GIS Map Online is a free, browser-based spatial intelligence studio. Public data remains subject to its publisher’s terms.</div></footer></body></html>`;
 }
 
 function exampleCard(item) {
@@ -28,13 +40,13 @@ function exampleCard(item) {
 function examplesIndex() {
   const options = EXAMPLE_CATEGORIES.filter((category) => POPULAR_SERVICES.some((item) => item.category === category)).map((category) => `<option>${esc(category)}</option>`).join("");
   const body = `<main><section class="hero"><div class="wrap"><div class="eyebrow">Public GIS examples</div><h1>Open useful spatial data in one click.</h1><p class="lede">Browse curated ArcGIS REST services and GeoJSON feeds, then load them directly into GIS Map Online. No account or desktop GIS installation is required.</p><div class="actions"><a class="button" href="/">Open GISMap</a><a class="button button--secondary" href="#catalog">Browse datasets</a></div></div></section><section id="catalog"><div class="wrap"><h2>Example data catalog</h2><p>Search by topic, publisher, format, or keyword. Service availability and publisher terms can change; verify source metadata before relying on a dataset.</p><div class="controls"><label><span class="eyebrow">Search</span><input id="example-search" type="search" placeholder="Earthquakes, USGS, FeatureServer…"></label><label><span class="eyebrow">Category</span><select id="example-category"><option value="">All categories</option>${options}</select></label></div><div id="example-grid" class="grid">${POPULAR_SERVICES.map(exampleCard).join("")}</div><p id="example-empty" class="empty">No examples match those filters.</p></div></section><section><div class="wrap"><h2>Viewer guides</h2><div class="grid">${GUIDES.map((guide) => `<article class="card"><div class="eyebrow">Guide</div><h3>${esc(guide.title)}</h3><p>${esc(guide.description)}</p><a href="/${guide.slug}/">Read guide</a></article>`).join("")}</div></div></section></main><script>(()=>{const q=document.querySelector('#example-search'),c=document.querySelector('#example-category'),cards=[...document.querySelectorAll('.example-card')],empty=document.querySelector('#example-empty');function filter(){const term=q.value.trim().toLowerCase(),category=c.value;let shown=0;cards.forEach(card=>{const visible=(!term||card.dataset.search.includes(term))&&(!category||card.dataset.category===category);card.hidden=!visible;if(visible)shown++});empty.classList.toggle('is-visible',shown===0)}q.addEventListener('input',filter);c.addEventListener('change',filter)})();</script>`;
-  return shell({ title: "Public GIS data examples", description: "Open curated ArcGIS REST services, FeatureServers, MapServers, ImageServers, and GeoJSON feeds directly in a free browser GIS viewer.", path: "/examples/", body });
+  return shell({ title: "Public GIS data examples", description: "Open curated ArcGIS REST services, FeatureServers, MapServers, ImageServers, and GeoJSON feeds directly in a free browser GIS viewer.", path: "/examples/", breadcrumbs: [{ name: "Examples", path: "/examples/" }], body });
 }
 
 function examplePage(item) {
   const body = `<main><section class="hero"><div class="wrap"><div class="eyebrow">${esc(item.category)} · ${esc(typeLabel(item.serviceType))}</div><h1>${esc(item.title)}</h1><p class="lede">${esc(item.description)}</p><div class="actions"><a class="button" href="${appLink(item)}">Open this dataset in GISMap</a><a class="button button--secondary" href="/examples/">All examples</a></div></div></section><section><div class="wrap prose"><h2>What this dataset contains</h2><p>${esc(item.description)} ${esc(item.whyUseful)}</p><div class="facts"><div class="fact"><strong>Publisher</strong>${esc(item.sourceOrganization)}</div><div class="fact"><strong>Service type</strong>${esc(typeLabel(item.serviceType))}</div><div class="fact"><strong>Category</strong>${esc(item.category)}</div></div><h2>Open the source directly</h2><p>The button above creates a shareable GISMap URL using the catalog slug. You can also inspect or reuse the publisher endpoint:</p><pre class="endpoint"><code>${esc(item.url)}</code></pre><h2>Attribution and terms</h2><p>${esc(item.licenseOrTerms)}</p><p><a href="${esc(item.sourcePage)}">View the publisher’s source page and metadata</a>.</p><div class="callout"><strong>Availability note.</strong> Public services can change without notice. Confirm currency, coverage, accuracy, and usage terms with the publisher before operational use.</div></div></section></main>`;
-  const structuredData = JSON.stringify({ "@context": "https://schema.org", "@type": "Dataset", name: item.title, description: item.description, url: `https://gismap.online/examples/${item.slug}/`, distribution: { "@type": "DataDownload", contentUrl: item.url, encodingFormat: typeLabel(item.serviceType) }, creator: { "@type": "Organization", name: item.sourceOrganization }, keywords: item.tags.join(", ") }).replace(/</g, "\\u003c");
-  return shell({ title: item.title, description: `${item.description} Open this ${typeLabel(item.serviceType)} dataset directly in GIS Map Online.`, path: `/examples/${item.slug}/`, body, structuredData });
+  const structuredData = { "@type": "Dataset", name: item.title, description: item.description, url: `https://gismap.online/examples/${item.slug}/`, distribution: { "@type": "DataDownload", contentUrl: item.url, encodingFormat: typeLabel(item.serviceType) }, creator: { "@type": "Organization", name: item.sourceOrganization }, keywords: item.tags.join(", ") };
+  return shell({ title: item.title, description: `${item.description} Open this ${typeLabel(item.serviceType)} dataset directly in GIS Map Online.`, path: `/examples/${item.slug}/`, breadcrumbs: [{ name: "Examples", path: "/examples/" }, { name: item.title, path: `/examples/${item.slug}/` }], body, structuredData });
 }
 
 const GUIDES = [
@@ -48,7 +60,7 @@ const GUIDES = [
     ["Work with attributes", "Click a map feature to inspect its fields, open the attribute table for rows and search, or apply a layer filter. Export can use the active filter, current map extent, or the complete queryable source."],
     ["Common limitations", "The service must allow browser access and may enforce record limits, authentication, or usage constraints. Very large layers are retrieved in pages. Always evaluate publisher metadata before analysis."],
   ], example: "esri-world-countries" },
-  { slug: "arcgis-map-service-viewer", title: "ArcGIS MapServer viewer", description: "Understand and open public ArcGIS MapServer endpoints and sublayers.", eyebrow: "Map service guide", intro: "A MapServer commonly delivers publisher-controlled map rendering and can contain several sublayers. It is useful when the source’s established cartography matters or when a dataset is not exposed as a FeatureServer.", sections: [
+  { slug: "arcgis-map-service-viewer", title: "ArcGIS MapServer viewer", description: "Understand and open public ArcGIS MapServer endpoints and map sublayers in your browser.", eyebrow: "Map service guide", intro: "A MapServer commonly delivers publisher-controlled map rendering and can contain several sublayers. It is useful when the source’s established cartography matters or when a dataset is not exposed as a FeatureServer.", sections: [
     ["Root and sublayer URLs", "A URL ending in MapServer represents the whole service. A numbered suffix such as MapServer/2 identifies one sublayer. GISMap detects raster sublayers that must remain inside their parent map image layer."],
     ["MapServer versus FeatureServer", "MapServer content is often drawn by the server, while FeatureServer content exposes individual vector features more directly. Identify, filtering, tables, and export depend on the capabilities enabled by the publisher."],
     ["Troubleshooting", "If a service does not load, open its REST metadata page and confirm that it is public, uses HTTPS, supports the desired operation, and allows cross-origin access from the browser."],
@@ -68,7 +80,12 @@ const GUIDES = [
 function guidePage(guide) {
   const item = POPULAR_SERVICES.find((entry) => entry.id === guide.example);
   const body = `<main><section class="hero"><div class="wrap"><div class="eyebrow">${esc(guide.eyebrow)}</div><h1>${esc(guide.title)}</h1><p class="lede">${esc(guide.intro)}</p><div class="actions"><a class="button" href="${item ? appLink(item) : "/"}">${item ? `Try ${esc(item.title)}` : "Open GISMap"}</a><a class="button button--secondary" href="/examples/">Browse examples</a></div></div></section><section><div class="wrap prose">${guide.sections.map(([heading, copy]) => `<h2>${esc(heading)}</h2><p>${esc(copy)}</p>`).join("")}<div class="callout"><strong>Privacy by design.</strong> GISMap runs in the browser. Remote services are requested from their publishers, and local files stay on the device unless you choose to export or share them elsewhere.</div><h2>Continue exploring</h2><p>Use the <a href="/examples/">public GIS examples catalog</a> to open a working dataset, or return to the <a href="/">GISMap viewer</a> to add your own source.</p></div></section></main>`;
-  return shell({ title: guide.title, description: guide.description, path: `/${guide.slug}/`, body });
+  return shell({ title: guide.title, description: guide.description, path: `/${guide.slug}/`, breadcrumbs: [{ name: "Guides", path: "/guides/" }, { name: guide.title, path: `/${guide.slug}/` }], body });
+}
+
+function guidesIndex() {
+  const body = `<main><section class="hero"><div class="wrap"><div class="eyebrow">GIS viewer guides</div><h1>Open spatial data without desktop GIS.</h1><p class="lede">Learn how to open ArcGIS REST services, FeatureServers, MapServers, GeoJSON, and 3D geographic data directly in a modern browser.</p><div class="actions"><a class="button" href="/">Open GISMap</a><a class="button button--secondary" href="/examples/">Try public datasets</a></div></div></section><section><div class="wrap"><h2>Choose a guide</h2><div class="grid">${GUIDES.map((guide) => `<article class="card"><div class="eyebrow">Guide</div><h3>${esc(guide.title)}</h3><p>${esc(guide.description)}</p><a href="/${guide.slug}/">Read ${esc(guide.title)}</a></article>`).join("")}</div></div></section></main>`;
+  return shell({ title: "GIS viewer guides", description: "Practical guides for viewing ArcGIS REST services, FeatureServers, MapServers, GeoJSON, and 3D GIS data in a browser.", path: "/guides/", breadcrumbs: [{ name: "Guides", path: "/guides/" }], body });
 }
 
 async function output(relative, contents) {
@@ -86,7 +103,8 @@ async function output(relative, contents) {
 
 await output("examples/index.html", examplesIndex());
 for (const item of POPULAR_SERVICES.filter((entry) => entry.featured)) await output(`examples/${item.slug}/index.html`, examplePage(item));
+await output("guides/index.html", guidesIndex());
 for (const guide of GUIDES) await output(`${guide.slug}/index.html`, guidePage(guide));
-const urls = ["/", "/examples/", ...POPULAR_SERVICES.filter((item) => item.featured).map((item) => `/examples/${item.slug}/`), ...GUIDES.map((guide) => `/${guide.slug}/`)];
+const urls = ["/", "/examples/", "/guides/", ...POPULAR_SERVICES.filter((item) => item.featured).map((item) => `/examples/${item.slug}/`), ...GUIDES.map((guide) => `/${guide.slug}/`)];
 await output("sitemap.xml", `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls.map((path) => `  <url><loc>https://gismap.online${path}</loc><lastmod>2026-09-06</lastmod></url>`).join("\n")}\n</urlset>\n`);
 console.log(`${check ? "Verified" : "Generated"} ${generated.length} files.`);

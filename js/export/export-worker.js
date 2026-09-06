@@ -1,4 +1,4 @@
-import { createFeatureCollection, featureCollectionToKml } from "./export-core.js?v=0.10.2";
+import { createFeatureCollection, featureCollectionToKml } from "./export-core.js?v=0.11.0";
 
 let activeJob = null;
 

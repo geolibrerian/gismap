@@ -20,6 +20,26 @@ assert.deepEqual(
   { type: "Point", coordinates: [-111.89, 40.76] },
 );
 
+const modisWebMercatorPoint = geometryToGeoJSON({
+  type: "point",
+  x: -10033971.5457,
+  y: 4678210.7004,
+  spatialReference: { wkid: 102100, latestWkid: 3857 },
+});
+assert.equal(modisWebMercatorPoint.type, "Point");
+assert.ok(Math.abs(modisWebMercatorPoint.coordinates[0] - -90.1367) < 0.0001);
+assert.ok(Math.abs(modisWebMercatorPoint.coordinates[1] - 38.69594) < 0.0001);
+assert.ok(Math.abs(modisWebMercatorPoint.coordinates[0]) <= 180);
+assert.ok(Math.abs(modisWebMercatorPoint.coordinates[1]) <= 90);
+
+const inferredWebMercatorPoint = geometryToGeoJSON({
+  type: "point",
+  x: -9165280.9939,
+  y: 4734007.871,
+});
+assert.ok(Math.abs(inferredWebMercatorPoint.coordinates[0]) <= 180);
+assert.ok(Math.abs(inferredWebMercatorPoint.coordinates[1]) <= 90);
+
 assert.deepEqual(
   geometryToGeoJSON({ type: "polyline", paths: [[[0, 0], [1, 1]], [[2, 2], [3, 3]]] }),
   { type: "MultiLineString", coordinates: [[[0, 0], [1, 1]], [[2, 2], [3, 3]]] },
