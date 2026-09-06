@@ -883,12 +883,20 @@ export class MapController {
   async toggleWidget(name) {
     const existing = this.widgets.get(name);
     if (existing) {
-      if (existing.closest?.("#utility-panel")) existing.remove();
+      if (existing.closest?.("#utility-panel") || existing.container?.closest?.("#utility-panel")) {
+        document.querySelector("#utility-content")?.replaceChildren();
+      }
       else this.view.ui.remove(existing);
       await existing.destroy?.();
       this.widgets.delete(name);
       this.events.publish("widget:toggled", { name, open: false });
       return false;
+    }
+    const utilityNames = new Set(["basemapGallery", "elevationProfile"]);
+    if (utilityNames.has(name)) {
+      for (const otherName of utilityNames) {
+        if (otherName !== name && this.widgets.has(otherName)) await this.toggleWidget(otherName);
+      }
     }
     const componentTags = {
       basemapGallery: "arcgis-basemap-gallery",
@@ -919,13 +927,15 @@ export class MapController {
     }
     const definitions = {
       measurement: ["@arcgis/core/widgets/Measurement.js", {}, "top-right"],
-      elevationProfile: ["@arcgis/core/widgets/ElevationProfile.js", {}, "top-right"],
+      elevationProfile: ["@arcgis/core/widgets/ElevationProfile.js", {}, "utility"],
     };
     const definition = definitions[name];
     if (!definition) return false;
     const Widget = await $arcgis.import(definition[0]);
-    const widget = new Widget({ view: this.view, ...definition[1] });
-    this.view.ui.add(widget, definition[2]);
+    const host = definition[2] === "utility" ? document.querySelector("#utility-content") : null;
+    if (host) host.replaceChildren();
+    const widget = new Widget({ view: this.view, container: host || undefined, ...definition[1] });
+    if (!host) this.view.ui.add(widget, definition[2]);
     this.widgets.set(name, widget);
     this.events.publish("widget:toggled", { name, open: true });
     return true;

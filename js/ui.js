@@ -1,7 +1,7 @@
-import { POPULAR_SERVICES } from "./catalog.js?v=0.11.0";
-import { ENTERPRISE_CATALOGS, EnterpriseCatalog, normalizeArcGisDirectoryUrl } from "./enterprise-catalog.js?v=0.11.0";
-import { createShareUrl } from "./share.js?v=0.11.0";
-import { renderMarkdown } from "./markdown.js?v=0.11.0";
+import { POPULAR_SERVICES } from "./catalog.js?v=0.11.1";
+import { ENTERPRISE_CATALOGS, EnterpriseCatalog, normalizeArcGisDirectoryUrl } from "./enterprise-catalog.js?v=0.11.1";
+import { createShareUrl } from "./share.js?v=0.11.1";
+import { renderMarkdown } from "./markdown.js?v=0.11.1";
 
 const DISPLAY_SETTINGS_KEY = "gismap-online:display:v1";
 const INSIGHT_POSITIONS = new Set(["upper-left", "lower-left", "bottom", "dock-left", "dock-right", "dock-bottom"]);
@@ -184,7 +184,8 @@ export class UIController {
     );
     document.querySelector("#mobile-panel-close").addEventListener("click", () => this.#setSidebarCollapsed(true));
     document.querySelector("#utility-close").addEventListener("click", () => {
-      if (this.mapController.widgets.has("basemapGallery")) void this.mapController.toggleWidget("basemapGallery");
+      const active = ["basemapGallery", "elevationProfile"].find((name) => this.mapController.widgets.has(name));
+      if (active) void this.mapController.toggleWidget(active);
     });
     this.#activateMobilePanel("places-panel", false);
     document.querySelector("#insights-close").addEventListener("click", () => {
@@ -291,10 +292,10 @@ export class UIController {
     this.events.subscribe("app:error", ({ message }) => this.error(message));
     this.events.subscribe("widget:toggled", ({ name, open }) => {
       document.querySelectorAll(`[data-widget="${name}"]`).forEach((button) => button.classList.toggle("is-active", open));
-      if (name !== "basemapGallery") return;
+      if (!["basemapGallery", "elevationProfile"].includes(name)) return;
       document.body.classList.toggle("utility-panel-open", open);
       document.querySelector("#utility-panel").setAttribute("aria-hidden", String(!open));
-      document.querySelector("#utility-title").textContent = "Basemap gallery";
+      document.querySelector("#utility-title").textContent = name === "elevationProfile" ? "Elevation profile" : "Basemap gallery";
       requestAnimationFrame(() => this.mapController.resize());
     });
   }

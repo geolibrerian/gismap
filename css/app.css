@@ -54,6 +54,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, summary:focus-v
 .utility-content { min-height: 0; overflow: auto; overscroll-behavior: contain; }
 .utility-content > * { display: block; width: 100%; min-width: 0; }
 .utility-content > arcgis-basemap-gallery { height: 100%; overflow: auto; }
+.utility-content .esri-elevation-profile { width: 100%; height: 100%; max-height: none; }
 .utility-resizer { position: absolute; z-index: 3; inset: 0 auto 0 -5px; width: 10px; cursor: col-resize; touch-action: none; }
 .utility-resizer::after { content: ""; position: absolute; inset: 0 4px; background: var(--line); }
 body.utility-panel-open .utility-panel { display: grid; grid-template-rows: auto minmax(0, 1fr); }
@@ -664,6 +665,8 @@ body.sidebar-collapsed .table-dialog { left: 14px; }
   body:not(.sidebar-collapsed) .sidebar__open { display: none; }
   .table-dialog { left: 14px; }
   body[data-insights-position^="dock-"] .insights-overlay { inset: auto 12px 54px; width: auto; max-height: min(44vh, 470px); }
+  body.utility-panel-open .utility-panel { position: fixed; z-index: 58; inset: 52px 0 0 auto; width: min(88vw, 440px); box-shadow: -14px 0 34px rgb(17 39 33 / 22%); }
+  body.utility-panel-open .utility-resizer { display: none; }
 }
 
 @media (max-width: 640px) {

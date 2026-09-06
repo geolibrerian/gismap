@@ -1,5 +1,9 @@
 import assert from "node:assert/strict";
 import { MapController, isNavigationAbort, parseArcGISFeatureQueryUrl, parseWfsUrl } from "../js/map.js";
+import { readFile } from "node:fs/promises";
+
+const mapSource = await readFile(new URL("../js/map.js", import.meta.url), "utf8");
+assert.match(mapSource, /elevationProfile: \["@arcgis\/core\/widgets\/ElevationProfile\.js", \{\}, "utility"\]/);
 
 assert.equal(isNavigationAbort(new Error("Aborted")), true);
 assert.equal(isNavigationAbort(new DOMException("The operation was aborted", "AbortError")), true);

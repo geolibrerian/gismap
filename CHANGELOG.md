@@ -6,6 +6,14 @@ All notable changes to GIS Map Online are documented here. This project follows
 
 ## [Unreleased]
 
+## [0.11.1] - 2026-09-06
+
+### Changed
+
+- Moved the Elevation Profile widget into the resizable right utility panel so
+  it reduces the map viewport instead of covering navigation controls and map
+  content; smaller screens use a contained panel overlay.
+
 ## [0.11.0] - 2026-09-06
 
 ### Added
@@ -153,7 +161,8 @@ All notable changes to GIS Map Online are documented here. This project follows
 - Prevented search suggestions from remaining open after selection.
 - Reduced map and panel flicker during feature identification.
 
-[Unreleased]: https://github.com/geolibrerian/gismap/compare/v0.11.0...HEAD
+[Unreleased]: https://github.com/geolibrerian/gismap/compare/v0.11.1...HEAD
+[0.11.1]: https://github.com/geolibrerian/gismap/compare/v0.11.0...v0.11.1
 [0.11.0]: https://github.com/geolibrerian/gismap/compare/v0.10.2...v0.11.0
 [0.10.2]: https://github.com/geolibrerian/gismap/compare/v0.10.1...v0.10.2
 [0.10.1]: https://github.com/geolibrerian/gismap/compare/v0.10.0...v0.10.1
