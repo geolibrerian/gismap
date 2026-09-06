@@ -25,6 +25,8 @@ All notable changes to GIS Map Online are documented here. This project follows
 
 ### Fixed
 
+- Suppressed expected ArcGIS camera-animation aborts when consecutive navigation
+  controls replace an in-progress movement.
 - Added a dismiss control to the first-use introduction and retained the choice
   for the current browser tab.
 - Prevented the optional GIS Server Directory URL field from invoking browser

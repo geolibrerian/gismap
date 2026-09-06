@@ -1,5 +1,9 @@
 import assert from "node:assert/strict";
-import { MapController, parseArcGISFeatureQueryUrl, parseWfsUrl } from "../js/map.js";
+import { MapController, isNavigationAbort, parseArcGISFeatureQueryUrl, parseWfsUrl } from "../js/map.js";
+
+assert.equal(isNavigationAbort(new Error("Aborted")), true);
+assert.equal(isNavigationAbort(new DOMException("The operation was aborted", "AbortError")), true);
+assert.equal(isNavigationAbort(new Error("Camera failed")), false);
 
 const wfs = parseWfsUrl("https://firms.modaps.eosdis.nasa.gov/mapserver/wfs/Canada/YourMapKey/?SERVICE=WFS&REQUEST=GetFeature&VERSION=2.0.0&TYPENAME=ms%3Afires_modis_24hrs&STARTINDEX=0&COUNT=1000&SRSNAME=urn%3Aogc%3Adef%3Acrs%3AEPSG%3A%3A4326&BBOX=-90%2C-180%2C90%2C180%2Curn%3Aogc%3Adef%3Acrs%3AEPSG%3A%3A4326&outputformat=csv");
 assert.equal(wfs.serviceUrl, "https://firms.modaps.eosdis.nasa.gov/mapserver/wfs/Canada/YourMapKey");
@@ -79,6 +83,12 @@ controller.view = { goTo(value) { navigation = value; } };
 await controller.goToFeature({ geometry: { type: "point", x: -120, y: 40 } });
 assert.equal(navigation.zoom, 15);
 assert.equal(navigation.center.x, -120);
+
+controller.view = {
+  camera: { clone: () => ({ heading: 0, tilt: 35 }) },
+  goTo: async () => { throw new Error("Aborted"); },
+};
+assert.equal(await controller.navigate("tilt-up"), null);
 
 controller.view = {
   spatialReference: { wkid: 4326 },

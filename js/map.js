@@ -1,6 +1,11 @@
 const ARCGIS_WORLD_GEOCODER =
   "https://geocode.arcgis.com/arcgis/rest/services/World/GeocodeServer";
 
+export function isNavigationAbort(error) {
+  const message = String(error?.message ?? error ?? "").trim();
+  return error?.name === "AbortError" || /^(?:abort(?:ed)?|cancel(?:led)?)$/i.test(message);
+}
+
 export function parseArcGISFeatureQueryUrl(value) {
   try {
     const parsed = new URL(value);
@@ -749,27 +754,32 @@ export class MapController {
   }
 
   async navigate(action) {
-    if (action === "home") return this.view.goTo(this.defaultViewpoint);
-    if (action === "in") return this.view.zoomIn();
-    if (action === "out") return this.view.zoomOut();
-    if (["rotate-left", "rotate-right", "tilt-up", "tilt-down"].includes(action)) {
-      const camera = this.view.camera.clone();
-      if (action === "rotate-left") camera.heading -= 20;
-      if (action === "rotate-right") camera.heading += 20;
-      if (action === "tilt-up") camera.tilt = Math.min(88, camera.tilt + 10);
-      if (action === "tilt-down") camera.tilt = Math.max(0, camera.tilt - 10);
-      return this.view.goTo(camera, { duration: 350 });
-    }
-    if (action === "locate") {
-      if (!navigator.geolocation) throw new Error("Geolocation is not supported by this browser.");
-      const position = await new Promise((resolve, reject) =>
-        navigator.geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy: true }),
-      );
-      return this.view.goTo({
-        center: [position.coords.longitude, position.coords.latitude],
-        zoom: 15,
-        tilt: 55,
-      });
+    try {
+      if (action === "home") return await this.view.goTo(this.defaultViewpoint);
+      if (action === "in") return await this.view.zoomIn();
+      if (action === "out") return await this.view.zoomOut();
+      if (["rotate-left", "rotate-right", "tilt-up", "tilt-down"].includes(action)) {
+        const camera = this.view.camera.clone();
+        if (action === "rotate-left") camera.heading -= 20;
+        if (action === "rotate-right") camera.heading += 20;
+        if (action === "tilt-up") camera.tilt = Math.min(88, camera.tilt + 10);
+        if (action === "tilt-down") camera.tilt = Math.max(0, camera.tilt - 10);
+        return await this.view.goTo(camera, { duration: 350 });
+      }
+      if (action === "locate") {
+        if (!navigator.geolocation) throw new Error("Geolocation is not supported by this browser.");
+        const position = await new Promise((resolve, reject) =>
+          navigator.geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy: true }),
+        );
+        return await this.view.goTo({
+          center: [position.coords.longitude, position.coords.latitude],
+          zoom: 15,
+          tilt: 55,
+        });
+      }
+    } catch (error) {
+      if (isNavigationAbort(error)) return null;
+      throw error;
     }
   }
 
