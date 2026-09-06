@@ -1,7 +1,7 @@
-import { POPULAR_SERVICES } from "./catalog.js?v=0.9.0";
-import { ENTERPRISE_CATALOGS, EnterpriseCatalog, normalizeArcGisDirectoryUrl } from "./enterprise-catalog.js?v=0.9.0";
-import { createShareUrl } from "./share.js?v=0.9.0";
-import { renderMarkdown } from "./markdown.js?v=0.9.0";
+import { POPULAR_SERVICES } from "./catalog.js?v=0.10.0";
+import { ENTERPRISE_CATALOGS, EnterpriseCatalog, normalizeArcGisDirectoryUrl } from "./enterprise-catalog.js?v=0.10.0";
+import { createShareUrl } from "./share.js?v=0.10.0";
+import { renderMarkdown } from "./markdown.js?v=0.10.0";
 
 const DISPLAY_SETTINGS_KEY = "gismap-online:display:v1";
 const WELCOME_DISMISSED_KEY = "gismap-online:welcome-dismissed:v1";
@@ -1230,7 +1230,7 @@ export class UIController {
     this.openDialog({
       eyebrow: "Foundation build",
       title: "GIS Map Online",
-      content: `<div class="about-copy"><p>A browser-only GIS viewer built around ArcGIS Maps SDK for JavaScript 5.0 and a topic-based event bus.</p><dl><div><dt>Runtime</dt><dd>Static HTML + ES modules</dd></div><div><dt>Persistence</dt><dd>localStorage + portable ZIP</dd></div><div><dt>Identify</dt><dd>Popup-free normalized results</dd></div><div><dt>Identity</dt><dd>Optional ArcGIS OAuth / token authentication managed by the Esri SDK</dd></div><div><dt>Privacy</dt><dd>No GIS Map Online account or database; credentials are excluded from projects</dd></div></dl></div>`,
+      content: `<div class="about-copy"><p>A browser-only GIS viewer built around ArcGIS Maps SDK for JavaScript 5.0 and a topic-based event bus.</p><p><a href="/examples/">Browse public GIS examples</a> or read the <a href="/arcgis-rest-service-viewer/">viewer guides</a>.</p><dl><div><dt>Runtime</dt><dd>Static HTML + ES modules</dd></div><div><dt>Persistence</dt><dd>localStorage + portable ZIP</dd></div><div><dt>Identify</dt><dd>Popup-free normalized results</dd></div><div><dt>Identity</dt><dd>Optional ArcGIS OAuth / token authentication managed by the Esri SDK</dd></div><div><dt>Privacy</dt><dd>No GIS Map Online account or database; credentials are excluded from projects</dd></div></dl></div>`,
     });
   }
 

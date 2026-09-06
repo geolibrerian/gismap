@@ -6,8 +6,20 @@ All notable changes to GIS Map Online are documented here. This project follows
 
 ## [Unreleased]
 
+## [0.10.0] - 2026-09-06
+
 ### Added
 
+- A searchable public GIS examples index generated from the in-app service
+  catalog, with category, publisher, service-type, and keyword filtering.
+- Curated dataset pages for USGS NAIP imagery, recent MODIS hotspots, PM2.5
+  observations, and the USGS 30-day earthquake GeoJSON feed.
+- Practical viewer guides for ArcGIS REST services, FeatureServers, MapServers,
+  GeoJSON, and browser-based 3D GIS.
+- Structured catalog metadata for stable slugs, categories, source pages,
+  attribution guidance, tags, featured examples, and future validation dates.
+- Build and CI checks that keep generated example pages and the sitemap aligned
+  with `js/catalog.js`.
 - Sanitized Markdown rendering for intelligence responses, including headings,
   lists, emphasis, links, quotations, and code.
 - Search-focused homepage metadata, canonical and social-card tags, and truthful
@@ -110,6 +122,7 @@ All notable changes to GIS Map Online are documented here. This project follows
 - Prevented search suggestions from remaining open after selection.
 - Reduced map and panel flicker during feature identification.
 
-[Unreleased]: https://github.com/geolibrerian/gismap/compare/v0.9.0...HEAD
+[Unreleased]: https://github.com/geolibrerian/gismap/compare/v0.10.0...HEAD
+[0.10.0]: https://github.com/geolibrerian/gismap/compare/v0.9.0...v0.10.0
 [0.9.0]: https://github.com/geolibrerian/gismap/compare/v0.8.0...v0.9.0
 [0.8.0]: https://github.com/geolibrerian/gismap/releases/tag/v0.8.0

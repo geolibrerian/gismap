@@ -8,6 +8,25 @@ A browser-only 3D GIS viewer targeting ArcGIS Maps SDK for JavaScript 5.0. It us
 
 The interface uses a layered globe-and-analysis mark with an editable HTML wordmark and the descriptor “Spatial intelligence studio.”
 
+## Explore and learn
+
+- [Browse public GIS data examples](https://gismap.online/examples/), including
+  curated ArcGIS REST services and GeoJSON feeds that open directly in GISMap.
+- Read the viewer guides for [ArcGIS REST services](https://gismap.online/arcgis-rest-service-viewer/),
+  [FeatureServers](https://gismap.online/arcgis-feature-service-viewer/),
+  [MapServers](https://gismap.online/arcgis-map-service-viewer/),
+  [GeoJSON](https://gismap.online/geojson-viewer/), and
+  [3D GIS](https://gismap.online/3d-gis-viewer/).
+
+The examples index and featured dataset pages are generated from `js/catalog.js`:
+
+```bash
+node scripts/build-examples.mjs
+```
+
+CI runs the same script with `--check` to keep the committed pages and sitemap in
+sync with the application catalog.
+
 ## Share remote layers
 
 Choose **Project > Copy share link** to copy a URL that reopens the current public
@@ -44,7 +63,10 @@ published builds and generated release notes.
 - `js/ai.js` — optional Ollama, OpenAI, Anthropic, and OpenAI-compatible adapters; online tokens stay in memory only
 - `js/tool-manager.js` — opt-in local JavaScript tool registration
 - `js/events.js` — pub/sub event bus
-- `js/catalog.js` — editable starter list of public data services
+- `js/catalog.js` — public data services plus categories, stable slugs, source
+  metadata, reuse guidance, tags, and featured-example controls
+- `scripts/build-examples.mjs` — generates the searchable examples index,
+  featured dataset pages, viewer guides, and sitemap
 - `js/share.js` — safe parsing and creation of shareable remote-layer URLs
 - `js/markdown.js` — sanitized Markdown rendering for intelligence responses
 - `js/enterprise-catalog.js` — live ArcGIS Enterprise service-directory browser
