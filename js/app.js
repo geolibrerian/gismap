@@ -8,6 +8,23 @@ import { AIController } from "./ai.js?v=0.9.0";
 import { ToolManager } from "./tool-manager.js?v=0.9.0";
 import { UIController } from "./ui.js?v=0.9.0";
 import { ExportController } from "./export/export-controller.js?v=0.9.0";
+import { parseShareParameters } from "./share.js?v=0.9.0";
+import { POPULAR_SERVICES } from "./catalog.js?v=0.9.0";
+
+async function loadSharedLayer(mapController, config) {
+  const rootUrl = config.url.replace(/\/+$/, "");
+  if (/\/FeatureServer$/i.test(new URL(rootUrl).pathname)) {
+    const layers = await mapController.discoverFeatureServiceLayers(rootUrl);
+    if (!layers.length) throw new Error("The shared FeatureServer does not advertise any feature layers.");
+    return Promise.all(layers.map((layer) => mapController.addService({
+      ...config,
+      url: layer.url,
+      title: layers.length === 1 ? config.title : layer.name,
+      serviceType: "feature",
+    })));
+  }
+  return [await mapController.addService(config)];
+}
 
 async function start() {
   const authController = new AuthController(events);
@@ -34,6 +51,22 @@ async function start() {
   uiController.initialize();
   await mapController.initialize();
   events.publish("project:loaded", { project: projectManager.current, missingFiles: [] });
+
+  try {
+    const shared = parseShareParameters(location.search, POPULAR_SERVICES, {
+      allowHttp: location.hostname === "localhost" || location.hostname === "127.0.0.1",
+    });
+    if (shared.basemap) mapController.setBasemap(shared.basemap);
+    for (const layer of shared.layers) {
+      try {
+        await loadSharedLayer(mapController, layer);
+      } catch (error) {
+        events.publish("app:error", { message: `Shared layer failed to load: ${error.message}` });
+      }
+    }
+  } catch (error) {
+    events.publish("app:error", { message: error.message });
+  }
 
   // A narrow, intentional extension surface for local tools and debugging.
   globalThis.gisMapOnline = Object.freeze({

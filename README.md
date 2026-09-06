@@ -8,6 +8,14 @@ A browser-only 3D GIS viewer targeting ArcGIS Maps SDK for JavaScript 5.0. It us
 
 The interface uses a layered globe-and-analysis mark with an editable HTML wordmark and the descriptor “Spatial intelligence studio.”
 
+## Share remote layers
+
+Choose **Project > Copy share link** to copy a URL that reopens the current public
+remote layers and basemap. Local files and credentials are never included. Shared
+URLs use repeatable `layer` and `layerType` parameters; curated catalog entries may
+also be opened with `?example=<slug>`. Only HTTPS resources are accepted in
+production (HTTP is permitted for localhost development).
+
 ## Run locally
 
 The SDK and browser module security require HTTP; do not open `index.html` directly from the filesystem.
@@ -37,6 +45,7 @@ published builds and generated release notes.
 - `js/tool-manager.js` — opt-in local JavaScript tool registration
 - `js/events.js` — pub/sub event bus
 - `js/catalog.js` — editable starter list of public data services
+- `js/share.js` — safe parsing and creation of shareable remote-layer URLs
 - `js/enterprise-catalog.js` — live ArcGIS Enterprise service-directory browser
 - `js/auth.js` — ArcGIS Online/Enterprise OAuth, standalone Server token/web-tier registration, federation discovery, and connection diagnostics
 - `js/export/` — paginated vector retrieval and background-worker GeoJSON/KML/KMZ/Shapefile conversion

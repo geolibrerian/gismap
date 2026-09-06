@@ -1,5 +1,6 @@
 import { POPULAR_SERVICES } from "./catalog.js?v=0.9.0";
 import { ENTERPRISE_CATALOGS, EnterpriseCatalog, normalizeArcGisDirectoryUrl } from "./enterprise-catalog.js?v=0.9.0";
+import { createShareUrl } from "./share.js?v=0.9.0";
 
 const DISPLAY_SETTINGS_KEY = "gismap-online:display:v1";
 const INSIGHT_POSITIONS = new Set(["upper-left", "lower-left", "bottom", "dock-left", "dock-right", "dock-bottom"]);
@@ -329,6 +330,9 @@ export class UIController {
         case "project-import":
           document.querySelector("#project-file-input").click();
           break;
+        case "project-share":
+          await this.#copyShareLink();
+          break;
         case "data-file":
           document.querySelector("#data-file-input").click();
           break;
@@ -369,6 +373,16 @@ export class UIController {
     } catch (error) {
       this.error(error.message);
     }
+  }
+
+  async #copyShareLink() {
+    const href = createShareUrl({
+      baseUrl: location.href,
+      layers: this.mapController.getAllLayerConfigs(),
+      basemap: this.mapController.getBasemapId(),
+    });
+    await navigator.clipboard.writeText(href);
+    this.toast("Share link copied. Local files and credentials were not included.");
   }
 
   #selectProjectDialog() {

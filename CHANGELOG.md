@@ -6,6 +6,18 @@ All notable changes to GIS Map Online are documented here. This project follows
 
 ## [Unreleased]
 
+### Added
+
+- Safe shareable URLs for public remote layers, catalog examples, and the active
+  basemap, including automatic loading when a recipient opens the link.
+- A Project menu action that copies the current map's share link.
+
+### Security
+
+- Share links reject non-web URL schemes, embedded usernames and passwords, and
+  common token, API-key, and credential query parameters. Local files are never
+  included.
+
 ## [0.9.0] - 2026-09-04
 
 ### Added
