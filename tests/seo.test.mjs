@@ -15,5 +15,6 @@ assert.deepEqual(structuredData["@type"], ["SoftwareApplication", "WebApplicatio
 assert.equal(structuredData.isAccessibleForFree, true);
 assert.equal(structuredData.author.name, "Silas Toms");
 assert.match(html, /id="welcome-title">Explore GIS data instantly/);
+assert.match(html, /id="welcome-close"[^>]*aria-label="Dismiss introduction"/);
 assert.match(robots, /Sitemap: https:\/\/gismap\.online\/sitemap\.xml/);
 assert.match(sitemap, /<loc>https:\/\/gismap\.online\/<\/loc>/);
