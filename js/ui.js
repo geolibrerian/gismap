@@ -1368,6 +1368,7 @@ export class UIController {
 
   #renderLayers() {
     const layers = this.mapController.getOperationalLayers().slice().reverse();
+    document.querySelector("#welcome-panel").hidden = Boolean(layers.length);
     const exportable = new Set(this.exportController.listExportableLayers().map((layer) => layer.uid));
     document.querySelector("#layer-count").textContent = `${layers.length} loaded`;
     const container = document.querySelector("#layers-list");

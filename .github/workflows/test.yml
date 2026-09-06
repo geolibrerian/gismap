@@ -53,5 +53,10 @@ jobs:
           node --check js/export/export-worker.js
           node --check js/share.js
 
+      - name: Verify discovery files
+        run: |
+          test -f robots.txt
+          test -f sitemap.xml
+
       - name: Run tests
         run: node --test tests/*.test.mjs

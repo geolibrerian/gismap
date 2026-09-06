@@ -8,6 +8,11 @@ All notable changes to GIS Map Online are documented here. This project follows
 
 ### Added
 
+- Search-focused homepage metadata, canonical and social-card tags, and truthful
+  SoftwareApplication/WebApplication structured data.
+- A compact first-use introduction with direct actions for ArcGIS REST, GeoJSON,
+  local files, and curated examples.
+- Public `robots.txt` and `sitemap.xml` discovery files.
 - Safe shareable URLs for public remote layers, catalog examples, and the active
   basemap, including automatic loading when a recipient opens the link.
 - A Project menu action that copies the current map's share link.

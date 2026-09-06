@@ -167,6 +167,13 @@ body.utility-resizing iframe, body.utility-resizing canvas { pointer-events: non
 
 .map-workspace { position: relative; min-width: 0; height: 100%; background: #dfe8e4; }
 #viewDiv { position: absolute; inset: 0; }
+.welcome-panel { position: absolute; z-index: 5; right: 96px; bottom: 42px; width: min(480px, calc(100% - 132px)); padding: 20px; border: 1px solid var(--line); border-radius: 12px; background: color-mix(in srgb, var(--surface) 94%, transparent); box-shadow: var(--shadow); backdrop-filter: blur(12px); }
+.welcome-panel[hidden] { display: none; }
+.welcome-panel h1 { margin: 4px 0 8px; color: var(--ink); font: 600 27px/1.1 "Newsreader", Georgia, serif; }
+.welcome-panel p { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.55; }
+.welcome-panel__actions { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 15px; }
+.welcome-panel__actions button { border: 1px solid var(--green); border-radius: 6px; padding: 9px 11px; color: white; background: var(--green); cursor: pointer; font-size: 11px; }
+.welcome-panel__actions .button--quiet { border-color: var(--line); color: var(--ink); background: var(--surface); }
 .map-nav { position: absolute; z-index: 8; top: 18px; right: 18px; display: grid; grid-template-columns: repeat(2, 38px); gap: 5px; }
 .map-nav button, .map-button { width: 38px; height: 38px; font-size: 19px; box-shadow: 0 6px 20px rgb(20 46 39 / 18%); }
 .sidebar__open { display: none; position: absolute; z-index: 9; top: 18px; left: 18px; }
@@ -625,6 +632,8 @@ body.sidebar-collapsed .table-dialog { left: 14px; }
 }
 
 @media (max-width: 640px) {
+  .welcome-panel { right: 12px; bottom: 38px; left: 12px; width: auto; padding: 16px; }
+  .welcome-panel h1 { font-size: 23px; }
   .mobile-app-bar {
     position: fixed;
     inset: 0 0 auto;
