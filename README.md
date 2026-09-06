@@ -46,6 +46,7 @@ published builds and generated release notes.
 - `js/events.js` — pub/sub event bus
 - `js/catalog.js` — editable starter list of public data services
 - `js/share.js` — safe parsing and creation of shareable remote-layer URLs
+- `js/markdown.js` — sanitized Markdown rendering for intelligence responses
 - `js/enterprise-catalog.js` — live ArcGIS Enterprise service-directory browser
 - `js/auth.js` — ArcGIS Online/Enterprise OAuth, standalone Server token/web-tier registration, federation discovery, and connection diagnostics
 - `js/export/` — paginated vector retrieval and background-worker GeoJSON/KML/KMZ/Shapefile conversion

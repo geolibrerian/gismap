@@ -39,6 +39,7 @@ jobs:
           grep -Fq "catalog.js?v=${VERSION_NUMBER}" js/ui.js
           grep -Fq "share.js?v=${VERSION_NUMBER}" js/app.js
           grep -Fq "share.js?v=${VERSION_NUMBER}" js/ui.js
+          grep -Fq "markdown.js?v=${VERSION_NUMBER}" js/ui.js
           grep -Fq "export-worker.js?v=${VERSION_NUMBER}" js/export/export-controller.js
 
       - name: Check JavaScript syntax
@@ -52,6 +53,7 @@ jobs:
           node --check js/export/export-controller.js
           node --check js/export/export-worker.js
           node --check js/share.js
+          node --check js/markdown.js
 
       - name: Verify discovery files
         run: |

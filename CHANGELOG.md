@@ -8,6 +8,8 @@ All notable changes to GIS Map Online are documented here. This project follows
 
 ### Added
 
+- Sanitized Markdown rendering for intelligence responses, including headings,
+  lists, emphasis, links, quotations, and code.
 - Search-focused homepage metadata, canonical and social-card tags, and truthful
   SoftwareApplication/WebApplication structured data.
 - A compact first-use introduction with direct actions for ArcGIS REST, GeoJSON,

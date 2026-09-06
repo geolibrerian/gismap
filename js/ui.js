@@ -1,6 +1,7 @@
 import { POPULAR_SERVICES } from "./catalog.js?v=0.9.0";
 import { ENTERPRISE_CATALOGS, EnterpriseCatalog, normalizeArcGisDirectoryUrl } from "./enterprise-catalog.js?v=0.9.0";
 import { createShareUrl } from "./share.js?v=0.9.0";
+import { renderMarkdown } from "./markdown.js?v=0.9.0";
 
 const DISPLAY_SETTINGS_KEY = "gismap-online:display:v1";
 const WELCOME_DISMISSED_KEY = "gismap-online:welcome-dismissed:v1";
@@ -1594,7 +1595,7 @@ export class UIController {
     const content = document.querySelector("#intelligence-content");
     const response = document.createElement("section");
     response.className = "ai-response";
-    response.innerHTML = `<span class="eyebrow">AI context</span><p>${escapeHtml(text).replace(/\n/g, "<br>")}</p>`;
+    response.innerHTML = `<span class="eyebrow">AI context</span><div class="ai-response__markdown">${renderMarkdown(text)}</div>`;
     content.append(response);
     response.scrollIntoView({ behavior: "smooth", block: "nearest" });
   }
