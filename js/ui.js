@@ -109,17 +109,10 @@ export class UIController {
   }
 
   #bindStaticActions() {
-    const welcomePanel = document.querySelector("#welcome-panel");
-    document.querySelector("#welcome-close").addEventListener("click", () => {
-      welcomePanel.dataset.dismissed = "true";
-      welcomePanel.hidden = true;
-    });
+    document.querySelector("#welcome-close").addEventListener("click", () => this.#dismissWelcome());
     document.querySelectorAll("[data-action]").forEach((button) =>
       button.addEventListener("click", () => {
-        if (button.closest("#welcome-panel")) {
-          welcomePanel.dataset.dismissed = "true";
-          welcomePanel.hidden = true;
-        }
+        if (button.closest("#welcome-panel")) this.#dismissWelcome();
         this.#closeMenus();
         this.#handleAction(button.dataset.action);
       }),
@@ -348,6 +341,7 @@ export class UIController {
       ? preferredTab
       : validTabs.has(this.activeUtilityTab) ? this.activeUtilityTab : tabs[0]?.id || null;
     const open = tabs.length > 0;
+    if (open) this.#dismissWelcome();
     const tabList = document.querySelector("#utility-tabs");
     tabList.hidden = tabs.length < 2;
     tabList.innerHTML = tabs.map((tab) => `<span class="utility-tab"><button type="button" data-utility-tab="${tab.id}" aria-selected="${tab.id === this.activeUtilityTab}">${escapeHtml(tab.label)}</button><button type="button" class="utility-tab__close" data-close-utility-tab="${tab.id}" aria-label="Close ${escapeHtml(tab.label)}" title="Close ${escapeHtml(tab.label)}">×</button></span>`).join("");
@@ -358,6 +352,12 @@ export class UIController {
     document.body.classList.toggle("utility-panel-open", open);
     document.querySelector("#utility-panel").setAttribute("aria-hidden", String(!open));
     requestAnimationFrame(() => this.mapController.resize());
+  }
+
+  #dismissWelcome() {
+    const welcomePanel = document.querySelector("#welcome-panel");
+    welcomePanel.dataset.dismissed = "true";
+    welcomePanel.hidden = true;
   }
 
   #openIntelligenceUtility() {
@@ -1494,6 +1494,7 @@ export class UIController {
       this.#syncUtilityPanel();
     }
     const welcomePanel = document.querySelector("#welcome-panel");
+    if (layers.length) this.#dismissWelcome();
     welcomePanel.hidden = welcomePanel.dataset.dismissed === "true";
     const exportable = new Set(this.exportController.listExportableLayers().map((layer) => layer.uid));
     document.querySelector("#layer-count").textContent = `${layers.length} loaded`;

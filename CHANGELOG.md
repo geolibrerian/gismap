@@ -22,6 +22,8 @@ All notable changes to GIS Map Online are documented here. This project follows
   remain open together without discarding one another's state.
 - The left Draw panel is hidden while Draw is hosted in the Workspace Panel and
   restored when its workspace tab closes.
+- The welcome card now dismisses when a layer is added or any Workspace Panel
+  tool is opened, keeping it from covering active map content.
 
 ## [0.13.1] - 2026-09-06
 

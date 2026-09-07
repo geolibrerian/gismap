@@ -19,6 +19,8 @@ assert.match(html, /id="welcome-title">Explore GIS data instantly/);
 assert.match(html, /id="welcome-close"[^>]*aria-label="Dismiss introduction"/);
 assert.doesNotMatch(ui, /welcomePanel\.hidden\s*=\s*Boolean\(layers\.length\)/);
 assert.match(ui, /button\.closest\("#welcome-panel"\)/);
+assert.match(ui, /if \(open\) this\.#dismissWelcome\(\)/);
+assert.match(ui, /if \(layers\.length\) this\.#dismissWelcome\(\)/);
 assert.doesNotMatch(ui, /WELCOME_DISMISSED_KEY|sessionStorage/);
 assert.match(ui, /data-ai-selection/);
 assert.match(ui, /selectedResults/);
