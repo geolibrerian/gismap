@@ -6,6 +6,22 @@ All notable changes to GIS Map Online are documented here. This project follows
 
 ## [Unreleased]
 
+## [0.12.0] - 2026-09-06
+
+### Added
+
+- In-memory AI feature selection in Map Insight. The active result is included
+  by default, additional result tabs can be accumulated, and each result has an
+  explicit Include in AI control.
+- Selected feature layer names, compact attributes, bounded geometries, clicked
+  location, geocoder details, and an identified-feature summary in AI context.
+
+### Security
+
+- AI selections remain in page memory, reset on the next map identification,
+  and are not persisted in projects or browser storage. Attribute and geometry
+  limits bound the context sent to configured providers.
+
 ## [0.11.1] - 2026-09-06
 
 ### Changed
@@ -161,7 +177,8 @@ All notable changes to GIS Map Online are documented here. This project follows
 - Prevented search suggestions from remaining open after selection.
 - Reduced map and panel flicker during feature identification.
 
-[Unreleased]: https://github.com/geolibrerian/gismap/compare/v0.11.1...HEAD
+[Unreleased]: https://github.com/geolibrerian/gismap/compare/v0.12.0...HEAD
+[0.12.0]: https://github.com/geolibrerian/gismap/compare/v0.11.1...v0.12.0
 [0.11.1]: https://github.com/geolibrerian/gismap/compare/v0.11.0...v0.11.1
 [0.11.0]: https://github.com/geolibrerian/gismap/compare/v0.10.2...v0.11.0
 [0.10.2]: https://github.com/geolibrerian/gismap/compare/v0.10.1...v0.10.2

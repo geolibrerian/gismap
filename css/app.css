@@ -176,6 +176,7 @@ body.utility-resizing iframe, body.utility-resizing canvas { pointer-events: non
 .location-card small { color: rgb(255 255 255 / 68%); }
 .ai-question { margin-top: 12px; }
 .ai-question label { display: block; margin-bottom: 6px; color: var(--muted); font-size: 10px; text-transform: uppercase; letter-spacing: .08em; }
+.ai-question label small { color: var(--green-2); font-weight: 700; }
 .ai-question > div { display: grid; grid-template-columns: 1fr auto; gap: 5px; }
 .ai-response { margin-top: 10px; padding: 12px; border-left: 3px solid var(--amber); background: var(--surface); font-size: 12px; line-height: 1.55; }
 .ai-response__markdown > :first-child { margin-top: 8px; }
@@ -228,8 +229,11 @@ body[data-insights-position="bottom"] .insights-overlay { inset: auto 14px 14px;
 .insight-tabs button[aria-selected="true"] { border-color: var(--green); background: var(--green); color: white; }
 .insight-panel { border: 1px solid var(--line); border-radius: 7px; background: var(--surface); overflow: hidden; }
 .insight-panel > header { display: flex; justify-content: space-between; gap: 10px; padding: 10px; }
+.insight-panel > header > span { display: grid; }
 .insight-panel > header strong { font-size: 12px; }
 .insight-panel > header small { color: var(--muted); font-size: 9px; text-transform: uppercase; }
+.insight-ai-select { display: inline-flex; align-items: center; gap: 5px; margin-left: auto; color: var(--muted); font-size: 10px; font-weight: 600; white-space: nowrap; cursor: pointer; }
+.insight-ai-select input { accent-color: var(--green-2); }
 .insight-panel dl { margin: 0; padding: 0 10px 10px; }
 .insight-panel dl div { display: grid; grid-template-columns: minmax(90px, .8fr) minmax(0, 1.2fr); gap: 9px; padding: 5px 0; border-top: 1px solid var(--surface-2); font-size: 10px; }
 .insight-panel dt { color: var(--muted); overflow-wrap: anywhere; }
@@ -779,7 +783,8 @@ body.sidebar-collapsed .table-dialog { left: 14px; }
   #insights-content { padding: 4px 10px 8px; }
   .insight-tabs { padding-bottom: 5px; }
   .insight-tabs button { padding: 5px 8px; }
-  .insight-panel > header { display: none; }
+  .insight-panel > header { padding: 6px 8px; }
+  .insight-panel > header > span { display: none; }
   .insight-panel dl { padding: 0 8px 6px; }
   .insight-panel dl div { padding: 3px 0; }
   .table-dialog { top: 60px; right: 7px; bottom: auto; left: 7px; width: auto; height: 44dvh; resize: vertical; }

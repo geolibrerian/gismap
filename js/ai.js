@@ -10,6 +10,7 @@ const PROVIDER_DEFAULTS = {
 
 export const AI_SYSTEM_PROMPT =
   "You are the GIS Map Online spatial analysis assistant. Treat supplied map layers, identified features, " +
+  "explicitly selected features, " +
   "coordinates, and geocoder details as the primary evidence. You may also use your general knowledge to " +
   "provide useful geographic, historical, and cultural context. Clearly distinguish map observations from " +
   "general-knowledge inference. Do not claim that a specific landmark or feature is at the clicked coordinates " +
@@ -23,18 +24,64 @@ function compactAttributes(attributes) {
     .map(([key, value]) => [key, typeof value === "string" ? value.slice(0, 500) : value]));
 }
 
+function compactGeometry(geometry) {
+  if (!geometry) return null;
+  const source = geometry.toJSON?.() ?? geometry;
+  const spatialReference = source.spatialReference || geometry.spatialReference;
+  const reference = spatialReference
+    ? { wkid: spatialReference.latestWkid || spatialReference.wkid || undefined }
+    : undefined;
+  if (Number.isFinite(source.x) && Number.isFinite(source.y)) {
+    return { type: "point", x: source.x, y: source.y, ...(Number.isFinite(source.z) ? { z: source.z } : {}), spatialReference: reference };
+  }
+  const trimParts = (parts) => (parts ?? []).slice(0, 5).map((part) => part.slice(0, 100));
+  if (source.points) return { type: "multipoint", points: source.points.slice(0, 100), spatialReference: reference };
+  if (source.paths) return { type: "polyline", paths: trimParts(source.paths), spatialReference: reference };
+  if (source.rings) return { type: "polygon", rings: trimParts(source.rings), spatialReference: reference };
+  if (source.type && source.coordinates) {
+    const budget = { remaining: 500 };
+    const trimCoordinates = (value) => {
+      if (!Array.isArray(value) || budget.remaining <= 0) return null;
+      if (value.every((coordinate) => typeof coordinate === "number")) {
+        budget.remaining -= 1;
+        return value.slice(0, 3);
+      }
+      const trimmed = [];
+      for (const child of value) {
+        if (budget.remaining <= 0) break;
+        const result = trimCoordinates(child);
+        if (result !== null) trimmed.push(result);
+      }
+      return trimmed;
+    };
+    return { type: source.type, coordinates: trimCoordinates(source.coordinates) };
+  }
+  return null;
+}
+
 export function buildAIMapContext(context, loadedLayers = []) {
   if (!context) return { loadedLayers };
+  const identified = context.results ?? [];
+  const selected = Array.isArray(context.selectedResults)
+    ? context.selectedResults
+    : identified.slice(0, 1);
+  const selectedFeatures = selected.slice(0, 10).map((result) => ({
+    kind: result.kind || "feature",
+    layer: result.layerTitle,
+    attributes: compactAttributes(result.attributes),
+    geometry: compactGeometry(result.geometry),
+  }));
   return {
     coordinates: context.point
       ? { longitude: context.point.longitude, latitude: context.point.latitude }
       : null,
     address: context.address?.address ?? null,
     geocoderDetails: compactAttributes(context.address?.attributes),
-    features: (context.results ?? []).slice(0, 20).map((result) => ({
-      layer: result.layerTitle,
-      attributes: result.attributes,
-    })),
+    selectedFeatures,
+    identifiedFeatureSummary: {
+      count: identified.length,
+      layers: [...new Set(identified.map((result) => result.layerTitle).filter(Boolean))].slice(0, 20),
+    },
     loadedLayers,
   };
 }

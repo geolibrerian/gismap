@@ -1,7 +1,7 @@
-import { POPULAR_SERVICES } from "./catalog.js?v=0.11.1";
-import { ENTERPRISE_CATALOGS, EnterpriseCatalog, normalizeArcGisDirectoryUrl } from "./enterprise-catalog.js?v=0.11.1";
-import { createShareUrl } from "./share.js?v=0.11.1";
-import { renderMarkdown } from "./markdown.js?v=0.11.1";
+import { POPULAR_SERVICES } from "./catalog.js?v=0.12.0";
+import { ENTERPRISE_CATALOGS, EnterpriseCatalog, normalizeArcGisDirectoryUrl } from "./enterprise-catalog.js?v=0.12.0";
+import { createShareUrl } from "./share.js?v=0.12.0";
+import { renderMarkdown } from "./markdown.js?v=0.12.0";
 
 const DISPLAY_SETTINGS_KEY = "gismap-online:display:v1";
 const INSIGHT_POSITIONS = new Set(["upper-left", "lower-left", "bottom", "dock-left", "dock-right", "dock-bottom"]);
@@ -36,6 +36,7 @@ export class UIController {
     this.searchRequestId = 0;
     this.searchSelection = -1;
     this.lastInsight = null;
+    this.selectedInsightIndexes = new Set();
     this.systemThemeMedia = matchMedia("(prefers-color-scheme: dark)");
   }
 
@@ -1542,6 +1543,8 @@ export class UIController {
     const coord = point ? `${point.latitude.toFixed(6)}, ${point.longitude.toFixed(6)}` : "Unknown location";
     const results = payload.results ?? [];
     const visibleResults = results.slice(0, 12);
+    this.selectedInsightIndexes = new Set(visibleResults.length ? [0] : []);
+    payload.selectedResults = visibleResults.length ? [visibleResults[0]] : [];
     const tabsHtml = visibleResults.length > 1
       ? `<div class="insight-tabs" role="tablist" aria-label="Identified features">${visibleResults.map((result, index) =>
           `<button type="button" role="tab" id="insight-tab-${index}" data-insight-tab="${index}" aria-controls="insight-panel-${index}" aria-selected="${index === 0}">${escapeHtml(result.layerTitle)} ${index + 1}</button>`,
@@ -1549,10 +1552,10 @@ export class UIController {
       : "";
     const resultHtml = visibleResults.map((result, index) => {
         const entries = Object.entries(result.attributes ?? {}).filter(([, value]) => value !== null && value !== "");
-        return `<article class="insight-panel" id="insight-panel-${index}" role="tabpanel" aria-labelledby="insight-tab-${index}" ${index === 0 ? "" : "hidden"}><header><strong>${escapeHtml(result.layerTitle)}</strong><small>${escapeHtml(result.kind)}</small></header><dl>${entries.map(([key, value]) => `<div><dt>${escapeHtml(key)}</dt><dd>${escapeHtml(typeof value === "object" ? JSON.stringify(value) : value)}</dd></div>`).join("") || "<div><dd>No attributes returned.</dd></div>"}</dl></article>`;
+        return `<article class="insight-panel" id="insight-panel-${index}" role="tabpanel" aria-labelledby="insight-tab-${index}" ${index === 0 ? "" : "hidden"}><header><span><strong>${escapeHtml(result.layerTitle)}</strong><small>${escapeHtml(result.kind)}</small></span><label class="insight-ai-select"><input type="checkbox" data-ai-selection="${index}" ${index === 0 ? "checked" : ""}> Include in AI</label></header><dl>${entries.map(([key, value]) => `<div><dt>${escapeHtml(key)}</dt><dd>${escapeHtml(typeof value === "object" ? JSON.stringify(value) : value)}</dd></div>`).join("") || "<div><dd>No attributes returned.</dd></div>"}</dl></article>`;
       }).join("");
     const aiForm = this.aiController.isConfigured()
-      ? '<form id="ai-question" class="ai-question"><label for="ai-prompt">Ask about this map context</label><div><input id="ai-prompt" placeholder="What stands out here?" /><button>Ask AI</button></div></form>'
+      ? `<form id="ai-question" class="ai-question"><label for="ai-prompt">Ask about this map context <small id="ai-selection-count">· ${visibleResults.length ? 1 : 0} feature${visibleResults.length ? "" : "s"} selected</small></label><div><input id="ai-prompt" placeholder="What stands out here?" /><button>Ask AI</button></div></form>`
       : "";
     const html = `<div class="location-card"><span class="eyebrow">Location</span><strong>${escapeHtml(payload.address?.address || coord)}</strong><small>${escapeHtml(coord)}</small></div>${aiForm}`;
     document.querySelector("#intelligence-content").classList.remove("intelligence-empty");
@@ -1565,7 +1568,10 @@ export class UIController {
       document.querySelector("#insights-content").innerHTML = `${tabsHtml}${resultHtml}`;
       this.#setInsightsOpen(true);
       document.querySelectorAll("[data-insight-tab]").forEach((button) =>
-        button.addEventListener("click", () => this.#activateInsightTab(Number(button.dataset.insightTab))),
+        button.addEventListener("click", () => this.#activateInsightTab(Number(button.dataset.insightTab), true)),
+      );
+      document.querySelectorAll("[data-ai-selection]").forEach((input) =>
+        input.addEventListener("change", () => this.#setInsightSelection(Number(input.dataset.aiSelection), input.checked)),
       );
       void this.mapController.highlightFeature(visibleResults[0], { pulse: false });
     } else {
@@ -1580,7 +1586,7 @@ export class UIController {
     });
   }
 
-  #activateInsightTab(index) {
+  #activateInsightTab(index, selectFeature = false) {
     document.querySelectorAll("[data-insight-tab]").forEach((button) => {
       const active = Number(button.dataset.insightTab) === index;
       button.setAttribute("aria-selected", String(active));
@@ -1590,7 +1596,31 @@ export class UIController {
       panel.hidden = panelIndex !== index;
     });
     const result = this.lastInsight?.results?.slice(0, 12)[index];
+    if (selectFeature) {
+      this.selectedInsightIndexes.add(index);
+      const input = document.querySelector(`[data-ai-selection="${index}"]`);
+      if (input) input.checked = true;
+      this.#syncInsightSelection();
+    }
     void this.mapController.highlightFeature(result, { pulse: true });
+  }
+
+  #setInsightSelection(index, selected) {
+    if (selected) this.selectedInsightIndexes.add(index);
+    else this.selectedInsightIndexes.delete(index);
+    this.#syncInsightSelection();
+  }
+
+  #syncInsightSelection() {
+    if (!this.lastInsight) return;
+    const visibleResults = this.lastInsight?.results?.slice(0, 12) ?? [];
+    this.lastInsight.selectedResults = [...this.selectedInsightIndexes]
+      .sort((a, b) => a - b)
+      .map((index) => visibleResults[index])
+      .filter(Boolean);
+    const count = this.lastInsight.selectedResults.length;
+    const label = document.querySelector("#ai-selection-count");
+    if (label) label.textContent = `· ${count} feature${count === 1 ? "" : "s"} selected`;
   }
 
   #showAIResponse(text) {
