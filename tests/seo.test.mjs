@@ -30,6 +30,7 @@ assert.match(ui, /navigationLayout === "top"\) this\.#openIntelligenceUtility/);
 assert.match(ui, /intelligencePanel\.hidden = true/);
 assert.match(ui, /querySelector\("#intelligence-panel"\)\.hidden = false/);
 assert.match(ui, /lastAIQueryText/);
+assert.match(ui, /goToFeature\(result\)/);
 assert.match(ui, /Selected data query/);
 assert.match(ui, /data-close-utility-tab/);
 assert.match(robots, /Sitemap: https:\/\/gismap\.online\/sitemap\.xml/);

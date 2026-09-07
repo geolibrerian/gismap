@@ -1702,6 +1702,7 @@ export class UIController {
       const input = document.querySelector(`[data-ai-selection="${index}"]`);
       if (input) input.checked = true;
       this.#syncInsightSelection();
+      if (result?.geometry) void this.mapController.goToFeature(result).catch(() => {});
     }
     void this.mapController.highlightFeature(result, { pulse: true });
   }

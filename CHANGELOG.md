@@ -14,6 +14,7 @@ All notable changes to GIS Map Online are documented here. This project follows
   and OpenAI-compatible API-key providers, including privacy, CORS, exact model
   tag, origin configuration, and troubleshooting guidance.
 - A direct link to the guide from the Configure intelligence provider dialog.
+- Zoom-to-feature navigation when a user activates a Map Insight result tab.
 
 ## [0.13.0] - 2026-09-06
 
