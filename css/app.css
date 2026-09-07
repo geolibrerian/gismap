@@ -51,13 +51,19 @@ button:focus-visible, input:focus-visible, select:focus-visible, summary:focus-v
 .utility-panel { display: none; position: relative; z-index: 22; min-width: 0; min-height: 0; background: var(--paper); border-left: 1px solid var(--line); box-shadow: -8px 0 26px rgb(17 39 33 / 8%); }
 .utility-panel > header { display: flex; align-items: center; justify-content: space-between; min-height: 64px; padding: 10px 12px 8px 16px; border-bottom: 1px solid var(--line); }
 .utility-panel h2 { margin: 2px 0 0; font: 600 20px/1.1 "Newsreader", Georgia, serif; }
+.utility-tabs { display: flex; gap: 5px; padding: 8px 10px; overflow-x: auto; border-bottom: 1px solid var(--line); background: var(--surface); }
+.utility-tabs button { flex: 0 0 auto; padding: 7px 10px; border: 1px solid var(--line); border-radius: 999px; color: var(--muted); background: var(--paper); cursor: pointer; font-size: 10px; font-weight: 700; }
+.utility-tabs button[aria-selected="true"] { border-color: var(--green); color: white; background: var(--green); }
+.utility-tabs[hidden] { display: none; }
+.utility-panes { min-height: 0; overflow: hidden; }
+.utility-panes > [data-utility-pane]:not([hidden]) { height: 100%; }
 .utility-content { min-height: 0; overflow: auto; overscroll-behavior: contain; }
 .utility-content > * { display: block; width: 100%; min-width: 0; }
 .utility-content > arcgis-basemap-gallery { height: 100%; overflow: auto; }
 .utility-content .esri-elevation-profile { width: 100%; height: 100%; max-height: none; }
 .utility-resizer { position: absolute; z-index: 3; inset: 0 auto 0 -5px; width: 10px; cursor: col-resize; touch-action: none; }
 .utility-resizer::after { content: ""; position: absolute; inset: 0 4px; background: var(--line); }
-body.utility-panel-open .utility-panel { display: grid; grid-template-rows: auto minmax(0, 1fr); }
+body.utility-panel-open .utility-panel { display: grid; grid-template-rows: auto auto minmax(0, 1fr); }
 body.utility-resizing { cursor: col-resize; user-select: none; }
 body.utility-resizing iframe, body.utility-resizing canvas { pointer-events: none; }
 .mobile-app-bar, .mobile-menu-drawer, .mobile-panel-nav { display: none; }
@@ -178,7 +184,12 @@ body.utility-resizing iframe, body.utility-resizing canvas { pointer-events: non
 .ai-question label { display: block; margin-bottom: 6px; color: var(--muted); font-size: 10px; text-transform: uppercase; letter-spacing: .08em; }
 .ai-question label small { color: var(--green-2); font-weight: 700; }
 .ai-question > div { display: grid; grid-template-columns: 1fr auto; gap: 5px; }
+.intelligence-toolbar { display: flex; justify-content: flex-end; margin-bottom: 8px; }
+.intelligence-toolbar button, .ai-response__clear { border: 1px solid var(--line); border-radius: 5px; padding: 5px 8px; color: var(--green-2); background: var(--surface); cursor: pointer; font-size: 10px; font-weight: 700; }
+.intelligence-utility { padding: 14px; }
+.intelligence-utility .intelligence-toolbar { display: none; }
 .ai-response { margin-top: 10px; padding: 12px; border-left: 3px solid var(--amber); background: var(--surface); font-size: 12px; line-height: 1.55; }
+.ai-response__header { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .ai-response__markdown > :first-child { margin-top: 8px; }
 .ai-response__markdown > :last-child { margin-bottom: 0; }
 .ai-response__markdown h3, .ai-response__markdown h4, .ai-response__markdown h5, .ai-response__markdown h6 { margin: 16px 0 5px; color: var(--ink); font-family: "Newsreader", Georgia, serif; line-height: 1.25; }
@@ -222,6 +233,7 @@ body[data-insights-position="lower-left"] .insights-overlay { top: auto; bottom:
 body[data-insights-position="bottom"] .insights-overlay { inset: auto 14px 14px; width: auto; max-height: min(44vh, 470px); }
 .insights-overlay > header { position: sticky; top: 0; z-index: 1; display: flex; justify-content: space-between; align-items: start; padding: 16px; border-bottom: 1px solid var(--line); background: rgb(244 241 232 / 94%); }
 .insights-actions { display: flex; gap: 4px; }
+.insights-ai-button svg { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
 .insights-overlay h2 { margin: 2px 0 0; font: 600 20px/1.15 "Newsreader", Georgia, serif; }
 #insights-content { padding: 8px 14px 16px; }
 .insight-tabs { display: flex; gap: 5px; overflow-x: auto; padding: 4px 0 8px; scrollbar-width: thin; }

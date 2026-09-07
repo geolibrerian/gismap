@@ -1,7 +1,7 @@
-import { POPULAR_SERVICES } from "./catalog.js?v=0.12.0";
-import { ENTERPRISE_CATALOGS, EnterpriseCatalog, normalizeArcGisDirectoryUrl } from "./enterprise-catalog.js?v=0.12.0";
-import { createShareUrl } from "./share.js?v=0.12.0";
-import { renderMarkdown } from "./markdown.js?v=0.12.0";
+import { POPULAR_SERVICES } from "./catalog.js?v=0.13.0";
+import { ENTERPRISE_CATALOGS, EnterpriseCatalog, normalizeArcGisDirectoryUrl } from "./enterprise-catalog.js?v=0.13.0";
+import { createShareUrl } from "./share.js?v=0.13.0";
+import { renderMarkdown } from "./markdown.js?v=0.13.0";
 
 const DISPLAY_SETTINGS_KEY = "gismap-online:display:v1";
 const INSIGHT_POSITIONS = new Set(["upper-left", "lower-left", "bottom", "dock-left", "dock-right", "dock-bottom"]);
@@ -37,6 +37,10 @@ export class UIController {
     this.searchSelection = -1;
     this.lastInsight = null;
     this.selectedInsightIndexes = new Set();
+    this.lastAIResponseText = null;
+    this.identifyPending = false;
+    this.utilityIntelligenceOpen = false;
+    this.activeUtilityTab = null;
     this.systemThemeMedia = matchMedia("(prefers-color-scheme: dark)");
   }
 
@@ -55,6 +59,7 @@ export class UIController {
     this.#bindMapEvents();
     this.#renderBookmarks();
     this.#renderLayers();
+    this.#renderIntelligenceContents();
   }
 
   #buildMobileMenu() {
@@ -184,14 +189,23 @@ export class UIController {
       button.addEventListener("click", () => this.#activateMobilePanel(button.dataset.mobilePanel)),
     );
     document.querySelector("#mobile-panel-close").addEventListener("click", () => this.#setSidebarCollapsed(true));
-    document.querySelector("#utility-close").addEventListener("click", () => {
-      const active = ["basemapGallery", "elevationProfile"].find((name) => this.mapController.widgets.has(name));
-      if (active) void this.mapController.toggleWidget(active);
-    });
+    document.querySelector("#utility-close").addEventListener("click", () => this.#closeActiveUtilityTab());
     this.#activateMobilePanel("places-panel", false);
     document.querySelector("#insights-close").addEventListener("click", () => {
       this.mapController.clearFeatureHighlight();
       this.#setInsightsOpen(false);
+    });
+    document.querySelector("#insights-ai").addEventListener("click", () => {
+      if (!this.lastInsight?.selectedResults?.length) {
+        this.error("Select at least one Map Insight feature before asking for AI Insights.");
+        return;
+      }
+      if (!this.aiController.isConfigured()) {
+        this.error("Configure an AI provider from Tools before requesting AI Insights.");
+        return;
+      }
+      this.#openIntelligenceUtility();
+      this.#askAI("Analyze the selected map features and their location. Explain the most important attributes, relationships, patterns, and useful geographic context.", this.lastInsight);
     });
     document.querySelectorAll(".sidebar__scroll > .panel > summary").forEach((summary) =>
       summary.addEventListener("click", () => {
@@ -267,7 +281,8 @@ export class UIController {
     this.events.subscribe("identify:start", () => {
       this.mapController.clearFeatureHighlight();
       document.querySelector("#insights-overlay").setAttribute("aria-busy", "true");
-      document.querySelector("#intelligence-content").innerHTML = '<div class="loading-row"><span></span> Inspecting location…</div>';
+      this.identifyPending = true;
+      this.#renderIntelligenceContents();
     });
     this.events.subscribe("identify:complete", (payload) => this.#renderInsight(payload));
     this.events.subscribe("table:open", () => {
@@ -278,7 +293,11 @@ export class UIController {
       document.querySelector("#insights-overlay").setAttribute("aria-busy", "false");
       this.error(`Identify failed: ${error.message}`);
     });
-    this.events.subscribe("ai:start", () => this.toast("Asking the configured model…"));
+    this.events.subscribe("ai:start", () => {
+      this.lastAIResponseText = null;
+      this.#renderIntelligenceContents();
+      this.toast("Asking the configured model…");
+    });
     this.events.subscribe("ai:complete", ({ text }) => this.#showAIResponse(text));
     this.events.subscribe("ai:error", ({ error }) => this.error(error.message));
     ["ai:configured", "ai:disabled"].forEach((topic) =>
@@ -294,11 +313,50 @@ export class UIController {
     this.events.subscribe("widget:toggled", ({ name, open }) => {
       document.querySelectorAll(`[data-widget="${name}"]`).forEach((button) => button.classList.toggle("is-active", open));
       if (!["basemapGallery", "elevationProfile"].includes(name)) return;
-      document.body.classList.toggle("utility-panel-open", open);
-      document.querySelector("#utility-panel").setAttribute("aria-hidden", String(!open));
-      document.querySelector("#utility-title").textContent = name === "elevationProfile" ? "Elevation profile" : "Basemap gallery";
-      requestAnimationFrame(() => this.mapController.resize());
+      this.#syncUtilityPanel(open ? "map" : null);
     });
+  }
+
+  #utilityMapWidgetName() {
+    return ["basemapGallery", "elevationProfile"].find((name) => this.mapController.widgets.has(name)) || null;
+  }
+
+  #syncUtilityPanel(preferredTab = null) {
+    const mapWidget = this.#utilityMapWidgetName();
+    const tabs = [
+      ...(mapWidget ? [{ id: "map", label: mapWidget === "elevationProfile" ? "Elevation profile" : "Basemap gallery" }] : []),
+      ...(this.utilityIntelligenceOpen ? [{ id: "intelligence", label: "Intelligence" }] : []),
+    ];
+    const validTabs = new Set(tabs.map((tab) => tab.id));
+    this.activeUtilityTab = validTabs.has(preferredTab)
+      ? preferredTab
+      : validTabs.has(this.activeUtilityTab) ? this.activeUtilityTab : tabs[0]?.id || null;
+    const open = tabs.length > 0;
+    const tabList = document.querySelector("#utility-tabs");
+    tabList.hidden = tabs.length < 2;
+    tabList.innerHTML = tabs.map((tab) => `<button type="button" data-utility-tab="${tab.id}" aria-selected="${tab.id === this.activeUtilityTab}">${escapeHtml(tab.label)}</button>`).join("");
+    tabList.querySelectorAll("[data-utility-tab]").forEach((button) => button.addEventListener("click", () => this.#syncUtilityPanel(button.dataset.utilityTab)));
+    document.querySelectorAll("[data-utility-pane]").forEach((pane) => { pane.hidden = pane.dataset.utilityPane !== this.activeUtilityTab; });
+    document.querySelector("#utility-title").textContent = tabs.find((tab) => tab.id === this.activeUtilityTab)?.label || "Map tools";
+    document.body.classList.toggle("utility-panel-open", open);
+    document.querySelector("#utility-panel").setAttribute("aria-hidden", String(!open));
+    requestAnimationFrame(() => this.mapController.resize());
+  }
+
+  #openIntelligenceUtility() {
+    this.utilityIntelligenceOpen = true;
+    this.#renderIntelligenceContents();
+    this.#syncUtilityPanel("intelligence");
+  }
+
+  #closeActiveUtilityTab() {
+    if (this.activeUtilityTab === "intelligence") {
+      this.utilityIntelligenceOpen = false;
+      this.#syncUtilityPanel("map");
+      return;
+    }
+    const widget = this.#utilityMapWidgetName();
+    if (widget) void this.mapController.toggleWidget(widget);
   }
 
   #setSidebarCollapsed(collapsed) {
@@ -1539,8 +1597,7 @@ export class UIController {
 
   #renderInsight(payload) {
     this.lastInsight = payload;
-    const point = payload.point;
-    const coord = point ? `${point.latitude.toFixed(6)}, ${point.longitude.toFixed(6)}` : "Unknown location";
+    this.identifyPending = false;
     const results = payload.results ?? [];
     const visibleResults = results.slice(0, 12);
     this.selectedInsightIndexes = new Set(visibleResults.length ? [0] : []);
@@ -1554,12 +1611,7 @@ export class UIController {
         const entries = Object.entries(result.attributes ?? {}).filter(([, value]) => value !== null && value !== "");
         return `<article class="insight-panel" id="insight-panel-${index}" role="tabpanel" aria-labelledby="insight-tab-${index}" ${index === 0 ? "" : "hidden"}><header><span><strong>${escapeHtml(result.layerTitle)}</strong><small>${escapeHtml(result.kind)}</small></span><label class="insight-ai-select"><input type="checkbox" data-ai-selection="${index}" ${index === 0 ? "checked" : ""}> Include in AI</label></header><dl>${entries.map(([key, value]) => `<div><dt>${escapeHtml(key)}</dt><dd>${escapeHtml(typeof value === "object" ? JSON.stringify(value) : value)}</dd></div>`).join("") || "<div><dd>No attributes returned.</dd></div>"}</dl></article>`;
       }).join("");
-    const aiForm = this.aiController.isConfigured()
-      ? `<form id="ai-question" class="ai-question"><label for="ai-prompt">Ask about this map context <small id="ai-selection-count">· ${visibleResults.length ? 1 : 0} feature${visibleResults.length ? "" : "s"} selected</small></label><div><input id="ai-prompt" placeholder="What stands out here?" /><button>Ask AI</button></div></form>`
-      : "";
-    const html = `<div class="location-card"><span class="eyebrow">Location</span><strong>${escapeHtml(payload.address?.address || coord)}</strong><small>${escapeHtml(coord)}</small></div>${aiForm}`;
-    document.querySelector("#intelligence-content").classList.remove("intelligence-empty");
-    document.querySelector("#intelligence-content").innerHTML = html;
+    this.#renderIntelligenceContents(payload);
     const overlay = document.querySelector("#insights-overlay");
     overlay.setAttribute("aria-busy", "false");
     if (results.length) {
@@ -1579,11 +1631,42 @@ export class UIController {
       document.querySelector("#insights-content").replaceChildren();
       this.#setInsightsOpen(false);
     }
-    document.querySelector("#ai-question")?.addEventListener("submit", (event) => {
-      event.preventDefault();
-      const prompt = event.currentTarget.querySelector("input").value.trim();
-      if (prompt) this.aiController.ask(prompt, payload).catch(() => {});
+  }
+
+  #renderIntelligenceContents(payload = this.lastInsight) {
+    const targets = [document.querySelector("#intelligence-content"), document.querySelector("#utility-intelligence-content")].filter(Boolean);
+    const point = payload?.point;
+    const coord = point ? `${point.latitude.toFixed(6)}, ${point.longitude.toFixed(6)}` : "Unknown location";
+    const selectedCount = payload?.selectedResults?.length ?? 0;
+    const locationHtml = payload
+      ? `<div class="location-card"><span class="eyebrow">Location</span><strong>${escapeHtml(payload.address?.address || coord)}</strong><small>${escapeHtml(coord)}</small></div>`
+      : '<div class="intelligence-empty">Click a location to inspect its address, coordinates, and available context.</div>';
+    const aiForm = this.aiController.isConfigured() && payload
+      ? `<form class="ai-question"><label>Ask about this map context <small class="ai-selection-count">· ${selectedCount} feature${selectedCount === 1 ? "" : "s"} selected</small></label><div><input aria-label="Question about this map context" placeholder="What stands out here?" /><button>Ask AI</button></div></form>`
+      : "";
+    const responseHtml = this.lastAIResponseText
+      ? `<section class="ai-response"><div class="ai-response__header"><span class="eyebrow">AI insights</span><button type="button" class="ai-response__clear">Clear insights</button></div><div class="ai-response__markdown">${renderMarkdown(this.lastAIResponseText)}</div></section>`
+      : "";
+    const loadingHtml = this.identifyPending ? '<div class="loading-row"><span></span> Inspecting location…</div>' : "";
+    const html = `<div class="intelligence-toolbar"><button type="button" data-open-intelligence-utility title="Open Intelligence in the right panel">Open in right panel ↗</button></div>${loadingHtml}${locationHtml}${aiForm}${responseHtml}`;
+    targets.forEach((target) => {
+      target.classList.toggle("intelligence-empty", !payload);
+      target.innerHTML = html;
+      target.querySelector("[data-open-intelligence-utility]")?.addEventListener("click", () => this.#openIntelligenceUtility());
+      target.querySelector(".ai-question")?.addEventListener("submit", (event) => {
+        event.preventDefault();
+        const prompt = event.currentTarget.querySelector("input").value.trim();
+        if (prompt) this.#askAI(prompt, payload);
+      });
+      target.querySelector(".ai-response__clear")?.addEventListener("click", () => {
+        this.lastAIResponseText = null;
+        this.#renderIntelligenceContents();
+      });
     });
+  }
+
+  #askAI(prompt, payload = this.lastInsight) {
+    this.aiController.ask(prompt, payload).catch(() => {});
   }
 
   #activateInsightTab(index, selectFeature = false) {
@@ -1619,17 +1702,18 @@ export class UIController {
       .map((index) => visibleResults[index])
       .filter(Boolean);
     const count = this.lastInsight.selectedResults.length;
-    const label = document.querySelector("#ai-selection-count");
-    if (label) label.textContent = `· ${count} feature${count === 1 ? "" : "s"} selected`;
+    document.querySelectorAll(".ai-selection-count").forEach((label) => {
+      label.textContent = `· ${count} feature${count === 1 ? "" : "s"} selected`;
+    });
   }
 
   #showAIResponse(text) {
-    const content = document.querySelector("#intelligence-content");
-    const response = document.createElement("section");
-    response.className = "ai-response";
-    response.innerHTML = `<span class="eyebrow">AI context</span><div class="ai-response__markdown">${renderMarkdown(text)}</div>`;
-    content.append(response);
-    response.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    this.lastAIResponseText = text;
+    this.#renderIntelligenceContents();
+    const activeContent = this.activeUtilityTab === "intelligence"
+      ? document.querySelector("#utility-intelligence-content")
+      : document.querySelector("#intelligence-content");
+    activeContent?.querySelector(".ai-response")?.scrollIntoView({ behavior: "smooth", block: "nearest" });
   }
 
   #showProject(project, state = "Local") {

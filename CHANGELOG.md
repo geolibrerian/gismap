@@ -6,6 +6,21 @@ All notable changes to GIS Map Online are documented here. This project follows
 
 ## [Unreleased]
 
+## [0.13.0] - 2026-09-06
+
+### Added
+
+- A tabbed, resizable right-panel Intelligence workspace that can remain open
+  alongside the Basemap Gallery even when the main sidebar is collapsed.
+- A one-click AI Insights action in Map Insight for analyzing the currently
+  selected features and their location context.
+- An explicit Clear insights control for AI responses.
+
+### Changed
+
+- AI responses now persist across ordinary map clicks and are replaced only
+  when a new query begins or the user clears them.
+
 ## [0.12.0] - 2026-09-06
 
 ### Added
@@ -177,7 +192,8 @@ All notable changes to GIS Map Online are documented here. This project follows
 - Prevented search suggestions from remaining open after selection.
 - Reduced map and panel flicker during feature identification.
 
-[Unreleased]: https://github.com/geolibrerian/gismap/compare/v0.12.0...HEAD
+[Unreleased]: https://github.com/geolibrerian/gismap/compare/v0.13.0...HEAD
+[0.13.0]: https://github.com/geolibrerian/gismap/compare/v0.12.0...v0.13.0
 [0.12.0]: https://github.com/geolibrerian/gismap/compare/v0.11.1...v0.12.0
 [0.11.1]: https://github.com/geolibrerian/gismap/compare/v0.11.0...v0.11.1
 [0.11.0]: https://github.com/geolibrerian/gismap/compare/v0.10.2...v0.11.0
