@@ -66,7 +66,12 @@ button:focus-visible, input:focus-visible, select:focus-visible, summary:focus-v
 .utility-content { min-height: 0; overflow: auto; overscroll-behavior: contain; }
 .utility-content > * { display: block; width: 100%; min-width: 0; }
 .utility-content > arcgis-basemap-gallery { height: 100%; overflow: auto; }
-.utility-content .esri-elevation-profile { width: 100%; height: 100%; max-height: none; }
+.utility-content > arcgis-legend, .utility-content .esri-elevation-profile { width: 100%; height: 100%; max-height: none; }
+.workspace-tool-pane { padding: 16px; }
+.workspace-tool { display: grid; gap: 12px; }
+.workspace-tool h3 { margin: 0; font: 600 22px/1.2 "Newsreader", Georgia, serif; }
+.workspace-tool__actions { display: flex; justify-content: flex-end; }
+.workspace-tool__actions button { border: 1px solid var(--green); border-radius: 6px; padding: 9px 12px; color: white; background: var(--green); cursor: pointer; }
 .utility-resizer { position: absolute; z-index: 3; inset: 0 auto 0 -5px; width: 10px; cursor: col-resize; touch-action: none; }
 .utility-resizer::after { content: ""; position: absolute; inset: 0 4px; background: var(--line); }
 body.utility-panel-open .utility-panel { display: grid; grid-template-rows: auto auto minmax(0, 1fr); }
@@ -152,6 +157,9 @@ body.utility-resizing iframe, body.utility-resizing canvas { pointer-events: non
 .bookmark-row button:last-child { border: 0; background: transparent; cursor: pointer; color: var(--muted); }
 
 .draw-tools { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.draw-tools .workspace-launch { grid-column: 1 / -1; color: var(--green-2); }
+.utility-content .draw-tools { align-content: start; }
+.utility-content .draw-tools .workspace-launch { display: none; }
 .draw-tools button, .layer-card__actions button, .dialog__actions button, .table-footer button, .catalog-card button {
   border: 1px solid var(--line); border-radius: 6px; padding: 8px 10px; background: var(--surface); cursor: pointer; font-size: 12px;
 }

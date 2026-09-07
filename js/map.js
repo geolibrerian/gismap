@@ -884,7 +884,7 @@ export class MapController {
     const existing = this.widgets.get(name);
     if (existing) {
       if (existing.closest?.("#utility-panel") || existing.container?.closest?.("#utility-panel")) {
-        document.querySelector("#utility-content")?.replaceChildren();
+        document.querySelector(`[data-utility-pane="${name}"]`)?.replaceChildren();
       }
       else this.view.ui.remove(existing);
       await existing.destroy?.();
@@ -892,12 +892,11 @@ export class MapController {
       this.events.publish("widget:toggled", { name, open: false });
       return false;
     }
-    const utilityNames = new Set(["basemapGallery", "elevationProfile"]);
-    if (utilityNames.has(name)) {
-      for (const otherName of utilityNames) {
-        if (otherName !== name && this.widgets.has(otherName)) await this.toggleWidget(otherName);
-      }
-    }
+    const utilityHosts = {
+      basemapGallery: "#utility-basemap-content",
+      elevationProfile: "#utility-elevation-content",
+      legend: "#utility-legend-content",
+    };
     const componentTags = {
       basemapGallery: "arcgis-basemap-gallery",
       compass: "arcgis-compass",
@@ -916,7 +915,7 @@ export class MapController {
         });
       }
       if (name === "basemapGallery") {
-        const host = document.querySelector("#utility-content");
+        const host = document.querySelector(utilityHosts[name]);
         host.replaceChildren(component);
       } else {
         this.view.ui.add(component, "top-right");
@@ -928,11 +927,12 @@ export class MapController {
     const definitions = {
       measurement: ["@arcgis/core/widgets/Measurement.js", {}, "top-right"],
       elevationProfile: ["@arcgis/core/widgets/ElevationProfile.js", {}, "utility"],
+      legend: ["@arcgis/core/widgets/Legend.js", {}, "utility"],
     };
     const definition = definitions[name];
     if (!definition) return false;
     const Widget = await $arcgis.import(definition[0]);
-    const host = definition[2] === "utility" ? document.querySelector("#utility-content") : null;
+    const host = definition[2] === "utility" ? document.querySelector(utilityHosts[name]) : null;
     if (host) host.replaceChildren();
     const widget = new Widget({ view: this.view, container: host || undefined, ...definition[1] });
     if (!host) this.view.ui.add(widget, definition[2]);

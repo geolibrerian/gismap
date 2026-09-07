@@ -58,7 +58,7 @@ published builds and generated release notes.
 
 - `js/map.js` — 3D scene/camera lifecycle, elevation ground, layer adapters, drawing, refresh, rendering, navigation
 - `js/identify.js` — popup-free hit testing and query fallback normalized across layer types
-- `js/ui.js` — sidebar, menus, dialogs, layer controls, places, and insight rendering
+- `js/ui.js` — sidebar, menus, tabbed workspace tools, layer controls, places, and insight rendering
 - `js/project.js` — local projects plus `.gmo` project and `.gmop` package import/export (legacy JSON/ZIP files remain supported)
 - `js/attribute-table.js` — searchable, paginated queryable layer table in a non-modal map drawer
 - `js/ai.js` — optional Ollama, OpenAI, Anthropic, and OpenAI-compatible adapters; online tokens stay in memory only
@@ -81,6 +81,7 @@ published builds and generated release notes.
 - Federated ArcGIS Servers are discovered from `/rest/info` and associated with their owning Portal. Standalone Servers can use either a discovered token endpoint or explicitly configured browser-managed web-tier authentication (IWA, PKI, or reverse proxy).
 - ArcGIS connection tests report version, authentication model, token endpoint, CORS reachability, federation, and owning Portal. Only connection metadata is exported with projects; credentials and tokens are never serialized.
 - Map Insight and attribute tables can float over the map or dock to its left, right, or bottom as dashboard panels. Docked layouts resize the ArcGIS view and provide draggable, keyboard-accessible dividers whose sizes are remembered by the browser.
+- The resizable Workspace Panel hosts independent, closable tabs for Basemap Gallery, Elevation Profile, Legend, Draw, layer Style, and Intelligence. Draw returns to the left sidebar when its workspace tab closes, and its graphics remain exportable as GeoJSON, KML, KMZ, or zipped Shapefiles.
 - Places and Bookmarks are independent workspace panels, keeping search and saved views directly accessible without an internal mode switcher.
 - GeoJSON URLs load as native, queryable `GeoJSONLayer` instances and retain refresh, styling, and table settings in project files.
 - ArcGIS MapServer sublayer URLs are detected automatically, including raster sublayers that must be loaded through their parent `MapImageLayer`.

@@ -4,6 +4,8 @@ import { readFile } from "node:fs/promises";
 
 const mapSource = await readFile(new URL("../js/map.js", import.meta.url), "utf8");
 assert.match(mapSource, /elevationProfile: \["@arcgis\/core\/widgets\/ElevationProfile\.js", \{\}, "utility"\]/);
+assert.match(mapSource, /legend: \["@arcgis\/core\/widgets\/Legend\.js", \{\}, "utility"\]/);
+assert.match(mapSource, /legend: "#utility-legend-content"/);
 
 assert.equal(isNavigationAbort(new Error("Aborted")), true);
 assert.equal(isNavigationAbort(new DOMException("The operation was aborted", "AbortError")), true);

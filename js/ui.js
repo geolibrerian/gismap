@@ -1,7 +1,7 @@
-import { POPULAR_SERVICES } from "./catalog.js?v=0.13.1";
-import { ENTERPRISE_CATALOGS, EnterpriseCatalog, normalizeArcGisDirectoryUrl } from "./enterprise-catalog.js?v=0.13.1";
-import { createShareUrl } from "./share.js?v=0.13.1";
-import { renderMarkdown } from "./markdown.js?v=0.13.1";
+import { POPULAR_SERVICES } from "./catalog.js?v=0.14.0";
+import { ENTERPRISE_CATALOGS, EnterpriseCatalog, normalizeArcGisDirectoryUrl } from "./enterprise-catalog.js?v=0.14.0";
+import { createShareUrl } from "./share.js?v=0.14.0";
+import { renderMarkdown } from "./markdown.js?v=0.14.0";
 
 const DISPLAY_SETTINGS_KEY = "gismap-online:display:v1";
 const INSIGHT_POSITIONS = new Set(["upper-left", "lower-left", "bottom", "dock-left", "dock-right", "dock-bottom"]);
@@ -41,6 +41,8 @@ export class UIController {
     this.lastAIQueryText = null;
     this.identifyPending = false;
     this.utilityIntelligenceOpen = false;
+    this.utilityDrawOpen = false;
+    this.utilityStyleLayerUid = null;
     this.activeUtilityTab = null;
     this.systemThemeMedia = matchMedia("(prefers-color-scheme: dark)");
   }
@@ -164,6 +166,7 @@ export class UIController {
     document.querySelectorAll("[data-draw]").forEach((button) =>
       button.addEventListener("click", () => this.mapController.draw(button.dataset.draw)),
     );
+    document.querySelector("#draw-workspace-open").addEventListener("click", () => this.#openDrawUtility());
     document.querySelector("#draw-export").addEventListener("click", () => {
       const drawings = this.exportController.listExportableLayers().find((item) => item.kind === "drawings");
       if (!drawings) {
@@ -317,19 +320,27 @@ export class UIController {
     this.events.subscribe("app:error", ({ message }) => this.error(message));
     this.events.subscribe("widget:toggled", ({ name, open }) => {
       document.querySelectorAll(`[data-widget="${name}"]`).forEach((button) => button.classList.toggle("is-active", open));
-      if (!["basemapGallery", "elevationProfile"].includes(name)) return;
-      this.#syncUtilityPanel(open ? "map" : null);
+      if (!["basemapGallery", "elevationProfile", "legend"].includes(name)) return;
+      this.#syncUtilityPanel(open ? name : null);
     });
   }
 
-  #utilityMapWidgetName() {
-    return ["basemapGallery", "elevationProfile"].find((name) => this.mapController.widgets.has(name)) || null;
+  #utilityWidgetTabs() {
+    const labels = {
+      basemapGallery: "Basemap gallery",
+      elevationProfile: "Elevation profile",
+      legend: "Legend",
+    };
+    return Object.entries(labels)
+      .filter(([name]) => this.mapController.widgets.has(name))
+      .map(([id, label]) => ({ id, label }));
   }
 
   #syncUtilityPanel(preferredTab = null) {
-    const mapWidget = this.#utilityMapWidgetName();
     const tabs = [
-      ...(mapWidget ? [{ id: "map", label: mapWidget === "elevationProfile" ? "Elevation profile" : "Basemap gallery" }] : []),
+      ...this.#utilityWidgetTabs(),
+      ...(this.utilityDrawOpen ? [{ id: "draw", label: "Draw" }] : []),
+      ...(this.utilityStyleLayerUid ? [{ id: "style", label: `Style: ${this.mapController.findLayer(this.utilityStyleLayerUid)?.title || "Layer"}` }] : []),
       ...(this.utilityIntelligenceOpen ? [{ id: "intelligence", label: "Intelligence" }] : []),
     ];
     const validTabs = new Set(tabs.map((tab) => tab.id));
@@ -358,6 +369,15 @@ export class UIController {
     this.#syncUtilityPanel("intelligence");
   }
 
+  #openDrawUtility() {
+    this.utilityDrawOpen = true;
+    const drawPanel = document.querySelector("#draw-panel");
+    drawPanel.open = false;
+    drawPanel.hidden = true;
+    document.querySelector("#utility-draw-content").append(document.querySelector(".draw-tools"));
+    this.#syncUtilityPanel("draw");
+  }
+
   #closeActiveUtilityTab() {
     if (this.activeUtilityTab) this.#closeUtilityTab(this.activeUtilityTab);
   }
@@ -366,11 +386,26 @@ export class UIController {
     if (tabId === "intelligence") {
       this.utilityIntelligenceOpen = false;
       document.querySelector("#intelligence-panel").hidden = false;
-      this.#syncUtilityPanel("map");
+      this.#syncUtilityPanel();
       return;
     }
-    const widget = tabId === "map" ? this.#utilityMapWidgetName() : null;
-    if (widget) void this.mapController.toggleWidget(widget);
+    if (tabId === "draw") {
+      this.utilityDrawOpen = false;
+      const drawPanel = document.querySelector("#draw-panel");
+      drawPanel.querySelector("summary").after(document.querySelector(".draw-tools"));
+      drawPanel.hidden = false;
+      this.#syncUtilityPanel();
+      return;
+    }
+    if (tabId === "style") {
+      this.utilityStyleLayerUid = null;
+      document.querySelector("#utility-style-content").replaceChildren();
+      this.#syncUtilityPanel();
+      return;
+    }
+    if (["basemapGallery", "elevationProfile", "legend"].includes(tabId)) {
+      void this.mapController.toggleWidget(tabId);
+    }
   }
 
   #setSidebarCollapsed(collapsed) {
@@ -1453,6 +1488,11 @@ export class UIController {
 
   #renderLayers() {
     const layers = this.mapController.getOperationalLayers().slice().reverse();
+    if (this.utilityStyleLayerUid && !this.mapController.findLayer(this.utilityStyleLayerUid)) {
+      this.utilityStyleLayerUid = null;
+      document.querySelector("#utility-style-content").replaceChildren();
+      this.#syncUtilityPanel();
+    }
     const welcomePanel = document.querySelector("#welcome-panel");
     welcomePanel.hidden = welcomePanel.dataset.dismissed === "true";
     const exportable = new Set(this.exportController.listExportableLayers().map((layer) => layer.uid));
@@ -1486,7 +1526,7 @@ export class UIController {
         case "table": this.events.publish("table:open", { uid }); break;
         case "filter": await this.#filterDialog(uid); break;
         case "export": this.#exportDialog(uid); break;
-        case "style": this.#symbologyDialog(uid); break;
+        case "style": this.#openSymbologyUtility(uid); break;
         case "refresh": this.#refreshDialog(uid); break;
       }
     }));
@@ -1572,23 +1612,23 @@ export class UIController {
     throw new Error("Choose a valid filter operator.");
   }
 
-  #symbologyDialog(uid) {
+  #openSymbologyUtility(uid) {
     const layer = this.mapController.findLayer(uid);
-    this.openDialog({
-      eyebrow: "Layer presentation",
-      title: `Style ${layer?.title || "layer"}`,
-      content: '<div class="field-grid"><label class="field"><span>Fill / marker / line</span><input id="symbol-color" type="color" value="#1b7f6a" /></label><label class="field"><span>Outline</span><input id="symbol-outline" type="color" value="#ffffff" /></label><label class="field"><span>Size / width</span><input id="symbol-size" type="number" min="0.5" max="40" step="0.5" value="9" /></label></div><p class="form-note">This first pass applies a simple renderer. Its JSON is stored with the project.</p>',
-      actions: [{ label: "Apply symbology", primary: true, handler: async () => {
-        try {
-          await this.mapController.setSimpleSymbology(uid, {
-            color: this.dialog.querySelector("#symbol-color").value,
-            outline: this.dialog.querySelector("#symbol-outline").value,
-            size: this.dialog.querySelector("#symbol-size").value,
-          });
-          this.dialog.close();
-        } catch (error) { this.error(error.message); }
-      }}],
+    if (!layer) return;
+    this.utilityStyleLayerUid = uid;
+    const pane = document.querySelector("#utility-style-content");
+    pane.innerHTML = `<div class="workspace-tool"><p class="eyebrow">Layer presentation</p><h3>Style ${escapeHtml(layer.title || "layer")}</h3><div class="field-grid"><label class="field"><span>Fill / marker / line</span><input data-symbol-color type="color" value="#1b7f6a" /></label><label class="field"><span>Outline</span><input data-symbol-outline type="color" value="#ffffff" /></label><label class="field"><span>Size / width</span><input data-symbol-size type="number" min="0.5" max="40" step="0.5" value="9" /></label></div><p class="form-note">Applies a simple renderer. Its JSON is stored with the project.</p><div class="workspace-tool__actions"><button type="button" class="button--primary" data-apply-symbology>Apply symbology</button></div></div>`;
+    pane.querySelector("[data-apply-symbology]").addEventListener("click", async () => {
+      try {
+        await this.mapController.setSimpleSymbology(uid, {
+          color: pane.querySelector("[data-symbol-color]").value,
+          outline: pane.querySelector("[data-symbol-outline]").value,
+          size: pane.querySelector("[data-symbol-size]").value,
+        });
+        this.toast(`Updated ${layer.title || "layer"} symbology.`);
+      } catch (error) { this.error(error.message); }
     });
+    this.#syncUtilityPanel("style");
   }
 
   #refreshDialog(uid) {

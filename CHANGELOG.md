@@ -6,6 +6,23 @@ All notable changes to GIS Map Online are documented here. This project follows
 
 ## [Unreleased]
 
+## [0.14.0] - 2026-09-07
+
+### Added
+
+- A Map-menu Legend widget hosted in the resizable Workspace Panel.
+- A right-panel Draw workspace with the existing point, line, polygon,
+  rectangle, clear, and multi-format export actions.
+- Persistent layer styling workspaces opened directly from each layer card.
+
+### Changed
+
+- Workspace tools now use independent, closable tabs, allowing the Basemap
+  Gallery, Elevation Profile, Legend, Draw, Style, and Intelligence tools to
+  remain open together without discarding one another's state.
+- The left Draw panel is hidden while Draw is hosted in the Workspace Panel and
+  restored when its workspace tab closes.
+
 ## [0.13.1] - 2026-09-06
 
 ### Added
@@ -213,7 +230,8 @@ All notable changes to GIS Map Online are documented here. This project follows
 - Prevented search suggestions from remaining open after selection.
 - Reduced map and panel flicker during feature identification.
 
-[Unreleased]: https://github.com/geolibrerian/gismap/compare/v0.13.1...HEAD
+[Unreleased]: https://github.com/geolibrerian/gismap/compare/v0.14.0...HEAD
+[0.14.0]: https://github.com/geolibrerian/gismap/compare/v0.13.1...v0.14.0
 [0.13.1]: https://github.com/geolibrerian/gismap/compare/v0.13.0...v0.13.1
 [0.13.0]: https://github.com/geolibrerian/gismap/compare/v0.12.0...v0.13.0
 [0.12.0]: https://github.com/geolibrerian/gismap/compare/v0.11.1...v0.12.0
