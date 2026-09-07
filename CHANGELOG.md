@@ -15,6 +15,9 @@ All notable changes to GIS Map Online are documented here. This project follows
 - A one-click AI Insights action in Map Insight for analyzing the currently
   selected features and their location context.
 - An explicit Clear insights control for AI responses.
+- Per-tab close controls in the extensible Workspace Panel and a visible query
+  label above each AI response. Automatic Map Insight analysis is labeled
+  “Selected data query.”
 
 ### Changed
 

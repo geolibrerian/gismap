@@ -38,6 +38,7 @@ export class UIController {
     this.lastInsight = null;
     this.selectedInsightIndexes = new Set();
     this.lastAIResponseText = null;
+    this.lastAIQueryText = null;
     this.identifyPending = false;
     this.utilityIntelligenceOpen = false;
     this.activeUtilityTab = null;
@@ -205,7 +206,11 @@ export class UIController {
         return;
       }
       this.#openIntelligenceUtility();
-      this.#askAI("Analyze the selected map features and their location. Explain the most important attributes, relationships, patterns, and useful geographic context.", this.lastInsight);
+      this.#askAI(
+        "Analyze the selected map features and their location. Explain the most important attributes, relationships, patterns, and useful geographic context.",
+        this.lastInsight,
+        "Selected data query",
+      );
     });
     document.querySelectorAll(".sidebar__scroll > .panel > summary").forEach((summary) =>
       summary.addEventListener("click", () => {
@@ -334,8 +339,9 @@ export class UIController {
     const open = tabs.length > 0;
     const tabList = document.querySelector("#utility-tabs");
     tabList.hidden = tabs.length < 2;
-    tabList.innerHTML = tabs.map((tab) => `<button type="button" data-utility-tab="${tab.id}" aria-selected="${tab.id === this.activeUtilityTab}">${escapeHtml(tab.label)}</button>`).join("");
+    tabList.innerHTML = tabs.map((tab) => `<span class="utility-tab"><button type="button" data-utility-tab="${tab.id}" aria-selected="${tab.id === this.activeUtilityTab}">${escapeHtml(tab.label)}</button><button type="button" class="utility-tab__close" data-close-utility-tab="${tab.id}" aria-label="Close ${escapeHtml(tab.label)}" title="Close ${escapeHtml(tab.label)}">×</button></span>`).join("");
     tabList.querySelectorAll("[data-utility-tab]").forEach((button) => button.addEventListener("click", () => this.#syncUtilityPanel(button.dataset.utilityTab)));
+    tabList.querySelectorAll("[data-close-utility-tab]").forEach((button) => button.addEventListener("click", () => this.#closeUtilityTab(button.dataset.closeUtilityTab)));
     document.querySelectorAll("[data-utility-pane]").forEach((pane) => { pane.hidden = pane.dataset.utilityPane !== this.activeUtilityTab; });
     document.querySelector("#utility-title").textContent = tabs.find((tab) => tab.id === this.activeUtilityTab)?.label || "Map tools";
     document.body.classList.toggle("utility-panel-open", open);
@@ -353,13 +359,17 @@ export class UIController {
   }
 
   #closeActiveUtilityTab() {
-    if (this.activeUtilityTab === "intelligence") {
+    if (this.activeUtilityTab) this.#closeUtilityTab(this.activeUtilityTab);
+  }
+
+  #closeUtilityTab(tabId) {
+    if (tabId === "intelligence") {
       this.utilityIntelligenceOpen = false;
       document.querySelector("#intelligence-panel").hidden = false;
       this.#syncUtilityPanel("map");
       return;
     }
-    const widget = this.#utilityMapWidgetName();
+    const widget = tabId === "map" ? this.#utilityMapWidgetName() : null;
     if (widget) void this.mapController.toggleWidget(widget);
   }
 
@@ -1649,7 +1659,7 @@ export class UIController {
       ? `<form class="ai-question"><label>Ask about this map context <small class="ai-selection-count">· ${selectedCount} feature${selectedCount === 1 ? "" : "s"} selected</small></label><div><input aria-label="Question about this map context" placeholder="What stands out here?" /><button>Ask AI</button></div></form>`
       : "";
     const responseHtml = this.lastAIResponseText
-      ? `<section class="ai-response"><div class="ai-response__header"><span class="eyebrow">AI insights</span><button type="button" class="ai-response__clear">Clear insights</button></div><div class="ai-response__markdown">${renderMarkdown(this.lastAIResponseText)}</div></section>`
+      ? `<section class="ai-response"><div class="ai-response__header"><span class="eyebrow">AI insights</span><button type="button" class="ai-response__clear">Clear insights</button></div><p class="ai-response__query"><strong>Query</strong><span>${escapeHtml(this.lastAIQueryText || "Map context query")}</span></p><div class="ai-response__markdown">${renderMarkdown(this.lastAIResponseText)}</div></section>`
       : "";
     const loadingHtml = this.identifyPending ? '<div class="loading-row"><span></span> Inspecting location…</div>' : "";
     const html = `<div class="intelligence-toolbar"><button type="button" data-open-intelligence-utility title="Open Intelligence in the right panel">Open in right panel ↗</button></div>${loadingHtml}${locationHtml}${aiForm}${responseHtml}`;
@@ -1664,13 +1674,15 @@ export class UIController {
       });
       target.querySelector(".ai-response__clear")?.addEventListener("click", () => {
         this.lastAIResponseText = null;
+        this.lastAIQueryText = null;
         this.#renderIntelligenceContents();
       });
     });
   }
 
-  #askAI(prompt, payload = this.lastInsight) {
+  #askAI(prompt, payload = this.lastInsight, displayQuery = prompt) {
     if (document.body.dataset.navigationLayout === "top") this.#openIntelligenceUtility();
+    this.lastAIQueryText = displayQuery;
     this.aiController.ask(prompt, payload).catch(() => {});
   }
 
