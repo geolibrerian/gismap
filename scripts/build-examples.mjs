@@ -75,11 +75,44 @@ const GUIDES = [
     ["Basemaps and terrain", "Basemap styling and ground elevation are independent choices. Imagery can provide visual context, while elevation makes topography legible. Some flat cartographic basemaps remain useful in the same 3D scene."],
     ["Add operational data", "Open ArcGIS REST services, GeoJSON, KML/KMZ, zipped Shapefiles, WMS, or supported WFS sources. Vector layers are draped on the scene ground by default so they remain visible over terrain."],
   ], example: "usgs-naip-plus" },
+  { slug: "ai-connection-guide", title: "Connect an AI model", description: "Configure local Ollama or connect an API-key provider for context-aware GIS analysis directly in your browser.", eyebrow: "AI connection guide", intro: "GISMap can send clicked locations, reverse-geocoder details, selected feature data, and loaded-layer metadata to a model you configure. Choose local Ollama or a supported online API provider.", html: `
+    <h2>Before you connect</h2>
+    <p>Open <strong>Tools → Configure AI</strong>. GISMap does not provide a hosted model or proxy: your browser connects directly to the endpoint you enter. When you ask a question, the configured provider receives the question and a bounded JSON map context containing the clicked coordinates, address and geocoder details, selected features, and loaded-layer metadata.</p>
+    <div class="callout"><strong>API-token privacy.</strong> Online API tokens remain only in page memory, are never written to browser storage or project exports, and must be entered again after a reload. The provider still receives the question and map context. Do not send sensitive data to a provider you do not trust.</div>
+    <h2>Option 1: local Ollama</h2>
+    <ol>
+      <li>Install and start <a href="https://ollama.com/">Ollama</a>, then install a model—for example, run <code>ollama pull llama3.2</code>.</li>
+      <li>In GISMap, select <strong>Ollama (local)</strong>. Keep the endpoint <code>http://localhost:11434</code> unless Ollama runs elsewhere.</li>
+      <li>Enter the complete installed model tag shown by <code>ollama list</code>, including a suffix such as <code>:27b</code> when present.</li>
+      <li>Allow Ollama to accept requests from the GISMap site origin, restart Ollama, select <strong>Test Ollama</strong>, then select <strong>Use for this tab</strong>.</li>
+    </ol>
+    <h3>Allow the production site on macOS</h3>
+    <pre><code>launchctl setenv OLLAMA_ORIGINS "https://gismap.online"</code></pre>
+    <p>Fully quit Ollama from its menu-bar icon and reopen it before testing. For local development, replace the quoted origin with the exact local origin shown in your browser, including its port.</p>
+    <h3>Windows or Linux</h3>
+    <p>Set <code>OLLAMA_ORIGINS</code> to the exact GISMap origin in the environment used to start the Ollama service, then restart that service. Avoid using <code>*</code>: Ollama's local API has no authentication, so an exact trusted origin is safer.</p>
+    <h2>Option 2: an API-key provider</h2>
+    <ol>
+      <li>Select <strong>OpenAI</strong>, <strong>Anthropic Claude</strong>, or <strong>OpenAI-compatible endpoint</strong>.</li>
+      <li>Confirm the HTTPS endpoint and enter a model identifier available to your account.</li>
+      <li>Paste the API token and select <strong>Use for this tab</strong>. The token disappears when the page reloads.</li>
+    </ol>
+    <p>OpenAI-compatible servers must implement a browser-accessible <code>/chat/completions</code> endpoint and permit cross-origin requests from GISMap. A provider can reject a request because of an invalid model, key, endpoint, account limit, or browser CORS policy.</p>
+    <div class="callout"><strong>Production recommendation.</strong> Direct browser keys are suitable only for personal testing. For a public or shared deployment, put paid-provider credentials behind a controlled server-side proxy with authentication, rate limits, origin checks, logging appropriate to your privacy policy, and a restricted model allowlist.</div>
+    <h2>Troubleshooting</h2>
+    <ul>
+      <li><strong>Ollama cannot be reached:</strong> confirm it is running, the endpoint is correct, and <code>OLLAMA_ORIGINS</code> matches the browser origin exactly.</li>
+      <li><strong>Model not found:</strong> use the exact tag returned by <code>ollama list</code> or the provider's model list.</li>
+      <li><strong>Failed to fetch or CORS error:</strong> the endpoint must allow direct requests from the current GISMap origin.</li>
+      <li><strong>401 or 403:</strong> re-enter a valid token and confirm that it has access to the selected model.</li>
+      <li><strong>No AI controls:</strong> finish configuration with <strong>Use for this tab</strong>; Intelligence shows AI controls only while a provider is configured.</li>
+    </ul>` },
 ];
 
 function guidePage(guide) {
   const item = POPULAR_SERVICES.find((entry) => entry.id === guide.example);
-  const body = `<main><section class="hero"><div class="wrap"><div class="eyebrow">${esc(guide.eyebrow)}</div><h1>${esc(guide.title)}</h1><p class="lede">${esc(guide.intro)}</p><div class="actions"><a class="button" href="${item ? appLink(item) : "/"}">${item ? `Try ${esc(item.title)}` : "Open GISMap"}</a><a class="button button--secondary" href="/examples/">Browse examples</a></div></div></section><section><div class="wrap prose">${guide.sections.map(([heading, copy]) => `<h2>${esc(heading)}</h2><p>${esc(copy)}</p>`).join("")}<div class="callout"><strong>Privacy by design.</strong> GISMap runs in the browser. Remote services are requested from their publishers, and local files stay on the device unless you choose to export or share them elsewhere.</div><h2>Continue exploring</h2><p>Use the <a href="/examples/">public GIS examples catalog</a> to open a working dataset, or return to the <a href="/">GISMap viewer</a> to add your own source.</p></div></section></main>`;
+  const guideContent = guide.html || guide.sections.map(([heading, copy]) => `<h2>${esc(heading)}</h2><p>${esc(copy)}</p>`).join("");
+  const body = `<main><section class="hero"><div class="wrap"><div class="eyebrow">${esc(guide.eyebrow)}</div><h1>${esc(guide.title)}</h1><p class="lede">${esc(guide.intro)}</p><div class="actions"><a class="button" href="${item ? appLink(item) : "/"}">${item ? `Try ${esc(item.title)}` : "Open GISMap"}</a><a class="button button--secondary" href="/examples/">Browse examples</a></div></div></section><section><div class="wrap prose">${guideContent}<div class="callout"><strong>Privacy by design.</strong> GISMap runs in the browser. Remote services are requested from their publishers, and local files stay on the device unless you choose to export or share them elsewhere.</div><h2>Continue exploring</h2><p>Use the <a href="/examples/">public GIS examples catalog</a> to open a working dataset, or return to the <a href="/">GISMap viewer</a> to add your own source.</p></div></section></main>`;
   return shell({ title: guide.title, description: guide.description, path: `/${guide.slug}/`, breadcrumbs: [{ name: "Guides", path: "/guides/" }, { name: guide.title, path: `/${guide.slug}/` }], body });
 }
 

@@ -17,6 +17,7 @@ The interface uses a layered globe-and-analysis mark with an editable HTML wordm
   [MapServers](https://gismap.online/arcgis-map-service-viewer/),
   [GeoJSON](https://gismap.online/geojson-viewer/), and
   [3D GIS](https://gismap.online/3d-gis-viewer/).
+- Follow the [AI connection guide](https://gismap.online/ai-connection-guide/) to configure local Ollama or an API-key provider.
 
 The examples index and featured dataset pages are generated from `js/catalog.js`:
 

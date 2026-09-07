@@ -1,7 +1,7 @@
-import { POPULAR_SERVICES } from "./catalog.js?v=0.13.0";
-import { ENTERPRISE_CATALOGS, EnterpriseCatalog, normalizeArcGisDirectoryUrl } from "./enterprise-catalog.js?v=0.13.0";
-import { createShareUrl } from "./share.js?v=0.13.0";
-import { renderMarkdown } from "./markdown.js?v=0.13.0";
+import { POPULAR_SERVICES } from "./catalog.js?v=0.13.1";
+import { ENTERPRISE_CATALOGS, EnterpriseCatalog, normalizeArcGisDirectoryUrl } from "./enterprise-catalog.js?v=0.13.1";
+import { createShareUrl } from "./share.js?v=0.13.1";
+import { renderMarkdown } from "./markdown.js?v=0.13.1";
 
 const DISPLAY_SETTINGS_KEY = "gismap-online:display:v1";
 const INSIGHT_POSITIONS = new Set(["upper-left", "lower-left", "bottom", "dock-left", "dock-right", "dock-bottom"]);
@@ -1288,7 +1288,8 @@ export class UIController {
           <small>Keeping the permission scoped to ${escapeHtml(appOrigin)} is safer than using <code>*</code>. Ollama's local API has no authentication.</small>
         </section>
         <div id="ai-connection-status" class="connection-status" hidden></div>
-        <p class="form-note">Provider, endpoint, and model may be remembered locally. API tokens remain only in page memory and are never saved or exported; re-enter them after a reload. Direct browser keys are appropriate only for personal testing. Use a controlled proxy for a public paid service.</p>`,
+        <p class="form-note">Provider, endpoint, and model may be remembered locally. API tokens remain only in page memory and are never saved or exported; re-enter them after a reload. Direct browser keys are appropriate only for personal testing. Use a controlled proxy for a public paid service.</p>
+        <p class="form-note"><a href="/ai-connection-guide/" target="_blank" rel="noopener">Read the AI connection guide ↗</a></p>`,
       actions,
     });
     const providerInput = this.dialog.querySelector("#ai-provider");

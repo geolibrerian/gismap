@@ -10,7 +10,7 @@ const pages = [
   "examples/usgs-naip-imagery/index.html", "examples/modis-active-fires/index.html",
   "examples/air-quality-pm25/index.html", "examples/usgs-earthquakes/index.html",
   "arcgis-rest-service-viewer/index.html", "arcgis-feature-service-viewer/index.html",
-  "arcgis-map-service-viewer/index.html", "geojson-viewer/index.html", "3d-gis-viewer/index.html",
+  "arcgis-map-service-viewer/index.html", "geojson-viewer/index.html", "3d-gis-viewer/index.html", "ai-connection-guide/index.html",
 ];
 
 function localTarget(from, href) {

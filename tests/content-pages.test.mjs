@@ -22,7 +22,7 @@ test("featured examples and viewer guides contain canonical pages and map action
     assert.ok(html.includes(`example=${item.slug}`));
     assert.match(html, /application\/ld\+json/);
   }
-  for (const slug of ["arcgis-rest-service-viewer", "arcgis-feature-service-viewer", "arcgis-map-service-viewer", "geojson-viewer", "3d-gis-viewer"]) {
+  for (const slug of ["arcgis-rest-service-viewer", "arcgis-feature-service-viewer", "arcgis-map-service-viewer", "geojson-viewer", "3d-gis-viewer", "ai-connection-guide"]) {
     const html = await read(`${slug}/index.html`);
     assert.ok(html.includes(`https://gismap.online/${slug}/`));
     assert.match(html, /Browse examples/);
@@ -30,4 +30,5 @@ test("featured examples and viewer guides contain canonical pages and map action
   const guides = await read("guides/index.html");
   assert.match(guides, /GIS viewer guides/);
   assert.match(guides, /arcgis-feature-service-viewer/);
+  assert.match(guides, /ai-connection-guide/);
 });
