@@ -26,5 +26,8 @@ assert.match(html, /id="insights-ai"[^>]*title="AI Insights"/);
 assert.match(html, /id="utility-tabs"/);
 assert.match(ui, /lastAIResponseText/);
 assert.match(ui, /Open in right panel/);
+assert.match(ui, /navigationLayout === "top"\) this\.#openIntelligenceUtility/);
+assert.match(ui, /intelligencePanel\.hidden = true/);
+assert.match(ui, /querySelector\("#intelligence-panel"\)\.hidden = false/);
 assert.match(robots, /Sitemap: https:\/\/gismap\.online\/sitemap\.xml/);
 assert.match(sitemap, /<loc>https:\/\/gismap\.online\/<\/loc>/);

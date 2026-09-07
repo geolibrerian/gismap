@@ -345,6 +345,9 @@ export class UIController {
 
   #openIntelligenceUtility() {
     this.utilityIntelligenceOpen = true;
+    const intelligencePanel = document.querySelector("#intelligence-panel");
+    intelligencePanel.open = false;
+    intelligencePanel.hidden = true;
     this.#renderIntelligenceContents();
     this.#syncUtilityPanel("intelligence");
   }
@@ -352,6 +355,7 @@ export class UIController {
   #closeActiveUtilityTab() {
     if (this.activeUtilityTab === "intelligence") {
       this.utilityIntelligenceOpen = false;
+      document.querySelector("#intelligence-panel").hidden = false;
       this.#syncUtilityPanel("map");
       return;
     }
@@ -1666,6 +1670,7 @@ export class UIController {
   }
 
   #askAI(prompt, payload = this.lastInsight) {
+    if (document.body.dataset.navigationLayout === "top") this.#openIntelligenceUtility();
     this.aiController.ask(prompt, payload).catch(() => {});
   }
 

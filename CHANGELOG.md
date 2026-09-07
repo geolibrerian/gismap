@@ -21,6 +21,14 @@ All notable changes to GIS Map Online are documented here. This project follows
 - AI responses now persist across ordinary map clicks and are replaced only
   when a new query begins or the user clears them.
 
+### Fixed
+
+- Routed every AI inquiry to the right Intelligence panel in top-navigation
+  mode, preventing long responses from expanding the navigation workspace.
+- Prevented duplicate Intelligence interfaces by hiding its navigation panel
+  while the right-panel Intelligence workspace is open and restoring it when
+  that workspace tab closes.
+
 ## [0.12.0] - 2026-09-06
 
 ### Added
