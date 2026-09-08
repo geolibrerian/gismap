@@ -24,6 +24,9 @@ All notable changes to GIS Map Online are documented here. This project follows
   restored when its workspace tab closes.
 - The welcome card now dismisses when a layer is added or any Workspace Panel
   tool is opened, keeping it from covering active map content.
+- At tablet widths, the welcome card now fits within the map area beside the
+  open sidebar and uses stacked actions; on phones it waits until the overlaying
+  sidebar is closed.
 
 ## [0.13.1] - 2026-09-06
 

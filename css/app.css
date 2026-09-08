@@ -700,10 +700,21 @@ body.sidebar-collapsed .table-dialog { left: 14px; }
   body[data-insights-position^="dock-"] .insights-overlay { inset: auto 12px 54px; width: auto; max-height: min(44vh, 470px); }
   body.utility-panel-open .utility-panel { position: fixed; z-index: 58; inset: 52px 0 0 auto; width: min(88vw, 440px); box-shadow: -14px 0 34px rgb(17 39 33 / 22%); }
   body.utility-panel-open .utility-resizer { display: none; }
+  body:not(.sidebar-collapsed) .welcome-panel {
+    right: 12px;
+    left: calc(var(--sidebar) + 12px);
+    width: auto;
+    max-height: calc(100% - 76px);
+    padding: 16px;
+    overflow: auto;
+  }
+  body:not(.sidebar-collapsed) .welcome-panel__actions { display: grid; grid-template-columns: 1fr; }
+  body:not(.sidebar-collapsed) .welcome-panel__actions button { width: 100%; }
 }
 
 @media (max-width: 640px) {
   .welcome-panel { right: 12px; bottom: 38px; left: 12px; width: auto; padding: 16px; }
+  body:not(.sidebar-collapsed) .welcome-panel { display: none; }
   .welcome-panel h1 { font-size: 23px; }
   .mobile-app-bar {
     position: fixed;
