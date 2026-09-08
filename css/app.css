@@ -692,7 +692,8 @@ body.sidebar-collapsed .table-dialog { left: 14px; }
 
 @media (max-width: 880px) {
   :root { --sidebar: min(88vw, 380px); }
-  .app-shell { grid-template-columns: 1fr; }
+  .app-shell,
+  body.sidebar-collapsed .app-shell { grid-template-columns: minmax(0, 1fr); }
   .sidebar { position: absolute; inset: 0 auto 0 0; width: var(--sidebar); }
   .sidebar__open { display: block; }
   body:not(.sidebar-collapsed) .sidebar__open { display: none; }

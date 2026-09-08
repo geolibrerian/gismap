@@ -10,3 +10,4 @@ assert.match(css, /:root\[data-theme="dark"\][\s\S]*--scrollbar-thumb:/);
 assert.match(css, /\.utility-content \.esri-elevation-profile/);
 assert.match(css, /body:not\(\.sidebar-collapsed\) \.welcome-panel\s*\{[^}]*left:\s*calc\(var\(--sidebar\) \+ 12px\)/s);
 assert.match(css, /@media \(max-width: 640px\)[\s\S]*body:not\(\.sidebar-collapsed\) \.welcome-panel\s*\{\s*display:\s*none;/);
+assert.match(css, /@media \(max-width: 880px\)[\s\S]*body\.sidebar-collapsed \.app-shell\s*\{\s*grid-template-columns:\s*minmax\(0, 1fr\)/);

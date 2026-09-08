@@ -28,6 +28,11 @@ All notable changes to GIS Map Online are documented here. This project follows
   open sidebar and uses stacked actions; on phones it waits until the overlaying
   sidebar is closed.
 
+### Fixed
+
+- Prevented the map workspace from collapsing into a zero-width grid column
+  when the sidebar is closed at tablet-sized viewport widths.
+
 ## [0.13.1] - 2026-09-06
 
 ### Added
