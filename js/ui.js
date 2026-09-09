@@ -1,7 +1,7 @@
-import { POPULAR_SERVICES } from "./catalog.js?v=0.15.0";
-import { ENTERPRISE_CATALOGS, EnterpriseCatalog, normalizeArcGisDirectoryUrl } from "./enterprise-catalog.js?v=0.15.0";
-import { createShareUrl } from "./share.js?v=0.15.0";
-import { renderMarkdown } from "./markdown.js?v=0.15.0";
+import { POPULAR_SERVICES } from "./catalog.js?v=0.15.1";
+import { ENTERPRISE_CATALOGS, EnterpriseCatalog, normalizeArcGisDirectoryUrl } from "./enterprise-catalog.js?v=0.15.1";
+import { createShareUrl } from "./share.js?v=0.15.1";
+import { renderMarkdown } from "./markdown.js?v=0.15.1";
 
 const DISPLAY_SETTINGS_KEY = "gismap-online:display:v1";
 const INSIGHT_POSITIONS = new Set(["upper-left", "lower-left", "bottom", "dock-left", "dock-right", "dock-bottom"]);
@@ -72,8 +72,16 @@ export class UIController {
 
   #buildMobileMenu() {
     const drawer = document.querySelector("#mobile-menu-drawer");
+    const projectDrawer = document.querySelector("#mobile-project-drawer");
     const desktopMenu = document.querySelector("#sidebar > .menu-bar");
-    drawer.replaceChildren(desktopMenu.cloneNode(true));
+    const mobileMenu = desktopMenu.cloneNode(true);
+    mobileMenu.querySelector(".menu")?.remove();
+    drawer.replaceChildren(mobileMenu);
+    const projectMenu = desktopMenu.cloneNode(true);
+    projectMenu.querySelectorAll(".menu").forEach((menu, index) => {
+      if (index !== 0) menu.remove();
+    });
+    projectDrawer.replaceChildren(projectMenu);
   }
 
   #bindMenus() {
@@ -178,18 +186,20 @@ export class UIController {
     );
     document.querySelector("#sidebar-close").addEventListener("click", () => this.#setSidebarCollapsed(true));
     document.querySelector("#sidebar-open").addEventListener("click", () => this.#setSidebarCollapsed(false));
-    const toggleMobileMenu = (event) => {
+    const toggleMobileDrawer = (event, drawerSelector, otherDrawerSelector) => {
       event.stopPropagation();
-      const drawer = document.querySelector("#mobile-menu-drawer");
+      const drawer = document.querySelector(drawerSelector);
+      const otherDrawer = document.querySelector(otherDrawerSelector);
       const opening = drawer.hidden;
+      otherDrawer.hidden = true;
       drawer.hidden = !opening;
-      document.querySelector("#mobile-menu-toggle").setAttribute("aria-expanded", String(opening));
-      document.querySelector("#mobile-menu-toggle").setAttribute("aria-label", `${opening ? "Close" : "Open"} application menu`);
+      document.querySelector("#mobile-menu-toggle").setAttribute("aria-expanded", String(drawerSelector === "#mobile-menu-drawer" && opening));
+      document.querySelector("#mobile-project-toggle").setAttribute("aria-expanded", String(drawerSelector === "#mobile-project-drawer" && opening));
       if (opening && matchMedia("(max-width: 640px)").matches) this.#setSidebarCollapsed(true);
       if (!opening) this.#closeMenus();
     };
-    document.querySelector("#mobile-menu-toggle").addEventListener("click", toggleMobileMenu);
-    document.querySelector("#mobile-floating-menu").addEventListener("click", toggleMobileMenu);
+    document.querySelector("#mobile-menu-toggle").addEventListener("click", (event) => toggleMobileDrawer(event, "#mobile-menu-drawer", "#mobile-project-drawer"));
+    document.querySelector("#mobile-project-toggle").addEventListener("click", (event) => toggleMobileDrawer(event, "#mobile-project-drawer", "#mobile-menu-drawer"));
     document.querySelector("#mobile-map-tools-toggle").addEventListener("click", (event) => {
       const open = !document.body.classList.contains("mobile-map-tools-open");
       document.body.classList.toggle("mobile-map-tools-open", open);
@@ -254,12 +264,6 @@ export class UIController {
   #bindMapEvents() {
     this.events.subscribe("map:ready", ({ view }) => {
       document.querySelector("#map-status").textContent = `Ready · zoom ${view.zoom.toFixed(1)}`;
-      const updateMobileCompass = () => {
-        const heading = view.camera?.heading ?? 0;
-        document.querySelector("#mobile-compass-needle").style.transform = `rotate(${-heading}deg)`;
-      };
-      updateMobileCompass();
-      view.watch?.("camera.heading", updateMobileCompass);
       view.on("pointer-move", (event) => {
         const point = view.toMap(event);
         if (!point) return;
@@ -809,6 +813,27 @@ export class UIController {
     });
     handle.addEventListener("pointerdown", (event) => {
       const position = document.body.dataset.insightsPosition;
+      if (this.mobileMedia.matches) {
+        event.preventDefault();
+        const overlay = document.querySelector("#insights-overlay");
+        const startY = event.clientY;
+        const startHeight = overlay.getBoundingClientRect().height;
+        document.body.classList.add("insights-resizing");
+        const move = (moveEvent) => {
+          const height = Math.min(window.innerHeight * 0.4, Math.max(window.innerHeight * 0.25, startHeight + moveEvent.clientY - startY));
+          document.body.style.setProperty("--mobile-insights-height", `${height}px`);
+        };
+        const finish = () => {
+          window.removeEventListener("pointermove", move);
+          window.removeEventListener("pointerup", finish);
+          window.removeEventListener("pointercancel", finish);
+          document.body.classList.remove("insights-resizing");
+        };
+        window.addEventListener("pointermove", move);
+        window.addEventListener("pointerup", finish);
+        window.addEventListener("pointercancel", finish);
+        return;
+      }
       if (!["dock-left", "dock-right", "dock-bottom"].includes(position)) return;
       event.preventDefault();
       const settings = this.#readDisplaySettings();
@@ -1888,6 +1913,11 @@ export class UIController {
       const toggle = document.querySelector("#mobile-menu-toggle");
       toggle.setAttribute("aria-expanded", "false");
       toggle.setAttribute("aria-label", "Open application menu");
+    }
+    const projectDrawer = document.querySelector("#mobile-project-drawer");
+    if (projectDrawer && !projectDrawer.hidden) {
+      projectDrawer.hidden = true;
+      document.querySelector("#mobile-project-toggle").setAttribute("aria-expanded", "false");
     }
   }
 }

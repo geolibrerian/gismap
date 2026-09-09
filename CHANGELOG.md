@@ -6,6 +6,14 @@ All notable changes to GIS Map Online are documented here. This project follows
 
 ## [Unreleased]
 
+## [0.15.1] - 2026-09-09
+
+### Changed
+
+- Refined the phone layout around a persistent bottom toolbar with active Places, Saved, Draw, Layers, and XY content presented directly above it.
+- Moved Map Insight to a resizable top dock occupying between one quarter and two fifths of the viewport, with feature tabs along the dock's lower edge.
+- Replaced the floating mobile compass and menu with the GIS Map mark, and exposed Menu and Project as separate bottom-toolbar actions.
+
 ## [0.15.0] - 2026-09-09
 
 ### Added
@@ -262,7 +270,8 @@ All notable changes to GIS Map Online are documented here. This project follows
 - Prevented search suggestions from remaining open after selection.
 - Reduced map and panel flicker during feature identification.
 
-[Unreleased]: https://github.com/geolibrerian/gismap/compare/v0.15.0...HEAD
+[Unreleased]: https://github.com/geolibrerian/gismap/compare/v0.15.1...HEAD
+[0.15.1]: https://github.com/geolibrerian/gismap/compare/v0.15.0...v0.15.1
 [0.15.0]: https://github.com/geolibrerian/gismap/compare/v0.14.0...v0.15.0
 [0.14.0]: https://github.com/geolibrerian/gismap/compare/v0.13.1...v0.14.0
 [0.13.1]: https://github.com/geolibrerian/gismap/compare/v0.13.0...v0.13.1
