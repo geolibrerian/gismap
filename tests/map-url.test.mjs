@@ -97,6 +97,13 @@ controller.view = {
 assert.equal(await controller.navigate("tilt-up"), null);
 
 controller.view = {
+  camera: { clone: () => ({ heading: 143, tilt: 35 }) },
+  goTo(value) { navigation = value; },
+};
+await controller.navigate("north");
+assert.equal(navigation.heading, 0);
+
+controller.view = {
   spatialReference: { wkid: 4326 },
   goTo(value) { navigation = value; },
 };

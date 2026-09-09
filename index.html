@@ -53,27 +53,13 @@
     <link rel="icon" href="./assets/gis-map-online-mark-v2.png" type="image/png" />
     <link rel="preconnect" href="https://js.arcgis.com" />
     <link rel="stylesheet" href="https://js.arcgis.com/5.0/esri/themes/light/main.css" />
-    <link rel="stylesheet" href="./css/app.css?v=0.14.0" />
+    <link rel="stylesheet" href="./css/app.css?v=0.15.0" />
     <script type="module" src="https://js.arcgis.com/5.0/"></script>
     <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
     <script src="https://unpkg.com/@mapbox/shp-write@0.4.3/shpwrite.js"></script>
   </head>
   <body>
     <div id="app" class="app-shell">
-      <header class="mobile-app-bar">
-        <div class="mobile-app-bar__title">
-          <img src="./assets/gis-map-online-mark-v2.png" alt="" />
-          <strong>GIS Map Online</strong>
-        </div>
-        <button
-          id="mobile-menu-toggle"
-          class="mobile-app-bar__menu"
-          type="button"
-          aria-label="Open application menu"
-          aria-controls="mobile-menu-drawer"
-          aria-expanded="false"
-        >☰</button>
-      </header>
       <div id="mobile-menu-drawer" class="mobile-menu-drawer" hidden></div>
 
       <aside id="sidebar" class="sidebar" aria-label="GIS Map Online tools">
@@ -137,13 +123,14 @@
           </div>
         </nav>
 
-        <nav class="mobile-panel-nav" aria-label="Panel sections">
-          <button type="button" data-mobile-panel="places-panel" aria-label="Places" title="Places">⌖</button>
-          <button type="button" data-mobile-panel="bookmarks-panel" aria-label="Bookmarks" title="Bookmarks">☆</button>
-          <button type="button" data-mobile-panel="draw-panel" aria-label="Draw" title="Draw">✎</button>
-          <button type="button" data-mobile-panel="intelligence-panel" aria-label="Intelligence" title="Intelligence">i</button>
-          <button type="button" data-mobile-panel="layers-panel" aria-label="Layers" title="Layers">▱</button>
-          <button id="mobile-panel-close" type="button" aria-label="Close tools panel" title="Close panel">⌄</button>
+        <button id="mobile-drawer-handle" class="mobile-drawer-handle" type="button" aria-label="Expand tool drawer" aria-expanded="false"><span></span></button>
+        <nav class="mobile-panel-nav" aria-label="Mobile tool drawer">
+          <button id="mobile-menu-toggle" type="button" aria-label="Open application menu" title="Menu" aria-controls="mobile-menu-drawer" aria-expanded="false"><span>☰</span><small>Menu</small></button>
+          <button type="button" data-mobile-panel="places-panel" aria-label="Places" title="Places"><span>⌖</span><small>Places</small></button>
+          <button type="button" data-mobile-panel="bookmarks-panel" aria-label="Bookmarks" title="Bookmarks"><span>☆</span><small>Saved</small></button>
+          <button type="button" data-mobile-panel="draw-panel" aria-label="Draw" title="Draw"><span>✎</span><small>Draw</small></button>
+          <button type="button" data-mobile-panel="layers-panel" aria-label="Layers" title="Layers"><span>▱</span><small>Layers</small></button>
+          <button type="button" data-mobile-panel="intelligence-panel" aria-label="Intelligence" title="Intelligence"><span>i</span><small>AI</small></button>
         </nav>
 
         <div class="sidebar__scroll">
@@ -210,6 +197,10 @@
 
       <main class="map-workspace">
         <div id="viewDiv" aria-label="Interactive map"></div>
+        <div class="mobile-map-menu" aria-label="Map heading and application menu">
+          <button id="mobile-compass-reset" type="button" data-nav="north" aria-label="Reset map to north" title="Reset north"><span id="mobile-compass-needle" aria-hidden="true">↑</span></button>
+          <button id="mobile-floating-menu" type="button" aria-label="Open application menu" title="Menu">☰</button>
+        </div>
         <section id="welcome-panel" class="welcome-panel" aria-labelledby="welcome-title">
           <button id="welcome-close" class="welcome-panel__close" type="button" aria-label="Dismiss introduction">×</button>
           <span class="eyebrow">Free, open-source browser GIS</span>
@@ -230,7 +221,8 @@
           aria-controls="sidebar"
           aria-expanded="false"
         >▦</button>
-        <div class="map-nav" aria-label="Map navigation">
+        <button id="mobile-map-tools-toggle" class="mobile-map-tools-toggle" type="button" aria-label="Open map controls" aria-controls="map-navigation" aria-expanded="false">‹</button>
+        <div id="map-navigation" class="map-nav" aria-label="Map navigation">
           <button data-nav="home" title="Default extent">⌂</button>
           <button data-nav="locate" title="My location">◎</button>
           <button data-nav="in" title="Zoom in">+</button>
@@ -310,6 +302,6 @@
     <input id="tool-file-input" type="file" accept=".js,.mjs" hidden />
 
     <noscript>GIS Map Online requires JavaScript.</noscript>
-    <script type="module" src="./js/app.js?v=0.14.0"></script>
+    <script type="module" src="./js/app.js?v=0.15.0"></script>
   </body>
 </html>

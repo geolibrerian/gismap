@@ -6,6 +6,25 @@ All notable changes to GIS Map Online are documented here. This project follows
 
 ## [Unreleased]
 
+## [0.15.0] - 2026-09-09
+
+### Added
+
+- A map-first mobile shell with a translucent heading-aware compass, compact
+  application-menu control, and a collapsible frosted map-navigation rail.
+- A unified mobile tool drawer with horizontally scrollable Menu, Places,
+  Saved, Draw, Layers, and AI controls.
+- Pull gestures and compact/half/full drawer states for keeping the map visible
+  while making a selected tool the only interactive panel on screen.
+
+### Changed
+
+- Removed the persistent mobile header and reclaimed its vertical space for the
+  map.
+- Mobile Workspace tools now open as a contained bottom sheet above the compact
+  tool strip, and hidden drawer content is removed from keyboard and assistive-
+  technology navigation.
+
 ## [0.14.0] - 2026-09-07
 
 ### Added
@@ -32,6 +51,9 @@ All notable changes to GIS Map Online are documented here. This project follows
 
 - Prevented the map workspace from collapsing into a zero-width grid column
   when the sidebar is closed at tablet-sized viewport widths.
+- Prevented the sidebar and Workspace Panel from consuming the entire tablet
+  viewport: they now share a vertically stacked rail when both are open, while
+  Workspace becomes a bottom sheet when the sidebar is closed.
 
 ## [0.13.1] - 2026-09-06
 
@@ -240,7 +262,8 @@ All notable changes to GIS Map Online are documented here. This project follows
 - Prevented search suggestions from remaining open after selection.
 - Reduced map and panel flicker during feature identification.
 
-[Unreleased]: https://github.com/geolibrerian/gismap/compare/v0.14.0...HEAD
+[Unreleased]: https://github.com/geolibrerian/gismap/compare/v0.15.0...HEAD
+[0.15.0]: https://github.com/geolibrerian/gismap/compare/v0.14.0...v0.15.0
 [0.14.0]: https://github.com/geolibrerian/gismap/compare/v0.13.1...v0.14.0
 [0.13.1]: https://github.com/geolibrerian/gismap/compare/v0.13.0...v0.13.1
 [0.13.0]: https://github.com/geolibrerian/gismap/compare/v0.12.0...v0.13.0

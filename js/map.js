@@ -758,8 +758,9 @@ export class MapController {
       if (action === "home") return await this.view.goTo(this.defaultViewpoint);
       if (action === "in") return await this.view.zoomIn();
       if (action === "out") return await this.view.zoomOut();
-      if (["rotate-left", "rotate-right", "tilt-up", "tilt-down"].includes(action)) {
+      if (["north", "rotate-left", "rotate-right", "tilt-up", "tilt-down"].includes(action)) {
         const camera = this.view.camera.clone();
+        if (action === "north") camera.heading = 0;
         if (action === "rotate-left") camera.heading -= 20;
         if (action === "rotate-right") camera.heading += 20;
         if (action === "tilt-up") camera.tilt = Math.min(88, camera.tilt + 10);

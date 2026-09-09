@@ -1,7 +1,7 @@
-import { POPULAR_SERVICES } from "./catalog.js?v=0.14.0";
-import { ENTERPRISE_CATALOGS, EnterpriseCatalog, normalizeArcGisDirectoryUrl } from "./enterprise-catalog.js?v=0.14.0";
-import { createShareUrl } from "./share.js?v=0.14.0";
-import { renderMarkdown } from "./markdown.js?v=0.14.0";
+import { POPULAR_SERVICES } from "./catalog.js?v=0.15.0";
+import { ENTERPRISE_CATALOGS, EnterpriseCatalog, normalizeArcGisDirectoryUrl } from "./enterprise-catalog.js?v=0.15.0";
+import { createShareUrl } from "./share.js?v=0.15.0";
+import { renderMarkdown } from "./markdown.js?v=0.15.0";
 
 const DISPLAY_SETTINGS_KEY = "gismap-online:display:v1";
 const INSIGHT_POSITIONS = new Set(["upper-left", "lower-left", "bottom", "dock-left", "dock-right", "dock-bottom"]);
@@ -45,6 +45,7 @@ export class UIController {
     this.utilityStyleLayerUid = null;
     this.activeUtilityTab = null;
     this.systemThemeMedia = matchMedia("(prefers-color-scheme: dark)");
+    this.mobileMedia = matchMedia("(max-width: 640px)");
   }
 
   initialize() {
@@ -53,7 +54,11 @@ export class UIController {
       const settings = this.#readDisplaySettings();
       if (settings.appearance === "system") this.#applyDisplaySettings(settings);
     });
-    if (matchMedia("(max-width: 640px)").matches) this.#setSidebarCollapsed(true);
+    if (this.mobileMedia.matches) this.#setSidebarCollapsed(true);
+    this.mobileMedia.addEventListener?.("change", ({ matches }) => {
+      document.body.classList.remove("mobile-map-tools-open", "mobile-drawer-expanded");
+      this.#setSidebarCollapsed(matches);
+    });
     this.#buildMobileMenu();
     this.#bindMenus();
     this.#bindStaticActions();
@@ -173,19 +178,28 @@ export class UIController {
     );
     document.querySelector("#sidebar-close").addEventListener("click", () => this.#setSidebarCollapsed(true));
     document.querySelector("#sidebar-open").addEventListener("click", () => this.#setSidebarCollapsed(false));
-    document.querySelector("#mobile-menu-toggle").addEventListener("click", (event) => {
+    const toggleMobileMenu = (event) => {
       event.stopPropagation();
       const drawer = document.querySelector("#mobile-menu-drawer");
       const opening = drawer.hidden;
       drawer.hidden = !opening;
-      event.currentTarget.setAttribute("aria-expanded", String(opening));
-      event.currentTarget.setAttribute("aria-label", `${opening ? "Close" : "Open"} application menu`);
+      document.querySelector("#mobile-menu-toggle").setAttribute("aria-expanded", String(opening));
+      document.querySelector("#mobile-menu-toggle").setAttribute("aria-label", `${opening ? "Close" : "Open"} application menu`);
+      if (opening && matchMedia("(max-width: 640px)").matches) this.#setSidebarCollapsed(true);
       if (!opening) this.#closeMenus();
+    };
+    document.querySelector("#mobile-menu-toggle").addEventListener("click", toggleMobileMenu);
+    document.querySelector("#mobile-floating-menu").addEventListener("click", toggleMobileMenu);
+    document.querySelector("#mobile-map-tools-toggle").addEventListener("click", (event) => {
+      const open = !document.body.classList.contains("mobile-map-tools-open");
+      document.body.classList.toggle("mobile-map-tools-open", open);
+      event.currentTarget.setAttribute("aria-expanded", String(open));
+      event.currentTarget.setAttribute("aria-label", `${open ? "Close" : "Open"} map controls`);
     });
+    this.#bindMobileDrawerGesture();
     document.querySelectorAll("[data-mobile-panel]").forEach((button) =>
       button.addEventListener("click", () => this.#activateMobilePanel(button.dataset.mobilePanel)),
     );
-    document.querySelector("#mobile-panel-close").addEventListener("click", () => this.#setSidebarCollapsed(true));
     document.querySelector("#utility-close").addEventListener("click", () => this.#closeActiveUtilityTab());
     this.#activateMobilePanel("places-panel", false);
     document.querySelector("#insights-close").addEventListener("click", () => {
@@ -240,6 +254,12 @@ export class UIController {
   #bindMapEvents() {
     this.events.subscribe("map:ready", ({ view }) => {
       document.querySelector("#map-status").textContent = `Ready · zoom ${view.zoom.toFixed(1)}`;
+      const updateMobileCompass = () => {
+        const heading = view.camera?.heading ?? 0;
+        document.querySelector("#mobile-compass-needle").style.transform = `rotate(${-heading}deg)`;
+      };
+      updateMobileCompass();
+      view.watch?.("camera.heading", updateMobileCompass);
       view.on("pointer-move", (event) => {
         const point = view.toMap(event);
         if (!point) return;
@@ -342,6 +362,7 @@ export class UIController {
       : validTabs.has(this.activeUtilityTab) ? this.activeUtilityTab : tabs[0]?.id || null;
     const open = tabs.length > 0;
     if (open) this.#dismissWelcome();
+    if (open && matchMedia("(max-width: 640px)").matches) this.#setSidebarCollapsed(true);
     const tabList = document.querySelector("#utility-tabs");
     tabList.hidden = tabs.length < 2;
     tabList.innerHTML = tabs.map((tab) => `<span class="utility-tab"><button type="button" data-utility-tab="${tab.id}" aria-selected="${tab.id === this.activeUtilityTab}">${escapeHtml(tab.label)}</button><button type="button" class="utility-tab__close" data-close-utility-tab="${tab.id}" aria-label="Close ${escapeHtml(tab.label)}" title="Close ${escapeHtml(tab.label)}">×</button></span>`).join("");
@@ -409,9 +430,51 @@ export class UIController {
   }
 
   #setSidebarCollapsed(collapsed) {
+    const mobile = matchMedia("(max-width: 640px)").matches;
     document.body.classList.toggle("sidebar-collapsed", collapsed);
-    document.querySelector("#sidebar").setAttribute("aria-hidden", String(collapsed));
+    if (collapsed) document.body.classList.remove("mobile-drawer-expanded");
+    document.querySelector("#sidebar").setAttribute("aria-hidden", String(mobile ? false : collapsed));
+    const mobileDrawerContent = document.querySelector("#sidebar .sidebar__scroll");
+    mobileDrawerContent.inert = mobile && collapsed;
+    mobileDrawerContent.setAttribute("aria-hidden", String(mobile && collapsed));
     document.querySelector("#sidebar-open").setAttribute("aria-expanded", String(!collapsed));
+    const handle = document.querySelector("#mobile-drawer-handle");
+    handle?.setAttribute("aria-expanded", String(!collapsed));
+    handle?.setAttribute("aria-label", `${collapsed ? "Expand" : "Collapse"} tool drawer`);
+  }
+
+  #bindMobileDrawerGesture() {
+    const handle = document.querySelector("#mobile-drawer-handle");
+    let startY = null;
+    let suppressClick = false;
+    handle.addEventListener("click", () => {
+      if (suppressClick) {
+        suppressClick = false;
+        return;
+      }
+      this.#setSidebarCollapsed(!document.body.classList.contains("sidebar-collapsed"));
+    });
+    handle.addEventListener("pointerdown", (event) => {
+      startY = event.clientY;
+      handle.setPointerCapture?.(event.pointerId);
+    });
+    handle.addEventListener("pointerup", (event) => {
+      if (startY === null) return;
+      const delta = event.clientY - startY;
+      startY = null;
+      if (delta < -60) {
+        suppressClick = true;
+        if (document.body.classList.contains("sidebar-collapsed")) this.#setSidebarCollapsed(false);
+        else document.body.classList.add("mobile-drawer-expanded");
+      } else if (delta > 60) {
+        suppressClick = true;
+        if (document.body.classList.contains("mobile-drawer-expanded")) document.body.classList.remove("mobile-drawer-expanded");
+        else this.#setSidebarCollapsed(true);
+      }
+    });
+    handle.addEventListener("pointercancel", () => {
+      startY = null;
+    });
   }
 
   #activateMobilePanel(panelId, openSidebar = true) {
