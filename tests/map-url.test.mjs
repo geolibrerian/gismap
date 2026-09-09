@@ -171,9 +171,10 @@ controller.clickFeedbackLayer = {
 };
 controller.configureInteractionFeedback({ highlightEnabled: true, clickMarkerEnabled: true, highlightColor: "#ff00aa" });
 controller.showClickMarker({ type: "point", x: -112, y: 33 });
-assert.equal(markerGraphics.length, 1);
+assert.equal(markerGraphics.length, 2);
 assert.equal(markerGraphics[0].symbol.style, "cross");
 assert.equal(markerGraphics[0].symbol.color, "#ff00aa");
+assert.equal(markerGraphics[1].symbol.style, "circle");
 controller.configureInteractionFeedback({ highlightEnabled: false, clickMarkerEnabled: false, highlightColor: "invalid" });
 assert.equal(markerGraphics.length, 0);
 

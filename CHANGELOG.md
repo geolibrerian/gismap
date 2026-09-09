@@ -6,6 +6,12 @@ All notable changes to GIS Map Online are documented here. This project follows
 
 ## [Unreleased]
 
+## [0.15.7] - 2026-09-09
+
+### Fixed
+
+- Restored a highly visible fading crosshair and pulse at the location of every map click.
+
 ## [0.15.6] - 2026-09-09
 
 ### Fixed
@@ -305,7 +311,8 @@ All notable changes to GIS Map Online are documented here. This project follows
 - Prevented search suggestions from remaining open after selection.
 - Reduced map and panel flicker during feature identification.
 
-[Unreleased]: https://github.com/geolibrerian/gismap/compare/v0.15.6...HEAD
+[Unreleased]: https://github.com/geolibrerian/gismap/compare/v0.15.7...HEAD
+[0.15.7]: https://github.com/geolibrerian/gismap/compare/v0.15.6...v0.15.7
 [0.15.6]: https://github.com/geolibrerian/gismap/compare/v0.15.5...v0.15.6
 [0.15.5]: https://github.com/geolibrerian/gismap/compare/v0.15.4...v0.15.5
 [0.15.4]: https://github.com/geolibrerian/gismap/compare/v0.15.3...v0.15.4

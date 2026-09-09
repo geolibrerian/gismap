@@ -1,7 +1,7 @@
-import { POPULAR_SERVICES } from "./catalog.js?v=0.15.6";
-import { ENTERPRISE_CATALOGS, EnterpriseCatalog, normalizeArcGisDirectoryUrl } from "./enterprise-catalog.js?v=0.15.6";
-import { createShareUrl } from "./share.js?v=0.15.6";
-import { renderMarkdown } from "./markdown.js?v=0.15.6";
+import { POPULAR_SERVICES } from "./catalog.js?v=0.15.7";
+import { ENTERPRISE_CATALOGS, EnterpriseCatalog, normalizeArcGisDirectoryUrl } from "./enterprise-catalog.js?v=0.15.7";
+import { createShareUrl } from "./share.js?v=0.15.7";
+import { renderMarkdown } from "./markdown.js?v=0.15.7";
 
 const DISPLAY_SETTINGS_KEY = "gismap-online:display:v1";
 const INSIGHT_POSITIONS = new Set(["upper-left", "lower-left", "bottom", "dock-left", "dock-right", "dock-top", "dock-bottom"]);

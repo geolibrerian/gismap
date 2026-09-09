@@ -551,15 +551,19 @@ export class MapController {
     if (!this.clickMarkerEnabled || !point || !this.clickFeedbackLayer || !this.modules.Graphic) return;
     const color = this.highlightColor;
     this.clearClickMarker();
-    const graphic = new this.modules.Graphic({
+    const crosshair = new this.modules.Graphic({
       geometry: point,
-      symbol: { type: "simple-marker", style: "cross", size: 10, color, outline: { color, width: 1 } },
+      symbol: { type: "simple-marker", style: "cross", size: 18, color, outline: { color, width: 2.5 } },
     });
-    this.clickFeedbackLayer.add(graphic);
+    const pulse = new this.modules.Graphic({
+      geometry: point,
+      symbol: { type: "simple-marker", style: "circle", size: 18, color: [0, 0, 0, 0], outline: { color, width: 2 } },
+    });
+    this.clickFeedbackLayer.addMany([crosshair, pulse]);
 
     const animationNow = () => globalThis.performance?.now?.() ?? Date.now();
     const startedAt = animationNow();
-    const duration = 520;
+    const duration = 850;
     const schedule = globalThis.requestAnimationFrame
       ? (callback) => requestAnimationFrame(callback)
       : (callback) => setTimeout(() => callback(animationNow()), 16);
@@ -567,12 +571,19 @@ export class MapController {
       const progress = Math.min(1, (now - startedAt) / duration);
       const opacity = progress < 0.18 ? 1 : 1 - ((progress - 0.18) / 0.82);
       const animatedColor = this.#hexToRgba(color, Math.max(0, opacity));
-      graphic.symbol = {
+      crosshair.symbol = {
         type: "simple-marker",
         style: "cross",
-        size: 10 + (progress * 11),
+        size: 18 + (progress * 8),
         color: animatedColor,
-        outline: { color: animatedColor, width: 1 },
+        outline: { color: animatedColor, width: 2.5 },
+      };
+      pulse.symbol = {
+        type: "simple-marker",
+        style: "circle",
+        size: 18 + (progress * 34),
+        color: [0, 0, 0, 0],
+        outline: { color: animatedColor, width: 2 },
       };
       if (progress < 1) {
         this.clickMarkerAnimation = schedule(animate);
