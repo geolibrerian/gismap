@@ -4,18 +4,6 @@
  */
 export const POPULAR_SERVICES = [
   {
-    id: "usgs-naip-plus", slug: "usgs-naip-imagery", provider: "USGS",
-    title: "USGS NAIP Plus", category: "Satellite / imagery", serviceType: "imagery",
-    description: "National Agriculture Imagery Program imagery served by The National Map.",
-    whyUseful: "Inspect recent high-resolution aerial imagery across supported areas of the United States in a 3D scene.",
-    url: "https://imagery.nationalmap.gov/arcgis/rest/services/USGSNAIPPlus/ImageServer",
-    sourceOrganization: "U.S. Geological Survey — The National Map",
-    sourcePage: "https://www.usgs.gov/programs/national-geospatial-program/national-map",
-    licenseOrTerms: "U.S. Geological Survey source; review source metadata and USGS usage guidance.",
-    tags: ["USGS", "NAIP", "aerial imagery", "ImageServer", "United States"],
-    lastChecked: null, featured: true,
-  },
-  {
     id: "esri-modis-hotspots-recent", slug: "modis-active-fires", provider: "Esri Disaster Response",
     title: "Recent MODIS Hotspot Data", category: "Wildfires", serviceType: "feature",
     description: "Recent thermal anomalies detected by the MODIS satellite instruments.",

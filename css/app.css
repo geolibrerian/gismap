@@ -940,6 +940,11 @@ body.sidebar-collapsed .table-dialog { left: 14px; }
     overflow: hidden;
     grid-template-rows: auto minmax(0, 1fr);
   }
+  body[data-insights-position="dock-top"] .insights-overlay {
+    inset: 0 0 auto;
+    width: 100%;
+    max-height: 45dvh;
+  }
   .insights-overlay:not([hidden]) { display: grid; }
   body.sidebar-collapsed .insights-overlay { left: 0; }
   .insights-resizer {

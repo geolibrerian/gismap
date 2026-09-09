@@ -6,6 +6,14 @@ All notable changes to GIS Map Online are documented here. This project follows
 
 ## [Unreleased]
 
+## [0.15.5] - 2026-09-09
+
+### Fixed
+
+- Restored the full-width mobile top dock for Map Insights and attribute tables, including the responsive rule that had been placing docked insights at the bottom.
+- Kept the welcome panel available when opening a shared example, so its example picker remains accessible until dismissed or an explicit data action begins.
+- Removed the NAIP imagery example from the public catalog and sitemap.
+
 ## [0.15.4] - 2026-09-09
 
 ### Added
@@ -291,7 +299,8 @@ All notable changes to GIS Map Online are documented here. This project follows
 - Prevented search suggestions from remaining open after selection.
 - Reduced map and panel flicker during feature identification.
 
-[Unreleased]: https://github.com/geolibrerian/gismap/compare/v0.15.4...HEAD
+[Unreleased]: https://github.com/geolibrerian/gismap/compare/v0.15.5...HEAD
+[0.15.5]: https://github.com/geolibrerian/gismap/compare/v0.15.4...v0.15.5
 [0.15.4]: https://github.com/geolibrerian/gismap/compare/v0.15.3...v0.15.4
 [0.15.3]: https://github.com/geolibrerian/gismap/compare/v0.15.2...v0.15.3
 [0.15.2]: https://github.com/geolibrerian/gismap/compare/v0.15.1...v0.15.2

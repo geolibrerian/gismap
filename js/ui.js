@@ -1,7 +1,7 @@
-import { POPULAR_SERVICES } from "./catalog.js?v=0.15.4";
-import { ENTERPRISE_CATALOGS, EnterpriseCatalog, normalizeArcGisDirectoryUrl } from "./enterprise-catalog.js?v=0.15.4";
-import { createShareUrl } from "./share.js?v=0.15.4";
-import { renderMarkdown } from "./markdown.js?v=0.15.4";
+import { POPULAR_SERVICES } from "./catalog.js?v=0.15.5";
+import { ENTERPRISE_CATALOGS, EnterpriseCatalog, normalizeArcGisDirectoryUrl } from "./enterprise-catalog.js?v=0.15.5";
+import { createShareUrl } from "./share.js?v=0.15.5";
+import { renderMarkdown } from "./markdown.js?v=0.15.5";
 
 const DISPLAY_SETTINGS_KEY = "gismap-online:display:v1";
 const INSIGHT_POSITIONS = new Set(["upper-left", "lower-left", "bottom", "dock-left", "dock-right", "dock-top", "dock-bottom"]);
@@ -44,6 +44,7 @@ export class UIController {
     this.utilityDrawOpen = false;
     this.utilityStyleLayerUid = null;
     this.activeUtilityTab = null;
+    this.keepWelcomeForSharedExample = new URLSearchParams(location.search).has("example");
     this.systemThemeMedia = matchMedia("(prefers-color-scheme: dark)");
     this.mobileMedia = matchMedia("(max-width: 640px)");
   }
@@ -466,6 +467,7 @@ export class UIController {
   }
 
   async #handleAction(action) {
+    this.keepWelcomeForSharedExample = false;
     try {
       switch (action) {
         case "project-select":
@@ -1558,7 +1560,7 @@ export class UIController {
       this.#syncUtilityPanel();
     }
     const welcomePanel = document.querySelector("#welcome-panel");
-    if (layers.length) this.#dismissWelcome();
+    if (layers.length && !this.keepWelcomeForSharedExample) this.#dismissWelcome();
     welcomePanel.hidden = welcomePanel.dataset.dismissed === "true";
     const exportable = new Set(this.exportController.listExportableLayers().map((layer) => layer.uid));
     document.querySelector("#layer-count").textContent = `${layers.length} loaded`;

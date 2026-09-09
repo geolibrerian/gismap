@@ -74,7 +74,7 @@ const GUIDES = [
     ["Navigate the scene", "Zoom, rotate, and tilt with the on-map controls or pointer gestures. The home control returns to a broad view, while a layer’s Zoom action frames its available extent."],
     ["Basemaps and terrain", "Basemap styling and ground elevation are independent choices. Imagery can provide visual context, while elevation makes topography legible. Some flat cartographic basemaps remain useful in the same 3D scene."],
     ["Add operational data", "Open ArcGIS REST services, GeoJSON, KML/KMZ, zipped Shapefiles, WMS, or supported WFS sources. Vector layers are draped on the scene ground by default so they remain visible over terrain."],
-  ], example: "usgs-naip-plus" },
+  ], example: "modis-active-fires" },
   { slug: "ai-connection-guide", title: "Connect an AI model", description: "Configure local Ollama or connect an API-key provider for context-aware GIS analysis directly in your browser.", eyebrow: "AI connection guide", intro: "GISMap can send clicked locations, reverse-geocoder details, selected feature data, and loaded-layer metadata to a model you configure. Choose local Ollama or a supported online API provider.", html: `
     <h2>Before you connect</h2>
     <p>Open <strong>Tools → Configure AI</strong>. GISMap does not provide a hosted model or proxy: your browser connects directly to the endpoint you enter. When you ask a question, the configured provider receives the question and a bounded JSON map context containing the clicked coordinates, address and geocoder details, selected features, and loaded-layer metadata.</p>

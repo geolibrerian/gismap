@@ -24,6 +24,6 @@ test("catalog entries have stable, complete discovery metadata", () => {
 
 test("catalog includes the documented service families", () => {
   const types = new Set(POPULAR_SERVICES.map((item) => item.serviceType));
-  for (const type of ["feature", "map-image", "imagery", "geojson"]) assert.ok(types.has(type), `missing ${type}`);
+  for (const type of ["feature", "map-image", "geojson"]) assert.ok(types.has(type), `missing ${type}`);
   assert.ok(POPULAR_SERVICES.some((item) => item.featured), "at least one example must be featured");
 });
