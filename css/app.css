@@ -456,6 +456,10 @@ body.sidebar-collapsed .table-dialog { left: 14px; }
   body.table-open[data-table-position="dock-bottom"] .map-workspace {
     height: calc(100% - var(--table-dock-height, 420px));
   }
+  body.table-open[data-table-position="dock-top"] .map-workspace {
+    height: calc(100% - var(--table-dock-height, 420px));
+    margin-top: var(--table-dock-height, 420px);
+  }
   body.table-open[data-table-position^="dock-"] .table-dialog {
     max-width: none;
     max-height: none;
@@ -479,6 +483,11 @@ body.sidebar-collapsed .table-dialog { left: 14px; }
     width: auto;
     height: var(--table-dock-height, 420px);
   }
+  body.table-open[data-table-position="dock-top"] .table-dialog {
+    inset: 0 0 auto var(--sidebar);
+    width: auto;
+    height: var(--table-dock-height, 420px);
+  }
   body.sidebar-collapsed.table-open[data-table-position="dock-bottom"] .table-dialog { left: 0; }
   body.table-open[data-table-position^="dock-"] .table-resizer { display: block; }
   body.table-open[data-table-position="dock-left"] .table-resizer {
@@ -496,6 +505,11 @@ body.sidebar-collapsed .table-dialog { left: 14px; }
     height: 10px;
     cursor: row-resize;
   }
+  body.table-open[data-table-position="dock-top"] .table-resizer {
+    inset: auto 0 -5px;
+    height: 10px;
+    cursor: row-resize;
+  }
   body.table-open[data-table-position="dock-left"] .table-resizer::after,
   body.table-open[data-table-position="dock-right"] .table-resizer::after {
     content: "";
@@ -503,6 +517,7 @@ body.sidebar-collapsed .table-dialog { left: 14px; }
     inset: 0 4px;
     background: var(--line);
   }
+  body.table-open[data-table-position="dock-top"] .table-resizer::after,
   body.table-open[data-table-position="dock-bottom"] .table-resizer::after {
     content: "";
     position: absolute;
@@ -510,6 +525,7 @@ body.sidebar-collapsed .table-dialog { left: 14px; }
     background: var(--line);
   }
   body.table-resizing { cursor: col-resize; user-select: none; }
+  body.table-resizing[data-table-position="dock-top"],
   body.table-resizing[data-table-position="dock-bottom"] { cursor: row-resize; }
   body.table-resizing iframe, body.table-resizing canvas { pointer-events: none; }
 
@@ -527,6 +543,11 @@ body.sidebar-collapsed .table-dialog { left: 14px; }
     display: grid;
     grid-template: minmax(0, 1fr) var(--insights-dock-height, 360px) / minmax(0, 1fr);
     grid-template-areas: "map" "insight";
+  }
+  body.insights-open[data-insights-position="dock-top"] .map-workspace {
+    display: grid;
+    grid-template: var(--insights-dock-height, 360px) minmax(0, 1fr) / minmax(0, 1fr);
+    grid-template-areas: "insight" "map";
   }
   body.insights-open[data-insights-position^="dock-"] #viewDiv {
     position: relative;
@@ -564,6 +585,11 @@ body.sidebar-collapsed .table-dialog { left: 14px; }
     height: 10px;
     cursor: row-resize;
   }
+  body.insights-open[data-insights-position="dock-top"] .insights-resizer {
+    inset: auto 0 -5px;
+    height: 10px;
+    cursor: row-resize;
+  }
   body.insights-open[data-insights-position="dock-left"] .insights-resizer::after,
   body.insights-open[data-insights-position="dock-right"] .insights-resizer::after {
     content: "";
@@ -571,6 +597,7 @@ body.sidebar-collapsed .table-dialog { left: 14px; }
     inset: 0 4px;
     background: var(--line);
   }
+  body.insights-open[data-insights-position="dock-top"] .insights-resizer::after,
   body.insights-open[data-insights-position="dock-bottom"] .insights-resizer::after {
     content: "";
     position: absolute;
@@ -582,6 +609,7 @@ body.sidebar-collapsed .table-dialog { left: 14px; }
   body.insights-open[data-insights-position="dock-bottom"] .toast-region { bottom: calc(var(--insights-dock-height, 360px) + 22px); }
   body.sidebar-collapsed.insights-open[data-insights-position="dock-left"] .sidebar__open { left: calc(var(--insights-dock-width, 420px) + 18px); }
   body.insights-resizing { cursor: col-resize; user-select: none; }
+  body.insights-resizing[data-insights-position="dock-top"],
   body.insights-resizing[data-insights-position="dock-bottom"] { cursor: row-resize; }
   body.insights-resizing iframe, body.insights-resizing canvas { pointer-events: none; }
 }
@@ -900,20 +928,20 @@ body.sidebar-collapsed .table-dialog { left: 14px; }
   body.mobile-map-tools-open .map-nav { transform: translate(0, -50%); }
   body.mobile-map-tools-open .mobile-map-tools-toggle { right: 109px; transform: rotate(180deg); }
   .insights-overlay {
-    top: max(8px, env(safe-area-inset-top));
-    right: 12px;
+    top: 0;
+    right: 0;
     bottom: auto;
-    left: 12px;
-    width: calc(100% - 24px);
-    height: var(--mobile-insights-height, 40dvh);
-    max-height: 40dvh;
-    min-height: 25dvh;
-    border-radius: 0 0 12px 12px;
+    left: 0;
+    width: 100%;
+    height: var(--insights-overlay-height, min(45dvh, 440px));
+    max-height: 45dvh;
+    min-height: 30dvh;
+    border-radius: 0 0 14px 14px;
     overflow: hidden;
     grid-template-rows: auto minmax(0, 1fr);
   }
   .insights-overlay:not([hidden]) { display: grid; }
-  body.sidebar-collapsed .insights-overlay { left: 12px; }
+  body.sidebar-collapsed .insights-overlay { left: 0; }
   .insights-resizer {
     display: block;
     inset: auto 0 -10px;
@@ -931,6 +959,9 @@ body.sidebar-collapsed .table-dialog { left: 14px; }
   .insight-panel > header > span { display: none; }
   .insight-panel dl { padding: 0 8px 6px; }
   .insight-panel dl div { padding: 3px 0; }
+  body.table-open[data-table-position="dock-top"] .table-dialog { inset: 0 0 auto; width: 100%; height: min(var(--table-dock-height, 420px), 45dvh); margin: 0; border: 0; border-radius: 0 0 14px 14px; resize: none; }
+  body.table-open[data-table-position="dock-top"] .table-resizer { display: block; inset: auto 0 -10px; height: 20px; cursor: ns-resize; }
+  body.table-open[data-table-position="dock-top"] .table-resizer::after { content: ""; position: absolute; right: calc(50% - 22px); bottom: 7px; width: 44px; height: 4px; border-radius: 999px; background: var(--scrollbar-thumb); }
   .table-dialog { top: 60px; right: 7px; bottom: auto; left: 7px; width: auto; height: 44dvh; resize: vertical; }
   .table-dialog .dialog__header { padding: 8px 10px 6px; }
   .table-dialog .dialog__header h2 { font-size: 17px; }

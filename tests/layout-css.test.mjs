@@ -16,5 +16,7 @@ assert.match(css, /body\.sidebar-collapsed\.utility-panel-open \.utility-panel\s
 assert.match(css, /body\.mobile-map-tools-open \.map-nav\s*\{[^}]*translate\(0, -50%\)/s);
 assert.match(css, /\.mobile-panel-nav\s*\{[^}]*overflow-x:\s*auto/s);
 assert.match(css, /grid-template-areas:\s*"mobile-content"/);
-assert.match(css, /\.insights-overlay\s*\{[^}]*top:\s*max\(8px, env\(safe-area-inset-top\)\)[^}]*40dvh/s);
+assert.match(css, /body\.insights-open\[data-insights-position="dock-top"\] \.map-workspace/);
+assert.match(css, /body\.table-open\[data-table-position="dock-top"\] \.table-dialog/);
+assert.match(css, /\.insights-overlay\s*\{[^}]*top:\s*0;[^}]*width:\s*100%;[^}]*45dvh/s);
 assert.match(css, /\.insight-tabs\s*\{[^}]*order:\s*2/s);

@@ -6,6 +6,12 @@ All notable changes to GIS Map Online are documented here. This project follows
 
 ## [Unreleased]
 
+## [0.15.4] - 2026-09-09
+
+### Added
+
+- Added a Dock top layout choice for Map Insights and attribute tables. Phone viewports automatically use this full-width top dock without changing the saved desktop layout.
+
 ## [0.15.3] - 2026-09-09
 
 ### Fixed
@@ -285,7 +291,8 @@ All notable changes to GIS Map Online are documented here. This project follows
 - Prevented search suggestions from remaining open after selection.
 - Reduced map and panel flicker during feature identification.
 
-[Unreleased]: https://github.com/geolibrerian/gismap/compare/v0.15.3...HEAD
+[Unreleased]: https://github.com/geolibrerian/gismap/compare/v0.15.4...HEAD
+[0.15.4]: https://github.com/geolibrerian/gismap/compare/v0.15.3...v0.15.4
 [0.15.3]: https://github.com/geolibrerian/gismap/compare/v0.15.2...v0.15.3
 [0.15.2]: https://github.com/geolibrerian/gismap/compare/v0.15.1...v0.15.2
 [0.15.1]: https://github.com/geolibrerian/gismap/compare/v0.15.0...v0.15.1

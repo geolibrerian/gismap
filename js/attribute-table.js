@@ -280,7 +280,8 @@ export class AttributeTableController {
     const handle = document.querySelector("#table-resizer");
     const resizeBy = (amount) => {
       const settings = this.#displaySettings();
-      if (settings.tablePosition === "dock-bottom") {
+      const position = document.body.dataset.tablePosition;
+      if (["dock-top", "dock-bottom"].includes(position)) {
         settings.tableDockHeight = Math.min(window.innerHeight * 0.7, Math.max(170, settings.tableDockHeight + amount));
       } else if (["dock-left", "dock-right"].includes(settings.tablePosition)) {
         settings.tableDockWidth = Math.min(window.innerWidth * 0.65, Math.max(360, settings.tableDockWidth + amount));
@@ -290,8 +291,10 @@ export class AttributeTableController {
     };
     handle.addEventListener("keydown", (event) => {
       const position = document.body.dataset.tablePosition;
-      const direction = position === "dock-bottom"
-        ? ({ ArrowUp: 20, ArrowDown: -20 })[event.key]
+      const direction = ["dock-top", "dock-bottom"].includes(position)
+        ? (position === "dock-top"
+          ? ({ ArrowUp: -20, ArrowDown: 20 })[event.key]
+          : ({ ArrowUp: 20, ArrowDown: -20 })[event.key])
         : ({ ArrowLeft: position === "dock-right" ? 20 : -20, ArrowRight: position === "dock-right" ? -20 : 20 })[event.key];
       if (direction == null) return;
       event.preventDefault();
@@ -299,7 +302,7 @@ export class AttributeTableController {
     });
     handle.addEventListener("pointerdown", (event) => {
       const position = document.body.dataset.tablePosition;
-      if (!["dock-left", "dock-right", "dock-bottom"].includes(position)) return;
+      if (!["dock-left", "dock-right", "dock-top", "dock-bottom"].includes(position)) return;
       event.preventDefault();
       const settings = this.#displaySettings();
       const startX = event.clientX;
@@ -308,8 +311,9 @@ export class AttributeTableController {
       const startHeight = settings.tableDockHeight;
       document.body.classList.add("table-resizing");
       const move = (moveEvent) => {
-        if (position === "dock-bottom") {
-          settings.tableDockHeight = Math.min(window.innerHeight * 0.7, Math.max(170, startHeight + startY - moveEvent.clientY));
+        if (["dock-top", "dock-bottom"].includes(position)) {
+          const delta = position === "dock-top" ? moveEvent.clientY - startY : startY - moveEvent.clientY;
+          settings.tableDockHeight = Math.min(window.innerHeight * 0.7, Math.max(170, startHeight + delta));
         } else {
           const delta = position === "dock-left" ? moveEvent.clientX - startX : startX - moveEvent.clientX;
           settings.tableDockWidth = Math.min(window.innerWidth * 0.65, Math.max(360, startWidth + delta));
