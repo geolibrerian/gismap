@@ -29,7 +29,6 @@ assert.match(html, /id="utility-tabs"/);
 assert.match(html, /class="mobile-map-brand"[^>]*gis-map-online-mark-v2/);
 assert.match(html, /id="mobile-map-tools-toggle"/);
 assert.match(html, /id="mobile-drawer-handle"/);
-assert.match(html, /id="mobile-project-toggle"/);
 assert.match(html, /data-mobile-panel="intelligence-panel"[^>]*aria-label="Location intelligence"/);
 assert.match(html, /aria-label="Mobile tool drawer"/);
 assert.match(ui, /#bindMobileDrawerGesture/);

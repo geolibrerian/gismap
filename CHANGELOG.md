@@ -12,7 +12,8 @@ All notable changes to GIS Map Online are documented here. This project follows
 
 - Refined the phone layout around a persistent bottom toolbar with active Places, Saved, Draw, Layers, and XY content presented directly above it.
 - Moved Map Insight to a resizable top dock occupying between one quarter and two fifths of the viewport, with feature tabs along the dock's lower edge.
-- Replaced the floating mobile compass and menu with the GIS Map mark, and exposed Menu and Project as separate bottom-toolbar actions.
+- Replaced the floating mobile compass and menu with the GIS Map mark, moved the application menu into the bottom toolbar, and kept Project controls inside that menu.
+- Constrained active mobile tool content to its drawer track so the persistent toolbar remains reachable at every supported phone height.
 
 ## [0.15.0] - 2026-09-09
 

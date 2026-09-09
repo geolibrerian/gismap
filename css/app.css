@@ -762,6 +762,7 @@ body.sidebar-collapsed .table-dialog { left: 14px; }
     backdrop-filter: blur(12px);
     object-fit: contain;
   }
+  body.insights-open .mobile-map-brand { display: none; }
   .mobile-menu-drawer:not([hidden]) {
     position: fixed;
     z-index: 59;
@@ -845,10 +846,12 @@ body.sidebar-collapsed .table-dialog { left: 14px; }
   .mobile-panel-nav button.is-active { color: white; background: var(--green); }
   .sidebar__scroll {
     grid-area: mobile-content;
+    min-height: 0;
+    overflow-y: auto;
     overscroll-behavior: contain;
     -webkit-overflow-scrolling: touch;
   }
-  .sidebar__scroll > .panel { display: none; min-height: 100%; border-bottom: 0; }
+  .sidebar__scroll > .panel { display: none; min-height: 0; border-bottom: 0; }
   .sidebar__scroll > .panel.is-mobile-active { display: block; }
   .sidebar__scroll > .panel summary { padding: 11px 14px; pointer-events: none; }
   .sidebar__scroll > .panel summary span { font-size: 18px; }

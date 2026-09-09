@@ -72,16 +72,8 @@ export class UIController {
 
   #buildMobileMenu() {
     const drawer = document.querySelector("#mobile-menu-drawer");
-    const projectDrawer = document.querySelector("#mobile-project-drawer");
     const desktopMenu = document.querySelector("#sidebar > .menu-bar");
-    const mobileMenu = desktopMenu.cloneNode(true);
-    mobileMenu.querySelector(".menu")?.remove();
-    drawer.replaceChildren(mobileMenu);
-    const projectMenu = desktopMenu.cloneNode(true);
-    projectMenu.querySelectorAll(".menu").forEach((menu, index) => {
-      if (index !== 0) menu.remove();
-    });
-    projectDrawer.replaceChildren(projectMenu);
+    drawer.replaceChildren(desktopMenu.cloneNode(true));
   }
 
   #bindMenus() {
@@ -186,20 +178,16 @@ export class UIController {
     );
     document.querySelector("#sidebar-close").addEventListener("click", () => this.#setSidebarCollapsed(true));
     document.querySelector("#sidebar-open").addEventListener("click", () => this.#setSidebarCollapsed(false));
-    const toggleMobileDrawer = (event, drawerSelector, otherDrawerSelector) => {
+    const toggleMobileMenu = (event) => {
       event.stopPropagation();
-      const drawer = document.querySelector(drawerSelector);
-      const otherDrawer = document.querySelector(otherDrawerSelector);
+      const drawer = document.querySelector("#mobile-menu-drawer");
       const opening = drawer.hidden;
-      otherDrawer.hidden = true;
       drawer.hidden = !opening;
-      document.querySelector("#mobile-menu-toggle").setAttribute("aria-expanded", String(drawerSelector === "#mobile-menu-drawer" && opening));
-      document.querySelector("#mobile-project-toggle").setAttribute("aria-expanded", String(drawerSelector === "#mobile-project-drawer" && opening));
+      document.querySelector("#mobile-menu-toggle").setAttribute("aria-expanded", String(opening));
       if (opening && matchMedia("(max-width: 640px)").matches) this.#setSidebarCollapsed(true);
       if (!opening) this.#closeMenus();
     };
-    document.querySelector("#mobile-menu-toggle").addEventListener("click", (event) => toggleMobileDrawer(event, "#mobile-menu-drawer", "#mobile-project-drawer"));
-    document.querySelector("#mobile-project-toggle").addEventListener("click", (event) => toggleMobileDrawer(event, "#mobile-project-drawer", "#mobile-menu-drawer"));
+    document.querySelector("#mobile-menu-toggle").addEventListener("click", toggleMobileMenu);
     document.querySelector("#mobile-map-tools-toggle").addEventListener("click", (event) => {
       const open = !document.body.classList.contains("mobile-map-tools-open");
       document.body.classList.toggle("mobile-map-tools-open", open);
@@ -1913,11 +1901,6 @@ export class UIController {
       const toggle = document.querySelector("#mobile-menu-toggle");
       toggle.setAttribute("aria-expanded", "false");
       toggle.setAttribute("aria-label", "Open application menu");
-    }
-    const projectDrawer = document.querySelector("#mobile-project-drawer");
-    if (projectDrawer && !projectDrawer.hidden) {
-      projectDrawer.hidden = true;
-      document.querySelector("#mobile-project-toggle").setAttribute("aria-expanded", "false");
     }
   }
 }
