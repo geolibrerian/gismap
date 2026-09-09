@@ -82,7 +82,7 @@ published builds and generated release notes.
 - ArcGIS connection tests report version, authentication model, token endpoint, CORS reachability, federation, and owning Portal. Only connection metadata is exported with projects; credentials and tokens are never serialized.
 - Map Insight and attribute tables can float over the map or dock to its left, right, or bottom as dashboard panels. Docked layouts resize the ArcGIS view and provide draggable, keyboard-accessible dividers whose sizes are remembered by the browser.
 - The resizable Workspace Panel hosts independent, closable tabs for Basemap Gallery, Elevation Profile, Legend, Draw, layer Style, and Intelligence. Draw returns to the left sidebar when its workspace tab closes, and its graphics remain exportable as GeoJSON, KML, KMZ, or zipped Shapefiles.
-- On phones, a map-first shell replaces the persistent header with a floating compass/menu control, places navigation in a collapsible frosted rail, and presents Menu, Places, Saved views, Draw, Layers, and AI in a swipeable bottom tool drawer.
+- On phones, a fixed bottom bar offers Menu, Places, Bookmarks, Draw, Layers, and Details. Tap a button to show its controls above the bar, tap again to close, or tap another to switch. Map navigation stays in a collapsible side rail.
 - Places and Bookmarks are independent workspace panels, keeping search and saved views directly accessible without an internal mode switcher.
 - GeoJSON URLs load as native, queryable `GeoJSONLayer` instances and retain refresh, styling, and table settings in project files.
 - ArcGIS MapServer sublayer URLs are detected automatically, including raster sublayers that must be loaded through their parent `MapImageLayer`.

@@ -184,6 +184,15 @@ export class UIController {
       const opening = drawer.hidden;
       drawer.hidden = !opening;
       document.querySelector("#mobile-menu-toggle").setAttribute("aria-expanded", String(opening));
+      document.querySelector("#mobile-menu-toggle").classList.toggle("is-active", opening);
+      document.body.classList.toggle("mobile-menu-open", opening);
+      if (opening) {
+        this.#dismissWelcome();
+        document.querySelectorAll("[data-mobile-panel]").forEach((button) => {
+          button.classList.remove("is-active");
+          button.setAttribute("aria-pressed", "false");
+        });
+      }
       if (opening && matchMedia("(max-width: 640px)").matches) this.#setSidebarCollapsed(true);
       if (!opening) this.#closeMenus();
     };
@@ -194,12 +203,11 @@ export class UIController {
       event.currentTarget.setAttribute("aria-expanded", String(open));
       event.currentTarget.setAttribute("aria-label", `${open ? "Close" : "Open"} map controls`);
     });
-    this.#bindMobileDrawerGesture();
     document.querySelectorAll("[data-mobile-panel]").forEach((button) =>
       button.addEventListener("click", () => this.#activateMobilePanel(button.dataset.mobilePanel)),
     );
     document.querySelector("#utility-close").addEventListener("click", () => this.#closeActiveUtilityTab());
-    this.#activateMobilePanel("places-panel", false);
+    this.#activateMobilePanel(null, false);
     document.querySelector("#insights-close").addEventListener("click", () => {
       this.mapController.clearFeatureHighlight();
       this.#setInsightsOpen(false);
@@ -435,41 +443,14 @@ export class UIController {
     handle?.setAttribute("aria-label", `${collapsed ? "Expand" : "Collapse"} tool drawer`);
   }
 
-  #bindMobileDrawerGesture() {
-    const handle = document.querySelector("#mobile-drawer-handle");
-    let startY = null;
-    let suppressClick = false;
-    handle.addEventListener("click", () => {
-      if (suppressClick) {
-        suppressClick = false;
-        return;
-      }
-      this.#setSidebarCollapsed(!document.body.classList.contains("sidebar-collapsed"));
-    });
-    handle.addEventListener("pointerdown", (event) => {
-      startY = event.clientY;
-      handle.setPointerCapture?.(event.pointerId);
-    });
-    handle.addEventListener("pointerup", (event) => {
-      if (startY === null) return;
-      const delta = event.clientY - startY;
-      startY = null;
-      if (delta < -60) {
-        suppressClick = true;
-        if (document.body.classList.contains("sidebar-collapsed")) this.#setSidebarCollapsed(false);
-        else document.body.classList.add("mobile-drawer-expanded");
-      } else if (delta > 60) {
-        suppressClick = true;
-        if (document.body.classList.contains("mobile-drawer-expanded")) document.body.classList.remove("mobile-drawer-expanded");
-        else this.#setSidebarCollapsed(true);
-      }
-    });
-    handle.addEventListener("pointercancel", () => {
-      startY = null;
-    });
-  }
-
   #activateMobilePanel(panelId, openSidebar = true) {
+    const current = document.querySelector("[data-mobile-panel].is-active")?.dataset.mobilePanel;
+    const closing = openSidebar && current === panelId && !document.body.classList.contains("sidebar-collapsed");
+    if (openSidebar) {
+      this.#closeMenus();
+      this.#dismissWelcome();
+    }
+    if (closing) panelId = null;
     document.querySelectorAll("[data-mobile-panel]").forEach((button) => {
       const active = button.dataset.mobilePanel === panelId;
       button.classList.toggle("is-active", active);
@@ -480,7 +461,7 @@ export class UIController {
       panel.classList.toggle("is-mobile-active", active);
       if (active) panel.open = true;
     });
-    if (openSidebar) this.#setSidebarCollapsed(false);
+    if (openSidebar) this.#setSidebarCollapsed(!panelId);
   }
 
   async #handleAction(action) {
@@ -1891,6 +1872,8 @@ export class UIController {
   }
 
   #closeMenus() {
+    document.body.classList.remove("mobile-menu-open");
+    document.querySelector("#mobile-menu-toggle").classList.remove("is-active");
     document.querySelectorAll(".menu.is-open").forEach((menu) => menu.classList.remove("is-open"));
     document.querySelectorAll(".menu__trigger").forEach((trigger) => trigger.setAttribute("aria-expanded", "false"));
     document.querySelectorAll(".menu-bar.is-consolidated-open").forEach((menu) => menu.classList.remove("is-consolidated-open"));

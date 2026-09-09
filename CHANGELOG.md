@@ -6,6 +6,14 @@ All notable changes to GIS Map Online are documented here. This project follows
 
 ## [Unreleased]
 
+## [0.15.2] - 2026-09-09
+
+### Fixed
+
+- Replaced the mobile drawer with a permanently visible six-button toolbar. Each tool toggles compact content above the bar; Menu takes over the same area.
+- Added consistent SVG icons for Menu, Places, Bookmarks, Draw, Layers, and Details, and removed mobile panel titles and workspace-launch controls.
+- Added GIS Map Online branding to the welcome card on all screen sizes.
+
 ## [0.15.1] - 2026-09-09
 
 ### Changed
@@ -271,7 +279,8 @@ All notable changes to GIS Map Online are documented here. This project follows
 - Prevented search suggestions from remaining open after selection.
 - Reduced map and panel flicker during feature identification.
 
-[Unreleased]: https://github.com/geolibrerian/gismap/compare/v0.15.1...HEAD
+[Unreleased]: https://github.com/geolibrerian/gismap/compare/v0.15.2...HEAD
+[0.15.2]: https://github.com/geolibrerian/gismap/compare/v0.15.1...v0.15.2
 [0.15.1]: https://github.com/geolibrerian/gismap/compare/v0.15.0...v0.15.1
 [0.15.0]: https://github.com/geolibrerian/gismap/compare/v0.14.0...v0.15.0
 [0.14.0]: https://github.com/geolibrerian/gismap/compare/v0.13.1...v0.14.0

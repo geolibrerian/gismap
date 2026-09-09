@@ -53,7 +53,7 @@
     <link rel="icon" href="./assets/gis-map-online-mark-v2.png" type="image/png" />
     <link rel="preconnect" href="https://js.arcgis.com" />
     <link rel="stylesheet" href="https://js.arcgis.com/5.0/esri/themes/light/main.css" />
-    <link rel="stylesheet" href="./css/app.css?v=0.15.1" />
+    <link rel="stylesheet" href="./css/app.css?v=0.15.2" />
     <script type="module" src="https://js.arcgis.com/5.0/"></script>
     <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
     <script src="https://unpkg.com/@mapbox/shp-write@0.4.3/shpwrite.js"></script>
@@ -123,14 +123,13 @@
           </div>
         </nav>
 
-        <button id="mobile-drawer-handle" class="mobile-drawer-handle" type="button" aria-label="Expand tool drawer" aria-expanded="false"><span></span></button>
         <nav class="mobile-panel-nav" aria-label="Mobile tool drawer">
-          <button id="mobile-menu-toggle" type="button" aria-label="Open application menu" title="Menu" aria-controls="mobile-menu-drawer" aria-expanded="false"><span>☰</span><small>Menu</small></button>
-          <button type="button" data-mobile-panel="places-panel" aria-label="Places" title="Places"><span>⌖</span><small>Places</small></button>
-          <button type="button" data-mobile-panel="bookmarks-panel" aria-label="Bookmarks" title="Bookmarks"><span>☆</span><small>Saved</small></button>
-          <button type="button" data-mobile-panel="draw-panel" aria-label="Draw" title="Draw"><span>✎</span><small>Draw</small></button>
-          <button type="button" data-mobile-panel="layers-panel" aria-label="Layers" title="Layers"><span>▱</span><small>Layers</small></button>
-          <button type="button" data-mobile-panel="intelligence-panel" aria-label="Location intelligence" title="Location intelligence"><span>XY</span><small>XY</small></button>
+          <button id="mobile-menu-toggle" type="button" aria-label="Menu" aria-controls="mobile-menu-drawer" aria-expanded="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg><small>Menu</small></button>
+          <button type="button" data-mobile-panel="places-panel" aria-label="Places"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5"/></svg><small>Places</small></button>
+          <button type="button" data-mobile-panel="bookmarks-panel" aria-label="Bookmarks"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v17l-6-4-6 4Z"/></svg><small>Bookmarks</small></button>
+          <button type="button" data-mobile-panel="draw-panel" aria-label="Draw"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m14 5 5 5M4 20l5-1L20 8a2 2 0 0 0-5-5L4 14Z"/></svg><small>Draw</small></button>
+          <button type="button" data-mobile-panel="layers-panel" aria-label="Layers"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 10 5-10 5L2 8Zm-9 9 9 5 9-5M3 17l9 5 9-5"/></svg><small>Layers</small></button>
+          <button type="button" data-mobile-panel="intelligence-panel" aria-label="Details"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="7"/><circle cx="12" cy="12" r="2"/><path d="M12 2v3m0 14v3M2 12h3m14 0h3"/></svg><small>Details</small></button>
         </nav>
 
         <div class="sidebar__scroll">
@@ -200,6 +199,7 @@
         <img class="mobile-map-brand" src="./assets/gis-map-online-mark-v2.png" alt="GIS Map Online" />
         <section id="welcome-panel" class="welcome-panel" aria-labelledby="welcome-title">
           <button id="welcome-close" class="welcome-panel__close" type="button" aria-label="Dismiss introduction">×</button>
+          <div class="welcome-brand"><img src="./assets/gis-map-online-mark-v2.png" alt="" /><strong>GIS MAP <span>ONLINE</span></strong></div>
           <span class="eyebrow">Free, open-source browser GIS</span>
           <h1 id="welcome-title">Explore GIS data instantly</h1>
           <p>Paste an ArcGIS REST service or GeoJSON URL, or open a local geospatial file. GISMap lets you inspect, style, export and explore spatial data in an interactive 2D/3D map without creating an account or installing desktop GIS software.</p>
@@ -299,6 +299,6 @@
     <input id="tool-file-input" type="file" accept=".js,.mjs" hidden />
 
     <noscript>GIS Map Online requires JavaScript.</noscript>
-    <script type="module" src="./js/app.js?v=0.15.1"></script>
+    <script type="module" src="./js/app.js?v=0.15.2"></script>
   </body>
 </html>
