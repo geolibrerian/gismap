@@ -775,6 +775,11 @@ body.sidebar-collapsed .table-dialog { left: 14px; }
 }
 
 @media (max-width: 640px) {
+  .map-workspace,
+  #viewDiv {
+    overscroll-behavior: none;
+    touch-action: none;
+  }
   .welcome-panel { right: 12px; bottom: 84px; left: 12px; width: auto; padding: 16px; }
   body:not(.sidebar-collapsed) .welcome-panel { display: none; }
   .welcome-panel h1 { font-size: 23px; }

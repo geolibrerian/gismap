@@ -6,6 +6,12 @@ All notable changes to GIS Map Online are documented here. This project follows
 
 ## [Unreleased]
 
+## [0.15.6] - 2026-09-09
+
+### Fixed
+
+- Reserved phone map-canvas gestures for GIS navigation and blocked accidental browser pinch or double-tap page zooming over the map.
+
 ## [0.15.5] - 2026-09-09
 
 ### Fixed
@@ -299,7 +305,8 @@ All notable changes to GIS Map Online are documented here. This project follows
 - Prevented search suggestions from remaining open after selection.
 - Reduced map and panel flicker during feature identification.
 
-[Unreleased]: https://github.com/geolibrerian/gismap/compare/v0.15.5...HEAD
+[Unreleased]: https://github.com/geolibrerian/gismap/compare/v0.15.6...HEAD
+[0.15.6]: https://github.com/geolibrerian/gismap/compare/v0.15.5...v0.15.6
 [0.15.5]: https://github.com/geolibrerian/gismap/compare/v0.15.4...v0.15.5
 [0.15.4]: https://github.com/geolibrerian/gismap/compare/v0.15.3...v0.15.4
 [0.15.3]: https://github.com/geolibrerian/gismap/compare/v0.15.2...v0.15.3

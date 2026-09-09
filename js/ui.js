@@ -1,7 +1,7 @@
-import { POPULAR_SERVICES } from "./catalog.js?v=0.15.5";
-import { ENTERPRISE_CATALOGS, EnterpriseCatalog, normalizeArcGisDirectoryUrl } from "./enterprise-catalog.js?v=0.15.5";
-import { createShareUrl } from "./share.js?v=0.15.5";
-import { renderMarkdown } from "./markdown.js?v=0.15.5";
+import { POPULAR_SERVICES } from "./catalog.js?v=0.15.6";
+import { ENTERPRISE_CATALOGS, EnterpriseCatalog, normalizeArcGisDirectoryUrl } from "./enterprise-catalog.js?v=0.15.6";
+import { createShareUrl } from "./share.js?v=0.15.6";
+import { renderMarkdown } from "./markdown.js?v=0.15.6";
 
 const DISPLAY_SETTINGS_KEY = "gismap-online:display:v1";
 const INSIGHT_POSITIONS = new Set(["upper-left", "lower-left", "bottom", "dock-left", "dock-right", "dock-top", "dock-bottom"]);
@@ -260,6 +260,10 @@ export class UIController {
   }
 
   #bindMapEvents() {
+    const mapWorkspace = document.querySelector(".map-workspace");
+    ["gesturestart", "gesturechange", "gestureend"].forEach((type) => {
+      mapWorkspace.addEventListener(type, (event) => event.preventDefault(), { passive: false });
+    });
     this.events.subscribe("map:ready", ({ view }) => {
       document.querySelector("#map-status").textContent = `Ready · zoom ${view.zoom.toFixed(1)}`;
       view.on("pointer-move", (event) => {

@@ -20,4 +20,5 @@ assert.match(css, /body\.insights-open\[data-insights-position="dock-top"\] \.ma
 assert.match(css, /body\.table-open\[data-table-position="dock-top"\] \.table-dialog/);
 assert.match(css, /\.insights-overlay\s*\{[^}]*top:\s*0;[^}]*width:\s*100%;[^}]*45dvh/s);
 assert.match(css, /body\[data-insights-position="dock-top"\] \.insights-overlay\s*\{[^}]*inset:\s*0 0 auto;/s);
+assert.match(css, /@media \(max-width: 640px\)[\s\S]*\.map-workspace,\s*#viewDiv\s*\{[^}]*touch-action:\s*none;/);
 assert.match(css, /\.insight-tabs\s*\{[^}]*order:\s*2/s);

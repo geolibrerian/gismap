@@ -47,5 +47,6 @@ assert.match(ui, /lastAIQueryText/);
 assert.match(ui, /goToFeature\(result\)/);
 assert.match(ui, /Selected data query/);
 assert.match(ui, /data-close-utility-tab/);
+assert.match(ui, /gesturestart/, "map canvas blocks browser gesture zooming");
 assert.match(robots, /Sitemap: https:\/\/gismap\.online\/sitemap\.xml/);
 assert.match(sitemap, /<loc>https:\/\/gismap\.online\/<\/loc>/);
