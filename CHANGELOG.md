@@ -6,6 +6,12 @@ All notable changes to GIS Map Online are documented here. This project follows
 
 ## [Unreleased]
 
+## [0.15.3] - 2026-09-09
+
+### Fixed
+
+- Made the mobile bottom toolbar an independent, fixed viewport element outside the sidebar and map containers, visible from initial load regardless of drawer state.
+
 ## [0.15.2] - 2026-09-09
 
 ### Fixed
@@ -279,7 +285,8 @@ All notable changes to GIS Map Online are documented here. This project follows
 - Prevented search suggestions from remaining open after selection.
 - Reduced map and panel flicker during feature identification.
 
-[Unreleased]: https://github.com/geolibrerian/gismap/compare/v0.15.2...HEAD
+[Unreleased]: https://github.com/geolibrerian/gismap/compare/v0.15.3...HEAD
+[0.15.3]: https://github.com/geolibrerian/gismap/compare/v0.15.2...v0.15.3
 [0.15.2]: https://github.com/geolibrerian/gismap/compare/v0.15.1...v0.15.2
 [0.15.1]: https://github.com/geolibrerian/gismap/compare/v0.15.0...v0.15.1
 [0.15.0]: https://github.com/geolibrerian/gismap/compare/v0.14.0...v0.15.0
