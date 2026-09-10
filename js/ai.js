@@ -82,6 +82,7 @@ export function buildAIMapContext(context, loadedLayers = []) {
       count: identified.length,
       layers: [...new Set(identified.map((result) => result.layerTitle).filter(Boolean))].slice(0, 20),
     },
+    mapExtent: context.mapExtent ?? null,
     loadedLayers,
   };
 }
@@ -243,7 +244,7 @@ export class AIController {
   #compactContext(context) {
     const layers = this.mapController.getAllLayerConfigs()
       .map(({ title, type, url }) => ({ title, type, url }));
-    return buildAIMapContext(context, layers);
+    return buildAIMapContext({ ...(context ?? {}), mapExtent: this.mapController.getCurrentExtentDetails?.() ?? null }, layers);
   }
 
   #readConfig() {

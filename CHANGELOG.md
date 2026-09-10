@@ -6,6 +6,17 @@ All notable changes to GIS Map Online are documented here. This project follows
 
 ## [Unreleased]
 
+## [0.15.8] - 2026-09-09
+
+### Added
+
+- Added an Add all layers action to multi-layer ArcGIS Feature Service dialogs.
+- Added a Location Intelligence Report PDF download with the clicked location, extent, date, and generated AI insight.
+
+### Changed
+
+- Empty AI questions now request a location-and-current-extent summary, and the Workspace Panel shows progress while the model is responding.
+
 ## [0.15.7] - 2026-09-09
 
 ### Fixed
@@ -311,7 +322,8 @@ All notable changes to GIS Map Online are documented here. This project follows
 - Prevented search suggestions from remaining open after selection.
 - Reduced map and panel flicker during feature identification.
 
-[Unreleased]: https://github.com/geolibrerian/gismap/compare/v0.15.7...HEAD
+[Unreleased]: https://github.com/geolibrerian/gismap/compare/v0.15.8...HEAD
+[0.15.8]: https://github.com/geolibrerian/gismap/compare/v0.15.7...v0.15.8
 [0.15.7]: https://github.com/geolibrerian/gismap/compare/v0.15.6...v0.15.7
 [0.15.6]: https://github.com/geolibrerian/gismap/compare/v0.15.5...v0.15.6
 [0.15.5]: https://github.com/geolibrerian/gismap/compare/v0.15.4...v0.15.5

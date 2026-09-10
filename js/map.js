@@ -750,6 +750,25 @@ export class MapController {
     };
   }
 
+  getCurrentExtentDetails() {
+    const extent = this.view?.extent;
+    if (!extent) return null;
+    const toCoordinate = (longitude, latitude) => (
+      Number.isFinite(longitude) && Number.isFinite(latitude)
+        ? { longitude: Number(longitude.toFixed(6)), latitude: Number(latitude.toFixed(6)) }
+        : null
+    );
+    const center = this.view?.center;
+    return {
+      west: extent.xmin,
+      south: extent.ymin,
+      east: extent.xmax,
+      north: extent.ymax,
+      center: toCoordinate(center?.longitude, center?.latitude),
+      zoom: Number.isFinite(this.view?.zoom) ? Number(this.view.zoom.toFixed(2)) : null,
+    };
+  }
+
   async restoreView(state) {
     if (state?.camera) {
       await this.view.goTo(state.camera, { animate: false });

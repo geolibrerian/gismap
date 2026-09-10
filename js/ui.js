@@ -1,7 +1,7 @@
-import { POPULAR_SERVICES } from "./catalog.js?v=0.15.7";
-import { ENTERPRISE_CATALOGS, EnterpriseCatalog, normalizeArcGisDirectoryUrl } from "./enterprise-catalog.js?v=0.15.7";
-import { createShareUrl } from "./share.js?v=0.15.7";
-import { renderMarkdown } from "./markdown.js?v=0.15.7";
+import { POPULAR_SERVICES } from "./catalog.js?v=0.15.8";
+import { ENTERPRISE_CATALOGS, EnterpriseCatalog, normalizeArcGisDirectoryUrl } from "./enterprise-catalog.js?v=0.15.8";
+import { createShareUrl } from "./share.js?v=0.15.8";
+import { renderMarkdown } from "./markdown.js?v=0.15.8";
 
 const DISPLAY_SETTINGS_KEY = "gismap-online:display:v1";
 const INSIGHT_POSITIONS = new Set(["upper-left", "lower-left", "bottom", "dock-left", "dock-right", "dock-top", "dock-bottom"]);
@@ -39,6 +39,7 @@ export class UIController {
     this.selectedInsightIndexes = new Set();
     this.lastAIResponseText = null;
     this.lastAIQueryText = null;
+    this.aiPending = false;
     this.identifyPending = false;
     this.utilityIntelligenceOpen = false;
     this.utilityDrawOpen = false;
@@ -321,12 +322,20 @@ export class UIController {
       this.error(`Identify failed: ${error.message}`);
     });
     this.events.subscribe("ai:start", () => {
+      this.aiPending = true;
       this.lastAIResponseText = null;
       this.#renderIntelligenceContents();
       this.toast("Asking the configured model…");
     });
-    this.events.subscribe("ai:complete", ({ text }) => this.#showAIResponse(text));
-    this.events.subscribe("ai:error", ({ error }) => this.error(error.message));
+    this.events.subscribe("ai:complete", ({ text }) => {
+      this.aiPending = false;
+      this.#showAIResponse(text);
+    });
+    this.events.subscribe("ai:error", ({ error }) => {
+      this.aiPending = false;
+      this.#renderIntelligenceContents();
+      this.error(error.message);
+    });
     ["ai:configured", "ai:disabled"].forEach((topic) =>
       this.events.subscribe(topic, () => {
         if (this.lastInsight) this.#renderInsight(this.lastInsight);
@@ -1000,34 +1009,65 @@ export class UIController {
     this.openDialog({
       eyebrow: "ArcGIS feature service",
       title: config.title?.trim() || "Select layers",
-      content: `<p class="form-note">This service contains multiple layers. Add the datasets you want individually.</p>
+      content: `<div class="feature-service-actions"><p class="form-note">This service contains multiple layers. Add individual datasets or bring them all into the map at once.</p><button type="button" data-add-all-feature-service>Add all layers</button></div>
         <div class="enterprise-list">${layers.map((layer) => `<div class="enterprise-row">
           <span><strong>${escapeHtml(layer.name)}</strong><small>${escapeHtml(layer.geometryType)} · Layer ${layer.id}</small></span>
           <button type="button" data-feature-service-layer="${escapeHtml(layer.url)}">Add</button>
         </div>`).join("")}</div>`,
     });
+    const addLayer = async (layerInfo, button, { zoom = true } = {}) => {
+      button.disabled = true;
+      button.textContent = "Adding…";
+      try {
+        const layer = await this.mapController.addService({
+          ...config,
+          url: layerInfo.url,
+          title: layerInfo.name,
+          serviceType: "feature",
+        });
+        button.textContent = "Added";
+        if (zoom && layer.fullExtent) await this.mapController.goToLayer(layer).catch(() => {});
+        return layer;
+      } catch (error) {
+        button.disabled = false;
+        button.textContent = "Add";
+        throw error;
+      }
+    };
     this.dialog.querySelectorAll("[data-feature-service-layer]").forEach((button) =>
       button.addEventListener("click", async () => {
-        button.disabled = true;
-        button.textContent = "Adding…";
+        const layerInfo = layers.find((item) => item.url === button.dataset.featureServiceLayer);
         try {
-          const layerInfo = layers.find((item) => item.url === button.dataset.featureServiceLayer);
-          const layer = await this.mapController.addService({
-            ...config,
-            url: layerInfo.url,
-            title: layerInfo.name,
-            serviceType: "feature",
-          });
-          button.textContent = "Added";
+          const layer = await addLayer(layerInfo, button);
           this.toast(`${layer.title} added.`);
-          if (layer.fullExtent) await this.mapController.goToLayer(layer).catch(() => {});
         } catch (error) {
-          button.disabled = false;
-          button.textContent = "Add";
           this.error(error.message);
         }
       }),
     );
+    this.dialog.querySelector("[data-add-all-feature-service]")?.addEventListener("click", async (event) => {
+      const addAllButton = event.currentTarget;
+      addAllButton.disabled = true;
+      const added = [];
+      const failures = [];
+      for (let index = 0; index < layers.length; index += 1) {
+        const layerInfo = layers[index];
+        const layerButton = this.dialog.querySelector(`[data-feature-service-layer="${CSS.escape(layerInfo.url)}"]`);
+        if (layerButton?.textContent === "Added") continue;
+        addAllButton.textContent = `Adding ${index + 1} of ${layers.length}…`;
+        try {
+          const layer = await addLayer(layerInfo, layerButton, { zoom: false });
+          added.push(layer);
+        } catch (error) {
+          failures.push(layerInfo.name);
+        }
+      }
+      addAllButton.textContent = failures.length ? "Retry failed layers" : "All layers added";
+      addAllButton.disabled = failures.length === 0;
+      if (added[0]?.fullExtent) await this.mapController.goToLayer(added[0]).catch(() => {});
+      if (added.length) this.toast(`${added.length} layer${added.length === 1 ? "" : "s"} added.`);
+      if (failures.length) this.error(`Could not add: ${failures.join(", ")}.`);
+    });
   }
 
   async #enterpriseCatalogDialog(catalogIdOrDefinition) {
@@ -1771,9 +1811,11 @@ export class UIController {
       ? `<form class="ai-question"><label>Ask about this map context <small class="ai-selection-count">· ${selectedCount} feature${selectedCount === 1 ? "" : "s"} selected</small></label><div><input aria-label="Question about this map context" placeholder="What stands out here?" /><button>Ask AI</button></div></form>`
       : "";
     const responseHtml = this.lastAIResponseText
-      ? `<section class="ai-response"><div class="ai-response__header"><span class="eyebrow">AI insights</span><button type="button" class="ai-response__clear">Clear insights</button></div><p class="ai-response__query"><strong>Query</strong><span>${escapeHtml(this.lastAIQueryText || "Map context query")}</span></p><div class="ai-response__markdown">${renderMarkdown(this.lastAIResponseText)}</div></section>`
+      ? `<section class="ai-response"><div class="ai-response__header"><span class="eyebrow">AI insights</span><span><button type="button" class="ai-response__download">Download report</button><button type="button" class="ai-response__clear">Clear insights</button></span></div><p class="ai-response__query"><strong>Query</strong><span>${escapeHtml(this.lastAIQueryText || "Map context query")}</span></p><div class="ai-response__markdown">${renderMarkdown(this.lastAIResponseText)}</div></section>`
       : "";
-    const loadingHtml = this.identifyPending ? '<div class="loading-row"><span></span> Inspecting location…</div>' : "";
+    const loadingHtml = this.identifyPending
+      ? '<div class="loading-row"><span></span> Inspecting location…</div>'
+      : this.aiPending ? '<div class="loading-row ai-loading"><span></span> Generating AI insights…</div>' : "";
     const html = `<div class="intelligence-toolbar"><button type="button" data-open-intelligence-utility title="Open Intelligence in the right panel">Open in right panel ↗</button></div>${loadingHtml}${locationHtml}${aiForm}${responseHtml}`;
     targets.forEach((target) => {
       target.classList.toggle("intelligence-empty", !payload);
@@ -1782,13 +1824,18 @@ export class UIController {
       target.querySelector(".ai-question")?.addEventListener("submit", (event) => {
         event.preventDefault();
         const prompt = event.currentTarget.querySelector("input").value.trim();
-        if (prompt) this.#askAI(prompt, payload);
+        this.#askAI(
+          prompt || "Summarize the current map extent, clicked location, loaded map layers, and any selected data. Identify useful patterns and geographic context.",
+          payload,
+          prompt || "Current map extent and location",
+        );
       });
       target.querySelector(".ai-response__clear")?.addEventListener("click", () => {
         this.lastAIResponseText = null;
         this.lastAIQueryText = null;
         this.#renderIntelligenceContents();
       });
+      target.querySelector(".ai-response__download")?.addEventListener("click", () => this.#downloadAIReport(payload));
     });
   }
 
@@ -1844,6 +1891,101 @@ export class UIController {
       ? document.querySelector("#utility-intelligence-content")
       : document.querySelector("#intelligence-content");
     activeContent?.querySelector(".ai-response")?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  }
+
+  async #downloadAIReport(payload = this.lastInsight) {
+    if (!this.lastAIResponseText) {
+      this.error("Generate AI insights before downloading a report.");
+      return;
+    }
+    const margin = 48;
+    const pageWidth = 612;
+    const pageHeight = 792;
+    const safeText = (value) => String(value ?? "").replace(/[\\()]/g, "\\$&").replace(/[^\x20-\x7e]/g, "?");
+    const wrap = (value, maxChars = 91) => String(value ?? "").split(/\n/).flatMap((paragraph) => {
+      if (!paragraph.trim()) return [""];
+      const words = paragraph.trim().split(/\s+/);
+      const lines = [];
+      let line = "";
+      words.forEach((word) => {
+        if (`${line} ${word}`.trim().length > maxChars && line) {
+          lines.push(line);
+          line = word;
+        } else line = `${line} ${word}`.trim();
+      });
+      if (line) lines.push(line);
+      return lines;
+    });
+    const pages = [];
+    let commands;
+    let y;
+    const newPage = () => {
+      commands = [
+        "0.06 0.16 0.13 rg 48 712 516 32 re f",
+        "1 1 1 rg BT /F2 14 Tf 60 724 Td (GIS MAP ONLINE) Tj ET",
+        "0.08 0.37 0.30 rg BT /F2 11 Tf 48 682 Td (LOCATION INTELLIGENCE REPORT) Tj ET",
+      ];
+      pages.push(commands);
+      y = 660;
+    };
+    const addLines = (text, { size = 10, leading = 15, color = "0.09 0.16 0.14", bold = false } = {}) => {
+      wrap(text).forEach((line) => {
+        if (y < margin + leading) newPage();
+        commands.push(`${color} rg BT /F${bold ? 2 : 1} ${size} Tf ${margin} ${y} Td (${safeText(line)}) Tj ET`);
+        y -= leading;
+      });
+    };
+    newPage();
+    const point = payload?.point;
+    const coordinates = point ? `${point.latitude.toFixed(6)}, ${point.longitude.toFixed(6)}` : "Unknown location";
+    const location = payload?.address?.address || coordinates;
+    addLines(`Generated ${new Date().toLocaleString()}`, { size: 9, leading: 14, color: "0.36 0.44 0.41" });
+    y -= 10;
+    addLines("Location", { size: 13, leading: 18, color: "0.08 0.36 0.30", bold: true });
+    addLines(location, { size: 12, leading: 18, bold: true });
+    addLines(`Coordinates: ${coordinates}`);
+    const extent = this.mapController.getCurrentExtentDetails?.();
+    if (extent) addLines(`Map extent: ${extent.west.toFixed(4)}, ${extent.south.toFixed(4)} to ${extent.east.toFixed(4)}, ${extent.north.toFixed(4)}${extent.zoom != null ? ` (zoom ${extent.zoom})` : ""}`);
+    y -= 10;
+    addLines("Query", { size: 13, leading: 18, color: "0.08 0.36 0.30", bold: true });
+    addLines(this.lastAIQueryText || "Map context query", { size: 11, leading: 16 });
+    y -= 10;
+    addLines("Generated intelligence", { size: 13, leading: 18, color: "0.08 0.36 0.30", bold: true });
+    addLines(this.lastAIResponseText.replace(/[#*_`>-]/g, "").replace(/\n{3,}/g, "\n\n"), { size: 10, leading: 15 });
+    const objects = [null];
+    const reserve = () => { objects.push(""); return objects.length - 1; };
+    const setObject = (id, value) => { objects[id] = value; };
+    const catalogId = reserve();
+    const pagesId = reserve();
+    const regularFontId = reserve();
+    const boldFontId = reserve();
+    setObject(regularFontId, "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>");
+    setObject(boldFontId, "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>");
+    const pageIds = pages.map((page) => {
+      const stream = page.join("\n");
+      const contentId = reserve();
+      setObject(contentId, `<< /Length ${new TextEncoder().encode(stream).length} >>\nstream\n${stream}\nendstream`);
+      const pageId = reserve();
+      setObject(pageId, `<< /Type /Page /Parent ${pagesId} 0 R /MediaBox [0 0 ${pageWidth} ${pageHeight}] /Resources << /Font << /F1 ${regularFontId} 0 R /F2 ${boldFontId} 0 R >> >> /Contents ${contentId} 0 R >>`);
+      return pageId;
+    });
+    setObject(pagesId, `<< /Type /Pages /Kids [${pageIds.map((id) => `${id} 0 R`).join(" ")}] /Count ${pageIds.length} >>`);
+    setObject(catalogId, `<< /Type /Catalog /Pages ${pagesId} 0 R >>`);
+    let pdf = "%PDF-1.4\n%????\n";
+    const offsets = [0];
+    objects.slice(1).forEach((object, index) => {
+      offsets[index + 1] = new TextEncoder().encode(pdf).length;
+      pdf += `${index + 1} 0 obj\n${object}\nendobj\n`;
+    });
+    const xrefOffset = new TextEncoder().encode(pdf).length;
+    pdf += `xref\n0 ${objects.length}\n0000000000 65535 f \n${offsets.slice(1).map((offset) => `${String(offset).padStart(10, "0")} 00000 n \n`).join("")}trailer\n<< /Size ${objects.length} /Root ${catalogId} 0 R >>\nstartxref\n${xrefOffset}\n%%EOF`;
+    const slug = String(location).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "").slice(0, 48) || "map-location";
+    const download = document.createElement("a");
+    download.href = URL.createObjectURL(new Blob([new TextEncoder().encode(pdf)], { type: "application/pdf" }));
+    download.download = `location-intelligence-report-${slug}.pdf`;
+    download.click();
+    setTimeout(() => URL.revokeObjectURL(download.href), 1000);
+    this.toast("Location Intelligence Report downloaded.");
   }
 
   #showProject(project, state = "Local") {

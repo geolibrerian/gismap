@@ -22,6 +22,7 @@ const context = buildAIMapContext({
     { layerTitle: "Parcels", attributes: { Name: "Nearby but not selected" } },
   ],
   selectedResults: [{ layerTitle: "Landmarks", attributes: { Name: "Example", Nested: { ignored: true } }, geometry: { type: "point", x: -122.23, y: 37.56, spatialReference: { wkid: 4326 } } }],
+  mapExtent: { west: -122.4, south: 37.4, east: -122.1, north: 37.7, zoom: 12 },
 }, [{ title: "Landmarks", type: "feature", url: "https://example.com/FeatureServer/0" }]);
 
 assert.equal(context.address, "Redwood City, California");
@@ -34,6 +35,7 @@ assert.equal(context.selectedFeatures[0].geometry.spatialReference.wkid, 4326);
 assert.equal(context.identifiedFeatureSummary.count, 2);
 assert.deepEqual(context.identifiedFeatureSummary.layers, ["Landmarks", "Parcels"]);
 assert.equal(context.loadedLayers[0].title, "Landmarks");
+assert.deepEqual(context.mapExtent, { west: -122.4, south: 37.4, east: -122.1, north: 37.7, zoom: 12 });
 
 const boundedContext = buildAIMapContext({
   results: [],
