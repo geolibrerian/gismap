@@ -1,7 +1,7 @@
-import { POPULAR_SERVICES } from "./catalog.js?v=0.15.8";
-import { ENTERPRISE_CATALOGS, EnterpriseCatalog, normalizeArcGisDirectoryUrl } from "./enterprise-catalog.js?v=0.15.8";
-import { createShareUrl } from "./share.js?v=0.15.8";
-import { renderMarkdown } from "./markdown.js?v=0.15.8";
+import { POPULAR_SERVICES } from "./catalog.js?v=0.15.9";
+import { ENTERPRISE_CATALOGS, EnterpriseCatalog, normalizeArcGisDirectoryUrl } from "./enterprise-catalog.js?v=0.15.9";
+import { createShareUrl } from "./share.js?v=0.15.9";
+import { renderMarkdown } from "./markdown.js?v=0.15.9";
 
 const DISPLAY_SETTINGS_KEY = "gismap-online:display:v1";
 const INSIGHT_POSITIONS = new Set(["upper-left", "lower-left", "bottom", "dock-left", "dock-right", "dock-top", "dock-bottom"]);
@@ -1901,6 +1901,31 @@ export class UIController {
     const margin = 48;
     const pageWidth = 612;
     const pageHeight = 792;
+    const textEncoder = new TextEncoder();
+    const dataUrlBytes = (dataUrl) => Uint8Array.from(atob(dataUrl.split(",")[1] || ""), (character) => character.charCodeAt(0));
+    const toJpeg = (source, width = 96, height = 96) => new Promise((resolve) => {
+      const image = new Image();
+      image.onload = () => {
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        const context = canvas.getContext("2d");
+        context.fillStyle = "#ffffff";
+        context.fillRect(0, 0, width, height);
+        const scale = Math.min(width / image.naturalWidth, height / image.naturalHeight);
+        const drawWidth = image.naturalWidth * scale;
+        const drawHeight = image.naturalHeight * scale;
+        context.drawImage(image, (width - drawWidth) / 2, (height - drawHeight) / 2, drawWidth, drawHeight);
+        resolve({ bytes: dataUrlBytes(canvas.toDataURL("image/jpeg", 0.92)), width, height });
+      };
+      image.onerror = () => resolve(null);
+      image.src = source;
+    });
+    const logo = await toJpeg("./assets/gis-map-online-mark-v2.png", 96, 96);
+    const mapCapture = await this.mapController.takeMapScreenshot().catch(() => null);
+    const mapImage = mapCapture?.dataUrl
+      ? { bytes: dataUrlBytes(mapCapture.dataUrl), width: mapCapture.width, height: mapCapture.height }
+      : null;
     const safeText = (value) => String(value ?? "").replace(/[\\()]/g, "\\$&").replace(/[^\x20-\x7e]/g, "?");
     const wrap = (value, maxChars = 91) => String(value ?? "").split(/\n/).flatMap((paragraph) => {
       if (!paragraph.trim()) return [""];
@@ -1917,21 +1942,25 @@ export class UIController {
       return lines;
     });
     const pages = [];
-    let commands;
+    let page;
     let y;
     const newPage = () => {
-      commands = [
+      page = { commands: [
         "0.06 0.16 0.13 rg 48 712 516 32 re f",
-        "1 1 1 rg BT /F2 14 Tf 60 724 Td (GIS MAP ONLINE) Tj ET",
+        "1 1 1 rg BT /F2 14 Tf 96 724 Td (GIS MAP ONLINE) Tj ET",
         "0.08 0.37 0.30 rg BT /F2 11 Tf 48 682 Td (LOCATION INTELLIGENCE REPORT) Tj ET",
-      ];
-      pages.push(commands);
+      ], images: [] };
+      if (logo) {
+        page.images.push({ name: "ImLogo", asset: logo });
+        page.commands.push("q 24 0 0 24 60 716 cm /ImLogo Do Q");
+      }
+      pages.push(page);
       y = 660;
     };
     const addLines = (text, { size = 10, leading = 15, color = "0.09 0.16 0.14", bold = false } = {}) => {
       wrap(text).forEach((line) => {
         if (y < margin + leading) newPage();
-        commands.push(`${color} rg BT /F${bold ? 2 : 1} ${size} Tf ${margin} ${y} Td (${safeText(line)}) Tj ET`);
+        page.commands.push(`${color} rg BT /F${bold ? 2 : 1} ${size} Tf ${margin} ${y} Td (${safeText(line)}) Tj ET`);
         y -= leading;
       });
     };
@@ -1952,6 +1981,18 @@ export class UIController {
     y -= 10;
     addLines("Generated intelligence", { size: 13, leading: 18, color: "0.08 0.36 0.30", bold: true });
     addLines(this.lastAIResponseText.replace(/[#*_`>-]/g, "").replace(/\n{3,}/g, "\n\n"), { size: 10, leading: 15 });
+    if (mapImage) {
+      newPage();
+      addLines("Map snapshot", { size: 13, leading: 18, color: "0.08 0.36 0.30", bold: true });
+      addLines("The map view at the time this Location Intelligence Report was created.", { size: 9, leading: 14, color: "0.36 0.44 0.41" });
+      const imageWidth = pageWidth - (margin * 2);
+      const imageHeight = Math.min(360, imageWidth * (mapImage.height / mapImage.width));
+      const imageName = "ImMap";
+      page.images.push({ name: imageName, asset: mapImage });
+      page.commands.push(`q ${imageWidth} 0 0 ${imageHeight} ${margin} ${y - imageHeight} cm /${imageName} Do Q`);
+      y -= imageHeight + 18;
+      addLines(`Map extent: ${this.mapController.getCurrentExtentDetails()?.west.toFixed(4)}, ${this.mapController.getCurrentExtentDetails()?.south.toFixed(4)} to ${this.mapController.getCurrentExtentDetails()?.east.toFixed(4)}, ${this.mapController.getCurrentExtentDetails()?.north.toFixed(4)}`, { size: 9, leading: 14, color: "0.36 0.44 0.41" });
+    }
     const objects = [null];
     const reserve = () => { objects.push(""); return objects.length - 1; };
     const setObject = (id, value) => { objects[id] = value; };
@@ -1961,27 +2002,47 @@ export class UIController {
     const boldFontId = reserve();
     setObject(regularFontId, "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>");
     setObject(boldFontId, "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>");
-    const pageIds = pages.map((page) => {
-      const stream = page.join("\n");
+    const imageIds = new Map();
+    const imageObject = (asset) => {
+      if (imageIds.has(asset)) return imageIds.get(asset);
+      const imageId = reserve();
+      const header = textEncoder.encode(`<< /Type /XObject /Subtype /Image /Width ${asset.width} /Height ${asset.height} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${asset.bytes.length} >>\nstream\n`);
+      const footer = textEncoder.encode("\nendstream");
+      const bytes = new Uint8Array(header.length + asset.bytes.length + footer.length);
+      bytes.set(header);
+      bytes.set(asset.bytes, header.length);
+      bytes.set(footer, header.length + asset.bytes.length);
+      setObject(imageId, bytes);
+      imageIds.set(asset, imageId);
+      return imageId;
+    };
+    const pageIds = pages.map((currentPage) => {
+      const stream = currentPage.commands.join("\n");
       const contentId = reserve();
-      setObject(contentId, `<< /Length ${new TextEncoder().encode(stream).length} >>\nstream\n${stream}\nendstream`);
+      setObject(contentId, `<< /Length ${textEncoder.encode(stream).length} >>\nstream\n${stream}\nendstream`);
       const pageId = reserve();
-      setObject(pageId, `<< /Type /Page /Parent ${pagesId} 0 R /MediaBox [0 0 ${pageWidth} ${pageHeight}] /Resources << /Font << /F1 ${regularFontId} 0 R /F2 ${boldFontId} 0 R >> >> /Contents ${contentId} 0 R >>`);
+      const xObjects = currentPage.images.map(({ name, asset }) => `/${name} ${imageObject(asset)} 0 R`).join(" ");
+      setObject(pageId, `<< /Type /Page /Parent ${pagesId} 0 R /MediaBox [0 0 ${pageWidth} ${pageHeight}] /Resources << /Font << /F1 ${regularFontId} 0 R /F2 ${boldFontId} 0 R >>${xObjects ? ` /XObject << ${xObjects} >>` : ""} >> /Contents ${contentId} 0 R >>`);
       return pageId;
     });
     setObject(pagesId, `<< /Type /Pages /Kids [${pageIds.map((id) => `${id} 0 R`).join(" ")}] /Count ${pageIds.length} >>`);
     setObject(catalogId, `<< /Type /Catalog /Pages ${pagesId} 0 R >>`);
-    let pdf = "%PDF-1.4\n%????\n";
+    const chunks = [textEncoder.encode("%PDF-1.4\n%????\n")];
+    let length = chunks[0].length;
     const offsets = [0];
     objects.slice(1).forEach((object, index) => {
-      offsets[index + 1] = new TextEncoder().encode(pdf).length;
-      pdf += `${index + 1} 0 obj\n${object}\nendobj\n`;
+      offsets[index + 1] = length;
+      const head = textEncoder.encode(`${index + 1} 0 obj\n`);
+      const body = typeof object === "string" ? textEncoder.encode(object) : object;
+      const tail = textEncoder.encode("\nendobj\n");
+      chunks.push(head, body, tail);
+      length += head.length + body.length + tail.length;
     });
-    const xrefOffset = new TextEncoder().encode(pdf).length;
-    pdf += `xref\n0 ${objects.length}\n0000000000 65535 f \n${offsets.slice(1).map((offset) => `${String(offset).padStart(10, "0")} 00000 n \n`).join("")}trailer\n<< /Size ${objects.length} /Root ${catalogId} 0 R >>\nstartxref\n${xrefOffset}\n%%EOF`;
+    const xrefOffset = length;
+    chunks.push(textEncoder.encode(`xref\n0 ${objects.length}\n0000000000 65535 f \n${offsets.slice(1).map((offset) => `${String(offset).padStart(10, "0")} 00000 n \n`).join("")}trailer\n<< /Size ${objects.length} /Root ${catalogId} 0 R >>\nstartxref\n${xrefOffset}\n%%EOF`));
     const slug = String(location).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "").slice(0, 48) || "map-location";
     const download = document.createElement("a");
-    download.href = URL.createObjectURL(new Blob([new TextEncoder().encode(pdf)], { type: "application/pdf" }));
+    download.href = URL.createObjectURL(new Blob(chunks, { type: "application/pdf" }));
     download.download = `location-intelligence-report-${slug}.pdf`;
     download.click();
     setTimeout(() => URL.revokeObjectURL(download.href), 1000);

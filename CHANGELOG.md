@@ -6,6 +6,17 @@ All notable changes to GIS Map Online are documented here. This project follows
 
 ## [Unreleased]
 
+## [0.15.9] - 2026-09-09
+
+### Added
+
+- Added the GIS Map Online mark and a captured live-map snapshot to Location Intelligence Report PDFs.
+- Added USA Wildfires as a featured public example, plus Recent Hurricanes, NDFD Daily Temperature, and Historical Quakes to Popular Data Services.
+
+### Fixed
+
+- Reported map extents now use geographic longitude and latitude instead of Web Mercator meters.
+
 ## [0.15.8] - 2026-09-09
 
 ### Added
@@ -322,7 +333,8 @@ All notable changes to GIS Map Online are documented here. This project follows
 - Prevented search suggestions from remaining open after selection.
 - Reduced map and panel flicker during feature identification.
 
-[Unreleased]: https://github.com/geolibrerian/gismap/compare/v0.15.8...HEAD
+[Unreleased]: https://github.com/geolibrerian/gismap/compare/v0.15.9...HEAD
+[0.15.9]: https://github.com/geolibrerian/gismap/compare/v0.15.8...v0.15.9
 [0.15.8]: https://github.com/geolibrerian/gismap/compare/v0.15.7...v0.15.8
 [0.15.7]: https://github.com/geolibrerian/gismap/compare/v0.15.6...v0.15.7
 [0.15.6]: https://github.com/geolibrerian/gismap/compare/v0.15.5...v0.15.6

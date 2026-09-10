@@ -753,20 +753,39 @@ export class MapController {
   getCurrentExtentDetails() {
     const extent = this.view?.extent;
     if (!extent) return null;
+    const wkid = extent.spatialReference?.latestWkid ?? extent.spatialReference?.wkid;
+    const toGeographic = (x, y) => {
+      if (![3857, 102100, 102113].includes(wkid)) return { longitude: x, latitude: y };
+      const radius = 6378137;
+      return {
+        longitude: (x / radius) * (180 / Math.PI),
+        latitude: (2 * Math.atan(Math.exp(y / radius)) - (Math.PI / 2)) * (180 / Math.PI),
+      };
+    };
     const toCoordinate = (longitude, latitude) => (
       Number.isFinite(longitude) && Number.isFinite(latitude)
         ? { longitude: Number(longitude.toFixed(6)), latitude: Number(latitude.toFixed(6)) }
         : null
     );
     const center = this.view?.center;
+    const southwest = toGeographic(extent.xmin, extent.ymin);
+    const northeast = toGeographic(extent.xmax, extent.ymax);
     return {
-      west: extent.xmin,
-      south: extent.ymin,
-      east: extent.xmax,
-      north: extent.ymax,
+      west: Number(southwest.longitude.toFixed(6)),
+      south: Number(southwest.latitude.toFixed(6)),
+      east: Number(northeast.longitude.toFixed(6)),
+      north: Number(northeast.latitude.toFixed(6)),
       center: toCoordinate(center?.longitude, center?.latitude),
       zoom: Number.isFinite(this.view?.zoom) ? Number(this.view.zoom.toFixed(2)) : null,
     };
+  }
+
+  async takeMapScreenshot() {
+    if (!this.view?.takeScreenshot) return null;
+    const capture = await this.view.takeScreenshot({ format: "jpg", quality: 82, width: 1200 });
+    return capture?.dataUrl && capture?.data
+      ? { dataUrl: capture.dataUrl, width: capture.data.width, height: capture.data.height }
+      : null;
   }
 
   async restoreView(state) {
