@@ -1,7 +1,7 @@
-import { POPULAR_SERVICES } from "./catalog.js?v=0.15.9";
-import { ENTERPRISE_CATALOGS, EnterpriseCatalog, normalizeArcGisDirectoryUrl } from "./enterprise-catalog.js?v=0.15.9";
-import { createShareUrl } from "./share.js?v=0.15.9";
-import { renderMarkdown } from "./markdown.js?v=0.15.9";
+import { POPULAR_SERVICES } from "./catalog.js?v=0.15.10";
+import { ENTERPRISE_CATALOGS, EnterpriseCatalog, normalizeArcGisDirectoryUrl } from "./enterprise-catalog.js?v=0.15.10";
+import { createShareUrl } from "./share.js?v=0.15.10";
+import { renderMarkdown } from "./markdown.js?v=0.15.10";
 
 const DISPLAY_SETTINGS_KEY = "gismap-online:display:v1";
 const INSIGHT_POSITIONS = new Set(["upper-left", "lower-left", "bottom", "dock-left", "dock-right", "dock-top", "dock-bottom"]);
@@ -70,6 +70,7 @@ export class UIController {
     this.#bindMapEvents();
     this.#renderBookmarks();
     this.#renderLayers();
+    document.querySelector("#insights-ai").hidden = !this.aiController.isConfigured();
     this.#renderIntelligenceContents();
   }
 
@@ -338,6 +339,7 @@ export class UIController {
     });
     ["ai:configured", "ai:disabled"].forEach((topic) =>
       this.events.subscribe(topic, () => {
+        document.querySelector("#insights-ai").hidden = !this.aiController.isConfigured();
         if (this.lastInsight) this.#renderInsight(this.lastInsight);
       }),
     );
@@ -1773,9 +1775,14 @@ export class UIController {
           `<button type="button" role="tab" id="insight-tab-${index}" data-insight-tab="${index}" aria-controls="insight-panel-${index}" aria-selected="${index === 0}">${escapeHtml(result.layerTitle)} ${index + 1}</button>`,
         ).join("")}</div>`
       : "";
+    const aiEnabled = this.aiController.isConfigured();
+    document.querySelector("#insights-ai").hidden = !aiEnabled;
     const resultHtml = visibleResults.map((result, index) => {
         const entries = Object.entries(result.attributes ?? {}).filter(([, value]) => value !== null && value !== "");
-        return `<article class="insight-panel" id="insight-panel-${index}" role="tabpanel" aria-labelledby="insight-tab-${index}" ${index === 0 ? "" : "hidden"}><header><span><strong>${escapeHtml(result.layerTitle)}</strong><small>${escapeHtml(result.kind)}</small></span><label class="insight-ai-select"><input type="checkbox" data-ai-selection="${index}" ${index === 0 ? "checked" : ""}> Include in AI</label></header><dl>${entries.map(([key, value]) => `<div><dt>${escapeHtml(key)}</dt><dd>${escapeHtml(typeof value === "object" ? JSON.stringify(value) : value)}</dd></div>`).join("") || "<div><dd>No attributes returned.</dd></div>"}</dl></article>`;
+        const selection = aiEnabled
+          ? `<label class="insight-ai-select"><input type="checkbox" data-ai-selection="${index}" ${index === 0 ? "checked" : ""}> Include in AI</label>`
+          : "";
+        return `<article class="insight-panel" id="insight-panel-${index}" role="tabpanel" aria-labelledby="insight-tab-${index}" ${index === 0 ? "" : "hidden"}><header><span><strong>${escapeHtml(result.layerTitle)}</strong><small>${escapeHtml(result.kind)}</small></span>${selection}</header><dl>${entries.map(([key, value]) => `<div><dt>${escapeHtml(key)}</dt><dd>${escapeHtml(typeof value === "object" ? JSON.stringify(value) : value)}</dd></div>`).join("") || "<div><dd>No attributes returned.</dd></div>"}</dl></article>`;
       }).join("");
     this.#renderIntelligenceContents(payload);
     const overlay = document.querySelector("#insights-overlay");
@@ -1813,10 +1820,13 @@ export class UIController {
     const responseHtml = this.lastAIResponseText
       ? `<section class="ai-response"><div class="ai-response__header"><span class="eyebrow">AI insights</span><span><button type="button" class="ai-response__download">Download report</button><button type="button" class="ai-response__clear">Clear insights</button></span></div><p class="ai-response__query"><strong>Query</strong><span>${escapeHtml(this.lastAIQueryText || "Map context query")}</span></p><div class="ai-response__markdown">${renderMarkdown(this.lastAIResponseText)}</div></section>`
       : "";
+    const locationReportHtml = payload && !this.lastAIResponseText
+      ? '<div class="intelligence-report-action"><button type="button" class="location-report-download">Download location report</button></div>'
+      : "";
     const loadingHtml = this.identifyPending
       ? '<div class="loading-row"><span></span> Inspecting location…</div>'
       : this.aiPending ? '<div class="loading-row ai-loading"><span></span> Generating AI insights…</div>' : "";
-    const html = `<div class="intelligence-toolbar"><button type="button" data-open-intelligence-utility title="Open Intelligence in the right panel">Open in right panel ↗</button></div>${loadingHtml}${locationHtml}${aiForm}${responseHtml}`;
+    const html = `<div class="intelligence-toolbar"><button type="button" data-open-intelligence-utility title="Open Intelligence in the right panel">Open in right panel ↗</button></div>${loadingHtml}${locationHtml}${aiForm}${locationReportHtml}${responseHtml}`;
     targets.forEach((target) => {
       target.classList.toggle("intelligence-empty", !payload);
       target.innerHTML = html;
@@ -1836,6 +1846,7 @@ export class UIController {
         this.#renderIntelligenceContents();
       });
       target.querySelector(".ai-response__download")?.addEventListener("click", () => this.#downloadAIReport(payload));
+      target.querySelector(".location-report-download")?.addEventListener("click", () => this.#downloadAIReport(payload));
     });
   }
 
@@ -1894,10 +1905,11 @@ export class UIController {
   }
 
   async #downloadAIReport(payload = this.lastInsight) {
-    if (!this.lastAIResponseText) {
-      this.error("Generate AI insights before downloading a report.");
+    if (!payload) {
+      this.error("Click a location before downloading a report.");
       return;
     }
+    const hasAIResponse = Boolean(this.lastAIResponseText);
     const margin = 48;
     const pageWidth = 612;
     const pageHeight = 792;
@@ -1975,12 +1987,32 @@ export class UIController {
     addLines(`Coordinates: ${coordinates}`);
     const extent = this.mapController.getCurrentExtentDetails?.();
     if (extent) addLines(`Map extent: ${extent.west.toFixed(4)}, ${extent.south.toFixed(4)} to ${extent.east.toFixed(4)}, ${extent.north.toFixed(4)}${extent.zoom != null ? ` (zoom ${extent.zoom})` : ""}`);
-    y -= 10;
-    addLines("Query", { size: 13, leading: 18, color: "0.08 0.36 0.30", bold: true });
-    addLines(this.lastAIQueryText || "Map context query", { size: 11, leading: 16 });
-    y -= 10;
-    addLines("Generated intelligence", { size: 13, leading: 18, color: "0.08 0.36 0.30", bold: true });
-    addLines(this.lastAIResponseText.replace(/[#*_`>-]/g, "").replace(/\n{3,}/g, "\n\n"), { size: 10, leading: 15 });
+    if (hasAIResponse) {
+      y -= 10;
+      addLines("Query", { size: 13, leading: 18, color: "0.08 0.36 0.30", bold: true });
+      addLines(this.lastAIQueryText || "Map context query", { size: 11, leading: 16 });
+      y -= 10;
+      addLines("Generated intelligence", { size: 13, leading: 18, color: "0.08 0.36 0.30", bold: true });
+      addLines(this.lastAIResponseText.replace(/[#*_`>-]/g, "").replace(/\n{3,}/g, "\n\n"), { size: 10, leading: 15 });
+    } else {
+      const reportResults = payload.selectedResults?.length ? payload.selectedResults : (payload.results ?? []).slice(0, 1);
+      y -= 10;
+      addLines("Map Insight attributes", { size: 13, leading: 18, color: "0.08 0.36 0.30", bold: true });
+      if (!reportResults.length) {
+        addLines("No map feature was identified at the clicked location.");
+      } else {
+        reportResults.forEach((result) => {
+          addLines(result.layerTitle || "Selected feature", { size: 11, leading: 16, bold: true });
+          const attributes = Object.entries(result.attributes ?? {}).filter(([, value]) => value !== null && value !== "");
+          if (!attributes.length) addLines("No attributes returned.");
+          attributes.slice(0, 60).forEach(([key, value]) => {
+            addLines(`${key}: ${typeof value === "object" ? JSON.stringify(value) : value}`, { size: 10, leading: 15 });
+          });
+          if (attributes.length > 60) addLines(`… ${attributes.length - 60} additional attributes omitted.`, { size: 9, leading: 14, color: "0.36 0.44 0.41" });
+          y -= 6;
+        });
+      }
+    }
     if (mapImage) {
       newPage();
       addLines("Map snapshot", { size: 13, leading: 18, color: "0.08 0.36 0.30", bold: true });
@@ -2046,7 +2078,7 @@ export class UIController {
     download.download = `location-intelligence-report-${slug}.pdf`;
     download.click();
     setTimeout(() => URL.revokeObjectURL(download.href), 1000);
-    this.toast("Location Intelligence Report downloaded.");
+    this.toast(hasAIResponse ? "Location Intelligence Report downloaded." : "Location report downloaded.");
   }
 
   #showProject(project, state = "Local") {

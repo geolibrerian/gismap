@@ -6,6 +6,16 @@ All notable changes to GIS Map Online are documented here. This project follows
 
 ## [Unreleased]
 
+## [0.15.10] - 2026-09-10
+
+### Added
+
+- Allowed Location Intelligence Report PDFs to be downloaded without AI-generated text, including clicked-location context, selected Map Insight attributes, and the live map snapshot.
+
+### Changed
+
+- Hide Map Insight AI controls, including feature selection and the AI action, whenever no AI provider is configured.
+
 ## [0.15.9] - 2026-09-09
 
 ### Added
@@ -333,7 +343,8 @@ All notable changes to GIS Map Online are documented here. This project follows
 - Prevented search suggestions from remaining open after selection.
 - Reduced map and panel flicker during feature identification.
 
-[Unreleased]: https://github.com/geolibrerian/gismap/compare/v0.15.9...HEAD
+[Unreleased]: https://github.com/geolibrerian/gismap/compare/v0.15.10...HEAD
+[0.15.10]: https://github.com/geolibrerian/gismap/compare/v0.15.9...v0.15.10
 [0.15.9]: https://github.com/geolibrerian/gismap/compare/v0.15.8...v0.15.9
 [0.15.8]: https://github.com/geolibrerian/gismap/compare/v0.15.7...v0.15.8
 [0.15.7]: https://github.com/geolibrerian/gismap/compare/v0.15.6...v0.15.7
