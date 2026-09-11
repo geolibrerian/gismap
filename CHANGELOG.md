@@ -6,6 +6,12 @@ All notable changes to GIS Map Online are documented here. This project follows
 
 ## [Unreleased]
 
+## [0.15.12] - 2026-09-11
+
+### Changed
+
+- Expanded the active mobile Places panel and made search suggestions part of the scrollable touch area, with 48px search controls and result rows.
+
 ## [0.15.11] - 2026-09-10
 
 ### Changed
@@ -349,7 +355,8 @@ All notable changes to GIS Map Online are documented here. This project follows
 - Prevented search suggestions from remaining open after selection.
 - Reduced map and panel flicker during feature identification.
 
-[Unreleased]: https://github.com/geolibrerian/gismap/compare/v0.15.11...HEAD
+[Unreleased]: https://github.com/geolibrerian/gismap/compare/v0.15.12...HEAD
+[0.15.12]: https://github.com/geolibrerian/gismap/compare/v0.15.11...v0.15.12
 [0.15.11]: https://github.com/geolibrerian/gismap/compare/v0.15.10...v0.15.11
 [0.15.10]: https://github.com/geolibrerian/gismap/compare/v0.15.9...v0.15.10
 [0.15.9]: https://github.com/geolibrerian/gismap/compare/v0.15.8...v0.15.9

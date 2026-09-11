@@ -1,7 +1,7 @@
-import { POPULAR_SERVICES } from "./catalog.js?v=0.15.11";
-import { ENTERPRISE_CATALOGS, EnterpriseCatalog, normalizeArcGisDirectoryUrl } from "./enterprise-catalog.js?v=0.15.11";
-import { createShareUrl } from "./share.js?v=0.15.11";
-import { renderMarkdown } from "./markdown.js?v=0.15.11";
+import { POPULAR_SERVICES } from "./catalog.js?v=0.15.12";
+import { ENTERPRISE_CATALOGS, EnterpriseCatalog, normalizeArcGisDirectoryUrl } from "./enterprise-catalog.js?v=0.15.12";
+import { createShareUrl } from "./share.js?v=0.15.12";
+import { renderMarkdown } from "./markdown.js?v=0.15.12";
 
 const DISPLAY_SETTINGS_KEY = "gismap-online:display:v1";
 const INSIGHT_POSITIONS = new Set(["upper-left", "lower-left", "bottom", "dock-left", "dock-right", "dock-top", "dock-bottom"]);
@@ -486,6 +486,7 @@ export class UIController {
       panel.classList.toggle("is-mobile-active", active);
       if (active) panel.open = true;
     });
+    document.body.classList.toggle("mobile-places-active", panelId === "places-panel");
     if (openSidebar) this.#setSidebarCollapsed(!panelId);
   }
 

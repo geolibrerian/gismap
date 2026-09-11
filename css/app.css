@@ -898,6 +898,13 @@ body.sidebar-collapsed .table-dialog { left: 14px; }
   .sidebar__scroll > .panel summary span { font-size: 18px; }
   .sidebar__scroll > .panel summary::after { display: none; }
   .sidebar__scroll > .panel .panel__body { padding: 12px; }
+  body.mobile-places-active .sidebar { max-height: calc(56dvh + env(safe-area-inset-bottom)); }
+  body.mobile-places-active .sidebar__scroll { max-height: calc(56dvh - 65px); }
+  body.mobile-places-active #places-panel .search-row { grid-template-columns: 1fr 48px; }
+  body.mobile-places-active #places-panel .search-row input { min-height: 48px; padding: 12px; font-size: 16px; }
+  body.mobile-places-active #places-panel .search-row button { min-height: 48px; font-size: 24px; }
+  body.mobile-places-active #places-panel .search-suggestions { position: static; max-height: min(32dvh, 280px); margin-top: 8px; padding: 6px; }
+  body.mobile-places-active #places-panel .search-suggestions > button { min-height: 48px; padding: 12px; font-size: 14px; }
   body.mobile-menu-open .utility-panel,
   body:not(.sidebar-collapsed) .utility-panel { display: none; }
   .map-status { bottom: calc(70px + env(safe-area-inset-bottom)); }
