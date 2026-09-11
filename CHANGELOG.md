@@ -6,6 +6,12 @@ All notable changes to GIS Map Online are documented here. This project follows
 
 ## [Unreleased]
 
+## [0.15.11] - 2026-09-10
+
+### Changed
+
+- Made the Bookmarks and Draw sidebar sections optional; add or remove either panel from the Map menu, with the preference saved in the browser.
+
 ## [0.15.10] - 2026-09-10
 
 ### Added
@@ -343,7 +349,8 @@ All notable changes to GIS Map Online are documented here. This project follows
 - Prevented search suggestions from remaining open after selection.
 - Reduced map and panel flicker during feature identification.
 
-[Unreleased]: https://github.com/geolibrerian/gismap/compare/v0.15.10...HEAD
+[Unreleased]: https://github.com/geolibrerian/gismap/compare/v0.15.11...HEAD
+[0.15.11]: https://github.com/geolibrerian/gismap/compare/v0.15.10...v0.15.11
 [0.15.10]: https://github.com/geolibrerian/gismap/compare/v0.15.9...v0.15.10
 [0.15.9]: https://github.com/geolibrerian/gismap/compare/v0.15.8...v0.15.9
 [0.15.8]: https://github.com/geolibrerian/gismap/compare/v0.15.7...v0.15.8

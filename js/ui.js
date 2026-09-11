@@ -1,7 +1,7 @@
-import { POPULAR_SERVICES } from "./catalog.js?v=0.15.10";
-import { ENTERPRISE_CATALOGS, EnterpriseCatalog, normalizeArcGisDirectoryUrl } from "./enterprise-catalog.js?v=0.15.10";
-import { createShareUrl } from "./share.js?v=0.15.10";
-import { renderMarkdown } from "./markdown.js?v=0.15.10";
+import { POPULAR_SERVICES } from "./catalog.js?v=0.15.11";
+import { ENTERPRISE_CATALOGS, EnterpriseCatalog, normalizeArcGisDirectoryUrl } from "./enterprise-catalog.js?v=0.15.11";
+import { createShareUrl } from "./share.js?v=0.15.11";
+import { renderMarkdown } from "./markdown.js?v=0.15.11";
 
 const DISPLAY_SETTINGS_KEY = "gismap-online:display:v1";
 const INSIGHT_POSITIONS = new Set(["upper-left", "lower-left", "bottom", "dock-left", "dock-right", "dock-top", "dock-bottom"]);
@@ -162,6 +162,14 @@ export class UIController {
         } catch (error) {
           this.error(error.message);
         }
+        this.#closeMenus();
+      }),
+    );
+    document.querySelectorAll("[data-sidebar-panel-toggle]").forEach((button) =>
+      button.addEventListener("click", () => {
+        const panel = document.querySelector(`#${button.dataset.sidebarPanelToggle}`);
+        if (!panel) return;
+        this.#setOptionalPanelVisibility(panel.id, panel.classList.contains("is-sidebar-optional-hidden"));
         this.#closeMenus();
       }),
     );
@@ -691,9 +699,11 @@ export class UIController {
         utilityPanelWidth: Number.isFinite(saved.utilityPanelWidth) ? Math.min(620, Math.max(280, saved.utilityPanelWidth)) : 360,
         appearance: ["system", "light", "dark"].includes(saved.appearance) ? saved.appearance : "system",
         darkBasemapEnabled: saved.darkBasemapEnabled === true,
+        bookmarksPanelVisible: saved.bookmarksPanelVisible === true,
+        drawPanelVisible: saved.drawPanelVisible === true,
       };
     } catch {
-      return { insightPosition: "upper-left", defaultBasemap: "topo-3d", insightDockWidth: 420, insightDockHeight: 360, tablePosition: "overlay-bottom", tableDockWidth: 520, tableDockHeight: 420, highlightEnabled: true, clickMarkerEnabled: true, highlightColor: "#00b8d9", navigationLayout: "side", utilityPanelWidth: 360, appearance: "system", darkBasemapEnabled: false };
+      return { insightPosition: "upper-left", defaultBasemap: "topo-3d", insightDockWidth: 420, insightDockHeight: 360, tablePosition: "overlay-bottom", tableDockWidth: 520, tableDockHeight: 420, highlightEnabled: true, clickMarkerEnabled: true, highlightColor: "#00b8d9", navigationLayout: "side", utilityPanelWidth: 360, appearance: "system", darkBasemapEnabled: false, bookmarksPanelVisible: false, drawPanelVisible: false };
     }
   }
 
@@ -711,6 +721,8 @@ export class UIController {
     document.body.style.setProperty("--insights-dock-height", `${settings.insightDockHeight ?? 360}px`);
     document.body.dataset.tablePosition = tablePosition;
     document.body.dataset.navigationLayout = settings.navigationLayout ?? "side";
+    this.#setOptionalPanelVisibility("bookmarks-panel", settings.bookmarksPanelVisible, false);
+    this.#setOptionalPanelVisibility("draw-panel", settings.drawPanelVisible, false);
     if (settings.navigationLayout === "top") {
       document.querySelectorAll(".sidebar__scroll > .panel").forEach((panel) => { panel.open = false; });
     }
@@ -727,6 +739,23 @@ export class UIController {
     }
     this.mapController.configureInteractionFeedback(settings);
     requestAnimationFrame(() => this.mapController.resize());
+  }
+
+  #setOptionalPanelVisibility(panelId, visible, save = true) {
+    const panel = document.querySelector(`#${panelId}`);
+    if (!panel) return;
+    panel.classList.toggle("is-sidebar-optional-hidden", !visible);
+    if (visible && !this.mobileMedia.matches) panel.open = true;
+    document.querySelectorAll(`[data-sidebar-panel-toggle="${panelId}"]`).forEach((button) => {
+      const label = panelId === "bookmarks-panel" ? "Bookmarks" : "Draw";
+      button.textContent = `${visible ? "Hide" : "Add"} ${label} panel`;
+      button.setAttribute("aria-pressed", String(visible));
+    });
+    if (!save) return;
+    const setting = panelId === "bookmarks-panel" ? "bookmarksPanelVisible" : "drawPanelVisible";
+    const settings = { ...this.#readDisplaySettings(), [setting]: visible };
+    localStorage.setItem(DISPLAY_SETTINGS_KEY, JSON.stringify(settings));
+    this.toast(`${visible ? "Added" : "Removed"} ${panelId === "bookmarks-panel" ? "Bookmarks" : "Draw"} panel.`);
   }
 
   #displaySettingsDialog() {
