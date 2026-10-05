@@ -688,10 +688,11 @@ export class MapController {
     } else if (geometryType === "polyline") {
       symbol = { type: "simple-line", color, width: Number(options.size) || 2.5 };
     } else {
+      const fillOpacity = Math.min(1, Math.max(0, Number(options.fillOpacity)));
       symbol = {
         type: "simple-fill",
         style: options.noFill ? "none" : "solid",
-        color: options.noFill ? [0, 0, 0, 0] : this.#hexToRgba(color, 0.35),
+        color: options.noFill ? [0, 0, 0, 0] : this.#hexToRgba(color, Number.isFinite(fillOpacity) ? fillOpacity : 0.35),
         outline: { color: outline, width: Number(options.size) || 1.5 },
       };
     }

@@ -1,8 +1,8 @@
-import { POPULAR_SERVICES } from "./catalog.js?v=0.15.14";
-import { ENTERPRISE_CATALOGS, EnterpriseCatalog, normalizeArcGisDirectoryUrl } from "./enterprise-catalog.js?v=0.15.14";
-import { createShareUrl } from "./share.js?v=0.15.14";
-import { renderMarkdown } from "./markdown.js?v=0.15.14";
-import { formatAttributeValue } from "./attribute-format.js?v=0.15.14";
+import { POPULAR_SERVICES } from "./catalog.js?v=0.15.15";
+import { ENTERPRISE_CATALOGS, EnterpriseCatalog, normalizeArcGisDirectoryUrl } from "./enterprise-catalog.js?v=0.15.15";
+import { createShareUrl } from "./share.js?v=0.15.15";
+import { renderMarkdown } from "./markdown.js?v=0.15.15";
+import { formatAttributeValue } from "./attribute-format.js?v=0.15.15";
 
 const DISPLAY_SETTINGS_KEY = "gismap-online:display:v1";
 const INSIGHT_POSITIONS = new Set(["upper-left", "lower-left", "bottom", "dock-left", "dock-right", "dock-top", "dock-bottom"]);
@@ -1765,16 +1765,21 @@ export class UIController {
     if (!layer) return;
     this.utilityStyleLayerUid = uid;
     const pane = document.querySelector("#utility-style-content");
-    const noFillControl = layer.geometryType === "polygon"
-      ? '<label class="display-checkbox"><input data-symbol-no-fill type="checkbox" /><span>No fill — outline only</span></label>'
+    const polygonControls = layer.geometryType === "polygon"
+      ? '<label class="opacity-row"><span>Fill opacity</span><input data-symbol-fill-opacity type="range" min="0" max="1" step="0.05" value="0.35" /><output>35%</output></label><label class="display-checkbox"><input data-symbol-no-fill type="checkbox" /><span>No fill — outline only</span></label>'
       : "";
-    pane.innerHTML = `<div class="workspace-tool"><p class="eyebrow">Layer presentation</p><h3>Style ${escapeHtml(layer.title || "layer")}</h3><div class="field-grid"><label class="field"><span>Fill / marker / line</span><input data-symbol-color type="color" value="#1b7f6a" /></label><label class="field"><span>Outline</span><input data-symbol-outline type="color" value="#ffffff" /></label><label class="field"><span>Size / width</span><input data-symbol-size type="number" min="0.5" max="40" step="0.5" value="9" /></label></div>${noFillControl}<p class="form-note">Applies a simple renderer. Its JSON is stored with the project.</p><div class="workspace-tool__actions"><button type="button" class="button--primary" data-apply-symbology>Apply symbology</button></div></div>`;
+    pane.innerHTML = `<div class="workspace-tool"><p class="eyebrow">Layer presentation</p><h3>Style ${escapeHtml(layer.title || "layer")}</h3><div class="field-grid"><label class="field"><span>Fill / marker / line</span><input data-symbol-color type="color" value="#1b7f6a" /></label><label class="field"><span>Outline</span><input data-symbol-outline type="color" value="#ffffff" /></label><label class="field"><span>Size / width</span><input data-symbol-size type="number" min="0.5" max="40" step="0.5" value="9" /></label></div>${polygonControls}<p class="form-note">Applies a simple renderer. Its JSON is stored with the project.</p><div class="workspace-tool__actions"><button type="button" class="button--primary" data-apply-symbology>Apply symbology</button></div></div>`;
+    const fillOpacity = pane.querySelector("[data-symbol-fill-opacity]");
+    fillOpacity?.addEventListener("input", () => {
+      fillOpacity.nextElementSibling.value = `${Math.round(Number(fillOpacity.value) * 100)}%`;
+    });
     pane.querySelector("[data-apply-symbology]").addEventListener("click", async () => {
       try {
         await this.mapController.setSimpleSymbology(uid, {
           color: pane.querySelector("[data-symbol-color]").value,
           outline: pane.querySelector("[data-symbol-outline]").value,
           size: pane.querySelector("[data-symbol-size]").value,
+          fillOpacity: fillOpacity?.value,
           noFill: pane.querySelector("[data-symbol-no-fill]")?.checked ?? false,
         });
         this.toast(`Updated ${layer.title || "layer"} symbology.`);

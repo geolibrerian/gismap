@@ -6,6 +6,12 @@ All notable changes to GIS Map Online are documented here. This project follows
 
 ## [Unreleased]
 
+## [0.15.15] - 2026-10-05
+
+### Added
+
+- Added a 0–100% fill-opacity slider to polygon layer styling.
+
 ## [0.15.14] - 2026-10-05
 
 ### Added
@@ -369,7 +375,8 @@ All notable changes to GIS Map Online are documented here. This project follows
 - Prevented search suggestions from remaining open after selection.
 - Reduced map and panel flicker during feature identification.
 
-[Unreleased]: https://github.com/geolibrerian/gismap/compare/v0.15.14...HEAD
+[Unreleased]: https://github.com/geolibrerian/gismap/compare/v0.15.15...HEAD
+[0.15.15]: https://github.com/geolibrerian/gismap/compare/v0.15.14...v0.15.15
 [0.15.14]: https://github.com/geolibrerian/gismap/compare/v0.15.13...v0.15.14
 [0.15.13]: https://github.com/geolibrerian/gismap/compare/v0.15.12...v0.15.13
 [0.15.12]: https://github.com/geolibrerian/gismap/compare/v0.15.11...v0.15.12
