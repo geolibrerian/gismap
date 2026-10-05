@@ -1,8 +1,8 @@
-import { POPULAR_SERVICES } from "./catalog.js?v=0.15.15";
-import { ENTERPRISE_CATALOGS, EnterpriseCatalog, normalizeArcGisDirectoryUrl } from "./enterprise-catalog.js?v=0.15.15";
-import { createShareUrl } from "./share.js?v=0.15.15";
-import { renderMarkdown } from "./markdown.js?v=0.15.15";
-import { formatAttributeValue } from "./attribute-format.js?v=0.15.15";
+import { POPULAR_SERVICES } from "./catalog.js?v=0.15.16";
+import { ENTERPRISE_CATALOGS, EnterpriseCatalog, normalizeArcGisDirectoryUrl } from "./enterprise-catalog.js?v=0.15.16";
+import { createShareUrl } from "./share.js?v=0.15.16";
+import { renderMarkdown } from "./markdown.js?v=0.15.16";
+import { formatAttributeValue } from "./attribute-format.js?v=0.15.16";
 
 const DISPLAY_SETTINGS_KEY = "gismap-online:display:v1";
 const INSIGHT_POSITIONS = new Set(["upper-left", "lower-left", "bottom", "dock-left", "dock-right", "dock-top", "dock-bottom"]);
@@ -295,9 +295,9 @@ export class UIController {
         this.error(`Reattach local file${missingFiles.length === 1 ? "" : "s"}: ${missingFiles.join(", ")}`);
       }
     });
-    this.events.subscribe("project:saved", ({ project }) => {
+    this.events.subscribe("project:saved", ({ project, automatic }) => {
       this.#showProject(project, "Saved");
-      this.toast("Project saved in this browser.");
+      if (!automatic) this.toast("Project saved in this browser.");
     });
     this.events.subscribe("project:exported", ({ kind }) => this.toast(`${kind === "package" ? "Project package (.gmop)" : "Project file (.gmo)"} downloaded.`));
     this.events.subscribe("export:progress", ({ stage, completed, total }) => {
@@ -1782,7 +1782,8 @@ export class UIController {
           fillOpacity: fillOpacity?.value,
           noFill: pane.querySelector("[data-symbol-no-fill]")?.checked ?? false,
         });
-        this.toast(`Updated ${layer.title || "layer"} symbology.`);
+        const persisted = this.projectManager.persistCurrentIfSaved();
+        this.toast(`Updated ${layer.title || "layer"} symbology${persisted ? " and saved it" : ""}.`);
       } catch (error) { this.error(error.message); }
     });
     this.#syncUtilityPanel("style");

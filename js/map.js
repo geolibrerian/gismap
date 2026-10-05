@@ -697,6 +697,9 @@ export class MapController {
       };
     }
     layer.renderer = { type: "simple", symbol };
+    const config = this.layerConfigs.get(uid) ?? {};
+    config.renderer = layer.renderer.toJSON?.() ?? structuredClone(layer.renderer);
+    this.layerConfigs.set(uid, config);
     this.events.publish("layer:changed", { uid });
   }
 

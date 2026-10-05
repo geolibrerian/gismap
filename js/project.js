@@ -83,6 +83,17 @@ export class ProjectManager {
     return project;
   }
 
+  persistCurrentIfSaved() {
+    const store = this.#readStore();
+    if (!store[this.current.id]) return false;
+    const project = this.snapshot();
+    store[project.id] = project;
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(store));
+    localStorage.setItem(CURRENT_KEY, project.id);
+    this.events.publish("project:saved", { project, automatic: true });
+    return true;
+  }
+
   async loadSaved(id) {
     const project = this.#readStore()[id];
     if (!project) throw new Error("That local project no longer exists.");
