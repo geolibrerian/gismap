@@ -1,7 +1,8 @@
-import { POPULAR_SERVICES } from "./catalog.js?v=0.15.12";
-import { ENTERPRISE_CATALOGS, EnterpriseCatalog, normalizeArcGisDirectoryUrl } from "./enterprise-catalog.js?v=0.15.12";
-import { createShareUrl } from "./share.js?v=0.15.12";
-import { renderMarkdown } from "./markdown.js?v=0.15.12";
+import { POPULAR_SERVICES } from "./catalog.js?v=0.15.14";
+import { ENTERPRISE_CATALOGS, EnterpriseCatalog, normalizeArcGisDirectoryUrl } from "./enterprise-catalog.js?v=0.15.14";
+import { createShareUrl } from "./share.js?v=0.15.14";
+import { renderMarkdown } from "./markdown.js?v=0.15.14";
+import { formatAttributeValue } from "./attribute-format.js?v=0.15.14";
 
 const DISPLAY_SETTINGS_KEY = "gismap-online:display:v1";
 const INSIGHT_POSITIONS = new Set(["upper-left", "lower-left", "bottom", "dock-left", "dock-right", "dock-top", "dock-bottom"]);
@@ -957,7 +958,7 @@ export class UIController {
           if (!layer) return;
           this.dialog.close();
           this.toast(`${layer.title} added.`);
-          if (layer.fullExtent) await this.mapController.goToLayer(layer).catch(() => {});
+          await this.mapController.goToLayerOnInitialLoad(layer).catch(() => {});
         } catch (error) {
           button.disabled = false;
             button.textContent = isGeoJson ? "Add GeoJSON feed" : isWfs ? "Add WFS layer" : "Add service";
@@ -1058,7 +1059,7 @@ export class UIController {
           serviceType: "feature",
         });
         button.textContent = "Added";
-        if (zoom && layer.fullExtent) await this.mapController.goToLayer(layer).catch(() => {});
+        if (zoom) await this.mapController.goToLayerOnInitialLoad(layer).catch(() => {});
         return layer;
       } catch (error) {
         button.disabled = false;
@@ -1096,7 +1097,7 @@ export class UIController {
       }
       addAllButton.textContent = failures.length ? "Retry failed layers" : "All layers added";
       addAllButton.disabled = failures.length === 0;
-      if (added[0]?.fullExtent) await this.mapController.goToLayer(added[0]).catch(() => {});
+      if (added[0]) await this.mapController.goToLayerOnInitialLoad(added[0]).catch(() => {});
       if (added.length) this.toast(`${added.length} layer${added.length === 1 ? "" : "s"} added.`);
       if (failures.length) this.error(`Could not add: ${failures.join(", ")}.`);
     });
@@ -1143,7 +1144,7 @@ export class UIController {
               });
               button.textContent = "Added";
               this.toast(`${layer.title} added.`);
-              if (layer.fullExtent) await this.mapController.goToLayer(layer).catch(() => {});
+              await this.mapController.goToLayerOnInitialLoad(layer).catch(() => {});
             } catch (error) {
               button.disabled = false;
               button.textContent = "Add";
@@ -1506,7 +1507,7 @@ export class UIController {
       try {
         const layer = await this.mapController.addLocalFile(file);
         this.toast(`${layer.title} added.`);
-        if (layer.fullExtent) await this.mapController.goToLayer(layer).catch(() => {});
+        await this.mapController.goToLayerOnInitialLoad(layer).catch(() => {});
       } catch (error) {
         this.error(`${file.name}: ${error.message}`);
       }
@@ -1665,7 +1666,11 @@ export class UIController {
       const layer = this.mapController.findLayer(uid);
       switch (button.dataset.layerAction) {
         case "remove": this.mapController.removeLayer(uid); break;
-        case "zoom": if (layer?.fullExtent) await this.mapController.goToLayer(layer); break;
+        case "zoom": {
+          const zoomed = layer ? await this.mapController.goToLayer(layer) : false;
+          if (!zoomed) this.toast("This layer has a near-global or invalid extent. Use a filter or select a feature to zoom safely.");
+          break;
+        }
         case "table": this.events.publish("table:open", { uid }); break;
         case "filter": await this.#filterDialog(uid); break;
         case "export": this.#exportDialog(uid); break;
@@ -1760,13 +1765,17 @@ export class UIController {
     if (!layer) return;
     this.utilityStyleLayerUid = uid;
     const pane = document.querySelector("#utility-style-content");
-    pane.innerHTML = `<div class="workspace-tool"><p class="eyebrow">Layer presentation</p><h3>Style ${escapeHtml(layer.title || "layer")}</h3><div class="field-grid"><label class="field"><span>Fill / marker / line</span><input data-symbol-color type="color" value="#1b7f6a" /></label><label class="field"><span>Outline</span><input data-symbol-outline type="color" value="#ffffff" /></label><label class="field"><span>Size / width</span><input data-symbol-size type="number" min="0.5" max="40" step="0.5" value="9" /></label></div><p class="form-note">Applies a simple renderer. Its JSON is stored with the project.</p><div class="workspace-tool__actions"><button type="button" class="button--primary" data-apply-symbology>Apply symbology</button></div></div>`;
+    const noFillControl = layer.geometryType === "polygon"
+      ? '<label class="display-checkbox"><input data-symbol-no-fill type="checkbox" /><span>No fill — outline only</span></label>'
+      : "";
+    pane.innerHTML = `<div class="workspace-tool"><p class="eyebrow">Layer presentation</p><h3>Style ${escapeHtml(layer.title || "layer")}</h3><div class="field-grid"><label class="field"><span>Fill / marker / line</span><input data-symbol-color type="color" value="#1b7f6a" /></label><label class="field"><span>Outline</span><input data-symbol-outline type="color" value="#ffffff" /></label><label class="field"><span>Size / width</span><input data-symbol-size type="number" min="0.5" max="40" step="0.5" value="9" /></label></div>${noFillControl}<p class="form-note">Applies a simple renderer. Its JSON is stored with the project.</p><div class="workspace-tool__actions"><button type="button" class="button--primary" data-apply-symbology>Apply symbology</button></div></div>`;
     pane.querySelector("[data-apply-symbology]").addEventListener("click", async () => {
       try {
         await this.mapController.setSimpleSymbology(uid, {
           color: pane.querySelector("[data-symbol-color]").value,
           outline: pane.querySelector("[data-symbol-outline]").value,
           size: pane.querySelector("[data-symbol-size]").value,
+          noFill: pane.querySelector("[data-symbol-no-fill]")?.checked ?? false,
         });
         this.toast(`Updated ${layer.title || "layer"} symbology.`);
       } catch (error) { this.error(error.message); }
@@ -1808,11 +1817,13 @@ export class UIController {
     const aiEnabled = this.aiController.isConfigured();
     document.querySelector("#insights-ai").hidden = !aiEnabled;
     const resultHtml = visibleResults.map((result, index) => {
+        const layer = this.mapController.findLayer(result.layerUid);
+        const fieldsByName = new Map((layer?.fields ?? []).map((field) => [field.name, field]));
         const entries = Object.entries(result.attributes ?? {}).filter(([, value]) => value !== null && value !== "");
         const selection = aiEnabled
           ? `<label class="insight-ai-select"><input type="checkbox" data-ai-selection="${index}" ${index === 0 ? "checked" : ""}> Include in AI</label>`
           : "";
-        return `<article class="insight-panel" id="insight-panel-${index}" role="tabpanel" aria-labelledby="insight-tab-${index}" ${index === 0 ? "" : "hidden"}><header><span><strong>${escapeHtml(result.layerTitle)}</strong><small>${escapeHtml(result.kind)}</small></span>${selection}</header><dl>${entries.map(([key, value]) => `<div><dt>${escapeHtml(key)}</dt><dd>${escapeHtml(typeof value === "object" ? JSON.stringify(value) : value)}</dd></div>`).join("") || "<div><dd>No attributes returned.</dd></div>"}</dl></article>`;
+        return `<article class="insight-panel" id="insight-panel-${index}" role="tabpanel" aria-labelledby="insight-tab-${index}" ${index === 0 ? "" : "hidden"}><header><span><strong>${escapeHtml(result.layerTitle)}</strong><small>${escapeHtml(result.kind)}</small></span>${selection}</header><dl>${entries.map(([key, value]) => `<div><dt>${escapeHtml(key)}</dt><dd>${escapeHtml(formatAttributeValue(value, fieldsByName.get(key), key))}</dd></div>`).join("") || "<div><dd>No attributes returned.</dd></div>"}</dl></article>`;
       }).join("");
     this.#renderIntelligenceContents(payload);
     const overlay = document.querySelector("#insights-overlay");

@@ -690,7 +690,8 @@ export class MapController {
     } else {
       symbol = {
         type: "simple-fill",
-        color: this.#hexToRgba(color, 0.35),
+        style: options.noFill ? "none" : "solid",
+        color: options.noFill ? [0, 0, 0, 0] : this.#hexToRgba(color, 0.35),
         outline: { color: outline, width: Number(options.size) || 1.5 },
       };
     }
@@ -865,31 +866,32 @@ export class MapController {
   async goToLayer(layerOrUid) {
     const layer = typeof layerOrUid === "string" ? this.findLayer(layerOrUid) : layerOrUid;
     if (!layer?.fullExtent) return;
-    let target = layer.fullExtent;
+    const candidates = [layer.initialExtent, layer.fullExtent].filter((extent) => this.#isPlausibleExtent(extent));
     if (typeof layer.queryExtent === "function") {
       try {
         const query = layer.createQuery?.() ?? {};
         query.where = layer.definitionExpression || "1=1";
         query.outSpatialReference = this.view?.spatialReference;
         const result = await layer.queryExtent(query);
-        if (result?.extent && this.#isPlausibleExtent(result.extent)) target = result.extent;
+        if (result?.extent && this.#isPlausibleExtent(result.extent)) candidates.unshift(result.extent);
       } catch {
         // Some layer types advertise query support but reject extent-only queries.
         // Fall through to the metadata/fallback feature extent handling below.
       }
     }
-    if (!this.#isPlausibleExtent(target) && typeof layer.queryFeatures === "function") {
+    let target = this.#selectZoomExtent(candidates);
+    if (!target && typeof layer.queryFeatures === "function") {
       const query = layer.createQuery?.() ?? {};
       query.where = layer.definitionExpression || "1=1";
       query.returnGeometry = true;
       query.outFields = [];
       query.num = 2000;
-      query.outSpatialReference = target.spatialReference ?? this.view?.spatialReference;
+      query.outSpatialReference = layer.fullExtent?.spatialReference ?? this.view?.spatialReference;
       const { features = [] } = await layer.queryFeatures(query);
       const extents = features.map((feature) => feature.geometry?.extent).filter((extent) => this.#isPlausibleExtent(extent));
       if (extents.length) {
         const first = extents[0];
-        target = {
+        const featureExtent = {
           type: "extent",
           xmin: Math.min(...extents.map((extent) => extent.xmin)),
           ymin: Math.min(...extents.map((extent) => extent.ymin)),
@@ -897,9 +899,19 @@ export class MapController {
           ymax: Math.max(...extents.map((extent) => extent.ymax)),
           spatialReference: first.spatialReference ?? this.view.spatialReference,
         };
+        target = this.#selectZoomExtent([featureExtent]);
       }
     }
-    return this.view.goTo({ target, tilt: 55 });
+    if (!target) return false;
+    await this.view.goTo({ target, tilt: 55 });
+    return true;
+  }
+
+  async goToLayerOnInitialLoad(layerOrUid) {
+    // Keep a user's working map view intact. A fresh, globe-level scene may still
+    // benefit from an initial layer zoom, but a deliberate city/regional view should not move.
+    if ((this.view?.zoom ?? Infinity) > 5.5) return false;
+    return this.goToLayer(layerOrUid);
   }
 
   #isPlausibleExtent(extent) {
@@ -907,6 +919,41 @@ export class MapController {
     const wkid = extent.spatialReference?.latestWkid ?? extent.spatialReference?.wkid;
     if (![4326, 4269].includes(wkid)) return true;
     return extent.xmin >= -180 && extent.xmax <= 180 && extent.ymin >= -90 && extent.ymax <= 90;
+  }
+
+  #selectZoomExtent(extents) {
+    const safe = extents.filter((extent) => this.#isZoomSafeExtent(extent));
+    if (!safe.length) return null;
+    return safe.sort((a, b) => this.#extentFootprint(a) - this.#extentFootprint(b))[0];
+  }
+
+  #isZoomSafeExtent(extent) {
+    const footprint = this.#geographicFootprint(extent);
+    if (!footprint) return false;
+    const { width, height } = footprint;
+    return Number.isFinite(width) && Number.isFinite(height) && width >= 0 && height >= 0 && (width > 0 || height > 0)
+      && width < 250 && height < 120;
+  }
+
+  #extentFootprint(extent) {
+    const footprint = this.#geographicFootprint(extent);
+    return footprint ? footprint.width * footprint.height : Infinity;
+  }
+
+  #geographicFootprint(extent) {
+    if (!this.#isPlausibleExtent(extent)) return null;
+    const wkid = extent.spatialReference?.latestWkid ?? extent.spatialReference?.wkid;
+    if ([4326, 4269].includes(wkid)) {
+      return { width: Math.abs(extent.xmax - extent.xmin), height: Math.abs(extent.ymax - extent.ymin) };
+    }
+    if ([3857, 102100, 102113].includes(wkid)) {
+      const world = 20037508.342789244;
+      return {
+        width: Math.abs(extent.xmax - extent.xmin) * 180 / world,
+        height: Math.abs(extent.ymax - extent.ymin) * 180 / world,
+      };
+    }
+    return { width: Math.abs(extent.xmax - extent.xmin), height: Math.abs(extent.ymax - extent.ymin) };
   }
 
   async goToFeature(feature) {

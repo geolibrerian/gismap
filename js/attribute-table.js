@@ -1,3 +1,5 @@
+import { formatAttributeValue } from "./attribute-format.js?v=0.15.14";
+
 const DISPLAY_SETTINGS_KEY = "gismap-online:display:v1";
 const TABLE_POSITIONS = new Set(["overlay-bottom", "dock-left", "dock-right", "dock-bottom"]);
 
@@ -206,6 +208,7 @@ export class AttributeTableController {
     this.visibleFeatures = features;
     const container = document.querySelector("#table-content");
     const aliases = new Map(fields.map((field) => [field.name, field.alias || field.name]));
+    const fieldsByName = new Map(fields.map((field) => [field.name, field]));
     const keys = [...new Set(features.flatMap((feature) => Object.keys(feature.attributes ?? {})))];
     if (!features.length) {
       container.innerHTML = '<div class="empty-state">No matching records returned.</div>';
@@ -215,7 +218,7 @@ export class AttributeTableController {
       "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
     })[char]);
     container.innerHTML = `<table><thead><tr>${keys.map((key) => `<th>${escape(aliases.get(key) || key)}</th>`).join("")}</tr></thead><tbody>${features
-      .map((feature, index) => `<tr data-feature-index="${index}" tabindex="0" title="Zoom to this feature">${keys.map((key) => `<td>${escape(feature.attributes?.[key])}</td>`).join("")}</tr>`)
+      .map((feature, index) => `<tr data-feature-index="${index}" tabindex="0" title="Zoom to this feature">${keys.map((key) => `<td>${escape(formatAttributeValue(feature.attributes?.[key], fieldsByName.get(key), key))}</td>`).join("")}</tr>`)
       .join("")}</tbody></table>`;
   }
 

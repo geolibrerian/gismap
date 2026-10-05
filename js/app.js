@@ -1,15 +1,15 @@
-import { events } from "./events.js?v=0.15.12";
-import { AuthController } from "./auth.js?v=0.15.12";
-import { MapController } from "./map.js?v=0.15.12";
-import { ProjectManager } from "./project.js?v=0.15.12";
-import { IdentifyController } from "./identify.js?v=0.15.12";
-import { AttributeTableController } from "./attribute-table.js?v=0.15.12";
-import { AIController } from "./ai.js?v=0.15.12";
-import { ToolManager } from "./tool-manager.js?v=0.15.12";
-import { UIController } from "./ui.js?v=0.15.12";
-import { ExportController } from "./export/export-controller.js?v=0.15.12";
-import { parseShareParameters } from "./share.js?v=0.15.12";
-import { POPULAR_SERVICES } from "./catalog.js?v=0.15.12";
+import { events } from "./events.js?v=0.15.14";
+import { AuthController } from "./auth.js?v=0.15.14";
+import { MapController } from "./map.js?v=0.15.14";
+import { ProjectManager } from "./project.js?v=0.15.14";
+import { IdentifyController } from "./identify.js?v=0.15.14";
+import { AttributeTableController } from "./attribute-table.js?v=0.15.14";
+import { AIController } from "./ai.js?v=0.15.14";
+import { ToolManager } from "./tool-manager.js?v=0.15.14";
+import { UIController } from "./ui.js?v=0.15.14";
+import { ExportController } from "./export/export-controller.js?v=0.15.14";
+import { parseShareParameters } from "./share.js?v=0.15.14";
+import { POPULAR_SERVICES } from "./catalog.js?v=0.15.14";
 
 async function loadSharedLayer(mapController, config) {
   const rootUrl = config.url.replace(/\/+$/, "");

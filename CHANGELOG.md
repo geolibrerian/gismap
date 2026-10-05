@@ -6,6 +6,20 @@ All notable changes to GIS Map Online are documented here. This project follows
 
 ## [Unreleased]
 
+## [0.15.14] - 2026-10-05
+
+### Added
+
+- Added a polygon Style option for no fill, leaving only the configurable outline visible for boundary layers.
+
+## [0.15.13] - 2026-10-05
+
+### Fixed
+
+- Format ArcGIS date fields as localized dates in Map Insight and attribute tables instead of raw epoch values.
+- Preserve the current camera when adding data to an established view; only a fresh, globe-level view may receive an initial layer zoom.
+- Reject near-global layer extents during Zoom, preventing broad or wrapped service extents from sending the camera across the world.
+
 ## [0.15.12] - 2026-09-11
 
 ### Changed
@@ -355,7 +369,9 @@ All notable changes to GIS Map Online are documented here. This project follows
 - Prevented search suggestions from remaining open after selection.
 - Reduced map and panel flicker during feature identification.
 
-[Unreleased]: https://github.com/geolibrerian/gismap/compare/v0.15.12...HEAD
+[Unreleased]: https://github.com/geolibrerian/gismap/compare/v0.15.14...HEAD
+[0.15.14]: https://github.com/geolibrerian/gismap/compare/v0.15.13...v0.15.14
+[0.15.13]: https://github.com/geolibrerian/gismap/compare/v0.15.12...v0.15.13
 [0.15.12]: https://github.com/geolibrerian/gismap/compare/v0.15.11...v0.15.12
 [0.15.11]: https://github.com/geolibrerian/gismap/compare/v0.15.10...v0.15.11
 [0.15.10]: https://github.com/geolibrerian/gismap/compare/v0.15.9...v0.15.10
