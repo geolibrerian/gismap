@@ -6,6 +6,12 @@ All notable changes to GIS Map Online are documented here. This project follows
 
 ## [Unreleased]
 
+## [0.15.25] - 2026-10-06
+
+### Added
+
+- Added project-persisted Briefing, Explorer, Atlas, and Standard presentation choices with scoped Clean Light, Dark Analytical, and Retro Print skins.
+
 ## [0.15.24] - 2026-10-06
 
 ### Fixed
@@ -432,7 +438,8 @@ All notable changes to GIS Map Online are documented here. This project follows
 - Prevented search suggestions from remaining open after selection.
 - Reduced map and panel flicker during feature identification.
 
-[Unreleased]: https://github.com/geolibrerian/gismap/compare/v0.15.24...HEAD
+[Unreleased]: https://github.com/geolibrerian/gismap/compare/v0.15.25...HEAD
+[0.15.25]: https://github.com/geolibrerian/gismap/compare/v0.15.24...v0.15.25
 [0.15.24]: https://github.com/geolibrerian/gismap/compare/v0.15.23...v0.15.24
 [0.15.23]: https://github.com/geolibrerian/gismap/compare/v0.15.22...v0.15.23
 [0.15.22]: https://github.com/geolibrerian/gismap/compare/v0.15.21...v0.15.22

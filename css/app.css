@@ -122,6 +122,20 @@ body.utility-resizing iframe, body.utility-resizing canvas { pointer-events: non
 .menu__content hr { width: 100%; border: 0; border-top: 1px solid var(--line); margin: 5px 0; }
 .menu__field { display: grid; gap: 5px; padding: 7px 8px; color: var(--muted); font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; }
 .menu__field select { width: 100%; padding: 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); color: var(--ink); font: inherit; font-size: 11px; font-weight: 500; letter-spacing: 0; text-transform: none; }
+.presentation-picker { display: grid; gap: 14px; }
+.presentation-cards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.presentation-card { display: grid; gap: 7px; padding: 10px; border: 1px solid var(--line); border-radius: 8px; color: var(--ink); background: var(--surface); text-align: left; cursor: pointer; }
+.presentation-card:hover, .presentation-card.is-selected { border-color: var(--green-2); box-shadow: 0 0 0 2px color-mix(in srgb, var(--green-2) 22%, transparent); }
+.presentation-card small { color: var(--muted); line-height: 1.35; }
+.presentation-preview { display: grid; grid-template-columns: 24% 1fr 24%; gap: 3px; height: 55px; padding: 4px; border-radius: 4px; background: var(--surface-2); }
+.presentation-preview i { display: block; border-radius: 2px; background: var(--green-2); opacity: .7; }
+.presentation-preview--explorer i:first-child { background: var(--amber); }.presentation-preview--atlas { grid-template-columns: 30% 1fr; }.presentation-preview--atlas i:last-child { grid-column: span 2; }
+#app[data-presentation-skin="dark-analytical"] { --ink: #edf4ef; --muted: #aab9b1; --paper: #0b1210; --surface: #111a17; --surface-2: #17231f; --green: #174f42; --green-2: #42b99c; --amber: #f0ad38; --line: #2a3732; --shadow: 0 18px 50px rgb(0 0 0 / 42%); color-scheme: dark; }
+#app[data-presentation-skin="retro-print"] { --ink: #1d2d47; --muted: #617069; --paper: #f6eedb; --surface: #fff9eb; --surface-2: #e6dcc7; --green: #273a5a; --green-2: #587565; --amber: #b55d46; --line: #c9bda5; }
+#app[data-presentation="briefing"] .sidebar { border-right: 4px solid var(--amber); }
+#app[data-presentation="explorer"] .layers-panel { order: -1; }
+#app[data-presentation="atlas"] .brand { background: linear-gradient(120deg, var(--surface), var(--surface-2)); }
+@media (max-width: 640px) { .presentation-cards { grid-template-columns: 1fr; } }
 
 .sidebar__scroll {
   min-height: 0;

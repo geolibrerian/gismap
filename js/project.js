@@ -38,6 +38,7 @@ export class ProjectManager {
       tools: [],
       ai: { provider: null, model: null },
       connections: [],
+      presentation: { schemaVersion: 1, template: "standard", skin: "clean-light", title: "", primaryLayerId: null, fieldMappings: {}, widgets: {}, chapters: [] },
     };
   }
 
@@ -144,6 +145,7 @@ export class ProjectManager {
     }
 
     this.current = structuredClone(project);
+    this.current.presentation = this.#presentation(project.presentation);
     await this.mapController.restoreView(project.view);
     this.events.publish("project:loaded", { project: this.current, missingFiles });
     return { project: this.current, missingFiles };
@@ -225,6 +227,28 @@ export class ProjectManager {
     this.current.bookmarks ??= [];
     this.current.bookmarks.push({ id: makeId(), ...bookmark });
     this.events.publish("bookmarks:changed", { bookmarks: this.current.bookmarks });
+  }
+
+  setPresentation(presentation) {
+    this.current.presentation = this.#presentation(presentation);
+    this.events.publish("presentation:changed", { presentation: structuredClone(this.current.presentation) });
+    this.persistCurrentIfSaved();
+    return this.current.presentation;
+  }
+
+  #presentation(value = {}) {
+    const templates = new Set(["standard", "briefing", "explorer", "atlas"]);
+    const skins = new Set(["clean-light", "dark-analytical", "retro-print"]);
+    return {
+      schemaVersion: 1,
+      template: templates.has(value.template) ? value.template : "standard",
+      skin: skins.has(value.skin) ? value.skin : "clean-light",
+      title: String(value.title || ""),
+      primaryLayerId: value.primaryLayerId || null,
+      fieldMappings: value.fieldMappings && typeof value.fieldMappings === "object" ? value.fieldMappings : {},
+      widgets: value.widgets && typeof value.widgets === "object" ? value.widgets : {},
+      chapters: Array.isArray(value.chapters) ? value.chapters : [],
+    };
   }
 
   removeBookmark(id) {

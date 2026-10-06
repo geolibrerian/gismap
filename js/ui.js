@@ -1,8 +1,8 @@
-import { POPULAR_SERVICES } from "./catalog.js?v=0.15.24";
-import { ENTERPRISE_CATALOGS, EnterpriseCatalog, normalizeArcGisDirectoryUrl } from "./enterprise-catalog.js?v=0.15.24";
-import { createShareUrl } from "./share.js?v=0.15.24";
-import { markdownToPlainText, renderMarkdown } from "./markdown.js?v=0.15.24";
-import { formatAttributeValue } from "./attribute-format.js?v=0.15.24";
+import { POPULAR_SERVICES } from "./catalog.js?v=0.15.25";
+import { ENTERPRISE_CATALOGS, EnterpriseCatalog, normalizeArcGisDirectoryUrl } from "./enterprise-catalog.js?v=0.15.25";
+import { createShareUrl } from "./share.js?v=0.15.25";
+import { markdownToPlainText, renderMarkdown } from "./markdown.js?v=0.15.25";
+import { formatAttributeValue } from "./attribute-format.js?v=0.15.25";
 
 const DISPLAY_SETTINGS_KEY = "gismap-online:display:v1";
 const INSIGHT_POSITIONS = new Set(["upper-left", "lower-left", "bottom", "dock-left", "dock-right", "dock-top", "dock-bottom"]);
@@ -288,6 +288,7 @@ export class UIController {
       this.events.subscribe(topic, () => this.#renderLayers()),
     );
     this.events.subscribe("project:loaded", ({ project, missingFiles }) => {
+      this.#applyPresentation(project.presentation);
       this.#showProject(project);
       this.#renderBookmarks();
       this.#renderLayers();
@@ -299,6 +300,7 @@ export class UIController {
       this.#showProject(project, "Saved");
       if (!automatic) this.toast("Project saved in this browser.");
     });
+    this.events.subscribe("presentation:changed", ({ presentation }) => this.#applyPresentation(presentation));
     this.events.subscribe("project:exported", ({ kind }) => this.toast(`${kind === "package" ? "Project package (.gmop)" : "Project file (.gmo)"} downloaded.`));
     this.events.subscribe("export:progress", ({ stage, completed, total }) => {
       const progress = this.dialog.querySelector("[data-export-progress]");
@@ -548,6 +550,9 @@ export class UIController {
           break;
         case "tools-display":
           this.#displaySettingsDialog();
+          break;
+        case "map-presentation":
+          this.#presentationDialog();
           break;
         case "tools-about":
           this.#aboutDialog();
@@ -1497,6 +1502,52 @@ export class UIController {
       title: "GIS Map Online",
       content: `<div class="about-copy"><p>A browser-only GIS viewer built around ArcGIS Maps SDK for JavaScript 5.0 and a topic-based event bus.</p><p><a href="/examples/">Browse public GIS examples</a> or read the <a href="/arcgis-rest-service-viewer/">viewer guides</a>.</p><dl><div><dt>Runtime</dt><dd>Static HTML + ES modules</dd></div><div><dt>Persistence</dt><dd>localStorage + portable ZIP</dd></div><div><dt>Identify</dt><dd>Popup-free normalized results</dd></div><div><dt>Identity</dt><dd>Optional ArcGIS OAuth / token authentication managed by the Esri SDK</dd></div><div><dt>Privacy</dt><dd>No GIS Map Online account or database; credentials are excluded from projects</dd></div></dl></div>`,
     });
+  }
+
+  #applyPresentation(presentation = {}) {
+    const app = document.querySelector("#app");
+    app.dataset.presentation = presentation.template || "standard";
+    app.dataset.presentationSkin = presentation.skin || "clean-light";
+    document.body.dataset.presentation = presentation.template || "standard";
+  }
+
+  #presentationDialog() {
+    const previous = structuredClone(this.projectManager.current.presentation || {});
+    const current = { template: "standard", skin: "clean-light", title: "", primaryLayerId: null, ...previous };
+    const layers = this.mapController.getOperationalLayers();
+    const cards = [
+      ["briefing", "Briefing", "Understand events, changes, and their sources", "dark-analytical"],
+      ["explorer", "Explorer", "Search, filter, and compare mapped records", "clean-light"],
+      ["atlas", "Atlas", "Present places through guided chapters and stories", "retro-print"],
+    ];
+    this.openDialog({
+      eyebrow: "Presentation",
+      title: "Choose a data theme",
+      content: `<div class="presentation-picker"><p class="form-note">Templates change the audience layout; skins change its visual treatment. Layer data, styles, and credentials are unchanged.</p><div class="presentation-cards"><button class="presentation-card" data-presentation-template="standard"><span class="presentation-preview presentation-preview--standard"></span><strong>Standard workspace</strong><small>Restore the authoring workspace.</small></button>${cards.map(([id, title, description]) => `<button class="presentation-card" data-presentation-template="${id}"><span class="presentation-preview presentation-preview--${id}"><i></i><i></i><i></i></span><strong>${title}</strong><small>${description}</small></button>`).join("")}</div><label class="field"><span>Skin</span><select id="presentation-skin"><option value="clean-light">Clean Light</option><option value="dark-analytical">Dark Analytical</option><option value="retro-print">Retro Print</option></select></label><label class="field"><span>Presentation title</span><input id="presentation-title" value="${escapeHtml(current.title)}" placeholder="Optional title" /></label><label class="field"><span>Primary layer</span><select id="presentation-primary"><option value="">Choose later</option>${layers.map((layer) => `<option value="${escapeHtml(layer.uid)}">${escapeHtml(layer.title || "Untitled layer")}</option>`).join("")}</select></label><p class="form-note" data-presentation-note>Optional tools appear only when the chosen primary layer has compatible fields; configure them after applying.</p></div>`,
+      actions: [
+        { label: "Cancel", handler: () => { this.#applyPresentation(previous); this.dialog.close(); } },
+        { label: "Preview", handler: () => {
+          const template = this.dialog.querySelector(".presentation-card.is-selected")?.dataset.presentationTemplate || current.template;
+          this.#applyPresentation({ template, skin: this.dialog.querySelector("#presentation-skin").value });
+        } },
+        { label: "Apply", primary: true, handler: () => {
+          const template = this.dialog.querySelector(".presentation-card.is-selected")?.dataset.presentationTemplate || current.template;
+          const presentation = this.projectManager.setPresentation({ ...current, template, skin: this.dialog.querySelector("#presentation-skin").value, title: this.dialog.querySelector("#presentation-title").value.trim(), primaryLayerId: this.dialog.querySelector("#presentation-primary").value || null });
+          this.#applyPresentation(presentation);
+          this.dialog.close();
+          this.toast(`${template === "standard" ? "Standard workspace" : `${template[0].toUpperCase()}${template.slice(1)} presentation`} applied.`);
+        } },
+      ],
+    });
+    const skin = this.dialog.querySelector("#presentation-skin");
+    skin.value = current.skin;
+    this.dialog.querySelector("#presentation-primary").value = current.primaryLayerId || "";
+    const select = (button) => {
+      this.dialog.querySelectorAll("[data-presentation-template]").forEach((card) => card.classList.toggle("is-selected", card === button));
+      if (button.dataset.presentationTemplate !== "standard" && current.template === "standard") skin.value = cards.find(([id]) => id === button.dataset.presentationTemplate)?.[3] || skin.value;
+    };
+    this.dialog.querySelectorAll("[data-presentation-template]").forEach((button) => button.addEventListener("click", () => select(button)));
+    select(this.dialog.querySelector(`[data-presentation-template="${current.template}"]`) || this.dialog.querySelector("[data-presentation-template=standard]"));
   }
 
   async #importProject(event) {
