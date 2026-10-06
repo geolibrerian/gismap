@@ -678,7 +678,7 @@ export class MapController {
     const outline = options.outline || "#ffffff";
     const geometryType = layer.geometryType;
     const mode = ["simple", "categorized", "graduated"].includes(options.mode) ? options.mode : "simple";
-    if (geometryType === "polygon" && options.extrusionEnabled && options.extrusionSource === "field") {
+    if (["polygon", "point", "multipoint"].includes(geometryType) && options.extrusionEnabled && options.extrusionSource === "field") {
       this.#requireStyleField(layer, options.extrusionField, true);
     }
     const makeSymbol = (symbolColor) => this.#styleSymbol(geometryType, { ...options, color: symbolColor }, outline);
@@ -740,7 +740,23 @@ export class MapController {
 
   #styleSymbol(geometryType, options, outline) {
     const size = Number(options.size);
+    const extrusionEnabled = options.extrusionEnabled && ["polygon", "point", "multipoint"].includes(geometryType);
     if (geometryType === "point" || geometryType === "multipoint") {
+      if (extrusionEnabled) {
+        const width = Math.max(1, Number(options.extrusionWidth) || 10000);
+        return {
+          type: "point-3d",
+          symbolLayers: [{
+            type: "object",
+            resource: { primitive: "cylinder" },
+            width,
+            depth: width,
+            height: options.extrusionSource === "fixed" ? Math.max(0, Number(options.extrusionValue) || 0) : 1,
+            anchor: "bottom",
+            material: { color: options.color },
+          }],
+        };
+      }
       return { type: "simple-marker", color: options.color, size: Number.isFinite(size) ? size : 9, outline: { color: outline, width: 1 } };
     }
     if (geometryType === "polyline") {
@@ -748,7 +764,7 @@ export class MapController {
     }
     const fillOpacity = Math.min(1, Math.max(0, Number(options.fillOpacity)));
     const rgba = options.noFill ? [0, 0, 0, 0] : this.#hexToRgba(options.color, Number.isFinite(fillOpacity) ? fillOpacity : 0.35);
-    if (options.extrusionEnabled) {
+    if (extrusionEnabled) {
       return {
         type: "polygon-3d",
         symbolLayers: [{
@@ -768,10 +784,16 @@ export class MapController {
   }
 
   #extrusionVisualVariable(geometryType, options) {
-    if (geometryType !== "polygon" || !options.extrusionEnabled || options.extrusionSource !== "field") return null;
+    if (!["polygon", "point", "multipoint"].includes(geometryType) || !options.extrusionEnabled || options.extrusionSource !== "field") return null;
     const field = String(options.extrusionField || "").trim();
     if (!field) throw new Error("Choose a numeric field to drive extrusion height.");
-    return { type: "size", field, valueUnit: "meters" };
+    const multiplier = Math.max(0, Number(options.extrusionMultiplier) || 1);
+    return {
+      type: "size",
+      valueExpression: `$feature[${JSON.stringify(field)}] * ${multiplier}`,
+      valueUnit: "meters",
+      ...((geometryType === "point" || geometryType === "multipoint") ? { axis: "height" } : {}),
+    };
   }
 
   #requireStyleField(layer, fieldName, numeric = false) {

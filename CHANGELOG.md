@@ -6,6 +6,12 @@ All notable changes to GIS Map Online are documented here. This project follows
 
 ## [Unreleased]
 
+## [0.15.18] - 2026-10-06
+
+### Added
+
+- Added ready-to-open PM2.5 3D column examples, including a graduated concentration variant, and enabled 3D cylinder extrusion for point layers.
+
 ## [0.15.17] - 2026-10-06
 
 ### Added
@@ -388,7 +394,8 @@ All notable changes to GIS Map Online are documented here. This project follows
 - Prevented search suggestions from remaining open after selection.
 - Reduced map and panel flicker during feature identification.
 
-[Unreleased]: https://github.com/geolibrerian/gismap/compare/v0.15.17...HEAD
+[Unreleased]: https://github.com/geolibrerian/gismap/compare/v0.15.18...HEAD
+[0.15.18]: https://github.com/geolibrerian/gismap/compare/v0.15.17...v0.15.18
 [0.15.17]: https://github.com/geolibrerian/gismap/compare/v0.15.16...v0.15.17
 [0.15.16]: https://github.com/geolibrerian/gismap/compare/v0.15.15...v0.15.16
 [0.15.15]: https://github.com/geolibrerian/gismap/compare/v0.15.14...v0.15.15

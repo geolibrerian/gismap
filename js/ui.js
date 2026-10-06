@@ -1,8 +1,8 @@
-import { POPULAR_SERVICES } from "./catalog.js?v=0.15.17";
-import { ENTERPRISE_CATALOGS, EnterpriseCatalog, normalizeArcGisDirectoryUrl } from "./enterprise-catalog.js?v=0.15.17";
-import { createShareUrl } from "./share.js?v=0.15.17";
-import { renderMarkdown } from "./markdown.js?v=0.15.17";
-import { formatAttributeValue } from "./attribute-format.js?v=0.15.17";
+import { POPULAR_SERVICES } from "./catalog.js?v=0.15.18";
+import { ENTERPRISE_CATALOGS, EnterpriseCatalog, normalizeArcGisDirectoryUrl } from "./enterprise-catalog.js?v=0.15.18";
+import { createShareUrl } from "./share.js?v=0.15.18";
+import { renderMarkdown } from "./markdown.js?v=0.15.18";
+import { formatAttributeValue } from "./attribute-format.js?v=0.15.18";
 
 const DISPLAY_SETTINGS_KEY = "gismap-online:display:v1";
 const INSIGHT_POSITIONS = new Set(["upper-left", "lower-left", "bottom", "dock-left", "dock-right", "dock-top", "dock-bottom"]);
@@ -1774,9 +1774,13 @@ export class UIController {
       ? `<label class="field"><span>Style type</span><select data-style-mode><option value="simple">Simple</option><option value="categorized">Categorized by field</option><option value="graduated">Graduated by numeric field</option></select></label><label class="field" data-style-field-control hidden><span>Style field</span><select data-style-field>${fieldOptions(fields, "No fields available")}</select></label>`
       : "";
     const polygonControls = layer.geometryType === "polygon"
-      ? `<label class="opacity-row"><span>Fill opacity</span><input data-symbol-fill-opacity type="range" min="0" max="1" step="0.05" value="0.35" /><output>35%</output></label><label class="display-checkbox"><input data-symbol-no-fill type="checkbox" /><span>No fill — outline only</span></label><fieldset class="feedback-settings"><legend>3D extrusion</legend><label class="display-checkbox"><input data-extrusion-enabled type="checkbox" /><span>Extrude polygons in 3D</span></label><div data-extrusion-options hidden><div class="field-grid"><label class="field"><span>Height source</span><select data-extrusion-source><option value="fixed">Fixed height</option><option value="field">Numeric field</option></select></label><label class="field" data-extrusion-value-control><span>Height <small>meters</small></span><input data-extrusion-value type="number" min="0" step="1" value="250" /></label><label class="field" data-extrusion-field-control hidden><span>Height field</span><select data-extrusion-field>${fieldOptions(numericFields, "No numeric fields available")}</select></label></div></div></fieldset>`
+      ? '<label class="opacity-row"><span>Fill opacity</span><input data-symbol-fill-opacity type="range" min="0" max="1" step="0.05" value="0.35" /><output>35%</output></label><label class="display-checkbox"><input data-symbol-no-fill type="checkbox" /><span>No fill — outline only</span></label>'
       : "";
-    pane.innerHTML = `<div class="workspace-tool"><p class="eyebrow">Layer presentation</p><h3>Style ${escapeHtml(layer.title || "layer")}</h3><div class="field-grid">${rendererControls}<label class="field"><span>Fill / marker / line</span><input data-symbol-color type="color" value="#1b7f6a" /></label><label class="field"><span>Outline</span><input data-symbol-outline type="color" value="#ffffff" /></label><label class="field"><span>Size / width</span><input data-symbol-size type="number" min="0.5" max="40" step="0.5" value="9" /></label></div>${polygonControls}<p class="form-note">Field styles use up to 5,000 records matching the active layer filter. Renderer JSON is stored with the project.</p><div class="workspace-tool__actions"><button type="button" class="button--primary" data-apply-symbology>Apply symbology</button></div></div>`;
+    const extrudable = ["polygon", "point", "multipoint"].includes(layer.geometryType);
+    const extrusionControls = extrudable
+      ? `<fieldset class="feedback-settings"><legend>3D extrusion</legend><label class="display-checkbox"><input data-extrusion-enabled type="checkbox" /><span>Extrude in 3D</span></label><div data-extrusion-options hidden><div class="field-grid"><label class="field"><span>Height source</span><select data-extrusion-source><option value="fixed">Fixed height</option><option value="field">Numeric field</option></select></label><label class="field" data-extrusion-value-control><span>Height <small>meters</small></span><input data-extrusion-value type="number" min="0" step="1" value="250" /></label><label class="field" data-extrusion-field-control hidden><span>Height field</span><select data-extrusion-field>${fieldOptions(numericFields, "No numeric fields available")}</select></label><label class="field" data-extrusion-multiplier-control hidden><span>Height multiplier</span><input data-extrusion-multiplier type="number" min="0" step="1" value="1000" /></label>${layer.geometryType === "polygon" ? "" : '<label class="field"><span>Column width <small>meters</small></span><input data-extrusion-width type="number" min="1" step="1000" value="10000" /></label>'}</div></div></fieldset>`
+      : "";
+    pane.innerHTML = `<div class="workspace-tool"><p class="eyebrow">Layer presentation</p><h3>Style ${escapeHtml(layer.title || "layer")}</h3><div class="field-grid">${rendererControls}<label class="field"><span>Fill / marker / line</span><input data-symbol-color type="color" value="#1b7f6a" /></label><label class="field"><span>Outline</span><input data-symbol-outline type="color" value="#ffffff" /></label><label class="field"><span>Size / width</span><input data-symbol-size type="number" min="0.5" max="40" step="0.5" value="9" /></label></div>${polygonControls}${extrusionControls}<p class="form-note">Field styles use up to 5,000 records matching the active layer filter. Renderer JSON is stored with the project.</p><div class="workspace-tool__actions"><button type="button" class="button--primary" data-apply-symbology>Apply symbology</button></div></div>`;
     const fillOpacity = pane.querySelector("[data-symbol-fill-opacity]");
     fillOpacity?.addEventListener("input", () => {
       fillOpacity.nextElementSibling.value = `${Math.round(Number(fillOpacity.value) * 100)}%`;
@@ -1800,12 +1804,14 @@ export class UIController {
     const extrusionSource = pane.querySelector("[data-extrusion-source]");
     const extrusionValueControl = pane.querySelector("[data-extrusion-value-control]");
     const extrusionFieldControl = pane.querySelector("[data-extrusion-field-control]");
+    const extrusionMultiplierControl = pane.querySelector("[data-extrusion-multiplier-control]");
     const syncExtrusion = () => {
       if (!extrusionEnabled || !extrusionOptions) return;
       extrusionOptions.hidden = !extrusionEnabled.checked;
       const usingField = extrusionSource?.value === "field";
       if (extrusionValueControl) extrusionValueControl.hidden = usingField;
       if (extrusionFieldControl) extrusionFieldControl.hidden = !usingField;
+      if (extrusionMultiplierControl) extrusionMultiplierControl.hidden = !usingField;
     };
     extrusionEnabled?.addEventListener("change", syncExtrusion);
     extrusionSource?.addEventListener("change", syncExtrusion);
@@ -1824,6 +1830,8 @@ export class UIController {
           extrusionSource: extrusionSource?.value || "fixed",
           extrusionValue: pane.querySelector("[data-extrusion-value]")?.value,
           extrusionField: pane.querySelector("[data-extrusion-field]")?.value,
+          extrusionMultiplier: pane.querySelector("[data-extrusion-multiplier]")?.value,
+          extrusionWidth: pane.querySelector("[data-extrusion-width]")?.value,
         });
         const persisted = this.projectManager.persistCurrentIfSaved();
         this.toast(`Updated ${layer.title || "layer"} symbology${persisted ? " and saved it" : ""}.`);

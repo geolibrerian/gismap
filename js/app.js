@@ -1,29 +1,33 @@
-import { events } from "./events.js?v=0.15.17";
-import { AuthController } from "./auth.js?v=0.15.17";
-import { MapController } from "./map.js?v=0.15.17";
-import { ProjectManager } from "./project.js?v=0.15.17";
-import { IdentifyController } from "./identify.js?v=0.15.17";
-import { AttributeTableController } from "./attribute-table.js?v=0.15.17";
-import { AIController } from "./ai.js?v=0.15.17";
-import { ToolManager } from "./tool-manager.js?v=0.15.17";
-import { UIController } from "./ui.js?v=0.15.17";
-import { ExportController } from "./export/export-controller.js?v=0.15.17";
-import { parseShareParameters } from "./share.js?v=0.15.17";
-import { POPULAR_SERVICES } from "./catalog.js?v=0.15.17";
+import { events } from "./events.js?v=0.15.18";
+import { AuthController } from "./auth.js?v=0.15.18";
+import { MapController } from "./map.js?v=0.15.18";
+import { ProjectManager } from "./project.js?v=0.15.18";
+import { IdentifyController } from "./identify.js?v=0.15.18";
+import { AttributeTableController } from "./attribute-table.js?v=0.15.18";
+import { AIController } from "./ai.js?v=0.15.18";
+import { ToolManager } from "./tool-manager.js?v=0.15.18";
+import { UIController } from "./ui.js?v=0.15.18";
+import { ExportController } from "./export/export-controller.js?v=0.15.18";
+import { parseShareParameters } from "./share.js?v=0.15.18";
+import { POPULAR_SERVICES } from "./catalog.js?v=0.15.18";
 
 async function loadSharedLayer(mapController, config) {
   const rootUrl = config.url.replace(/\/+$/, "");
   if (/\/FeatureServer$/i.test(new URL(rootUrl).pathname)) {
     const layers = await mapController.discoverFeatureServiceLayers(rootUrl);
     if (!layers.length) throw new Error("The shared FeatureServer does not advertise any feature layers.");
-    return Promise.all(layers.map((layer) => mapController.addService({
+    const added = await Promise.all(layers.map((layer) => mapController.addService({
       ...config,
       url: layer.url,
       title: layers.length === 1 ? config.title : layer.name,
       serviceType: "feature",
     })));
+    if (config.renderer && added.length === 1) mapController.restoreRenderer(added[0], config.renderer);
+    return added;
   }
-  return [await mapController.addService(config)];
+  const added = await mapController.addService(config);
+  if (config.renderer) mapController.restoreRenderer(added, config.renderer);
+  return [added];
 }
 
 async function start() {

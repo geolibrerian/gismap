@@ -1,3 +1,23 @@
+const PM25_COLUMN_SYMBOL = (color) => ({
+  type: "point-3d",
+  symbolLayers: [{
+    type: "object",
+    resource: { primitive: "cylinder" },
+    width: 12000,
+    depth: 12000,
+    height: 1,
+    anchor: "bottom",
+    material: { color },
+  }],
+});
+
+const PM25_HEIGHT_VARIABLE = {
+  type: "size",
+  valueExpression: "$feature[\"value\"] * 1000",
+  valueUnit: "meters",
+  axis: "height",
+};
+
 /**
  * Public service catalog used by Popular Data Services and generated examples.
  * Keep uncertain terms explicit and leave lastChecked null until validation runs.
@@ -61,7 +81,47 @@ export const POPULAR_SERVICES = [
     sourcePage: "https://services9.arcgis.com/RHVPKKiFTONKtxq3/ArcGIS/rest/services/Air_Quality_PM25_Latest_Results/FeatureServer",
     licenseOrTerms: "Review individual provider fields, service metadata, and publisher terms before reuse.",
     tags: ["PM2.5", "air quality", "environment", "sensors", "FeatureServer"],
-    lastChecked: null, featured: true,
+    lastChecked: "2026-10-06", featured: true,
+  },
+  {
+    id: "esri-air-quality-pm25-3d-columns", slug: "air-quality-pm25-3d-columns", provider: "Esri Disaster Response",
+    title: "PM2.5 3D columns", category: "Environment", serviceType: "feature",
+    description: "PM2.5 monitoring stations rendered as 3D columns whose height represents particulate-matter concentration.",
+    whyUseful: "Use this ready-made renderer example to compare air-quality readings spatially: each cylinder uses the measurement field for height, scaled to meters for a readable global 3D view.",
+    url: "https://services9.arcgis.com/RHVPKKiFTONKtxq3/ArcGIS/rest/services/Air_Quality_PM25_Latest_Results/FeatureServer/0",
+    sourceOrganization: "Esri Disaster Response Program / OpenAQ",
+    sourcePage: "https://services9.arcgis.com/RHVPKKiFTONKtxq3/ArcGIS/rest/services/Air_Quality_PM25_Latest_Results/FeatureServer/0",
+    licenseOrTerms: "Review individual provider fields, service metadata, and publisher terms before reuse.",
+    tags: ["PM2.5", "air quality", "3D", "extrusion", "columns", "FeatureServer"],
+    renderer: {
+      type: "simple",
+      symbol: PM25_COLUMN_SYMBOL("#26b6d5"),
+      visualVariables: [PM25_HEIGHT_VARIABLE],
+    },
+    lastChecked: "2026-10-06", featured: true,
+  },
+  {
+    id: "esri-air-quality-pm25-3d-graduated", slug: "air-quality-pm25-3d-graduated", provider: "Esri Disaster Response",
+    title: "PM2.5 3D graduated columns", category: "Environment", serviceType: "feature",
+    description: "PM2.5 monitoring stations rendered as colored 3D columns by particulate-matter concentration.",
+    whyUseful: "This example combines a graduated field renderer with 3D column height, making concentration bands and local peaks legible at a glance.",
+    url: "https://services9.arcgis.com/RHVPKKiFTONKtxq3/ArcGIS/rest/services/Air_Quality_PM25_Latest_Results/FeatureServer/0",
+    sourceOrganization: "Esri Disaster Response Program / OpenAQ",
+    sourcePage: "https://services9.arcgis.com/RHVPKKiFTONKtxq3/ArcGIS/rest/services/Air_Quality_PM25_Latest_Results/FeatureServer/0",
+    licenseOrTerms: "Review individual provider fields, service metadata, and publisher terms before reuse.",
+    tags: ["PM2.5", "air quality", "3D", "extrusion", "graduated", "FeatureServer"],
+    renderer: {
+      type: "class-breaks",
+      field: "value",
+      classBreakInfos: [
+        { minValue: 0, maxValue: 12, label: "0–12 µg/m³", symbol: PM25_COLUMN_SYMBOL("#57b66d") },
+        { minValue: 12, maxValue: 35, label: "12–35 µg/m³", symbol: PM25_COLUMN_SYMBOL("#d7bd47") },
+        { minValue: 35, maxValue: 55, label: "35–55 µg/m³", symbol: PM25_COLUMN_SYMBOL("#e78a3b") },
+        { minValue: 55, maxValue: 1000, label: "55+ µg/m³", symbol: PM25_COLUMN_SYMBOL("#ca4c52") },
+      ],
+      visualVariables: [PM25_HEIGHT_VARIABLE],
+    },
+    lastChecked: "2026-10-06", featured: true,
   },
   {
     id: "esri-usgs-seismic-activity", slug: "usgs-seismic-activity", provider: "USGS / Esri",

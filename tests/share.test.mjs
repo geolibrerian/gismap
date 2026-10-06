@@ -20,6 +20,12 @@ assert.deepEqual(parsed.layers, [
 assert.equal(parsed.basemap, "gray-3d");
 assert.equal(new URL(shared).hash, "");
 
+const renderer = { type: "simple", symbol: { type: "simple-marker", color: "#1b7f6a" } };
+const rendererCatalog = [{ id: "styled", slug: "styled-example", title: "Styled example", serviceType: "feature", url: service, renderer }];
+const styledExample = parseShareParameters("?example=styled-example", rendererCatalog).layers[0];
+assert.deepEqual(styledExample.renderer, renderer);
+assert.notEqual(styledExample.renderer, renderer);
+
 const catalog = [{ id: "fires", slug: "active-fires", title: "Active fires", serviceType: "feature", url: service }];
 assert.deepEqual(parseShareParameters("?example=active-fires", catalog).layers[0], {
   url: service,

@@ -47,12 +47,14 @@ export function parseShareParameters(search, catalog = [], options = {}) {
   if (example) {
     const entry = catalog.find((item) => (item.slug || item.id) === example);
     if (!entry) throw new Error(`Unknown GISMap example: ${example}.`);
-    layers.push({
+    const layer = {
       url: sanitizeSharedResourceUrl(entry.url, options),
       serviceType: entry.serviceType || "arcgis-auto",
       title: entry.title,
       refreshInterval: entry.refreshInterval,
-    });
+    };
+    if (entry.renderer) layer.renderer = structuredClone(entry.renderer);
+    layers.push(layer);
   }
   if (layers.length > MAX_LAYERS) throw new Error(`A shared map can load at most ${MAX_LAYERS} layers.`);
   const basemap = params.get("basemap")?.trim() || null;

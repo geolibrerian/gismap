@@ -27,3 +27,13 @@ test("catalog includes the documented service families", () => {
   for (const type of ["feature", "map-image", "geojson"]) assert.ok(types.has(type), `missing ${type}`);
   assert.ok(POPULAR_SERVICES.some((item) => item.featured), "at least one example must be featured");
 });
+
+test("PM2.5 3D examples provide field-driven column renderers", () => {
+  const examples = POPULAR_SERVICES.filter((item) => item.slug.startsWith("air-quality-pm25-3d-"));
+  assert.equal(examples.length, 2);
+  for (const item of examples) {
+    assert.equal(item.renderer?.visualVariables?.[0]?.type, "size");
+    assert.match(item.renderer?.visualVariables?.[0]?.valueExpression || "", /\$feature\["value"\]/);
+    assert.equal(item.renderer?.visualVariables?.[0]?.axis, "height");
+  }
+});
