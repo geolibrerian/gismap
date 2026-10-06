@@ -1,8 +1,8 @@
-import { POPULAR_SERVICES } from "./catalog.js?v=0.15.16";
-import { ENTERPRISE_CATALOGS, EnterpriseCatalog, normalizeArcGisDirectoryUrl } from "./enterprise-catalog.js?v=0.15.16";
-import { createShareUrl } from "./share.js?v=0.15.16";
-import { renderMarkdown } from "./markdown.js?v=0.15.16";
-import { formatAttributeValue } from "./attribute-format.js?v=0.15.16";
+import { POPULAR_SERVICES } from "./catalog.js?v=0.15.17";
+import { ENTERPRISE_CATALOGS, EnterpriseCatalog, normalizeArcGisDirectoryUrl } from "./enterprise-catalog.js?v=0.15.17";
+import { createShareUrl } from "./share.js?v=0.15.17";
+import { renderMarkdown } from "./markdown.js?v=0.15.17";
+import { formatAttributeValue } from "./attribute-format.js?v=0.15.17";
 
 const DISPLAY_SETTINGS_KEY = "gismap-online:display:v1";
 const INSIGHT_POSITIONS = new Set(["upper-left", "lower-left", "bottom", "dock-left", "dock-right", "dock-top", "dock-bottom"]);
@@ -1765,22 +1765,65 @@ export class UIController {
     if (!layer) return;
     this.utilityStyleLayerUid = uid;
     const pane = document.querySelector("#utility-style-content");
-    const polygonControls = layer.geometryType === "polygon"
-      ? '<label class="opacity-row"><span>Fill opacity</span><input data-symbol-fill-opacity type="range" min="0" max="1" step="0.05" value="0.35" /><output>35%</output></label><label class="display-checkbox"><input data-symbol-no-fill type="checkbox" /><span>No fill — outline only</span></label>'
+    const fields = (layer.fields ?? []).filter((field) => field?.name && !/^(?:geometry)$/i.test(field.type || ""));
+    const numericFields = fields.filter((field) => /^(?:small-integer|integer|single|double|long|oid)$/i.test(field.type || ""));
+    const fieldOptions = (items, emptyLabel) => items.length
+      ? items.map((field) => `<option value="${escapeHtml(field.name)}">${escapeHtml(field.alias || field.name)} (${escapeHtml(field.name)})</option>`).join("")
+      : `<option value="">${emptyLabel}</option>`;
+    const rendererControls = fields.length
+      ? `<label class="field"><span>Style type</span><select data-style-mode><option value="simple">Simple</option><option value="categorized">Categorized by field</option><option value="graduated">Graduated by numeric field</option></select></label><label class="field" data-style-field-control hidden><span>Style field</span><select data-style-field>${fieldOptions(fields, "No fields available")}</select></label>`
       : "";
-    pane.innerHTML = `<div class="workspace-tool"><p class="eyebrow">Layer presentation</p><h3>Style ${escapeHtml(layer.title || "layer")}</h3><div class="field-grid"><label class="field"><span>Fill / marker / line</span><input data-symbol-color type="color" value="#1b7f6a" /></label><label class="field"><span>Outline</span><input data-symbol-outline type="color" value="#ffffff" /></label><label class="field"><span>Size / width</span><input data-symbol-size type="number" min="0.5" max="40" step="0.5" value="9" /></label></div>${polygonControls}<p class="form-note">Applies a simple renderer. Its JSON is stored with the project.</p><div class="workspace-tool__actions"><button type="button" class="button--primary" data-apply-symbology>Apply symbology</button></div></div>`;
+    const polygonControls = layer.geometryType === "polygon"
+      ? `<label class="opacity-row"><span>Fill opacity</span><input data-symbol-fill-opacity type="range" min="0" max="1" step="0.05" value="0.35" /><output>35%</output></label><label class="display-checkbox"><input data-symbol-no-fill type="checkbox" /><span>No fill — outline only</span></label><fieldset class="feedback-settings"><legend>3D extrusion</legend><label class="display-checkbox"><input data-extrusion-enabled type="checkbox" /><span>Extrude polygons in 3D</span></label><div data-extrusion-options hidden><div class="field-grid"><label class="field"><span>Height source</span><select data-extrusion-source><option value="fixed">Fixed height</option><option value="field">Numeric field</option></select></label><label class="field" data-extrusion-value-control><span>Height <small>meters</small></span><input data-extrusion-value type="number" min="0" step="1" value="250" /></label><label class="field" data-extrusion-field-control hidden><span>Height field</span><select data-extrusion-field>${fieldOptions(numericFields, "No numeric fields available")}</select></label></div></div></fieldset>`
+      : "";
+    pane.innerHTML = `<div class="workspace-tool"><p class="eyebrow">Layer presentation</p><h3>Style ${escapeHtml(layer.title || "layer")}</h3><div class="field-grid">${rendererControls}<label class="field"><span>Fill / marker / line</span><input data-symbol-color type="color" value="#1b7f6a" /></label><label class="field"><span>Outline</span><input data-symbol-outline type="color" value="#ffffff" /></label><label class="field"><span>Size / width</span><input data-symbol-size type="number" min="0.5" max="40" step="0.5" value="9" /></label></div>${polygonControls}<p class="form-note">Field styles use up to 5,000 records matching the active layer filter. Renderer JSON is stored with the project.</p><div class="workspace-tool__actions"><button type="button" class="button--primary" data-apply-symbology>Apply symbology</button></div></div>`;
     const fillOpacity = pane.querySelector("[data-symbol-fill-opacity]");
     fillOpacity?.addEventListener("input", () => {
       fillOpacity.nextElementSibling.value = `${Math.round(Number(fillOpacity.value) * 100)}%`;
     });
+    const styleMode = pane.querySelector("[data-style-mode]");
+    const styleFieldControl = pane.querySelector("[data-style-field-control]");
+    const styleField = pane.querySelector("[data-style-field]");
+    const syncStyleField = () => {
+      if (!styleMode || !styleFieldControl || !styleField) return;
+      const needsField = styleMode.value !== "simple";
+      styleFieldControl.hidden = !needsField;
+      if (!needsField) return;
+      const available = styleMode.value === "graduated" ? numericFields : fields;
+      styleField.innerHTML = fieldOptions(available, styleMode.value === "graduated" ? "No numeric fields available" : "No fields available");
+      styleField.disabled = !available.length;
+    };
+    styleMode?.addEventListener("change", syncStyleField);
+    syncStyleField();
+    const extrusionEnabled = pane.querySelector("[data-extrusion-enabled]");
+    const extrusionOptions = pane.querySelector("[data-extrusion-options]");
+    const extrusionSource = pane.querySelector("[data-extrusion-source]");
+    const extrusionValueControl = pane.querySelector("[data-extrusion-value-control]");
+    const extrusionFieldControl = pane.querySelector("[data-extrusion-field-control]");
+    const syncExtrusion = () => {
+      if (!extrusionEnabled || !extrusionOptions) return;
+      extrusionOptions.hidden = !extrusionEnabled.checked;
+      const usingField = extrusionSource?.value === "field";
+      if (extrusionValueControl) extrusionValueControl.hidden = usingField;
+      if (extrusionFieldControl) extrusionFieldControl.hidden = !usingField;
+    };
+    extrusionEnabled?.addEventListener("change", syncExtrusion);
+    extrusionSource?.addEventListener("change", syncExtrusion);
+    syncExtrusion();
     pane.querySelector("[data-apply-symbology]").addEventListener("click", async () => {
       try {
-        await this.mapController.setSimpleSymbology(uid, {
+        await this.mapController.setLayerSymbology(uid, {
+          mode: styleMode?.value || "simple",
+          field: styleField?.value,
           color: pane.querySelector("[data-symbol-color]").value,
           outline: pane.querySelector("[data-symbol-outline]").value,
           size: pane.querySelector("[data-symbol-size]").value,
           fillOpacity: fillOpacity?.value,
           noFill: pane.querySelector("[data-symbol-no-fill]")?.checked ?? false,
+          extrusionEnabled: extrusionEnabled?.checked ?? false,
+          extrusionSource: extrusionSource?.value || "fixed",
+          extrusionValue: pane.querySelector("[data-extrusion-value]")?.value,
+          extrusionField: pane.querySelector("[data-extrusion-field]")?.value,
         });
         const persisted = this.projectManager.persistCurrentIfSaved();
         this.toast(`Updated ${layer.title || "layer"} symbology${persisted ? " and saved it" : ""}.`);

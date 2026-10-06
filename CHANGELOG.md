@@ -6,6 +6,13 @@ All notable changes to GIS Map Online are documented here. This project follows
 
 ## [Unreleased]
 
+## [0.15.17] - 2026-10-06
+
+### Added
+
+- Added simple, categorized, and graduated field renderers. Field styles sample the records matching the active layer filter and are stored with the project.
+- Added polygon 3D extrusion from either a fixed height or a numeric attribute field.
+
 ## [0.15.16] - 2026-10-05
 
 ### Changed
@@ -381,7 +388,8 @@ All notable changes to GIS Map Online are documented here. This project follows
 - Prevented search suggestions from remaining open after selection.
 - Reduced map and panel flicker during feature identification.
 
-[Unreleased]: https://github.com/geolibrerian/gismap/compare/v0.15.16...HEAD
+[Unreleased]: https://github.com/geolibrerian/gismap/compare/v0.15.17...HEAD
+[0.15.17]: https://github.com/geolibrerian/gismap/compare/v0.15.16...v0.15.17
 [0.15.16]: https://github.com/geolibrerian/gismap/compare/v0.15.15...v0.15.16
 [0.15.15]: https://github.com/geolibrerian/gismap/compare/v0.15.14...v0.15.15
 [0.15.14]: https://github.com/geolibrerian/gismap/compare/v0.15.13...v0.15.14

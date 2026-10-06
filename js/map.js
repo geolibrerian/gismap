@@ -670,37 +670,136 @@ export class MapController {
     if (renderer) layer.renderer = renderer;
   }
 
-  async setSimpleSymbology(uid, options) {
+  async setLayerSymbology(uid, options = {}) {
     const layer = this.findLayer(uid);
     if (!layer || !("renderer" in layer)) throw new Error("This layer does not support client-side renderers.");
     await layer.load();
     const color = options.color || "#1b7f6a";
     const outline = options.outline || "#ffffff";
     const geometryType = layer.geometryType;
-    let symbol;
-    if (geometryType === "point" || geometryType === "multipoint") {
-      symbol = {
-        type: "simple-marker",
-        color,
-        size: Number(options.size) || 9,
-        outline: { color: outline, width: 1 },
-      };
-    } else if (geometryType === "polyline") {
-      symbol = { type: "simple-line", color, width: Number(options.size) || 2.5 };
-    } else {
-      const fillOpacity = Math.min(1, Math.max(0, Number(options.fillOpacity)));
-      symbol = {
-        type: "simple-fill",
-        style: options.noFill ? "none" : "solid",
-        color: options.noFill ? [0, 0, 0, 0] : this.#hexToRgba(color, Number.isFinite(fillOpacity) ? fillOpacity : 0.35),
-        outline: { color: outline, width: Number(options.size) || 1.5 },
-      };
+    const mode = ["simple", "categorized", "graduated"].includes(options.mode) ? options.mode : "simple";
+    if (geometryType === "polygon" && options.extrusionEnabled && options.extrusionSource === "field") {
+      this.#requireStyleField(layer, options.extrusionField, true);
     }
-    layer.renderer = { type: "simple", symbol };
+    const makeSymbol = (symbolColor) => this.#styleSymbol(geometryType, { ...options, color: symbolColor }, outline);
+    let renderer;
+
+    if (mode === "categorized") {
+      const field = this.#requireStyleField(layer, options.field);
+      const values = await this.#styleFieldValues(layer, field.name, false);
+      if (!values.length) throw new Error("The active layer filter has no values for that field.");
+      const palette = ["#1b7f6a", "#3d7db8", "#d9951e", "#ab5d8d", "#728b3f", "#8054a0", "#bf6545", "#287b83", "#a36d26", "#656fb0", "#9a4b5a", "#4c8f73"];
+      renderer = {
+        type: "unique-value",
+        field: field.name,
+        uniqueValueInfos: values.slice(0, 12).map((value, index) => ({
+          value,
+          label: String(value),
+          symbol: makeSymbol(palette[index]),
+        })),
+        defaultSymbol: makeSymbol(color),
+        defaultLabel: "Other values",
+      };
+    } else if (mode === "graduated") {
+      const field = this.#requireStyleField(layer, options.field, true);
+      const values = await this.#styleFieldValues(layer, field.name, true);
+      if (!values.length) throw new Error("The active layer filter has no numeric values for that field.");
+      const minimum = Math.min(...values);
+      const maximum = Math.max(...values);
+      const palette = ["#d9eee8", "#a8d8ca", "#73b8a4", "#3b927a", "#176756"];
+      const span = maximum - minimum || 1;
+      renderer = {
+        type: "class-breaks",
+        field: field.name,
+        classBreakInfos: palette.map((breakColor, index) => {
+          const minValue = minimum + ((span / palette.length) * index);
+          const maxValue = index === palette.length - 1 ? maximum : minimum + ((span / palette.length) * (index + 1));
+          return {
+            minValue,
+            maxValue,
+            label: `${this.#formatStyleNumber(minValue)} – ${this.#formatStyleNumber(maxValue)}`,
+            symbol: makeSymbol(breakColor),
+          };
+        }),
+      };
+    } else {
+      renderer = { type: "simple", symbol: makeSymbol(color) };
+    }
+    const extrusionVariable = this.#extrusionVisualVariable(geometryType, options);
+    if (extrusionVariable) renderer.visualVariables = [extrusionVariable];
+    layer.renderer = renderer;
     const config = this.layerConfigs.get(uid) ?? {};
     config.renderer = layer.renderer.toJSON?.() ?? structuredClone(layer.renderer);
     this.layerConfigs.set(uid, config);
     this.events.publish("layer:changed", { uid });
+  }
+
+  async setSimpleSymbology(uid, options) {
+    return this.setLayerSymbology(uid, { ...options, mode: "simple" });
+  }
+
+  #styleSymbol(geometryType, options, outline) {
+    const size = Number(options.size);
+    if (geometryType === "point" || geometryType === "multipoint") {
+      return { type: "simple-marker", color: options.color, size: Number.isFinite(size) ? size : 9, outline: { color: outline, width: 1 } };
+    }
+    if (geometryType === "polyline") {
+      return { type: "simple-line", color: options.color, width: Number.isFinite(size) ? size : 2.5 };
+    }
+    const fillOpacity = Math.min(1, Math.max(0, Number(options.fillOpacity)));
+    const rgba = options.noFill ? [0, 0, 0, 0] : this.#hexToRgba(options.color, Number.isFinite(fillOpacity) ? fillOpacity : 0.35);
+    if (options.extrusionEnabled) {
+      return {
+        type: "polygon-3d",
+        symbolLayers: [{
+          type: "extrude",
+          size: options.extrusionSource === "fixed" ? Math.max(0, Number(options.extrusionValue) || 0) : 0,
+          material: { color: rgba },
+          edges: { type: "solid", color: outline, size: Number.isFinite(size) ? size : 1.5 },
+        }],
+      };
+    }
+    return {
+      type: "simple-fill",
+      style: options.noFill ? "none" : "solid",
+      color: rgba,
+      outline: { color: outline, width: Number.isFinite(size) ? size : 1.5 },
+    };
+  }
+
+  #extrusionVisualVariable(geometryType, options) {
+    if (geometryType !== "polygon" || !options.extrusionEnabled || options.extrusionSource !== "field") return null;
+    const field = String(options.extrusionField || "").trim();
+    if (!field) throw new Error("Choose a numeric field to drive extrusion height.");
+    return { type: "size", field, valueUnit: "meters" };
+  }
+
+  #requireStyleField(layer, fieldName, numeric = false) {
+    const field = (layer.fields ?? []).find((candidate) => candidate.name === fieldName);
+    if (!field) throw new Error("Choose a field for the renderer.");
+    if (numeric && !this.#isNumericField(field)) throw new Error("Graduated styles require a numeric field.");
+    return field;
+  }
+
+  async #styleFieldValues(layer, fieldName, numeric) {
+    if (typeof layer.queryFeatures !== "function") throw new Error("This layer cannot be queried for field-based styles.");
+    const query = layer.createQuery?.() ?? {};
+    query.where = layer.definitionExpression || "1=1";
+    query.outFields = [fieldName];
+    query.returnGeometry = false;
+    query.num = 5000;
+    const response = await layer.queryFeatures(query);
+    const raw = (response.features ?? []).map((feature) => feature.attributes?.[fieldName]);
+    if (numeric) return raw.map(Number).filter(Number.isFinite);
+    return [...new Set(raw.filter((value) => value !== null && value !== undefined && String(value).trim() !== ""))];
+  }
+
+  #isNumericField(field) {
+    return /^(?:small-integer|integer|single|double|long|oid)$/i.test(String(field?.type || ""));
+  }
+
+  #formatStyleNumber(value) {
+    return new Intl.NumberFormat(undefined, { maximumFractionDigits: 2 }).format(value);
   }
 
   #hexToRgba(hex, alpha) {
