@@ -1506,9 +1506,28 @@ export class UIController {
 
   #applyPresentation(presentation = {}) {
     const app = document.querySelector("#app");
-    app.dataset.presentation = presentation.template || "standard";
+    const template = presentation.template || "standard";
+    app.dataset.presentation = template;
     app.dataset.presentationSkin = presentation.skin || "clean-light";
-    document.body.dataset.presentation = presentation.template || "standard";
+    document.body.dataset.presentation = template;
+    let bar = document.querySelector("#presentation-status");
+    if (!bar) {
+      bar = document.createElement("section");
+      bar.id = "presentation-status";
+      bar.setAttribute("aria-live", "polite");
+      document.querySelector(".map-workspace")?.prepend(bar);
+    }
+    if (template === "standard") {
+      bar.hidden = true;
+      return;
+    }
+    const copy = {
+      briefing: ["Briefing", "Events, sources, and selected-feature context"],
+      explorer: ["Explorer", "Search, filter, and compare mapped records"],
+      atlas: ["Atlas", "Guided places and project stories"],
+    }[template];
+    bar.hidden = false;
+    bar.innerHTML = `<span class="eyebrow">Presentation</span><strong>${copy[0]}</strong><small>${escapeHtml(presentation.title || copy[1])}</small>`;
   }
 
   #presentationDialog() {
@@ -1545,8 +1564,13 @@ export class UIController {
     const select = (button) => {
       this.dialog.querySelectorAll("[data-presentation-template]").forEach((card) => card.classList.toggle("is-selected", card === button));
       if (button.dataset.presentationTemplate !== "standard" && current.template === "standard") skin.value = cards.find(([id]) => id === button.dataset.presentationTemplate)?.[3] || skin.value;
+      this.#applyPresentation({ template: button.dataset.presentationTemplate, skin: skin.value });
     };
     this.dialog.querySelectorAll("[data-presentation-template]").forEach((button) => button.addEventListener("click", () => select(button)));
+    skin.addEventListener("change", () => {
+      const template = this.dialog.querySelector(".presentation-card.is-selected")?.dataset.presentationTemplate || current.template;
+      this.#applyPresentation({ template, skin: skin.value });
+    });
     select(this.dialog.querySelector(`[data-presentation-template="${current.template}"]`) || this.dialog.querySelector("[data-presentation-template=standard]"));
   }
 
