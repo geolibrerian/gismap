@@ -1,8 +1,8 @@
-import { POPULAR_SERVICES } from "./catalog.js?v=0.15.21";
-import { ENTERPRISE_CATALOGS, EnterpriseCatalog, normalizeArcGisDirectoryUrl } from "./enterprise-catalog.js?v=0.15.21";
-import { createShareUrl } from "./share.js?v=0.15.21";
-import { renderMarkdown } from "./markdown.js?v=0.15.21";
-import { formatAttributeValue } from "./attribute-format.js?v=0.15.21";
+import { POPULAR_SERVICES } from "./catalog.js?v=0.15.22";
+import { ENTERPRISE_CATALOGS, EnterpriseCatalog, normalizeArcGisDirectoryUrl } from "./enterprise-catalog.js?v=0.15.22";
+import { createShareUrl } from "./share.js?v=0.15.22";
+import { markdownToPlainText, renderMarkdown } from "./markdown.js?v=0.15.22";
+import { formatAttributeValue } from "./attribute-format.js?v=0.15.22";
 
 const DISPLAY_SETTINGS_KEY = "gismap-online:display:v1";
 const INSIGHT_POSITIONS = new Set(["upper-left", "lower-left", "bottom", "dock-left", "dock-right", "dock-top", "dock-bottom"]);
@@ -2062,7 +2062,12 @@ export class UIController {
     const mapImage = mapCapture?.dataUrl
       ? { bytes: dataUrlBytes(mapCapture.dataUrl), width: mapCapture.width, height: mapCapture.height }
       : null;
-    const safeText = (value) => String(value ?? "").replace(/[\\()]/g, "\\$&").replace(/[^\x20-\x7e]/g, "?");
+    const safeText = (value) => String(value ?? "")
+      // The built-in PDF fonts use a limited encoding. Preserve the meaning of
+      // common map and measurement characters instead of emitting question marks.
+      .replace(/[µμ]/g, "u").replace(/³/g, "3").replace(/²/g, "2")
+      .replace(/[‘’]/g, "'").replace(/[“”]/g, '"').replace(/[–—]/g, "-")
+      .replace(/[\\()]/g, "\\$&").replace(/[^\x20-\x7e]/g, "?");
     const wrap = (value, maxChars = 91) => String(value ?? "").split(/\n/).flatMap((paragraph) => {
       if (!paragraph.trim()) return [""];
       const words = paragraph.trim().split(/\s+/);
@@ -2117,7 +2122,7 @@ export class UIController {
       addLines(this.lastAIQueryText || "Map context query", { size: 11, leading: 16 });
       y -= 10;
       addLines("Generated intelligence", { size: 13, leading: 18, color: "0.08 0.36 0.30", bold: true });
-      addLines(this.lastAIResponseText.replace(/[#*_`>-]/g, "").replace(/\n{3,}/g, "\n\n"), { size: 10, leading: 15 });
+      addLines(markdownToPlainText(this.lastAIResponseText), { size: 10, leading: 15 });
     } else {
       const reportResults = payload.selectedResults?.length ? payload.selectedResults : (payload.results ?? []).slice(0, 1);
       y -= 10;

@@ -6,6 +6,13 @@ All notable changes to GIS Map Online are documented here. This project follows
 
 ## [Unreleased]
 
+## [0.15.22] - 2026-10-06
+
+### Fixed
+
+- Render Markdown tables as accessible tables in AI insights and convert them to labelled rows in Location Intelligence PDFs.
+- Preserve common measurement units and punctuation in PDF reports rather than replacing them with question marks.
+
 ## [0.15.21] - 2026-10-06
 
 ### Fixed
@@ -413,7 +420,8 @@ All notable changes to GIS Map Online are documented here. This project follows
 - Prevented search suggestions from remaining open after selection.
 - Reduced map and panel flicker during feature identification.
 
-[Unreleased]: https://github.com/geolibrerian/gismap/compare/v0.15.21...HEAD
+[Unreleased]: https://github.com/geolibrerian/gismap/compare/v0.15.22...HEAD
+[0.15.22]: https://github.com/geolibrerian/gismap/compare/v0.15.21...v0.15.22
 [0.15.21]: https://github.com/geolibrerian/gismap/compare/v0.15.20...v0.15.21
 [0.15.20]: https://github.com/geolibrerian/gismap/compare/v0.15.19...v0.15.20
 [0.15.19]: https://github.com/geolibrerian/gismap/compare/v0.15.18...v0.15.19

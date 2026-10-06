@@ -233,6 +233,10 @@ body.utility-resizing iframe, body.utility-resizing canvas { pointer-events: non
 .ai-response__markdown pre { max-width: 100%; padding: 9px; overflow: auto; border-radius: 6px; background: var(--surface-2); }
 .ai-response__markdown pre code { padding: 0; background: transparent; }
 .ai-response__markdown blockquote { margin: 9px 0; padding-left: 10px; border-left: 2px solid var(--line); color: var(--muted); }
+.ai-response__markdown table { width: 100%; margin: 12px 0; border-collapse: collapse; font-size: 13px; line-height: 1.45; }
+.ai-response__markdown th, .ai-response__markdown td { padding: 7px 8px; border: 1px solid var(--line); text-align: left; vertical-align: top; }
+.ai-response__markdown th { color: var(--ink); background: var(--surface-2); font-weight: 700; }
+.ai-response__markdown td { overflow-wrap: anywhere; }
 
 .sidebar__footer { display: flex; justify-content: space-between; gap: 12px; padding: 11px 16px; border-top: 1px solid var(--line); background: var(--surface); font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; }
 .status-dot { color: var(--green-2); }
