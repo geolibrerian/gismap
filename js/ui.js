@@ -1,8 +1,8 @@
-import { POPULAR_SERVICES } from "./catalog.js?v=0.15.23";
-import { ENTERPRISE_CATALOGS, EnterpriseCatalog, normalizeArcGisDirectoryUrl } from "./enterprise-catalog.js?v=0.15.23";
-import { createShareUrl } from "./share.js?v=0.15.23";
-import { markdownToPlainText, renderMarkdown } from "./markdown.js?v=0.15.23";
-import { formatAttributeValue } from "./attribute-format.js?v=0.15.23";
+import { POPULAR_SERVICES } from "./catalog.js?v=0.15.24";
+import { ENTERPRISE_CATALOGS, EnterpriseCatalog, normalizeArcGisDirectoryUrl } from "./enterprise-catalog.js?v=0.15.24";
+import { createShareUrl } from "./share.js?v=0.15.24";
+import { markdownToPlainText, renderMarkdown } from "./markdown.js?v=0.15.24";
+import { formatAttributeValue } from "./attribute-format.js?v=0.15.24";
 
 const DISPLAY_SETTINGS_KEY = "gismap-online:display:v1";
 const INSIGHT_POSITIONS = new Set(["upper-left", "lower-left", "bottom", "dock-left", "dock-right", "dock-top", "dock-bottom"]);
@@ -1791,7 +1791,7 @@ export class UIController {
     const expressionField = String(heightVariable?.valueExpression || "").match(/\$feature\[(?:"([^"]+)"|'([^']+)')\]/)?.slice(1).find(Boolean);
     const expressionMultiplier = Number(String(heightVariable?.valueExpression || "").match(/\*\s*([0-9]+(?:\.[0-9]+)?)/)?.[1]);
     const extrusionEnabledByRenderer = Boolean(objectSymbol && (heightVariable || Number(objectSymbol.height ?? objectSymbol.size) > 1));
-    const extrusionSource = heightVariable ? "field" : "fixed";
+    const initialExtrusionSource = heightVariable ? "field" : "fixed";
     const extrusionField = heightVariable?.field || expressionField || preferredNumericField?.name || "";
     const fieldOptions = (items, emptyLabel, selected = "") => items.length
       ? items.map((field) => `<option value="${escapeHtml(field.name)}"${field.name === selected ? " selected" : ""}>${escapeHtml(field.alias || field.name)} (${escapeHtml(field.name)})</option>`).join("")
@@ -1804,7 +1804,7 @@ export class UIController {
       : "";
     const extrudable = ["polygon", "point", "multipoint"].includes(layer.geometryType);
     const extrusionControls = extrudable
-      ? `<fieldset class="feedback-settings"><legend>3D extrusion</legend><label class="display-checkbox"><input data-extrusion-enabled type="checkbox"${extrusionEnabledByRenderer ? " checked" : ""} /><span>Extrude in 3D</span></label><div data-extrusion-options hidden><div class="field-grid"><label class="field"><span>Height source</span><select data-extrusion-source><option value="fixed"${extrusionSource === "fixed" ? " selected" : ""}>Fixed height</option><option value="field"${extrusionSource === "field" ? " selected" : ""}>Numeric field</option></select></label><label class="field" data-extrusion-value-control><span>Height <small>meters</small></span><input data-extrusion-value type="number" min="0" step="1" value="${Number(objectSymbol?.height ?? objectSymbol?.size) || 250}" /></label><label class="field" data-extrusion-field-control hidden><span>Height field</span><select data-extrusion-field>${fieldOptions(numericFields, "No numeric fields available", extrusionField)}</select></label><label class="field" data-extrusion-multiplier-control hidden><span>Height multiplier</span><input data-extrusion-multiplier type="number" min="0" step="0.01" value="${Number.isFinite(expressionMultiplier) ? expressionMultiplier : 1}" /></label>${layer.geometryType === "polygon" ? "" : `<label class="field"><span>Column width <small>meters</small></span><input data-extrusion-width type="number" min="1" step="50" value="${Number(objectSymbol?.width) || 650}" /></label>`}</div></div></fieldset>`
+      ? `<fieldset class="feedback-settings"><legend>3D extrusion</legend><label class="display-checkbox"><input data-extrusion-enabled type="checkbox"${extrusionEnabledByRenderer ? " checked" : ""} /><span>Extrude in 3D</span></label><div data-extrusion-options hidden><div class="field-grid"><label class="field"><span>Height source</span><select data-extrusion-source><option value="fixed"${initialExtrusionSource === "fixed" ? " selected" : ""}>Fixed height</option><option value="field"${initialExtrusionSource === "field" ? " selected" : ""}>Numeric field</option></select></label><label class="field" data-extrusion-value-control><span>Height <small>meters</small></span><input data-extrusion-value type="number" min="0" step="1" value="${Number(objectSymbol?.height ?? objectSymbol?.size) || 250}" /></label><label class="field" data-extrusion-field-control hidden><span>Height field</span><select data-extrusion-field>${fieldOptions(numericFields, "No numeric fields available", extrusionField)}</select></label><label class="field" data-extrusion-multiplier-control hidden><span>Height multiplier</span><input data-extrusion-multiplier type="number" min="0" step="0.01" value="${Number.isFinite(expressionMultiplier) ? expressionMultiplier : 1}" /></label>${layer.geometryType === "polygon" ? "" : `<label class="field"><span>Column width <small>meters</small></span><input data-extrusion-width type="number" min="1" step="50" value="${Number(objectSymbol?.width) || 650}" /></label>`}</div></div></fieldset>`
       : "";
     pane.innerHTML = `<div class="workspace-tool"><p class="eyebrow">Layer presentation</p><h3>Style ${escapeHtml(layer.title || "layer")}</h3><div class="field-grid">${rendererControls}<label class="field"><span>Fill / marker / line</span><input data-symbol-color type="color" value="#1b7f6a" /></label><label class="field"><span>Outline</span><input data-symbol-outline type="color" value="#ffffff" /></label><label class="field"><span>Size / width</span><input data-symbol-size type="number" min="0.5" max="40" step="0.5" value="9" /></label></div>${polygonControls}${extrusionControls}<p class="form-note">Field styles sample up to 1,000 records matching the active layer filter. Renderer JSON is stored with the project.</p><div class="workspace-tool__actions"><button type="button" class="button--primary" data-apply-symbology>Apply symbology</button></div></div>`;
     const fillOpacity = pane.querySelector("[data-symbol-fill-opacity]");

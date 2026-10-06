@@ -6,6 +6,12 @@ All notable changes to GIS Map Online are documented here. This project follows
 
 ## [Unreleased]
 
+## [0.15.24] - 2026-10-06
+
+### Fixed
+
+- Fixed a duplicate symbology-editor variable declaration that prevented the UI module from loading.
+
 ## [0.15.23] - 2026-10-06
 
 ### Fixed
@@ -426,7 +432,8 @@ All notable changes to GIS Map Online are documented here. This project follows
 - Prevented search suggestions from remaining open after selection.
 - Reduced map and panel flicker during feature identification.
 
-[Unreleased]: https://github.com/geolibrerian/gismap/compare/v0.15.23...HEAD
+[Unreleased]: https://github.com/geolibrerian/gismap/compare/v0.15.24...HEAD
+[0.15.24]: https://github.com/geolibrerian/gismap/compare/v0.15.23...v0.15.24
 [0.15.23]: https://github.com/geolibrerian/gismap/compare/v0.15.22...v0.15.23
 [0.15.22]: https://github.com/geolibrerian/gismap/compare/v0.15.21...v0.15.22
 [0.15.21]: https://github.com/geolibrerian/gismap/compare/v0.15.20...v0.15.21
