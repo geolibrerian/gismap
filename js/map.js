@@ -666,8 +666,15 @@ export class MapController {
 
   restoreRenderer(layer, rendererJson) {
     if (!layer || !("renderer" in layer) || !rendererJson) return;
-    const renderer = this.modules.rendererJsonUtils.fromJSON(rendererJson);
-    if (renderer) layer.renderer = renderer;
+    // Assign JSON directly so the layer's renderer autocaster can handle all
+    // supported 2D and 3D symbol types. rendererJsonUtils is narrower here and
+    // rejects PointSymbol3D JSON used by the catalog's column examples.
+    try {
+      layer.renderer = rendererJson;
+    } catch {
+      const renderer = this.modules.rendererJsonUtils.fromJSON(rendererJson);
+      if (renderer) layer.renderer = renderer;
+    }
   }
 
   async setLayerSymbology(uid, options = {}) {

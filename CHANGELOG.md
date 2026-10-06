@@ -6,6 +6,12 @@ All notable changes to GIS Map Online are documented here. This project follows
 
 ## [Unreleased]
 
+## [0.15.19] - 2026-10-06
+
+### Fixed
+
+- Restore catalog and project renderers through the layer autocaster so 3D point-column examples load without a renderer deserialization error.
+
 ## [0.15.18] - 2026-10-06
 
 ### Added
@@ -394,7 +400,8 @@ All notable changes to GIS Map Online are documented here. This project follows
 - Prevented search suggestions from remaining open after selection.
 - Reduced map and panel flicker during feature identification.
 
-[Unreleased]: https://github.com/geolibrerian/gismap/compare/v0.15.18...HEAD
+[Unreleased]: https://github.com/geolibrerian/gismap/compare/v0.15.19...HEAD
+[0.15.19]: https://github.com/geolibrerian/gismap/compare/v0.15.18...v0.15.19
 [0.15.18]: https://github.com/geolibrerian/gismap/compare/v0.15.17...v0.15.18
 [0.15.17]: https://github.com/geolibrerian/gismap/compare/v0.15.16...v0.15.17
 [0.15.16]: https://github.com/geolibrerian/gismap/compare/v0.15.15...v0.15.16
