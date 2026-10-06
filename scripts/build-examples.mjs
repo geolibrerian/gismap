@@ -84,7 +84,7 @@ const GUIDES = [
       <li>Install and start <a href="https://ollama.com/">Ollama</a>, then install a model—for example, run <code>ollama pull llama3.2</code>.</li>
       <li>In GISMap, select <strong>Ollama (local)</strong>. Keep the endpoint <code>http://localhost:11434</code> unless Ollama runs elsewhere.</li>
       <li>Enter the complete installed model tag shown by <code>ollama list</code>, including a suffix such as <code>:27b</code> when present.</li>
-      <li>Allow Ollama to accept requests from the GISMap site origin, restart Ollama, select <strong>Test Ollama</strong>, then select <strong>Use for this tab</strong>.</li>
+      <li>Allow Ollama to accept requests from the GISMap site origin, restart Ollama, select <strong>Test connection</strong>, then select <strong>Use for this tab</strong>.</li>
     </ol>
     <h3>Allow the production site on macOS</h3>
     <pre><code>launchctl setenv OLLAMA_ORIGINS "https://gismap.online"</code></pre>
@@ -97,7 +97,7 @@ const GUIDES = [
       <li>Confirm the HTTPS endpoint and enter a model identifier available to your account.</li>
       <li>Paste the API token and select <strong>Use for this tab</strong>. The token disappears when the page reloads.</li>
     </ol>
-    <p>OpenAI-compatible servers must implement a browser-accessible <code>/chat/completions</code> endpoint and permit cross-origin requests from GISMap. A provider can reject a request because of an invalid model, key, endpoint, account limit, or browser CORS policy.</p>
+    <p>OpenAI uses the <code>/responses</code> API. OpenAI-compatible servers must implement a browser-accessible <code>/chat/completions</code> endpoint. Both must permit cross-origin requests from GISMap. A provider can reject a request because of an invalid model, key, endpoint, account limit, or browser CORS policy.</p>
     <div class="callout"><strong>Production recommendation.</strong> Direct browser keys are suitable only for personal testing. For a public or shared deployment, put paid-provider credentials behind a controlled server-side proxy with authentication, rate limits, origin checks, logging appropriate to your privacy policy, and a restricted model allowlist.</div>
     <h2>Troubleshooting</h2>
     <ul>

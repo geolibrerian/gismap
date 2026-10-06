@@ -1,8 +1,8 @@
-import { POPULAR_SERVICES } from "./catalog.js?v=0.15.19";
-import { ENTERPRISE_CATALOGS, EnterpriseCatalog, normalizeArcGisDirectoryUrl } from "./enterprise-catalog.js?v=0.15.19";
-import { createShareUrl } from "./share.js?v=0.15.19";
-import { renderMarkdown } from "./markdown.js?v=0.15.19";
-import { formatAttributeValue } from "./attribute-format.js?v=0.15.19";
+import { POPULAR_SERVICES } from "./catalog.js?v=0.15.20";
+import { ENTERPRISE_CATALOGS, EnterpriseCatalog, normalizeArcGisDirectoryUrl } from "./enterprise-catalog.js?v=0.15.20";
+import { createShareUrl } from "./share.js?v=0.15.20";
+import { renderMarkdown } from "./markdown.js?v=0.15.20";
+import { formatAttributeValue } from "./attribute-format.js?v=0.15.20";
 
 const DISPLAY_SETTINGS_KEY = "gismap-online:display:v1";
 const INSIGHT_POSITIONS = new Set(["upper-left", "lower-left", "bottom", "dock-left", "dock-right", "dock-top", "dock-bottom"]);
@@ -1382,7 +1382,7 @@ export class UIController {
     const appOrigin = location.origin;
     const defaults = {
       ollama: ["http://localhost:11434", "llama3.2"],
-      openai: ["https://api.openai.com/v1", "gpt-5-mini"],
+      openai: ["https://api.openai.com/v1", "gpt-6-astra"],
       anthropic: ["https://api.anthropic.com/v1", "claude-sonnet-5"],
       "openai-compatible": ["", ""],
     };
@@ -1398,21 +1398,23 @@ export class UIController {
       status.textContent = message;
       status.hidden = false;
     };
-    const testOllama = async () => {
+    const testConnection = async () => {
       const pending = readForm();
-      if (pending.provider !== "ollama") {
-        throw new Error("The connection test is for local Ollama. Online providers are checked when enabled.");
-      }
-      setConnectionStatus("testing", "Checking Ollama and installed models…");
+      const isOllama = pending.provider === "ollama";
+      setConnectionStatus("testing", isOllama ? "Checking Ollama and installed models…" : "Checking provider credentials and model access…");
       try {
         const result = await this.aiController.testConnection(pending);
-        this.dialog.querySelector("#ollama-models").innerHTML = result.models
-          .map((name) => `<option value="${escapeHtml(name)}"></option>`)
-          .join("");
-        setConnectionStatus(
-          "success",
-          `Connected. ${result.models.length} installed model${result.models.length === 1 ? "" : "s"} found.`,
-        );
+        if (isOllama) {
+          this.dialog.querySelector("#ollama-models").innerHTML = result.models
+            .map((name) => `<option value="${escapeHtml(name)}"></option>`)
+            .join("");
+          setConnectionStatus(
+            "success",
+            `Connected. ${result.models.length} installed model${result.models.length === 1 ? "" : "s"} found.`,
+          );
+        } else {
+          setConnectionStatus("success", `Connected. ${result.model || pending.model} is available to this API key.`);
+        }
         return result;
       } catch (error) {
         setConnectionStatus("error", error.message);
@@ -1427,9 +1429,9 @@ export class UIController {
         this.toast("AI intelligence disabled.");
       }});
     }
-    actions.push({ label: "Test Ollama", handler: async () => {
+    actions.push({ label: "Test connection", handler: async () => {
       try {
-        await testOllama();
+        await testConnection();
       } catch (error) {
         this.error(error.message);
       }
@@ -1440,7 +1442,7 @@ export class UIController {
       button.textContent = "Checking…";
       try {
         const pending = readForm();
-        if (pending.provider === "ollama") await testOllama();
+        if (pending.provider === "ollama") await testConnection();
         this.aiController.configure(pending);
         this.dialog.close();
         this.toast("AI enabled for this tab.");
@@ -1456,7 +1458,7 @@ export class UIController {
       title: "Configure intelligence provider",
       content: `<label class="field"><span>Provider</span><select id="ai-provider"><option value="ollama" ${provider === "ollama" ? "selected" : ""}>Ollama (local)</option><option value="openai" ${provider === "openai" ? "selected" : ""}>OpenAI</option><option value="anthropic" ${provider === "anthropic" ? "selected" : ""}>Anthropic Claude</option><option value="openai-compatible" ${provider === "openai-compatible" ? "selected" : ""}>OpenAI-compatible endpoint</option></select></label>
         <label class="field"><span>Endpoint</span><input id="ai-endpoint" type="url" value="${escapeHtml(config.endpoint || defaults[provider][0])}" /></label>
-        <label class="field"><span>Model</span><input id="ai-model" list="ollama-models" value="${escapeHtml(config.model || defaults[provider][1])}" /><datalist id="ollama-models"></datalist><small>Use the complete Ollama tag, including a suffix such as <code>:27b</code>.</small></label>
+        <label class="field"><span>Model</span><input id="ai-model" list="ollama-models" value="${escapeHtml(config.model || defaults[provider][1])}" /><datalist id="ollama-models"></datalist><small id="ai-model-hint">Use the complete Ollama tag, including a suffix such as <code>:27b</code>.</small></label>
         <label class="field"><span>API token <small>online providers only</small></span><input id="ai-token" type="password" autocomplete="off" /></label>
         <section id="ollama-setup" class="ollama-setup" ${provider === "ollama" ? "" : "hidden"}>
           <strong>One-time Ollama browser access on macOS</strong>
@@ -1471,13 +1473,22 @@ export class UIController {
       actions,
     });
     const providerInput = this.dialog.querySelector("#ai-provider");
-    providerInput.addEventListener("change", () => {
+    const syncProviderForm = () => {
       const [endpoint, model] = defaults[providerInput.value];
-      this.dialog.querySelector("#ai-endpoint").value = endpoint;
-      this.dialog.querySelector("#ai-model").value = model;
+      if (document.activeElement === providerInput) {
+        this.dialog.querySelector("#ai-endpoint").value = endpoint;
+        this.dialog.querySelector("#ai-model").value = model;
+      }
       this.dialog.querySelector("#ollama-setup").hidden = providerInput.value !== "ollama";
+      this.dialog.querySelector("#ai-model-hint").innerHTML = providerInput.value === "ollama"
+        ? 'Use the complete Ollama tag, including a suffix such as <code>:27b</code>.'
+        : providerInput.value === "openai"
+          ? "Enter an OpenAI API model identifier available to this API key. OpenAI uses the Responses API."
+          : "Enter the model identifier accepted by this provider.";
       this.dialog.querySelector("#ai-connection-status").hidden = true;
-    });
+    };
+    providerInput.addEventListener("change", syncProviderForm);
+    syncProviderForm();
   }
 
   #aboutDialog() {

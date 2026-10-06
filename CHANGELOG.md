@@ -6,6 +6,12 @@ All notable changes to GIS Map Online are documented here. This project follows
 
 ## [Unreleased]
 
+## [0.15.20] - 2026-10-06
+
+### Fixed
+
+- Switched the OpenAI adapter from the legacy chat-completions route to the Responses API, added OpenAI connection testing, and report provider error details in the setup dialog.
+
 ## [0.15.19] - 2026-10-06
 
 ### Fixed
@@ -400,7 +406,8 @@ All notable changes to GIS Map Online are documented here. This project follows
 - Prevented search suggestions from remaining open after selection.
 - Reduced map and panel flicker during feature identification.
 
-[Unreleased]: https://github.com/geolibrerian/gismap/compare/v0.15.19...HEAD
+[Unreleased]: https://github.com/geolibrerian/gismap/compare/v0.15.20...HEAD
+[0.15.20]: https://github.com/geolibrerian/gismap/compare/v0.15.19...v0.15.20
 [0.15.19]: https://github.com/geolibrerian/gismap/compare/v0.15.18...v0.15.19
 [0.15.18]: https://github.com/geolibrerian/gismap/compare/v0.15.17...v0.15.18
 [0.15.17]: https://github.com/geolibrerian/gismap/compare/v0.15.16...v0.15.17

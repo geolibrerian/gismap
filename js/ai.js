@@ -3,7 +3,7 @@ const LEGACY_CONFIG_KEY = "gismap-online:ai-config:v1";
 
 const PROVIDER_DEFAULTS = {
   ollama: { endpoint: "http://localhost:11434", model: "llama3.2" },
-  openai: { endpoint: "https://api.openai.com/v1", model: "gpt-5-mini" },
+  openai: { endpoint: "https://api.openai.com/v1", model: "gpt-6-astra" },
   anthropic: { endpoint: "https://api.anthropic.com/v1", model: "claude-sonnet-5" },
   "openai-compatible": { endpoint: "", model: "" },
 };
@@ -87,6 +87,27 @@ export function buildAIMapContext(context, loadedLayers = []) {
   };
 }
 
+export function getOpenAIResponseText(payload) {
+  if (typeof payload?.output_text === "string" && payload.output_text.trim()) return payload.output_text;
+  return (payload?.output ?? [])
+    .flatMap((item) => item?.content ?? [])
+    .filter((item) => item?.type === "output_text")
+    .map((item) => item.text)
+    .filter(Boolean)
+    .join("\n");
+}
+
+async function responseError(response, provider) {
+  let detail = "";
+  try {
+    const payload = await response.json();
+    detail = payload?.error?.message || payload?.message || "";
+  } catch {
+    // Some gateways return an empty or non-JSON error response.
+  }
+  return `${provider} returned ${response.status}${detail ? `: ${detail}` : "."}`;
+}
+
 export class AIController {
   constructor(events, mapController) {
     this.events = events;
@@ -122,8 +143,17 @@ export class AIController {
   async testConnection(config) {
     const endpoint = (config?.endpoint || PROVIDER_DEFAULTS.ollama.endpoint).trim().replace(/\/$/, "");
     const model = (config?.model || "").trim();
-    if ((config?.provider || "ollama") !== "ollama") {
-      throw new Error("The connection test currently supports local Ollama only.");
+    const provider = config?.provider || "ollama";
+    if (provider === "openai") {
+      if (!config?.token?.trim()) throw new Error("Enter an OpenAI API token to test the connection.");
+      const response = await fetch(`${endpoint}/models/${encodeURIComponent(model)}`, {
+        headers: { Authorization: `Bearer ${config.token.trim()}` },
+      });
+      if (!response.ok) throw new Error(await responseError(response, "OpenAI"));
+      return { endpoint, model };
+    }
+    if (provider !== "ollama") {
+      throw new Error("Connection testing is available for Ollama and OpenAI. Other providers are checked when you send an insight request.");
     }
     const response = await this.#fetchOllama(`${endpoint}/api/tags`, {}, endpoint);
     if (!response.ok) throw new Error(`Ollama returned ${response.status} while listing models.`);
@@ -199,6 +229,22 @@ export class AIController {
         if (!response.ok) throw new Error(`Anthropic returned ${response.status}.`);
         const payload = await response.json();
         text = payload.content?.filter((item) => item.type === "text").map((item) => item.text).join("\n");
+      } else if (this.config.provider === "openai") {
+        const response = await fetch(`${this.config.endpoint}/responses`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${this.token}`,
+          },
+          body: JSON.stringify({
+            model: this.config.model,
+            instructions: system,
+            input: messages[1].content,
+            max_output_tokens: 1200,
+          }),
+        });
+        if (!response.ok) throw new Error(await responseError(response, "OpenAI"));
+        text = getOpenAIResponseText(await response.json());
       } else {
         const response = await fetch(`${this.config.endpoint}/chat/completions`, {
           method: "POST",
@@ -208,7 +254,7 @@ export class AIController {
           },
           body: JSON.stringify({ model: this.config.model, messages }),
         });
-        if (!response.ok) throw new Error(`AI endpoint returned ${response.status}.`);
+        if (!response.ok) throw new Error(await responseError(response, "AI endpoint"));
         text = (await response.json()).choices?.[0]?.message?.content;
       }
       this.events.publish("ai:complete", { text: text || "No response returned." });

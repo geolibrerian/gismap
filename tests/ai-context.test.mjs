@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { AI_SYSTEM_PROMPT, buildAIMapContext } from "../js/ai.js";
+import { AI_SYSTEM_PROMPT, buildAIMapContext, getOpenAIResponseText } from "../js/ai.js";
 
 assert.doesNotMatch(AI_SYSTEM_PROMPT, /use only the supplied map context/i);
 assert.match(AI_SYSTEM_PROMPT, /general knowledge/i);
@@ -47,3 +47,6 @@ const boundedContext = buildAIMapContext({
 });
 assert.equal(boundedContext.selectedFeatures.length, 10);
 assert.equal(boundedContext.selectedFeatures[0].geometry.coordinates.length, 500);
+
+assert.equal(getOpenAIResponseText({ output_text: "Direct response" }), "Direct response");
+assert.equal(getOpenAIResponseText({ output: [{ content: [{ type: "output_text", text: "First" }, { type: "refusal", refusal: "No" }] }, { content: [{ type: "output_text", text: "Second" }] }] }), "First\nSecond");
