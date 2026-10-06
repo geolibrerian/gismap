@@ -6,6 +6,13 @@ All notable changes to GIS Map Online are documented here. This project follows
 
 ## [Unreleased]
 
+## [0.15.21] - 2026-10-06
+
+### Fixed
+
+- Updated the PM2.5 3D examples and the symbology editor to use the mass-concentration `value` field, with compact columns, realistic height scaling, and capped outliers.
+- Prevented Object ID fields from being offered for numeric styling or extrusion, and limited field-style samples to 1,000 records to respect public service query limits.
+
 ## [0.15.20] - 2026-10-06
 
 ### Fixed
@@ -406,7 +413,8 @@ All notable changes to GIS Map Online are documented here. This project follows
 - Prevented search suggestions from remaining open after selection.
 - Reduced map and panel flicker during feature identification.
 
-[Unreleased]: https://github.com/geolibrerian/gismap/compare/v0.15.20...HEAD
+[Unreleased]: https://github.com/geolibrerian/gismap/compare/v0.15.21...HEAD
+[0.15.21]: https://github.com/geolibrerian/gismap/compare/v0.15.20...v0.15.21
 [0.15.20]: https://github.com/geolibrerian/gismap/compare/v0.15.19...v0.15.20
 [0.15.19]: https://github.com/geolibrerian/gismap/compare/v0.15.18...v0.15.19
 [0.15.18]: https://github.com/geolibrerian/gismap/compare/v0.15.17...v0.15.18

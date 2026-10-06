@@ -3,8 +3,10 @@ const PM25_COLUMN_SYMBOL = (color) => ({
   symbolLayers: [{
     type: "object",
     resource: { primitive: "cylinder" },
-    width: 12000,
-    depth: 12000,
+    // A station footprint, not a regional bubble. Keep columns legible without
+    // obscuring the map when the view is zoomed out.
+    width: 650,
+    depth: 650,
     height: 1,
     anchor: "bottom",
     material: { color },
@@ -13,7 +15,9 @@ const PM25_COLUMN_SYMBOL = (color) => ({
 
 const PM25_HEIGHT_VARIABLE = {
   type: "size",
-  valueExpression: "$feature[\"value\"] * 1000",
+  // `value` is the OpenAQ mass-concentration field (µg/m³). Cap rare
+  // outliers so one station cannot dominate the scene.
+  valueExpression: "Min(12000, Max(0, $feature[\"value\"] * 25))",
   valueUnit: "meters",
   axis: "height",
 };
@@ -87,7 +91,7 @@ export const POPULAR_SERVICES = [
     id: "esri-air-quality-pm25-3d-columns", slug: "air-quality-pm25-3d-columns", provider: "Esri Disaster Response",
     title: "PM2.5 3D columns", category: "Environment", serviceType: "feature",
     description: "PM2.5 monitoring stations rendered as 3D columns whose height represents particulate-matter concentration.",
-    whyUseful: "Use this ready-made renderer example to compare air-quality readings spatially: each cylinder uses the measurement field for height, scaled to meters for a readable global 3D view.",
+    whyUseful: "Use this ready-made renderer example to compare air-quality readings spatially: each cylinder uses the mass-concentration value field for height, with realistic scaling and an outlier cap for a readable 3D view.",
     url: "https://services9.arcgis.com/RHVPKKiFTONKtxq3/ArcGIS/rest/services/Air_Quality_PM25_Latest_Results/FeatureServer/0",
     sourceOrganization: "Esri Disaster Response Program / OpenAQ",
     sourcePage: "https://services9.arcgis.com/RHVPKKiFTONKtxq3/ArcGIS/rest/services/Air_Quality_PM25_Latest_Results/FeatureServer/0",

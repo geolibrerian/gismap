@@ -1,8 +1,8 @@
-import { POPULAR_SERVICES } from "./catalog.js?v=0.15.20";
-import { ENTERPRISE_CATALOGS, EnterpriseCatalog, normalizeArcGisDirectoryUrl } from "./enterprise-catalog.js?v=0.15.20";
-import { createShareUrl } from "./share.js?v=0.15.20";
-import { renderMarkdown } from "./markdown.js?v=0.15.20";
-import { formatAttributeValue } from "./attribute-format.js?v=0.15.20";
+import { POPULAR_SERVICES } from "./catalog.js?v=0.15.21";
+import { ENTERPRISE_CATALOGS, EnterpriseCatalog, normalizeArcGisDirectoryUrl } from "./enterprise-catalog.js?v=0.15.21";
+import { createShareUrl } from "./share.js?v=0.15.21";
+import { renderMarkdown } from "./markdown.js?v=0.15.21";
+import { formatAttributeValue } from "./attribute-format.js?v=0.15.21";
 
 const DISPLAY_SETTINGS_KEY = "gismap-online:display:v1";
 const INSIGHT_POSITIONS = new Set(["upper-left", "lower-left", "bottom", "dock-left", "dock-right", "dock-top", "dock-bottom"]);
@@ -1777,21 +1777,36 @@ export class UIController {
     this.utilityStyleLayerUid = uid;
     const pane = document.querySelector("#utility-style-content");
     const fields = (layer.fields ?? []).filter((field) => field?.name && !/^(?:geometry)$/i.test(field.type || ""));
-    const numericFields = fields.filter((field) => /^(?:small-integer|integer|single|double|long|oid)$/i.test(field.type || ""));
-    const fieldOptions = (items, emptyLabel) => items.length
-      ? items.map((field) => `<option value="${escapeHtml(field.name)}">${escapeHtml(field.alias || field.name)} (${escapeHtml(field.name)})</option>`).join("")
+    // Object IDs are storage keys, not meaningful values for classification or
+    // 3D heights. Prefer a measurement-like field when a renderer has none.
+    const numericFields = fields.filter((field) => /^(?:small-integer|integer|single|double|long)$/i.test(field.type || ""));
+    const preferredNumericField = numericFields.find((field) => /(?:^|\b)(?:value|concentration|amount|measurement|pm2?\.5)(?:\b|$)/i.test(`${field.name} ${field.alias || ""}`))
+      ?? numericFields.find((field) => !/(?:^|_)id$/i.test(field.name))
+      ?? numericFields[0];
+    const renderer = layer.renderer?.toJSON?.() ?? layer.renderer ?? {};
+    const rendererMode = renderer.type === "unique-value" ? "categorized" : renderer.type === "class-breaks" ? "graduated" : "simple";
+    const representativeSymbol = renderer.symbol ?? renderer.classBreakInfos?.[0]?.symbol ?? renderer.uniqueValueInfos?.[0]?.symbol;
+    const objectSymbol = representativeSymbol?.symbolLayers?.find((symbolLayer) => symbolLayer.type === "object" || symbolLayer.type === "extrude");
+    const heightVariable = renderer.visualVariables?.find((variable) => variable.type === "size" && (variable.axis === "height" || layer.geometryType === "polygon"));
+    const expressionField = String(heightVariable?.valueExpression || "").match(/\$feature\[(?:"([^"]+)"|'([^']+)')\]/)?.slice(1).find(Boolean);
+    const expressionMultiplier = Number(String(heightVariable?.valueExpression || "").match(/\*\s*([0-9]+(?:\.[0-9]+)?)/)?.[1]);
+    const extrusionEnabledByRenderer = Boolean(objectSymbol && (heightVariable || Number(objectSymbol.height ?? objectSymbol.size) > 1));
+    const extrusionSource = heightVariable ? "field" : "fixed";
+    const extrusionField = heightVariable?.field || expressionField || preferredNumericField?.name || "";
+    const fieldOptions = (items, emptyLabel, selected = "") => items.length
+      ? items.map((field) => `<option value="${escapeHtml(field.name)}"${field.name === selected ? " selected" : ""}>${escapeHtml(field.alias || field.name)} (${escapeHtml(field.name)})</option>`).join("")
       : `<option value="">${emptyLabel}</option>`;
     const rendererControls = fields.length
-      ? `<label class="field"><span>Style type</span><select data-style-mode><option value="simple">Simple</option><option value="categorized">Categorized by field</option><option value="graduated">Graduated by numeric field</option></select></label><label class="field" data-style-field-control hidden><span>Style field</span><select data-style-field>${fieldOptions(fields, "No fields available")}</select></label>`
+      ? `<label class="field"><span>Style type</span><select data-style-mode><option value="simple"${rendererMode === "simple" ? " selected" : ""}>Simple</option><option value="categorized"${rendererMode === "categorized" ? " selected" : ""}>Categorized by field</option><option value="graduated"${rendererMode === "graduated" ? " selected" : ""}>Graduated by numeric field</option></select></label><label class="field" data-style-field-control hidden><span>Style field</span><select data-style-field>${fieldOptions(fields, "No fields available", renderer.field || preferredNumericField?.name)}</select></label>`
       : "";
     const polygonControls = layer.geometryType === "polygon"
       ? '<label class="opacity-row"><span>Fill opacity</span><input data-symbol-fill-opacity type="range" min="0" max="1" step="0.05" value="0.35" /><output>35%</output></label><label class="display-checkbox"><input data-symbol-no-fill type="checkbox" /><span>No fill — outline only</span></label>'
       : "";
     const extrudable = ["polygon", "point", "multipoint"].includes(layer.geometryType);
     const extrusionControls = extrudable
-      ? `<fieldset class="feedback-settings"><legend>3D extrusion</legend><label class="display-checkbox"><input data-extrusion-enabled type="checkbox" /><span>Extrude in 3D</span></label><div data-extrusion-options hidden><div class="field-grid"><label class="field"><span>Height source</span><select data-extrusion-source><option value="fixed">Fixed height</option><option value="field">Numeric field</option></select></label><label class="field" data-extrusion-value-control><span>Height <small>meters</small></span><input data-extrusion-value type="number" min="0" step="1" value="250" /></label><label class="field" data-extrusion-field-control hidden><span>Height field</span><select data-extrusion-field>${fieldOptions(numericFields, "No numeric fields available")}</select></label><label class="field" data-extrusion-multiplier-control hidden><span>Height multiplier</span><input data-extrusion-multiplier type="number" min="0" step="1" value="1000" /></label>${layer.geometryType === "polygon" ? "" : '<label class="field"><span>Column width <small>meters</small></span><input data-extrusion-width type="number" min="1" step="1000" value="10000" /></label>'}</div></div></fieldset>`
+      ? `<fieldset class="feedback-settings"><legend>3D extrusion</legend><label class="display-checkbox"><input data-extrusion-enabled type="checkbox"${extrusionEnabledByRenderer ? " checked" : ""} /><span>Extrude in 3D</span></label><div data-extrusion-options hidden><div class="field-grid"><label class="field"><span>Height source</span><select data-extrusion-source><option value="fixed"${extrusionSource === "fixed" ? " selected" : ""}>Fixed height</option><option value="field"${extrusionSource === "field" ? " selected" : ""}>Numeric field</option></select></label><label class="field" data-extrusion-value-control><span>Height <small>meters</small></span><input data-extrusion-value type="number" min="0" step="1" value="${Number(objectSymbol?.height ?? objectSymbol?.size) || 250}" /></label><label class="field" data-extrusion-field-control hidden><span>Height field</span><select data-extrusion-field>${fieldOptions(numericFields, "No numeric fields available", extrusionField)}</select></label><label class="field" data-extrusion-multiplier-control hidden><span>Height multiplier</span><input data-extrusion-multiplier type="number" min="0" step="0.01" value="${Number.isFinite(expressionMultiplier) ? expressionMultiplier : 1}" /></label>${layer.geometryType === "polygon" ? "" : `<label class="field"><span>Column width <small>meters</small></span><input data-extrusion-width type="number" min="1" step="50" value="${Number(objectSymbol?.width) || 650}" /></label>`}</div></div></fieldset>`
       : "";
-    pane.innerHTML = `<div class="workspace-tool"><p class="eyebrow">Layer presentation</p><h3>Style ${escapeHtml(layer.title || "layer")}</h3><div class="field-grid">${rendererControls}<label class="field"><span>Fill / marker / line</span><input data-symbol-color type="color" value="#1b7f6a" /></label><label class="field"><span>Outline</span><input data-symbol-outline type="color" value="#ffffff" /></label><label class="field"><span>Size / width</span><input data-symbol-size type="number" min="0.5" max="40" step="0.5" value="9" /></label></div>${polygonControls}${extrusionControls}<p class="form-note">Field styles use up to 5,000 records matching the active layer filter. Renderer JSON is stored with the project.</p><div class="workspace-tool__actions"><button type="button" class="button--primary" data-apply-symbology>Apply symbology</button></div></div>`;
+    pane.innerHTML = `<div class="workspace-tool"><p class="eyebrow">Layer presentation</p><h3>Style ${escapeHtml(layer.title || "layer")}</h3><div class="field-grid">${rendererControls}<label class="field"><span>Fill / marker / line</span><input data-symbol-color type="color" value="#1b7f6a" /></label><label class="field"><span>Outline</span><input data-symbol-outline type="color" value="#ffffff" /></label><label class="field"><span>Size / width</span><input data-symbol-size type="number" min="0.5" max="40" step="0.5" value="9" /></label></div>${polygonControls}${extrusionControls}<p class="form-note">Field styles sample up to 1,000 records matching the active layer filter. Renderer JSON is stored with the project.</p><div class="workspace-tool__actions"><button type="button" class="button--primary" data-apply-symbology>Apply symbology</button></div></div>`;
     const fillOpacity = pane.querySelector("[data-symbol-fill-opacity]");
     fillOpacity?.addEventListener("input", () => {
       fillOpacity.nextElementSibling.value = `${Math.round(Number(fillOpacity.value) * 100)}%`;
@@ -1805,7 +1820,7 @@ export class UIController {
       styleFieldControl.hidden = !needsField;
       if (!needsField) return;
       const available = styleMode.value === "graduated" ? numericFields : fields;
-      styleField.innerHTML = fieldOptions(available, styleMode.value === "graduated" ? "No numeric fields available" : "No fields available");
+      styleField.innerHTML = fieldOptions(available, styleMode.value === "graduated" ? "No numeric fields available" : "No fields available", renderer.field || preferredNumericField?.name);
       styleField.disabled = !available.length;
     };
     styleMode?.addEventListener("change", syncStyleField);

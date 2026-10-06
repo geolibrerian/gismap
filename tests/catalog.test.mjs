@@ -33,7 +33,9 @@ test("PM2.5 3D examples provide field-driven column renderers", () => {
   assert.equal(examples.length, 2);
   for (const item of examples) {
     assert.equal(item.renderer?.visualVariables?.[0]?.type, "size");
-    assert.match(item.renderer?.visualVariables?.[0]?.valueExpression || "", /\$feature\["value"\]/);
+    assert.equal(item.renderer?.visualVariables?.[0]?.valueExpression, "Min(12000, Max(0, $feature[\"value\"] * 25))");
     assert.equal(item.renderer?.visualVariables?.[0]?.axis, "height");
+    const symbol = item.renderer?.symbol ?? item.renderer?.classBreakInfos?.[0]?.symbol;
+    assert.equal(symbol?.symbolLayers?.[0]?.width, 650);
   }
 });

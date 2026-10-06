@@ -750,7 +750,7 @@ export class MapController {
     const extrusionEnabled = options.extrusionEnabled && ["polygon", "point", "multipoint"].includes(geometryType);
     if (geometryType === "point" || geometryType === "multipoint") {
       if (extrusionEnabled) {
-        const width = Math.max(1, Number(options.extrusionWidth) || 10000);
+        const width = Math.max(1, Number(options.extrusionWidth) || 650);
         return {
           type: "point-3d",
           symbolLayers: [{
@@ -816,7 +816,10 @@ export class MapController {
     query.where = layer.definitionExpression || "1=1";
     query.outFields = [fieldName];
     query.returnGeometry = false;
-    query.num = 5000;
+    // Public FeatureServers commonly cap a single query at 1,000 records.
+    // A bounded sample is enough to derive an editor renderer and avoids
+    // turning a style change into a costly or rejected service request.
+    query.num = 1000;
     const response = await layer.queryFeatures(query);
     const raw = (response.features ?? []).map((feature) => feature.attributes?.[fieldName]);
     if (numeric) return raw.map(Number).filter(Number.isFinite);
@@ -824,7 +827,9 @@ export class MapController {
   }
 
   #isNumericField(field) {
-    return /^(?:small-integer|integer|single|double|long|oid)$/i.test(String(field?.type || ""));
+    // Object IDs are numeric implementation keys, not measurements. Do not
+    // offer them as graduated-style or extrusion fields.
+    return /^(?:small-integer|integer|single|double|long)$/i.test(String(field?.type || ""));
   }
 
   #formatStyleNumber(value) {
