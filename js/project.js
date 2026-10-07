@@ -247,7 +247,11 @@ export class ProjectManager {
       primaryLayerId: value.primaryLayerId || null,
       fieldMappings: value.fieldMappings && typeof value.fieldMappings === "object" ? value.fieldMappings : {},
       widgets: value.widgets && typeof value.widgets === "object" ? value.widgets : {},
-      chapters: Array.isArray(value.chapters) ? value.chapters : [],
+      chapters: Array.isArray(value.chapters) ? value.chapters.map((chapter) => ({
+        ...chapter,
+        basemapId: typeof chapter?.basemapId === "string" ? chapter.basemapId : null,
+        lingerSeconds: Math.min(120, Math.max(1, Number(chapter?.lingerSeconds) || 4)),
+      })) : [],
     };
   }
 
