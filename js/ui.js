@@ -1,8 +1,8 @@
-import { POPULAR_SERVICES } from "./catalog.js?v=0.15.28";
-import { ENTERPRISE_CATALOGS, EnterpriseCatalog, normalizeArcGisDirectoryUrl } from "./enterprise-catalog.js?v=0.15.28";
-import { createShareUrl } from "./share.js?v=0.15.28";
-import { markdownToPlainText, renderMarkdown } from "./markdown.js?v=0.15.28";
-import { formatAttributeValue } from "./attribute-format.js?v=0.15.28";
+import { POPULAR_SERVICES } from "./catalog.js?v=0.15.29";
+import { ENTERPRISE_CATALOGS, EnterpriseCatalog, normalizeArcGisDirectoryUrl } from "./enterprise-catalog.js?v=0.15.29";
+import { createShareUrl } from "./share.js?v=0.15.29";
+import { markdownToPlainText, renderMarkdown } from "./markdown.js?v=0.15.29";
+import { formatAttributeValue } from "./attribute-format.js?v=0.15.29";
 
 const DISPLAY_SETTINGS_KEY = "gismap-online:display:v1";
 const INSIGHT_POSITIONS = new Set(["upper-left", "lower-left", "bottom", "dock-left", "dock-right", "dock-top", "dock-bottom"]);
@@ -46,6 +46,7 @@ export class UIController {
     this.utilityDrawOpen = false;
     this.utilityStyleLayerUid = null;
     this.activeUtilityTab = null;
+    this.utilityModalPane = null;
     this.presentationState = { template: "standard", records: [], visibleRecords: [], selected: null, layerUid: null, search: "", category: "" };
     this.keepWelcomeForSharedExample = new URLSearchParams(location.search).has("example");
     this.systemThemeMedia = matchMedia("(prefers-color-scheme: dark)");
@@ -265,7 +266,13 @@ export class UIController {
       if (!event.target.closest(".place-search-combobox")) this.#clearSearchResults();
     });
     document.querySelector("#bookmark-add").addEventListener("click", () => this.#addBookmark());
-    this.dialog.addEventListener("close", () => this.exportController.cancel());
+    this.dialog.addEventListener("close", () => { this.exportController.cancel(); this.#restoreUtilityModal(); });
+    document.querySelector("#dialog-dock").addEventListener("click", () => {
+      const docked = this.dialog.classList.toggle("app-dialog--docked");
+      document.querySelector("#dialog-dock").setAttribute("aria-label", docked ? "Return dialog to the center" : "Move dialog to the right panel");
+      document.querySelector("#dialog-dock").textContent = docked ? "↙" : "↗";
+    });
+    document.querySelector("#utility-open-modal").addEventListener("click", () => this.#openUtilityAsModal());
     document.querySelector("#project-file-input").addEventListener("change", (event) => this.#importProject(event));
     document.querySelector("#data-file-input").addEventListener("change", (event) => this.#addFiles(event));
     document.querySelector("#tool-file-input").addEventListener("change", (event) => this.#loadTool(event));
@@ -377,6 +384,33 @@ export class UIController {
     return Object.entries(labels)
       .filter(([name]) => this.mapController.widgets.has(name))
       .map(([id, label]) => ({ id, label }));
+  }
+
+  #openUtilityAsModal() {
+    const pane = document.querySelector(`[data-utility-pane="${CSS.escape(this.activeUtilityTab || "")}"]`);
+    if (!pane) return;
+    this.utilityModalPane = pane;
+    const title = document.querySelector("#utility-title").textContent || "Map tools";
+    document.querySelector("#dialog-eyebrow").textContent = "Workspace panel";
+    document.querySelector("#dialog-title").textContent = title;
+    document.querySelector("#dialog-content").replaceChildren(pane);
+    const footer = document.querySelector("#dialog-actions");
+    footer.innerHTML = "";
+    const restore = document.createElement("button");
+    restore.type = "button";
+    restore.textContent = "Return to panel";
+    restore.className = "button--primary";
+    restore.addEventListener("click", () => this.dialog.close());
+    footer.append(restore);
+    this.dialog.classList.remove("app-dialog--docked");
+    if (!this.dialog.open) this.dialog.showModal();
+  }
+
+  #restoreUtilityModal() {
+    if (!this.utilityModalPane) return;
+    document.querySelector(".utility-panes")?.append(this.utilityModalPane);
+    this.utilityModalPane = null;
+    this.#syncUtilityPanel(this.activeUtilityTab);
   }
 
   #syncUtilityPanel(preferredTab = null) {
@@ -2479,6 +2513,9 @@ export class UIController {
   }
 
   openDialog({ eyebrow = "GIS Map Online", title, content, actions = [] }) {
+    this.dialog.classList.remove("app-dialog--docked");
+    document.querySelector("#dialog-dock").setAttribute("aria-label", "Move dialog to the right panel");
+    document.querySelector("#dialog-dock").textContent = "↗";
     document.querySelector("#dialog-eyebrow").textContent = eyebrow;
     document.querySelector("#dialog-title").textContent = title;
     document.querySelector("#dialog-content").innerHTML = content;

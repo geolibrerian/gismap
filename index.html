@@ -53,7 +53,7 @@
     <link rel="icon" href="./assets/gis-map-online-mark-v2.png" type="image/png" />
     <link rel="preconnect" href="https://js.arcgis.com" />
     <link rel="stylesheet" href="https://js.arcgis.com/5.0/esri/themes/light/main.css" />
-    <link rel="stylesheet" href="./css/app.css?v=0.15.28" />
+    <link rel="stylesheet" href="./css/app.css?v=0.15.29" />
     <script type="module" src="https://js.arcgis.com/5.0/"></script>
     <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
     <script src="https://unpkg.com/@mapbox/shp-write@0.4.3/shpwrite.js"></script>
@@ -248,7 +248,7 @@
       </main>
       <aside id="utility-panel" class="utility-panel" aria-label="Map tools" aria-hidden="true">
         <div id="utility-resizer" class="utility-resizer" role="separator" tabindex="0" aria-orientation="vertical" aria-label="Resize map tools panel"></div>
-        <header><div><span class="eyebrow">Workspace panel</span><h2 id="utility-title">Map tools</h2></div><button id="utility-close" class="icon-button" aria-label="Close current panel">×</button></header>
+        <header><div><span class="eyebrow">Workspace panel</span><h2 id="utility-title">Map tools</h2></div><div class="utility-panel__header-actions"><button id="utility-open-modal" class="icon-button" aria-label="Open current panel as a modal" title="Open as modal">↗</button><button id="utility-close" class="icon-button" aria-label="Close current panel">×</button></div></header>
         <nav id="utility-tabs" class="utility-tabs" aria-label="Right panel tabs" hidden></nav>
         <div class="utility-panes">
           <div id="utility-basemap-content" class="utility-content" data-utility-pane="basemapGallery" hidden></div>
@@ -265,7 +265,7 @@
       <form method="dialog" class="dialog__shell">
         <header class="dialog__header">
           <div><span id="dialog-eyebrow" class="eyebrow">GIS Map Online</span><h2 id="dialog-title">Dialog</h2></div>
-          <button class="icon-button" value="cancel" formnovalidate aria-label="Close">×</button>
+          <div class="dialog__header-actions"><button id="dialog-dock" class="icon-button" type="button" aria-label="Move dialog to the right panel" title="Move to right panel">↗</button><button class="icon-button" value="cancel" formnovalidate aria-label="Close">×</button></div>
         </header>
         <div id="dialog-content" class="dialog__content"></div>
         <footer id="dialog-actions" class="dialog__actions"></footer>
@@ -302,6 +302,6 @@
     <input id="tool-file-input" type="file" accept=".js,.mjs" hidden />
 
     <noscript>GIS Map Online requires JavaScript.</noscript>
-    <script type="module" src="./js/app.js?v=0.15.28"></script>
+    <script type="module" src="./js/app.js?v=0.15.29"></script>
   </body>
 </html>

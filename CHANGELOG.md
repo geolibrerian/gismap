@@ -6,6 +6,12 @@ All notable changes to GIS Map Online are documented here. This project follows
 
 ## [Unreleased]
 
+## [0.15.29] - 2026-10-07
+
+### Added
+
+- Added reciprocal dialog and workspace-panel controls: any app dialog can dock to the right edge, and the active right-panel tool can open in the modal shell without duplicating its content or event bindings.
+
 ## [0.15.28] - 2026-10-07
 
 ### Added
@@ -456,7 +462,8 @@ All notable changes to GIS Map Online are documented here. This project follows
 - Prevented search suggestions from remaining open after selection.
 - Reduced map and panel flicker during feature identification.
 
-[Unreleased]: https://github.com/geolibrerian/gismap/compare/v0.15.28...HEAD
+[Unreleased]: https://github.com/geolibrerian/gismap/compare/v0.15.29...HEAD
+[0.15.29]: https://github.com/geolibrerian/gismap/compare/v0.15.28...v0.15.29
 [0.15.28]: https://github.com/geolibrerian/gismap/compare/v0.15.27...v0.15.28
 [0.15.27]: https://github.com/geolibrerian/gismap/compare/v0.15.26...v0.15.27
 [0.15.26]: https://github.com/geolibrerian/gismap/compare/v0.15.25...v0.15.26
