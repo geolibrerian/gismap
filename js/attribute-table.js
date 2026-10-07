@@ -1,4 +1,4 @@
-import { formatAttributeValue } from "./attribute-format.js?v=0.15.31";
+import { formatAttributeValue } from "./attribute-format.js?v=0.15.32";
 
 const DISPLAY_SETTINGS_KEY = "gismap-online:display:v1";
 const TABLE_POSITIONS = new Set(["overlay-bottom", "dock-left", "dock-right", "dock-bottom"]);

@@ -1,8 +1,8 @@
-import { POPULAR_SERVICES } from "./catalog.js?v=0.15.31";
-import { ENTERPRISE_CATALOGS, EnterpriseCatalog, normalizeArcGisDirectoryUrl } from "./enterprise-catalog.js?v=0.15.31";
-import { createShareUrl } from "./share.js?v=0.15.31";
-import { markdownToPlainText, renderMarkdown } from "./markdown.js?v=0.15.31";
-import { formatAttributeValue } from "./attribute-format.js?v=0.15.31";
+import { POPULAR_SERVICES } from "./catalog.js?v=0.15.32";
+import { ENTERPRISE_CATALOGS, EnterpriseCatalog, normalizeArcGisDirectoryUrl } from "./enterprise-catalog.js?v=0.15.32";
+import { createShareUrl } from "./share.js?v=0.15.32";
+import { markdownToPlainText, renderMarkdown } from "./markdown.js?v=0.15.32";
+import { formatAttributeValue } from "./attribute-format.js?v=0.15.32";
 
 const DISPLAY_SETTINGS_KEY = "gismap-online:display:v1";
 const INSIGHT_POSITIONS = new Set(["upper-left", "lower-left", "bottom", "dock-left", "dock-right", "dock-top", "dock-bottom"]);
@@ -272,6 +272,7 @@ export class UIController {
       if (!this.dialogRepositioning) {
         this.exportController.cancel();
         this.#restoreUtilityModal();
+        this.#undockDialogShell();
       }
     });
     document.querySelector("#dialog-dock").addEventListener("click", () => {
@@ -418,9 +419,23 @@ export class UIController {
     if (!this.dialog.open) return;
     this.dialogRepositioning = true;
     this.dialog.close();
+    if (docked) {
+      document.querySelector("#app")?.append(this.dialog);
+      document.body.classList.add("dialog-panel-open");
+      this.dialog.show();
+    } else {
+      this.#undockDialogShell();
+      this.dialog.showModal();
+    }
     this.dialogRepositioning = false;
-    if (docked) this.dialog.show();
-    else this.dialog.showModal();
+    requestAnimationFrame(() => this.mapController.resize());
+  }
+
+  #undockDialogShell() {
+    if (this.dialog.parentElement !== document.body) document.body.append(this.dialog);
+    this.dialog.classList.remove("app-dialog--docked");
+    document.body.classList.remove("dialog-panel-open");
+    requestAnimationFrame(() => this.mapController.resize());
   }
 
   #restoreUtilityModal() {

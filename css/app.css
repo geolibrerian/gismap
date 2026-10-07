@@ -351,7 +351,7 @@ body[data-insights-position="bottom"] .insights-overlay { inset: auto 14px 14px;
 dialog { padding: 0; color: var(--ink); border: 1px solid var(--line); border-radius: 13px; background: var(--paper); box-shadow: var(--shadow); }
 dialog::backdrop { background: rgb(12 28 23 / 48%); backdrop-filter: blur(3px); }
 .app-dialog { width: min(580px, calc(100% - 32px)); }
-.app-dialog--docked { position: fixed; inset: 0 0 0 auto; width: min(480px, 94vw); max-width: none; height: 100dvh; max-height: none; margin: 0; border-width: 0 0 0 1px; border-radius: 0; }
+.app-dialog--docked { display: grid; grid-column: 3; grid-row: 1; width: auto; max-width: none; height: 100%; max-height: none; margin: 0; border-width: 0 0 0 1px; border-radius: 0; }
 .app-dialog--docked .dialog__shell { height: 100%; max-height: none; grid-template-rows: auto minmax(0, 1fr) auto; }
 .dialog__shell { display: grid; max-height: min(760px, calc(100vh - 50px)); margin: 0; }
 .dialog__header { display: flex; justify-content: space-between; align-items: start; padding: 20px 22px 16px; border-bottom: 1px solid var(--line); }
@@ -507,8 +507,13 @@ body.sidebar-collapsed .sidebar__open { display: block; }
 body.sidebar-collapsed .table-dialog { left: 14px; }
 
 @media (min-width: 881px) {
+  body.dialog-panel-open .app-shell { grid-template-columns: var(--sidebar) minmax(0, 1fr) var(--dialog-panel-width, 460px); }
+  body.dialog-panel-open .utility-panel { display: none !important; }
+  body.dialog-panel-open .table-dialog { right: calc(var(--dialog-panel-width, 460px) + 14px); }
   body.utility-panel-open .app-shell { grid-template-columns: var(--sidebar) minmax(0, 1fr) var(--utility-panel-width, 360px); }
   body.sidebar-collapsed.utility-panel-open .app-shell { grid-template-columns: 0 minmax(0, 1fr) var(--utility-panel-width, 360px); }
+  body.dialog-panel-open.utility-panel-open .app-shell { grid-template-columns: var(--sidebar) minmax(0, 1fr) var(--dialog-panel-width, 460px); }
+  body.sidebar-collapsed.dialog-panel-open.utility-panel-open .app-shell { grid-template-columns: 0 minmax(0, 1fr) var(--dialog-panel-width, 460px); }
   body.utility-panel-open .table-dialog { right: calc(var(--utility-panel-width, 360px) + 14px); }
   body.utility-panel-open.table-open[data-table-position="dock-right"] .table-dialog {
     right: var(--utility-panel-width, 360px);
@@ -816,6 +821,7 @@ body.sidebar-collapsed .table-dialog { left: 14px; }
 }
 
 @media (min-width: 641px) and (max-width: 880px) {
+  .app-dialog--docked { position: fixed; inset: 0 0 0 auto; width: min(480px, 94vw); height: 100dvh; }
   body.utility-panel-open:not(.sidebar-collapsed) .sidebar {
     top: 0;
     bottom: auto;
@@ -845,6 +851,7 @@ body.sidebar-collapsed .table-dialog { left: 14px; }
 }
 
 @media (max-width: 640px) {
+  .app-dialog--docked { position: fixed; inset: 52px 0 0 auto; width: min(94vw, 480px); height: auto; }
   .map-workspace,
   #viewDiv {
     overscroll-behavior: none;

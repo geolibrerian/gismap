@@ -6,6 +6,12 @@ All notable changes to GIS Map Online are documented here. This project follows
 
 ## [Unreleased]
 
+## [0.15.32] - 2026-10-07
+
+### Fixed
+
+- Docked dialogs now occupy an application-grid column and resize the map instead of floating above it; compact layouts retain a practical side sheet.
+
 ## [0.15.31] - 2026-10-07
 
 ### Fixed
@@ -474,7 +480,8 @@ All notable changes to GIS Map Online are documented here. This project follows
 - Prevented search suggestions from remaining open after selection.
 - Reduced map and panel flicker during feature identification.
 
-[Unreleased]: https://github.com/geolibrerian/gismap/compare/v0.15.31...HEAD
+[Unreleased]: https://github.com/geolibrerian/gismap/compare/v0.15.32...HEAD
+[0.15.32]: https://github.com/geolibrerian/gismap/compare/v0.15.31...v0.15.32
 [0.15.31]: https://github.com/geolibrerian/gismap/compare/v0.15.30...v0.15.31
 [0.15.30]: https://github.com/geolibrerian/gismap/compare/v0.15.29...v0.15.30
 [0.15.29]: https://github.com/geolibrerian/gismap/compare/v0.15.28...v0.15.29
