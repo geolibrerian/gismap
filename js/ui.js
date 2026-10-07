@@ -1,8 +1,8 @@
-import { POPULAR_SERVICES } from "./catalog.js?v=0.15.35";
-import { ENTERPRISE_CATALOGS, EnterpriseCatalog, normalizeArcGisDirectoryUrl } from "./enterprise-catalog.js?v=0.15.35";
-import { createShareUrl } from "./share.js?v=0.15.35";
-import { markdownToPlainText, renderMarkdown } from "./markdown.js?v=0.15.35";
-import { formatAttributeValue } from "./attribute-format.js?v=0.15.35";
+import { POPULAR_SERVICES } from "./catalog.js?v=0.15.36";
+import { ENTERPRISE_CATALOGS, EnterpriseCatalog, normalizeArcGisDirectoryUrl } from "./enterprise-catalog.js?v=0.15.36";
+import { createShareUrl } from "./share.js?v=0.15.36";
+import { markdownToPlainText, renderMarkdown } from "./markdown.js?v=0.15.36";
+import { formatAttributeValue } from "./attribute-format.js?v=0.15.36";
 
 const DISPLAY_SETTINGS_KEY = "gismap-online:display:v1";
 const INSIGHT_POSITIONS = new Set(["upper-left", "lower-left", "bottom", "dock-left", "dock-right", "dock-top", "dock-bottom"]);
@@ -421,7 +421,9 @@ export class UIController {
     this.dialogRepositioning = true;
     this.dialog.close();
     if (docked) {
-      document.querySelector("#app > .app-shell")?.append(this.dialog);
+      // #app is the grid itself. Appending to a non-existent child previously
+      // reserved the third column without moving the dialog into it.
+      document.querySelector("#app")?.append(this.dialog);
       document.body.classList.add("dialog-panel-open");
       this.dialog.show();
     } else {
