@@ -6,6 +6,12 @@ All notable changes to GIS Map Online are documented here. This project follows
 
 ## [Unreleased]
 
+## [0.15.27] - 2026-10-07
+
+### Fixed
+
+- Make presentation previews visibly switch the active sidebar panels immediately and clearly label that Apply persists the selected template.
+
 ## [0.15.26] - 2026-10-07
 
 ### Fixed
@@ -444,7 +450,8 @@ All notable changes to GIS Map Online are documented here. This project follows
 - Prevented search suggestions from remaining open after selection.
 - Reduced map and panel flicker during feature identification.
 
-[Unreleased]: https://github.com/geolibrerian/gismap/compare/v0.15.26...HEAD
+[Unreleased]: https://github.com/geolibrerian/gismap/compare/v0.15.27...HEAD
+[0.15.27]: https://github.com/geolibrerian/gismap/compare/v0.15.26...v0.15.27
 [0.15.26]: https://github.com/geolibrerian/gismap/compare/v0.15.25...v0.15.26
 [0.15.25]: https://github.com/geolibrerian/gismap/compare/v0.15.24...v0.15.25
 [0.15.24]: https://github.com/geolibrerian/gismap/compare/v0.15.23...v0.15.24

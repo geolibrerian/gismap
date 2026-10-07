@@ -1,8 +1,8 @@
-import { POPULAR_SERVICES } from "./catalog.js?v=0.15.26";
-import { ENTERPRISE_CATALOGS, EnterpriseCatalog, normalizeArcGisDirectoryUrl } from "./enterprise-catalog.js?v=0.15.26";
-import { createShareUrl } from "./share.js?v=0.15.26";
-import { markdownToPlainText, renderMarkdown } from "./markdown.js?v=0.15.26";
-import { formatAttributeValue } from "./attribute-format.js?v=0.15.26";
+import { POPULAR_SERVICES } from "./catalog.js?v=0.15.27";
+import { ENTERPRISE_CATALOGS, EnterpriseCatalog, normalizeArcGisDirectoryUrl } from "./enterprise-catalog.js?v=0.15.27";
+import { createShareUrl } from "./share.js?v=0.15.27";
+import { markdownToPlainText, renderMarkdown } from "./markdown.js?v=0.15.27";
+import { formatAttributeValue } from "./attribute-format.js?v=0.15.27";
 
 const DISPLAY_SETTINGS_KEY = "gismap-online:display:v1";
 const INSIGHT_POSITIONS = new Set(["upper-left", "lower-left", "bottom", "dock-left", "dock-right", "dock-top", "dock-bottom"]);
@@ -1513,6 +1513,10 @@ export class UIController {
     document.querySelector("#presentation-status")?.remove();
     const welcomePanel = document.querySelector("#welcome-panel");
     let context = document.querySelector("#presentation-context");
+    document.querySelectorAll(".sidebar__scroll > .panel[data-presentation-hidden]").forEach((panel) => {
+      panel.hidden = false;
+      delete panel.dataset.presentationHidden;
+    });
     if (template === "standard") {
       context?.remove();
       if (welcomePanel) welcomePanel.hidden = welcomePanel.dataset.dismissed === "true";
@@ -1553,6 +1557,17 @@ export class UIController {
       const panel = document.querySelector(`#${id}`);
       if (panel) panel.open = true;
     });
+    const hiddenPanels = {
+      briefing: ["bookmarks-panel", "draw-panel"],
+      explorer: ["bookmarks-panel", "draw-panel", "intelligence-panel"],
+      atlas: ["draw-panel", "intelligence-panel"],
+    }[template] || [];
+    hiddenPanels.forEach((id) => {
+      const panel = document.querySelector(`#${id}`);
+      if (!panel) return;
+      panel.dataset.presentationHidden = "true";
+      panel.hidden = true;
+    });
   }
 
   #presentationDialog() {
@@ -1567,7 +1582,7 @@ export class UIController {
     this.openDialog({
       eyebrow: "Presentation",
       title: "Choose a data theme",
-      content: `<div class="presentation-picker"><p class="form-note">Templates change the audience layout; skins change its visual treatment. Layer data, styles, and credentials are unchanged.</p><div class="presentation-cards"><button class="presentation-card" data-presentation-template="standard"><span class="presentation-preview presentation-preview--standard"></span><strong>Standard workspace</strong><small>Restore the authoring workspace.</small></button>${cards.map(([id, title, description]) => `<button class="presentation-card" data-presentation-template="${id}"><span class="presentation-preview presentation-preview--${id}"><i></i><i></i><i></i></span><strong>${title}</strong><small>${description}</small></button>`).join("")}</div><label class="field"><span>Skin</span><select id="presentation-skin"><option value="clean-light">Clean Light</option><option value="dark-analytical">Dark Analytical</option><option value="retro-print">Retro Print</option></select></label><label class="field"><span>Presentation title</span><input id="presentation-title" value="${escapeHtml(current.title)}" placeholder="Optional title" /></label><label class="field"><span>Primary layer</span><select id="presentation-primary"><option value="">Choose later</option>${layers.map((layer) => `<option value="${escapeHtml(layer.uid)}">${escapeHtml(layer.title || "Untitled layer")}</option>`).join("")}</select></label><p class="form-note" data-presentation-note>Optional tools appear only when the chosen primary layer has compatible fields; configure them after applying.</p></div>`,
+      content: `<div class="presentation-picker"><p class="form-note">Templates change the audience layout; skins change its visual treatment. Layer data, styles, and credentials are unchanged.</p><div class="presentation-cards"><button type="button" class="presentation-card" data-presentation-template="standard"><span class="presentation-preview presentation-preview--standard"></span><strong>Standard workspace</strong><small>Restore the authoring workspace.</small></button>${cards.map(([id, title, description]) => `<button type="button" class="presentation-card" data-presentation-template="${id}"><span class="presentation-preview presentation-preview--${id}"><i></i><i></i><i></i></span><strong>${title}</strong><small>${description}</small></button>`).join("")}</div><p class="form-note" data-presentation-preview-status></p><label class="field"><span>Skin</span><select id="presentation-skin"><option value="clean-light">Clean Light</option><option value="dark-analytical">Dark Analytical</option><option value="retro-print">Retro Print</option></select></label><label class="field"><span>Presentation title</span><input id="presentation-title" value="${escapeHtml(current.title)}" placeholder="Optional title" /></label><label class="field"><span>Primary layer</span><select id="presentation-primary"><option value="">Choose later</option>${layers.map((layer) => `<option value="${escapeHtml(layer.uid)}">${escapeHtml(layer.title || "Untitled layer")}</option>`).join("")}</select></label><p class="form-note" data-presentation-note>Optional tools appear only when the chosen primary layer has compatible fields; configure them after applying.</p></div>`,
       actions: [
         { label: "Cancel", handler: () => { this.#applyPresentation(previous); this.dialog.close(); } },
         { label: "Preview", handler: () => {
@@ -1589,7 +1604,11 @@ export class UIController {
     const select = (button) => {
       this.dialog.querySelectorAll("[data-presentation-template]").forEach((card) => card.classList.toggle("is-selected", card === button));
       if (button.dataset.presentationTemplate !== "standard" && current.template === "standard") skin.value = cards.find(([id]) => id === button.dataset.presentationTemplate)?.[3] || skin.value;
-      this.#applyPresentation({ template: button.dataset.presentationTemplate, skin: skin.value });
+      const template = button.dataset.presentationTemplate;
+      this.#applyPresentation({ template, skin: skin.value });
+      this.dialog.querySelector("[data-presentation-preview-status]").textContent = template === "standard"
+        ? "Previewing the standard authoring workspace."
+        : `Previewing ${template[0].toUpperCase()}${template.slice(1)}. Choose Apply to save this presentation to the project.`;
     };
     this.dialog.querySelectorAll("[data-presentation-template]").forEach((button) => button.addEventListener("click", () => select(button)));
     skin.addEventListener("change", () => {
