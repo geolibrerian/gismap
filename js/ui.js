@@ -1,8 +1,8 @@
-import { POPULAR_SERVICES } from "./catalog.js?v=0.15.32";
-import { ENTERPRISE_CATALOGS, EnterpriseCatalog, normalizeArcGisDirectoryUrl } from "./enterprise-catalog.js?v=0.15.32";
-import { createShareUrl } from "./share.js?v=0.15.32";
-import { markdownToPlainText, renderMarkdown } from "./markdown.js?v=0.15.32";
-import { formatAttributeValue } from "./attribute-format.js?v=0.15.32";
+import { POPULAR_SERVICES } from "./catalog.js?v=0.15.33";
+import { ENTERPRISE_CATALOGS, EnterpriseCatalog, normalizeArcGisDirectoryUrl } from "./enterprise-catalog.js?v=0.15.33";
+import { createShareUrl } from "./share.js?v=0.15.33";
+import { markdownToPlainText, renderMarkdown } from "./markdown.js?v=0.15.33";
+import { formatAttributeValue } from "./attribute-format.js?v=0.15.33";
 
 const DISPLAY_SETTINGS_KEY = "gismap-online:display:v1";
 const INSIGHT_POSITIONS = new Set(["upper-left", "lower-left", "bottom", "dock-left", "dock-right", "dock-top", "dock-bottom"]);
@@ -420,7 +420,7 @@ export class UIController {
     this.dialogRepositioning = true;
     this.dialog.close();
     if (docked) {
-      document.querySelector("#app")?.append(this.dialog);
+      document.querySelector("#app > .app-shell")?.append(this.dialog);
       document.body.classList.add("dialog-panel-open");
       this.dialog.show();
     } else {
