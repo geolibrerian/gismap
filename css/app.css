@@ -261,6 +261,28 @@ body.utility-resizing iframe, body.utility-resizing canvas { pointer-events: non
 .presentation-context strong { color: var(--ink); font: 600 22px/1.12 "Newsreader", Georgia, serif; }
 .presentation-context p { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.5; }
 #app[data-presentation]:not([data-presentation="standard"]) .presentation-context { order: -5; }
+#presentation-dashboard { display: grid; min-height: 0; order: -4; margin: 8px 12px 16px; }
+.mode-dashboard { display: grid; gap: 10px; min-height: 0; }
+.mode-dashboard header h2, .presentation-empty h2 { margin: 2px 0; font: 600 24px/1.1 "Newsreader", Georgia, serif; }
+.mode-dashboard header p, .presentation-empty p { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.45; }
+.mode-chart { display: flex; flex-wrap: wrap; gap: 5px; }
+.mode-chart button { display: grid; gap: 2px; min-width: 62px; padding: 7px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface-2); color: var(--ink); cursor: pointer; font-size: 10px; text-align: left; }
+.mode-chart b { color: var(--green-2); font-size: 14px; }
+.mode-records { display: grid; max-height: min(38vh, 360px); overflow: auto; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
+.mode-record { display: grid; gap: 3px; padding: 10px; border: 0; border-bottom: 1px solid var(--line); color: var(--ink); background: transparent; text-align: left; cursor: pointer; }
+.mode-record:last-child { border-bottom: 0; }
+.mode-record:hover, .mode-record.is-selected { background: var(--surface-2); box-shadow: inset 3px 0 var(--green-2); }
+.mode-record small { color: var(--muted); }
+.mode-details { display: grid; gap: 8px; padding: 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface-2); }
+.mode-details h3 { margin: 0; font: 600 19px/1.15 "Newsreader", Georgia, serif; }
+.mode-details p { margin: 0; color: var(--muted); font-size: 12px; }
+.mode-details dl { display: grid; gap: 5px; margin: 0; }
+.mode-details dl div { display: grid; grid-template-columns: minmax(90px, .8fr) 1.2fr; gap: 8px; padding-bottom: 5px; border-bottom: 1px solid var(--line); font-size: 11px; }
+.mode-details dt { color: var(--muted); }.mode-details dd { margin: 0; overflow-wrap: anywhere; }
+.atlas-actions { display: flex; gap: 7px; }.atlas-actions button, .atlas-chapter div button { padding: 8px 10px; border: 1px solid var(--green); border-radius: 6px; color: var(--green); background: var(--surface); cursor: pointer; font-size: 11px; }.atlas-actions button:first-child { color: white; background: var(--green); }
+.atlas-chapter { display: grid; grid-template-columns: 1fr auto; gap: 6px; padding: 8px; border-bottom: 1px solid var(--line); }.atlas-chapter > button { display: grid; grid-template-columns: 22px 1fr; gap: 2px 8px; border: 0; color: var(--ink); background: transparent; text-align: left; cursor: pointer; }.atlas-chapter > button span { grid-row: span 2; display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; color: white; background: var(--green-2); font-size: 10px; }.atlas-chapter small { grid-column: 2; color: var(--muted); }
+.presentation-empty { display: grid; gap: 10px; margin-top: 18px; padding: 16px; border: 1px dashed var(--line); border-radius: 9px; background: var(--surface-2); }
+.presentation-empty div { display: flex; flex-wrap: wrap; gap: 6px; }.presentation-empty button { padding: 8px 10px; border: 1px solid var(--green); border-radius: 6px; color: white; background: var(--green); cursor: pointer; font-size: 11px; }
 #app[data-presentation="briefing"] { --sidebar: clamp(340px, 27vw, 430px); }
 #app[data-presentation="briefing"] .sidebar__scroll { display: flex; flex-direction: column; }
 #app[data-presentation="briefing"] #intelligence-panel { order: -2; border-left: 4px solid var(--amber); }

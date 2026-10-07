@@ -6,6 +6,12 @@ All notable changes to GIS Map Online are documented here. This project follows
 
 ## [Unreleased]
 
+## [0.15.28] - 2026-10-07
+
+### Added
+
+- Added interactive presentation dashboards backed by the selected project layer: Explorer has record search, categories, counts, result cards, map highlighting, and selected-record details; Briefing and Atlas now use the same record workflow with source details and setup states.
+
 ## [0.15.27] - 2026-10-07
 
 ### Fixed
@@ -450,7 +456,8 @@ All notable changes to GIS Map Online are documented here. This project follows
 - Prevented search suggestions from remaining open after selection.
 - Reduced map and panel flicker during feature identification.
 
-[Unreleased]: https://github.com/geolibrerian/gismap/compare/v0.15.27...HEAD
+[Unreleased]: https://github.com/geolibrerian/gismap/compare/v0.15.28...HEAD
+[0.15.28]: https://github.com/geolibrerian/gismap/compare/v0.15.27...v0.15.28
 [0.15.27]: https://github.com/geolibrerian/gismap/compare/v0.15.26...v0.15.27
 [0.15.26]: https://github.com/geolibrerian/gismap/compare/v0.15.25...v0.15.26
 [0.15.25]: https://github.com/geolibrerian/gismap/compare/v0.15.24...v0.15.25

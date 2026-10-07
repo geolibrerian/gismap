@@ -1,8 +1,8 @@
-import { POPULAR_SERVICES } from "./catalog.js?v=0.15.27";
-import { ENTERPRISE_CATALOGS, EnterpriseCatalog, normalizeArcGisDirectoryUrl } from "./enterprise-catalog.js?v=0.15.27";
-import { createShareUrl } from "./share.js?v=0.15.27";
-import { markdownToPlainText, renderMarkdown } from "./markdown.js?v=0.15.27";
-import { formatAttributeValue } from "./attribute-format.js?v=0.15.27";
+import { POPULAR_SERVICES } from "./catalog.js?v=0.15.28";
+import { ENTERPRISE_CATALOGS, EnterpriseCatalog, normalizeArcGisDirectoryUrl } from "./enterprise-catalog.js?v=0.15.28";
+import { createShareUrl } from "./share.js?v=0.15.28";
+import { markdownToPlainText, renderMarkdown } from "./markdown.js?v=0.15.28";
+import { formatAttributeValue } from "./attribute-format.js?v=0.15.28";
 
 const DISPLAY_SETTINGS_KEY = "gismap-online:display:v1";
 const INSIGHT_POSITIONS = new Set(["upper-left", "lower-left", "bottom", "dock-left", "dock-right", "dock-top", "dock-bottom"]);
@@ -46,6 +46,7 @@ export class UIController {
     this.utilityDrawOpen = false;
     this.utilityStyleLayerUid = null;
     this.activeUtilityTab = null;
+    this.presentationState = { template: "standard", records: [], visibleRecords: [], selected: null, layerUid: null, search: "", category: "" };
     this.keepWelcomeForSharedExample = new URLSearchParams(location.search).has("example");
     this.systemThemeMedia = matchMedia("(prefers-color-scheme: dark)");
     this.mobileMedia = matchMedia("(max-width: 640px)");
@@ -301,6 +302,7 @@ export class UIController {
       if (!automatic) this.toast("Project saved in this browser.");
     });
     this.events.subscribe("presentation:changed", ({ presentation }) => this.#applyPresentation(presentation));
+    this.events.subscribe("identify:complete", (payload) => this.#selectPresentationResult(payload.results?.find((result) => result.layerUid === this.presentationState.layerUid)));
     this.events.subscribe("project:exported", ({ kind }) => this.toast(`${kind === "package" ? "Project package (.gmop)" : "Project file (.gmo)"} downloaded.`));
     this.events.subscribe("export:progress", ({ stage, completed, total }) => {
       const progress = this.dialog.querySelector("[data-export-progress]");
@@ -1504,6 +1506,135 @@ export class UIController {
     });
   }
 
+  #presentationLayer(presentation) {
+    const layers = this.mapController.getOperationalLayers();
+    return layers.find((layer) => layer.uid === presentation.primaryLayerId && typeof layer.queryFeatures === "function")
+      || layers.find((layer) => typeof layer.queryFeatures === "function")
+      || null;
+  }
+
+  #presentationFields(layer) {
+    const fields = (layer?.fields || []).filter((field) => field?.name && !/^(objectid|shape|fid)$/i.test(field.name));
+    const text = fields.filter((field) => /string|guid|oid/i.test(field.type || ""));
+    const numeric = fields.filter((field) => /small-integer|integer|single|double|long/i.test(field.type || ""));
+    const dates = fields.filter((field) => /date/i.test(field.type || ""));
+    return { fields, text, numeric, dates };
+  }
+
+  async #loadPresentationRecords(presentation) {
+    const layer = this.#presentationLayer(presentation);
+    this.presentationState = { ...this.presentationState, layerUid: layer?.uid || null, records: [], visibleRecords: [], selected: null, search: "", category: "" };
+    if (!layer) return this.#renderPresentationDashboard(presentation);
+    try {
+      const query = layer.createQuery?.() || {};
+      Object.assign(query, { where: layer.definitionExpression || "1=1", outFields: ["*"], returnGeometry: true, num: 500 });
+      const response = await layer.queryFeatures(query);
+      if (this.presentationState.layerUid !== layer.uid) return;
+      this.presentationState.records = (response.features || []).map((graphic) => ({
+        kind: "feature", layerUid: layer.uid, layerTitle: layer.title || "Layer", attributes: graphic.attributes || {}, geometry: graphic.geometry || null, graphic,
+      }));
+      this.#filterPresentationRecords();
+    } catch (error) {
+      this.presentationState.error = error.message;
+      this.#renderPresentationDashboard(presentation);
+    }
+  }
+
+  #recordLabel(result, fields) {
+    const attributes = result.attributes || {};
+    const preferred = fields.text.find((field) => /name|title|incident|city|location|label/i.test(`${field.name} ${field.alias || ""}`)) || fields.text[0];
+    return String(attributes[preferred?.name] ?? attributes[Object.keys(attributes).find((key) => !/objectid|fid/i.test(key))] ?? "Untitled record");
+  }
+
+  #filterPresentationRecords() {
+    const layer = this.mapController.findLayer(this.presentationState.layerUid);
+    const fields = this.#presentationFields(layer);
+    const categoryField = fields.text.find((field) => /type|category|status|class|group|kind/i.test(`${field.name} ${field.alias || ""}`)) || fields.text[1] || fields.text[0];
+    const needle = this.presentationState.search.trim().toLowerCase();
+    this.presentationState.categoryField = categoryField?.name || null;
+    this.presentationState.visibleRecords = this.presentationState.records.filter((result) => {
+      const haystack = Object.values(result.attributes || {}).join(" ").toLowerCase();
+      return (!needle || haystack.includes(needle)) && (!this.presentationState.category || String(result.attributes?.[categoryField?.name] ?? "") === this.presentationState.category);
+    });
+    this.#renderPresentationDashboard(this.projectManager.current.presentation || {});
+  }
+
+  #selectPresentationResult(result) {
+    if (!result || this.presentationState.template === "standard") return;
+    this.presentationState.selected = result;
+    this.mapController.highlightFeature(result);
+    this.#renderPresentationDashboard(this.projectManager.current.presentation || {});
+  }
+
+  #renderPresentationDashboard(presentation) {
+    const root = document.querySelector("#presentation-dashboard");
+    if (!root) return;
+    const template = presentation.template || "standard";
+    if (template === "standard") { root.replaceChildren(); root.hidden = true; return; }
+    root.hidden = false;
+    const layer = this.mapController.findLayer(this.presentationState.layerUid);
+    if (!layer) {
+      root.innerHTML = `<section class="presentation-empty"><span class="eyebrow">${escapeHtml(template)}</span><h2>Start with a dataset</h2><p>This mode becomes interactive after you add a feature layer. Your project and map remain unchanged.</p><div><button type="button" data-presentation-setup="data-arcgis">Connect a service</button><button type="button" data-presentation-setup="data-file">Add a file</button><button type="button" data-presentation-example>Open an example</button></div></section>`;
+      root.querySelectorAll("[data-presentation-setup]").forEach((button) => button.addEventListener("click", () => this.#handleAction(button.dataset.presentationSetup)));
+      root.querySelector("[data-presentation-example]")?.addEventListener("click", () => location.assign("/examples/"));
+      return;
+    }
+    const fields = this.#presentationFields(layer);
+    const records = this.presentationState.visibleRecords;
+    const categories = [...new Set(this.presentationState.records.map((result) => String(result.attributes?.[this.presentationState.categoryField] ?? "")).filter(Boolean))].slice(0, 24);
+    const selected = this.presentationState.selected;
+    const selectedDetails = selected ? Object.entries(selected.attributes || {}).filter(([, value]) => value != null && value !== "").slice(0, 12) : [];
+    if (template === "atlas") {
+      const chapters = presentation.chapters || [];
+      root.innerHTML = `<section class="mode-dashboard mode-dashboard--atlas"><header><span class="eyebrow">Atlas · ${this.presentationState.atlasPresent ? "present" : "edit"} mode</span><h2>${escapeHtml(presentation.title || "Guided places")}</h2><p>Capture map views as chapters, then use them as a durable, shareable sequence in this project.</p></header><div class="atlas-actions"><button type="button" data-atlas-capture ${this.presentationState.atlasPresent ? "hidden" : ""}>Add current view</button><button type="button" data-atlas-mode>${this.presentationState.atlasPresent ? "Edit chapters" : "Present atlas"}</button></div><div class="mode-records">${chapters.map((chapter, index) => `<article class="atlas-chapter"><button type="button" data-atlas-go="${index}"><span>${index + 1}</span><strong>${escapeHtml(chapter.title || `Chapter ${index + 1}`)}</strong><small>${escapeHtml(chapter.body || "Saved map view")}</small></button>${this.presentationState.atlasPresent ? "" : `<div><button type="button" data-atlas-rename="${index}">Edit</button><button type="button" data-atlas-delete="${index}">Delete</button></div>`}</article>`).join("") || "<p class=\"form-note\">No chapters yet. Add the current map view to begin the atlas.</p>"}</div></section>`;
+      root.querySelector("[data-atlas-mode]")?.addEventListener("click", () => { this.presentationState.atlasPresent = !this.presentationState.atlasPresent; this.#renderPresentationDashboard(presentation); });
+      root.querySelector("[data-atlas-capture]")?.addEventListener("click", () => this.#captureAtlasChapter());
+      root.querySelectorAll("[data-atlas-go]").forEach((button) => button.addEventListener("click", () => this.#goToAtlasChapter(chapters[Number(button.dataset.atlasGo)])));
+      root.querySelectorAll("[data-atlas-delete]").forEach((button) => button.addEventListener("click", () => this.#saveAtlasChapters(chapters.filter((_, index) => index !== Number(button.dataset.atlasDelete)))));
+      root.querySelectorAll("[data-atlas-rename]").forEach((button) => button.addEventListener("click", () => this.#editAtlasChapter(chapters, Number(button.dataset.atlasRename))));
+      return;
+    }
+    if (template === "explorer") {
+      root.innerHTML = `<section class="mode-dashboard mode-dashboard--explorer"><header><span class="eyebrow">Explorer · loaded records</span><h2>${escapeHtml(presentation.title || layer.title || "Explore records")}</h2><p>${records.length} of ${this.presentationState.records.length} loaded records</p></header><label class="field"><span>Search records</span><input data-mode-search value="${escapeHtml(this.presentationState.search)}" placeholder="Search attributes" /></label><label class="field"><span>${escapeHtml(fields.fields.find((field) => field.name === this.presentationState.categoryField)?.alias || "Category")}</span><select data-mode-category><option value="">All categories</option>${categories.map((value) => `<option value="${escapeHtml(value)}"${value === this.presentationState.category ? " selected" : ""}>${escapeHtml(value)}</option>`).join("")}</select></label><button type="button" class="button--quiet" data-mode-clear>Clear filters</button><div class="mode-chart">${categories.slice(0, 8).map((value) => `<button type="button" data-mode-category-value="${escapeHtml(value)}"><b>${this.presentationState.records.filter((record) => String(record.attributes?.[this.presentationState.categoryField] ?? "") === value).length}</b>${escapeHtml(value)}</button>`).join("")}</div><div class="mode-records">${records.map((record, index) => `<button type="button" class="mode-record${record === selected ? " is-selected" : ""}" data-mode-record="${index}"><strong>${escapeHtml(this.#recordLabel(record, fields))}</strong><small>${escapeHtml(this.presentationState.categoryField ? record.attributes?.[this.presentationState.categoryField] ?? "" : "")}</small></button>`).join("") || "<p class=\"form-note\">No loaded records match these filters.</p>"}</div><aside class="mode-details"><span class="eyebrow">Selected record</span>${selected ? `<h3>${escapeHtml(this.#recordLabel(selected, fields))}</h3><dl>${selectedDetails.map(([key, value]) => `<div><dt>${escapeHtml(key)}</dt><dd>${escapeHtml(formatAttributeValue(value, fields.fields.find((field) => field.name === key), key))}</dd></div>`).join("")}</dl>` : "<p>Select a map feature or record to inspect it.</p>"}</aside></section>`;
+    } else {
+      const dateField = fields.dates[0];
+      root.innerHTML = `<section class="mode-dashboard"><header><span class="eyebrow">${escapeHtml(template)}</span><h2>${escapeHtml(presentation.title || layer.title || "Map data")}</h2><p>${records.length} loaded records · ${dateField ? `timeline field: ${escapeHtml(dateField.alias || dateField.name)}` : "No date field is available for a timeline."}</p></header><div class="mode-records">${records.map((record, index) => `<button type="button" class="mode-record${record === selected ? " is-selected" : ""}" data-mode-record="${index}"><strong>${escapeHtml(this.#recordLabel(record, fields))}</strong></button>`).join("")}</div><aside class="mode-details"><span class="eyebrow">Selected feature</span>${selected ? `<h3>${escapeHtml(this.#recordLabel(selected, fields))}</h3><dl>${selectedDetails.map(([key, value]) => `<div><dt>${escapeHtml(key)}</dt><dd>${escapeHtml(formatAttributeValue(value, fields.fields.find((field) => field.name === key), key))}</dd></div>`).join("")}</dl>` : "<p>Select a feature to view source attributes.</p>"}</aside></section>`;
+    }
+    root.querySelector("[data-mode-search]")?.addEventListener("input", (event) => { this.presentationState.search = event.target.value; this.#filterPresentationRecords(); });
+    root.querySelector("[data-mode-category]")?.addEventListener("change", (event) => { this.presentationState.category = event.target.value; this.#filterPresentationRecords(); });
+    root.querySelector("[data-mode-clear]")?.addEventListener("click", () => { this.presentationState.search = ""; this.presentationState.category = ""; this.#filterPresentationRecords(); });
+    root.querySelectorAll("[data-mode-category-value]").forEach((button) => button.addEventListener("click", () => { this.presentationState.category = button.dataset.modeCategoryValue; this.#filterPresentationRecords(); }));
+    root.querySelectorAll("[data-mode-record]").forEach((button) => button.addEventListener("click", async () => { const result = records[Number(button.dataset.modeRecord)]; this.#selectPresentationResult(result); if (result?.geometry) await this.mapController.view?.goTo?.(result.geometry); }));
+  }
+
+  #saveAtlasChapters(chapters) {
+    this.projectManager.setPresentation({ ...this.projectManager.current.presentation, chapters });
+  }
+
+  #captureAtlasChapter() {
+    const view = this.mapController.view;
+    if (!view) return;
+    const chapters = this.projectManager.current.presentation?.chapters || [];
+    this.#saveAtlasChapters([...chapters, {
+      id: crypto.randomUUID?.() || `chapter-${Date.now()}`,
+      title: `Chapter ${chapters.length + 1}`,
+      body: "Saved map view",
+      viewpoint: view.viewpoint?.toJSON?.() || null,
+      visibleLayerIds: this.mapController.getOperationalLayers().filter((layer) => layer.visible).map((layer) => layer.uid),
+    }]);
+  }
+
+  #editAtlasChapter(chapters, index) {
+    const chapter = chapters[index];
+    this.openDialog({ eyebrow: "Atlas chapter", title: "Edit chapter", content: `<label class="field"><span>Title</span><input id="atlas-chapter-title" value="${escapeHtml(chapter.title || "")}" /></label><label class="field"><span>Text</span><textarea id="atlas-chapter-body">${escapeHtml(chapter.body || "")}</textarea></label>`, actions: [{ label: "Save", primary: true, handler: () => { const next = chapters.map((item, itemIndex) => itemIndex === index ? { ...item, title: this.dialog.querySelector("#atlas-chapter-title").value.trim() || `Chapter ${index + 1}`, body: this.dialog.querySelector("#atlas-chapter-body").value.trim() } : item); this.#saveAtlasChapters(next); this.dialog.close(); } }] });
+  }
+
+  async #goToAtlasChapter(chapter) {
+    if (!chapter) return;
+    this.mapController.getOperationalLayers().forEach((layer) => { layer.visible = !chapter.visibleLayerIds || chapter.visibleLayerIds.includes(layer.uid); });
+    if (chapter.viewpoint) await this.mapController.view?.goTo?.(chapter.viewpoint, { animate: !matchMedia("(prefers-reduced-motion: reduce)").matches });
+  }
+
   #applyPresentation(presentation = {}) {
     const app = document.querySelector("#app");
     const template = presentation.template || "standard";
@@ -1513,16 +1644,28 @@ export class UIController {
     document.querySelector("#presentation-status")?.remove();
     const welcomePanel = document.querySelector("#welcome-panel");
     let context = document.querySelector("#presentation-context");
+    let dashboard = document.querySelector("#presentation-dashboard");
+    if (!dashboard) {
+      dashboard = document.createElement("section");
+      dashboard.id = "presentation-dashboard";
+      dashboard.hidden = true;
+      document.querySelector(".sidebar__scroll")?.prepend(dashboard);
+    }
     document.querySelectorAll(".sidebar__scroll > .panel[data-presentation-hidden]").forEach((panel) => {
       panel.hidden = false;
       delete panel.dataset.presentationHidden;
     });
     if (template === "standard") {
       context?.remove();
+      dashboard.replaceChildren();
+      dashboard.hidden = true;
+      this.presentationState = { template: "standard", records: [], visibleRecords: [], selected: null, layerUid: null, search: "", category: "" };
+      this.mapController.clearFeatureHighlight();
       if (welcomePanel) welcomePanel.hidden = welcomePanel.dataset.dismissed === "true";
       return;
     }
     if (welcomePanel) welcomePanel.hidden = true;
+    this.presentationState.template = template;
     if (!context) {
       context = document.createElement("section");
       context.id = "presentation-context";
@@ -1568,6 +1711,7 @@ export class UIController {
       panel.dataset.presentationHidden = "true";
       panel.hidden = true;
     });
+    this.#loadPresentationRecords(presentation);
   }
 
   #presentationDialog() {
