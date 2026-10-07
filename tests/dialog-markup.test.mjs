@@ -14,3 +14,5 @@ assert.doesNotMatch(
   /id="server-directory-url"[^>]*\srequired(?:\s|>)/,
   "The optional GIS Server Directory field must not block dialog dismissal.",
 );
+assert.match(html, /data-utility-pane="dialog"/, "Docked dialogs need a real workspace-panel host.");
+assert.match(ui, /#utility-dialog-content/, "The dialog dock action must target the workspace panel host.");

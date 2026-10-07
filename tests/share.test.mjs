@@ -34,6 +34,21 @@ assert.deepEqual(parseShareParameters("?example=active-fires", catalog).layers[0
   refreshInterval: undefined,
 });
 
+const multiLayerCatalog = [{
+  slug: "wildfires",
+  title: "Wildfires",
+  serviceType: "feature",
+  url: "https://example.com/FeatureServer",
+  layers: [
+    { url: "https://example.com/FeatureServer/0", title: "Incidents" },
+    { url: "https://example.com/FeatureServer/1", title: "Perimeters" },
+  ],
+}];
+assert.deepEqual(parseShareParameters("?example=wildfires", multiLayerCatalog).layers.map(({ url, title }) => ({ url, title })), [
+  { url: "https://example.com/FeatureServer/0", title: "Incidents" },
+  { url: "https://example.com/FeatureServer/1", title: "Perimeters" },
+]);
+
 assert.throws(() => sanitizeSharedResourceUrl("javascript:alert(1)"), /HTTPS/);
 assert.throws(() => sanitizeSharedResourceUrl("http://example.com/data"), /HTTPS/);
 assert.equal(sanitizeSharedResourceUrl("http://localhost/data", { allowHttp: true }), "http://localhost/data");

@@ -33,6 +33,10 @@ export const POPULAR_SERVICES = [
     description: "Current wildfire incidents and daily fire perimeter data for the United States.",
     whyUseful: "Compare active incidents and mapped fire perimeters, inspect operational attributes, and relate wildfire activity to terrain and nearby places.",
     url: "https://rhvpkkiftonktxq3.svcs9.arcgis.com/RHVPKKiFTONKtxq3/ArcGIS/rest/services/USA_Wildfires_v1/FeatureServer",
+    layers: [
+      { url: "https://services9.arcgis.com/RHVPKKiFTONKtxq3/ArcGIS/rest/services/USA_Wildfires_v1/FeatureServer/0", title: "Current incidents", serviceType: "feature" },
+      { url: "https://services9.arcgis.com/RHVPKKiFTONKtxq3/ArcGIS/rest/services/USA_Wildfires_v1/FeatureServer/1", title: "Current perimeters", serviceType: "feature" },
+    ],
     sourceOrganization: "Esri Disaster Response Program",
     sourcePage: "https://rhvpkkiftonktxq3.svcs9.arcgis.com/RHVPKKiFTONKtxq3/ArcGIS/rest/services/USA_Wildfires_v1/FeatureServer",
     licenseOrTerms: "Review the service metadata and publisher terms before reuse.",

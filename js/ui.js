@@ -1,8 +1,8 @@
-import { POPULAR_SERVICES } from "./catalog.js?v=0.15.36";
-import { ENTERPRISE_CATALOGS, EnterpriseCatalog, normalizeArcGisDirectoryUrl } from "./enterprise-catalog.js?v=0.15.36";
-import { createShareUrl } from "./share.js?v=0.15.36";
-import { markdownToPlainText, renderMarkdown } from "./markdown.js?v=0.15.36";
-import { formatAttributeValue } from "./attribute-format.js?v=0.15.36";
+import { POPULAR_SERVICES } from "./catalog.js?v=0.15.37";
+import { ENTERPRISE_CATALOGS, EnterpriseCatalog, normalizeArcGisDirectoryUrl } from "./enterprise-catalog.js?v=0.15.37";
+import { createShareUrl } from "./share.js?v=0.15.37";
+import { markdownToPlainText, renderMarkdown } from "./markdown.js?v=0.15.37";
+import { formatAttributeValue } from "./attribute-format.js?v=0.15.37";
 
 const DISPLAY_SETTINGS_KEY = "gismap-online:display:v1";
 const INSIGHT_POSITIONS = new Set(["upper-left", "lower-left", "bottom", "dock-left", "dock-right", "dock-top", "dock-bottom"]);
@@ -47,7 +47,8 @@ export class UIController {
     this.utilityStyleLayerUid = null;
     this.activeUtilityTab = null;
     this.utilityModalPane = null;
-    this.dialogRepositioning = false;
+    this.utilityDialogOpen = false;
+    this.suppressNextDialogClose = false;
     this.presentationSearchTimer = null;
     this.atlasPlaybackToken = 0;
     this.presentationState = { template: "standard", records: [], visibleRecords: [], selected: null, layerUid: null, search: "", category: "" };
@@ -270,17 +271,18 @@ export class UIController {
     });
     document.querySelector("#bookmark-add").addEventListener("click", () => this.#addBookmark());
     this.dialog.addEventListener("close", () => {
-      if (!this.dialogRepositioning) {
-        this.exportController.cancel();
-        this.#restoreUtilityModal();
-        this.#undockDialogShell();
+      if (this.suppressNextDialogClose) {
+        this.suppressNextDialogClose = false;
+        return;
       }
+      const wasDocked = this.utilityDialogOpen;
+      this.exportController.cancel();
+      this.#restoreUtilityModal();
+      this.#undockDialogShell();
+      if (wasDocked) this.#syncUtilityPanel();
     });
     document.querySelector("#dialog-dock").addEventListener("click", () => {
-      const docked = this.dialog.classList.toggle("app-dialog--docked");
-      document.querySelector("#dialog-dock").setAttribute("aria-label", docked ? "Return dialog to the center" : "Move dialog to the right panel");
-      document.querySelector("#dialog-dock").textContent = docked ? "↙" : "↗";
-      this.#reopenDialog(docked);
+      this.#dockDialogInUtilityPanel();
     });
     document.querySelector("#utility-open-modal").addEventListener("click", () => this.#openUtilityAsModal());
     document.querySelector("#project-file-input").addEventListener("change", (event) => this.#importProject(event));
@@ -295,6 +297,7 @@ export class UIController {
     });
     this.events.subscribe("map:ready", ({ view }) => {
       document.querySelector("#map-status").textContent = `Ready · zoom ${view.zoom.toFixed(1)}`;
+      view.watch?.("scale", () => this.#updateLayerScaleIndicators());
       view.on("pointer-move", (event) => {
         const point = view.toMap(event);
         if (!point) return;
@@ -397,6 +400,10 @@ export class UIController {
   }
 
   #openUtilityAsModal() {
+    if (this.activeUtilityTab === "dialog" && this.utilityDialogOpen) {
+      this.#reopenDialog(false);
+      return;
+    }
     const pane = document.querySelector(`[data-utility-pane="${CSS.escape(this.activeUtilityTab || "")}"]`);
     if (!pane) return;
     this.utilityModalPane = pane;
@@ -418,7 +425,7 @@ export class UIController {
 
   #reopenDialog(docked) {
     if (!this.dialog.open) return;
-    this.dialogRepositioning = true;
+    this.suppressNextDialogClose = true;
     this.dialog.close();
     if (docked) {
       // #app is the grid itself. Appending to a non-existent child previously
@@ -428,15 +435,29 @@ export class UIController {
       this.dialog.show();
     } else {
       this.#undockDialogShell();
+      this.#syncUtilityPanel();
       this.dialog.showModal();
     }
-    this.dialogRepositioning = false;
     requestAnimationFrame(() => this.mapController.resize());
+  }
+
+  #dockDialogInUtilityPanel() {
+    if (!this.dialog.open) return;
+    this.suppressNextDialogClose = true;
+    this.dialog.close();
+    this.dialog.classList.add("app-dialog--docked");
+    document.querySelector("#utility-dialog-content")?.append(this.dialog);
+    // A non-modal dialog in a normal panel only needs the open attribute; it
+    // must not enter the browser's top layer or retain a modal backdrop.
+    this.dialog.setAttribute("open", "");
+    this.utilityDialogOpen = true;
+    this.#syncUtilityPanel("dialog");
   }
 
   #undockDialogShell() {
     if (this.dialog.parentElement !== document.body) document.body.append(this.dialog);
     this.dialog.classList.remove("app-dialog--docked");
+    this.utilityDialogOpen = false;
     document.body.classList.remove("dialog-panel-open");
     requestAnimationFrame(() => this.mapController.resize());
   }
@@ -451,6 +472,7 @@ export class UIController {
   #syncUtilityPanel(preferredTab = null) {
     const tabs = [
       ...this.#utilityWidgetTabs(),
+      ...(this.utilityDialogOpen ? [{ id: "dialog", label: document.querySelector("#dialog-title")?.textContent || "Dialog" }] : []),
       ...(this.utilityDrawOpen ? [{ id: "draw", label: "Draw" }] : []),
       ...(this.utilityStyleLayerUid ? [{ id: "style", label: `Style: ${this.mapController.findLayer(this.utilityStyleLayerUid)?.title || "Layer"}` }] : []),
       ...(this.utilityIntelligenceOpen ? [{ id: "intelligence", label: "Intelligence" }] : []),
@@ -503,6 +525,12 @@ export class UIController {
   }
 
   #closeUtilityTab(tabId) {
+    if (tabId === "dialog") {
+      this.utilityDialogOpen = false;
+      this.dialog.close();
+      this.#syncUtilityPanel();
+      return;
+    }
     if (tabId === "intelligence") {
       this.utilityIntelligenceOpen = false;
       document.querySelector("#intelligence-panel").hidden = false;
@@ -1983,14 +2011,37 @@ export class UIController {
     container.innerHTML = layers.length
       ? layers.map((layer) => {
         const config = this.mapController.getLayerConfig(layer);
+        const scaleMessage = this.#layerScaleMessage(layer);
         return `<article class="layer-card" data-layer-uid="${escapeHtml(layer.uid)}">
           <div class="layer-card__head"><label class="layer-toggle"><input type="checkbox" data-layer-visible ${layer.visible ? "checked" : ""} /><span></span></label><div><strong title="${escapeHtml(layer.title)}">${escapeHtml(layer.title)}</strong><small>${escapeHtml(config.sourceType)}${config.definitionExpression ? " · Filtered" : ""}${config.refreshInterval ? ` · ${config.refreshInterval}m refresh` : ""}</small></div><button data-layer-action="remove" title="Remove layer">×</button></div>
+          <div class="layer-scale-note" data-layer-scale-note ${scaleMessage ? "" : "hidden"}>${escapeHtml(scaleMessage || "")}</div>
           <label class="opacity-row"><span>Opacity</span><input data-layer-opacity type="range" min="0" max="1" step="0.05" value="${layer.opacity}" /><output>${Math.round(layer.opacity * 100)}%</output></label>
           <div class="layer-card__actions"><button data-layer-action="zoom">Zoom</button><button data-layer-action="table">Table</button><button data-layer-action="filter">Filter</button><button data-layer-action="export" ${exportable.has(layer.uid) ? "" : "disabled title=\"This layer is not queryable\""}>Export</button><button data-layer-action="style">Style</button><button data-layer-action="refresh">Refresh</button></div>
         </article>`;
       }).join("")
       : '<div class="empty-state">Add a file or service from the Data menu.</div>';
     container.querySelectorAll(".layer-card").forEach((card) => this.#bindLayerCard(card));
+  }
+
+  #layerScaleMessage(layer) {
+    if (!layer?.visible || !this.mapController.view) return "";
+    const scale = Number(this.mapController.view.scale);
+    const minScale = Number(layer.minScale) || 0;
+    const maxScale = Number(layer.maxScale) || 0;
+    const formatScale = (value) => `1:${Math.round(value).toLocaleString()}`;
+    if (minScale && scale > minScale) return `Not visible at this scale · zoom in to ${formatScale(minScale)}`;
+    if (maxScale && scale < maxScale) return `Not visible at this scale · zoom out to ${formatScale(maxScale)}`;
+    return "";
+  }
+
+  #updateLayerScaleIndicators() {
+    document.querySelectorAll(".layer-card[data-layer-uid]").forEach((card) => {
+      const note = card.querySelector("[data-layer-scale-note]");
+      const message = this.#layerScaleMessage(this.mapController.findLayer(card.dataset.layerUid));
+      if (!note) return;
+      note.textContent = message;
+      note.hidden = !message;
+    });
   }
 
   #bindLayerCard(card) {

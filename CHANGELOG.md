@@ -6,6 +6,17 @@ All notable changes to GIS Map Online are documented here. This project follows
 
 ## [Unreleased]
 
+## [0.15.37] - 2026-10-07
+
+### Fixed
+
+- Dock dialogs through the existing workspace-panel host and suppress the delayed close event that previously moved them back out of the panel.
+- Load the wildfire example from its two explicit feature-layer endpoints when root service discovery is temporarily unavailable.
+
+### Added
+
+- Show a live layer-card notice when a visible layer is outside its configured scale range, including whether to zoom in or out and the target scale.
+
 ## [0.15.36] - 2026-10-07
 
 ### Fixed
@@ -505,7 +516,8 @@ All notable changes to GIS Map Online are documented here. This project follows
 - Prevented search suggestions from remaining open after selection.
 - Reduced map and panel flicker during feature identification.
 
-[Unreleased]: https://github.com/geolibrerian/gismap/compare/v0.15.36...HEAD
+[Unreleased]: https://github.com/geolibrerian/gismap/compare/v0.15.37...HEAD
+[0.15.37]: https://github.com/geolibrerian/gismap/compare/v0.15.36...v0.15.37
 [0.15.36]: https://github.com/geolibrerian/gismap/compare/v0.15.35...v0.15.36
 [0.15.35]: https://github.com/geolibrerian/gismap/compare/v0.15.34...v0.15.35
 [0.15.34]: https://github.com/geolibrerian/gismap/compare/v0.15.33...v0.15.34
