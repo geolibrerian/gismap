@@ -1,8 +1,8 @@
-import { POPULAR_SERVICES } from "./catalog.js?v=0.15.29";
-import { ENTERPRISE_CATALOGS, EnterpriseCatalog, normalizeArcGisDirectoryUrl } from "./enterprise-catalog.js?v=0.15.29";
-import { createShareUrl } from "./share.js?v=0.15.29";
-import { markdownToPlainText, renderMarkdown } from "./markdown.js?v=0.15.29";
-import { formatAttributeValue } from "./attribute-format.js?v=0.15.29";
+import { POPULAR_SERVICES } from "./catalog.js?v=0.15.30";
+import { ENTERPRISE_CATALOGS, EnterpriseCatalog, normalizeArcGisDirectoryUrl } from "./enterprise-catalog.js?v=0.15.30";
+import { createShareUrl } from "./share.js?v=0.15.30";
+import { markdownToPlainText, renderMarkdown } from "./markdown.js?v=0.15.30";
+import { formatAttributeValue } from "./attribute-format.js?v=0.15.30";
 
 const DISPLAY_SETTINGS_KEY = "gismap-online:display:v1";
 const INSIGHT_POSITIONS = new Set(["upper-left", "lower-left", "bottom", "dock-left", "dock-right", "dock-top", "dock-bottom"]);
@@ -47,6 +47,7 @@ export class UIController {
     this.utilityStyleLayerUid = null;
     this.activeUtilityTab = null;
     this.utilityModalPane = null;
+    this.presentationSearchTimer = null;
     this.presentationState = { template: "standard", records: [], visibleRecords: [], selected: null, layerUid: null, search: "", category: "" };
     this.keepWelcomeForSharedExample = new URLSearchParams(location.search).has("example");
     this.systemThemeMedia = matchMedia("(prefers-color-scheme: dark)");
@@ -1634,7 +1635,11 @@ export class UIController {
       const dateField = fields.dates[0];
       root.innerHTML = `<section class="mode-dashboard"><header><span class="eyebrow">${escapeHtml(template)}</span><h2>${escapeHtml(presentation.title || layer.title || "Map data")}</h2><p>${records.length} loaded records · ${dateField ? `timeline field: ${escapeHtml(dateField.alias || dateField.name)}` : "No date field is available for a timeline."}</p></header><div class="mode-records">${records.map((record, index) => `<button type="button" class="mode-record${record === selected ? " is-selected" : ""}" data-mode-record="${index}"><strong>${escapeHtml(this.#recordLabel(record, fields))}</strong></button>`).join("")}</div><aside class="mode-details"><span class="eyebrow">Selected feature</span>${selected ? `<h3>${escapeHtml(this.#recordLabel(selected, fields))}</h3><dl>${selectedDetails.map(([key, value]) => `<div><dt>${escapeHtml(key)}</dt><dd>${escapeHtml(formatAttributeValue(value, fields.fields.find((field) => field.name === key), key))}</dd></div>`).join("")}</dl>` : "<p>Select a feature to view source attributes.</p>"}</aside></section>`;
     }
-    root.querySelector("[data-mode-search]")?.addEventListener("input", (event) => { this.presentationState.search = event.target.value; this.#filterPresentationRecords(); });
+    root.querySelector("[data-mode-search]")?.addEventListener("input", (event) => {
+      this.presentationState.search = event.target.value;
+      clearTimeout(this.presentationSearchTimer);
+      this.presentationSearchTimer = setTimeout(() => this.#filterPresentationRecords(), 180);
+    });
     root.querySelector("[data-mode-category]")?.addEventListener("change", (event) => { this.presentationState.category = event.target.value; this.#filterPresentationRecords(); });
     root.querySelector("[data-mode-clear]")?.addEventListener("click", () => { this.presentationState.search = ""; this.presentationState.category = ""; this.#filterPresentationRecords(); });
     root.querySelectorAll("[data-mode-category-value]").forEach((button) => button.addEventListener("click", () => { this.presentationState.category = button.dataset.modeCategoryValue; this.#filterPresentationRecords(); }));
@@ -1690,6 +1695,7 @@ export class UIController {
       delete panel.dataset.presentationHidden;
     });
     if (template === "standard") {
+      clearTimeout(this.presentationSearchTimer);
       context?.remove();
       dashboard.replaceChildren();
       dashboard.hidden = true;
@@ -1700,48 +1706,8 @@ export class UIController {
     }
     if (welcomePanel) welcomePanel.hidden = true;
     this.presentationState.template = template;
-    if (!context) {
-      context = document.createElement("section");
-      context.id = "presentation-context";
-      context.className = "presentation-context";
-      context.setAttribute("aria-live", "polite");
-      document.querySelector(".sidebar__scroll")?.prepend(context);
-    }
-    const copy = {
-      briefing: {
-        label: "Briefing",
-        title: "Situation briefing",
-        description: "Selected locations, mapped events, and their source details stay together for a focused readout.",
-      },
-      explorer: {
-        label: "Explorer",
-        title: "Explore the data",
-        description: "Search a place, filter a layer, and compare its records without the authoring tools getting in the way.",
-      },
-      atlas: {
-        label: "Atlas",
-        title: "Guided places",
-        description: "Use saved views and map layers to move through a place-based story at your own pace.",
-      },
-    }[template];
-    context.innerHTML = `<span class="eyebrow">${copy.label}</span><strong>${escapeHtml(presentation.title || copy.title)}</strong><p>${copy.description}</p>`;
-    const panels = {
-      briefing: ["intelligence-panel", "layers-panel"],
-      explorer: ["layers-panel", "places-panel"],
-      atlas: ["bookmarks-panel", "layers-panel"],
-    }[template] || [];
-    panels.forEach((id) => {
-      const panel = document.querySelector(`#${id}`);
-      if (panel) panel.open = true;
-    });
-    const hiddenPanels = {
-      briefing: ["bookmarks-panel", "draw-panel"],
-      explorer: ["bookmarks-panel", "draw-panel", "intelligence-panel"],
-      atlas: ["draw-panel", "intelligence-panel"],
-    }[template] || [];
-    hiddenPanels.forEach((id) => {
-      const panel = document.querySelector(`#${id}`);
-      if (!panel) return;
+    context?.remove();
+    document.querySelectorAll(".sidebar__scroll > .panel").forEach((panel) => {
       panel.dataset.presentationHidden = "true";
       panel.hidden = true;
     });

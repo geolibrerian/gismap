@@ -6,6 +6,12 @@ All notable changes to GIS Map Online are documented here. This project follows
 
 ## [Unreleased]
 
+## [0.15.30] - 2026-10-07
+
+### Fixed
+
+- Made presentation dashboards exclusively own the sidebar, removed duplicate presentation banners, and debounced Explorer search rendering so typing retains input focus.
+
 ## [0.15.29] - 2026-10-07
 
 ### Added
@@ -462,7 +468,8 @@ All notable changes to GIS Map Online are documented here. This project follows
 - Prevented search suggestions from remaining open after selection.
 - Reduced map and panel flicker during feature identification.
 
-[Unreleased]: https://github.com/geolibrerian/gismap/compare/v0.15.29...HEAD
+[Unreleased]: https://github.com/geolibrerian/gismap/compare/v0.15.30...HEAD
+[0.15.30]: https://github.com/geolibrerian/gismap/compare/v0.15.29...v0.15.30
 [0.15.29]: https://github.com/geolibrerian/gismap/compare/v0.15.28...v0.15.29
 [0.15.28]: https://github.com/geolibrerian/gismap/compare/v0.15.27...v0.15.28
 [0.15.27]: https://github.com/geolibrerian/gismap/compare/v0.15.26...v0.15.27
