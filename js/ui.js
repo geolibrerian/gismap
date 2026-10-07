@@ -1,8 +1,8 @@
-import { POPULAR_SERVICES } from "./catalog.js?v=0.15.37";
-import { ENTERPRISE_CATALOGS, EnterpriseCatalog, normalizeArcGisDirectoryUrl } from "./enterprise-catalog.js?v=0.15.37";
-import { createShareUrl } from "./share.js?v=0.15.37";
-import { markdownToPlainText, renderMarkdown } from "./markdown.js?v=0.15.37";
-import { formatAttributeValue } from "./attribute-format.js?v=0.15.37";
+import { POPULAR_SERVICES } from "./catalog.js?v=0.15.38";
+import { ENTERPRISE_CATALOGS, EnterpriseCatalog, normalizeArcGisDirectoryUrl } from "./enterprise-catalog.js?v=0.15.38";
+import { createShareUrl } from "./share.js?v=0.15.38";
+import { markdownToPlainText, renderMarkdown } from "./markdown.js?v=0.15.38";
+import { formatAttributeValue } from "./attribute-format.js?v=0.15.38";
 
 const DISPLAY_SETTINGS_KEY = "gismap-online:display:v1";
 const INSIGHT_POSITIONS = new Set(["upper-left", "lower-left", "bottom", "dock-left", "dock-right", "dock-top", "dock-bottom"]);
@@ -288,6 +288,8 @@ export class UIController {
     document.querySelector("#project-file-input").addEventListener("change", (event) => this.#importProject(event));
     document.querySelector("#data-file-input").addEventListener("change", (event) => this.#addFiles(event));
     document.querySelector("#tool-file-input").addEventListener("change", (event) => this.#loadTool(event));
+    document.querySelector("#atlas-chapter-previous")?.addEventListener("click", () => this.#stepAtlasChapter(-1));
+    document.querySelector("#atlas-chapter-next")?.addEventListener("click", () => this.#stepAtlasChapter(1));
   }
 
   #bindMapEvents() {
@@ -1685,10 +1687,16 @@ export class UIController {
       const chapters = presentation.chapters || [];
       const playing = Boolean(this.presentationState.atlasPlaying);
       root.innerHTML = `<section class="mode-dashboard mode-dashboard--atlas"><header><span class="eyebrow">Atlas · ${this.presentationState.atlasPresent ? "present" : "edit"} mode</span><h2>${escapeHtml(presentation.title || "Guided places")}</h2><p>Capture map views as chapters, then use them as a durable, shareable sequence in this project.</p></header><div class="atlas-actions"><button type="button" data-atlas-capture ${this.presentationState.atlasPresent ? "hidden" : ""}>Add current view</button><button type="button" data-atlas-mode>${this.presentationState.atlasPresent ? "Edit chapters" : "Present atlas"}</button>${this.presentationState.atlasPresent && chapters.length > 1 ? `<button type="button" data-atlas-play>${playing ? "Stop story" : "Play story"}</button>` : ""}</div><div class="mode-records">${chapters.map((chapter, index) => `<article class="atlas-chapter"><button type="button" data-atlas-go="${index}"><span>${index + 1}</span><strong>${escapeHtml(chapter.title || `Chapter ${index + 1}`)}</strong><small>${escapeHtml(chapter.body || "Saved map view")}${chapter.basemapId ? ` · ${escapeHtml(this.#basemapLabel(chapter.basemapId))}` : ""}${chapter.lingerSeconds ? ` · ${chapter.lingerSeconds}s` : ""}</small></button>${this.presentationState.atlasPresent ? "" : `<div><button type="button" data-atlas-rename="${index}">Edit</button><button type="button" data-atlas-delete="${index}">Delete</button></div>`}</article>`).join("") || "<p class=\"form-note\">No chapters yet. Add the current map view to begin the atlas.</p>"}</div></section>`;
-      root.querySelector("[data-atlas-mode]")?.addEventListener("click", () => { this.#stopAtlasStory(); this.presentationState.atlasPresent = !this.presentationState.atlasPresent; this.#renderPresentationDashboard(presentation); });
+      root.querySelector("[data-atlas-mode]")?.addEventListener("click", async () => {
+        this.#stopAtlasStory();
+        this.presentationState.atlasPresent = !this.presentationState.atlasPresent;
+        this.#renderPresentationDashboard(presentation);
+        if (this.presentationState.atlasPresent && chapters.length) await this.#goToAtlasChapter(chapters[0], 0, chapters);
+        else this.#hideAtlasChapterOverlay();
+      });
       root.querySelector("[data-atlas-capture]")?.addEventListener("click", () => this.#captureAtlasChapter());
       root.querySelector("[data-atlas-play]")?.addEventListener("click", () => playing ? this.#stopAtlasStory() : this.#playAtlasStory(chapters));
-      root.querySelectorAll("[data-atlas-go]").forEach((button) => button.addEventListener("click", () => this.#goToAtlasChapter(chapters[Number(button.dataset.atlasGo)])));
+      root.querySelectorAll("[data-atlas-go]").forEach((button) => button.addEventListener("click", () => { const index = Number(button.dataset.atlasGo); this.#goToAtlasChapter(chapters[index], index, chapters); }));
       root.querySelectorAll("[data-atlas-delete]").forEach((button) => button.addEventListener("click", () => this.#saveAtlasChapters(chapters.filter((_, index) => index !== Number(button.dataset.atlasDelete)))));
       root.querySelectorAll("[data-atlas-rename]").forEach((button) => button.addEventListener("click", () => this.#editAtlasChapter(chapters, Number(button.dataset.atlasRename))));
       return;
@@ -1722,6 +1730,7 @@ export class UIController {
       id: crypto.randomUUID?.() || `chapter-${Date.now()}`,
       title: `Chapter ${chapters.length + 1}`,
       body: "Saved map view",
+      viewState: this.mapController.getViewState(),
       viewpoint: view.viewpoint?.toJSON?.() || null,
       basemapId: this.mapController.getBasemapId(),
       lingerSeconds: 4,
@@ -1735,11 +1744,46 @@ export class UIController {
     this.openDialog({ eyebrow: "Atlas chapter", title: "Edit chapter", content: `<label class="field"><span>Title</span><input id="atlas-chapter-title" value="${escapeHtml(chapter.title || "")}" /></label><label class="field"><span>Text</span><textarea id="atlas-chapter-body">${escapeHtml(chapter.body || "")}</textarea></label><label class="field"><span>Basemap</span><select id="atlas-chapter-basemap">${basemapOptions}</select></label><label class="field"><span>Linger (seconds)</span><input id="atlas-chapter-linger" type="number" min="1" max="120" step="1" value="${Number(chapter.lingerSeconds) || 4}" /></label>`, actions: [{ label: "Save", primary: true, handler: () => { const lingerSeconds = Math.min(120, Math.max(1, Number(this.dialog.querySelector("#atlas-chapter-linger").value) || 4)); const next = chapters.map((item, itemIndex) => itemIndex === index ? { ...item, title: this.dialog.querySelector("#atlas-chapter-title").value.trim() || `Chapter ${index + 1}`, body: this.dialog.querySelector("#atlas-chapter-body").value.trim(), basemapId: this.dialog.querySelector("#atlas-chapter-basemap").value, lingerSeconds } : item); this.#saveAtlasChapters(next); this.dialog.close(); } }] });
   }
 
-  async #goToAtlasChapter(chapter) {
+  async #goToAtlasChapter(chapter, index = null, chapters = this.projectManager.current.presentation?.chapters || []) {
     if (!chapter) return;
     if (chapter.basemapId && BASEMAP_IDS.has(chapter.basemapId)) this.mapController.setBasemap(chapter.basemapId);
     this.mapController.getOperationalLayers().forEach((layer) => { layer.visible = !chapter.visibleLayerIds || chapter.visibleLayerIds.includes(layer.uid); });
-    if (chapter.viewpoint) await this.mapController.view?.goTo?.(chapter.viewpoint, { animate: !matchMedia("(prefers-reduced-motion: reduce)").matches });
+    const animate = !matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const state = chapter.viewState;
+    if (state?.camera) await this.mapController.view?.goTo?.(state.camera, { animate });
+    else if (state?.center) await this.mapController.view?.goTo?.({ center: state.center, zoom: state.zoom, heading: state.heading ?? 0, tilt: state.tilt ?? 0 }, { animate });
+    else if (chapter.viewpoint) await this.mapController.view?.goTo?.(chapter.viewpoint, { animate });
+    const chapterIndex = Number.isInteger(index) ? index : chapters.indexOf(chapter);
+    this.#showAtlasChapterOverlay(chapter, chapterIndex, chapters);
+  }
+
+  #showAtlasChapterOverlay(chapter, index, chapters) {
+    const overlay = document.querySelector("#atlas-chapter-overlay");
+    if (!overlay || !chapter || index < 0) return;
+    this.presentationState.atlasChapterIndex = index;
+    document.querySelector("#atlas-chapter-position").textContent = `Chapter ${index + 1} of ${chapters.length}`;
+    document.querySelector("#atlas-chapter-title").textContent = chapter.title || `Chapter ${index + 1}`;
+    const message = document.querySelector("#atlas-chapter-message");
+    message.textContent = chapter.body || "";
+    message.hidden = !chapter.body;
+    document.querySelector("#atlas-chapter-previous").disabled = index <= 0;
+    document.querySelector("#atlas-chapter-next").disabled = index >= chapters.length - 1;
+    overlay.hidden = false;
+  }
+
+  #hideAtlasChapterOverlay() {
+    const overlay = document.querySelector("#atlas-chapter-overlay");
+    if (overlay) overlay.hidden = true;
+    this.presentationState.atlasChapterIndex = null;
+  }
+
+  async #stepAtlasChapter(direction) {
+    const chapters = this.projectManager.current.presentation?.chapters || [];
+    if (!chapters.length) return;
+    this.#stopAtlasStory();
+    const current = Number.isInteger(this.presentationState.atlasChapterIndex) ? this.presentationState.atlasChapterIndex : 0;
+    const index = Math.max(0, Math.min(chapters.length - 1, current + direction));
+    await this.#goToAtlasChapter(chapters[index], index, chapters);
   }
 
   #basemapLabel(id) {
@@ -1757,9 +1801,9 @@ export class UIController {
     const token = ++this.atlasPlaybackToken;
     this.presentationState.atlasPlaying = true;
     this.#renderPresentationDashboard(this.projectManager.current.presentation || {});
-    for (const chapter of chapters) {
+    for (const [index, chapter] of chapters.entries()) {
       if (token !== this.atlasPlaybackToken) return;
-      await this.#goToAtlasChapter(chapter);
+      await this.#goToAtlasChapter(chapter, index, chapters);
       if (token !== this.atlasPlaybackToken) return;
       await new Promise((resolve) => setTimeout(resolve, (Math.min(120, Math.max(1, Number(chapter.lingerSeconds) || 4))) * 1000));
     }
@@ -1793,10 +1837,12 @@ export class UIController {
       dashboard.hidden = true;
       this.presentationState = { template: "standard", records: [], visibleRecords: [], selected: null, layerUid: null, search: "", category: "" };
       this.mapController.clearFeatureHighlight();
+      this.#hideAtlasChapterOverlay();
       if (welcomePanel) welcomePanel.hidden = welcomePanel.dataset.dismissed === "true";
       return;
     }
     if (welcomePanel) welcomePanel.hidden = true;
+    if (template !== "atlas") this.#hideAtlasChapterOverlay();
     this.presentationState.template = template;
     context?.remove();
     document.querySelectorAll(".sidebar__scroll > .panel").forEach((panel) => {

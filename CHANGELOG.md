@@ -6,6 +6,13 @@ All notable changes to GIS Map Online are documented here. This project follows
 
 ## [Unreleased]
 
+## [0.15.38] - 2026-10-07
+
+### Added
+
+- Save an explicit Atlas camera snapshot for every new chapter, including center coordinates, zoom, heading, tilt, and camera position, while retaining support for older viewpoint-only chapters.
+- Show the active Atlas chapter title and message over the map with previous and next chapter controls during manual navigation and story playback.
+
 ## [0.15.37] - 2026-10-07
 
 ### Fixed
@@ -516,7 +523,8 @@ All notable changes to GIS Map Online are documented here. This project follows
 - Prevented search suggestions from remaining open after selection.
 - Reduced map and panel flicker during feature identification.
 
-[Unreleased]: https://github.com/geolibrerian/gismap/compare/v0.15.37...HEAD
+[Unreleased]: https://github.com/geolibrerian/gismap/compare/v0.15.38...HEAD
+[0.15.38]: https://github.com/geolibrerian/gismap/compare/v0.15.37...v0.15.38
 [0.15.37]: https://github.com/geolibrerian/gismap/compare/v0.15.36...v0.15.37
 [0.15.36]: https://github.com/geolibrerian/gismap/compare/v0.15.35...v0.15.36
 [0.15.35]: https://github.com/geolibrerian/gismap/compare/v0.15.34...v0.15.35

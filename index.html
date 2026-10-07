@@ -53,7 +53,7 @@
     <link rel="icon" href="./assets/gis-map-online-mark-v2.png" type="image/png" />
     <link rel="preconnect" href="https://js.arcgis.com" />
     <link rel="stylesheet" href="https://js.arcgis.com/5.0/esri/themes/light/main.css" />
-    <link rel="stylesheet" href="./css/app.css?v=0.15.37" />
+    <link rel="stylesheet" href="./css/app.css?v=0.15.38" />
     <script type="module" src="https://js.arcgis.com/5.0/"></script>
     <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
     <script src="https://unpkg.com/@mapbox/shp-write@0.4.3/shpwrite.js"></script>
@@ -214,6 +214,17 @@
           </div>
           <p class="welcome-panel__resources"><a href="/examples/">Browse public GIS examples</a> · <a href="/guides/">Read viewer guides</a></p>
         </section>
+        <aside id="atlas-chapter-overlay" class="atlas-chapter-overlay" hidden aria-live="polite">
+          <div class="atlas-chapter-overlay__copy">
+            <span id="atlas-chapter-position" class="eyebrow">Atlas chapter</span>
+            <h2 id="atlas-chapter-title">Chapter</h2>
+            <p id="atlas-chapter-message"></p>
+          </div>
+          <nav class="atlas-chapter-overlay__navigation" aria-label="Atlas chapter navigation">
+            <button id="atlas-chapter-previous" type="button" aria-label="Previous chapter">← <span>Back</span></button>
+            <button id="atlas-chapter-next" type="button" aria-label="Next chapter"><span>Next</span> →</button>
+          </nav>
+        </aside>
         <button
           id="sidebar-open"
           class="map-button sidebar__open"
@@ -303,6 +314,6 @@
     <input id="tool-file-input" type="file" accept=".js,.mjs" hidden />
 
     <noscript>GIS Map Online requires JavaScript.</noscript>
-    <script type="module" src="./js/app.js?v=0.15.37"></script>
+    <script type="module" src="./js/app.js?v=0.15.38"></script>
   </body>
 </html>
