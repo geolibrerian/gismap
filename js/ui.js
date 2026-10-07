@@ -1,8 +1,8 @@
-import { POPULAR_SERVICES } from "./catalog.js?v=0.15.25";
-import { ENTERPRISE_CATALOGS, EnterpriseCatalog, normalizeArcGisDirectoryUrl } from "./enterprise-catalog.js?v=0.15.25";
-import { createShareUrl } from "./share.js?v=0.15.25";
-import { markdownToPlainText, renderMarkdown } from "./markdown.js?v=0.15.25";
-import { formatAttributeValue } from "./attribute-format.js?v=0.15.25";
+import { POPULAR_SERVICES } from "./catalog.js?v=0.15.26";
+import { ENTERPRISE_CATALOGS, EnterpriseCatalog, normalizeArcGisDirectoryUrl } from "./enterprise-catalog.js?v=0.15.26";
+import { createShareUrl } from "./share.js?v=0.15.26";
+import { markdownToPlainText, renderMarkdown } from "./markdown.js?v=0.15.26";
+import { formatAttributeValue } from "./attribute-format.js?v=0.15.26";
 
 const DISPLAY_SETTINGS_KEY = "gismap-online:display:v1";
 const INSIGHT_POSITIONS = new Set(["upper-left", "lower-left", "bottom", "dock-left", "dock-right", "dock-top", "dock-bottom"]);
@@ -1510,24 +1510,49 @@ export class UIController {
     app.dataset.presentation = template;
     app.dataset.presentationSkin = presentation.skin || "clean-light";
     document.body.dataset.presentation = template;
-    let bar = document.querySelector("#presentation-status");
-    if (!bar) {
-      bar = document.createElement("section");
-      bar.id = "presentation-status";
-      bar.setAttribute("aria-live", "polite");
-      document.querySelector(".map-workspace")?.prepend(bar);
-    }
+    document.querySelector("#presentation-status")?.remove();
+    const welcomePanel = document.querySelector("#welcome-panel");
+    let context = document.querySelector("#presentation-context");
     if (template === "standard") {
-      bar.hidden = true;
+      context?.remove();
+      if (welcomePanel) welcomePanel.hidden = welcomePanel.dataset.dismissed === "true";
       return;
     }
+    if (welcomePanel) welcomePanel.hidden = true;
+    if (!context) {
+      context = document.createElement("section");
+      context.id = "presentation-context";
+      context.className = "presentation-context";
+      context.setAttribute("aria-live", "polite");
+      document.querySelector(".sidebar__scroll")?.prepend(context);
+    }
     const copy = {
-      briefing: ["Briefing", "Events, sources, and selected-feature context"],
-      explorer: ["Explorer", "Search, filter, and compare mapped records"],
-      atlas: ["Atlas", "Guided places and project stories"],
+      briefing: {
+        label: "Briefing",
+        title: "Situation briefing",
+        description: "Selected locations, mapped events, and their source details stay together for a focused readout.",
+      },
+      explorer: {
+        label: "Explorer",
+        title: "Explore the data",
+        description: "Search a place, filter a layer, and compare its records without the authoring tools getting in the way.",
+      },
+      atlas: {
+        label: "Atlas",
+        title: "Guided places",
+        description: "Use saved views and map layers to move through a place-based story at your own pace.",
+      },
     }[template];
-    bar.hidden = false;
-    bar.innerHTML = `<span class="eyebrow">Presentation</span><strong>${copy[0]}</strong><small>${escapeHtml(presentation.title || copy[1])}</small>`;
+    context.innerHTML = `<span class="eyebrow">${copy.label}</span><strong>${escapeHtml(presentation.title || copy.title)}</strong><p>${copy.description}</p>`;
+    const panels = {
+      briefing: ["intelligence-panel", "layers-panel"],
+      explorer: ["layers-panel", "places-panel"],
+      atlas: ["bookmarks-panel", "layers-panel"],
+    }[template] || [];
+    panels.forEach((id) => {
+      const panel = document.querySelector(`#${id}`);
+      if (panel) panel.open = true;
+    });
   }
 
   #presentationDialog() {
