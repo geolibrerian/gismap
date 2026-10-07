@@ -1,8 +1,8 @@
-import { POPULAR_SERVICES } from "./catalog.js?v=0.15.30";
-import { ENTERPRISE_CATALOGS, EnterpriseCatalog, normalizeArcGisDirectoryUrl } from "./enterprise-catalog.js?v=0.15.30";
-import { createShareUrl } from "./share.js?v=0.15.30";
-import { markdownToPlainText, renderMarkdown } from "./markdown.js?v=0.15.30";
-import { formatAttributeValue } from "./attribute-format.js?v=0.15.30";
+import { POPULAR_SERVICES } from "./catalog.js?v=0.15.31";
+import { ENTERPRISE_CATALOGS, EnterpriseCatalog, normalizeArcGisDirectoryUrl } from "./enterprise-catalog.js?v=0.15.31";
+import { createShareUrl } from "./share.js?v=0.15.31";
+import { markdownToPlainText, renderMarkdown } from "./markdown.js?v=0.15.31";
+import { formatAttributeValue } from "./attribute-format.js?v=0.15.31";
 
 const DISPLAY_SETTINGS_KEY = "gismap-online:display:v1";
 const INSIGHT_POSITIONS = new Set(["upper-left", "lower-left", "bottom", "dock-left", "dock-right", "dock-top", "dock-bottom"]);
@@ -47,6 +47,7 @@ export class UIController {
     this.utilityStyleLayerUid = null;
     this.activeUtilityTab = null;
     this.utilityModalPane = null;
+    this.dialogRepositioning = false;
     this.presentationSearchTimer = null;
     this.presentationState = { template: "standard", records: [], visibleRecords: [], selected: null, layerUid: null, search: "", category: "" };
     this.keepWelcomeForSharedExample = new URLSearchParams(location.search).has("example");
@@ -267,11 +268,17 @@ export class UIController {
       if (!event.target.closest(".place-search-combobox")) this.#clearSearchResults();
     });
     document.querySelector("#bookmark-add").addEventListener("click", () => this.#addBookmark());
-    this.dialog.addEventListener("close", () => { this.exportController.cancel(); this.#restoreUtilityModal(); });
+    this.dialog.addEventListener("close", () => {
+      if (!this.dialogRepositioning) {
+        this.exportController.cancel();
+        this.#restoreUtilityModal();
+      }
+    });
     document.querySelector("#dialog-dock").addEventListener("click", () => {
       const docked = this.dialog.classList.toggle("app-dialog--docked");
       document.querySelector("#dialog-dock").setAttribute("aria-label", docked ? "Return dialog to the center" : "Move dialog to the right panel");
       document.querySelector("#dialog-dock").textContent = docked ? "↙" : "↗";
+      this.#reopenDialog(docked);
     });
     document.querySelector("#utility-open-modal").addEventListener("click", () => this.#openUtilityAsModal());
     document.querySelector("#project-file-input").addEventListener("change", (event) => this.#importProject(event));
@@ -405,6 +412,15 @@ export class UIController {
     footer.append(restore);
     this.dialog.classList.remove("app-dialog--docked");
     if (!this.dialog.open) this.dialog.showModal();
+  }
+
+  #reopenDialog(docked) {
+    if (!this.dialog.open) return;
+    this.dialogRepositioning = true;
+    this.dialog.close();
+    this.dialogRepositioning = false;
+    if (docked) this.dialog.show();
+    else this.dialog.showModal();
   }
 
   #restoreUtilityModal() {

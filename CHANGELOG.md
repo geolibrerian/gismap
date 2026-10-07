@@ -6,6 +6,12 @@ All notable changes to GIS Map Online are documented here. This project follows
 
 ## [Unreleased]
 
+## [0.15.31] - 2026-10-07
+
+### Fixed
+
+- Reopen docked dialogs as non-modal panels, leaving the map and the rest of the workspace interactive while a dialog is docked.
+
 ## [0.15.30] - 2026-10-07
 
 ### Fixed
@@ -468,7 +474,8 @@ All notable changes to GIS Map Online are documented here. This project follows
 - Prevented search suggestions from remaining open after selection.
 - Reduced map and panel flicker during feature identification.
 
-[Unreleased]: https://github.com/geolibrerian/gismap/compare/v0.15.30...HEAD
+[Unreleased]: https://github.com/geolibrerian/gismap/compare/v0.15.31...HEAD
+[0.15.31]: https://github.com/geolibrerian/gismap/compare/v0.15.30...v0.15.31
 [0.15.30]: https://github.com/geolibrerian/gismap/compare/v0.15.29...v0.15.30
 [0.15.29]: https://github.com/geolibrerian/gismap/compare/v0.15.28...v0.15.29
 [0.15.28]: https://github.com/geolibrerian/gismap/compare/v0.15.27...v0.15.28
