@@ -1,15 +1,16 @@
-import { events } from "./events.js?v=0.15.39";
-import { AuthController } from "./auth.js?v=0.15.39";
-import { MapController } from "./map.js?v=0.15.39";
-import { ProjectManager } from "./project.js?v=0.15.39";
-import { IdentifyController } from "./identify.js?v=0.15.39";
-import { AttributeTableController } from "./attribute-table.js?v=0.15.39";
-import { AIController } from "./ai.js?v=0.15.39";
-import { ToolManager } from "./tool-manager.js?v=0.15.39";
-import { UIController } from "./ui.js?v=0.15.39";
-import { ExportController } from "./export/export-controller.js?v=0.15.39";
-import { parseShareParameters } from "./share.js?v=0.15.39";
-import { POPULAR_SERVICES } from "./catalog.js?v=0.15.39";
+import { events } from "./events.js?v=0.15.40";
+import { AuthController } from "./auth.js?v=0.15.40";
+import { MapController } from "./map.js?v=0.15.40";
+import { ProjectManager } from "./project.js?v=0.15.40";
+import { IdentifyController } from "./identify.js?v=0.15.40";
+import { AttributeTableController } from "./attribute-table.js?v=0.15.40";
+import { AIController } from "./ai.js?v=0.15.40";
+import { ToolManager } from "./tool-manager.js?v=0.15.40";
+import { UIController } from "./ui.js?v=0.15.40";
+import { ExportController } from "./export/export-controller.js?v=0.15.40";
+import { parseShareParameters } from "./share.js?v=0.15.40";
+import { POPULAR_SERVICES } from "./catalog.js?v=0.15.40";
+import { ApplicationRuntime } from "./application-runtime.js?v=0.15.40";
 
 async function loadSharedLayer(mapController, config) {
   const rootUrl = config.url.replace(/\/+$/, "");
@@ -40,6 +41,7 @@ async function start() {
   const toolManager = new ToolManager(events, mapController);
   const tableController = new AttributeTableController(events, mapController);
   const exportController = new ExportController(events, mapController);
+  const applicationRuntime = new ApplicationRuntime({ events, mapController, projectManager, aiController });
   const uiController = new UIController(
     events,
     mapController,
@@ -48,10 +50,12 @@ async function start() {
     aiController,
     toolManager,
     exportController,
+    applicationRuntime,
   );
 
   identifyController.initialize();
   tableController.initialize();
+  applicationRuntime.initialize();
   uiController.initialize();
   await mapController.initialize();
   events.publish("project:loaded", { project: projectManager.current, missingFiles: [] });
@@ -86,6 +90,16 @@ async function start() {
     getProject: () => projectManager.snapshot(),
     getConnections: () => authController.list(),
     exportData: (options) => exportController.exportLayer(options),
+    application: Object.freeze({
+      getState: () => applicationRuntime.state.value,
+      getConfig: () => applicationRuntime.snapshot(),
+      listPanels: () => applicationRuntime.panels.list(),
+      listTools: () => applicationRuntime.tools.list(),
+      runTool: (id, input, options) => applicationRuntime.runTool(id, input, options),
+      plan: (prompt) => applicationRuntime.planRequest(prompt),
+      previewPlan: (plan) => applicationRuntime.previewPlan(plan),
+      undo: () => applicationRuntime.undo(),
+    }),
   });
 }
 

@@ -1,8 +1,9 @@
-import { POPULAR_SERVICES } from "./catalog.js?v=0.15.39";
-import { ENTERPRISE_CATALOGS, EnterpriseCatalog, normalizeArcGisDirectoryUrl } from "./enterprise-catalog.js?v=0.15.39";
-import { createShareUrl } from "./share.js?v=0.15.39";
-import { markdownToPlainText, renderMarkdown } from "./markdown.js?v=0.15.39";
-import { formatAttributeValue } from "./attribute-format.js?v=0.15.39";
+import { POPULAR_SERVICES } from "./catalog.js?v=0.15.40";
+import { ENTERPRISE_CATALOGS, EnterpriseCatalog, normalizeArcGisDirectoryUrl } from "./enterprise-catalog.js?v=0.15.40";
+import { createShareUrl } from "./share.js?v=0.15.40";
+import { markdownToPlainText, renderMarkdown } from "./markdown.js?v=0.15.40";
+import { formatAttributeValue } from "./attribute-format.js?v=0.15.40";
+import { normalizeApplicationConfig, presetApplication } from "./application-config.js?v=0.15.40";
 
 const DISPLAY_SETTINGS_KEY = "gismap-online:display:v1";
 const INSIGHT_POSITIONS = new Set(["upper-left", "lower-left", "bottom", "dock-left", "dock-right", "dock-top", "dock-bottom"]);
@@ -29,8 +30,8 @@ const escapeHtml = (value) =>
   })[char]);
 
 export class UIController {
-  constructor(events, mapController, projectManager, authController, aiController, toolManager, exportController) {
-    Object.assign(this, { events, mapController, projectManager, authController, aiController, toolManager, exportController });
+  constructor(events, mapController, projectManager, authController, aiController, toolManager, exportController, applicationRuntime) {
+    Object.assign(this, { events, mapController, projectManager, authController, aiController, toolManager, exportController, applicationRuntime });
     this.dialog = document.querySelector("#app-dialog");
     this.searchResults = [];
     this.searchTimer = null;
@@ -290,6 +291,10 @@ export class UIController {
     document.querySelector("#tool-file-input").addEventListener("change", (event) => this.#loadTool(event));
     document.querySelector("#atlas-chapter-previous")?.addEventListener("click", () => this.#stepAtlasChapter(-1));
     document.querySelector("#atlas-chapter-next")?.addEventListener("click", () => this.#stepAtlasChapter(1));
+    document.querySelector("#application-edit-return")?.addEventListener("click", () => {
+      const application = this.applicationRuntime.setMode("edit");
+      this.projectManager.setApplication(application);
+    });
   }
 
   #bindMapEvents() {
@@ -317,7 +322,8 @@ export class UIController {
       this.events.subscribe(topic, () => this.#renderLayers()),
     );
     this.events.subscribe("project:loaded", ({ project, missingFiles }) => {
-      this.#applyPresentation(project.presentation);
+      if (project.application) this.applicationRuntime.apply(project.application);
+      else this.#applyPresentation(project.presentation);
       this.#showProject(project);
       this.#renderBookmarks();
       this.#renderLayers();
@@ -329,7 +335,10 @@ export class UIController {
       this.#showProject(project, "Saved");
       if (!automatic) this.toast("Project saved in this browser.");
     });
-    this.events.subscribe("presentation:changed", ({ presentation }) => this.#applyPresentation(presentation));
+    this.events.subscribe("presentation:changed", ({ presentation }) => {
+      if (!this.projectManager.current.application) this.#applyPresentation(presentation);
+    });
+    this.events.subscribe("application:changed", ({ application }) => this.applicationRuntime.apply(application));
     this.events.subscribe("identify:complete", (payload) => this.#selectPresentationResult(payload.results?.find((result) => result.layerUid === this.presentationState.layerUid)));
     this.events.subscribe("project:exported", ({ kind }) => this.toast(`${kind === "package" ? "Project package (.gmop)" : "Project file (.gmo)"} downloaded.`));
     this.events.subscribe("export:progress", ({ stage, completed, total }) => {
@@ -660,6 +669,9 @@ export class UIController {
           break;
         case "map-presentation":
           this.#presentationDialog();
+          break;
+        case "map-customize":
+          this.#applicationBuilderDialog();
           break;
         case "tools-about":
           this.#aboutDialog();
@@ -1979,6 +1991,98 @@ export class UIController {
     this.#loadPresentationRecords(presentation);
   }
 
+  #applicationBuilderDialog() {
+    const previous = this.applicationRuntime.snapshot();
+    let draft = normalizeApplicationConfig(previous);
+    let previewing = false;
+    const panelTypes = this.applicationRuntime.panels.list();
+    const layers = this.mapController.getOperationalLayers();
+    const presetLabels = { standard: "Standard workspace", explorer: "Explorer", briefing: "Briefing", atlas: "Atlas" };
+    const render = () => {
+      const root = this.dialog.querySelector("[data-application-builder]");
+      if (!root) return;
+      const panelRows = draft.panels.map((panel) => {
+        const boundLayer = this.mapController.findLayer(panel.binding?.layerId) || layers[0];
+        const fields = boundLayer?.fields || [];
+        const fieldControl = ["charts", "attributes"].includes(panel.type) && fields.length
+          ? `<select data-builder-field aria-label="Field configuration"><option value="">Automatic field</option>${fields.map((field) => `<option value="${escapeHtml(field.name)}"${panel.settings?.field === field.name ? " selected" : ""}>${escapeHtml(field.alias || field.name)}</option>`).join("")}</select>`
+          : "";
+        return `<div class="application-builder__instance" data-builder-instance="${escapeHtml(panel.instanceId)}"><input data-builder-panel-title aria-label="Panel title" value="${escapeHtml(panel.title)}" /><select data-builder-region aria-label="Panel placement">${["left", "right", "bottom", "floating"].map((region) => `<option value="${region}"${panel.placement.region === region ? " selected" : ""}>${region[0].toUpperCase()}${region.slice(1)} dock</option>`).join("")}</select><select data-builder-layer aria-label="Dataset binding"><option value="">Follow active layer</option>${layers.map((layer) => `<option value="${escapeHtml(layer.uid)}"${panel.binding?.layerId === layer.uid ? " selected" : ""}>${escapeHtml(layer.title || "Untitled layer")}</option>`).join("")}</select>${fieldControl}<label><input data-builder-audience type="checkbox"${panel.audienceVisible ? " checked" : ""} /> Audience</label><span class="application-builder__order"><button type="button" class="button--quiet" data-builder-up aria-label="Move ${escapeHtml(panel.title)} earlier">↑</button><button type="button" class="button--quiet" data-builder-down aria-label="Move ${escapeHtml(panel.title)} later">↓</button></span><button type="button" class="button--quiet" data-builder-remove aria-label="Remove ${escapeHtml(panel.title)}">Remove</button></div>`;
+      }).join("");
+      root.innerHTML = `<div class="application-builder__top"><label class="field"><span>Starting preset</span><select data-builder-preset>${Object.entries(presetLabels).map(([id, label]) => `<option value="${id}"${draft.preset === id ? " selected" : ""}>${label}</option>`).join("")}</select></label><label class="field"><span>Skin</span><select data-builder-skin><option value="clean-light"${draft.skin === "clean-light" ? " selected" : ""}>Clean Light</option><option value="dark-analytical"${draft.skin === "dark-analytical" ? " selected" : ""}>Dark Analytical</option><option value="retro-print"${draft.skin === "retro-print" ? " selected" : ""}>Retro Print</option></select></label><label class="field"><span>Application title</span><input data-builder-title value="${escapeHtml(draft.title)}" placeholder="Wildfire briefing" /></label><label class="field"><span>View</span><select data-builder-mode><option value="edit"${draft.mode === "edit" ? " selected" : ""}>Edit</option><option value="present"${draft.mode === "present" ? " selected" : ""}>Present</option></select></label></div><div class="application-builder__section"><h3>Panel gallery</h3><div class="application-builder__gallery">${panelTypes.map((panel) => `<button type="button" data-builder-add="${escapeHtml(panel.type)}"><strong>+ ${escapeHtml(panel.displayName)}</strong><small>${escapeHtml(panel.description)}</small></button>`).join("")}</div><p class="application-builder__notice">Future extensions—legend, swipe, timeline, media, and embed—remain listed in the roadmap until they have real implementations.</p></div><div class="application-builder__section"><h3>Current panel instances</h3><div class="application-builder__instances">${panelRows || `<p class="application-builder__notice">Add at least one panel. The map and project data remain available even when no panels are shown.</p>`}</div></div><p class="application-builder__notice">Panels share project state. Closing a panel removes only its interface; layers, drawings, feeds, selections, and saved analysis stay with the project. Audience visibility controls presentation UI, not data permissions.</p><button type="button" class="button--quiet" data-builder-save-copy>Save as new presentation</button>`;
+      const syncDraft = () => {
+        draft.title = root.querySelector("[data-builder-title]").value.trim() || presetLabels[draft.preset];
+        draft.skin = root.querySelector("[data-builder-skin]").value;
+        draft.mode = root.querySelector("[data-builder-mode]").value;
+        root.querySelectorAll("[data-builder-instance]").forEach((row, index) => {
+          const panel = draft.panels.find((item) => item.instanceId === row.dataset.builderInstance);
+          if (!panel) return;
+          panel.title = row.querySelector("[data-builder-panel-title]").value.trim() || panel.title;
+          panel.placement = { ...panel.placement, region: row.querySelector("[data-builder-region]").value, order: index };
+          const layerId = row.querySelector("[data-builder-layer]").value;
+          panel.binding = layerId ? { ...panel.binding, layerId, followActiveLayer: false } : { ...panel.binding, layerId: null, followActiveLayer: true };
+          const field = row.querySelector("[data-builder-field]")?.value;
+          if (field !== undefined) panel.settings = { ...panel.settings, field: field || null };
+          panel.audienceVisible = row.querySelector("[data-builder-audience]").checked;
+        });
+      };
+      root.querySelector("[data-builder-preset]").addEventListener("change", (event) => {
+        const title = draft.title;
+        draft = presetApplication(event.target.value);
+        if (title && title !== previous.title) draft.title = title;
+        render();
+      });
+      ["[data-builder-title]", "[data-builder-skin]", "[data-builder-mode]"].forEach((selector) => root.querySelector(selector).addEventListener("change", syncDraft));
+      root.querySelectorAll("[data-builder-instance]").forEach((row) => {
+        row.querySelectorAll("input, select").forEach((control) => control.addEventListener("change", syncDraft));
+        row.querySelector("[data-builder-remove]").addEventListener("click", () => {
+          syncDraft();
+          draft.panels = draft.panels.filter((panel) => panel.instanceId !== row.dataset.builderInstance);
+          render();
+        });
+        const move = (offset) => {
+          syncDraft();
+          const index = draft.panels.findIndex((panel) => panel.instanceId === row.dataset.builderInstance);
+          const target = index + offset;
+          if (index < 0 || target < 0 || target >= draft.panels.length) return;
+          [draft.panels[index], draft.panels[target]] = [draft.panels[target], draft.panels[index]];
+          render();
+        };
+        row.querySelector("[data-builder-up]").addEventListener("click", () => move(-1));
+        row.querySelector("[data-builder-down]").addEventListener("click", () => move(1));
+      });
+      root.querySelectorAll("[data-builder-add]").forEach((button) => button.addEventListener("click", () => {
+        syncDraft();
+        const definition = this.applicationRuntime.panels.get(button.dataset.builderAdd);
+        const count = draft.panels.filter((panel) => panel.type === definition.type).length + 1;
+        draft.panels.push({ instanceId: `${definition.type}-${crypto.randomUUID?.() || Date.now()}`, type: definition.type, title: count > 1 ? `${definition.displayName} ${count}` : definition.displayName, placement: { region: definition.placements[0], order: draft.panels.length }, binding: { followActiveLayer: true }, settings: structuredClone(definition.defaults || {}), audienceVisible: true });
+        render();
+      }));
+      root.querySelector("[data-builder-save-copy]").addEventListener("click", () => {
+        syncDraft();
+        const copy = normalizeApplicationConfig({ ...draft, title: `${draft.title} copy` });
+        this.projectManager.current.applications ??= [];
+        this.projectManager.current.applications.push(copy);
+        this.projectManager.setApplication(copy);
+        this.dialog.close();
+        this.toast(`Saved “${copy.title}” as a new presentation.`);
+      });
+      root.syncDraft = syncDraft;
+    };
+    this.openDialog({
+      eyebrow: "Application builder",
+      title: "Customize application",
+      content: `<div class="application-builder" data-application-builder></div>`,
+      actions: [
+        { label: "Cancel", handler: () => { if (previewing) this.applicationRuntime.cancelPreview(); else this.applicationRuntime.apply(previous); this.dialog.close(); } },
+        { label: "Reset", handler: () => { draft = presetApplication(draft.preset); render(); } },
+        { label: "Preview", handler: () => { this.dialog.querySelector("[data-application-builder]").syncDraft?.(); this.applicationRuntime.apply(draft, { preview: true }); previewing = true; this.toast("Preview applied. Cancel restores the prior application."); } },
+        { label: "Save", primary: true, handler: () => { this.dialog.querySelector("[data-application-builder]").syncDraft?.(); const saved = this.projectManager.setApplication(draft); this.applicationRuntime.commitPreview(); this.applicationRuntime.apply(saved); this.dialog.close(); this.toast(`Application “${saved.title}” saved.`); } },
+      ],
+    });
+    render();
+  }
+
   #presentationDialog() {
     const previous = structuredClone(this.projectManager.current.presentation || {});
     const current = { template: "standard", skin: "clean-light", title: "", primaryLayerId: null, ...previous };
@@ -2177,7 +2281,8 @@ export class UIController {
     }
     const welcomePanel = document.querySelector("#welcome-panel");
     if (layers.length && !this.keepWelcomeForSharedExample) this.#dismissWelcome();
-    welcomePanel.hidden = welcomePanel.dataset.dismissed === "true";
+    const applicationPreset = this.applicationRuntime?.snapshot?.().preset || "standard";
+    welcomePanel.hidden = welcomePanel.dataset.dismissed === "true" || applicationPreset !== "standard";
     const exportable = new Set(this.exportController.listExportableLayers().map((layer) => layer.uid));
     document.querySelector("#layer-count").textContent = `${layers.length} loaded`;
     const container = document.querySelector("#layers-list");

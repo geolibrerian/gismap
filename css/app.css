@@ -48,6 +48,71 @@ button:focus-visible, input:focus-visible, select:focus-visible, summary:focus-v
 }
 
 .app-shell { display: grid; grid-template-columns: var(--sidebar) 1fr; height: 100%; }
+
+/* Composable application layout. Docks are ordinary grid regions, so opening a
+   panel resizes the single map view instead of covering or recreating it. */
+.application-dock { min-width: 0; min-height: 0; background: var(--surface); color: var(--ink); }
+.application-dock[hidden] { display: none !important; }
+.application-dock--left { display: grid; gap: 0; }
+.application-dock--right { grid-column: 3; width: var(--application-right-width, 380px); min-width: 280px; max-width: 55vw; height: 100%; overflow: auto; border-left: 1px solid var(--line); resize: horizontal; direction: rtl; }
+.application-dock--right > * { direction: ltr; }
+.application-dock--bottom { position: absolute; z-index: 12; right: 0; bottom: 0; left: 0; display: grid; grid-auto-flow: column; grid-auto-columns: minmax(280px, 1fr); height: var(--application-bottom-height, 250px); min-height: 160px; max-height: 55vh; overflow: auto; border-top: 1px solid var(--line); box-shadow: 0 -10px 30px rgb(7 29 23 / 12%); resize: vertical; }
+.application-dock--floating { position: absolute; z-index: 14; top: 74px; right: 18px; display: grid; width: min(380px, calc(100% - 36px)); max-height: 70%; overflow: auto; gap: 10px; pointer-events: none; }
+.application-dock--floating > * { pointer-events: auto; box-shadow: 0 14px 44px rgb(7 29 23 / 24%); }
+body.application-right-open .app-shell { grid-template-columns: var(--sidebar) minmax(0, 1fr) var(--application-right-width, 380px); }
+body.sidebar-collapsed.application-right-open .app-shell { grid-template-columns: 0 minmax(0, 1fr) var(--application-right-width, 380px); }
+body.application-bottom-open #viewDiv { bottom: var(--application-bottom-height, 250px); }
+body.application-bottom-open .map-nav { bottom: calc(var(--application-bottom-height, 250px) + 18px); }
+body.application-bottom-open .map-status { bottom: calc(var(--application-bottom-height, 250px) + 10px); }
+.application-panel { display: grid; grid-template-rows: auto minmax(0, 1fr); min-width: 0; min-height: 160px; background: var(--surface); border-bottom: 1px solid var(--line); }
+.application-panel > header { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 12px 14px; border-bottom: 1px solid var(--line); }
+.application-panel > header strong { font: 600 19px/1.15 "Newsreader", Georgia, serif; }
+.application-panel__actions { display: flex; gap: 4px; }
+.application-panel__actions button { width: 30px; height: 30px; padding: 0; background: transparent; color: var(--ink); border: 1px solid var(--line); border-radius: 7px; }
+.application-panel__body { min-height: 0; overflow: auto; }
+.application-panel[data-collapsed] { min-height: 0; grid-template-rows: auto; }
+.application-panel[data-collapsed] .application-panel__body { display: none; }
+.application-panel__body > .panel { border-bottom: 0; }
+.application-panel__body > .panel > summary { display: none; }
+.application-panel__repair, .panel-empty { margin: 14px; padding: 16px; border: 1px dashed var(--line); border-radius: 9px; background: var(--surface-2); }
+.application-panel__repair p, .panel-empty p { margin: 6px 0 0; color: var(--muted); }
+.composable-details { padding: 14px; }
+.composable-details dl { margin: 10px 0; }
+.composable-details dl div { display: grid; grid-template-columns: minmax(100px, .8fr) 1.2fr; gap: 12px; padding: 7px 0; border-bottom: 1px solid var(--line); }
+.composable-details dt { color: var(--muted); }
+.composable-details dd { margin: 0; overflow-wrap: anywhere; }
+.composable-chart { padding: 14px; }
+.composable-chart__bars { display: flex; align-items: end; gap: 5px; height: 110px; padding: 8px; border-bottom: 1px solid var(--line); }
+.composable-chart__bars button { display: flex; flex: 1; align-items: end; height: 100%; min-width: 14px; padding: 0; background: transparent; border: 0; }
+.composable-chart__bars i { display: block; width: 100%; min-height: 4px; background: var(--teal); border-radius: 4px 4px 0 0; }
+.composable-chapters { display: grid; gap: 8px; margin: 0; padding: 14px 14px 14px 42px; }
+.composable-chapters li { padding: 10px; border: 1px solid var(--line); border-radius: 8px; }
+.composable-chapters small { display: block; margin-top: 3px; color: var(--muted); }
+.application-edit-return { position: fixed; z-index: 80; top: 14px; left: 50%; transform: translateX(-50%); box-shadow: 0 8px 24px rgb(0 0 0 / 25%); }
+
+.application-builder { display: grid; gap: 16px; }
+.application-builder__top { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.application-builder__section { display: grid; gap: 9px; }
+.application-builder__section > h3 { margin: 0; font-size: 14px; }
+.application-builder__gallery { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.application-builder__gallery button { display: grid; gap: 3px; min-height: 72px; padding: 10px; text-align: left; background: var(--surface-2); color: var(--ink); border: 1px solid var(--line); }
+.application-builder__gallery small { color: var(--muted); }
+.application-builder__instances { display: grid; gap: 8px; }
+.application-builder__instance { display: grid; grid-template-columns: minmax(120px, 1.2fr) minmax(100px, .8fr) auto auto; gap: 7px; align-items: center; padding: 8px; border: 1px solid var(--line); border-radius: 8px; }
+.application-builder__instance input, .application-builder__instance select { width: 100%; }
+.application-builder__instance label { display: flex; align-items: center; gap: 4px; white-space: nowrap; }
+.application-builder__notice { padding: 10px 12px; border-left: 3px solid var(--amber); background: var(--surface-2); color: var(--muted); }
+
+@media (max-width: 880px) {
+  body.application-right-open .app-shell, body.sidebar-collapsed.application-right-open .app-shell { grid-template-columns: minmax(0, 1fr); }
+  .application-dock--right { position: fixed; z-index: 58; inset: 52px 0 0 auto; width: min(88vw, 440px); box-shadow: -14px 0 34px rgb(17 39 33 / 22%); }
+}
+@media (max-width: 640px) {
+  .application-builder__top, .application-builder__gallery { grid-template-columns: 1fr; }
+  .application-builder__instance { grid-template-columns: 1fr 1fr; }
+  .application-dock--bottom { bottom: 65px; grid-auto-flow: row; grid-auto-columns: auto; height: min(40vh, 320px); }
+  body.application-bottom-open #viewDiv { bottom: calc(min(40vh, 320px) + 65px); }
+}
 .utility-panel { display: none; position: relative; z-index: 22; min-width: 0; min-height: 0; background: var(--paper); border-left: 1px solid var(--line); box-shadow: -8px 0 26px rgb(17 39 33 / 8%); }
 .utility-panel > header { display: flex; align-items: center; justify-content: space-between; min-height: 64px; padding: 10px 12px 8px 16px; border-bottom: 1px solid var(--line); }
 .utility-panel__header-actions, .dialog__header-actions { display: flex; align-items: center; gap: 3px; }

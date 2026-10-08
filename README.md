@@ -46,6 +46,12 @@ python3 -m http.server 8080
 
 Then open `http://localhost:8080`.
 
+### Composable application preview
+
+Feature branches under `codex/**` run `.github/workflows/development-preview.yml`. Every run produces a 14-day static preview artifact after the complete test suite and JavaScript syntax checks pass. An isolated Cloudflare Pages development deployment is enabled only when the `development` GitHub environment defines `CLOUDFLARE_PAGES_PROJECT_DEV`, `CLOUDFLARE_API_TOKEN_DEV`, and `CLOUDFLARE_ACCOUNT_ID_DEV`. These names deliberately do not reuse production credentials or destinations, and the workflow has no production trigger.
+
+The production site remains unchanged until its separate release process is explicitly invoked.
+
 ## Releases
 
 The current application version is recorded in [`VERSION`](VERSION). Releases use
@@ -64,6 +70,11 @@ published builds and generated release notes.
 - `js/ai.js` — optional Ollama, OpenAI, Anthropic, and OpenAI-compatible adapters; online tokens stay in memory only
 - `js/tool-manager.js` — opt-in local JavaScript tool registration
 - `js/events.js` — pub/sub event bus
+- `js/application-state.js` — authoritative selections, filters, active layer, time, styling, navigation, bookmarks, and chapters
+- `js/application-registry.js` — validated panel and tool extension contracts with lifecycle cleanup
+- `js/application-config.js` — versioned application configuration, presets, and legacy presentation migration
+- `js/layout-manager.js` — constrained dock placement and reversible previews around one map instance
+- `js/application-runtime.js` — registered workspace/data/presentation panels and approved builder operations
 - `js/catalog.js` — public data services plus categories, stable slugs, source
   metadata, reuse guidance, tags, and featured-example controls
 - `scripts/build-examples.mjs` — generates the searchable examples index,

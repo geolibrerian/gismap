@@ -6,6 +6,19 @@ All notable changes to GIS Map Online are documented here. This project follows
 
 ## [Unreleased]
 
+## [0.15.40] - 2026-10-07
+
+### Added
+
+- Added the versioned composable application foundation: shared actions and state, validated tool and panel registries, constrained dock layout management, reusable presets, and lifecycle cleanup.
+- Added Map → Customize application with reversible previews, reusable panel instances, dataset bindings, audience visibility, Edit/Present modes, and save-as-copy support.
+- Added registered Attributes, Charts, Chapters, and AI Chatbot panels alongside migrated Places, Bookmarks, Draw, Intelligence, and Layers panels.
+- Added branch-only development preview deployment and focused architecture tests.
+
+### Changed
+
+- Projects now persist a versioned `application` configuration and migrate older presentation settings without losing unknown panels or existing project content.
+
 ## [0.15.39] - 2026-10-07
 
 ### Added
@@ -534,7 +547,8 @@ All notable changes to GIS Map Online are documented here. This project follows
 - Prevented search suggestions from remaining open after selection.
 - Reduced map and panel flicker during feature identification.
 
-[Unreleased]: https://github.com/geolibrerian/gismap/compare/v0.15.39...HEAD
+[Unreleased]: https://github.com/geolibrerian/gismap/compare/v0.15.40...HEAD
+[0.15.40]: https://github.com/geolibrerian/gismap/compare/v0.15.39...v0.15.40
 [0.15.39]: https://github.com/geolibrerian/gismap/compare/v0.15.38...v0.15.39
 [0.15.38]: https://github.com/geolibrerian/gismap/compare/v0.15.37...v0.15.38
 [0.15.37]: https://github.com/geolibrerian/gismap/compare/v0.15.36...v0.15.37

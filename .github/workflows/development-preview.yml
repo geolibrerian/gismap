@@ -1,0 +1,61 @@
+name: Development preview
+
+on:
+  push:
+    branches:
+      - "codex/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: development-preview-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify-and-package:
+    name: Verify development build
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Run focused and regression tests
+        run: node --test tests/*.test.mjs
+      - name: Check application syntax
+        run: |
+          find js -name '*.js' -print0 | xargs -0 -n1 node --check
+      - name: Assemble immutable preview artifact
+        run: |
+          mkdir development-dist
+          rsync -a --exclude '.git' --exclude '.github' --exclude 'development-dist' --exclude '.idea' ./ development-dist/
+          printf '%s\n' "${GITHUB_SHA}" > development-dist/DEVELOPMENT_BUILD
+      - uses: actions/upload-artifact@v4
+        with:
+          name: gismap-development-${{ github.sha }}
+          path: development-dist
+          retention-days: 14
+
+  deploy-development:
+    name: Deploy isolated development site
+    needs: verify-and-package
+    if: ${{ vars.CLOUDFLARE_PAGES_PROJECT_DEV != '' }}
+    runs-on: ubuntu-latest
+    environment:
+      name: development
+    steps:
+      - uses: actions/checkout@v4
+      - name: Assemble development site
+        run: |
+          mkdir development-dist
+          rsync -a --exclude '.git' --exclude '.github' --exclude 'development-dist' --exclude '.idea' ./ development-dist/
+          printf '%s\n' "${GITHUB_SHA}" > development-dist/DEVELOPMENT_BUILD
+      - name: Publish to development destination only
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN_DEV }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID_DEV }}
+          command: pages deploy development-dist --project-name=${{ vars.CLOUDFLARE_PAGES_PROJECT_DEV }} --branch=${{ github.ref_name }}

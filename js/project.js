@@ -1,3 +1,5 @@
+import { applicationToLegacyPresentation, migratePresentationToApplication, normalizeApplicationConfig, presetApplication } from "./application-config.js?v=0.15.40";
+
 const STORAGE_KEY = "gismap-online:projects:v1";
 const CURRENT_KEY = "gismap-online:current-project:v1";
 
@@ -39,6 +41,7 @@ export class ProjectManager {
       ai: { provider: null, model: null },
       connections: [],
       presentation: { schemaVersion: 1, template: "standard", skin: "clean-light", title: "", primaryLayerId: null, fieldMappings: {}, widgets: {}, chapters: [] },
+      application: presetApplication("standard"),
     };
   }
 
@@ -146,6 +149,7 @@ export class ProjectManager {
 
     this.current = structuredClone(project);
     this.current.presentation = this.#presentation(project.presentation);
+    this.current.application = migratePresentationToApplication(project);
     await this.mapController.restoreView(project.view);
     this.events.publish("project:loaded", { project: this.current, missingFiles });
     return { project: this.current, missingFiles };
@@ -231,9 +235,22 @@ export class ProjectManager {
 
   setPresentation(presentation) {
     this.current.presentation = this.#presentation(presentation);
+    if (!this.current.application || this.current.application.preset !== this.current.presentation.template) {
+      this.current.application = migratePresentationToApplication({ presentation: this.current.presentation });
+    }
     this.events.publish("presentation:changed", { presentation: structuredClone(this.current.presentation) });
+    this.events.publish("application:changed", { application: structuredClone(this.current.application), migrated: true });
     this.persistCurrentIfSaved();
     return this.current.presentation;
+  }
+
+  setApplication(application) {
+    this.current.application = normalizeApplicationConfig(application);
+    this.current.presentation = this.#presentation(applicationToLegacyPresentation(this.current.application, this.current.presentation));
+    this.events.publish("application:changed", { application: structuredClone(this.current.application) });
+    this.events.publish("presentation:changed", { presentation: structuredClone(this.current.presentation) });
+    this.persistCurrentIfSaved();
+    return this.current.application;
   }
 
   #presentation(value = {}) {
