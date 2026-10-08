@@ -1,4 +1,5 @@
-import { applicationToLegacyPresentation, migratePresentationToApplication, normalizeApplicationConfig, presetApplication } from "./application-config.js?v=0.15.40";
+import { applicationToLegacyPresentation, migratePresentationToApplication, normalizeApplicationConfig, presetApplication } from "./application-config.js?v=0.15.41";
+import { normalizeDataCatalog } from "./data-catalog.js?v=0.15.41";
 
 const STORAGE_KEY = "gismap-online:projects:v1";
 const CURRENT_KEY = "gismap-online:current-project:v1";
@@ -42,6 +43,7 @@ export class ProjectManager {
       connections: [],
       presentation: { schemaVersion: 1, template: "standard", skin: "clean-light", title: "", primaryLayerId: null, fieldMappings: {}, widgets: {}, chapters: [] },
       application: presetApplication("standard"),
+      dataCatalog: normalizeDataCatalog(),
     };
   }
 
@@ -150,6 +152,7 @@ export class ProjectManager {
     this.current = structuredClone(project);
     this.current.presentation = this.#presentation(project.presentation);
     this.current.application = migratePresentationToApplication(project);
+    this.current.dataCatalog = normalizeDataCatalog(project.dataCatalog);
     await this.mapController.restoreView(project.view);
     this.events.publish("project:loaded", { project: this.current, missingFiles });
     return { project: this.current, missingFiles };
@@ -251,6 +254,14 @@ export class ProjectManager {
     this.events.publish("presentation:changed", { presentation: structuredClone(this.current.presentation) });
     this.persistCurrentIfSaved();
     return this.current.application;
+  }
+
+  setDataCatalog(catalog) {
+    this.current.dataCatalog = normalizeDataCatalog(catalog);
+    this.current.updatedAt = new Date().toISOString();
+    this.persistCurrentIfSaved();
+    this.events.publish("catalog:changed", { catalog: structuredClone(this.current.dataCatalog) });
+    return structuredClone(this.current.dataCatalog);
   }
 
   #presentation(value = {}) {

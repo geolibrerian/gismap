@@ -64,6 +64,9 @@ export class PanelRegistry {
       placements: [...placements],
       authoring: definition.authoring !== false,
       presentation: definition.presentation !== false,
+      multiple: definition.multiple !== false,
+      status: ["ready", "conditional", "planned"].includes(definition.status) ? definition.status : "ready",
+      availability: typeof definition.availability === "function" ? definition.availability : () => ({ available: true, reason: "" }),
     });
     this.#types.set(type, panel);
     return panel;

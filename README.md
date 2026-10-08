@@ -75,6 +75,8 @@ published builds and generated release notes.
 - `js/application-config.js` — versioned application configuration, presets, and legacy presentation migration
 - `js/layout-manager.js` — constrained dock placement and reversible previews around one map instance
 - `js/application-runtime.js` — registered workspace/data/presentation panels and approved builder operations
+- `js/data-catalog.js` — portable catalog schema, read-only SQL validation, and deterministic natural-language query planning
+- `js/duckdb-client.js` — optional, lazily loaded DuckDB-Wasm execution for browser feature records and HTTPS analytical sources
 - `js/catalog.js` — public data services plus categories, stable slugs, source
   metadata, reuse guidance, tags, and featured-example controls
 - `scripts/build-examples.mjs` — generates the searchable examples index,
@@ -88,6 +90,8 @@ published builds and generated release notes.
 ## Browser and service constraints
 
 - Remote GIS/AI services must allow this site's origin through CORS.
+- DuckDB-Wasm is loaded only when a user runs SQL. The project stores catalog definitions and pinned source versions, not source credentials or downloaded rows. Remote Parquet, JSON, and CSV sources must use HTTPS and permit browser CORS requests. A view-only catalog is an analytical recipe, not an authorization boundary.
+- SQL panels accept one read-only `SELECT`, `WITH`, `DESCRIBE`, `EXPLAIN`, `SHOW`, or `SUMMARIZE` statement at a time. Data-changing statements, extension loading, arbitrary attachment, imports, and exports are rejected before execution. AI-assisted requests always produce a visible plan for review and use the same validator.
 - ArcGIS Online and Enterprise Portal connections use the Portal-hosted OAuth experience (PKCE where supported), so built-in, SAML, OIDC, and social logins remain controlled by the organization. Register both the displayed popup callback and full-page redirect URI in the Portal application.
 - Federated ArcGIS Servers are discovered from `/rest/info` and associated with their owning Portal. Standalone Servers can use either a discovered token endpoint or explicitly configured browser-managed web-tier authentication (IWA, PKI, or reverse proxy).
 - ArcGIS connection tests report version, authentication model, token endpoint, CORS reachability, federation, and owning Portal. Only connection metadata is exported with projects; credentials and tokens are never serialized.

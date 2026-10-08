@@ -1,7 +1,9 @@
-import { ApplicationState } from "./application-state.js?v=0.15.40";
-import { PanelRegistry, ToolRegistry } from "./application-registry.js?v=0.15.40";
-import { LayoutManager } from "./layout-manager.js?v=0.15.40";
-import { normalizeApplicationConfig, presetApplication } from "./application-config.js?v=0.15.40";
+import { ApplicationState } from "./application-state.js?v=0.15.41";
+import { PanelRegistry, ToolRegistry } from "./application-registry.js?v=0.15.41";
+import { LayoutManager } from "./layout-manager.js?v=0.15.41";
+import { normalizeApplicationConfig, presetApplication } from "./application-config.js?v=0.15.41";
+import { DuckDBBrowserClient } from "./duckdb-client.js?v=0.15.41";
+import { normalizeDataCatalog, planNaturalLanguageQuery, validateReadOnlySQL } from "./data-catalog.js?v=0.15.41";
 
 const STATIC_PANELS = {
   places: "places-panel",
@@ -33,6 +35,7 @@ export class ApplicationRuntime {
       },
     });
     this.undoStack = [];
+    this.duckdb = new DuckDBBrowserClient();
   }
 
   initialize() {
@@ -180,6 +183,7 @@ export class ApplicationRuntime {
         description: `Existing ${type} workspace tools.`,
         category: type === "intelligence" ? "Analysis" : "Workspace",
         placements: type === "places" || type === "layers" ? ["left", "right"] : ["left", "right", "bottom"],
+        multiple: false,
         mount: (host) => {
           const element = this.document.getElementById(elementId);
           if (!element) return;
@@ -198,7 +202,7 @@ export class ApplicationRuntime {
       });
     }
     this.panels.register({
-      type: "attributes", displayName: "Attributes", description: "Details for the shared selection.", category: "Data", bindings: ["active-layer", "fixed-layer", "shared-selection"], placements: ["left", "right", "bottom", "floating"],
+      type: "attributes", displayName: "Attributes", description: "Details for the shared selection.", category: "Data", bindings: ["active-layer", "fixed-layer", "shared-selection"], placements: ["left", "right", "bottom", "floating"], multiple: false,
       mount: (host, context) => {
         const render = (selection) => {
           const feature = selection.features?.[0];
@@ -257,15 +261,104 @@ export class ApplicationRuntime {
       },
     });
     this.panels.register({
-      type: "chapters", displayName: "Chapters", description: "Author and play guided map presentations.", category: "Presentation", bindings: ["shared-selection", "shared-time"], placements: ["left", "right", "bottom"],
+      type: "chapters", displayName: "Chapters", description: "Author and play guided map presentations.", category: "Presentation", bindings: ["shared-selection", "shared-time"], placements: ["left", "right", "bottom"], multiple: false, status: "conditional",
+      availability: () => ({ available: Boolean(this.projectManager.current.presentation?.chapters?.length), reason: "Add an Atlas chapter first." }),
       mount: (host, context) => {
         const chapters = context.config.settings?.chapters || this.projectManager.current.presentation?.chapters || [];
         host.innerHTML = chapters.length ? `<ol class="composable-chapters">${chapters.map((chapter) => `<li><strong>${escapeHtml(chapter.title || "Chapter")}</strong><small>${escapeHtml(chapter.body || "Saved map view")}</small></li>`).join("")}</ol>` : `<div class="panel-empty"><strong>No chapters yet</strong><p>Capture a map view in Atlas edit mode to add the first chapter.</p></div>`;
       },
     });
     this.panels.register({
-      type: "ai-chatbot", displayName: "AI Chatbot", description: "Questions and approved map commands.", category: "Analysis", bindings: ["active-layer", "shared-selection", "shared-time"], placements: ["left", "right", "bottom", "floating"],
-      mount: (host) => { host.innerHTML = this.aiController.isConfigured() ? `<div class="panel-empty"><strong>AI assistant ready</strong><p>Ask questions from the Intelligence workspace. Builder commands use validated tools only.</p></div>` : `<div class="panel-empty"><strong>AI is optional</strong><p>Configure a provider from Tools. The application builder works without AI.</p></div>`; },
+      type: "ai-chatbot", displayName: "AI Query Assistant", description: "Turn plain-language requests into reviewed filters or read-only SQL.", category: "Analysis", bindings: ["active-layer", "shared-selection", "shared-time"], placements: ["left", "right", "bottom", "floating"], multiple: false,
+      mount: (host, context) => this.#mountAIQueryPanel(host, context),
+    });
+    this.panels.register({
+      type: "data-catalog", displayName: "Data Catalog", description: "Named, versioned analytical relations and source metadata.", category: "Data", bindings: ["active-layer", "fixed-layer"], placements: ["left", "right", "bottom"], multiple: false,
+      mount: (host, context) => this.#mountCatalogPanel(host, context),
+    });
+    this.panels.register({
+      type: "sql", displayName: "SQL Workspace", description: "Run validated read-only SQL locally with DuckDB-Wasm.", category: "Analysis", bindings: ["active-layer", "fixed-layer"], placements: ["left", "right", "bottom", "floating"], multiple: true,
+      mount: (host, context) => this.#mountSQLPanel(host, context),
+    });
+  }
+
+  #catalogWithActiveLayer() {
+    const stored = normalizeDataCatalog(this.projectManager.current.dataCatalog);
+    if (stored.relations.length) return stored;
+    const layer = this.mapController.findLayer(this.state.value.activeLayerId) || this.mapController.getOperationalLayers()[0];
+    if (!layer) return stored;
+    return normalizeDataCatalog({
+      ...stored,
+      relations: [{
+        name: "active_layer", title: layer.title || "Active layer", description: "Browser-loaded feature records from the active map layer.",
+        source: { format: "json", layerId: layer.uid },
+        schema: (layer.fields || []).map((field) => ({ name: field.name, type: this.#duckType(field.type), unit: null })),
+      }],
+    });
+  }
+
+  #duckType(type) {
+    if (/date/i.test(type || "")) return "TIMESTAMP";
+    if (/double|single|float/i.test(type || "")) return "DOUBLE";
+    if (/integer|small|long|short|oid/i.test(type || "")) return "BIGINT";
+    return "VARCHAR";
+  }
+
+  async #layerRows(layerId) {
+    const layer = this.mapController.findLayer(layerId);
+    if (!layer?.queryFeatures) throw new Error("The catalog relation is not bound to a queryable feature layer.");
+    const result = await layer.queryFeatures({ where: layer.definitionExpression || "1=1", outFields: ["*"], returnGeometry: false, num: 5000 });
+    return result.features.map((feature) => feature.attributes || {});
+  }
+
+  #mountCatalogPanel(host, context) {
+    const render = () => {
+      const catalog = this.#catalogWithActiveLayer();
+      host.innerHTML = `<div class="catalog-panel"><div><span class="eyebrow">Versioned data catalog</span><h3>${escapeHtml(catalog.title)}</h3><p>Stable relation names are stored with the project; source data remains external or in the active browser layer.</p></div>${catalog.relations.map((relation) => `<article><strong>${escapeHtml(relation.title)}</strong><code>${escapeHtml(relation.name)}</code><small>${escapeHtml(relation.description || `${relation.source.format} source`)}</small><span>${relation.schema.length} fields · ${escapeHtml(relation.source.format)}</span></article>`).join("") || `<div class="panel-empty"><strong>No catalog relations</strong><p>Add a queryable layer or import a catalog manifest.</p></div>`}<p class="form-note">View-only catalogs are analytical recipes, not access control. Readers still need permission to every referenced source.</p></div>`;
+    };
+    render();
+    const subscription = this.events.subscribe("catalog:changed", render);
+    context.onCleanup(() => subscription.remove());
+  }
+
+  #mountAIQueryPanel(host, context) {
+    const catalog = this.#catalogWithActiveLayer();
+    host.innerHTML = `<form class="ai-query-panel"><label class="field"><span>Ask about catalog data</span><textarea rows="3" data-ai-query placeholder="Show active_layer records where value is above 10"></textarea></label><button type="submit">Build reviewed query</button><div data-ai-plan class="sql-status">No query planned. Plain language is translated into a constrained read-only query; nothing runs automatically.</div></form>`;
+    const form = host.querySelector("form");
+    form.addEventListener("submit", (event) => {
+      event.preventDefault();
+      const output = host.querySelector("[data-ai-plan]");
+      try {
+        const plan = planNaturalLanguageQuery(host.querySelector("[data-ai-query]").value, catalog);
+        output.innerHTML = `<strong>${escapeHtml(plan.explanation)}</strong><code>${escapeHtml(plan.sql)}</code><div><button type="button" data-ai-run>Run in SQL workspace</button>${plan.filter ? `<button type="button" class="button--quiet" data-ai-filter>Apply map filter</button>` : ""}</div>`;
+        output.querySelector("[data-ai-run]").addEventListener("click", () => context.runtime.runTool("application.panel.add", { type: "sql", title: "AI SQL query", region: "bottom", settings: { sql: plan.sql } }));
+        output.querySelector("[data-ai-filter]")?.addEventListener("click", () => {
+          const field = String(plan.filter.field).replaceAll('"', '""');
+          context.dispatch("filters:set", { id: `${context.config.instanceId}:nlp`, owner: context.config.instanceId, scope: "project", layerId: plan.filter.layerId, expression: { kind: "comparison", ...plan.filter, where: `"${field}" ${plan.filter.operator} ${plan.filter.value}` } });
+        });
+      } catch (error) { output.textContent = error.message; }
+    });
+  }
+
+  #mountSQLPanel(host, context) {
+    const initial = context.config.settings?.sql || "SELECT * FROM active_layer LIMIT 25";
+    host.innerHTML = `<form class="sql-panel"><div class="sql-panel__heading"><span class="eyebrow">Local DuckDB-Wasm</span><strong>Read-only SQL</strong></div><label class="field"><span>Query</span><textarea data-sql rows="5" spellcheck="false">${escapeHtml(initial)}</textarea></label><div class="sql-panel__actions"><button type="submit">Run query</button><button type="button" class="button--quiet" data-sql-sample>Reset example</button></div><p class="form-note">Only one read-only statement is accepted. Results are capped at 500 rows in the interface.</p><div data-sql-output class="sql-status">DuckDB loads on first run; remote sources remain subject to HTTPS, CORS, and source permissions.</div></form>`;
+    const form = host.querySelector("form");
+    host.querySelector("[data-sql-sample]").addEventListener("click", () => { host.querySelector("[data-sql]").value = "SELECT * FROM active_layer LIMIT 25"; });
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const output = host.querySelector("[data-sql-output]");
+      const button = form.querySelector("button[type=submit]");
+      try {
+        const sql = validateReadOnlySQL(host.querySelector("[data-sql]").value);
+        button.disabled = true; output.textContent = "Loading catalog and running locally…";
+        const catalog = this.#catalogWithActiveLayer();
+        await this.duckdb.loadCatalog(catalog, (layerId) => this.#layerRows(layerId));
+        const rows = (await this.duckdb.query(sql)).slice(0, 500);
+        const fields = Object.keys(rows[0] || {});
+        output.innerHTML = rows.length ? `<div class="sql-result"><table><thead><tr>${fields.map((field) => `<th>${escapeHtml(field)}</th>`).join("")}</tr></thead><tbody>${rows.map((row) => `<tr>${fields.map((field) => `<td>${escapeHtml(row[field])}</td>`).join("")}</tr>`).join("")}</tbody></table></div><p>${rows.length} rows shown.</p>` : "Query returned no rows.";
+      } catch (error) { output.innerHTML = `<strong>Query unavailable</strong><p>${escapeHtml(error.message)}</p>`; }
+      finally { button.disabled = false; }
     });
   }
 }

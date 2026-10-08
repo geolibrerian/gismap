@@ -6,6 +6,19 @@ All notable changes to GIS Map Online are documented here. This project follows
 
 ## [Unreleased]
 
+## [0.15.41] - 2026-10-08
+
+### Added
+
+- Added an optional versioned data-catalog manifest with stable relation names, source metadata, schemas, geometry and time roles.
+- Added a local DuckDB-Wasm SQL panel that lazily loads browser feature records or HTTPS Parquet/JSON/CSV relations and permits only reviewed read-only queries.
+- Added a plain-language query assistant that produces visible SQL plans and explicit, validated map-filter actions instead of executing model output directly.
+
+### Changed
+
+- Application Builder gallery entries now report Ready, Conditional, or Added status; singleton and unavailable tools are disabled with a reason.
+- Restyled panel instances and secondary actions so enabled controls no longer look disabled, and reorder arrows disable only at list boundaries.
+
 ## [0.15.40] - 2026-10-07
 
 ### Added
@@ -547,7 +560,8 @@ All notable changes to GIS Map Online are documented here. This project follows
 - Prevented search suggestions from remaining open after selection.
 - Reduced map and panel flicker during feature identification.
 
-[Unreleased]: https://github.com/geolibrerian/gismap/compare/v0.15.40...HEAD
+[Unreleased]: https://github.com/geolibrerian/gismap/compare/v0.15.41...HEAD
+[0.15.41]: https://github.com/geolibrerian/gismap/compare/v0.15.40...v0.15.41
 [0.15.40]: https://github.com/geolibrerian/gismap/compare/v0.15.39...v0.15.40
 [0.15.39]: https://github.com/geolibrerian/gismap/compare/v0.15.38...v0.15.39
 [0.15.38]: https://github.com/geolibrerian/gismap/compare/v0.15.37...v0.15.38

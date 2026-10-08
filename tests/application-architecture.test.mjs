@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { ApplicationState } from "../js/application-state.js";
 import { PanelRegistry, ToolRegistry } from "../js/application-registry.js";
 import { APPLICATION_PRESETS, migratePresentationToApplication, normalizeApplicationConfig, presetApplication } from "../js/application-config.js";
+import { normalizeDataCatalog, planNaturalLanguageQuery, validateReadOnlySQL } from "../js/data-catalog.js";
 
 test("selection is independent from project filters", () => {
   const state = new ApplicationState();
@@ -73,4 +74,29 @@ test("application configurations never serialize credentials", () => {
   const config = normalizeApplicationConfig({ preset: "explorer", token: "secret", panels: [{ instanceId: "a", type: "attributes", placement: { region: "right", order: 0 }, settings: { field: "value" } }] });
   assert.equal(config.token, undefined);
   assert.equal(JSON.stringify(config).includes("secret"), false);
+});
+
+test("catalog manifests keep stable relation metadata without credentials", () => {
+  const catalog = normalizeDataCatalog({
+    version: "2026-10-08",
+    token: "never-store-this",
+    relations: [{ name: "observations", source: { format: "parquet", url: "https://example.com/data.parquet" }, schema: [{ name: "value", type: "DOUBLE", unit: "µg/m³" }] }],
+  });
+  assert.equal(catalog.relations[0].name, "observations");
+  assert.equal(catalog.relations[0].schema[0].unit, "µg/m³");
+  assert.equal(JSON.stringify(catalog).includes("never-store-this"), false);
+});
+
+test("SQL workspace accepts one read-only query and rejects executable catalog changes", () => {
+  assert.equal(validateReadOnlySQL("SELECT * FROM observations LIMIT 10;"), "SELECT * FROM observations LIMIT 10");
+  assert.throws(() => validateReadOnlySQL("ATTACH 'https://example.com/catalog.duckdb' AS remote"), /Only read-only/);
+  assert.throws(() => validateReadOnlySQL("SELECT 1; DROP TABLE observations"), /not permitted|one read-only/);
+});
+
+test("natural-language requests compile into reviewable SQL and optional map filters", () => {
+  const catalog = normalizeDataCatalog({ relations: [{ name: "observations", source: { format: "json", layerId: "air" }, schema: [{ name: "value", type: "DOUBLE" }] }] });
+  const plan = planNaturalLanguageQuery("Show observations where value is above 10", catalog);
+  assert.match(plan.sql, /"value" > 10/);
+  assert.equal(plan.filter.layerId, "air");
+  assert.equal(plan.filter.value, 10);
 });
