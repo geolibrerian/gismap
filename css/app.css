@@ -275,6 +275,33 @@ body.utility-resizing iframe, body.utility-resizing canvas { pointer-events: non
 .mode-chart { display: flex; flex-wrap: wrap; gap: 5px; }
 .mode-chart button { display: grid; gap: 2px; min-width: 62px; padding: 7px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface-2); color: var(--ink); cursor: pointer; font-size: 10px; text-align: left; }
 .mode-chart b { color: var(--green-2); font-size: 14px; }
+.explorer-counts { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-top: 9px; }
+.explorer-counts span { display: grid; gap: 1px; padding: 8px; border: 1px solid var(--line); border-radius: 7px; background: var(--surface-2); color: var(--muted); font-size: 10px; }
+.explorer-counts b { color: var(--green-2); font-size: 17px; }
+.mode-dashboard header .explorer-coverage { margin-top: 7px; font-size: 10px; }
+.explorer-toolbar { display: grid; gap: 8px; }
+.explorer-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.explorer-actions button { padding: 8px; border: 1px solid var(--green); border-radius: 6px; color: var(--green); background: var(--surface); cursor: pointer; }
+.explorer-distribution { display: grid; gap: 8px; padding: 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface-2); }
+.explorer-distribution > div:first-child { display: grid; gap: 2px; }
+.explorer-histogram { display: grid; grid-template-columns: repeat(12, 1fr); align-items: end; gap: 3px; height: 76px; padding-top: 5px; border-bottom: 1px solid var(--line); }
+.explorer-histogram button { display: flex; align-items: end; height: 100%; padding: 0; border: 0; background: transparent; cursor: pointer; }
+.explorer-histogram button span { display: block; width: 100%; min-height: 4px; border-radius: 3px 3px 0 0; background: linear-gradient(180deg, #b23f62, #e0ad35 55%, #2f7f9d); }
+.explorer-histogram button:hover span, .explorer-histogram button:focus-visible span { outline: 2px solid var(--green); outline-offset: 1px; }
+.explorer-range { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }
+.explorer-range label { display: grid; gap: 3px; color: var(--muted); font-size: 10px; font-weight: 700; }
+.explorer-range input { width: 100%; padding: 7px; border: 1px solid var(--line); border-radius: 5px; color: var(--ink); background: var(--surface); }
+.explorer-legend { display: grid; grid-template-columns: auto 1fr auto 1fr auto 1fr auto 1fr; align-items: center; gap: 4px; color: var(--muted); font-size: 9px; }
+.explorer-legend i { width: 10px; height: 10px; border-radius: 50%; background: #2f7f9d; }.explorer-legend i:nth-of-type(2) { background: #e0ad35; }.explorer-legend i:nth-of-type(3) { background: #b23f62; }.explorer-legend i.is-missing { background: #9ca3a0; }
+.explorer-results .mode-record { grid-template-columns: minmax(0, 1fr) auto; align-items: center; }
+.explorer-results .mode-record strong, .explorer-results .mode-record small { grid-column: 1; }
+.explorer-results .mode-record span { grid-column: 2; grid-row: 1 / span 2; color: var(--green-2); font-weight: 700; }
+.explorer-details .explorer-measurement { color: var(--green-2); font-size: 22px; font-weight: 700; }
+.explorer-details > a { color: var(--green-2); font-size: 11px; font-weight: 700; }
+.explorer-details details { border-top: 1px solid var(--line); padding-top: 7px; }
+.explorer-details summary { cursor: pointer; font-size: 11px; font-weight: 700; }
+.explorer-details details dl { margin-top: 8px; max-height: 250px; overflow: auto; }
+.explorer-limitation { margin: 0; padding: 9px; border-left: 3px solid var(--amber); color: var(--muted); background: var(--surface-2); font-size: 10px; line-height: 1.45; }
 .mode-records { display: grid; max-height: min(38vh, 360px); overflow: auto; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
 .mode-record { display: grid; gap: 3px; padding: 10px; border: 0; border-bottom: 1px solid var(--line); color: var(--ink); background: transparent; text-align: left; cursor: pointer; }
 .mode-record:last-child { border-bottom: 0; }

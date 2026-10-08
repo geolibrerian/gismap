@@ -1,8 +1,8 @@
-import { POPULAR_SERVICES } from "./catalog.js?v=0.15.38";
-import { ENTERPRISE_CATALOGS, EnterpriseCatalog, normalizeArcGisDirectoryUrl } from "./enterprise-catalog.js?v=0.15.38";
-import { createShareUrl } from "./share.js?v=0.15.38";
-import { markdownToPlainText, renderMarkdown } from "./markdown.js?v=0.15.38";
-import { formatAttributeValue } from "./attribute-format.js?v=0.15.38";
+import { POPULAR_SERVICES } from "./catalog.js?v=0.15.39";
+import { ENTERPRISE_CATALOGS, EnterpriseCatalog, normalizeArcGisDirectoryUrl } from "./enterprise-catalog.js?v=0.15.39";
+import { createShareUrl } from "./share.js?v=0.15.39";
+import { markdownToPlainText, renderMarkdown } from "./markdown.js?v=0.15.39";
+import { formatAttributeValue } from "./attribute-format.js?v=0.15.39";
 
 const DISPLAY_SETTINGS_KEY = "gismap-online:display:v1";
 const INSIGHT_POSITIONS = new Set(["upper-left", "lower-left", "bottom", "dock-left", "dock-right", "dock-top", "dock-bottom"]);
@@ -300,6 +300,12 @@ export class UIController {
     this.events.subscribe("map:ready", ({ view }) => {
       document.querySelector("#map-status").textContent = `Ready · zoom ${view.zoom.toFixed(1)}`;
       view.watch?.("scale", () => this.#updateLayerScaleIndicators());
+      view.watch?.("stationary", (stationary) => {
+        if (stationary && this.presentationState.template === "explorer" && this.presentationState.scope === "extent") {
+          clearTimeout(this.presentationExtentTimer);
+          this.presentationExtentTimer = setTimeout(() => this.#filterPresentationRecords(), 120);
+        }
+      });
       view.on("pointer-move", (event) => {
         const point = view.toMap(event);
         if (!point) return;
@@ -1620,18 +1626,44 @@ export class UIController {
     return { fields, text, numeric, dates };
   }
 
+  #presentationRoles(presentation, layer, fields = this.#presentationFields(layer)) {
+    const mappings = presentation.fieldMappings || {};
+    const names = new Set(fields.fields.map((field) => field.name));
+    const mapped = (role) => names.has(mappings[role]) ? mappings[role] : null;
+    const matching = (list, pattern) => list.find((field) => pattern.test(`${field.name} ${field.alias || ""}`))?.name || null;
+    return {
+      title: mapped("title") || matching(fields.text, /location|station|site|name|title/i) || fields.text[0]?.name || null,
+      metric: mapped("metric") || matching(fields.numeric, /value|measure|concentration|amount|magnitude|score/i) || fields.numeric[0]?.name || null,
+      unit: mapped("unit") || matching(fields.text, /unit/i),
+      timestamp: mapped("timestamp") || matching([...fields.dates, ...fields.text], /observ|measure|sample|date|time|updated/i),
+      category: mapped("category"),
+      source: mapped("source") || matching(fields.text, /^(?:url|source_url|link)$/i),
+    };
+  }
+
   async #loadPresentationRecords(presentation) {
     const layer = this.#presentationLayer(presentation);
-    this.presentationState = { ...this.presentationState, layerUid: layer?.uid || null, records: [], visibleRecords: [], selected: null, search: "", category: "" };
+    this.presentationState = { ...this.presentationState, layerUid: layer?.uid || null, records: [], visibleRecords: [], selected: null, search: "", category: "", scope: "all", rangeMin: null, rangeMax: null, totalCount: null };
     if (!layer) return this.#renderPresentationDashboard(presentation);
     try {
       const query = layer.createQuery?.() || {};
       Object.assign(query, { where: layer.definitionExpression || "1=1", outFields: ["*"], returnGeometry: true, num: 500 });
       const response = await layer.queryFeatures(query);
+      let totalCount = null;
+      try { totalCount = await layer.queryFeatureCount(query); } catch { /* Count metadata is optional. */ }
       if (this.presentationState.layerUid !== layer.uid) return;
       this.presentationState.records = (response.features || []).map((graphic) => ({
         kind: "feature", layerUid: layer.uid, layerTitle: layer.title || "Layer", attributes: graphic.attributes || {}, geometry: graphic.geometry || null, graphic,
       }));
+      this.presentationState.totalCount = Number.isFinite(totalCount) ? totalCount : null;
+      const fields = this.#presentationFields(layer);
+      const roles = this.#presentationRoles(presentation, layer, fields);
+      this.presentationState.roles = roles;
+      const metricValues = this.presentationState.records.map((record) => Number(record.attributes?.[roles.metric])).filter(Number.isFinite);
+      this.presentationState.metricMin = metricValues.length ? Math.min(...metricValues) : null;
+      this.presentationState.metricMax = metricValues.length ? Math.max(...metricValues) : null;
+      this.presentationState.metricUnit = this.presentationState.records.map((record) => record.attributes?.[roles.unit]).find(Boolean) || "";
+      this.#applyExplorerMetricRenderer(layer, roles, presentation);
       this.#filterPresentationRecords();
     } catch (error) {
       this.presentationState.error = error.message;
@@ -1641,28 +1673,95 @@ export class UIController {
 
   #recordLabel(result, fields) {
     const attributes = result.attributes || {};
-    const preferred = fields.text.find((field) => /name|title|incident|city|location|label/i.test(`${field.name} ${field.alias || ""}`)) || fields.text[0];
-    return String(attributes[preferred?.name] ?? attributes[Object.keys(attributes).find((key) => !/objectid|fid/i.test(key))] ?? "Untitled record");
+    const role = this.presentationState.roles?.title;
+    const preferred = fields.fields.find((field) => field.name === role) || fields.text.find((field) => /name|title|incident|location|label/i.test(`${field.name} ${field.alias || ""}`)) || fields.text[0];
+    return String(attributes[preferred?.name] ?? "Untitled record");
   }
 
   #filterPresentationRecords() {
     const layer = this.mapController.findLayer(this.presentationState.layerUid);
-    const fields = this.#presentationFields(layer);
-    const categoryField = fields.text.find((field) => /type|category|status|class|group|kind/i.test(`${field.name} ${field.alias || ""}`)) || fields.text[1] || fields.text[0];
+    const roles = this.presentationState.roles || this.#presentationRoles(this.projectManager.current.presentation || {}, layer);
     const needle = this.presentationState.search.trim().toLowerCase();
-    this.presentationState.categoryField = categoryField?.name || null;
+    this.presentationState.categoryField = roles.category || null;
+    const extent = this.mapController.view?.extent;
     this.presentationState.visibleRecords = this.presentationState.records.filter((result) => {
       const haystack = Object.values(result.attributes || {}).join(" ").toLowerCase();
-      return (!needle || haystack.includes(needle)) && (!this.presentationState.category || String(result.attributes?.[categoryField?.name] ?? "") === this.presentationState.category);
+      const metric = Number(result.attributes?.[roles.metric]);
+      const inRange = (this.presentationState.rangeMin == null || (Number.isFinite(metric) && metric >= this.presentationState.rangeMin))
+        && (this.presentationState.rangeMax == null || (Number.isFinite(metric) && metric <= this.presentationState.rangeMax));
+      const inExtent = this.presentationState.scope !== "extent" || !extent || extent.intersects?.(result.geometry?.extent || result.geometry);
+      return (!needle || haystack.includes(needle))
+        && (!this.presentationState.category || String(result.attributes?.[roles.category] ?? "") === this.presentationState.category)
+        && inRange && inExtent;
     });
+    if (this.presentationState.selected && !this.presentationState.visibleRecords.includes(this.presentationState.selected)) {
+      this.presentationState.selected = null;
+      this.mapController.clearFeatureHighlight();
+    }
+    void this.#syncExplorerMapFilter(layer, this.presentationState.visibleRecords);
     this.#renderPresentationDashboard(this.projectManager.current.presentation || {});
   }
 
   #selectPresentationResult(result) {
     if (!result || this.presentationState.template === "standard") return;
-    this.presentationState.selected = result;
-    this.mapController.highlightFeature(result);
+    const layer = this.mapController.findLayer(this.presentationState.layerUid);
+    const idField = layer?.objectIdField;
+    const selected = idField ? this.presentationState.records.find((record) => record.attributes?.[idField] === result.attributes?.[idField]) || result : result;
+    this.presentationState.selected = selected;
+    this.mapController.highlightFeature(selected);
+    this.#setInsightsOpen(false);
     this.#renderPresentationDashboard(this.projectManager.current.presentation || {});
+  }
+
+  async #syncExplorerMapFilter(layer, records) {
+    if (!layer || !this.mapController.view?.whenLayerView) return;
+    try {
+      const layerView = await this.mapController.view.whenLayerView(layer);
+      const objectIdField = layer.objectIdField;
+      layerView.filter = objectIdField ? { objectIds: records.map((record) => record.attributes?.[objectIdField]).filter((value) => value != null) } : null;
+    } catch { /* Not every layer view supports a client-side object ID filter. */ }
+  }
+
+  #applyExplorerMetricRenderer(layer, roles, presentation) {
+    if (!roles.metric || layer?.geometryType !== "point") return;
+    const unit = this.presentationState.records.map((record) => record.attributes?.[roles.unit]).find(Boolean) || "";
+    layer.renderer = {
+      type: "simple",
+      symbol: { type: "simple-marker", size: 7, color: "#9ca3a0", outline: { color: "#ffffff", width: 0.7 } },
+      visualVariables: [{
+        type: "color", field: roles.metric,
+        legendOptions: { title: `${presentation.widgets?.metricLabel || roles.metric}${unit ? ` (${unit})` : ""}` },
+        stops: [
+          { value: this.presentationState.metricMin ?? 0, color: "#2f7f9d", label: "Lower" },
+          { value: ((this.presentationState.metricMin ?? 0) + (this.presentationState.metricMax ?? 1)) / 2, color: "#e0ad35", label: "Middle" },
+          { value: this.presentationState.metricMax ?? 1, color: "#b23f62", label: "Higher" },
+        ],
+      }],
+    };
+  }
+
+  #formatExplorerTime(value) {
+    if (value == null || value === "") return "Time not supplied";
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return String(value);
+    return new Intl.DateTimeFormat(undefined, { year: "numeric", month: "short", day: "numeric", hour: "numeric", minute: "2-digit", timeZoneName: "short" }).format(date);
+  }
+
+  #formatExplorerNumber(value) {
+    const number = Number(value);
+    return Number.isFinite(number) ? new Intl.NumberFormat(undefined, { maximumFractionDigits: 2 }).format(number) : "Measurement unavailable";
+  }
+
+  #explorerHistogram(records, metric, min, max) {
+    if (!metric || !Number.isFinite(min) || !Number.isFinite(max)) return [];
+    const bins = Array.from({ length: 12 }, (_, index) => ({ min: min + (max - min) * index / 12, max: min + (max - min) * (index + 1) / 12, count: 0 }));
+    records.forEach((record) => {
+      const value = Number(record.attributes?.[metric]);
+      if (!Number.isFinite(value)) return;
+      const index = max === min ? 0 : Math.min(11, Math.floor((value - min) / (max - min) * 12));
+      bins[index].count += 1;
+    });
+    return bins;
   }
 
   #renderPresentationDashboard(presentation) {
@@ -1702,7 +1801,18 @@ export class UIController {
       return;
     }
     if (template === "explorer") {
-      root.innerHTML = `<section class="mode-dashboard mode-dashboard--explorer"><header><span class="eyebrow">Explorer · loaded records</span><h2>${escapeHtml(presentation.title || layer.title || "Explore records")}</h2><p>${records.length} of ${this.presentationState.records.length} loaded records</p></header><label class="field"><span>Search records</span><input data-mode-search value="${escapeHtml(this.presentationState.search)}" placeholder="Search attributes" /></label><label class="field"><span>${escapeHtml(fields.fields.find((field) => field.name === this.presentationState.categoryField)?.alias || "Category")}</span><select data-mode-category><option value="">All categories</option>${categories.map((value) => `<option value="${escapeHtml(value)}"${value === this.presentationState.category ? " selected" : ""}>${escapeHtml(value)}</option>`).join("")}</select></label><button type="button" class="button--quiet" data-mode-clear>Clear filters</button><div class="mode-chart">${categories.slice(0, 8).map((value) => `<button type="button" data-mode-category-value="${escapeHtml(value)}"><b>${this.presentationState.records.filter((record) => String(record.attributes?.[this.presentationState.categoryField] ?? "") === value).length}</b>${escapeHtml(value)}</button>`).join("")}</div><div class="mode-records">${records.map((record, index) => `<button type="button" class="mode-record${record === selected ? " is-selected" : ""}" data-mode-record="${index}"><strong>${escapeHtml(this.#recordLabel(record, fields))}</strong><small>${escapeHtml(this.presentationState.categoryField ? record.attributes?.[this.presentationState.categoryField] ?? "" : "")}</small></button>`).join("") || "<p class=\"form-note\">No loaded records match these filters.</p>"}</div><aside class="mode-details"><span class="eyebrow">Selected record</span>${selected ? `<h3>${escapeHtml(this.#recordLabel(selected, fields))}</h3><dl>${selectedDetails.map(([key, value]) => `<div><dt>${escapeHtml(key)}</dt><dd>${escapeHtml(formatAttributeValue(value, fields.fields.find((field) => field.name === key), key))}</dd></div>`).join("")}</dl>` : "<p>Select a map feature or record to inspect it.</p>"}</aside></section>`;
+      const roles = this.presentationState.roles || this.#presentationRoles(presentation, layer, fields);
+      const loaded = this.presentationState.records.length;
+      const total = this.presentationState.totalCount;
+      const incomplete = Number.isFinite(total) && total > loaded;
+      const unit = this.presentationState.metricUnit || "";
+      const units = [...new Set(this.presentationState.records.map((record) => record.attributes?.[roles.unit]).filter(Boolean).map(String))];
+      const bins = this.#explorerHistogram(records.filter((record) => !unit || String(record.attributes?.[roles.unit] ?? "") === unit), roles.metric, this.presentationState.metricMin, this.presentationState.metricMax);
+      const maxBin = Math.max(1, ...bins.map((bin) => bin.count));
+      const metricLabel = presentation.widgets?.metricLabel || fields.fields.find((field) => field.name === roles.metric)?.alias || roles.metric || "Measurement";
+      const source = selected?.attributes?.[roles.source];
+      const sourceLink = /^https:\/\//i.test(String(source || "")) ? `<a href="${escapeHtml(String(source))}" target="_blank" rel="noopener noreferrer">Open source record ↗</a>` : "";
+      root.innerHTML = `<section class="mode-dashboard mode-dashboard--explorer"><header><span class="eyebrow">Explorer · synchronized dataset view</span><h2>${escapeHtml(presentation.title || layer.title || "Explore records")}</h2><div class="explorer-counts"><span><b>${loaded}</b> records loaded</span><span><b>${records.length}</b> match filters</span><span><b>${selected ? 1 : 0}</b> selected</span></div>${incomplete ? `<p class="explorer-coverage">Loaded sample: ${loaded} of ${total} service records. Filters, chart, and map cover the loaded sample.</p>` : `<p class="explorer-coverage">Filters, chart, map, and results cover all ${loaded} records returned to this browser.</p>`}</header><div class="explorer-toolbar"><label class="field"><span>Search loaded records</span><input data-mode-search value="${escapeHtml(this.presentationState.search)}" placeholder="Location, provider, or attribute" /></label><label class="field"><span>Geographic scope</span><select data-mode-scope><option value="all"${this.presentationState.scope === "all" ? " selected" : ""}>All loaded records</option><option value="extent"${this.presentationState.scope === "extent" ? " selected" : ""}>Current map extent</option></select></label>${roles.category && categories.length > 1 && categories.length <= 24 ? `<label class="field"><span>${escapeHtml(presentation.widgets?.categoryLabel || "Category filter")}</span><select data-mode-category><option value="">All categories</option>${categories.map((value) => `<option value="${escapeHtml(value)}"${value === this.presentationState.category ? " selected" : ""}>${escapeHtml(value)}</option>`).join("")}</select></label>` : ""}<div class="explorer-actions"><button type="button" data-mode-zoom>Zoom to results</button><button type="button" class="button--quiet" data-mode-clear>Clear filters</button></div></div>${roles.metric ? `<section class="explorer-distribution"><div><span class="eyebrow">Filtered loaded-record distribution</span><strong>${escapeHtml(metricLabel)}${unit ? ` (${escapeHtml(unit)})` : ""}</strong></div><div class="explorer-histogram" aria-label="Histogram of ${escapeHtml(metricLabel)}">${bins.map((bin) => `<button type="button" data-range-bin-min="${bin.min}" data-range-bin-max="${bin.max}" title="${bin.min.toFixed(1)}–${bin.max.toFixed(1)}: ${bin.count} matching loaded records"><span style="height:${Math.max(4, bin.count / maxBin * 100)}%"></span></button>`).join("")}</div><div class="explorer-range"><label>Minimum<input data-range-min type="number" step="any" value="${this.presentationState.rangeMin ?? ""}" placeholder="${Number(this.presentationState.metricMin).toFixed(1)}" /></label><label>Maximum<input data-range-max type="number" step="any" value="${this.presentationState.rangeMax ?? ""}" placeholder="${Number(this.presentationState.metricMax).toFixed(1)}" /></label></div><div class="explorer-legend"><i></i><span>Lower</span><i></i><span>Middle</span><i></i><span>Higher</span><i class="is-missing"></i><span>Missing</span></div>${units.length > 1 ? `<p class="form-note">Multiple units are present (${units.map(escapeHtml).join(", ")}). The chart and legend use ${escapeHtml(unit)} only; values are never combined across units.</p>` : ""}</section>` : ""}<div class="mode-records explorer-results">${records.map((record, index) => { const attrs = record.attributes || {}; const value = attrs[roles.metric]; return `<button type="button" class="mode-record${record === selected ? " is-selected" : ""}" data-mode-record="${index}"><strong>${escapeHtml(this.#recordLabel(record, fields))}</strong><span>${value == null ? "Measurement unavailable" : `${escapeHtml(this.#formatExplorerNumber(value))}${attrs[roles.unit] ? ` ${escapeHtml(String(attrs[roles.unit]))}` : ""}`}</span><small>${escapeHtml(this.#formatExplorerTime(attrs[roles.timestamp]))}</small></button>`; }).join("") || "<p class=\"form-note\">No loaded records match the active filters.</p>"}</div><aside class="mode-details explorer-details"><span class="eyebrow">Location details</span>${selected ? `<h3>${escapeHtml(this.#recordLabel(selected, fields))}</h3><p class="explorer-measurement">${selected.attributes?.[roles.metric] == null ? "Measurement unavailable" : `${escapeHtml(this.#formatExplorerNumber(selected.attributes[roles.metric]))}${selected.attributes?.[roles.unit] ? ` ${escapeHtml(String(selected.attributes[roles.unit]))}` : ""}`}</p><p><strong>${escapeHtml(presentation.widgets?.timestampLabel || "Reported time")}:</strong> ${escapeHtml(this.#formatExplorerTime(selected.attributes?.[roles.timestamp]))}</p>${sourceLink}<details><summary>Technical attributes</summary><dl>${Object.entries(selected.attributes || {}).filter(([, value]) => value != null && value !== "").map(([key, value]) => `<div><dt>${escapeHtml(key)}</dt><dd>${escapeHtml(formatAttributeValue(value, fields.fields.find((field) => field.name === key), key))}</dd></div>`).join("")}</dl>${roles.timestamp ? `<p class="form-note">Original timestamp: <code>${escapeHtml(String(selected.attributes?.[roles.timestamp] ?? "Not supplied"))}</code></p>` : ""}</details>` : "<p>Select a result or mapped feature. Selection does not change the filter count.</p>"}</aside>${presentation.widgets?.limitation ? `<p class="explorer-limitation"><strong>Source-data limitation:</strong> ${escapeHtml(presentation.widgets.limitation)}</p>` : ""}</section>`;
     } else {
       const dateField = fields.dates[0];
       root.innerHTML = `<section class="mode-dashboard"><header><span class="eyebrow">${escapeHtml(template)}</span><h2>${escapeHtml(presentation.title || layer.title || "Map data")}</h2><p>${records.length} loaded records · ${dateField ? `timeline field: ${escapeHtml(dateField.alias || dateField.name)}` : "No date field is available for a timeline."}</p></header><div class="mode-records">${records.map((record, index) => `<button type="button" class="mode-record${record === selected ? " is-selected" : ""}" data-mode-record="${index}"><strong>${escapeHtml(this.#recordLabel(record, fields))}</strong></button>`).join("")}</div><aside class="mode-details"><span class="eyebrow">Selected feature</span>${selected ? `<h3>${escapeHtml(this.#recordLabel(selected, fields))}</h3><dl>${selectedDetails.map(([key, value]) => `<div><dt>${escapeHtml(key)}</dt><dd>${escapeHtml(formatAttributeValue(value, fields.fields.find((field) => field.name === key), key))}</dd></div>`).join("")}</dl>` : "<p>Select a feature to view source attributes.</p>"}</aside></section>`;
@@ -1713,7 +1823,24 @@ export class UIController {
       this.presentationSearchTimer = setTimeout(() => this.#filterPresentationRecords(), 180);
     });
     root.querySelector("[data-mode-category]")?.addEventListener("change", (event) => { this.presentationState.category = event.target.value; this.#filterPresentationRecords(); });
-    root.querySelector("[data-mode-clear]")?.addEventListener("click", () => { this.presentationState.search = ""; this.presentationState.category = ""; this.#filterPresentationRecords(); });
+    root.querySelector("[data-mode-scope]")?.addEventListener("change", (event) => { this.presentationState.scope = event.target.value; this.#filterPresentationRecords(); });
+    root.querySelectorAll("[data-range-min], [data-range-max]").forEach((input) => input.addEventListener("change", () => {
+      const minimum = root.querySelector("[data-range-min]")?.value;
+      const maximum = root.querySelector("[data-range-max]")?.value;
+      this.presentationState.rangeMin = minimum === "" ? null : Number(minimum);
+      this.presentationState.rangeMax = maximum === "" ? null : Number(maximum);
+      this.#filterPresentationRecords();
+    }));
+    root.querySelectorAll("[data-range-bin-min]").forEach((button) => button.addEventListener("click", () => {
+      this.presentationState.rangeMin = Number(button.dataset.rangeBinMin);
+      this.presentationState.rangeMax = Number(button.dataset.rangeBinMax);
+      this.#filterPresentationRecords();
+    }));
+    root.querySelector("[data-mode-zoom]")?.addEventListener("click", async () => {
+      const graphics = this.presentationState.visibleRecords.map((record) => record.graphic).filter(Boolean);
+      if (graphics.length) await this.mapController.view?.goTo?.(graphics, { animate: !matchMedia("(prefers-reduced-motion: reduce)").matches });
+    });
+    root.querySelector("[data-mode-clear]")?.addEventListener("click", () => { this.presentationState.search = ""; this.presentationState.category = ""; this.presentationState.scope = "all"; this.presentationState.rangeMin = null; this.presentationState.rangeMax = null; this.#filterPresentationRecords(); });
     root.querySelectorAll("[data-mode-category-value]").forEach((button) => button.addEventListener("click", () => { this.presentationState.category = button.dataset.modeCategoryValue; this.#filterPresentationRecords(); }));
     root.querySelectorAll("[data-mode-record]").forEach((button) => button.addEventListener("click", async () => { const result = records[Number(button.dataset.modeRecord)]; this.#selectPresentationResult(result); if (result?.geometry) await this.mapController.view?.goTo?.(result.geometry); }));
   }

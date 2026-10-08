@@ -85,9 +85,18 @@ export const POPULAR_SERVICES = [
     description: "Latest particulate matter air-quality observations and results.",
     whyUseful: "Inspect recent PM2.5 measurements and their attributes alongside communities, terrain, and other environmental layers.",
     url: "https://services9.arcgis.com/RHVPKKiFTONKtxq3/ArcGIS/rest/services/Air_Quality_PM25_Latest_Results/FeatureServer",
+    layers: [{ url: "https://services9.arcgis.com/RHVPKKiFTONKtxq3/ArcGIS/rest/services/Air_Quality_PM25_Latest_Results/FeatureServer/0", title: "OpenAQ – PM2.5", serviceType: "feature" }],
     sourceOrganization: "Esri Disaster Response Program",
     sourcePage: "https://services9.arcgis.com/RHVPKKiFTONKtxq3/ArcGIS/rest/services/Air_Quality_PM25_Latest_Results/FeatureServer",
     licenseOrTerms: "Review individual provider fields, service metadata, and publisher terms before reuse.",
+    presentation: {
+      template: "explorer", skin: "clean-light", title: "PM2.5 observations",
+      fieldMappings: { title: "location", metric: "value", unit: "unit", timestamp: "lastUpdated", category: "provider_name", source: "url" },
+      widgets: {
+        metricLabel: "PM2.5 mass concentration", timestampLabel: "Reported observation time", categoryLabel: "Data provider",
+        limitation: "The publisher calls its time field lastUpdated and does not supply the measurement averaging period. Explorer shows the records returned to this browser, which may be fewer than the full service.",
+      },
+    },
     tags: ["PM2.5", "air quality", "environment", "sensors", "FeatureServer"],
     lastChecked: "2026-10-06", featured: true,
   },

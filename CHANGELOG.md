@@ -6,6 +6,17 @@ All notable changes to GIS Map Online are documented here. This project follows
 
 ## [Unreleased]
 
+## [0.15.39] - 2026-10-07
+
+### Added
+
+- Rework Explorer around configurable title, metric, unit, timestamp, category, and source roles, with synchronized map filtering, explicit loaded/matching/selected counts, geographic scope, zoom-to-results, measurement styling, and concise location details.
+- Add a linked numeric histogram and range filter, readable timestamp formatting, source links, missing-value treatment, and loaded-sample coverage notes.
+
+### Changed
+
+- Configure the PM2.5 example as an Explorer workflow using only the PM2.5 layer, mass concentration as its metric, provider as its categorical filter, and the publisher's `lastUpdated` field with an explicit source-data limitation.
+
 ## [0.15.38] - 2026-10-07
 
 ### Added
@@ -523,7 +534,8 @@ All notable changes to GIS Map Online are documented here. This project follows
 - Prevented search suggestions from remaining open after selection.
 - Reduced map and panel flicker during feature identification.
 
-[Unreleased]: https://github.com/geolibrerian/gismap/compare/v0.15.38...HEAD
+[Unreleased]: https://github.com/geolibrerian/gismap/compare/v0.15.39...HEAD
+[0.15.39]: https://github.com/geolibrerian/gismap/compare/v0.15.38...v0.15.39
 [0.15.38]: https://github.com/geolibrerian/gismap/compare/v0.15.37...v0.15.38
 [0.15.37]: https://github.com/geolibrerian/gismap/compare/v0.15.36...v0.15.37
 [0.15.36]: https://github.com/geolibrerian/gismap/compare/v0.15.35...v0.15.36

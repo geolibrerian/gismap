@@ -1,15 +1,15 @@
-import { events } from "./events.js?v=0.15.38";
-import { AuthController } from "./auth.js?v=0.15.38";
-import { MapController } from "./map.js?v=0.15.38";
-import { ProjectManager } from "./project.js?v=0.15.38";
-import { IdentifyController } from "./identify.js?v=0.15.38";
-import { AttributeTableController } from "./attribute-table.js?v=0.15.38";
-import { AIController } from "./ai.js?v=0.15.38";
-import { ToolManager } from "./tool-manager.js?v=0.15.38";
-import { UIController } from "./ui.js?v=0.15.38";
-import { ExportController } from "./export/export-controller.js?v=0.15.38";
-import { parseShareParameters } from "./share.js?v=0.15.38";
-import { POPULAR_SERVICES } from "./catalog.js?v=0.15.38";
+import { events } from "./events.js?v=0.15.39";
+import { AuthController } from "./auth.js?v=0.15.39";
+import { MapController } from "./map.js?v=0.15.39";
+import { ProjectManager } from "./project.js?v=0.15.39";
+import { IdentifyController } from "./identify.js?v=0.15.39";
+import { AttributeTableController } from "./attribute-table.js?v=0.15.39";
+import { AIController } from "./ai.js?v=0.15.39";
+import { ToolManager } from "./tool-manager.js?v=0.15.39";
+import { UIController } from "./ui.js?v=0.15.39";
+import { ExportController } from "./export/export-controller.js?v=0.15.39";
+import { parseShareParameters } from "./share.js?v=0.15.39";
+import { POPULAR_SERVICES } from "./catalog.js?v=0.15.39";
 
 async function loadSharedLayer(mapController, config) {
   const rootUrl = config.url.replace(/\/+$/, "");
@@ -61,12 +61,18 @@ async function start() {
       allowHttp: location.hostname === "localhost" || location.hostname === "127.0.0.1",
     });
     if (shared.basemap) mapController.setBasemap(shared.basemap);
+    const sharedLayers = [];
     for (const layer of shared.layers) {
       try {
-        await loadSharedLayer(mapController, layer);
+        sharedLayers.push(...await loadSharedLayer(mapController, layer));
       } catch (error) {
         events.publish("app:error", { message: `Shared layer failed to load: ${error.message}` });
       }
+    }
+    const example = POPULAR_SERVICES.find((item) => (item.slug || item.id) === shared.example);
+    if (example?.presentation && sharedLayers.length) {
+      const primaryLayer = sharedLayers.find((layer) => /pm2[.\s-]*5/i.test(layer.title || "")) || sharedLayers[0];
+      projectManager.setPresentation({ ...example.presentation, primaryLayerId: primaryLayer.uid });
     }
   } catch (error) {
     events.publish("app:error", { message: error.message });
