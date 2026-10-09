@@ -38,6 +38,12 @@ export const APPLICATION_PRESETS = Object.freeze({
       PRESET_PANEL("attributes-main", "attributes", "Place details", "right", 0, { binding: { followSelection: true } }),
     ],
   },
+  "ai-map": {
+    preset: "ai-map", title: "AI Map", skin: "violet-circuit", layout: { kind: "ai-map" },
+    panels: [
+      PRESET_PANEL("ai-map-main", "ai-chatbot", "AI Map Assistant", "right", 0, { binding: { followActiveLayer: true } }),
+    ],
+  },
 });
 
 const clone = (value) => structuredClone(value);
@@ -57,6 +63,14 @@ export function normalizeApplicationConfig(value = {}) {
     title: String(value.title || base.title || "Map application"),
     skin: typeof value.skin === "string" ? value.skin : base.skin,
     mode: value.mode === "present" ? "present" : "edit",
+    layout: {
+      kind: ["workspace", "bottom-nav", "bottom-workspace", "globe", "ai-map"].includes(value.layout?.kind)
+        ? value.layout.kind
+        : (base.layout?.kind || "workspace"),
+      bottomHeight: Number.isFinite(value.layout?.bottomHeight) ? Math.min(720, Math.max(180, value.layout.bottomHeight)) : 280,
+      activeBottomPanel: typeof value.layout?.activeBottomPanel === "string" ? value.layout.activeBottomPanel : null,
+      bottomCollapsed: value.layout?.bottomCollapsed === true,
+    },
     panels: panels.map((panel, index) => {
       let instanceId = String(panel?.instanceId || `${panel?.type || "panel"}-${index + 1}`);
       while (used.has(instanceId)) instanceId = `${instanceId}-${index + 1}`;
@@ -66,7 +80,19 @@ export function normalizeApplicationConfig(value = {}) {
         instanceId,
         type: String(panel?.type || "unknown"),
         title: String(panel?.title || panel?.type || "Panel"),
-        placement: { region, order: Number.isFinite(panel?.placement?.order) ? panel.placement.order : index, ...(panel?.placement || {}) },
+        placement: {
+          region,
+          order: Number.isFinite(panel?.placement?.order) ? panel.placement.order : index,
+          size: {
+            width: Number.isFinite(panel?.placement?.size?.width) ? panel.placement.size.width : 360,
+            height: Number.isFinite(panel?.placement?.size?.height) ? panel.placement.size.height : 300,
+          },
+          position: {
+            x: Number.isFinite(panel?.placement?.position?.x) ? panel.placement.position.x : 24,
+            y: Number.isFinite(panel?.placement?.position?.y) ? panel.placement.position.y : 80,
+          },
+          ...(panel?.placement || {}),
+        },
         binding: clone(panel?.binding || { followActiveLayer: true }),
         settings: clone(panel?.settings || {}),
         audienceVisible: panel?.audienceVisible !== false,
@@ -104,7 +130,7 @@ export function applicationToLegacyPresentation(application, previous = {}) {
   return {
     ...previous,
     schemaVersion: 1,
-    template: ["standard", "briefing", "explorer", "atlas"].includes(config.preset) ? config.preset : "standard",
+    template: ["standard", "briefing", "explorer", "atlas", "ai-map"].includes(config.preset) ? config.preset : "standard",
     skin: config.skin,
     title: config.title,
     primaryLayerId: fixedLayer,

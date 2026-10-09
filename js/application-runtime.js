@@ -1,9 +1,9 @@
-import { ApplicationState } from "./application-state.js?v=0.15.41";
-import { PanelRegistry, ToolRegistry } from "./application-registry.js?v=0.15.41";
-import { LayoutManager } from "./layout-manager.js?v=0.15.41";
-import { normalizeApplicationConfig, presetApplication } from "./application-config.js?v=0.15.41";
-import { DuckDBBrowserClient } from "./duckdb-client.js?v=0.15.41";
-import { normalizeDataCatalog, planNaturalLanguageQuery, validateReadOnlySQL } from "./data-catalog.js?v=0.15.41";
+import { ApplicationState } from "./application-state.js?v=0.16.0";
+import { PanelRegistry, ToolRegistry } from "./application-registry.js?v=0.16.0";
+import { LayoutManager } from "./layout-manager.js?v=0.16.0";
+import { normalizeApplicationConfig, presetApplication } from "./application-config.js?v=0.16.0";
+import { DuckDBBrowserClient } from "./duckdb-client.js?v=0.16.0";
+import { normalizeDataCatalog, planNaturalLanguageQuery, validateReadOnlySQL } from "./data-catalog.js?v=0.16.0";
 
 const STATIC_PANELS = {
   places: "places-panel",
@@ -27,6 +27,7 @@ export class ApplicationRuntime {
       state: this.state,
       mapController,
       documentRef,
+      onConfigChange: (application) => this.projectManager.setApplication(application),
       hosts: {
         left: documentRef.querySelector("#application-left-dock"),
         right: documentRef.querySelector("#application-right-dock"),
@@ -35,6 +36,8 @@ export class ApplicationRuntime {
       },
     });
     this.undoStack = [];
+    this.mapUndoStack = [];
+    this.panelSessions = new Map();
     this.duckdb = new DuckDBBrowserClient();
   }
 
@@ -47,11 +50,13 @@ export class ApplicationRuntime {
   apply(config, { preview = false } = {}) {
     if (preview) this.layout.beginPreview();
     const normalized = normalizeApplicationConfig(config);
+    const previousLayout = this.layout.current?.layout?.kind;
     this.document.querySelector("#app").dataset.applicationPreset = normalized.preset;
     this.document.querySelector("#app").dataset.presentationSkin = normalized.skin;
     this.document.body.dataset.applicationMode = normalized.mode;
     this.document.querySelector("#application-edit-return").hidden = normalized.mode !== "present";
     const applied = this.layout.apply(normalized, this.#context());
+    if (normalized.layout.kind === "globe" && previousLayout !== "globe") this.mapController.navigate("home").catch(() => {});
     const visibleTypes = new Set(normalized.panels
       .filter((panel) => normalized.mode !== "present" || panel.audienceVisible)
       .map((panel) => panel.type));
@@ -80,6 +85,11 @@ export class ApplicationRuntime {
   }
 
   undo() {
+    const previousView = this.mapUndoStack.pop();
+    if (previousView) {
+      this.mapController.restoreView(previousView).catch(() => {});
+      return true;
+    }
     const previous = this.undoStack.pop();
     if (!previous) return false;
     this.apply(previous);
@@ -91,7 +101,7 @@ export class ApplicationRuntime {
     if (!request) throw new Error("Describe the application you want to build.");
     let config = this.snapshot();
     const operations = [];
-    const preset = ["briefing", "explorer", "atlas", "standard"].find((id) => new RegExp(`\\b${id}\\b`, "i").test(request));
+    const preset = ["briefing", "explorer", "atlas", "standard", "ai-map"].find((id) => new RegExp(`\\b${id.replace("-", "[ -]")}\\b`, "i").test(request));
     if (preset) {
       config = presetApplication(preset);
       operations.push({ tool: "application.preset.apply", input: { preset } });
@@ -152,7 +162,7 @@ export class ApplicationRuntime {
       },
     });
     applicationChange("application.preset.apply", "Apply application preset", (_config, input) => {
-      if (!["standard", "explorer", "briefing", "atlas"].includes(input.preset)) throw new Error(`Unknown application preset: ${input.preset}`);
+      if (!["standard", "explorer", "briefing", "atlas", "ai-map"].includes(input.preset)) throw new Error(`Unknown application preset: ${input.preset}`);
       return presetApplication(input.preset);
     });
     applicationChange("application.panel.add", "Add panel", (config, input) => {
@@ -166,6 +176,7 @@ export class ApplicationRuntime {
     applicationChange("application.panel.configure", "Configure panel", (config, input) => ({ ...config, panels: config.panels.map((panel) => panel.instanceId === input.instanceId ? { ...panel, ...input.changes } : panel) }));
     applicationChange("application.panel.bind", "Bind dataset", (config, input) => ({ ...config, panels: config.panels.map((panel) => panel.instanceId === input.instanceId ? { ...panel, binding: { ...panel.binding, ...input.binding } } : panel) }));
     applicationChange("application.layout.change", "Change layout", (config, input) => ({ ...config, panels: config.panels.map((panel) => panel.instanceId === input.instanceId ? { ...panel, placement: { ...panel.placement, ...input.placement } } : panel) }));
+    applicationChange("application.layout.mode", "Change layout mode", (config, input) => ({ ...config, layout: { ...config.layout, kind: input.kind || "workspace" } }));
     applicationChange("application.skin.change", "Change skin", (config, input) => ({ ...config, skin: input.skin || config.skin }));
     applicationChange("application.chart.create", "Create chart", (config, input) => {
       config.panels.push({ instanceId: input.instanceId || `charts-${config.panels.filter((item) => item.type === "charts").length + 1}`, type: "charts", title: input.title || "Chart", placement: { region: input.region || "bottom", order: config.panels.length }, binding: input.binding || { followActiveLayer: true }, settings: input.settings || {}, audienceVisible: true });
@@ -173,6 +184,11 @@ export class ApplicationRuntime {
     });
     this.tools.register({ id: "project.filter.apply", displayName: "Apply filter", execute: (input) => this.state.dispatch("filters:set", input) });
     this.tools.register({ id: "project.chapter.create", displayName: "Create chapter", execute: (input) => this.state.dispatch("chapter:create", input) });
+    this.tools.register({ id: "map.navigate", displayName: "Navigate map", validate: (input) => ["home", "in", "out", "rotate-left", "rotate-right", "tilt-up", "tilt-down"].includes(input?.action) || "Unsupported map navigation action.", execute: (input) => {
+      this.mapUndoStack.push(this.mapController.getViewState());
+      return this.mapController.navigate(input.action);
+    } });
+    this.tools.register({ id: "map.basemap.change", displayName: "Change basemap", validate: (input) => typeof input?.id === "string" && input.id ? true : "Choose a basemap.", execute: (input) => this.mapController.setBasemap(input.id) });
   }
 
   #registerPanels() {
@@ -182,7 +198,7 @@ export class ApplicationRuntime {
         displayName: type[0].toUpperCase() + type.slice(1),
         description: `Existing ${type} workspace tools.`,
         category: type === "intelligence" ? "Analysis" : "Workspace",
-        placements: type === "places" || type === "layers" ? ["left", "right"] : ["left", "right", "bottom"],
+        placements: ["left", "right", "bottom", "floating"],
         multiple: false,
         mount: (host) => {
           const element = this.document.getElementById(elementId);
@@ -269,7 +285,7 @@ export class ApplicationRuntime {
       },
     });
     this.panels.register({
-      type: "ai-chatbot", displayName: "AI Query Assistant", description: "Turn plain-language requests into reviewed filters or read-only SQL.", category: "Analysis", bindings: ["active-layer", "shared-selection", "shared-time"], placements: ["left", "right", "bottom", "floating"], multiple: false,
+      type: "ai-chatbot", displayName: "AI Map Assistant", description: "Query data and run approved map actions through the shared tool registry.", category: "Analysis", bindings: ["active-layer", "shared-selection", "shared-time"], placements: ["left", "right", "bottom", "floating"], multiple: false,
       mount: (host, context) => this.#mountAIQueryPanel(host, context),
     });
     this.panels.register({
@@ -323,21 +339,39 @@ export class ApplicationRuntime {
 
   #mountAIQueryPanel(host, context) {
     const catalog = this.#catalogWithActiveLayer();
-    host.innerHTML = `<form class="ai-query-panel"><label class="field"><span>Ask about catalog data</span><textarea rows="3" data-ai-query placeholder="Show active_layer records where value is above 10"></textarea></label><button type="submit">Build reviewed query</button><div data-ai-plan class="sql-status">No query planned. Plain language is translated into a constrained read-only query; nothing runs automatically.</div></form>`;
+    const session = this.panelSessions.get(context.config.instanceId) || { prompt: "", messages: [] };
+    this.panelSessions.set(context.config.instanceId, session);
+    host.innerHTML = `<form class="ai-query-panel"><div><span class="eyebrow">AI-native map</span><strong>Approved actions only</strong></div><div class="ai-query-panel__quick" aria-label="Quick map actions"><button type="button" data-ai-action="home">Full globe</button><button type="button" data-ai-action="in">Zoom in</button><button type="button" data-ai-action="out">Zoom out</button><button type="button" data-ai-tools>Other tools</button><button type="button" data-ai-undo>Undo</button></div><label class="field"><span>Ask about the map or catalog data</span><textarea rows="4" data-ai-query placeholder="Show active_layer records where value is above 10">${escapeHtml(session.prompt)}</textarea></label><div class="sql-panel__actions"><button type="submit">Build reviewed action</button><button type="button" class="button--quiet" data-ai-cancel disabled>Cancel</button></div><div data-ai-plan class="sql-status">${session.messages.length ? session.messages.map((message) => `<p>${escapeHtml(message)}</p>`).join("") : "Conversation stays available while layouts and themes change. Unsupported requests are explained instead of guessed."}</div></form>`;
     const form = host.querySelector("form");
+    host.querySelectorAll("[data-ai-action]").forEach((button) => button.addEventListener("click", async () => {
+      const action = button.dataset.aiAction;
+      const output = host.querySelector("[data-ai-plan]");
+      output.textContent = `Running ${action}…`;
+      try { await context.runtime.runTool("map.navigate", { action }); session.messages.push(`Map action completed: ${action}.`); output.textContent = session.messages.at(-1); }
+      catch (error) { output.textContent = `Unavailable: ${error.message}`; }
+    }));
+    host.querySelector("[data-ai-tools]").addEventListener("click", () => context.runtime.runTool("application.layout.mode", { kind: "workspace" }, { preview: true }));
+    host.querySelector("[data-ai-undo]").addEventListener("click", () => { host.querySelector("[data-ai-plan]").textContent = context.runtime.undo() ? "Undid the last reversible application change." : "There is no reversible application change to undo."; });
     form.addEventListener("submit", (event) => {
       event.preventDefault();
       const output = host.querySelector("[data-ai-plan]");
+      const cancel = host.querySelector("[data-ai-cancel]");
+      session.prompt = host.querySelector("[data-ai-query]").value;
+      cancel.disabled = false;
+      output.textContent = "Planning a constrained action…";
       try {
-        const plan = planNaturalLanguageQuery(host.querySelector("[data-ai-query]").value, catalog);
+        const plan = planNaturalLanguageQuery(session.prompt, catalog);
+        session.messages.push(plan.explanation);
         output.innerHTML = `<strong>${escapeHtml(plan.explanation)}</strong><code>${escapeHtml(plan.sql)}</code><div><button type="button" data-ai-run>Run in SQL workspace</button>${plan.filter ? `<button type="button" class="button--quiet" data-ai-filter>Apply map filter</button>` : ""}</div>`;
         output.querySelector("[data-ai-run]").addEventListener("click", () => context.runtime.runTool("application.panel.add", { type: "sql", title: "AI SQL query", region: "bottom", settings: { sql: plan.sql } }));
         output.querySelector("[data-ai-filter]")?.addEventListener("click", () => {
           const field = String(plan.filter.field).replaceAll('"', '""');
           context.dispatch("filters:set", { id: `${context.config.instanceId}:nlp`, owner: context.config.instanceId, scope: "project", layerId: plan.filter.layerId, expression: { kind: "comparison", ...plan.filter, where: `"${field}" ${plan.filter.operator} ${plan.filter.value}` } });
         });
-      } catch (error) { output.textContent = error.message; }
+      } catch (error) { output.textContent = `Unavailable: ${error.message}`; }
+      finally { cancel.disabled = true; }
     });
+    host.querySelector("[data-ai-cancel]").addEventListener("click", () => { host.querySelector("[data-ai-plan]").textContent = "Request cancelled. No map changes were applied."; });
   }
 
   #mountSQLPanel(host, context) {

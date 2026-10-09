@@ -1,4 +1,4 @@
-import { normalizeDataCatalog, quoteIdentifier, validateReadOnlySQL } from "./data-catalog.js?v=0.15.41";
+import { normalizeDataCatalog, quoteIdentifier, validateReadOnlySQL } from "./data-catalog.js?v=0.16.0";
 
 // The npm package version is independent of the DuckDB engine version it embeds.
 const DUCKDB_MODULE = "https://cdn.jsdelivr.net/npm/@duckdb/duckdb-wasm@1.32.0/+esm";

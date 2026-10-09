@@ -1,5 +1,5 @@
-import { applicationToLegacyPresentation, migratePresentationToApplication, normalizeApplicationConfig, presetApplication } from "./application-config.js?v=0.15.41";
-import { normalizeDataCatalog } from "./data-catalog.js?v=0.15.41";
+import { applicationToLegacyPresentation, migratePresentationToApplication, normalizeApplicationConfig, presetApplication } from "./application-config.js?v=0.16.0";
+import { normalizeDataCatalog } from "./data-catalog.js?v=0.16.0";
 
 const STORAGE_KEY = "gismap-online:projects:v1";
 const CURRENT_KEY = "gismap-online:current-project:v1";
@@ -265,8 +265,8 @@ export class ProjectManager {
   }
 
   #presentation(value = {}) {
-    const templates = new Set(["standard", "briefing", "explorer", "atlas"]);
-    const skins = new Set(["clean-light", "dark-analytical", "retro-print"]);
+    const templates = new Set(["standard", "briefing", "explorer", "atlas", "ai-map"]);
+    const skins = new Set(["clean-light", "dark-analytical", "retro-print", "tidal-95", "portolan", "velvet-orbit", "violet-circuit"]);
     return {
       schemaVersion: 1,
       template: templates.has(value.template) ? value.template : "standard",

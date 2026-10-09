@@ -1,9 +1,9 @@
-import { POPULAR_SERVICES } from "./catalog.js?v=0.15.41";
-import { ENTERPRISE_CATALOGS, EnterpriseCatalog, normalizeArcGisDirectoryUrl } from "./enterprise-catalog.js?v=0.15.41";
-import { createShareUrl } from "./share.js?v=0.15.41";
-import { markdownToPlainText, renderMarkdown } from "./markdown.js?v=0.15.41";
-import { formatAttributeValue } from "./attribute-format.js?v=0.15.41";
-import { normalizeApplicationConfig, presetApplication } from "./application-config.js?v=0.15.41";
+import { POPULAR_SERVICES } from "./catalog.js?v=0.16.0";
+import { ENTERPRISE_CATALOGS, EnterpriseCatalog, normalizeArcGisDirectoryUrl } from "./enterprise-catalog.js?v=0.16.0";
+import { createShareUrl } from "./share.js?v=0.16.0";
+import { markdownToPlainText, renderMarkdown } from "./markdown.js?v=0.16.0";
+import { formatAttributeValue } from "./attribute-format.js?v=0.16.0";
+import { normalizeApplicationConfig, presetApplication } from "./application-config.js?v=0.16.0";
 
 const DISPLAY_SETTINGS_KEY = "gismap-online:display:v1";
 const INSIGHT_POSITIONS = new Set(["upper-left", "lower-left", "bottom", "dock-left", "dock-right", "dock-top", "dock-bottom"]);
@@ -1997,7 +1997,7 @@ export class UIController {
     let previewing = false;
     const panelTypes = this.applicationRuntime.panels.list();
     const layers = this.mapController.getOperationalLayers();
-    const presetLabels = { standard: "Standard workspace", explorer: "Explorer", briefing: "Briefing", atlas: "Atlas" };
+    const presetLabels = { standard: "Standard workspace", explorer: "Explorer", briefing: "Briefing", atlas: "Atlas", "ai-map": "AI Map" };
     const render = () => {
       const root = this.dialog.querySelector("[data-application-builder]");
       if (!root) return;
@@ -2011,10 +2011,28 @@ export class UIController {
         return `<div class="application-builder__instance" data-builder-instance="${escapeHtml(panel.instanceId)}"><input data-builder-panel-title aria-label="Panel title" value="${escapeHtml(panel.title)}" /><select data-builder-region aria-label="Panel placement">${["left", "right", "bottom", "floating"].map((region) => `<option value="${region}"${panel.placement.region === region ? " selected" : ""}>${region[0].toUpperCase()}${region.slice(1)} dock</option>`).join("")}</select><select data-builder-layer aria-label="Dataset binding"><option value="">Follow active layer</option>${layers.map((layer) => `<option value="${escapeHtml(layer.uid)}"${panel.binding?.layerId === layer.uid ? " selected" : ""}>${escapeHtml(layer.title || "Untitled layer")}</option>`).join("")}</select>${fieldControl}<label><input data-builder-audience type="checkbox"${panel.audienceVisible ? " checked" : ""} /> Audience</label><span class="application-builder__order"><button type="button" class="button--quiet" data-builder-up aria-label="Move ${escapeHtml(panel.title)} earlier"${panelIndex === 0 ? " disabled" : ""}>↑</button><button type="button" class="button--quiet" data-builder-down aria-label="Move ${escapeHtml(panel.title)} later"${panelIndex === draft.panels.length - 1 ? " disabled" : ""}>↓</button></span><button type="button" class="button--quiet" data-builder-remove aria-label="Remove ${escapeHtml(panel.title)}">Remove</button></div>`;
       }).join("");
       root.innerHTML = `<div class="application-builder__top"><label class="field"><span>Starting preset</span><select data-builder-preset>${Object.entries(presetLabels).map(([id, label]) => `<option value="${id}"${draft.preset === id ? " selected" : ""}>${label}</option>`).join("")}</select></label><label class="field"><span>Skin</span><select data-builder-skin><option value="clean-light"${draft.skin === "clean-light" ? " selected" : ""}>Clean Light</option><option value="dark-analytical"${draft.skin === "dark-analytical" ? " selected" : ""}>Dark Analytical</option><option value="retro-print"${draft.skin === "retro-print" ? " selected" : ""}>Retro Print</option></select></label><label class="field"><span>Application title</span><input data-builder-title value="${escapeHtml(draft.title)}" placeholder="Wildfire briefing" /></label><label class="field"><span>View</span><select data-builder-mode><option value="edit"${draft.mode === "edit" ? " selected" : ""}>Edit</option><option value="present"${draft.mode === "present" ? " selected" : ""}>Present</option></select></label></div><div class="application-builder__section"><h3>Panel gallery</h3><p class="application-builder__hint">Add working tools to the layout. Singleton tools show “Added”; conditional tools explain what they need.</p><div class="application-builder__gallery">${panelTypes.map((panel) => { const availability = panel.availability({ layers, draft }); const added = !panel.multiple && draft.panels.some((item) => item.type === panel.type); const disabled = added || !availability.available || panel.status === "planned"; const reason = added ? "Already added to this application." : availability.reason; return `<button type="button" data-builder-add="${escapeHtml(panel.type)}"${disabled ? " disabled" : ""} title="${escapeHtml(reason || panel.description)}"><span><strong>${disabled ? "" : "+ "}${escapeHtml(panel.displayName)}</strong><em>${added ? "Added" : panel.status === "conditional" ? "Conditional" : "Ready"}</em></span><small>${escapeHtml(reason || panel.description)}</small></button>`; }).join("")}</div><details class="application-builder__roadmap"><summary>Planned extensions</summary><p>Legend, swipe, timeline, media, and embed will appear here only after they have working panel implementations.</p></details></div><div class="application-builder__section"><h3>Current panel instances</h3><div class="application-builder__instances">${panelRows || `<p class="application-builder__notice">Add at least one panel. The map and project data remain available even when no panels are shown.</p>`}</div></div><p class="application-builder__notice">Panels share project state. Closing a panel removes only its interface; layers, drawings, feeds, selections, and saved analysis stay with the project. Audience visibility controls presentation UI, not data permissions.</p><button type="button" class="button--quiet" data-builder-save-copy>Save as new presentation</button>`;
+      const skinSelect = root.querySelector("[data-builder-skin]");
+      [["tidal-95", "Tidal ’95"], ["portolan", "Portolan"], ["velvet-orbit", "Velvet Orbit"], ["violet-circuit", "Violet Circuit"]].forEach(([value, label]) => {
+        if ([...skinSelect.options].some((option) => option.value === value)) return;
+        skinSelect.add(new Option(label, value));
+      });
+      skinSelect.value = draft.skin;
+      const layoutField = document.createElement("label");
+      layoutField.className = "field";
+      layoutField.innerHTML = `<span>Layout</span><select data-builder-layout><option value="workspace">Workspace docks</option><option value="bottom-nav">Bottom navigation</option><option value="bottom-workspace">Bottom workspace</option><option value="ai-map">AI Map</option><option value="globe">Orbital globe (optional)</option></select>`;
+      root.querySelector(".application-builder__top").append(layoutField);
+      layoutField.querySelector("select").value = draft.layout.kind;
+      const resetLayout = document.createElement("button");
+      resetLayout.type = "button";
+      resetLayout.className = "button--quiet";
+      resetLayout.dataset.builderResetLayout = "";
+      resetLayout.textContent = "Reset layout";
+      root.querySelector("[data-builder-save-copy]").before(resetLayout);
       const syncDraft = () => {
         draft.title = root.querySelector("[data-builder-title]").value.trim() || presetLabels[draft.preset];
         draft.skin = root.querySelector("[data-builder-skin]").value;
         draft.mode = root.querySelector("[data-builder-mode]").value;
+        draft.layout = { ...draft.layout, kind: root.querySelector("[data-builder-layout]").value };
         root.querySelectorAll("[data-builder-instance]").forEach((row, index) => {
           const panel = draft.panels.find((item) => item.instanceId === row.dataset.builderInstance);
           if (!panel) return;
@@ -2033,7 +2051,13 @@ export class UIController {
         if (title && title !== previous.title) draft.title = title;
         render();
       });
-      ["[data-builder-title]", "[data-builder-skin]", "[data-builder-mode]"].forEach((selector) => root.querySelector(selector).addEventListener("change", syncDraft));
+      ["[data-builder-title]", "[data-builder-skin]", "[data-builder-mode]", "[data-builder-layout]"].forEach((selector) => root.querySelector(selector).addEventListener("change", syncDraft));
+      resetLayout.addEventListener("click", () => {
+        const preset = presetApplication(draft.preset);
+        draft.layout = structuredClone(preset.layout);
+        draft.panels = draft.panels.map((panel, order) => ({ ...panel, placement: { region: this.applicationRuntime.panels.get(panel.type)?.placements?.[0] || "left", order, size: { width: 360, height: 300 }, position: { x: 24 + order * 24, y: 80 + order * 24 } } }));
+        render();
+      });
       root.querySelectorAll("[data-builder-instance]").forEach((row) => {
         row.querySelectorAll("input, select").forEach((control) => control.addEventListener("change", syncDraft));
         row.querySelector("[data-builder-remove]").addEventListener("click", () => {

@@ -56,6 +56,20 @@ test("presets use one schema and retain independent chart instances", () => {
   assert.notDeepEqual(normalized.panels.at(-1).settings, normalized.panels.find((panel) => panel.type === "charts").settings);
 });
 
+test("AI Map and dock layouts retain independent persisted placement state", () => {
+  const aiMap = presetApplication("ai-map");
+  assert.equal(aiMap.layout.kind, "ai-map");
+  assert.deepEqual(aiMap.panels.map((panel) => panel.type), ["ai-chatbot"]);
+  const normalized = normalizeApplicationConfig({
+    ...aiMap,
+    layout: { kind: "bottom-workspace", bottomHeight: 418, activeBottomPanel: "ai-map-main", bottomCollapsed: true },
+    panels: [{ ...aiMap.panels[0], placement: { region: "floating", order: 0, size: { width: 512, height: 384 }, position: { x: 91, y: 73 } } }],
+  });
+  assert.deepEqual(normalized.layout, { kind: "bottom-workspace", bottomHeight: 418, activeBottomPanel: "ai-map-main", bottomCollapsed: true });
+  assert.deepEqual(normalized.panels[0].placement.size, { width: 512, height: 384 });
+  assert.deepEqual(normalized.panels[0].placement.position, { x: 91, y: 73 });
+});
+
 test("old projects migrate to Standard and legacy Atlas chapters are retained", () => {
   assert.equal(migratePresentationToApplication({ layers: [] }).preset, "standard");
   const atlas = migratePresentationToApplication({ presentation: { template: "atlas", title: "Places", chapters: [{ title: "One", view: { zoom: 4 } }] } });
