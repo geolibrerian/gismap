@@ -24,6 +24,10 @@ All notable changes to GIS Map Online are documented here. This project follows
 - Restyled panel instances and secondary actions so enabled controls no longer look disabled, and reorder arrows disable only at list boundaries.
 - Layout and appearance changes now preserve the map, data, selection, analysis state, and AI conversation independently.
 
+### Fixed
+
+- Center the full Earth with a level camera when entering the globe layout and reverse the side-rail contours so their inner edges curve around the map.
+
 ## [0.15.40] - 2026-10-07
 
 ### Added

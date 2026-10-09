@@ -56,7 +56,9 @@ export class ApplicationRuntime {
     this.document.body.dataset.applicationMode = normalized.mode;
     this.document.querySelector("#application-edit-return").hidden = normalized.mode !== "present";
     const applied = this.layout.apply(normalized, this.#context());
-    if (normalized.layout.kind === "globe" && previousLayout !== "globe") this.mapController.navigate("home").catch(() => {});
+    if (normalized.layout.kind === "globe" && previousLayout !== "globe") {
+      this.mapController.restoreView({ center: [-20, 18], zoom: 2, heading: 0, tilt: 0 }).catch(() => {});
+    }
     const visibleTypes = new Set(normalized.panels
       .filter((panel) => normalized.mode !== "present" || panel.audienceVisible)
       .map((panel) => panel.type));
