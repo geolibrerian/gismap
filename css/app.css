@@ -777,7 +777,7 @@ body.sidebar-collapsed .sidebar {
   transform: translateX(-100%);
   pointer-events: none;
 }
-body.sidebar-collapsed .sidebar__open { display: block; }
+body.sidebar-collapsed #sidebar-open { display: grid !important; place-items: center; z-index: 30; border: 1px solid var(--line); color: var(--ink); background: var(--surface); }
 body.sidebar-collapsed .table-dialog { left: 14px; }
 
 @media (min-width: 881px) {

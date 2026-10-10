@@ -376,7 +376,13 @@ export class UIController {
       this.identifyPending = true;
       this.#renderIntelligenceContents();
     });
-    this.events.subscribe("identify:complete", (payload) => this.#renderInsight(payload));
+    this.events.subscribe("identify:complete", (payload) => {
+      if (this.presentationState.template === "briefing") {
+        this.#setInsightsOpen(false);
+        return;
+      }
+      this.#renderInsight(payload);
+    });
     this.events.subscribe("table:open", () => {
       this.mapController.clearFeatureHighlight();
       this.#setInsightsOpen(false);
@@ -608,6 +614,7 @@ export class UIController {
     const handle = document.querySelector("#mobile-drawer-handle");
     handle?.setAttribute("aria-expanded", String(!collapsed));
     handle?.setAttribute("aria-label", `${collapsed ? "Expand" : "Collapse"} tool drawer`);
+    requestAnimationFrame(() => this.mapController.resize());
   }
 
   #activateMobilePanel(panelId, openSidebar = true) {

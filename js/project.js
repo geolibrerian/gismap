@@ -303,6 +303,19 @@ export class ProjectManager {
       primaryLayerId: value.primaryLayerId || null,
       fieldMappings: value.fieldMappings && typeof value.fieldMappings === "object" ? value.fieldMappings : {},
       widgets: value.widgets && typeof value.widgets === "object" ? value.widgets : {},
+      contextSettings: value.contextSettings && typeof value.contextSettings === "object" ? {
+        dock: ["floating", "left", "right", "top", "bottom"].includes(value.contextSettings.dock) ? value.contextSettings.dock : "floating",
+        perimeter: Math.min(1000, Math.max(0, Number(value.contextSettings.perimeter) || 10)),
+        units: value.contextSettings.units === "miles" ? "miles" : "kilometers",
+        sections: value.contextSettings.sections && typeof value.contextSettings.sections === "object" ? {
+          overview: value.contextSettings.sections.overview !== false,
+          surroundings: value.contextSettings.sections.surroundings !== false,
+          ai: value.contextSettings.sections.ai !== false,
+          sources: value.contextSettings.sections.sources !== false,
+        } : { overview: true, surroundings: true, ai: true, sources: true },
+        layerIds: Array.isArray(value.contextSettings.layerIds) ? value.contextSettings.layerIds.map(String) : [],
+        sourceIds: Array.isArray(value.contextSettings.sourceIds) ? value.contextSettings.sourceIds.map(String) : [],
+      } : undefined,
       playbackMode: value.playbackMode === "manual" ? "manual" : "auto",
       chapters: Array.isArray(value.chapters) ? value.chapters.map((chapter) => ({
         ...chapter,
