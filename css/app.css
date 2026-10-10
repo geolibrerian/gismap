@@ -1126,8 +1126,20 @@ body.sidebar-collapsed .table-dialog { left: 14px; }
 
 @media (max-width: 640px) {
   .atlas-chapter-overlay { top: 70px; right: 10px; left: 10px; grid-template-columns: 1fr; width: auto; gap: 10px; }
-  .atlas-chapter-overlay__navigation { justify-content: flex-end; }
-  .atlas-chapter-description { right: 10px; bottom: 76px; width: min(360px, calc(100% - 20px)); max-height: 42vh; }
+  .atlas-chapter-overlay__navigation { display:none; }
+  .atlas-chapter-description { right: 10px; bottom: 142px; width: min(360px, calc(100% - 20px)); max-height: 38vh; }
+  .mobile-presentation-controls { position:fixed; z-index:64; right:10px; bottom:calc(72px + env(safe-area-inset-bottom)); left:10px; display:grid; min-height:58px; padding:7px; border:1px solid var(--line); border-radius:14px; background:color-mix(in srgb,var(--surface) 96%,transparent); box-shadow:0 -8px 24px rgb(17 39 33 / 18%); backdrop-filter:blur(14px); }
+  .mobile-presentation-controls[hidden] { display:none; }
+  .mobile-presentation-controls[data-presentation="atlas"] { grid-template-columns:1fr; }
+  .mobile-presentation-controls[data-presentation="briefing"] { grid-template-columns:1fr; }
+  .mobile-atlas-controls { display:grid; grid-template-columns:1fr 1.25fr 1fr; gap:6px; }
+  .mobile-atlas-controls button, .mobile-briefing-context-button { min-height:44px; border:1px solid var(--green); border-radius:9px; color:var(--green); background:var(--surface); font-size:20px; font-weight:700; }
+  .mobile-atlas-controls button:nth-child(2), .mobile-briefing-context-button { color:white; background:var(--green); }
+  .mobile-atlas-controls button:disabled, .mobile-briefing-context-button:disabled { opacity:.4; }
+  .mobile-briefing-context-button { font-size:14px; }
+  .mobile-presentation-controls[data-presentation="atlas"] .mobile-briefing-context-button, .mobile-presentation-controls[data-presentation="briefing"] .mobile-atlas-controls { display:none; }
+  #app[data-presentation="briefing"] .briefing-context { display:none; }
+  body.mobile-briefing-context-open #app[data-presentation="briefing"] .briefing-context { position:fixed; z-index:63; right:0; bottom:calc(138px + env(safe-area-inset-bottom)); left:0; display:block; width:auto; max-height:min(56dvh,560px); padding:14px; overflow:auto; border-radius:16px 16px 0 0; box-shadow:0 -12px 30px rgb(17 39 33 / 24%); }
   .atlas-camera-fields { grid-template-columns: 1fr; }
   .app-dialog--docked { position: fixed; inset: 52px 0 0 auto; width: min(94vw, 480px); height: auto; }
   .map-workspace,

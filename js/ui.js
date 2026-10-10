@@ -295,6 +295,14 @@ export class UIController {
     document.querySelector("#atlas-chapter-previous")?.addEventListener("click", () => this.#stepAtlasChapter(-1));
     document.querySelector("#atlas-chapter-next")?.addEventListener("click", () => this.#stepAtlasChapter(1));
     document.querySelector("#atlas-chapter-play")?.addEventListener("click", () => this.#toggleAtlasPlayback());
+    document.querySelector("[data-mobile-atlas-previous]")?.addEventListener("click", () => void this.#stepAtlasChapter(-1));
+    document.querySelector("[data-mobile-atlas-next]")?.addEventListener("click", () => void this.#stepAtlasChapter(1));
+    document.querySelector("[data-mobile-atlas-play]")?.addEventListener("click", () => this.#toggleAtlasPlayback());
+    document.querySelector("[data-mobile-briefing-context]")?.addEventListener("click", () => {
+      const open = !document.body.classList.contains("mobile-briefing-context-open");
+      document.body.classList.toggle("mobile-briefing-context-open", open);
+      document.querySelector("[data-mobile-briefing-context]")?.setAttribute("aria-expanded", String(open));
+    });
     document.querySelector("#application-edit-return")?.addEventListener("click", () => {
       const application = this.applicationRuntime.setMode("edit");
       this.projectManager.setApplication(application);
@@ -1819,6 +1827,7 @@ export class UIController {
     const root = document.querySelector("#presentation-dashboard");
     if (!root) return;
     const template = presentation.template || "standard";
+    this.#syncPresentationMobileControls(presentation);
     if (template === "standard") { root.replaceChildren(); root.hidden = true; return; }
     root.hidden = false;
     const layer = this.mapController.findLayer(this.presentationState.layerUid);
@@ -1909,6 +1918,29 @@ export class UIController {
     root.querySelector("[data-mode-clear]")?.addEventListener("click", () => { this.presentationState.search = ""; this.presentationState.category = ""; this.presentationState.scope = "all"; this.presentationState.rangeMin = null; this.presentationState.rangeMax = null; this.#filterPresentationRecords(); });
     root.querySelectorAll("[data-mode-category-value]").forEach((button) => button.addEventListener("click", () => { this.presentationState.category = button.dataset.modeCategoryValue; this.#filterPresentationRecords(); }));
     root.querySelectorAll("[data-mode-record]").forEach((button) => button.addEventListener("click", async () => { const result = records[Number(button.dataset.modeRecord)]; this.#selectPresentationResult(result); if (result?.geometry) await this.mapController.view?.goTo?.(result.geometry); }));
+  }
+
+  #syncPresentationMobileControls(presentation = this.projectManager.current.presentation || {}) {
+    const controls = document.querySelector("#mobile-presentation-controls");
+    if (!controls) return;
+    const template = presentation.template || "standard";
+    controls.hidden = !["atlas", "briefing"].includes(template) || (template === "atlas" && !this.presentationState.atlasPresent);
+    controls.dataset.presentation = template;
+    const chapters = presentation.chapters || [];
+    const index = Number.isInteger(this.presentationState.atlasChapterIndex) ? this.presentationState.atlasChapterIndex : 0;
+    const auto = presentation.playbackMode !== "manual";
+    const previous = controls.querySelector("[data-mobile-atlas-previous]");
+    const next = controls.querySelector("[data-mobile-atlas-next]");
+    const play = controls.querySelector("[data-mobile-atlas-play]");
+    previous.disabled = !chapters.length || index <= 0;
+    next.disabled = !chapters.length || index >= chapters.length - 1;
+    play.hidden = !auto;
+    play.textContent = this.presentationState.atlasPlaying ? "❚❚" : "▶";
+    play.setAttribute("aria-label", this.presentationState.atlasPlaying ? "Pause tour" : "Play tour");
+    const contextButton = controls.querySelector("[data-mobile-briefing-context]");
+    contextButton.disabled = !this.presentationState.selected;
+    contextButton.setAttribute("aria-expanded", String(document.body.classList.contains("mobile-briefing-context-open")));
+    if (template !== "briefing") document.body.classList.remove("mobile-briefing-context-open");
   }
 
   #togglePresentationDock() {
