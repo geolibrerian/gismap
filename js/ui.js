@@ -1818,7 +1818,11 @@ export class UIController {
         else this.#hideAtlasChapterOverlay();
       });
       root.querySelector("[data-atlas-capture]")?.addEventListener("click", () => this.#captureAtlasChapter());
-      root.querySelector("[data-atlas-play]")?.addEventListener("click", () => playing ? this.#stopAtlasStory() : playbackMode === "auto" ? this.#playAtlasStory(chapters) : this.#goToAtlasChapter(chapters[0], 0, chapters));
+      root.querySelector("[data-atlas-play]")?.addEventListener("click", () => {
+        if (playing) return this.#stopAtlasStory();
+        const startIndex = Number.isInteger(this.presentationState.atlasChapterIndex) ? this.presentationState.atlasChapterIndex : 0;
+        return playbackMode === "auto" ? this.#playAtlasStory(chapters, startIndex) : this.#goToAtlasChapter(chapters[startIndex] || chapters[0], startIndex, chapters);
+      });
       root.querySelector("[data-atlas-export]")?.addEventListener("click", () => this.projectManager.exportAtlas());
       root.querySelector("[data-atlas-playback]")?.addEventListener("change", (event) => {
         this.#stopAtlasStory();
@@ -2220,22 +2224,33 @@ export class UIController {
 
   #stopAtlasStory() {
     this.atlasPlaybackToken += 1;
+    clearTimeout(this.atlasPlaybackTimer);
+    this.atlasPlaybackTimer = null;
     this.presentationState.atlasPlaying = false;
     this.#renderPresentationDashboard(this.projectManager.current.presentation || {});
   }
 
-  async #playAtlasStory(chapters) {
+  #playAtlasStory(chapters, startIndex = 0) {
     if (!chapters.length) return;
     const token = ++this.atlasPlaybackToken;
     this.presentationState.atlasPlaying = true;
     this.#renderPresentationDashboard(this.projectManager.current.presentation || {});
-    for (const [index, chapter] of chapters.entries()) {
+    const advance = (index) => {
       if (token !== this.atlasPlaybackToken) return;
-      await this.#goToAtlasChapter(chapter, index, chapters);
-      if (token !== this.atlasPlaybackToken) return;
-      await new Promise((resolve) => setTimeout(resolve, (Math.min(120, Math.max(1, Number(chapter.lingerSeconds) || 4))) * 1000));
-    }
-    if (token === this.atlasPlaybackToken) this.#stopAtlasStory();
+      const chapter = chapters[index];
+      if (!chapter) return this.#stopAtlasStory();
+      // Camera motion is deliberately non-blocking: a slow or interrupted
+      // SceneView animation must never prevent the saved linger timer from
+      // moving the story on to the next chapter.
+      void this.#goToAtlasChapter(chapter, index, chapters).catch(() => {});
+      const linger = Math.min(120, Math.max(1, Number(chapter.lingerSeconds) || 4)) * 1000;
+      this.atlasPlaybackTimer = setTimeout(() => {
+        if (token !== this.atlasPlaybackToken) return;
+        if (index >= chapters.length - 1) this.#stopAtlasStory();
+        else advance(index + 1);
+      }, linger);
+    };
+    advance(Math.max(0, Math.min(chapters.length - 1, startIndex)));
   }
 
   #applyPresentation(presentation = {}) {
