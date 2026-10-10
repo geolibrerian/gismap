@@ -273,6 +273,7 @@ export class UIController {
       if (!event.target.closest(".place-search-combobox")) this.#clearSearchResults();
     });
     document.querySelector("#bookmark-add").addEventListener("click", () => this.#addBookmark());
+    document.querySelector("#bookmark-manage")?.addEventListener("click", () => this.#bookmarkManagerDialog());
     this.dialog.addEventListener("close", () => {
       if (this.suppressNextDialogClose) {
         this.suppressNextDialogClose = false;
@@ -504,6 +505,7 @@ export class UIController {
       ...(this.utilityDrawOpen ? [{ id: "draw", label: "Draw" }] : []),
       ...(this.utilityStyleLayerUid ? [{ id: "style", label: `Style: ${this.mapController.findLayer(this.utilityStyleLayerUid)?.title || "Layer"}` }] : []),
       ...(this.utilityIntelligenceOpen ? [{ id: "intelligence", label: "Intelligence" }] : []),
+      ...(this.utilityPresentationOpen ? [{ id: "presentation", label: this.projectManager.current.presentation?.template === "briefing" ? "Context briefing" : this.projectManager.current.presentation?.template === "explorer" ? "Dataset explorer" : "Guided places" }] : []),
     ];
     const validTabs = new Set(tabs.map((tab) => tab.id));
     this.activeUtilityTab = validTabs.has(preferredTab)
@@ -562,6 +564,15 @@ export class UIController {
     if (tabId === "intelligence") {
       this.utilityIntelligenceOpen = false;
       document.querySelector("#intelligence-panel").hidden = false;
+      this.#syncUtilityPanel();
+      return;
+    }
+    if (tabId === "presentation") {
+      this.utilityPresentationOpen = false;
+      const dashboard = document.querySelector("#presentation-dashboard");
+      if (dashboard) document.querySelector(".sidebar__scroll")?.prepend(dashboard);
+      document.body.classList.remove("presentation-workspace-panels-open");
+      document.querySelectorAll(".sidebar__scroll > .panel[data-presentation-hidden]").forEach((panel) => { panel.hidden = true; });
       this.#syncUtilityPanel();
       return;
     }
@@ -1711,6 +1722,9 @@ export class UIController {
   }
 
   #filterPresentationRecords() {
+    const active = document.activeElement?.matches?.("[data-mode-search]")
+      ? { selector: "[data-mode-search]", start: document.activeElement.selectionStart, end: document.activeElement.selectionEnd }
+      : null;
     const layer = this.mapController.findLayer(this.presentationState.layerUid);
     const fields = this.#presentationFields(layer);
     const extent = this.mapController.view?.extent;
@@ -1722,6 +1736,12 @@ export class UIController {
     }
     void this.#syncExplorerMapFilter(layer, this.presentationState.visibleRecords);
     this.#renderPresentationDashboard(this.projectManager.current.presentation || {});
+    if (active) requestAnimationFrame(() => {
+      const input = document.querySelector(active.selector);
+      if (!input) return;
+      input.focus({ preventScroll: true });
+      input.setSelectionRange(active.start ?? input.value.length, active.end ?? input.value.length);
+    });
   }
 
   #selectPresentationResult(result) {
@@ -1810,6 +1830,7 @@ export class UIController {
       const playing = Boolean(this.presentationState.atlasPlaying);
       const playbackMode = presentation.playbackMode === "manual" ? "manual" : "auto";
       root.innerHTML = `<section class="mode-dashboard mode-dashboard--atlas"><header><span class="eyebrow">Atlas · ${this.presentationState.atlasPresent ? "present" : "edit"} mode</span><h2>${escapeHtml(presentation.title || "Guided places")}</h2><p>Capture exact map views, descriptions, media, and layer states as a shareable guided tour.</p></header><label class="atlas-playback-mode"><span>Playback</span><select data-atlas-playback><option value="auto"${playbackMode === "auto" ? " selected" : ""}>Auto · use linger time</option><option value="manual"${playbackMode === "manual" ? " selected" : ""}>Manual · use Back and Next</option></select></label><div class="atlas-actions"><button type="button" data-atlas-capture ${this.presentationState.atlasPresent ? "hidden" : ""}>Add current view</button><button type="button" data-atlas-mode>${this.presentationState.atlasPresent ? "Edit chapters" : "Present atlas"}</button>${this.presentationState.atlasPresent && chapters.length ? `<button type="button" data-atlas-play>${playing ? "Stop tour" : "Play tour"}</button>` : ""}<button type="button" data-atlas-export>Export tour</button></div><div class="mode-records">${chapters.map((chapter, index) => `<article class="atlas-chapter"><button type="button" data-atlas-go="${index}"><span>${index + 1}</span><strong>${escapeHtml(chapter.title || `Chapter ${index + 1}`)}</strong><small>${escapeHtml(chapter.reverseAddress || chapter.body || "Saved map view")}${chapter.basemapId ? ` · ${escapeHtml(this.#basemapLabel(chapter.basemapId))}` : ""}${playbackMode === "auto" && chapter.lingerSeconds ? ` · ${chapter.lingerSeconds}s` : ""}</small></button>${this.presentationState.atlasPresent ? "" : `<div><button type="button" data-atlas-rename="${index}">Edit</button><button type="button" data-atlas-delete="${index}">Delete</button></div>`}</article>`).join("") || "<p class=\"form-note\">No chapters yet. Add the current map view to begin the atlas.</p>"}</div></section>`;
+      this.#addPresentationDockControl(root);
       root.querySelector("[data-atlas-mode]")?.addEventListener("click", async () => {
         this.#stopAtlasStory();
         this.presentationState.atlasPresent = !this.presentationState.atlasPresent;
@@ -1887,6 +1908,35 @@ export class UIController {
     root.querySelectorAll("[data-mode-record]").forEach((button) => button.addEventListener("click", async () => { const result = records[Number(button.dataset.modeRecord)]; this.#selectPresentationResult(result); if (result?.geometry) await this.mapController.view?.goTo?.(result.geometry); }));
   }
 
+  #togglePresentationDock() {
+    const dashboard = document.querySelector("#presentation-dashboard");
+    if (!dashboard) return;
+    this.utilityPresentationOpen = !this.utilityPresentationOpen;
+    if (this.utilityPresentationOpen) {
+      document.querySelector("#utility-presentation-content")?.append(dashboard);
+      document.body.classList.add("presentation-workspace-panels-open");
+      document.querySelectorAll(".sidebar__scroll > .panel[data-presentation-hidden]").forEach((panel) => { panel.hidden = false; });
+    } else {
+      document.querySelector(".sidebar__scroll")?.prepend(dashboard);
+      document.body.classList.remove("presentation-workspace-panels-open");
+      document.querySelectorAll(".sidebar__scroll > .panel[data-presentation-hidden]").forEach((panel) => { panel.hidden = true; });
+    }
+    this.#syncUtilityPanel("presentation");
+    this.mapController.resize();
+  }
+
+  #addPresentationDockControl(root) {
+    const header = root.querySelector(".mode-dashboard > header");
+    if (!header || header.querySelector("[data-presentation-dock]")) return;
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "presentation-dock-button";
+    button.dataset.presentationDock = "";
+    button.textContent = this.utilityPresentationOpen ? "Return to left panel" : "Open in right panel ↗";
+    button.addEventListener("click", () => this.#togglePresentationDock());
+    header.append(button);
+  }
+
   #fieldOptions(fields, selected, predicate = () => true) {
     return fields.filter(predicate).map((field) => `<option value="${escapeHtml(field.name)}"${field.name === selected ? " selected" : ""}>${escapeHtml(field.alias || field.name)}</option>`).join("");
   }
@@ -1919,13 +1969,14 @@ export class UIController {
       <header class="presentation-compact-header"><span class="eyebrow">Dataset explorer</span><h2>${escapeHtml(presentation.title || layer.title || "Explore records")}</h2><label class="compact-dataset"><span>Dataset</span><select data-mode-dataset>${this.mapController.getOperationalLayers().filter((item) => typeof item.queryFeatures === "function").map((item) => `<option value="${escapeHtml(item.uid)}"${item.uid === layer.uid ? " selected" : ""}>${escapeHtml(item.title || "Untitled layer")}</option>`).join("")}</select></label></header>
       <div class="explorer-counts"><button data-coverage-open><b>${Number.isFinite(total) ? total.toLocaleString() : "—"}</b><span>Total${Number.isFinite(total) ? "" : " unknown"}</span></button><button data-coverage-open><b>${loaded.toLocaleString()}</b><span>Available locally</span></button><button data-mode-zoom><b>${state.visibleRecords.length.toLocaleString()}</b><span>Match filters</span></button><button data-selection-zoom><b>${state.selectedIds.size}</b><span>Selected</span></button></div>
       <p class="explorer-coverage ${incomplete ? "is-partial" : ""}">${incomplete ? `Working with ${loaded.toLocaleString()} locally available records out of ${total.toLocaleString()} reported by the service.` : `Working with ${loaded.toLocaleString()} records available to this browser.`}</p>
-      <section class="explorer-toolbar"><div class="explorer-search-grid"><label class="field"><span>Search field</span><select data-search-field><option value="*"${state.searchField === "*" ? " selected" : ""}>All searchable text fields</option>${this.#fieldOptions(fields.fields, state.searchField)}</select></label><label class="field"><span>Match</span><select data-search-operator>${this.#searchOperatorOptions(searchField)}</select></label><label class="field explorer-search-input"><span>Search records</span><input data-mode-search value="${escapeHtml(state.search)}" placeholder="Search ${escapeHtml(searchField?.alias || "text fields")}" /></label></div>
+      <section class="explorer-toolbar"><div class="explorer-search-grid"><label class="field"><span>Search field</span><select data-search-field><option value="*"${state.searchField === "*" ? " selected" : ""}>All searchable text fields</option>${this.#fieldOptions(fields.fields, state.searchField)}</select></label><label class="field"><span>Match</span><select data-search-operator>${this.#searchOperatorOptions(searchField)}</select></label><label class="field explorer-search-input"><span>Search records</span><input data-mode-search list="presentation-search-values" value="${escapeHtml(state.search)}" placeholder="Search ${escapeHtml(searchField?.alias || "text fields")}" /><datalist id="presentation-search-values">${state.searchField && state.searchField !== "*" ? [...new Set(state.records.map((record) => record.attributes?.[state.searchField]).filter((value) => value != null && value !== "").map(String))].slice(0, 60).map((value) => `<option value="${escapeHtml(value)}"></option>`).join("") : ""}</datalist></label></div>
       <label class="scope-toggle"><input type="checkbox" data-mode-extent${state.scope === "extent" ? " checked" : ""}/> Limit to current map extent</label>
       <div class="filter-chips">${state.search ? `<button data-clear-search>${escapeHtml(searchField?.alias || "All text")}: ${escapeHtml(state.search)} ×</button>` : ""}${activeRange ? `<button data-clear-range>${escapeHtml(chartLabel)}: ${state.rangeMin ?? "−∞"}–${state.rangeMax ?? "+∞"} ×</button>` : ""}${state.scope === "extent" ? `<button data-clear-extent>Current extent ×</button>` : ""}${!state.search && !activeRange && state.scope !== "extent" ? "<span>No active filters</span>" : ""}</div><div class="explorer-actions"><button data-mode-zoom>Zoom to results</button><button class="button--quiet" data-mode-clear>Clear all</button></div></section>
       <section class="explorer-distribution"><div class="chart-controls"><label class="field"><span>Chart field</span><select data-chart-field>${this.#fieldOptions(fields.numeric, state.chartField)}</select></label><label class="field"><span>Bins</span><select data-chart-bins>${[8,12,16,24].map((count) => `<option${count === state.binCount ? " selected" : ""}>${count}</option>`).join("")}</select></label></div><strong>${escapeHtml(chartLabel)}</strong><div class="chart-axis"><span>${chart.min == null ? "No numeric values" : this.#formatExplorerNumber(chart.min)}</span><span>${chart.max == null ? "" : this.#formatExplorerNumber(chart.max)}</span></div><div class="explorer-histogram" style="grid-template-columns:repeat(${chart.bins.length || 1},1fr)" aria-label="Histogram of ${escapeHtml(chartLabel)}">${chart.bins.map((bin) => `<button data-range-bin-min="${bin.min}" data-range-bin-max="${bin.max}" title="${this.#formatExplorerNumber(bin.min)}–${this.#formatExplorerNumber(bin.max)}: ${bin.count}"><span style="height:${Math.max(3, bin.count / maxBin * 100)}%"></span></button>`).join("")}</div><p class="chart-caption">${chart.bins.length} bins · ${chart.missing} missing value${chart.missing === 1 ? "" : "s"}. Clicking a bin filters every view. <button type="button" class="link-button" data-style-chart>Style map by this field</button></p></section>
       <section class="explorer-results-table"><header><strong>Results</strong><span>${state.visibleRecords.length.toLocaleString()} local matches</span><label>Sort <select data-sort-field>${this.#fieldOptions(fields.fields, state.sortField)}</select></label><button data-sort-direction aria-label="Reverse sort">${state.sortDirection === "asc" ? "↑" : "↓"}</button></header><div class="results-table" role="table"><div class="results-row results-row--head" role="row"><span>Name</span><span>${escapeHtml(chartLabel)}</span><span>ID</span></div>${pageRecords.map((record) => { const id = featureId(record, idField); return `<button class="results-row${state.selectedIds.has(id) ? " is-selected" : ""}" data-mode-record-id="${escapeHtml(id)}"><span>${escapeHtml(this.#recordLabel(record, fields))}</span><span>${escapeHtml(this.#formatExplorerNumber(record.attributes?.[state.chartField]))}</span><span>${escapeHtml(id || "—")}</span></button>`; }).join("") || "<p class=\"form-note\">No locally available records match.</p>"}</div><footer><button data-page-prev${state.page <= 1 ? " disabled" : ""}>Previous</button><span>Page ${state.page} of ${pageCount}</span><button data-page-next${state.page >= pageCount ? " disabled" : ""}>Next</button></footer></section>
       <aside class="mode-details explorer-details"><span class="eyebrow">Selected record</span>${selected ? `<h3>${escapeHtml(this.#recordLabel(selected, fields))}</h3><div class="detail-actions"><button data-selection-zoom>Zoom</button><button data-filter-selected>Filter to selected</button><button data-selection-clear>Clear</button></div><dl>${Object.entries(selected.attributes || {}).filter(([, value]) => value != null && value !== "").slice(0, 8).map(([key, value]) => `<div><dt>${escapeHtml(fields.fields.find((field) => field.name === key)?.alias || key)}</dt><dd>${escapeHtml(formatAttributeValue(value, fields.fields.find((field) => field.name === key), key))}</dd></div>`).join("")}</dl><details><summary>All attributes</summary><dl>${Object.entries(selected.attributes || {}).map(([key,value]) => `<div><dt>${escapeHtml(key)}</dt><dd>${escapeHtml(value)}</dd></div>`).join("")}</dl></details>` : "<p>Select a table row or mapped feature. Selection is independent from filtering.</p>"}</aside>
     </section>`;
+    this.#addPresentationDockControl(root);
     this.#bindExplorerWorkspace(root, presentation, layer, fields);
   }
 
@@ -1956,7 +2007,7 @@ export class UIController {
     root.querySelector("[data-coverage-open]")?.addEventListener("click", () => this.openDialog({ eyebrow: "Dataset coverage", title: layer.title || "Coverage details", content: `<dl class="coverage-details"><div><dt>Service total</dt><dd>${Number.isFinite(state.totalCount) ? state.totalCount.toLocaleString() : "Not reported"}</dd></div><div><dt>Available locally</dt><dd>${state.records.length.toLocaleString()}</dd></div><div><dt>Completeness</dt><dd>${Number.isFinite(state.totalCount) ? `${Math.min(100, state.records.length / state.totalCount * 100).toFixed(1)}%` : "Unknown"}</dd></div><div><dt>Fetched</dt><dd>${escapeHtml(this.#formatExplorerTime(state.fetchedAt))}</dd></div><div><dt>Source</dt><dd>${escapeHtml(layer.url || "Local/project layer")}</dd></div></dl><p class="form-note">Search, charts, statistics, and the results table operate on records available locally. Refresh requests the source again; load-more support depends on the service.</p>`, actions: [{ label: "Close", handler: () => this.dialog.close() }, { label: "Refresh", primary: true, handler: () => { layer.refresh?.(); this.dialog.close(); this.#loadPresentationRecords(presentation); } }] }));
     root.querySelector("[data-page-prev]")?.addEventListener("click", () => { state.page -= 1; this.#renderExplorerWorkspace(root, presentation, layer, fields); });
     root.querySelector("[data-page-next]")?.addEventListener("click", () => { state.page += 1; this.#renderExplorerWorkspace(root, presentation, layer, fields); });
-    root.querySelectorAll("[data-mode-record-id]").forEach((button) => button.addEventListener("click", async (event) => { const record = state.visibleRecords.find((item) => featureId(item, layer.objectIdField) === button.dataset.modeRecordId); if (!record) return; const id = featureId(record, layer.objectIdField); if (event.metaKey || event.ctrlKey || event.shiftKey) { state.selectedIds.has(id) ? state.selectedIds.delete(id) : state.selectedIds.add(id); state.selected = record; this.mapController.highlightFeature(record); this.#renderExplorerWorkspace(root, presentation, layer, fields); } else { this.#selectPresentationResult(record); } }));
+    root.querySelectorAll("[data-mode-record-id]").forEach((button) => button.addEventListener("click", async (event) => { const record = state.visibleRecords.find((item) => featureId(item, layer.objectIdField) === button.dataset.modeRecordId); if (!record) return; const id = featureId(record, layer.objectIdField); if (event.metaKey || event.ctrlKey || event.shiftKey) { state.selectedIds.has(id) ? state.selectedIds.delete(id) : state.selectedIds.add(id); state.selected = record; this.mapController.highlightFeature(record); this.#renderExplorerWorkspace(root, presentation, layer, fields); } else { this.#selectPresentationResult(record); if (record.geometry) await this.mapController.view?.goTo?.(record.geometry, { padding: { left: 36, right: 360, bottom: 140 } }); } }));
   }
 
   #renderBriefingWorkspace(root, presentation, layer, fields) {
@@ -1966,6 +2017,20 @@ export class UIController {
     const idField = layer.objectIdField;
     const overview = selected ? Object.entries(selected.attributes || {}).filter(([key, value]) => value != null && value !== "" && key !== idField).slice(0, 5) : [];
     root.innerHTML = `<section class="mode-dashboard mode-dashboard--briefing presentation-workspace"><header class="presentation-compact-header"><span class="eyebrow">Context briefing</span><h2>${escapeHtml(presentation.title || layer.title || "Feature briefing")}</h2><label class="compact-dataset"><span>Dataset</span><select data-mode-dataset>${this.mapController.getOperationalLayers().filter((item) => typeof item.queryFeatures === "function").map((item) => `<option value="${escapeHtml(item.uid)}"${item.uid === layer.uid ? " selected" : ""}>${escapeHtml(item.title || "Untitled layer")}</option>`).join("")}</select></label></header><div class="briefing-search"><label class="field"><span>Search field</span><select data-search-field>${this.#fieldOptions(fields.fields, state.searchField)}</select></label><label class="field"><span>Find a feature</span><input data-mode-search value="${escapeHtml(state.search)}" placeholder="Search ${escapeHtml(fields.fields.find((field) => field.name === state.searchField)?.alias || nameField || "features")}"/></label><button data-mode-clear>Clear</button></div><div class="mode-records briefing-records">${state.visibleRecords.slice(0, 100).map((record) => `<button class="mode-record${record === selected ? " is-selected" : ""}" data-mode-record-id="${escapeHtml(featureId(record, idField))}"><strong>${escapeHtml(this.#recordLabel(record, fields))}</strong><small>${escapeHtml(featureId(record, idField) || "")}</small></button>`).join("") || "<p class=\"form-note\">No locally available features match.</p>"}</div><aside class="mode-details briefing-context"><span class="eyebrow">${selected ? "Feature context" : "Select a feature"}</span>${selected ? `<h3>${escapeHtml(this.#recordLabel(selected, fields))}</h3><div class="detail-actions"><button data-selection-zoom>Zoom to feature</button><button data-selection-clear>Clear</button></div><nav class="context-tabs"><span>Overview</span><span>Surroundings</span><span>AI context</span><span>Sources</span></nav><section><h4>Overview</h4><dl>${overview.map(([key,value]) => `<div><dt>${escapeHtml(fields.fields.find((field) => field.name === key)?.alias || key)}</dt><dd>${escapeHtml(formatAttributeValue(value, fields.fields.find((field) => field.name === key), key))}</dd></div>`).join("")}</dl></section><section><h4>Surroundings</h4><p data-briefing-surroundings>Checking visible contextual datasets…</p></section><section><h4>AI context</h4><div class="context-settings"><label>Distance <input data-context-distance type="number" min="0" value="10"/></label><select data-context-units><option>kilometers</option><option>miles</option></select></div><p data-briefing-ai>${this.aiController.isConfigured() ? "Deterministic context appears first. Generate a concise explanation after reviewing it." : "AI is not configured. Spatial context and source details remain available."}</p>${this.aiController.isConfigured() ? "<button data-briefing-ai-run>Generate sourced context</button>" : ""}</section><section><h4>Sources</h4><p>${escapeHtml(layer.title || "Dataset")} · retrieved ${escapeHtml(this.#formatExplorerTime(state.fetchedAt))}</p>${layer.url ? `<a href="${escapeHtml(layer.url)}" target="_blank" rel="noopener">Open dataset source ↗</a>` : ""}</section><details><summary>All attributes</summary><dl>${Object.entries(selected.attributes || {}).map(([key,value]) => `<div><dt>${escapeHtml(key)}</dt><dd>${escapeHtml(value)}</dd></div>`).join("")}</dl></details>` : "<p>Choose a named feature or click it on the map. The right context panel keeps selection, map highlight, and details synchronized.</p>"}</aside></section>`;
+    if (selected) {
+      const location = document.createElement("section");
+      location.className = "briefing-location-details";
+      location.innerHTML = `<span class="eyebrow">Location details</span><p data-briefing-address>Finding nearest address…</p>`;
+      root.querySelector(".briefing-records")?.after(location);
+      const controls = document.createElement("div");
+      controls.className = "briefing-context-dock-controls";
+      controls.innerHTML = `<button type="button" data-context-dock="side">Dock side</button><button type="button" data-context-dock="bottom">Dock bottom</button>`;
+      root.querySelector(".briefing-context")?.prepend(controls);
+      controls.querySelectorAll("[data-context-dock]").forEach((button) => button.addEventListener("click", () => {
+        document.body.dataset.briefingContextDock = button.dataset.contextDock;
+      }));
+    }
+    this.#addPresentationDockControl(root);
     this.#bindBriefingWorkspace(root, presentation, layer, fields);
     if (selected) void this.#loadBriefingContext(root, selected, layer);
   }
@@ -1992,6 +2057,16 @@ export class UIController {
     const token = this.briefingRequest.next();
     const output = root.querySelector("[data-briefing-surroundings]");
     if (!output) return;
+    const addressOutput = root.querySelector("[data-briefing-address]");
+    if (selected.geometry?.type === "point") {
+      void this.mapController.reverseGeocode(selected.geometry).then((result) => {
+        if (this.briefingRequest.valid(token) && this.presentationState.selected === selected && addressOutput?.isConnected) {
+          addressOutput.textContent = result?.address ? `Nearest address: ${result.address}` : "Nearest address: not available for this feature.";
+        }
+      }).catch(() => { if (addressOutput?.isConnected) addressOutput.textContent = "Nearest address: not available for this feature."; });
+    } else if (addressOutput) {
+      addressOutput.textContent = "Location details are available for point features.";
+    }
     const contextual = this.mapController.getOperationalLayers().filter((layer) => layer !== primaryLayer && layer.visible && typeof layer.queryFeatureCount === "function");
     if (!contextual.length) { output.textContent = "No other visible queryable datasets are available. Add or show a contextual layer to inspect surroundings."; return; }
     const results = await Promise.all(contextual.map(async (layer) => {
@@ -2164,6 +2239,11 @@ export class UIController {
 
   async #goToAtlasChapter(chapter, index = null, chapters = this.projectManager.current.presentation?.chapters || []) {
     if (!chapter) return;
+    // Update the story immediately.  A SceneView navigation can take longer
+    // than the chapter linger (or never resolve after an interrupted camera
+    // transition), but it must not hold the player hostage.
+    const chapterIndex = Number.isInteger(index) ? index : chapters.indexOf(chapter);
+    this.#showAtlasChapterOverlay(chapter, chapterIndex, chapters);
     if (chapter.basemapId && BASEMAP_IDS.has(chapter.basemapId)) this.mapController.setBasemap(chapter.basemapId);
     const visibility = new Map((chapter.layerVisibility || []).map((entry) => [entry.key, entry.visible !== false]));
     this.mapController.getOperationalLayers().forEach((layer) => {
@@ -2175,8 +2255,6 @@ export class UIController {
     if (state?.camera) await this.mapController.view?.goTo?.(state.camera, { animate });
     else if (state?.center) await this.mapController.view?.goTo?.({ center: state.center, zoom: state.zoom, heading: state.heading ?? 0, tilt: state.tilt ?? 0 }, { animate });
     else if (chapter.viewpoint) await this.mapController.view?.goTo?.(chapter.viewpoint, { animate });
-    const chapterIndex = Number.isInteger(index) ? index : chapters.indexOf(chapter);
-    this.#showAtlasChapterOverlay(chapter, chapterIndex, chapters);
   }
 
   #showAtlasChapterOverlay(chapter, index, chapters) {
@@ -2590,10 +2668,73 @@ export class UIController {
     document.querySelector("#place-query").setAttribute("aria-expanded", "false");
   }
 
-  #addBookmark() {
+  async #addBookmark() {
     const view = this.mapController.view;
     const name = document.querySelector("#place-query").value.trim() || `View at ${view.center.latitude.toFixed(3)}, ${view.center.longitude.toFixed(3)}`;
-    this.projectManager.addBookmark({ name, viewpoint: this.mapController.getViewState() });
+    const address = await this.mapController.reverseGeocode(view.center).catch(() => null);
+    this.projectManager.addBookmark({
+      name,
+      description: "",
+      longitude: view.center.longitude,
+      latitude: view.center.latitude,
+      reverseAddress: address?.address || "",
+      viewpoint: this.mapController.getViewState(),
+      basemapId: this.mapController.getBasemapId(),
+      lingerSeconds: 4,
+      layerVisibility: this.mapController.getOperationalLayers().map((layer) => ({ key: this.#atlasLayerKey(layer), visible: layer.visible })),
+    });
+  }
+
+  #bookmarkManagerDialog() {
+    const bookmarks = this.projectManager.current.bookmarks ?? [];
+    const rows = bookmarks.map((bookmark) => `<article class="bookmark-editor" data-bookmark-editor="${escapeHtml(bookmark.id)}"><label class="field"><span>Name</span><input data-bookmark-name value="${escapeHtml(bookmark.name)}" /></label><label class="field"><span>Description</span><textarea data-bookmark-description rows="2">${escapeHtml(bookmark.description || "")}</textarea></label><div class="bookmark-editor__coordinates"><label>Longitude<input data-bookmark-longitude type="number" step="0.000001" value="${escapeHtml(bookmark.longitude ?? bookmark.viewpoint?.center?.[0] ?? "")}" /></label><label>Latitude<input data-bookmark-latitude type="number" step="0.000001" value="${escapeHtml(bookmark.latitude ?? bookmark.viewpoint?.center?.[1] ?? "")}" /></label></div></article>`).join("") || `<p class="form-note">Add a current view first. Bookmarks retain Atlas-compatible camera, basemap, layer-state, description, and linger settings.</p>`;
+    this.openDialog({
+      eyebrow: "Bookmarks",
+      title: "Manage saved places",
+      content: `<div class="bookmark-manager"><p class="form-note">Edit saved places, export a location spreadsheet, or turn this set directly into a Guided Places atlas.</p><div class="bookmark-editor-list">${rows}</div></div>`,
+      actions: [
+        { label: "Download CSV", handler: () => this.#downloadBookmarksCsv() },
+        { label: "Download .gmoatlas", handler: () => { this.#saveBookmarkEdits(); this.#createAtlasFromBookmarks(); this.projectManager.exportAtlas(); this.dialog.close(); } },
+        { label: "Create Atlas", handler: () => { this.#saveBookmarkEdits(); this.#createAtlasFromBookmarks(); this.dialog.close(); } },
+        { label: "Save changes", primary: true, handler: () => { this.#saveBookmarkEdits(); this.dialog.close(); } },
+      ],
+    });
+  }
+
+  #saveBookmarkEdits() {
+    this.dialog.querySelectorAll("[data-bookmark-editor]").forEach((row) => this.projectManager.updateBookmark(row.dataset.bookmarkEditor, {
+      name: row.querySelector("[data-bookmark-name]").value.trim() || "Saved place",
+      description: row.querySelector("[data-bookmark-description]").value.trim(),
+      longitude: Number(row.querySelector("[data-bookmark-longitude]").value),
+      latitude: Number(row.querySelector("[data-bookmark-latitude]").value),
+    }));
+  }
+
+  #downloadBookmarksCsv() {
+    const quote = (value) => `"${String(value ?? "").replaceAll('"', '""')}"`;
+    const csv = ["Name,Longitude,Latitude,Description", ...(this.projectManager.current.bookmarks ?? []).map((item) => [item.name, item.longitude ?? item.viewpoint?.center?.[0] ?? "", item.latitude ?? item.viewpoint?.center?.[1] ?? "", item.description ?? ""].map(quote).join(","))].join("\n");
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
+    link.download = `${this.projectManager.current.name || "bookmarks"}-bookmarks.csv`;
+    link.click();
+    setTimeout(() => URL.revokeObjectURL(link.href), 5000);
+  }
+
+  #createAtlasFromBookmarks() {
+    const chapters = (this.projectManager.current.bookmarks ?? []).map((bookmark, index) => ({
+      id: bookmark.id || `bookmark-${index + 1}`,
+      title: bookmark.name || `Place ${index + 1}`,
+      body: bookmark.description || "",
+      reverseAddress: bookmark.reverseAddress || "",
+      viewState: bookmark.viewpoint,
+      basemapId: bookmark.basemapId || null,
+      lingerSeconds: Math.min(120, Math.max(1, Number(bookmark.lingerSeconds) || 4)),
+      layerVisibility: bookmark.layerVisibility || null,
+    }));
+    if (!chapters.length) return this.error("Add at least one bookmark before creating an atlas.");
+    const presentation = this.projectManager.setPresentation({ ...this.projectManager.current.presentation, template: "atlas", title: this.projectManager.current.presentation?.title || "Guided places", chapters });
+    this.#applyPresentation(presentation);
+    this.toast("Created Guided Places from bookmarks.");
   }
 
   #renderBookmarks() {
@@ -2601,7 +2742,7 @@ export class UIController {
     const container = document.querySelector("#bookmarks-list");
     container.classList.toggle("muted", !bookmarks.length);
     container.innerHTML = bookmarks.length
-      ? bookmarks.map((bookmark) => `<div class="bookmark-row"><button data-bookmark-id="${escapeHtml(bookmark.id)}">${escapeHtml(bookmark.name)}</button><button data-bookmark-remove="${escapeHtml(bookmark.id)}" aria-label="Remove bookmark">×</button></div>`).join("")
+      ? bookmarks.map((bookmark) => `<div class="bookmark-row"><button data-bookmark-id="${escapeHtml(bookmark.id)}">${escapeHtml(bookmark.name)}${bookmark.description ? `<small>${escapeHtml(bookmark.description)}</small>` : ""}</button><button data-bookmark-edit="${escapeHtml(bookmark.id)}" aria-label="Edit bookmark">✎</button><button data-bookmark-remove="${escapeHtml(bookmark.id)}" aria-label="Remove bookmark">×</button></div>`).join("")
       : "No saved locations yet.";
     container.querySelectorAll("[data-bookmark-id]").forEach((button) =>
       button.addEventListener("click", () => {
@@ -2612,6 +2753,7 @@ export class UIController {
     container.querySelectorAll("[data-bookmark-remove]").forEach((button) =>
       button.addEventListener("click", () => this.projectManager.removeBookmark(button.dataset.bookmarkRemove)),
     );
+    container.querySelectorAll("[data-bookmark-edit]").forEach((button) => button.addEventListener("click", () => this.#bookmarkManagerDialog()));
   }
 
   #renderLayers() {

@@ -252,6 +252,17 @@ export class ProjectManager {
     this.current.bookmarks ??= [];
     this.current.bookmarks.push({ id: makeId(), ...bookmark });
     this.events.publish("bookmarks:changed", { bookmarks: this.current.bookmarks });
+    this.persistCurrentIfSaved();
+    return this.current.bookmarks[this.current.bookmarks.length - 1];
+  }
+
+  updateBookmark(id, patch) {
+    const bookmark = (this.current.bookmarks ?? []).find((item) => item.id === id);
+    if (!bookmark) return null;
+    Object.assign(bookmark, patch);
+    this.events.publish("bookmarks:changed", { bookmarks: this.current.bookmarks });
+    this.persistCurrentIfSaved();
+    return bookmark;
   }
 
   setPresentation(presentation) {
@@ -310,6 +321,7 @@ export class ProjectManager {
   removeBookmark(id) {
     this.current.bookmarks = (this.current.bookmarks ?? []).filter((item) => item.id !== id);
     this.events.publish("bookmarks:changed", { bookmarks: this.current.bookmarks });
+    this.persistCurrentIfSaved();
   }
 
   #readStore() {
