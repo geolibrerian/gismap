@@ -2013,22 +2013,20 @@ export class UIController {
   #renderBriefingWorkspace(root, presentation, layer, fields) {
     const state = this.presentationState;
     const selected = state.selected;
+    const contextSettings = this.#briefingContextSettings(presentation);
+    const contextSources = [layer, ...this.mapController.getOperationalLayers().filter((item) => item !== layer)]
+      .filter((item) => !contextSettings.sourceIds.length || contextSettings.sourceIds.includes(item.uid));
     const nameField = state.roles?.title || fields.text[0]?.name;
     const idField = layer.objectIdField;
     const overview = selected ? Object.entries(selected.attributes || {}).filter(([key, value]) => value != null && value !== "" && key !== idField).slice(0, 5) : [];
-    root.innerHTML = `<section class="mode-dashboard mode-dashboard--briefing presentation-workspace"><header class="presentation-compact-header"><span class="eyebrow">Context briefing</span><h2>${escapeHtml(presentation.title || layer.title || "Feature briefing")}</h2><label class="compact-dataset"><span>Dataset</span><select data-mode-dataset>${this.mapController.getOperationalLayers().filter((item) => typeof item.queryFeatures === "function").map((item) => `<option value="${escapeHtml(item.uid)}"${item.uid === layer.uid ? " selected" : ""}>${escapeHtml(item.title || "Untitled layer")}</option>`).join("")}</select></label></header><div class="briefing-search"><label class="field"><span>Search field</span><select data-search-field>${this.#fieldOptions(fields.fields, state.searchField)}</select></label><label class="field"><span>Find a feature</span><input data-mode-search value="${escapeHtml(state.search)}" placeholder="Search ${escapeHtml(fields.fields.find((field) => field.name === state.searchField)?.alias || nameField || "features")}"/></label><button data-mode-clear>Clear</button></div><div class="mode-records briefing-records">${state.visibleRecords.slice(0, 100).map((record) => `<button class="mode-record${record === selected ? " is-selected" : ""}" data-mode-record-id="${escapeHtml(featureId(record, idField))}"><strong>${escapeHtml(this.#recordLabel(record, fields))}</strong><small>${escapeHtml(featureId(record, idField) || "")}</small></button>`).join("") || "<p class=\"form-note\">No locally available features match.</p>"}</div><aside class="mode-details briefing-context"><span class="eyebrow">${selected ? "Feature context" : "Select a feature"}</span>${selected ? `<h3>${escapeHtml(this.#recordLabel(selected, fields))}</h3><div class="detail-actions"><button data-selection-zoom>Zoom to feature</button><button data-selection-clear>Clear</button></div><nav class="context-tabs"><span>Overview</span><span>Surroundings</span><span>AI context</span><span>Sources</span></nav><section><h4>Overview</h4><dl>${overview.map(([key,value]) => `<div><dt>${escapeHtml(fields.fields.find((field) => field.name === key)?.alias || key)}</dt><dd>${escapeHtml(formatAttributeValue(value, fields.fields.find((field) => field.name === key), key))}</dd></div>`).join("")}</dl></section><section><h4>Surroundings</h4><p data-briefing-surroundings>Checking visible contextual datasets…</p></section><section><h4>AI context</h4><div class="context-settings"><label>Distance <input data-context-distance type="number" min="0" value="10"/></label><select data-context-units><option>kilometers</option><option>miles</option></select></div><p data-briefing-ai>${this.aiController.isConfigured() ? "Deterministic context appears first. Generate a concise explanation after reviewing it." : "AI is not configured. Spatial context and source details remain available."}</p>${this.aiController.isConfigured() ? "<button data-briefing-ai-run>Generate sourced context</button>" : ""}</section><section><h4>Sources</h4><p>${escapeHtml(layer.title || "Dataset")} · retrieved ${escapeHtml(this.#formatExplorerTime(state.fetchedAt))}</p>${layer.url ? `<a href="${escapeHtml(layer.url)}" target="_blank" rel="noopener">Open dataset source ↗</a>` : ""}</section><details><summary>All attributes</summary><dl>${Object.entries(selected.attributes || {}).map(([key,value]) => `<div><dt>${escapeHtml(key)}</dt><dd>${escapeHtml(value)}</dd></div>`).join("")}</dl></details>` : "<p>Choose a named feature or click it on the map. The right context panel keeps selection, map highlight, and details synchronized.</p>"}</aside></section>`;
+    const section = (key, title, content) => contextSettings.sections[key] ? `<section><h4>${title}</h4>${content}</section>` : "";
+    root.innerHTML = `<section class="mode-dashboard mode-dashboard--briefing presentation-workspace"><header class="presentation-compact-header"><span class="eyebrow">Context briefing</span><h2>${escapeHtml(presentation.title || layer.title || "Feature briefing")}</h2><label class="compact-dataset"><span>Dataset</span><select data-mode-dataset>${this.mapController.getOperationalLayers().filter((item) => typeof item.queryFeatures === "function").map((item) => `<option value="${escapeHtml(item.uid)}"${item.uid === layer.uid ? " selected" : ""}>${escapeHtml(item.title || "Untitled layer")}</option>`).join("")}</select></label></header><div class="briefing-search"><label class="field"><span>Search field</span><select data-search-field>${this.#fieldOptions(fields.fields, state.searchField)}</select></label><label class="field"><span>Find a feature</span><input data-mode-search value="${escapeHtml(state.search)}" placeholder="Search ${escapeHtml(fields.fields.find((field) => field.name === state.searchField)?.alias || nameField || "features")}"/></label><button data-mode-clear>Clear</button></div><div class="mode-records briefing-records">${state.visibleRecords.slice(0, 100).map((record) => `<button class="mode-record${record === selected ? " is-selected" : ""}" data-mode-record-id="${escapeHtml(featureId(record, idField))}"><strong>${escapeHtml(this.#recordLabel(record, fields))}</strong><small>${escapeHtml(featureId(record, idField) || "")}</small></button>`).join("") || "<p class=\"form-note\">No locally available features match.</p>"}</div><aside class="mode-details briefing-context"><button class="context-settings-button" data-briefing-settings aria-label="Context settings" title="Context settings">⚙</button><span class="eyebrow">${selected ? "Feature context" : "Select a feature"}</span>${selected ? `<h3>${escapeHtml(this.#recordLabel(selected, fields))}</h3><div class="detail-actions"><button data-selection-zoom aria-label="Zoom to feature" title="Zoom to feature">⌕</button><button data-selection-clear aria-label="Clear selected feature" title="Clear selected feature">×</button></div>${section("overview", "Overview", `<dl>${overview.map(([key,value]) => `<div><dt>${escapeHtml(fields.fields.find((field) => field.name === key)?.alias || key)}</dt><dd>${escapeHtml(formatAttributeValue(value, fields.fields.find((field) => field.name === key), key))}</dd></div>`).join("")}</dl>`)}${section("surroundings", "Surroundings", `<p data-briefing-surroundings>Checking visible contextual datasets…</p>`)}${section("ai", "AI context", `<p data-briefing-ai>${this.aiController.isConfigured() ? "Deterministic context appears first. Generate a concise explanation after reviewing it." : "AI is not configured. Spatial context and source details remain available."}</p>${this.aiController.isConfigured() ? "<button data-briefing-ai-run>Generate sourced context</button>" : ""}`)}${section("sources", "Sources", contextSources.map((source) => `<p>${escapeHtml(source.title || "Dataset")} ${source === layer ? `· retrieved ${escapeHtml(this.#formatExplorerTime(state.fetchedAt))}` : ""}</p>${source.url ? `<a href="${escapeHtml(source.url)}" target="_blank" rel="noopener">Open dataset source ↗</a>` : ""}`).join("") || "<p>No sources selected.</p>")}<details><summary>All attributes</summary><dl>${Object.entries(selected.attributes || {}).map(([key,value]) => `<div><dt>${escapeHtml(key)}</dt><dd>${escapeHtml(value)}</dd></div>`).join("")}</dl></details>` : "<p>Choose a named feature or click it on the map. The right context panel keeps selection, map highlight, and details synchronized.</p>"}</aside></section>`;
     if (selected) {
       const location = document.createElement("section");
       location.className = "briefing-location-details";
       location.innerHTML = `<span class="eyebrow">Location details</span><p data-briefing-address>Finding nearest address…</p>`;
       root.querySelector(".briefing-records")?.after(location);
-      const controls = document.createElement("div");
-      controls.className = "briefing-context-dock-controls";
-      controls.innerHTML = `<button type="button" data-context-dock="side">Dock side</button><button type="button" data-context-dock="bottom">Dock bottom</button>`;
-      root.querySelector(".briefing-context")?.prepend(controls);
-      controls.querySelectorAll("[data-context-dock]").forEach((button) => button.addEventListener("click", () => {
-        document.body.dataset.briefingContextDock = button.dataset.contextDock;
-      }));
+      document.body.dataset.briefingContextDock = contextSettings.dock;
     }
     this.#addPresentationDockControl(root);
     this.#bindBriefingWorkspace(root, presentation, layer, fields);
@@ -2044,12 +2042,56 @@ export class UIController {
     root.querySelector("[data-mode-clear]")?.addEventListener("click", () => { state.search = ""; refresh(); });
     root.querySelectorAll("[data-mode-record-id]").forEach((button) => button.addEventListener("click", () => { const record = state.visibleRecords.find((item) => featureId(item, layer.objectIdField) === button.dataset.modeRecordId); this.#selectPresentationResult(record); }));
     root.querySelector("[data-selection-clear]")?.addEventListener("click", () => { this.briefingRequest.cancel(); state.selected = null; state.selectedIds.clear(); this.mapController.clearFeatureHighlight(); this.#renderBriefingWorkspace(root, presentation, layer, fields); });
-    root.querySelector("[data-selection-zoom]")?.addEventListener("click", async () => { if (state.selected?.geometry) await this.mapController.view?.goTo?.(state.selected.geometry, { padding: { left: 300, right: 390 } }); });
+    root.querySelectorAll("[data-mode-record-id]").forEach((button) => button.addEventListener("click", async () => { const record = state.visibleRecords.find((item) => featureId(item, layer.objectIdField) === button.dataset.modeRecordId); if (record?.geometry) await this.mapController.view?.goTo?.({ target: record.geometry, zoom: this.mapController.view?.zoom }, { animate: true }); }));
+    root.querySelector("[data-selection-zoom]")?.addEventListener("click", async () => { if (state.selected?.geometry) await this.mapController.view?.goTo?.({ target: state.selected.geometry, zoom: Math.min(18, (this.mapController.view?.zoom || 10) + 2) }, { padding: { left: 80, right: 420 } }); });
+    root.querySelector("[data-briefing-settings]")?.addEventListener("click", () => this.#briefingSettingsDialog(presentation, layer));
     root.querySelector("[data-briefing-ai-run]")?.addEventListener("click", () => {
       if (!state.selected || !this.aiController.isConfigured()) return;
       const context = root.querySelector("[data-briefing-surroundings]")?.textContent || "No surrounding results available.";
       this.#openIntelligenceUtility();
       this.#askAI(`Explain this selected feature concisely using only its supplied attributes and the deterministic spatial context. Distinguish nearby or intersecting features from verified impacts. Cite dataset names in the response. Spatial context: ${context}`, { selectedResults: [state.selected] }, "Briefing context");
+    });
+  }
+
+  #briefingContextSettings(presentation = {}) {
+    const stored = presentation.contextSettings || {};
+    return {
+      dock: ["floating", "left", "right", "top", "bottom"].includes(stored.dock) ? stored.dock : "floating",
+      perimeter: Math.max(0, Number(stored.perimeter) || 10),
+      units: stored.units === "miles" ? "miles" : "kilometers",
+      sections: { overview: true, surroundings: true, ai: true, sources: true, ...(stored.sections || {}) },
+      layerIds: Array.isArray(stored.layerIds) ? stored.layerIds : [],
+      sourceIds: Array.isArray(stored.sourceIds) ? stored.sourceIds : [],
+    };
+  }
+
+  #briefingSettingsDialog(presentation, primaryLayer) {
+    const settings = this.#briefingContextSettings(presentation);
+    const layers = this.mapController.getOperationalLayers().filter((layer) => layer !== primaryLayer);
+    const check = (value) => value ? " checked" : "";
+    this.openDialog({
+      eyebrow: "Context briefing",
+      title: "Context settings",
+      content: `<div class="briefing-settings"><fieldset><legend>Visible sections</legend>${[["overview", "Overview"], ["surroundings", "Surroundings"], ["ai", "AI context"], ["sources", "Sources"]].map(([key, label]) => `<label><input type="checkbox" data-context-section="${key}"${check(settings.sections[key])}/> ${label}</label>`).join("")}</fieldset><label class="field"><span>Presentation</span><select data-context-dock><option value="floating"${settings.dock === "floating" ? " selected" : ""}>Floating over map</option><option value="left"${settings.dock === "left" ? " selected" : ""}>Dock left</option><option value="right"${settings.dock === "right" ? " selected" : ""}>Dock right</option><option value="top"${settings.dock === "top" ? " selected" : ""}>Dock top</option><option value="bottom"${settings.dock === "bottom" ? " selected" : ""}>Dock bottom</option></select></label><fieldset><legend>Surroundings</legend><label class="field"><span>Search perimeter</span><input data-context-perimeter type="number" min="0" value="${settings.perimeter}" /></label><label class="field"><span>Units</span><select data-context-units><option${settings.units === "kilometers" ? " selected" : ""}>kilometers</option><option${settings.units === "miles" ? " selected" : ""}>miles</option></select></label><p class="form-note">Choose the visible layers checked for contextual intersections.</p>${layers.map((layer) => `<label><input type="checkbox" data-context-layer="${escapeHtml(layer.uid)}"${check(!settings.layerIds.length || settings.layerIds.includes(layer.uid))}/> ${escapeHtml(layer.title || "Untitled layer")}</label>`).join("") || "<p class=\"form-note\">No additional map layers are available.</p>"}</fieldset><fieldset><legend>Sources</legend><p class="form-note">Select sources that may be presented alongside the primary dataset or supplied to AI context.</p>${[primaryLayer, ...layers].map((layer) => `<label><input type="checkbox" data-context-source="${escapeHtml(layer.uid)}"${check(!settings.sourceIds.length || settings.sourceIds.includes(layer.uid))}/> ${escapeHtml(layer.title || "Untitled layer")}</label>`).join("")}</fieldset><p class="form-note">AI uses the shared application-wide intelligence provider. Configure it once and it is reused here.</p></div>`,
+      actions: [
+        { label: "Configure AI…", handler: () => this.#aiDialog() },
+        { label: "Cancel", handler: () => this.dialog.close() },
+        { label: "Save", primary: true, handler: () => {
+          const next = {
+            dock: this.dialog.querySelector("[data-context-dock]").value,
+            perimeter: Number(this.dialog.querySelector("[data-context-perimeter]").value) || 10,
+            units: this.dialog.querySelector("[data-context-units]").value,
+            sections: Object.fromEntries([...this.dialog.querySelectorAll("[data-context-section]")].map((input) => [input.dataset.contextSection, input.checked])),
+            layerIds: [...this.dialog.querySelectorAll("[data-context-layer]:checked")].map((input) => input.dataset.contextLayer),
+            sourceIds: [...this.dialog.querySelectorAll("[data-context-source]:checked")].map((input) => input.dataset.contextSource),
+          };
+          const updated = this.projectManager.setPresentation({ ...this.projectManager.current.presentation, contextSettings: next });
+          document.body.dataset.briefingContextDock = next.dock;
+          this.dialog.close();
+          this.#renderPresentationDashboard(updated);
+          this.mapController.resize();
+        } },
+      ],
     });
   }
 
@@ -2067,12 +2109,13 @@ export class UIController {
     } else if (addressOutput) {
       addressOutput.textContent = "Location details are available for point features.";
     }
-    const contextual = this.mapController.getOperationalLayers().filter((layer) => layer !== primaryLayer && layer.visible && typeof layer.queryFeatureCount === "function");
+    const settings = this.#briefingContextSettings(this.projectManager.current.presentation);
+    const contextual = this.mapController.getOperationalLayers().filter((layer) => layer !== primaryLayer && layer.visible && typeof layer.queryFeatureCount === "function" && (!settings.layerIds.length || settings.layerIds.includes(layer.uid)));
     if (!contextual.length) { output.textContent = "No other visible queryable datasets are available. Add or show a contextual layer to inspect surroundings."; return; }
     const results = await Promise.all(contextual.map(async (layer) => {
       try {
         const query = layer.createQuery?.() || {};
-        Object.assign(query, { geometry: selected.geometry, spatialRelationship: "intersects", where: layer.definitionExpression || "1=1" });
+        Object.assign(query, { geometry: selected.geometry, spatialRelationship: "intersects", distance: settings.perimeter, units: settings.units, where: layer.definitionExpression || "1=1" });
         return { title: layer.title || "Untitled layer", count: await layer.queryFeatureCount(query), status: "intersecting" };
       } catch { return { title: layer.title || "Untitled layer", count: null, status: "unavailable" }; }
     }));
