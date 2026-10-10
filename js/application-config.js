@@ -59,6 +59,7 @@ export function normalizeApplicationConfig(value = {}) {
   const used = new Set();
   return {
     schemaVersion: 1,
+    configured: value.configured === true,
     preset: typeof value.preset === "string" ? value.preset : base.preset,
     title: String(value.title || base.title || "Map application"),
     skin: typeof value.skin === "string" ? value.skin : base.skin,

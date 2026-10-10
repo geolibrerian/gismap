@@ -79,7 +79,7 @@ test("old projects migrate to Standard and legacy Atlas chapters are retained", 
   assert.equal(atlas.panels.find((panel) => panel.type === "chapters").settings.chapters[0].title, "One");
 });
 
-test("Atlas chapter settings normalize safely and stay synchronized with the application panel", () => {
+test("Atlas chapter settings normalize safely without activating configurable panels", () => {
   const events = { publish() {} };
   const map = { getDefaultBasemapId: () => "topo-3d" };
   const manager = new ProjectManager(events, map);
@@ -98,7 +98,9 @@ test("Atlas chapter settings normalize safely and stay synchronized with the app
   assert.equal(presentation.chapters[0].mediaUrl, "");
   assert.equal(presentation.chapters[0].lingerSeconds, 120);
   assert.deepEqual(presentation.chapters[0].layerVisibility, [{ key: "url:https://example.com/layer", visible: false }]);
-  assert.equal(manager.current.application.panels.find((panel) => panel.type === "chapters").settings.chapters[0].title, "One");
+  assert.equal(manager.current.application, null);
+  const configured = manager.setApplication(presetApplication("standard"));
+  assert.equal(configured.configured, true);
 });
 
 test("unknown panel configuration survives normalization for repair UI", () => {

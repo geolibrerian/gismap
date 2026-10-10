@@ -10,6 +10,7 @@ export class LayoutManager {
     this.onConfigChange = onConfigChange;
     this.current = null;
     this.previewSnapshot = null;
+    this.previewActive = false;
     this.panelHosts = new Map();
     this.boundWindowResize = () => this.#recoverFloatingPanels();
     globalThis.addEventListener?.("resize", this.boundWindowResize);
@@ -18,19 +19,38 @@ export class LayoutManager {
   }
 
   beginPreview() {
-    if (!this.previewSnapshot && this.current) this.previewSnapshot = structuredClone(this.current);
+    if (this.previewActive) return;
+    this.previewActive = true;
+    this.previewSnapshot = this.current ? structuredClone(this.current) : null;
   }
 
   cancelPreview(context = {}) {
-    if (!this.previewSnapshot) return false;
+    if (!this.previewActive) return false;
     const config = this.previewSnapshot;
+    this.previewActive = false;
     this.previewSnapshot = null;
-    this.apply(config, context);
+    if (config) this.apply(config, context);
+    else this.deactivate(context);
     return true;
   }
 
   commitPreview() {
+    this.previewActive = false;
     this.previewSnapshot = null;
+  }
+
+  deactivate(context = {}) {
+    this.registry.unmountAll({ ...context, state: this.state });
+    this.state?.releasePanel && this.current?.panels?.forEach((panel) => this.state.releasePanel(panel.instanceId));
+    this.#clearHosts();
+    this.current = null;
+    this.previewActive = false;
+    this.previewSnapshot = null;
+    const app = this.document?.querySelector?.("#app");
+    if (app) delete app.dataset.applicationLayout;
+    this.document?.body?.style?.removeProperty("--application-bottom-height");
+    this.#syncRegions();
+    this.#resizeMap();
   }
 
   apply(value, context = {}) {
@@ -247,6 +267,6 @@ export class LayoutManager {
   }
 
   #persistCurrent() {
-    if (this.current && typeof this.onConfigChange === "function") this.onConfigChange(structuredClone(this.current));
+    if (!this.previewActive && this.current && typeof this.onConfigChange === "function") this.onConfigChange(structuredClone(this.current));
   }
 }

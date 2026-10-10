@@ -1,4 +1,4 @@
-import { applicationToLegacyPresentation, migratePresentationToApplication, normalizeApplicationConfig, presetApplication } from "./application-config.js?v=0.16.0";
+import { applicationToLegacyPresentation, normalizeApplicationConfig } from "./application-config.js?v=0.16.0";
 import { normalizeDataCatalog } from "./data-catalog.js?v=0.16.0";
 
 const STORAGE_KEY = "gismap-online:projects:v1";
@@ -42,7 +42,7 @@ export class ProjectManager {
       ai: { provider: null, model: null },
       connections: [],
       presentation: { schemaVersion: 1, template: "standard", skin: "clean-light", title: "", primaryLayerId: null, fieldMappings: {}, widgets: {}, chapters: [] },
-      application: presetApplication("standard"),
+      application: null,
       dataCatalog: normalizeDataCatalog(),
     };
   }
@@ -151,7 +151,9 @@ export class ProjectManager {
 
     this.current = structuredClone(project);
     this.current.presentation = this.#presentation(project.presentation);
-    this.current.application = migratePresentationToApplication(project);
+    this.current.application = project.application?.configured === true
+      ? normalizeApplicationConfig(project.application)
+      : null;
     this.current.dataCatalog = normalizeDataCatalog(project.dataCatalog);
     await this.mapController.restoreView(project.view);
     this.events.publish("project:loaded", { project: this.current, missingFiles });
@@ -193,17 +195,10 @@ export class ProjectManager {
   exportAtlas() {
     const project = this.snapshot();
     const presentation = this.#presentation({ ...project.presentation, template: "atlas" });
-    const application = presetApplication("atlas");
-    application.title = presentation.title || project.name || application.title;
-    application.skin = presentation.skin || application.skin;
-    application.mode = "present";
-    application.panels = application.panels.map((panel) => panel.type === "chapters"
-      ? { ...panel, settings: { ...panel.settings, chapters: structuredClone(presentation.chapters) } }
-      : panel);
     const tour = {
       ...project,
       presentation,
-      application: normalizeApplicationConfig(application),
+      application: null,
       tour: { schema: "https://gismap.online/guided-tour/v1", opensInAtlas: true },
     };
     const blob = new Blob([JSON.stringify(tour, null, 2)], {
@@ -261,26 +256,15 @@ export class ProjectManager {
 
   setPresentation(presentation) {
     this.current.presentation = this.#presentation(presentation);
-    if (!this.current.application || this.current.application.preset !== this.current.presentation.template) {
-      this.current.application = migratePresentationToApplication({ presentation: this.current.presentation });
-    } else if (this.current.presentation.template === "atlas") {
-      this.current.application = normalizeApplicationConfig({
-        ...this.current.application,
-        title: this.current.presentation.title || this.current.application.title,
-        skin: this.current.presentation.skin || this.current.application.skin,
-        panels: this.current.application.panels.map((panel) => panel.type === "chapters"
-          ? { ...panel, settings: { ...panel.settings, chapters: structuredClone(this.current.presentation.chapters) } }
-          : panel),
-      });
-    }
+    this.current.application = null;
+    this.events.publish("application:changed", { application: null });
     this.events.publish("presentation:changed", { presentation: structuredClone(this.current.presentation) });
-    this.events.publish("application:changed", { application: structuredClone(this.current.application), migrated: true });
     this.persistCurrentIfSaved();
     return this.current.presentation;
   }
 
   setApplication(application) {
-    this.current.application = normalizeApplicationConfig(application);
+    this.current.application = normalizeApplicationConfig({ ...application, configured: true });
     this.current.presentation = this.#presentation(applicationToLegacyPresentation(this.current.application, this.current.presentation));
     this.events.publish("application:changed", { application: structuredClone(this.current.application) });
     this.events.publish("presentation:changed", { presentation: structuredClone(this.current.presentation) });

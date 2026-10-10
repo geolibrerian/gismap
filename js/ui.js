@@ -322,8 +322,13 @@ export class UIController {
       this.events.subscribe(topic, () => this.#renderLayers()),
     );
     this.events.subscribe("project:loaded", ({ project, missingFiles }) => {
-      this.#applyPresentation(project.presentation);
-      if (project.application) this.applicationRuntime.apply(project.application);
+      if (project.application?.configured) {
+        this.#applyPresentation({ template: "standard" });
+        this.applicationRuntime.apply(project.application);
+      } else {
+        this.applicationRuntime.deactivate();
+        this.#applyPresentation(project.presentation);
+      }
       this.#showProject(project);
       this.#renderBookmarks();
       this.#renderLayers();
@@ -338,7 +343,11 @@ export class UIController {
     this.events.subscribe("presentation:changed", ({ presentation }) => {
       if (!this.projectManager.current.application) this.#applyPresentation(presentation);
     });
-    this.events.subscribe("application:changed", ({ application }) => this.applicationRuntime.apply(application));
+    this.events.subscribe("application:changed", ({ application }) => {
+      if (!application?.configured) return this.applicationRuntime.deactivate();
+      this.#applyPresentation({ template: "standard" });
+      this.applicationRuntime.apply(application);
+    });
     this.events.subscribe("identify:complete", (payload) => this.#selectPresentationResult(payload.results?.find((result) => result.layerUid === this.presentationState.layerUid)));
     this.events.subscribe("project:exported", ({ kind }) => this.toast(`${kind === "package" ? "Project package (.gmop)" : kind === "atlas" ? "Guided tour (.gmoatlas)" : "Project file (.gmo)"} downloaded.`));
     this.events.subscribe("export:progress", ({ stage, completed, total }) => {
@@ -2147,9 +2156,12 @@ export class UIController {
   }
 
   #applicationBuilderDialog() {
-    const previous = this.applicationRuntime.snapshot();
-    let draft = normalizeApplicationConfig(previous);
+    const previous = this.projectManager.current.application?.configured
+      ? structuredClone(this.projectManager.current.application)
+      : null;
+    let draft = normalizeApplicationConfig(previous || presetApplication("standard"));
     let previewing = false;
+    let builderFinished = false;
     const panelTypes = this.applicationRuntime.panels.list();
     const layers = this.mapController.getOperationalLayers();
     const presetLabels = { standard: "Standard workspace", explorer: "Explorer", briefing: "Briefing", atlas: "Atlas", "ai-map": "AI Map" };
@@ -2203,7 +2215,7 @@ export class UIController {
       root.querySelector("[data-builder-preset]").addEventListener("change", (event) => {
         const title = draft.title;
         draft = presetApplication(event.target.value);
-        if (title && title !== previous.title) draft.title = title;
+        if (title && title !== previous?.title) draft.title = title;
         render();
       });
       ["[data-builder-title]", "[data-builder-skin]", "[data-builder-mode]", "[data-builder-layout]"].forEach((selector) => root.querySelector(selector).addEventListener("change", syncDraft));
@@ -2240,9 +2252,10 @@ export class UIController {
       }));
       root.querySelector("[data-builder-save-copy]").addEventListener("click", () => {
         syncDraft();
-        const copy = normalizeApplicationConfig({ ...draft, title: `${draft.title} copy` });
+        const copy = normalizeApplicationConfig({ ...draft, configured: true, title: `${draft.title} copy` });
         this.projectManager.current.applications ??= [];
         this.projectManager.current.applications.push(copy);
+        builderFinished = true;
         this.projectManager.setApplication(copy);
         this.dialog.close();
         this.toast(`Saved “${copy.title}” as a new presentation.`);
@@ -2254,12 +2267,16 @@ export class UIController {
       title: "Customize application",
       content: `<div class="application-builder" data-application-builder></div>`,
       actions: [
-        { label: "Cancel", handler: () => { if (previewing) this.applicationRuntime.cancelPreview(); else this.applicationRuntime.apply(previous); this.dialog.close(); } },
+        { label: "Cancel", handler: () => { builderFinished = true; if (previewing) this.applicationRuntime.cancelPreview(); else if (!previous) this.applicationRuntime.deactivate(); this.dialog.close(); } },
         { label: "Reset", handler: () => { draft = presetApplication(draft.preset); render(); } },
         { label: "Preview", handler: () => { this.dialog.querySelector("[data-application-builder]").syncDraft?.(); this.applicationRuntime.apply(draft, { preview: true }); previewing = true; this.toast("Preview applied. Cancel restores the prior application."); } },
-        { label: "Save", primary: true, handler: () => { this.dialog.querySelector("[data-application-builder]").syncDraft?.(); const saved = this.projectManager.setApplication(draft); this.applicationRuntime.commitPreview(); this.applicationRuntime.apply(saved); this.dialog.close(); this.toast(`Application “${saved.title}” saved.`); } },
+        { label: "Save", primary: true, handler: () => { this.dialog.querySelector("[data-application-builder]").syncDraft?.(); builderFinished = true; const saved = this.projectManager.setApplication(draft); this.applicationRuntime.commitPreview(); this.dialog.close(); this.toast(`Application “${saved.title}” saved.`); } },
       ],
     });
+    this.dialog.addEventListener("close", () => {
+      if (builderFinished || !previewing) return;
+      this.applicationRuntime.cancelPreview();
+    }, { once: true });
     render();
   }
 

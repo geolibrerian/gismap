@@ -74,6 +74,18 @@ export class ApplicationRuntime {
   cancelPreview() { return this.layout.cancelPreview(this.#context()); }
   commitPreview() { this.layout.commitPreview(); }
 
+  deactivate() {
+    this.layout.deactivate(this.#context());
+    const app = this.document.querySelector("#app");
+    delete app.dataset.applicationPreset;
+    delete this.document.body.dataset.applicationMode;
+    this.document.querySelector("#application-edit-return").hidden = true;
+    for (const elementId of Object.values(STATIC_PANELS)) {
+      const element = this.document.getElementById(elementId);
+      if (element) element.hidden = false;
+    }
+  }
+
   setMode(mode) {
     const next = { ...(this.layout.current || presetApplication()), mode: mode === "present" ? "present" : "edit" };
     return this.apply(next);
