@@ -283,10 +283,11 @@ export class ProjectManager {
   #presentation(value = {}) {
     const templates = new Set(["standard", "briefing", "explorer", "atlas", "ai-map"]);
     const skins = new Set(["clean-light", "dark-analytical", "retro-print", "tidal-95", "portolan", "velvet-orbit", "violet-circuit"]);
+    const normalizedSkin = value.skin === "retro-print" ? "portolan" : value.skin;
     return {
       schemaVersion: 1,
       template: templates.has(value.template) ? value.template : "standard",
-      skin: skins.has(value.skin) ? value.skin : "clean-light",
+      skin: skins.has(normalizedSkin) ? normalizedSkin : "clean-light",
       title: String(value.title || ""),
       primaryLayerId: value.primaryLayerId || null,
       fieldMappings: value.fieldMappings && typeof value.fieldMappings === "object" ? value.fieldMappings : {},

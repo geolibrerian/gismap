@@ -4,6 +4,7 @@ import { createShareUrl } from "./share.js?v=0.16.0";
 import { markdownToPlainText, renderMarkdown } from "./markdown.js?v=0.16.0";
 import { formatAttributeValue } from "./attribute-format.js?v=0.16.0";
 import { normalizeApplicationConfig, presetApplication } from "./application-config.js?v=0.16.0";
+import { featureId, fieldKind, filterRecords, histogram, requestGuard, sortRecords } from "./presentation-query.js?v=0.16.0";
 
 const DISPLAY_SETTINGS_KEY = "gismap-online:display:v1";
 const INSIGHT_POSITIONS = new Set(["upper-left", "lower-left", "bottom", "dock-left", "dock-right", "dock-top", "dock-bottom"]);
@@ -52,7 +53,8 @@ export class UIController {
     this.suppressNextDialogClose = false;
     this.presentationSearchTimer = null;
     this.atlasPlaybackToken = 0;
-    this.presentationState = { template: "standard", records: [], visibleRecords: [], selected: null, layerUid: null, search: "", category: "" };
+    this.presentationState = { template: "standard", records: [], visibleRecords: [], selectedIds: new Set(), layerUid: null, search: "", searchField: "*", searchOperator: "contains", chartField: null, scope: "all", rangeMin: null, rangeMax: null, sortField: null, sortDirection: "asc", page: 1, pageSize: 25, binCount: 12 };
+    this.briefingRequest = requestGuard();
     this.keepWelcomeForSharedExample = new URLSearchParams(location.search).has("example");
     this.systemThemeMedia = matchMedia("(prefers-color-scheme: dark)");
     this.mobileMedia = matchMedia("(max-width: 640px)");
@@ -67,7 +69,7 @@ export class UIController {
     if (this.mobileMedia.matches) this.#setSidebarCollapsed(true);
     this.mobileMedia.addEventListener?.("change", ({ matches }) => {
       document.body.classList.remove("mobile-map-tools-open", "mobile-drawer-expanded");
-      this.#setSidebarCollapsed(matches);
+      this.#setSidebarCollapsed(matches && this.presentationState.template === "standard");
       this.#applyDisplaySettings(this.#readDisplaySettings());
     });
     this.#buildMobileMenu();
@@ -1658,7 +1660,9 @@ export class UIController {
     return {
       title: mapped("title") || matching(fields.text, /location|station|site|name|title/i) || fields.text[0]?.name || null,
       metric: mapped("metric") || matching(fields.numeric, /value|measure|concentration|amount|magnitude|score/i) || fields.numeric[0]?.name || null,
-      unit: mapped("unit") || matching(fields.text, /unit/i),
+      // UnitID-style fields are commonly organizational identifiers. Only an
+      // explicit mapping or a schema field named exactly "unit" is trusted.
+      unit: mapped("unit") || fields.text.find((field) => /^(unit|units|uom)$/i.test(field.name))?.name || null,
       timestamp: mapped("timestamp") || matching([...fields.dates, ...fields.text], /observ|measure|sample|date|time|updated/i),
       category: mapped("category"),
       source: mapped("source") || matching(fields.text, /^(?:url|source_url|link)$/i),
@@ -1667,7 +1671,9 @@ export class UIController {
 
   async #loadPresentationRecords(presentation) {
     const layer = this.#presentationLayer(presentation);
-    this.presentationState = { ...this.presentationState, layerUid: layer?.uid || null, records: [], visibleRecords: [], selected: null, search: "", category: "", scope: "all", rangeMin: null, rangeMax: null, totalCount: null };
+    const prior = this.presentationState.template === presentation.template ? this.presentationState : {};
+    this.briefingRequest.cancel();
+    this.presentationState = { ...prior, template: presentation.template, layerUid: layer?.uid || null, records: [], visibleRecords: [], selected: null, selectedIds: new Set(), search: "", searchField: "*", searchOperator: "contains", chartField: null, scope: "all", rangeMin: null, rangeMax: null, totalCount: null, sortField: null, sortDirection: "asc", page: 1, pageSize: 25, binCount: 12, fetchedAt: new Date().toISOString() };
     if (!layer) return this.#renderPresentationDashboard(presentation);
     try {
       const query = layer.createQuery?.() || {};
@@ -1683,11 +1689,13 @@ export class UIController {
       const fields = this.#presentationFields(layer);
       const roles = this.#presentationRoles(presentation, layer, fields);
       this.presentationState.roles = roles;
+      this.presentationState.searchField = roles.title || "*";
+      this.presentationState.chartField = roles.metric || fields.numeric[0]?.name || null;
+      this.presentationState.sortField = roles.title || fields.fields[0]?.name || null;
       const metricValues = this.presentationState.records.map((record) => Number(record.attributes?.[roles.metric])).filter(Number.isFinite);
       this.presentationState.metricMin = metricValues.length ? Math.min(...metricValues) : null;
       this.presentationState.metricMax = metricValues.length ? Math.max(...metricValues) : null;
       this.presentationState.metricUnit = this.presentationState.records.map((record) => record.attributes?.[roles.unit]).find(Boolean) || "";
-      this.#applyExplorerMetricRenderer(layer, roles, presentation);
       this.#filterPresentationRecords();
     } catch (error) {
       this.presentationState.error = error.message;
@@ -1704,20 +1712,10 @@ export class UIController {
 
   #filterPresentationRecords() {
     const layer = this.mapController.findLayer(this.presentationState.layerUid);
-    const roles = this.presentationState.roles || this.#presentationRoles(this.projectManager.current.presentation || {}, layer);
-    const needle = this.presentationState.search.trim().toLowerCase();
-    this.presentationState.categoryField = roles.category || null;
+    const fields = this.#presentationFields(layer);
     const extent = this.mapController.view?.extent;
-    this.presentationState.visibleRecords = this.presentationState.records.filter((result) => {
-      const haystack = Object.values(result.attributes || {}).join(" ").toLowerCase();
-      const metric = Number(result.attributes?.[roles.metric]);
-      const inRange = (this.presentationState.rangeMin == null || (Number.isFinite(metric) && metric >= this.presentationState.rangeMin))
-        && (this.presentationState.rangeMax == null || (Number.isFinite(metric) && metric <= this.presentationState.rangeMax));
-      const inExtent = this.presentationState.scope !== "extent" || !extent || extent.intersects?.(result.geometry?.extent || result.geometry);
-      return (!needle || haystack.includes(needle))
-        && (!this.presentationState.category || String(result.attributes?.[roles.category] ?? "") === this.presentationState.category)
-        && inRange && inExtent;
-    });
+    const filtered = filterRecords(this.presentationState.records, this.presentationState, fields.fields, (result) => !extent || extent.intersects?.(result.geometry?.extent || result.geometry));
+    this.presentationState.visibleRecords = sortRecords(filtered, this.presentationState.sortField, this.presentationState.sortDirection);
     if (this.presentationState.selected && !this.presentationState.visibleRecords.includes(this.presentationState.selected)) {
       this.presentationState.selected = null;
       this.mapController.clearFeatureHighlight();
@@ -1730,8 +1728,9 @@ export class UIController {
     if (!result || this.presentationState.template === "standard") return;
     const layer = this.mapController.findLayer(this.presentationState.layerUid);
     const idField = layer?.objectIdField;
-    const selected = idField ? this.presentationState.records.find((record) => record.attributes?.[idField] === result.attributes?.[idField]) || result : result;
+    const selected = idField ? this.presentationState.records.find((record) => featureId(record, idField) === featureId(result, idField)) || result : result;
     this.presentationState.selected = selected;
+    this.presentationState.selectedIds = new Set([featureId(selected, idField)].filter(Boolean));
     this.mapController.highlightFeature(selected);
     this.#setInsightsOpen(false);
     this.#renderPresentationDashboard(this.projectManager.current.presentation || {});
@@ -1832,6 +1831,14 @@ export class UIController {
       return;
     }
     if (template === "explorer") {
+      this.#renderExplorerWorkspace(root, presentation, layer, fields);
+      return;
+    }
+    if (template === "briefing") {
+      this.#renderBriefingWorkspace(root, presentation, layer, fields);
+      return;
+    }
+    if (template === "explorer") {
       const roles = this.presentationState.roles || this.#presentationRoles(presentation, layer, fields);
       const loaded = this.presentationState.records.length;
       const total = this.presentationState.totalCount;
@@ -1874,6 +1881,124 @@ export class UIController {
     root.querySelector("[data-mode-clear]")?.addEventListener("click", () => { this.presentationState.search = ""; this.presentationState.category = ""; this.presentationState.scope = "all"; this.presentationState.rangeMin = null; this.presentationState.rangeMax = null; this.#filterPresentationRecords(); });
     root.querySelectorAll("[data-mode-category-value]").forEach((button) => button.addEventListener("click", () => { this.presentationState.category = button.dataset.modeCategoryValue; this.#filterPresentationRecords(); }));
     root.querySelectorAll("[data-mode-record]").forEach((button) => button.addEventListener("click", async () => { const result = records[Number(button.dataset.modeRecord)]; this.#selectPresentationResult(result); if (result?.geometry) await this.mapController.view?.goTo?.(result.geometry); }));
+  }
+
+  #fieldOptions(fields, selected, predicate = () => true) {
+    return fields.filter(predicate).map((field) => `<option value="${escapeHtml(field.name)}"${field.name === selected ? " selected" : ""}>${escapeHtml(field.alias || field.name)}</option>`).join("");
+  }
+
+  #searchOperatorOptions(field) {
+    const kind = fieldKind(field);
+    const options = kind === "number"
+      ? [["equals", "Equals"], ["gt", "Greater than"], ["lt", "Less than"], ["missing", "Is missing"]]
+      : [["contains", "Contains"], ["equals", "Equals"], ["starts", "Starts with"], ["missing", "Is missing"]];
+    return options.map(([value, label]) => `<option value="${value}"${this.presentationState.searchOperator === value ? " selected" : ""}>${label}</option>`).join("");
+  }
+
+  #renderExplorerWorkspace(root, presentation, layer, fields) {
+    const state = this.presentationState;
+    const roles = state.roles || this.#presentationRoles(presentation, layer, fields);
+    const loaded = state.records.length;
+    const total = state.totalCount;
+    const incomplete = Number.isFinite(total) && total > loaded;
+    const selected = state.selected;
+    const idField = layer.objectIdField;
+    const chart = histogram(state.visibleRecords, state.chartField, state.binCount);
+    const maxBin = Math.max(1, ...chart.bins.map((bin) => bin.count));
+    const pageCount = Math.max(1, Math.ceil(state.visibleRecords.length / state.pageSize));
+    state.page = Math.min(state.page, pageCount);
+    const pageRecords = state.visibleRecords.slice((state.page - 1) * state.pageSize, state.page * state.pageSize);
+    const searchField = fields.fields.find((field) => field.name === state.searchField);
+    const chartLabel = fields.fields.find((field) => field.name === state.chartField)?.alias || state.chartField || "Numeric field";
+    const activeRange = state.rangeMin != null || state.rangeMax != null;
+    root.innerHTML = `<section class="mode-dashboard mode-dashboard--explorer presentation-workspace">
+      <header class="presentation-compact-header"><span class="eyebrow">Dataset explorer</span><h2>${escapeHtml(presentation.title || layer.title || "Explore records")}</h2><label class="compact-dataset"><span>Dataset</span><select data-mode-dataset>${this.mapController.getOperationalLayers().filter((item) => typeof item.queryFeatures === "function").map((item) => `<option value="${escapeHtml(item.uid)}"${item.uid === layer.uid ? " selected" : ""}>${escapeHtml(item.title || "Untitled layer")}</option>`).join("")}</select></label></header>
+      <div class="explorer-counts"><button data-coverage-open><b>${Number.isFinite(total) ? total.toLocaleString() : "—"}</b><span>Total${Number.isFinite(total) ? "" : " unknown"}</span></button><button data-coverage-open><b>${loaded.toLocaleString()}</b><span>Available locally</span></button><button data-mode-zoom><b>${state.visibleRecords.length.toLocaleString()}</b><span>Match filters</span></button><button data-selection-zoom><b>${state.selectedIds.size}</b><span>Selected</span></button></div>
+      <p class="explorer-coverage ${incomplete ? "is-partial" : ""}">${incomplete ? `Working with ${loaded.toLocaleString()} locally available records out of ${total.toLocaleString()} reported by the service.` : `Working with ${loaded.toLocaleString()} records available to this browser.`}</p>
+      <section class="explorer-toolbar"><div class="explorer-search-grid"><label class="field"><span>Search field</span><select data-search-field><option value="*"${state.searchField === "*" ? " selected" : ""}>All searchable text fields</option>${this.#fieldOptions(fields.fields, state.searchField)}</select></label><label class="field"><span>Match</span><select data-search-operator>${this.#searchOperatorOptions(searchField)}</select></label><label class="field explorer-search-input"><span>Search records</span><input data-mode-search value="${escapeHtml(state.search)}" placeholder="Search ${escapeHtml(searchField?.alias || "text fields")}" /></label></div>
+      <label class="scope-toggle"><input type="checkbox" data-mode-extent${state.scope === "extent" ? " checked" : ""}/> Limit to current map extent</label>
+      <div class="filter-chips">${state.search ? `<button data-clear-search>${escapeHtml(searchField?.alias || "All text")}: ${escapeHtml(state.search)} ×</button>` : ""}${activeRange ? `<button data-clear-range>${escapeHtml(chartLabel)}: ${state.rangeMin ?? "−∞"}–${state.rangeMax ?? "+∞"} ×</button>` : ""}${state.scope === "extent" ? `<button data-clear-extent>Current extent ×</button>` : ""}${!state.search && !activeRange && state.scope !== "extent" ? "<span>No active filters</span>" : ""}</div><div class="explorer-actions"><button data-mode-zoom>Zoom to results</button><button class="button--quiet" data-mode-clear>Clear all</button></div></section>
+      <section class="explorer-distribution"><div class="chart-controls"><label class="field"><span>Chart field</span><select data-chart-field>${this.#fieldOptions(fields.numeric, state.chartField)}</select></label><label class="field"><span>Bins</span><select data-chart-bins>${[8,12,16,24].map((count) => `<option${count === state.binCount ? " selected" : ""}>${count}</option>`).join("")}</select></label></div><strong>${escapeHtml(chartLabel)}</strong><div class="chart-axis"><span>${chart.min == null ? "No numeric values" : this.#formatExplorerNumber(chart.min)}</span><span>${chart.max == null ? "" : this.#formatExplorerNumber(chart.max)}</span></div><div class="explorer-histogram" style="grid-template-columns:repeat(${chart.bins.length || 1},1fr)" aria-label="Histogram of ${escapeHtml(chartLabel)}">${chart.bins.map((bin) => `<button data-range-bin-min="${bin.min}" data-range-bin-max="${bin.max}" title="${this.#formatExplorerNumber(bin.min)}–${this.#formatExplorerNumber(bin.max)}: ${bin.count}"><span style="height:${Math.max(3, bin.count / maxBin * 100)}%"></span></button>`).join("")}</div><p class="chart-caption">${chart.bins.length} bins · ${chart.missing} missing value${chart.missing === 1 ? "" : "s"}. Clicking a bin filters every view. <button type="button" class="link-button" data-style-chart>Style map by this field</button></p></section>
+      <section class="explorer-results-table"><header><strong>Results</strong><span>${state.visibleRecords.length.toLocaleString()} local matches</span><label>Sort <select data-sort-field>${this.#fieldOptions(fields.fields, state.sortField)}</select></label><button data-sort-direction aria-label="Reverse sort">${state.sortDirection === "asc" ? "↑" : "↓"}</button></header><div class="results-table" role="table"><div class="results-row results-row--head" role="row"><span>Name</span><span>${escapeHtml(chartLabel)}</span><span>ID</span></div>${pageRecords.map((record) => { const id = featureId(record, idField); return `<button class="results-row${state.selectedIds.has(id) ? " is-selected" : ""}" data-mode-record-id="${escapeHtml(id)}"><span>${escapeHtml(this.#recordLabel(record, fields))}</span><span>${escapeHtml(this.#formatExplorerNumber(record.attributes?.[state.chartField]))}</span><span>${escapeHtml(id || "—")}</span></button>`; }).join("") || "<p class=\"form-note\">No locally available records match.</p>"}</div><footer><button data-page-prev${state.page <= 1 ? " disabled" : ""}>Previous</button><span>Page ${state.page} of ${pageCount}</span><button data-page-next${state.page >= pageCount ? " disabled" : ""}>Next</button></footer></section>
+      <aside class="mode-details explorer-details"><span class="eyebrow">Selected record</span>${selected ? `<h3>${escapeHtml(this.#recordLabel(selected, fields))}</h3><div class="detail-actions"><button data-selection-zoom>Zoom</button><button data-filter-selected>Filter to selected</button><button data-selection-clear>Clear</button></div><dl>${Object.entries(selected.attributes || {}).filter(([, value]) => value != null && value !== "").slice(0, 8).map(([key, value]) => `<div><dt>${escapeHtml(fields.fields.find((field) => field.name === key)?.alias || key)}</dt><dd>${escapeHtml(formatAttributeValue(value, fields.fields.find((field) => field.name === key), key))}</dd></div>`).join("")}</dl><details><summary>All attributes</summary><dl>${Object.entries(selected.attributes || {}).map(([key,value]) => `<div><dt>${escapeHtml(key)}</dt><dd>${escapeHtml(value)}</dd></div>`).join("")}</dl></details>` : "<p>Select a table row or mapped feature. Selection is independent from filtering.</p>"}</aside>
+    </section>`;
+    this.#bindExplorerWorkspace(root, presentation, layer, fields);
+  }
+
+  #bindExplorerWorkspace(root, presentation, layer, fields) {
+    const state = this.presentationState;
+    const refresh = () => this.#filterPresentationRecords();
+    root.querySelector("[data-mode-dataset]")?.addEventListener("change", (event) => {
+      this.#loadPresentationRecords({ ...presentation, primaryLayerId: event.target.value });
+    });
+    root.querySelector("[data-search-field]")?.addEventListener("change", (event) => { state.searchField = event.target.value; state.searchOperator = "contains"; state.page = 1; refresh(); });
+    root.querySelector("[data-search-operator]")?.addEventListener("change", (event) => { state.searchOperator = event.target.value; refresh(); });
+    root.querySelector("[data-mode-search]")?.addEventListener("input", (event) => { state.search = event.target.value; state.page = 1; clearTimeout(this.presentationSearchTimer); this.presentationSearchTimer = setTimeout(refresh, 180); });
+    root.querySelector("[data-mode-extent]")?.addEventListener("change", (event) => { state.scope = event.target.checked ? "extent" : "all"; state.page = 1; refresh(); });
+    root.querySelector("[data-chart-field]")?.addEventListener("change", (event) => { state.chartField = event.target.value; state.rangeMin = null; state.rangeMax = null; refresh(); });
+    root.querySelector("[data-chart-bins]")?.addEventListener("change", (event) => { state.binCount = Number(event.target.value); this.#renderExplorerWorkspace(root, presentation, layer, fields); });
+    root.querySelector("[data-sort-field]")?.addEventListener("change", (event) => { state.sortField = event.target.value; state.page = 1; refresh(); });
+    root.querySelector("[data-sort-direction]")?.addEventListener("click", () => { state.sortDirection = state.sortDirection === "asc" ? "desc" : "asc"; refresh(); });
+    root.querySelectorAll("[data-range-bin-min]").forEach((button) => button.addEventListener("click", () => { state.rangeMin = Number(button.dataset.rangeBinMin); state.rangeMax = Number(button.dataset.rangeBinMax); state.page = 1; refresh(); }));
+    root.querySelector("[data-clear-search]")?.addEventListener("click", () => { state.search = ""; refresh(); });
+    root.querySelector("[data-clear-range]")?.addEventListener("click", () => { state.rangeMin = null; state.rangeMax = null; refresh(); });
+    root.querySelector("[data-clear-extent]")?.addEventListener("click", () => { state.scope = "all"; refresh(); });
+    root.querySelector("[data-mode-clear]")?.addEventListener("click", () => { Object.assign(state, { search: "", searchOperator: "contains", scope: "all", rangeMin: null, rangeMax: null, page: 1 }); refresh(); });
+    root.querySelectorAll("[data-mode-zoom]").forEach((button) => button.addEventListener("click", async () => { const graphics = state.visibleRecords.map((record) => record.graphic).filter(Boolean); if (graphics.length) await this.mapController.view?.goTo?.(graphics, { padding: { left: 36, right: 360, bottom: 230 } }); }));
+    root.querySelectorAll("[data-selection-zoom]").forEach((button) => button.addEventListener("click", async () => { if (state.selected?.geometry) await this.mapController.view?.goTo?.(state.selected.geometry, { padding: 100 }); }));
+    root.querySelector("[data-selection-clear]")?.addEventListener("click", () => { state.selected = null; state.selectedIds.clear(); this.mapController.clearFeatureHighlight(); this.#renderExplorerWorkspace(root, presentation, layer, fields); });
+    root.querySelector("[data-filter-selected]")?.addEventListener("click", () => { if (!state.selected) return; state.searchField = layer.objectIdField; state.searchOperator = "equals"; state.search = String(state.selected.attributes?.[layer.objectIdField] ?? ""); refresh(); });
+    root.querySelector("[data-style-chart]")?.addEventListener("click", () => { const roles = { ...state.roles, metric: state.chartField }; const values = state.records.map((record) => Number(record.attributes?.[state.chartField])).filter(Number.isFinite); state.metricMin = values.length ? Math.min(...values) : null; state.metricMax = values.length ? Math.max(...values) : null; this.#applyExplorerMetricRenderer(layer, roles, presentation); this.toast(`Map styled by ${fields.fields.find((field) => field.name === state.chartField)?.alias || state.chartField}.`); });
+    root.querySelector("[data-coverage-open]")?.addEventListener("click", () => this.openDialog({ eyebrow: "Dataset coverage", title: layer.title || "Coverage details", content: `<dl class="coverage-details"><div><dt>Service total</dt><dd>${Number.isFinite(state.totalCount) ? state.totalCount.toLocaleString() : "Not reported"}</dd></div><div><dt>Available locally</dt><dd>${state.records.length.toLocaleString()}</dd></div><div><dt>Completeness</dt><dd>${Number.isFinite(state.totalCount) ? `${Math.min(100, state.records.length / state.totalCount * 100).toFixed(1)}%` : "Unknown"}</dd></div><div><dt>Fetched</dt><dd>${escapeHtml(this.#formatExplorerTime(state.fetchedAt))}</dd></div><div><dt>Source</dt><dd>${escapeHtml(layer.url || "Local/project layer")}</dd></div></dl><p class="form-note">Search, charts, statistics, and the results table operate on records available locally. Refresh requests the source again; load-more support depends on the service.</p>`, actions: [{ label: "Close", handler: () => this.dialog.close() }, { label: "Refresh", primary: true, handler: () => { layer.refresh?.(); this.dialog.close(); this.#loadPresentationRecords(presentation); } }] }));
+    root.querySelector("[data-page-prev]")?.addEventListener("click", () => { state.page -= 1; this.#renderExplorerWorkspace(root, presentation, layer, fields); });
+    root.querySelector("[data-page-next]")?.addEventListener("click", () => { state.page += 1; this.#renderExplorerWorkspace(root, presentation, layer, fields); });
+    root.querySelectorAll("[data-mode-record-id]").forEach((button) => button.addEventListener("click", async (event) => { const record = state.visibleRecords.find((item) => featureId(item, layer.objectIdField) === button.dataset.modeRecordId); if (!record) return; const id = featureId(record, layer.objectIdField); if (event.metaKey || event.ctrlKey || event.shiftKey) { state.selectedIds.has(id) ? state.selectedIds.delete(id) : state.selectedIds.add(id); state.selected = record; this.mapController.highlightFeature(record); this.#renderExplorerWorkspace(root, presentation, layer, fields); } else { this.#selectPresentationResult(record); } }));
+  }
+
+  #renderBriefingWorkspace(root, presentation, layer, fields) {
+    const state = this.presentationState;
+    const selected = state.selected;
+    const nameField = state.roles?.title || fields.text[0]?.name;
+    const idField = layer.objectIdField;
+    const overview = selected ? Object.entries(selected.attributes || {}).filter(([key, value]) => value != null && value !== "" && key !== idField).slice(0, 5) : [];
+    root.innerHTML = `<section class="mode-dashboard mode-dashboard--briefing presentation-workspace"><header class="presentation-compact-header"><span class="eyebrow">Context briefing</span><h2>${escapeHtml(presentation.title || layer.title || "Feature briefing")}</h2><label class="compact-dataset"><span>Dataset</span><select data-mode-dataset>${this.mapController.getOperationalLayers().filter((item) => typeof item.queryFeatures === "function").map((item) => `<option value="${escapeHtml(item.uid)}"${item.uid === layer.uid ? " selected" : ""}>${escapeHtml(item.title || "Untitled layer")}</option>`).join("")}</select></label></header><div class="briefing-search"><label class="field"><span>Search field</span><select data-search-field>${this.#fieldOptions(fields.fields, state.searchField)}</select></label><label class="field"><span>Find a feature</span><input data-mode-search value="${escapeHtml(state.search)}" placeholder="Search ${escapeHtml(fields.fields.find((field) => field.name === state.searchField)?.alias || nameField || "features")}"/></label><button data-mode-clear>Clear</button></div><div class="mode-records briefing-records">${state.visibleRecords.slice(0, 100).map((record) => `<button class="mode-record${record === selected ? " is-selected" : ""}" data-mode-record-id="${escapeHtml(featureId(record, idField))}"><strong>${escapeHtml(this.#recordLabel(record, fields))}</strong><small>${escapeHtml(featureId(record, idField) || "")}</small></button>`).join("") || "<p class=\"form-note\">No locally available features match.</p>"}</div><aside class="mode-details briefing-context"><span class="eyebrow">${selected ? "Feature context" : "Select a feature"}</span>${selected ? `<h3>${escapeHtml(this.#recordLabel(selected, fields))}</h3><div class="detail-actions"><button data-selection-zoom>Zoom to feature</button><button data-selection-clear>Clear</button></div><nav class="context-tabs"><span>Overview</span><span>Surroundings</span><span>AI context</span><span>Sources</span></nav><section><h4>Overview</h4><dl>${overview.map(([key,value]) => `<div><dt>${escapeHtml(fields.fields.find((field) => field.name === key)?.alias || key)}</dt><dd>${escapeHtml(formatAttributeValue(value, fields.fields.find((field) => field.name === key), key))}</dd></div>`).join("")}</dl></section><section><h4>Surroundings</h4><p data-briefing-surroundings>Checking visible contextual datasets…</p></section><section><h4>AI context</h4><div class="context-settings"><label>Distance <input data-context-distance type="number" min="0" value="10"/></label><select data-context-units><option>kilometers</option><option>miles</option></select></div><p data-briefing-ai>${this.aiController.isConfigured() ? "Deterministic context appears first. Generate a concise explanation after reviewing it." : "AI is not configured. Spatial context and source details remain available."}</p>${this.aiController.isConfigured() ? "<button data-briefing-ai-run>Generate sourced context</button>" : ""}</section><section><h4>Sources</h4><p>${escapeHtml(layer.title || "Dataset")} · retrieved ${escapeHtml(this.#formatExplorerTime(state.fetchedAt))}</p>${layer.url ? `<a href="${escapeHtml(layer.url)}" target="_blank" rel="noopener">Open dataset source ↗</a>` : ""}</section><details><summary>All attributes</summary><dl>${Object.entries(selected.attributes || {}).map(([key,value]) => `<div><dt>${escapeHtml(key)}</dt><dd>${escapeHtml(value)}</dd></div>`).join("")}</dl></details>` : "<p>Choose a named feature or click it on the map. The right context panel keeps selection, map highlight, and details synchronized.</p>"}</aside></section>`;
+    this.#bindBriefingWorkspace(root, presentation, layer, fields);
+    if (selected) void this.#loadBriefingContext(root, selected, layer);
+  }
+
+  #bindBriefingWorkspace(root, presentation, layer, fields) {
+    const state = this.presentationState;
+    const refresh = () => this.#filterPresentationRecords();
+    root.querySelector("[data-mode-dataset]")?.addEventListener("change", (event) => this.#loadPresentationRecords({ ...presentation, primaryLayerId: event.target.value }));
+    root.querySelector("[data-search-field]")?.addEventListener("change", (event) => { state.searchField = event.target.value; state.searchOperator = "contains"; refresh(); });
+    root.querySelector("[data-mode-search]")?.addEventListener("input", (event) => { state.search = event.target.value; clearTimeout(this.presentationSearchTimer); this.presentationSearchTimer = setTimeout(refresh, 180); });
+    root.querySelector("[data-mode-clear]")?.addEventListener("click", () => { state.search = ""; refresh(); });
+    root.querySelectorAll("[data-mode-record-id]").forEach((button) => button.addEventListener("click", () => { const record = state.visibleRecords.find((item) => featureId(item, layer.objectIdField) === button.dataset.modeRecordId); this.#selectPresentationResult(record); }));
+    root.querySelector("[data-selection-clear]")?.addEventListener("click", () => { this.briefingRequest.cancel(); state.selected = null; state.selectedIds.clear(); this.mapController.clearFeatureHighlight(); this.#renderBriefingWorkspace(root, presentation, layer, fields); });
+    root.querySelector("[data-selection-zoom]")?.addEventListener("click", async () => { if (state.selected?.geometry) await this.mapController.view?.goTo?.(state.selected.geometry, { padding: { left: 300, right: 390 } }); });
+    root.querySelector("[data-briefing-ai-run]")?.addEventListener("click", () => {
+      if (!state.selected || !this.aiController.isConfigured()) return;
+      const context = root.querySelector("[data-briefing-surroundings]")?.textContent || "No surrounding results available.";
+      this.#openIntelligenceUtility();
+      this.#askAI(`Explain this selected feature concisely using only its supplied attributes and the deterministic spatial context. Distinguish nearby or intersecting features from verified impacts. Cite dataset names in the response. Spatial context: ${context}`, { selectedResults: [state.selected] }, "Briefing context");
+    });
+  }
+
+  async #loadBriefingContext(root, selected, primaryLayer) {
+    const token = this.briefingRequest.next();
+    const output = root.querySelector("[data-briefing-surroundings]");
+    if (!output) return;
+    const contextual = this.mapController.getOperationalLayers().filter((layer) => layer !== primaryLayer && layer.visible && typeof layer.queryFeatureCount === "function");
+    if (!contextual.length) { output.textContent = "No other visible queryable datasets are available. Add or show a contextual layer to inspect surroundings."; return; }
+    const results = await Promise.all(contextual.map(async (layer) => {
+      try {
+        const query = layer.createQuery?.() || {};
+        Object.assign(query, { geometry: selected.geometry, spatialRelationship: "intersects", where: layer.definitionExpression || "1=1" });
+        return { title: layer.title || "Untitled layer", count: await layer.queryFeatureCount(query), status: "intersecting" };
+      } catch { return { title: layer.title || "Untitled layer", count: null, status: "unavailable" }; }
+    }));
+    if (!this.briefingRequest.valid(token) || this.presentationState.selected !== selected || !output.isConnected) return;
+    output.innerHTML = results.map((result) => result.count == null ? `<span>${escapeHtml(result.title)}: unavailable</span>` : `<button type="button" class="context-fact"><b>${result.count}</b> ${escapeHtml(result.title)} feature${result.count === 1 ? "" : "s"} intersect the selected geometry</button>`).join("") || "No intersections found.";
   }
 
   #saveAtlasChapters(chapters) {
@@ -2145,6 +2270,7 @@ export class UIController {
       return;
     }
     if (welcomePanel) welcomePanel.hidden = true;
+    if (this.mobileMedia.matches) this.#setSidebarCollapsed(false);
     if (template !== "atlas") this.#hideAtlasChapterOverlay();
     this.presentationState.template = template;
     context?.remove();
@@ -2292,7 +2418,7 @@ export class UIController {
     this.openDialog({
       eyebrow: "Presentation",
       title: "Choose a data theme",
-      content: `<div class="presentation-picker"><p class="form-note">Templates change the audience layout; skins change its visual treatment. Layer data, styles, and credentials are unchanged.</p><div class="presentation-cards"><button type="button" class="presentation-card" data-presentation-template="standard"><span class="presentation-preview presentation-preview--standard"></span><strong>Standard workspace</strong><small>Restore the authoring workspace.</small></button>${cards.map(([id, title, description]) => `<button type="button" class="presentation-card" data-presentation-template="${id}"><span class="presentation-preview presentation-preview--${id}"><i></i><i></i><i></i></span><strong>${title}</strong><small>${description}</small></button>`).join("")}</div><p class="form-note" data-presentation-preview-status></p><label class="field"><span>Skin</span><select id="presentation-skin"><option value="clean-light">Clean Light</option><option value="dark-analytical">Dark Analytical</option><option value="retro-print">Retro Print</option></select></label><label class="field"><span>Presentation title</span><input id="presentation-title" value="${escapeHtml(current.title)}" placeholder="Optional title" /></label><label class="field"><span>Primary layer</span><select id="presentation-primary"><option value="">Choose later</option>${layers.map((layer) => `<option value="${escapeHtml(layer.uid)}">${escapeHtml(layer.title || "Untitled layer")}</option>`).join("")}</select></label><p class="form-note" data-presentation-note>Optional tools appear only when the chosen primary layer has compatible fields; configure them after applying.</p></div>`,
+      content: `<div class="presentation-picker"><p class="form-note">Templates change the working interface. Skins change the complete visual system without changing map symbology or classifications.</p><div class="presentation-cards"><button type="button" class="presentation-card" data-presentation-template="standard"><span class="presentation-preview presentation-preview--standard"></span><strong>Standard workspace</strong><small>Restore the authoring workspace.</small></button>${cards.map(([id, title, description]) => `<button type="button" class="presentation-card" data-presentation-template="${id}"><span class="presentation-preview presentation-preview--${id}"><i></i><i></i><i></i></span><strong>${title}</strong><small>${description}</small></button>`).join("")}</div><p class="form-note" data-presentation-preview-status></p><fieldset class="skin-picker"><legend>Interface skin</legend>${[["clean-light","Clean Light","Modern analytical workspace"],["dark-analytical","Midnight","Quiet professional night interface"],["tidal-95","Pacific ’94","Classic digital cartography"],["portolan","Copperplate","Historical atlas and field journal"],["velvet-orbit","Velvet Orbit","Editorial presentation"],["violet-circuit","Violet Circuit","Operational console"]].map(([id,label,description]) => `<button type="button" class="skin-card skin-card--${id}" data-skin-choice="${id}"><span class="skin-mini"><i></i><b></b><em></em><small></small></span><strong>${label}</strong><small>${description}</small></button>`).join("")}<select id="presentation-skin" hidden><option value="clean-light">Clean Light</option><option value="dark-analytical">Midnight</option><option value="tidal-95">Pacific ’94</option><option value="portolan">Copperplate</option><option value="velvet-orbit">Velvet Orbit</option><option value="violet-circuit">Violet Circuit</option></select></fieldset><label class="field"><span>Presentation title</span><input id="presentation-title" value="${escapeHtml(current.title)}" placeholder="Optional title" /></label><label class="field"><span>Primary layer</span><select id="presentation-primary"><option value="">Choose later</option>${layers.map((layer) => `<option value="${escapeHtml(layer.uid)}">${escapeHtml(layer.title || "Untitled layer")}</option>`).join("")}</select></label><p class="form-note" data-presentation-note>Dataset roles remain configurable inside Explorer and Briefing after applying.</p></div>`,
       actions: [
         { label: "Cancel", handler: () => { this.#applyPresentation(previous); this.dialog.close(); } },
         { label: "Preview", handler: () => {
@@ -2313,7 +2439,7 @@ export class UIController {
     this.dialog.querySelector("#presentation-primary").value = current.primaryLayerId || "";
     const select = (button) => {
       this.dialog.querySelectorAll("[data-presentation-template]").forEach((card) => card.classList.toggle("is-selected", card === button));
-      if (button.dataset.presentationTemplate !== "standard" && current.template === "standard") skin.value = cards.find(([id]) => id === button.dataset.presentationTemplate)?.[3] || skin.value;
+      if (button.dataset.presentationTemplate !== "standard" && current.template === "standard") chooseSkin(cards.find(([id]) => id === button.dataset.presentationTemplate)?.[3] || skin.value);
       const template = button.dataset.presentationTemplate;
       this.#applyPresentation({ template, skin: skin.value });
       this.dialog.querySelector("[data-presentation-preview-status]").textContent = template === "standard"
@@ -2321,10 +2447,14 @@ export class UIController {
         : `Previewing ${template[0].toUpperCase()}${template.slice(1)}. Choose Apply to save this presentation to the project.`;
     };
     this.dialog.querySelectorAll("[data-presentation-template]").forEach((button) => button.addEventListener("click", () => select(button)));
-    skin.addEventListener("change", () => {
+    const chooseSkin = (value) => {
+      skin.value = value;
+      this.dialog.querySelectorAll("[data-skin-choice]").forEach((card) => card.classList.toggle("is-selected", card.dataset.skinChoice === value));
       const template = this.dialog.querySelector(".presentation-card.is-selected")?.dataset.presentationTemplate || current.template;
       this.#applyPresentation({ template, skin: skin.value });
-    });
+    };
+    this.dialog.querySelectorAll("[data-skin-choice]").forEach((card) => card.addEventListener("click", () => chooseSkin(card.dataset.skinChoice)));
+    chooseSkin(current.skin === "retro-print" ? "portolan" : current.skin);
     select(this.dialog.querySelector(`[data-presentation-template="${current.template}"]`) || this.dialog.querySelector("[data-presentation-template=standard]"));
   }
 
