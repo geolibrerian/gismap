@@ -322,8 +322,8 @@ export class UIController {
       this.events.subscribe(topic, () => this.#renderLayers()),
     );
     this.events.subscribe("project:loaded", ({ project, missingFiles }) => {
+      this.#applyPresentation(project.presentation);
       if (project.application) this.applicationRuntime.apply(project.application);
-      else this.#applyPresentation(project.presentation);
       this.#showProject(project);
       this.#renderBookmarks();
       this.#renderLayers();
@@ -340,7 +340,7 @@ export class UIController {
     });
     this.events.subscribe("application:changed", ({ application }) => this.applicationRuntime.apply(application));
     this.events.subscribe("identify:complete", (payload) => this.#selectPresentationResult(payload.results?.find((result) => result.layerUid === this.presentationState.layerUid)));
-    this.events.subscribe("project:exported", ({ kind }) => this.toast(`${kind === "package" ? "Project package (.gmop)" : "Project file (.gmo)"} downloaded.`));
+    this.events.subscribe("project:exported", ({ kind }) => this.toast(`${kind === "package" ? "Project package (.gmop)" : kind === "atlas" ? "Guided tour (.gmoatlas)" : "Project file (.gmo)"} downloaded.`));
     this.events.subscribe("export:progress", ({ stage, completed, total }) => {
       const progress = this.dialog.querySelector("[data-export-progress]");
       const status = this.dialog.querySelector("[data-export-status]");
@@ -627,6 +627,9 @@ export class UIController {
           break;
         case "project-package":
           await this.projectManager.exportPackage();
+          break;
+        case "atlas-export":
+          this.projectManager.exportAtlas();
           break;
         case "project-import":
           document.querySelector("#project-file-input").click();
@@ -1783,7 +1786,7 @@ export class UIController {
     if (template === "standard") { root.replaceChildren(); root.hidden = true; return; }
     root.hidden = false;
     const layer = this.mapController.findLayer(this.presentationState.layerUid);
-    if (!layer) {
+    if (!layer && template !== "atlas") {
       root.innerHTML = `<section class="presentation-empty"><span class="eyebrow">${escapeHtml(template)}</span><h2>Start with a dataset</h2><p>This mode becomes interactive after you add a feature layer. Your project and map remain unchanged.</p><div><button type="button" data-presentation-setup="data-arcgis">Connect a service</button><button type="button" data-presentation-setup="data-file">Add a file</button><button type="button" data-presentation-example>Open an example</button></div></section>`;
       root.querySelectorAll("[data-presentation-setup]").forEach((button) => button.addEventListener("click", () => this.#handleAction(button.dataset.presentationSetup)));
       root.querySelector("[data-presentation-example]")?.addEventListener("click", () => location.assign("/examples/"));
@@ -1797,7 +1800,8 @@ export class UIController {
     if (template === "atlas") {
       const chapters = presentation.chapters || [];
       const playing = Boolean(this.presentationState.atlasPlaying);
-      root.innerHTML = `<section class="mode-dashboard mode-dashboard--atlas"><header><span class="eyebrow">Atlas · ${this.presentationState.atlasPresent ? "present" : "edit"} mode</span><h2>${escapeHtml(presentation.title || "Guided places")}</h2><p>Capture map views as chapters, then use them as a durable, shareable sequence in this project.</p></header><div class="atlas-actions"><button type="button" data-atlas-capture ${this.presentationState.atlasPresent ? "hidden" : ""}>Add current view</button><button type="button" data-atlas-mode>${this.presentationState.atlasPresent ? "Edit chapters" : "Present atlas"}</button>${this.presentationState.atlasPresent && chapters.length > 1 ? `<button type="button" data-atlas-play>${playing ? "Stop story" : "Play story"}</button>` : ""}</div><div class="mode-records">${chapters.map((chapter, index) => `<article class="atlas-chapter"><button type="button" data-atlas-go="${index}"><span>${index + 1}</span><strong>${escapeHtml(chapter.title || `Chapter ${index + 1}`)}</strong><small>${escapeHtml(chapter.body || "Saved map view")}${chapter.basemapId ? ` · ${escapeHtml(this.#basemapLabel(chapter.basemapId))}` : ""}${chapter.lingerSeconds ? ` · ${chapter.lingerSeconds}s` : ""}</small></button>${this.presentationState.atlasPresent ? "" : `<div><button type="button" data-atlas-rename="${index}">Edit</button><button type="button" data-atlas-delete="${index}">Delete</button></div>`}</article>`).join("") || "<p class=\"form-note\">No chapters yet. Add the current map view to begin the atlas.</p>"}</div></section>`;
+      const playbackMode = presentation.playbackMode === "manual" ? "manual" : "auto";
+      root.innerHTML = `<section class="mode-dashboard mode-dashboard--atlas"><header><span class="eyebrow">Atlas · ${this.presentationState.atlasPresent ? "present" : "edit"} mode</span><h2>${escapeHtml(presentation.title || "Guided places")}</h2><p>Capture exact map views, descriptions, media, and layer states as a shareable guided tour.</p></header><label class="atlas-playback-mode"><span>Playback</span><select data-atlas-playback><option value="auto"${playbackMode === "auto" ? " selected" : ""}>Auto · use linger time</option><option value="manual"${playbackMode === "manual" ? " selected" : ""}>Manual · use Back and Next</option></select></label><div class="atlas-actions"><button type="button" data-atlas-capture ${this.presentationState.atlasPresent ? "hidden" : ""}>Add current view</button><button type="button" data-atlas-mode>${this.presentationState.atlasPresent ? "Edit chapters" : "Present atlas"}</button>${this.presentationState.atlasPresent && chapters.length ? `<button type="button" data-atlas-play>${playing ? "Stop tour" : "Play tour"}</button>` : ""}<button type="button" data-atlas-export>Export tour</button></div><div class="mode-records">${chapters.map((chapter, index) => `<article class="atlas-chapter"><button type="button" data-atlas-go="${index}"><span>${index + 1}</span><strong>${escapeHtml(chapter.title || `Chapter ${index + 1}`)}</strong><small>${escapeHtml(chapter.reverseAddress || chapter.body || "Saved map view")}${chapter.basemapId ? ` · ${escapeHtml(this.#basemapLabel(chapter.basemapId))}` : ""}${playbackMode === "auto" && chapter.lingerSeconds ? ` · ${chapter.lingerSeconds}s` : ""}</small></button>${this.presentationState.atlasPresent ? "" : `<div><button type="button" data-atlas-rename="${index}">Edit</button><button type="button" data-atlas-delete="${index}">Delete</button></div>`}</article>`).join("") || "<p class=\"form-note\">No chapters yet. Add the current map view to begin the atlas.</p>"}</div></section>`;
       root.querySelector("[data-atlas-mode]")?.addEventListener("click", async () => {
         this.#stopAtlasStory();
         this.presentationState.atlasPresent = !this.presentationState.atlasPresent;
@@ -1806,7 +1810,13 @@ export class UIController {
         else this.#hideAtlasChapterOverlay();
       });
       root.querySelector("[data-atlas-capture]")?.addEventListener("click", () => this.#captureAtlasChapter());
-      root.querySelector("[data-atlas-play]")?.addEventListener("click", () => playing ? this.#stopAtlasStory() : this.#playAtlasStory(chapters));
+      root.querySelector("[data-atlas-play]")?.addEventListener("click", () => playing ? this.#stopAtlasStory() : playbackMode === "auto" ? this.#playAtlasStory(chapters) : this.#goToAtlasChapter(chapters[0], 0, chapters));
+      root.querySelector("[data-atlas-export]")?.addEventListener("click", () => this.projectManager.exportAtlas());
+      root.querySelector("[data-atlas-playback]")?.addEventListener("change", (event) => {
+        this.#stopAtlasStory();
+        this.projectManager.setPresentation({ ...this.projectManager.current.presentation, playbackMode: event.target.value });
+        this.#renderPresentationDashboard(this.projectManager.current.presentation);
+      });
       root.querySelectorAll("[data-atlas-go]").forEach((button) => button.addEventListener("click", () => { const index = Number(button.dataset.atlasGo); this.#goToAtlasChapter(chapters[index], index, chapters); }));
       root.querySelectorAll("[data-atlas-delete]").forEach((button) => button.addEventListener("click", () => this.#saveAtlasChapters(chapters.filter((_, index) => index !== Number(button.dataset.atlasDelete)))));
       root.querySelectorAll("[data-atlas-rename]").forEach((button) => button.addEventListener("click", () => this.#editAtlasChapter(chapters, Number(button.dataset.atlasRename))));
@@ -1858,35 +1868,170 @@ export class UIController {
   }
 
   #saveAtlasChapters(chapters) {
-    this.projectManager.setPresentation({ ...this.projectManager.current.presentation, chapters });
+    const presentation = this.projectManager.setPresentation({ ...this.projectManager.current.presentation, chapters });
+    this.#renderPresentationDashboard(presentation);
   }
 
-  #captureAtlasChapter() {
+  async #captureAtlasChapter() {
     const view = this.mapController.view;
     if (!view) return;
     const chapters = this.projectManager.current.presentation?.chapters || [];
-    this.#saveAtlasChapters([...chapters, {
+    const address = await this.mapController.reverseGeocode(view.center);
+    const next = [...chapters, {
       id: crypto.randomUUID?.() || `chapter-${Date.now()}`,
       title: `Chapter ${chapters.length + 1}`,
-      body: "Saved map view",
+      body: "",
+      mediaUrl: "",
+      reverseAddress: address?.address || "",
       viewState: this.mapController.getViewState(),
       viewpoint: view.viewpoint?.toJSON?.() || null,
       basemapId: this.mapController.getBasemapId(),
       lingerSeconds: 4,
       visibleLayerIds: this.mapController.getOperationalLayers().filter((layer) => layer.visible).map((layer) => layer.uid),
-    }]);
+      layerVisibility: this.mapController.getOperationalLayers().map((layer) => ({ key: this.#atlasLayerKey(layer), visible: layer.visible })),
+    }];
+    this.#saveAtlasChapters(next);
+    this.#editAtlasChapter(next, next.length - 1);
   }
 
-  #editAtlasChapter(chapters, index) {
+  #atlasLayerKey(layer) {
+    const config = this.mapController.getLayerConfig(layer) || {};
+    if (config.projectPath) return `local:${config.projectPath}`;
+    if (config.url) return `url:${String(config.url).replace(/\/$/, "").toLowerCase()}`;
+    return `title:${String(layer?.title || "untitled").toLowerCase()}`;
+  }
+
+  #atlasGeographicCameraPosition(position = {}) {
+    const wkid = position.spatialReference?.latestWkid ?? position.spatialReference?.wkid;
+    if (![3857, 102100, 102113].includes(wkid)) return { longitude: position.x ?? position.longitude, latitude: position.y ?? position.latitude, altitude: position.z };
+    const radius = 6378137;
+    return {
+      longitude: (position.x / radius) * (180 / Math.PI),
+      latitude: (2 * Math.atan(Math.exp(position.y / radius)) - (Math.PI / 2)) * (180 / Math.PI),
+      altitude: position.z,
+    };
+  }
+
+  #atlasEditorViewState() {
+    const state = structuredClone(this.atlasEditingViewState || this.mapController.getViewState());
+    const camera = state.camera || {};
+    const position = camera.position || {};
+    const geographic = this.#atlasGeographicCameraPosition(position);
+    const number = (selector, fallback) => {
+      const value = Number(this.dialog.querySelector(selector)?.value);
+      return Number.isFinite(value) ? value : fallback;
+    };
+    camera.position = {
+      ...position,
+      x: number("#atlas-camera-longitude", geographic.longitude),
+      y: number("#atlas-camera-latitude", geographic.latitude),
+      z: number("#atlas-camera-altitude", geographic.altitude ?? 0),
+      spatialReference: { wkid: 4326 },
+    };
+    camera.heading = number("#atlas-camera-heading", camera.heading ?? state.heading ?? 0);
+    camera.tilt = number("#atlas-camera-tilt", camera.tilt ?? state.tilt ?? 0);
+    state.camera = camera;
+    state.heading = camera.heading;
+    state.tilt = camera.tilt;
+    return state;
+  }
+
+  async #syncAtlasEditorToCurrentView(addressLabel = "") {
+    if (!this.dialog.open) return;
+    const state = this.mapController.getViewState();
+    this.atlasEditingViewState = structuredClone(state);
+    const position = state.camera?.position || {};
+    const geographic = this.#atlasGeographicCameraPosition(position);
+    const setValue = (selector, value, digits = 5) => {
+      const input = this.dialog.querySelector(selector);
+      if (input && Number.isFinite(Number(value))) input.value = Number(value).toFixed(digits);
+    };
+    setValue("#atlas-camera-longitude", geographic.longitude, 6);
+    setValue("#atlas-camera-latitude", geographic.latitude, 6);
+    setValue("#atlas-camera-altitude", geographic.altitude, 1);
+    setValue("#atlas-camera-heading", state.camera?.heading ?? state.heading, 1);
+    setValue("#atlas-camera-tilt", state.camera?.tilt ?? state.tilt, 1);
+    const addressOutput = this.dialog.querySelector("#atlas-reverse-address");
+    if (!addressOutput) return;
+    addressOutput.textContent = addressLabel || "Finding the place at the center of this view…";
+    const address = addressLabel ? { address: addressLabel } : await this.mapController.reverseGeocode(this.mapController.view?.center);
+    if (!this.dialog.open || !this.dialog.querySelector("#atlas-reverse-address")) return;
+    addressOutput.textContent = address?.address || "No street address was found for this view.";
+    addressOutput.dataset.address = address?.address || "";
+  }
+
+  async #editAtlasChapter(chapters, index) {
     const chapter = chapters[index];
+    if (!chapter) return;
+    this.atlasEditingViewState = structuredClone(chapter.viewState || this.mapController.getViewState());
+    const position = this.atlasEditingViewState.camera?.position || {};
+    const geographicPosition = this.#atlasGeographicCameraPosition(position);
     const basemapOptions = BASEMAP_OPTIONS.map(([id, label]) => `<option value="${id}"${(chapter.basemapId || this.mapController.getBasemapId()) === id ? " selected" : ""}>${escapeHtml(label)}</option>`).join("");
-    this.openDialog({ eyebrow: "Atlas chapter", title: "Edit chapter", content: `<label class="field"><span>Title</span><input id="atlas-chapter-title" value="${escapeHtml(chapter.title || "")}" /></label><label class="field"><span>Text</span><textarea id="atlas-chapter-body">${escapeHtml(chapter.body || "")}</textarea></label><label class="field"><span>Basemap</span><select id="atlas-chapter-basemap">${basemapOptions}</select></label><label class="field"><span>Linger (seconds)</span><input id="atlas-chapter-linger" type="number" min="1" max="120" step="1" value="${Number(chapter.lingerSeconds) || 4}" /></label>`, actions: [{ label: "Save", primary: true, handler: () => { const lingerSeconds = Math.min(120, Math.max(1, Number(this.dialog.querySelector("#atlas-chapter-linger").value) || 4)); const next = chapters.map((item, itemIndex) => itemIndex === index ? { ...item, title: this.dialog.querySelector("#atlas-chapter-title").value.trim() || `Chapter ${index + 1}`, body: this.dialog.querySelector("#atlas-chapter-body").value.trim(), basemapId: this.dialog.querySelector("#atlas-chapter-basemap").value, lingerSeconds } : item); this.#saveAtlasChapters(next); this.dialog.close(); } }] });
+    const visibility = new Map((chapter.layerVisibility || []).map((entry) => [entry.key, entry.visible !== false]));
+    const layerChoices = this.mapController.getOperationalLayers().map((layer) => {
+      const key = this.#atlasLayerKey(layer);
+      const checked = visibility.has(key) ? visibility.get(key) : chapter.visibleLayerIds ? chapter.visibleLayerIds.includes(layer.uid) : layer.visible;
+      return `<label class="atlas-layer-choice"><input type="checkbox" data-atlas-layer-key="${escapeHtml(key)}"${checked ? " checked" : ""} /><span>${escapeHtml(layer.title || "Untitled layer")}</span></label>`;
+    }).join("") || `<p class="form-note">This project has no operational layers. The basemap and camera will still be saved.</p>`;
+    this.openDialog({
+      eyebrow: "Atlas chapter",
+      title: "Edit chapter",
+      content: `<label class="field"><span>Title</span><input id="atlas-editor-title" value="${escapeHtml(chapter.title || "")}" /></label><label class="field"><span>Description <small>Shown in the lower-right card during the tour</small></span><textarea id="atlas-chapter-body" rows="4">${escapeHtml(chapter.body || "")}</textarea></label><label class="field"><span>Image URL <small>Optional public http(s) image</small></span><input id="atlas-chapter-media" type="url" inputmode="url" placeholder="https://example.com/photo.jpg" value="${escapeHtml(chapter.mediaUrl || "")}" /></label><section class="atlas-geocoder"><label class="field"><span>Zoom to a place or address</span><div class="atlas-geocoder__search"><input id="atlas-place-query" type="search" placeholder="Address, place, or longitude, latitude" /><button id="atlas-place-search" type="button">Find</button></div></label><div id="atlas-place-results" class="atlas-place-results" hidden></div><div class="atlas-reverse-place"><span>Center of view</span><output id="atlas-reverse-address" data-address="${escapeHtml(chapter.reverseAddress || "")}">${escapeHtml(chapter.reverseAddress || "Finding address…")}</output><button id="atlas-use-current-view" type="button">Use current map view</button></div></section><fieldset class="atlas-camera-fields"><legend>Exact camera</legend><label>Longitude<input id="atlas-camera-longitude" type="number" step="0.000001" value="${escapeHtml(geographicPosition.longitude ?? "")}" /></label><label>Latitude<input id="atlas-camera-latitude" type="number" step="0.000001" value="${escapeHtml(geographicPosition.latitude ?? "")}" /></label><label>Altitude (m)<input id="atlas-camera-altitude" type="number" step="0.1" value="${escapeHtml(geographicPosition.altitude ?? "")}" /></label><label>Heading / angle<input id="atlas-camera-heading" type="number" min="0" max="360" step="0.1" value="${escapeHtml(this.atlasEditingViewState.camera?.heading ?? this.atlasEditingViewState.heading ?? 0)}" /></label><label>Tilt<input id="atlas-camera-tilt" type="number" min="0" max="179" step="0.1" value="${escapeHtml(this.atlasEditingViewState.camera?.tilt ?? this.atlasEditingViewState.tilt ?? 0)}" /></label></fieldset><div class="field-grid"><label class="field"><span>Basemap</span><select id="atlas-chapter-basemap">${basemapOptions}</select></label><label class="field"><span>Linger (seconds) <small>Auto playback only</small></span><input id="atlas-chapter-linger" type="number" min="1" max="120" step="1" value="${Number(chapter.lingerSeconds) || 4}" /></label></div><fieldset class="atlas-layer-fields"><legend>Layers in this chapter</legend>${layerChoices}</fieldset>`,
+      actions: [{ label: "Save", primary: true, handler: () => {
+        const mediaUrl = this.dialog.querySelector("#atlas-chapter-media").value.trim();
+        if (mediaUrl && !/^https?:\/\//i.test(mediaUrl)) return this.error("Use a full http or https image URL.");
+        const lingerSeconds = Math.min(120, Math.max(1, Number(this.dialog.querySelector("#atlas-chapter-linger").value) || 4));
+        const layerVisibility = [...this.dialog.querySelectorAll("[data-atlas-layer-key]")].map((input) => ({ key: input.dataset.atlasLayerKey, visible: input.checked }));
+        const next = chapters.map((item, itemIndex) => itemIndex === index ? {
+          ...item,
+          title: this.dialog.querySelector("#atlas-editor-title").value.trim() || `Chapter ${index + 1}`,
+          body: this.dialog.querySelector("#atlas-chapter-body").value.trim(),
+          mediaUrl,
+          reverseAddress: this.dialog.querySelector("#atlas-reverse-address").dataset.address || "",
+          viewState: this.#atlasEditorViewState(),
+          viewpoint: null,
+          basemapId: this.dialog.querySelector("#atlas-chapter-basemap").value,
+          lingerSeconds,
+          layerVisibility,
+          visibleLayerIds: undefined,
+        } : item);
+        this.#saveAtlasChapters(next);
+        this.dialog.close();
+      } }],
+    });
+    this.dialog.querySelector("#atlas-use-current-view").addEventListener("click", () => this.#syncAtlasEditorToCurrentView());
+    const runSearch = async () => {
+      const query = this.dialog.querySelector("#atlas-place-query").value.trim();
+      const resultsElement = this.dialog.querySelector("#atlas-place-results");
+      if (!query) return;
+      resultsElement.hidden = false;
+      resultsElement.innerHTML = `<div class="loading-row"><span></span> Searching…</div>`;
+      try {
+        const results = await this.mapController.searchPlaces(query);
+        resultsElement.innerHTML = results.length ? results.map((result, resultIndex) => `<button type="button" data-atlas-place-result="${resultIndex}">${escapeHtml(result.label)}</button>`).join("") : `<p>No matching places found.</p>`;
+        resultsElement.querySelectorAll("[data-atlas-place-result]").forEach((button) => button.addEventListener("click", async () => {
+          const result = results[Number(button.dataset.atlasPlaceResult)];
+          await this.mapController.goToSearchResult(result);
+          resultsElement.hidden = true;
+          await this.#syncAtlasEditorToCurrentView(result.label);
+        }));
+      } catch (error) {
+        resultsElement.innerHTML = `<p>${escapeHtml(error.message)}</p>`;
+      }
+    };
+    this.dialog.querySelector("#atlas-place-search").addEventListener("click", runSearch);
+    this.dialog.querySelector("#atlas-place-query").addEventListener("keydown", (event) => { if (event.key === "Enter") { event.preventDefault(); void runSearch(); } });
+    if (!chapter.reverseAddress) void this.#syncAtlasEditorToCurrentView();
   }
 
   async #goToAtlasChapter(chapter, index = null, chapters = this.projectManager.current.presentation?.chapters || []) {
     if (!chapter) return;
     if (chapter.basemapId && BASEMAP_IDS.has(chapter.basemapId)) this.mapController.setBasemap(chapter.basemapId);
-    this.mapController.getOperationalLayers().forEach((layer) => { layer.visible = !chapter.visibleLayerIds || chapter.visibleLayerIds.includes(layer.uid); });
+    const visibility = new Map((chapter.layerVisibility || []).map((entry) => [entry.key, entry.visible !== false]));
+    this.mapController.getOperationalLayers().forEach((layer) => {
+      if (visibility.size) layer.visible = visibility.get(this.#atlasLayerKey(layer)) ?? layer.visible;
+      else if (chapter.visibleLayerIds) layer.visible = chapter.visibleLayerIds.includes(layer.uid);
+    });
     const animate = !matchMedia("(prefers-reduced-motion: reduce)").matches;
     const state = chapter.viewState;
     if (state?.camera) await this.mapController.view?.goTo?.(state.camera, { animate });
@@ -1904,7 +2049,15 @@ export class UIController {
     document.querySelector("#atlas-chapter-title").textContent = chapter.title || `Chapter ${index + 1}`;
     const message = document.querySelector("#atlas-chapter-message");
     message.textContent = chapter.body || "";
+    const description = document.querySelector("#atlas-chapter-description");
+    const image = document.querySelector("#atlas-chapter-image");
+    const hasImage = /^https?:\/\//i.test(chapter.mediaUrl || "");
+    image.hidden = !hasImage;
+    image.src = hasImage ? chapter.mediaUrl : "";
+    image.alt = hasImage ? `${chapter.title || `Chapter ${index + 1}`} illustration` : "";
+    image.onerror = () => { image.hidden = true; };
     message.hidden = !chapter.body;
+    description.hidden = !chapter.body && !hasImage;
     document.querySelector("#atlas-chapter-previous").disabled = index <= 0;
     document.querySelector("#atlas-chapter-next").disabled = index >= chapters.length - 1;
     overlay.hidden = false;
@@ -1913,6 +2066,8 @@ export class UIController {
   #hideAtlasChapterOverlay() {
     const overlay = document.querySelector("#atlas-chapter-overlay");
     if (overlay) overlay.hidden = true;
+    const description = document.querySelector("#atlas-chapter-description");
+    if (description) description.hidden = true;
     this.presentationState.atlasChapterIndex = null;
   }
 

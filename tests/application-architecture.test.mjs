@@ -4,6 +4,7 @@ import { ApplicationState } from "../js/application-state.js";
 import { PanelRegistry, ToolRegistry } from "../js/application-registry.js";
 import { APPLICATION_PRESETS, migratePresentationToApplication, normalizeApplicationConfig, presetApplication } from "../js/application-config.js";
 import { normalizeDataCatalog, planNaturalLanguageQuery, validateReadOnlySQL } from "../js/data-catalog.js";
+import { ProjectManager } from "../js/project.js";
 
 test("selection is independent from project filters", () => {
   const state = new ApplicationState();
@@ -76,6 +77,28 @@ test("old projects migrate to Standard and legacy Atlas chapters are retained", 
   assert.equal(atlas.preset, "atlas");
   assert.equal(atlas.title, "Places");
   assert.equal(atlas.panels.find((panel) => panel.type === "chapters").settings.chapters[0].title, "One");
+});
+
+test("Atlas chapter settings normalize safely and stay synchronized with the application panel", () => {
+  const events = { publish() {} };
+  const map = { getDefaultBasemapId: () => "topo-3d" };
+  const manager = new ProjectManager(events, map);
+  manager.current.application = presetApplication("atlas");
+  const presentation = manager.setPresentation({
+    template: "atlas",
+    playbackMode: "manual",
+    chapters: [{
+      title: "One",
+      mediaUrl: "javascript:alert(1)",
+      lingerSeconds: 999,
+      layerVisibility: [{ key: "url:https://example.com/layer", visible: false }],
+    }],
+  });
+  assert.equal(presentation.playbackMode, "manual");
+  assert.equal(presentation.chapters[0].mediaUrl, "");
+  assert.equal(presentation.chapters[0].lingerSeconds, 120);
+  assert.deepEqual(presentation.chapters[0].layerVisibility, [{ key: "url:https://example.com/layer", visible: false }]);
+  assert.equal(manager.current.application.panels.find((panel) => panel.type === "chapters").settings.chapters[0].title, "One");
 });
 
 test("unknown panel configuration survives normalization for repair UI", () => {

@@ -878,9 +878,19 @@ export class MapController {
   }
 
   getViewState() {
+    const camera = this.view?.camera?.toJSON?.() ?? null;
+    const cameraPosition = this.view?.camera?.position;
+    if (camera?.position && Number.isFinite(cameraPosition?.longitude) && Number.isFinite(cameraPosition?.latitude)) {
+      camera.position = {
+        x: cameraPosition.longitude,
+        y: cameraPosition.latitude,
+        z: cameraPosition.z,
+        spatialReference: { wkid: 4326 },
+      };
+    }
     return {
       type: "scene",
-      camera: this.view?.camera?.toJSON?.() ?? null,
+      camera,
       center: this.view?.center ? [this.view.center.longitude, this.view.center.latitude] : null,
       zoom: this.view?.zoom,
       heading: this.view?.camera?.heading ?? 0,

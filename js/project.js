@@ -190,6 +190,29 @@ export class ProjectManager {
     this.events.publish("project:exported", { kind: "json" });
   }
 
+  exportAtlas() {
+    const project = this.snapshot();
+    const presentation = this.#presentation({ ...project.presentation, template: "atlas" });
+    const application = presetApplication("atlas");
+    application.title = presentation.title || project.name || application.title;
+    application.skin = presentation.skin || application.skin;
+    application.mode = "present";
+    application.panels = application.panels.map((panel) => panel.type === "chapters"
+      ? { ...panel, settings: { ...panel.settings, chapters: structuredClone(presentation.chapters) } }
+      : panel);
+    const tour = {
+      ...project,
+      presentation,
+      application: normalizeApplicationConfig(application),
+      tour: { schema: "https://gismap.online/guided-tour/v1", opensInAtlas: true },
+    };
+    const blob = new Blob([JSON.stringify(tour, null, 2)], {
+      type: "application/vnd.gismap.online.guided-tour+json",
+    });
+    downloadBlob(blob, `${this.#exportName(project)}.gmoatlas`);
+    this.events.publish("project:exported", { kind: "atlas" });
+  }
+
   async exportPackage() {
     if (!globalThis.JSZip) throw new Error("The ZIP library did not load.");
     const project = this.snapshot();
@@ -240,6 +263,15 @@ export class ProjectManager {
     this.current.presentation = this.#presentation(presentation);
     if (!this.current.application || this.current.application.preset !== this.current.presentation.template) {
       this.current.application = migratePresentationToApplication({ presentation: this.current.presentation });
+    } else if (this.current.presentation.template === "atlas") {
+      this.current.application = normalizeApplicationConfig({
+        ...this.current.application,
+        title: this.current.presentation.title || this.current.application.title,
+        skin: this.current.presentation.skin || this.current.application.skin,
+        panels: this.current.application.panels.map((panel) => panel.type === "chapters"
+          ? { ...panel, settings: { ...panel.settings, chapters: structuredClone(this.current.presentation.chapters) } }
+          : panel),
+      });
     }
     this.events.publish("presentation:changed", { presentation: structuredClone(this.current.presentation) });
     this.events.publish("application:changed", { application: structuredClone(this.current.application), migrated: true });
@@ -275,9 +307,16 @@ export class ProjectManager {
       primaryLayerId: value.primaryLayerId || null,
       fieldMappings: value.fieldMappings && typeof value.fieldMappings === "object" ? value.fieldMappings : {},
       widgets: value.widgets && typeof value.widgets === "object" ? value.widgets : {},
+      playbackMode: value.playbackMode === "manual" ? "manual" : "auto",
       chapters: Array.isArray(value.chapters) ? value.chapters.map((chapter) => ({
         ...chapter,
         basemapId: typeof chapter?.basemapId === "string" ? chapter.basemapId : null,
+        reverseAddress: typeof chapter?.reverseAddress === "string" ? chapter.reverseAddress : "",
+        mediaUrl: /^https?:\/\//i.test(String(chapter?.mediaUrl || "")) ? String(chapter.mediaUrl) : "",
+        layerVisibility: Array.isArray(chapter?.layerVisibility) ? chapter.layerVisibility.map((entry) => ({
+          key: String(entry?.key || ""),
+          visible: entry?.visible !== false,
+        })).filter((entry) => entry.key) : null,
         lingerSeconds: Math.min(120, Math.max(1, Number(chapter?.lingerSeconds) || 4)),
       })) : [],
     };

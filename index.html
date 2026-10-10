@@ -90,7 +90,8 @@
               <hr />
               <button data-action="project-export">Export project (.gmo)</button>
               <button data-action="project-package">Export package (.gmop)</button>
-              <button data-action="project-import">Import project file</button>
+              <button data-action="atlas-export">Export guided tour (.gmoatlas)</button>
+              <button data-action="project-import">Import project or tour file</button>
             </div>
           </div>
           <div class="menu">
@@ -112,7 +113,7 @@
               <label class="menu__field"><span>Terrain surface</span><select data-ground-picker><option value="world-elevation">World elevation</option><option value="world-topobathymetry">Elevation + bathymetry</option><option value="flat">Flat ground</option></select></label>
               <hr />
               <button data-action="map-customize">Customize application…</button>
-              <button data-action="map-presentation">Legacy presentation settings…</button>
+              <button data-action="map-presentation">Presentation modes…</button>
               <button data-action="tools-display">Layout &amp; display…</button>
               <button type="button" data-sidebar-panel-toggle="bookmarks-panel">Add Bookmarks panel</button>
               <button type="button" data-sidebar-panel-toggle="draw-panel">Add Draw panel</button>
@@ -220,12 +221,18 @@
           <div class="atlas-chapter-overlay__copy">
             <span id="atlas-chapter-position" class="eyebrow">Atlas chapter</span>
             <h2 id="atlas-chapter-title">Chapter</h2>
-            <p id="atlas-chapter-message"></p>
           </div>
           <nav class="atlas-chapter-overlay__navigation" aria-label="Atlas chapter navigation">
             <button id="atlas-chapter-previous" type="button" aria-label="Previous chapter">← <span>Back</span></button>
             <button id="atlas-chapter-next" type="button" aria-label="Next chapter"><span>Next</span> →</button>
           </nav>
+        </aside>
+        <aside id="atlas-chapter-description" class="atlas-chapter-description" hidden>
+          <img id="atlas-chapter-image" alt="" hidden />
+          <div>
+            <span class="eyebrow">Description</span>
+            <p id="atlas-chapter-message"></p>
+          </div>
         </aside>
         <button
           id="sidebar-open"
@@ -315,7 +322,7 @@
       </div>
     </dialog>
 
-    <input id="project-file-input" type="file" accept=".gmo,.gmop,.json,.gismap,.zip" hidden />
+    <input id="project-file-input" type="file" accept=".gmo,.gmop,.gmoatlas,.json,.gismap,.zip" hidden />
     <input id="data-file-input" type="file" accept=".json,.geojson,.kml,.kmz,.zip" multiple hidden />
     <input id="tool-file-input" type="file" accept=".js,.mjs" hidden />
 
