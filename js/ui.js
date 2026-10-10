@@ -294,6 +294,7 @@ export class UIController {
     document.querySelector("#tool-file-input").addEventListener("change", (event) => this.#loadTool(event));
     document.querySelector("#atlas-chapter-previous")?.addEventListener("click", () => this.#stepAtlasChapter(-1));
     document.querySelector("#atlas-chapter-next")?.addEventListener("click", () => this.#stepAtlasChapter(1));
+    document.querySelector("#atlas-chapter-play")?.addEventListener("click", () => this.#toggleAtlasPlayback());
     document.querySelector("#application-edit-return")?.addEventListener("click", () => {
       const application = this.applicationRuntime.setMode("edit");
       this.projectManager.setApplication(application);
@@ -1829,7 +1830,7 @@ export class UIController {
       const chapters = presentation.chapters || [];
       const playing = Boolean(this.presentationState.atlasPlaying);
       const playbackMode = presentation.playbackMode === "manual" ? "manual" : "auto";
-      root.innerHTML = `<section class="mode-dashboard mode-dashboard--atlas"><header><span class="eyebrow">Atlas · ${this.presentationState.atlasPresent ? "present" : "edit"} mode</span><h2>${escapeHtml(presentation.title || "Guided places")}</h2><p>Capture exact map views, descriptions, media, and layer states as a shareable guided tour.</p></header><label class="atlas-playback-mode"><span>Playback</span><select data-atlas-playback><option value="auto"${playbackMode === "auto" ? " selected" : ""}>Auto · use linger time</option><option value="manual"${playbackMode === "manual" ? " selected" : ""}>Manual · use Back and Next</option></select></label><div class="atlas-actions"><button type="button" data-atlas-capture ${this.presentationState.atlasPresent ? "hidden" : ""}>Add current view</button><button type="button" data-atlas-mode>${this.presentationState.atlasPresent ? "Edit chapters" : "Present atlas"}</button>${this.presentationState.atlasPresent && chapters.length ? `<button type="button" data-atlas-play>${playing ? "Stop tour" : "Play tour"}</button>` : ""}<button type="button" data-atlas-export>Export tour</button></div><div class="mode-records">${chapters.map((chapter, index) => `<article class="atlas-chapter"><button type="button" data-atlas-go="${index}"><span>${index + 1}</span><strong>${escapeHtml(chapter.title || `Chapter ${index + 1}`)}</strong><small>${escapeHtml(chapter.reverseAddress || chapter.body || "Saved map view")}${chapter.basemapId ? ` · ${escapeHtml(this.#basemapLabel(chapter.basemapId))}` : ""}${playbackMode === "auto" && chapter.lingerSeconds ? ` · ${chapter.lingerSeconds}s` : ""}</small></button>${this.presentationState.atlasPresent ? "" : `<div><button type="button" data-atlas-rename="${index}">Edit</button><button type="button" data-atlas-delete="${index}">Delete</button></div>`}</article>`).join("") || "<p class=\"form-note\">No chapters yet. Add the current map view to begin the atlas.</p>"}</div></section>`;
+      root.innerHTML = `<section class="mode-dashboard mode-dashboard--atlas"><header><span class="eyebrow">Atlas · ${this.presentationState.atlasPresent ? "present" : "edit"} mode</span><h2>${escapeHtml(presentation.title || "Guided places")}</h2><p>Capture exact map views, descriptions, media, and layer states as a shareable guided tour.</p></header><div class="atlas-present-action"><button type="button" data-atlas-mode>${this.presentationState.atlasPresent ? "Edit chapters" : "Present atlas"}</button></div><label class="atlas-playback-mode"><span>Playback</span><select data-atlas-playback><option value="auto"${playbackMode === "auto" ? " selected" : ""}>Auto · use linger time</option><option value="manual"${playbackMode === "manual" ? " selected" : ""}>Manual · use Back and Next</option></select></label><div class="atlas-actions"><button type="button" data-atlas-capture ${this.presentationState.atlasPresent ? "hidden" : ""}>Add another chapter</button><button type="button" data-atlas-export>Export tour</button></div><div class="mode-records">${chapters.map((chapter, index) => `<article class="atlas-chapter"><button type="button" data-atlas-go="${index}"><span>${index + 1}</span><strong>${escapeHtml(chapter.title || `Chapter ${index + 1}`)}</strong><small>${escapeHtml(chapter.reverseAddress || chapter.body || "Saved map view")}${chapter.basemapId ? ` · ${escapeHtml(this.#basemapLabel(chapter.basemapId))}` : ""}${playbackMode === "auto" && chapter.lingerSeconds ? ` · ${chapter.lingerSeconds}s` : ""}</small></button>${this.presentationState.atlasPresent ? "" : `<div><button type="button" data-atlas-rename="${index}">Edit</button><button type="button" data-atlas-delete="${index}">Delete</button></div>`}</article>`).join("") || "<p class=\"form-note\">No chapters yet. Add another chapter to begin the atlas.</p>"}</div></section>`;
       this.#addPresentationDockControl(root);
       root.querySelector("[data-atlas-mode]")?.addEventListener("click", async () => {
         this.#stopAtlasStory();
@@ -1839,11 +1840,6 @@ export class UIController {
         else this.#hideAtlasChapterOverlay();
       });
       root.querySelector("[data-atlas-capture]")?.addEventListener("click", () => this.#captureAtlasChapter());
-      root.querySelector("[data-atlas-play]")?.addEventListener("click", () => {
-        if (playing) return this.#stopAtlasStory();
-        const startIndex = Number.isInteger(this.presentationState.atlasChapterIndex) ? this.presentationState.atlasChapterIndex : 0;
-        return playbackMode === "auto" ? this.#playAtlasStory(chapters, startIndex) : this.#goToAtlasChapter(chapters[startIndex] || chapters[0], startIndex, chapters);
-      });
       root.querySelector("[data-atlas-export]")?.addEventListener("click", () => this.projectManager.exportAtlas());
       root.querySelector("[data-atlas-playback]")?.addEventListener("change", (event) => {
         this.#stopAtlasStory();
@@ -1932,7 +1928,9 @@ export class UIController {
     button.type = "button";
     button.className = "presentation-dock-button";
     button.dataset.presentationDock = "";
-    button.textContent = this.utilityPresentationOpen ? "Return to left panel" : "Open in right panel ↗";
+    button.setAttribute("aria-label", this.utilityPresentationOpen ? "Return to left panel" : "Open in right panel");
+    button.title = button.getAttribute("aria-label");
+    button.textContent = this.utilityPresentationOpen ? "↙" : "↗";
     button.addEventListener("click", () => this.#togglePresentationDock());
     header.append(button);
   }
@@ -2319,6 +2317,11 @@ export class UIController {
     description.hidden = !chapter.body && !hasImage;
     document.querySelector("#atlas-chapter-previous").disabled = index <= 0;
     document.querySelector("#atlas-chapter-next").disabled = index >= chapters.length - 1;
+    const play = document.querySelector("#atlas-chapter-play");
+    const auto = this.projectManager.current.presentation?.playbackMode !== "manual";
+    play.hidden = !auto;
+    play.setAttribute("aria-label", this.presentationState.atlasPlaying ? "Stop tour" : "Play tour");
+    play.innerHTML = this.presentationState.atlasPlaying ? "■ <span>Stop</span>" : "▶ <span>Play</span>";
     overlay.hidden = false;
   }
 
@@ -2349,6 +2352,19 @@ export class UIController {
     this.atlasPlaybackTimer = null;
     this.presentationState.atlasPlaying = false;
     this.#renderPresentationDashboard(this.projectManager.current.presentation || {});
+    const play = document.querySelector("#atlas-chapter-play");
+    if (play) { play.setAttribute("aria-label", "Play tour"); play.innerHTML = "▶ <span>Play</span>"; }
+  }
+
+  #toggleAtlasPlayback() {
+    const presentation = this.projectManager.current.presentation || {};
+    const chapters = presentation.chapters || [];
+    if (!chapters.length || presentation.playbackMode === "manual") return;
+    if (this.presentationState.atlasPlaying) return this.#stopAtlasStory();
+    const startIndex = Number.isInteger(this.presentationState.atlasChapterIndex) ? this.presentationState.atlasChapterIndex : 0;
+    this.#playAtlasStory(chapters, startIndex);
+    const play = document.querySelector("#atlas-chapter-play");
+    if (play) { play.setAttribute("aria-label", "Stop tour"); play.innerHTML = "■ <span>Stop</span>"; }
   }
 
   #playAtlasStory(chapters, startIndex = 0) {
