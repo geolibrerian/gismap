@@ -92,7 +92,12 @@ async function start() {
       projectManager.setPresentation({ template: "atlas", ...tour });
       const launch = new URLSearchParams(location.search);
       const chapter = Math.max(0, Number(launch.get("chapter") || 1) - 1);
-      await uiController.openSharedAtlas({ chapterIndex: chapter, autoplay: launch.get("autoplay") === "1" });
+      await uiController.openSharedAtlas({
+        chapterIndex: chapter,
+        autoplay: launch.get("autoplay") === "1",
+        tourOnly: launch.get("tourOnly") === "1",
+        embed: launch.get("embed") === "1",
+      });
       if (tour.chapters.some((item) => item.sharedBasemapFallback)) events.publish("app:error", { message: "One or more shared basemaps are unavailable; a supported map was used instead." });
     } catch (error) { events.publish("app:error", { message: error.message }); }
   }

@@ -55,6 +55,10 @@ export class UIController {
     this.suppressNextDialogClose = false;
     this.presentationSearchTimer = null;
     this.atlasPlaybackToken = 0;
+    this.sharedTourLaunch = false;
+    this.sharedTourOnly = false;
+    this.sharedTourEmbed = false;
+    this.tourShareRenderToken = 0;
     this.presentationState = { template: "standard", records: [], visibleRecords: [], selectedIds: new Set(), layerUid: null, search: "", searchField: "*", searchOperator: "contains", chartField: null, scope: "all", rangeMin: null, rangeMax: null, sortField: null, sortDirection: "asc", page: 1, pageSize: 25, binCount: 12 };
     this.briefingRequest = requestGuard();
     this.keepWelcomeForSharedExample = new URLSearchParams(location.search).has("example");
@@ -298,6 +302,7 @@ export class UIController {
     document.querySelector("#atlas-chapter-previous")?.addEventListener("click", () => this.#stepAtlasChapter(-1));
     document.querySelector("#atlas-chapter-next")?.addEventListener("click", () => this.#stepAtlasChapter(1));
     document.querySelector("#atlas-chapter-play")?.addEventListener("click", () => this.#toggleAtlasPlayback());
+    document.querySelector("#atlas-tour-exit")?.addEventListener("click", () => this.#exitAtlasTour());
     document.querySelector("[data-mobile-atlas-previous]")?.addEventListener("click", () => void this.#stepAtlasChapter(-1));
     document.querySelector("[data-mobile-atlas-next]")?.addEventListener("click", () => void this.#stepAtlasChapter(1));
     document.querySelector("[data-mobile-atlas-play]")?.addEventListener("click", () => this.#toggleAtlasPlayback());
@@ -2420,6 +2425,8 @@ export class UIController {
     document.querySelector("#atlas-chapter-previous").disabled = index <= 0;
     document.querySelector("#atlas-chapter-next").disabled = index >= chapters.length - 1;
     const play = document.querySelector("#atlas-chapter-play");
+    const exit = document.querySelector("#atlas-tour-exit");
+    if (exit) exit.hidden = this.sharedTourOnly;
     const auto = this.projectManager.current.presentation?.playbackMode !== "manual";
     play.hidden = !auto;
     play.setAttribute("aria-label", this.presentationState.atlasPlaying ? "Stop tour" : "Play tour");
@@ -2458,6 +2465,27 @@ export class UIController {
     if (play) { play.setAttribute("aria-label", "Play tour"); play.innerHTML = "▶ <span>Play</span>"; }
   }
 
+  #exitAtlasTour() {
+    this.atlasPlaybackToken += 1;
+    clearTimeout(this.atlasPlaybackTimer);
+    this.atlasPlaybackTimer = null;
+    this.presentationState.atlasPlaying = false;
+    this.presentationState.atlasPresent = false;
+    this.#hideAtlasChapterOverlay();
+    document.body.classList.remove("shared-tour-active", "shared-tour-only", "shared-tour-embed");
+    this.sharedTourLaunch = false;
+    this.sharedTourOnly = false;
+    this.sharedTourEmbed = false;
+    const current = this.projectManager.current.presentation || {};
+    this.projectManager.setPresentation({ ...current, template: "standard" });
+    const cleanUrl = new URL(location.href);
+    ["chapter", "autoplay", "tourOnly", "embed"].forEach((key) => cleanUrl.searchParams.delete(key));
+    cleanUrl.hash = "";
+    history.replaceState(null, "", `${cleanUrl.pathname}${cleanUrl.search}`);
+    this.#setSidebarCollapsed(this.mobileMedia.matches);
+    this.toast("Returned to the standard map workspace.");
+  }
+
   #toggleAtlasPlayback() {
     const presentation = this.projectManager.current.presentation || {};
     const chapters = presentation.chapters || [];
@@ -2470,12 +2498,21 @@ export class UIController {
   }
 
   #shareAtlasDialog() {
-    let url;
-    try { url = createEmbeddedTourUrl({ baseUrl: location.href, presentation: this.projectManager.current.presentation, allowedBasemaps: BASEMAP_IDS }); }
+    let regularUrl;
+    let tourOnlyUrl;
+    let embedUrl;
+    try {
+      const options = { baseUrl: location.href, presentation: this.projectManager.current.presentation, allowedBasemaps: BASEMAP_IDS };
+      regularUrl = createEmbeddedTourUrl(options);
+      tourOnlyUrl = createEmbeddedTourUrl({ ...options, tourOnly: true });
+      embedUrl = createEmbeddedTourUrl({ ...options, embed: true });
+    }
     catch (error) { this.error(error.message); return; }
     const title = this.projectManager.current.presentation?.title || "Guided places";
+    const iframe = `<iframe src="${escapeHtml(embedUrl)}" title="${escapeHtml(title)} guided map tour" loading="lazy" allow="fullscreen; geolocation" allowfullscreen style="width:100%;height:600px;border:0"></iframe>`;
+    const selectedUrl = () => this.dialog.querySelector("[data-tour-share-url]")?.value || regularUrl;
     this.tourShareImageFile = null;
-    this.openDialog({ eyebrow: "Share guided places", title: "Camera-only tour link", content: `<p class="form-note">This compact link shares chapter names and map cameras only—no descriptions, images, layers, or credentials. The branded QR card is generated on this device and contains the complete link.</p><label class="field"><span>Link</span><textarea readonly rows="4" data-tour-share-url>${escapeHtml(url)}</textarea></label><div class="tour-share-card"><canvas data-tour-share-card width="760" height="960" role="img" aria-label="Branded QR card for this guided places tour"></canvas><p class="tour-share-card__status" data-tour-share-status>Building complete-link QR card…</p></div>`, actions: [
+    this.openDialog({ eyebrow: "Share guided places", title: "Camera-only tour link", content: `<p class="form-note">This compact link shares chapter names and map cameras only—no descriptions, images, layers, or credentials. Choose whether viewers may exit into the full GIS workspace.</p><fieldset class="tour-share-options"><legend>Viewer access</legend><label><input type="radio" name="tour-share-mode" value="regular" checked><span><strong>Tour with GIS tools</strong><small>Viewers can exit the tour and continue in the standard map workspace.</small></span></label><label><input type="radio" name="tour-share-mode" value="tour-only"><span><strong>Tour only</strong><small>Hide authoring menus, map tools, and the Exit tour control.</small></span></label></fieldset><label class="field"><span>Link</span><textarea readonly rows="4" data-tour-share-url>${escapeHtml(regularUrl)}</textarea></label><details class="tour-embed"><summary>Embed this tour on a website</summary><p class="form-note">Paste this iframe into your page. It opens the same camera-only tour without the GIS authoring interface.</p><textarea readonly rows="6" data-tour-embed-code>${escapeHtml(iframe)}</textarea><button type="button" data-tour-copy-embed>Copy embed HTML</button></details><div class="tour-share-card"><canvas data-tour-share-card width="760" height="960" role="img" aria-label="Branded QR card for this guided places tour"></canvas><p class="tour-share-card__status" data-tour-share-status>Building complete-link QR card…</p></div>`, actions: [
       { label: "Save a copy", handler: () => this.projectManager.exportAtlas() },
       { label: "Download image", handler: () => {
         if (!this.tourShareImageFile) return this.error("The tour image is still being prepared.");
@@ -2486,18 +2523,30 @@ export class UIController {
         setTimeout(() => URL.revokeObjectURL(link.href), 1000);
       } },
       { label: "Mobile share", handler: async () => {
+        const url = selectedUrl();
         let share = { title, text: `Open the ${title} guided tour in GIS Map Online.`, url };
         const shareWithImage = this.tourShareImageFile ? { ...share, files: [this.tourShareImageFile] } : null;
         if (shareWithImage && navigator.canShare?.(shareWithImage)) share = shareWithImage;
         if (navigator.share) await navigator.share(share);
         else { await navigator.clipboard.writeText(url); this.toast("Tour link copied."); }
       } },
-      { label: "Copy link", primary: true, handler: async () => { await navigator.clipboard.writeText(url); this.toast("Tour link copied."); } },
+      { label: "Copy link", primary: true, handler: async () => { await navigator.clipboard.writeText(selectedUrl()); this.toast("Tour link copied."); } },
     ] });
-    void this.#renderTourShareCard(url, title);
+    this.dialog.querySelectorAll('[name="tour-share-mode"]').forEach((input) => input.addEventListener("change", () => {
+      const url = input.value === "tour-only" ? tourOnlyUrl : regularUrl;
+      this.dialog.querySelector("[data-tour-share-url]").value = url;
+      this.tourShareImageFile = null;
+      void this.#renderTourShareCard(url, title);
+    }));
+    this.dialog.querySelector("[data-tour-copy-embed]")?.addEventListener("click", async () => {
+      await navigator.clipboard.writeText(iframe);
+      this.toast("Embed HTML copied.");
+    });
+    void this.#renderTourShareCard(regularUrl, title);
   }
 
   async #renderTourShareCard(url, title) {
+    const renderToken = ++this.tourShareRenderToken;
     const canvas = this.dialog.querySelector("[data-tour-share-card]");
     const status = this.dialog.querySelector("[data-tour-share-status]");
     if (!canvas || !status) return;
@@ -2505,6 +2554,7 @@ export class UIController {
       if (!globalThis.QRCode?.toCanvas) throw new Error("QR generator unavailable");
       const qrCanvas = document.createElement("canvas");
       await globalThis.QRCode.toCanvas(qrCanvas, url, { width: 520, margin: 2, errorCorrectionLevel: "L", color: { dark: "#072f2b", light: "#ffffff" } });
+      if (renderToken !== this.tourShareRenderToken) return;
       const context = canvas.getContext("2d");
       const gradient = context.createLinearGradient(0, 0, 760, 960);
       gradient.addColorStop(0, "#071f1c");
@@ -2516,6 +2566,7 @@ export class UIController {
       const logo = new Image();
       logo.src = "./assets/gis-map-online-mark-v2.png";
       await new Promise((resolve, reject) => { logo.onload = resolve; logo.onerror = reject; });
+      if (renderToken !== this.tourShareRenderToken) return;
       context.drawImage(logo, 48, 42, 118, 118);
       context.fillStyle = "#55cdb1";
       context.font = "700 34px system-ui, sans-serif";
@@ -2552,9 +2603,15 @@ export class UIController {
     }
   }
 
-  async openSharedAtlas({ chapterIndex = 0, autoplay = false } = {}) {
+  async openSharedAtlas({ chapterIndex = 0, autoplay = false, tourOnly = false, embed = false } = {}) {
     const chapters = this.projectManager.current.presentation?.chapters || [];
     if (!chapters.length) return;
+    this.sharedTourLaunch = true;
+    this.sharedTourOnly = Boolean(tourOnly || embed);
+    this.sharedTourEmbed = Boolean(embed);
+    document.body.classList.add("shared-tour-active");
+    document.body.classList.toggle("shared-tour-only", this.sharedTourOnly);
+    document.body.classList.toggle("shared-tour-embed", this.sharedTourEmbed);
     this.presentationState.atlasPresent = true;
     this.#renderPresentationDashboard(this.projectManager.current.presentation);
     const index = Math.max(0, Math.min(chapters.length - 1, Number(chapterIndex) || 0));

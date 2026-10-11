@@ -58,12 +58,14 @@ export function decodeEmbeddedTour(value, allowedBasemaps) {
   return { title: text(raw.title, "Guided places"), skin: text(raw.skin, "clean-light"), playbackMode: raw.play === "auto" ? "auto" : "manual", chapters };
 }
 
-export function createEmbeddedTourUrl({ baseUrl, presentation, allowedBasemaps, chapter = null, autoplay = null }) {
+export function createEmbeddedTourUrl({ baseUrl, presentation, allowedBasemaps, chapter = null, autoplay = null, tourOnly = false, embed = false }) {
   const url = new URL(baseUrl);
   url.search = "";
   url.hash = `tour=${encodeEmbeddedTour(presentation, allowedBasemaps)}`;
   if (chapter != null) url.searchParams.set("chapter", String(chapter));
   if (autoplay != null) url.searchParams.set("autoplay", autoplay ? "1" : "0");
+  if (tourOnly || embed) url.searchParams.set("tourOnly", "1");
+  if (embed) url.searchParams.set("embed", "1");
   if (url.href.length > MAX_URL_LENGTH) throw new Error("This camera-only tour exceeds the QR-safe link limit. Export a .gmoatlas file instead.");
   return url.href;
 }
