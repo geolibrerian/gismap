@@ -18,5 +18,7 @@ assert.match(html, /data-utility-pane="dialog"/, "Docked dialogs need a real wor
 assert.match(ui, /#utility-dialog-content/, "The dialog dock action must target the workspace panel host.");
 assert.ok(ui.indexOf('class="atlas-geocoder"') < ui.indexOf('id="atlas-editor-title"'), "The chapter geocoder must appear before the title field.");
 assert.match(ui, /id="atlas-chapter-transition"/, "Chapter authoring must expose camera transition speed.");
+assert.match(ui, /#atlas-use-current-view[^\n]*#syncAtlasEditorToCurrentView\("", true\)/, "Using the current map view must also offer its location details as the default chapter title.");
+assert.match(ui, /titleInput\.value = locationDetails/, "The reverse-geocoded location must populate a generic chapter title.");
 assert.match(ui, /QRCode\.toCanvas\(qrCanvas, url/, "Tour QR cards must encode the complete URL in the browser.");
 assert.match(html, /\.\/js\/vendor\/qrcode-1\.5\.4\.js/, "The QR encoder must be served locally instead of depending on a third-party CDN at runtime.");

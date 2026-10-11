@@ -2254,7 +2254,7 @@ export class UIController {
     return state;
   }
 
-  async #syncAtlasEditorToCurrentView(addressLabel = "") {
+  async #syncAtlasEditorToCurrentView(addressLabel = "", useAddressAsTitle = false) {
     if (!this.dialog.open) return;
     const state = this.mapController.getViewState();
     this.atlasEditingViewState = structuredClone(state);
@@ -2274,8 +2274,18 @@ export class UIController {
     addressOutput.textContent = addressLabel || "Finding the place at the center of this view…";
     const address = addressLabel ? { address: addressLabel } : await this.mapController.reverseGeocode(this.mapController.view?.center);
     if (!this.dialog.open || !this.dialog.querySelector("#atlas-reverse-address")) return;
-    addressOutput.textContent = address?.address || "No street address was found for this view.";
-    addressOutput.dataset.address = address?.address || "";
+    const locationDetails = address?.address || "";
+    addressOutput.textContent = locationDetails || "No street address was found for this view.";
+    addressOutput.dataset.address = locationDetails;
+    if (useAddressAsTitle && locationDetails) {
+      const titleInput = this.dialog.querySelector("#atlas-editor-title");
+      const currentTitle = titleInput?.value.trim() || "";
+      const previousLocationTitle = titleInput?.dataset.locationTitle || "";
+      if (titleInput && (!currentTitle || /^Chapter\s+\d+$/i.test(currentTitle) || currentTitle === previousLocationTitle)) {
+        titleInput.value = locationDetails;
+        titleInput.dataset.locationTitle = locationDetails;
+      }
+    }
   }
 
   async #editAtlasChapter(chapters, index) {
@@ -2318,7 +2328,7 @@ export class UIController {
         this.dialog.close();
       } }],
     });
-    this.dialog.querySelector("#atlas-use-current-view").addEventListener("click", () => this.#syncAtlasEditorToCurrentView());
+    this.dialog.querySelector("#atlas-use-current-view").addEventListener("click", () => this.#syncAtlasEditorToCurrentView("", true));
     const queryInput = this.dialog.querySelector("#atlas-place-query");
     let searchResults = [];
     let searchSelection = -1;
