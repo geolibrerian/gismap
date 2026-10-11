@@ -44,6 +44,15 @@ export const APPLICATION_PRESETS = Object.freeze({
       PRESET_PANEL("ai-map-main", "ai-chatbot", "AI Map Assistant", "right", 0, { binding: { followActiveLayer: true } }),
     ],
   },
+  operations: {
+    preset: "operations", title: "Operations board", skin: "dark-analytical", layout: { kind: "bottom-workspace" },
+    panels: [
+      PRESET_PANEL("layers-main", "layers", "Operational layers", "left", 0),
+      PRESET_PANEL("intelligence-main", "intelligence", "Map intelligence", "left", 1),
+      PRESET_PANEL("attributes-main", "attributes", "Selected feature", "right", 0, { binding: { followActiveLayer: true, followSelection: true } }),
+      PRESET_PANEL("chart-main", "charts", "Live distribution", "bottom", 0, { settings: { chartType: "histogram" } }),
+    ],
+  },
 });
 
 const clone = (value) => structuredClone(value);

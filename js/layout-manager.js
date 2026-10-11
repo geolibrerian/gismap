@@ -112,18 +112,17 @@ export class LayoutManager {
     section.dataset.panelInstance = panel.instanceId;
     section.dataset.panelType = panel.type;
     section.toggleAttribute("data-collapsed", panel.collapsed);
-    section.innerHTML = `<header><button type="button" class="application-panel__drag" data-panel-drag aria-label="Move panel">⠿</button><strong></strong><div class="application-panel__actions"><label><span class="sr-only">Dock panel</span><select data-panel-dock aria-label="Dock panel"><option value="left">Left</option><option value="right">Right</option><option value="bottom">Bottom</option><option value="floating">Float</option></select></label><button type="button" data-panel-collapse aria-label="Collapse panel">−</button><button type="button" data-panel-remove aria-label="Remove panel">×</button></div></header><div data-panel-body class="application-panel__body"></div>`;
+    section.innerHTML = `<header><strong data-panel-drag></strong><button type="button" class="application-panel__collapse" data-panel-collapse aria-label="Collapse panel" title="Collapse panel">−</button></header><div data-panel-body class="application-panel__body"></div>`;
     section.querySelector("strong").textContent = panel.title;
-    section.querySelector("[data-panel-dock]").value = panel.placement.region;
-    section.querySelector("[data-panel-dock]").addEventListener("change", (event) => this.move(panel.instanceId, event.target.value, panel.placement.order));
     section.querySelector("[data-panel-collapse]").addEventListener("click", () => {
       panel.collapsed = !panel.collapsed;
       section.toggleAttribute("data-collapsed", panel.collapsed);
       this.#resizeMap();
       this.#persistCurrent();
     });
-    section.querySelector("[data-panel-remove]").addEventListener("click", () => this.remove(panel.instanceId));
     if (panel.placement.region === "floating") {
+      section.querySelector("[data-panel-drag]").classList.add("application-panel__floating-drag");
+      section.querySelector("[data-panel-drag]").setAttribute("title", "Drag floating panel");
       section.style.width = `${panel.placement.size?.width || 360}px`;
       section.style.height = `${panel.placement.size?.height || 300}px`;
       section.style.left = `${panel.placement.position?.x || 24}px`;

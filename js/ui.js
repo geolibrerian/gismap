@@ -318,6 +318,7 @@ export class UIController {
       const application = this.applicationRuntime.setMode("edit");
       this.projectManager.setApplication(application);
     });
+    document.querySelector("#dashboard-settings-open")?.addEventListener("click", () => this.#applicationBuilderDialog());
   }
 
   #bindMapEvents() {
@@ -465,7 +466,7 @@ export class UIController {
     if (!pane) return;
     this.utilityModalPane = pane;
     const title = document.querySelector("#utility-title").textContent || "Map tools";
-    document.querySelector("#dialog-eyebrow").textContent = "Workspace panel";
+    document.querySelector("#dialog-eyebrow").textContent = "Map tools";
     document.querySelector("#dialog-title").textContent = title;
     document.querySelector("#dialog-content").replaceChildren(pane);
     const footer = document.querySelector("#dialog-actions");
@@ -2777,10 +2778,29 @@ export class UIController {
     let builderFinished = false;
     const panelTypes = this.applicationRuntime.panels.list();
     const layers = this.mapController.getOperationalLayers();
-    const presetLabels = { standard: "Standard workspace", explorer: "Explorer", briefing: "Briefing", atlas: "Atlas", "ai-map": "AI Map" };
+    const dashboardViews = [
+      { id: "standard", label: "Classic workspace", description: "All core tools in a familiar left workspace.", preview: "left" },
+      { id: "explorer", label: "Data explorer", description: "Browse at left, inspect at right, chart below.", preview: "three" },
+      { id: "briefing", label: "Briefing room", description: "Situation tools and selected details frame the map.", preview: "briefing" },
+      { id: "atlas", label: "Guided atlas", description: "Chapters and saved places with detail at right.", preview: "atlas" },
+      { id: "operations", label: "Operations board", description: "Layers and intelligence with a live bottom deck.", preview: "operations" },
+      { id: "ai-map", label: "AI copilot", description: "A map-first workspace with the assistant at right.", preview: "right" },
+    ];
+    const presetLabels = Object.fromEntries(dashboardViews.map((view) => [view.id, view.label]));
+    let draggedInstanceId = null;
     const render = () => {
       const root = this.dialog.querySelector("[data-application-builder]");
       if (!root) return;
+      const availabilityFor = (panel) => panel.availability({ layers, draft });
+      const usablePanels = panelTypes.filter((panel) => panel.status !== "planned" && availabilityFor(panel).available);
+      const unavailablePanels = panelTypes.filter((panel) => panel.status === "planned" || !availabilityFor(panel).available);
+      const galleryCard = (panel, hidden = false) => {
+        const availability = availabilityFor(panel);
+        const added = !panel.multiple && draft.panels.some((item) => item.type === panel.type);
+        const disabled = hidden || added;
+        const reason = added ? "Already added to this dashboard." : availability.reason || panel.description;
+        return `<button type="button" data-builder-add="${escapeHtml(panel.type)}"${disabled ? " disabled" : ""} title="${escapeHtml(reason)}"><span><strong>${disabled ? "" : "+ "}${escapeHtml(panel.displayName)}</strong><em>${added ? "Added" : panel.status === "planned" ? "Planned" : hidden ? "Unavailable" : "Ready"}</em></span><small>${escapeHtml(reason)}</small></button>`;
+      };
       const panelRows = draft.panels.map((panel) => {
         const panelIndex = draft.panels.indexOf(panel);
         const boundLayer = this.mapController.findLayer(panel.binding?.layerId) || layers[0];
@@ -2788,9 +2808,9 @@ export class UIController {
         const fieldControl = ["charts", "attributes"].includes(panel.type) && fields.length
           ? `<select data-builder-field aria-label="Field configuration"><option value="">Automatic field</option>${fields.map((field) => `<option value="${escapeHtml(field.name)}"${panel.settings?.field === field.name ? " selected" : ""}>${escapeHtml(field.alias || field.name)}</option>`).join("")}</select>`
           : "";
-        return `<div class="application-builder__instance" data-builder-instance="${escapeHtml(panel.instanceId)}"><input data-builder-panel-title aria-label="Panel title" value="${escapeHtml(panel.title)}" /><select data-builder-region aria-label="Panel placement">${["left", "right", "bottom", "floating"].map((region) => `<option value="${region}"${panel.placement.region === region ? " selected" : ""}>${region[0].toUpperCase()}${region.slice(1)} dock</option>`).join("")}</select><select data-builder-layer aria-label="Dataset binding"><option value="">Follow active layer</option>${layers.map((layer) => `<option value="${escapeHtml(layer.uid)}"${panel.binding?.layerId === layer.uid ? " selected" : ""}>${escapeHtml(layer.title || "Untitled layer")}</option>`).join("")}</select>${fieldControl}<label><input data-builder-audience type="checkbox"${panel.audienceVisible ? " checked" : ""} /> Audience</label><span class="application-builder__order"><button type="button" class="button--quiet" data-builder-up aria-label="Move ${escapeHtml(panel.title)} earlier"${panelIndex === 0 ? " disabled" : ""}>↑</button><button type="button" class="button--quiet" data-builder-down aria-label="Move ${escapeHtml(panel.title)} later"${panelIndex === draft.panels.length - 1 ? " disabled" : ""}>↓</button></span><button type="button" class="button--quiet" data-builder-remove aria-label="Remove ${escapeHtml(panel.title)}">Remove</button></div>`;
+        return `<div class="application-builder__instance" data-builder-instance="${escapeHtml(panel.instanceId)}"><button type="button" class="application-builder__drag" data-builder-drag draggable="true" aria-label="Drag ${escapeHtml(panel.title)} to reorder" title="Drag to reorder">⠿</button><label class="application-builder__instance-title"><span>Panel</span><input data-builder-panel-title value="${escapeHtml(panel.title)}" /></label><label><span>Position</span><select data-builder-region aria-label="Panel placement">${["left", "right", "bottom", "floating"].map((region) => `<option value="${region}"${panel.placement.region === region ? " selected" : ""}>${region === "floating" ? "Floating" : `${region[0].toUpperCase()}${region.slice(1)} dock`}</option>`).join("")}</select></label><label><span>Dataset</span><select data-builder-layer aria-label="Dataset binding"><option value="">Follow active layer</option>${layers.map((layer) => `<option value="${escapeHtml(layer.uid)}"${panel.binding?.layerId === layer.uid ? " selected" : ""}>${escapeHtml(layer.title || "Untitled layer")}</option>`).join("")}</select></label>${fieldControl ? `<label><span>Field</span>${fieldControl}</label>` : ""}<label class="application-builder__audience"><input data-builder-audience type="checkbox"${panel.audienceVisible ? " checked" : ""} /> Show to audience</label><span class="application-builder__order"><button type="button" class="button--quiet" data-builder-up aria-label="Move ${escapeHtml(panel.title)} earlier"${panelIndex === 0 ? " disabled" : ""}>↑</button><button type="button" class="button--quiet" data-builder-down aria-label="Move ${escapeHtml(panel.title)} later"${panelIndex === draft.panels.length - 1 ? " disabled" : ""}>↓</button></span><button type="button" class="button--quiet application-builder__remove" data-builder-remove aria-label="Remove ${escapeHtml(panel.title)}">Remove</button></div>`;
       }).join("");
-      root.innerHTML = `<div class="application-builder__top"><label class="field"><span>Starting preset</span><select data-builder-preset>${Object.entries(presetLabels).map(([id, label]) => `<option value="${id}"${draft.preset === id ? " selected" : ""}>${label}</option>`).join("")}</select></label><label class="field"><span>Skin</span><select data-builder-skin><option value="clean-light"${draft.skin === "clean-light" ? " selected" : ""}>Clean Light</option><option value="dark-analytical"${draft.skin === "dark-analytical" ? " selected" : ""}>Dark Analytical</option><option value="retro-print"${draft.skin === "retro-print" ? " selected" : ""}>Retro Print</option></select></label><label class="field"><span>Application title</span><input data-builder-title value="${escapeHtml(draft.title)}" placeholder="Wildfire briefing" /></label><label class="field"><span>View</span><select data-builder-mode><option value="edit"${draft.mode === "edit" ? " selected" : ""}>Edit</option><option value="present"${draft.mode === "present" ? " selected" : ""}>Present</option></select></label></div><div class="application-builder__section"><h3>Panel gallery</h3><p class="application-builder__hint">Add working tools to the layout. Singleton tools show “Added”; conditional tools explain what they need.</p><div class="application-builder__gallery">${panelTypes.map((panel) => { const availability = panel.availability({ layers, draft }); const added = !panel.multiple && draft.panels.some((item) => item.type === panel.type); const disabled = added || !availability.available || panel.status === "planned"; const reason = added ? "Already added to this application." : availability.reason; return `<button type="button" data-builder-add="${escapeHtml(panel.type)}"${disabled ? " disabled" : ""} title="${escapeHtml(reason || panel.description)}"><span><strong>${disabled ? "" : "+ "}${escapeHtml(panel.displayName)}</strong><em>${added ? "Added" : panel.status === "conditional" ? "Conditional" : "Ready"}</em></span><small>${escapeHtml(reason || panel.description)}</small></button>`; }).join("")}</div><details class="application-builder__roadmap"><summary>Planned extensions</summary><p>Legend, swipe, timeline, media, and embed will appear here only after they have working panel implementations.</p></details></div><div class="application-builder__section"><h3>Current panel instances</h3><div class="application-builder__instances">${panelRows || `<p class="application-builder__notice">Add at least one panel. The map and project data remain available even when no panels are shown.</p>`}</div></div><p class="application-builder__notice">Panels share project state. Closing a panel removes only its interface; layers, drawings, feeds, selections, and saved analysis stay with the project. Audience visibility controls presentation UI, not data permissions.</p><button type="button" class="button--quiet" data-builder-save-copy>Save as new presentation</button>`;
+      root.innerHTML = `<section class="application-builder__views"><div><h3>Choose a dashboard view</h3><p>Start with a recognizable arrangement, then fine-tune it below.</p></div><div class="application-builder__view-grid">${dashboardViews.map((view) => `<button type="button" class="application-builder__view${draft.preset === view.id ? " is-selected" : ""}" data-builder-preset="${view.id}" aria-pressed="${draft.preset === view.id}"><span class="application-builder__view-preview application-builder__view-preview--${view.preview}"><i></i><i></i><i></i><i></i></span><strong>${view.label}</strong><small>${view.description}</small></button>`).join("")}</div></section><div class="application-builder__top"><label class="field"><span>Dashboard title</span><input data-builder-title value="${escapeHtml(draft.title)}" placeholder="Wildfire briefing" /></label><label class="field"><span>Skin</span><select data-builder-skin><option value="clean-light"${draft.skin === "clean-light" ? " selected" : ""}>Clean Light</option><option value="dark-analytical"${draft.skin === "dark-analytical" ? " selected" : ""}>Dark Analytical</option><option value="retro-print"${draft.skin === "retro-print" ? " selected" : ""}>Retro Print</option></select></label><label class="field"><span>View</span><select data-builder-mode><option value="edit"${draft.mode === "edit" ? " selected" : ""}>Edit</option><option value="present"${draft.mode === "present" ? " selected" : ""}>Present</option></select></label></div><div class="application-builder__section"><div><h3>Dashboard panels</h3><p class="application-builder__hint">Drag rows to reorder them. Position sends a panel to the left, right, bottom, or a floating window.</p></div><div class="application-builder__instances">${panelRows || `<p class="application-builder__notice">Add at least one panel. The map and project data remain available even when no panels are shown.</p>`}</div></div><div class="application-builder__section"><h3>Add a working panel</h3><div class="application-builder__gallery">${usablePanels.map((panel) => galleryCard(panel)).join("")}</div>${unavailablePanels.length ? `<details class="application-builder__roadmap"><summary>Unavailable and planned panels (${unavailablePanels.length})</summary><p>These stay hidden until their required data or implementation is available.</p><div class="application-builder__gallery">${unavailablePanels.map((panel) => galleryCard(panel, true)).join("")}</div></details>` : ""}</div><p class="application-builder__notice">Panel settings live here instead of on every dashboard panel. Removing a panel removes only its interface; project layers, drawings, filters, and saved analysis remain.</p><div class="application-builder__secondary-actions"><button type="button" class="button--quiet" data-builder-reset-layout>Reset positions</button><button type="button" class="button--quiet" data-builder-save-copy>Save as new dashboard</button></div>`;
       const skinSelect = root.querySelector("[data-builder-skin]");
       [["tidal-95", "Tidal ’95"], ["portolan", "Portolan"], ["velvet-orbit", "Velvet Orbit"], ["violet-circuit", "Violet Circuit"]].forEach(([value, label]) => {
         if ([...skinSelect.options].some((option) => option.value === value)) return;
@@ -2799,15 +2819,10 @@ export class UIController {
       skinSelect.value = draft.skin;
       const layoutField = document.createElement("label");
       layoutField.className = "field";
-      layoutField.innerHTML = `<span>Layout</span><select data-builder-layout><option value="workspace">Workspace docks</option><option value="bottom-nav">Bottom navigation</option><option value="bottom-workspace">Bottom workspace</option><option value="ai-map">AI Map</option><option value="globe">Orbital globe (optional)</option></select>`;
+      layoutField.innerHTML = `<span>Layout behavior</span><select data-builder-layout><option value="workspace">Workspace docks</option><option value="bottom-nav">Bottom navigation</option><option value="bottom-workspace">Bottom workspace</option><option value="ai-map">Map + right assistant</option><option value="globe">Orbital globe</option></select>`;
       root.querySelector(".application-builder__top").append(layoutField);
       layoutField.querySelector("select").value = draft.layout.kind;
-      const resetLayout = document.createElement("button");
-      resetLayout.type = "button";
-      resetLayout.className = "button--quiet";
-      resetLayout.dataset.builderResetLayout = "";
-      resetLayout.textContent = "Reset layout";
-      root.querySelector("[data-builder-save-copy]").before(resetLayout);
+      const resetLayout = root.querySelector("[data-builder-reset-layout]");
       const syncDraft = () => {
         draft.title = root.querySelector("[data-builder-title]").value.trim() || presetLabels[draft.preset];
         draft.skin = root.querySelector("[data-builder-skin]").value;
@@ -2825,12 +2840,15 @@ export class UIController {
           panel.audienceVisible = row.querySelector("[data-builder-audience]").checked;
         });
       };
-      root.querySelector("[data-builder-preset]").addEventListener("change", (event) => {
+      root.querySelectorAll("[data-builder-preset]").forEach((button) => button.addEventListener("click", () => {
+        syncDraft();
         const title = draft.title;
-        draft = presetApplication(event.target.value);
-        if (title && title !== previous?.title) draft.title = title;
+        const skin = draft.skin;
+        draft = presetApplication(button.dataset.builderPreset);
+        if (title && title !== presetLabels[previous?.preset]) draft.title = title;
+        draft.skin = skin;
         render();
-      });
+      }));
       ["[data-builder-title]", "[data-builder-skin]", "[data-builder-mode]", "[data-builder-layout]"].forEach((selector) => root.querySelector(selector).addEventListener("change", syncDraft));
       resetLayout.addEventListener("click", () => {
         const preset = presetApplication(draft.preset);
@@ -2855,6 +2873,60 @@ export class UIController {
         };
         row.querySelector("[data-builder-up]")?.addEventListener("click", () => move(-1));
         row.querySelector("[data-builder-down]")?.addEventListener("click", () => move(1));
+        const dragHandle = row.querySelector("[data-builder-drag]");
+        const reorderAt = (sourceId, targetId) => {
+          syncDraft();
+          const sourceIndex = draft.panels.findIndex((item) => item.instanceId === sourceId);
+          const targetIndex = draft.panels.findIndex((item) => item.instanceId === targetId);
+          if (sourceIndex < 0 || targetIndex < 0 || sourceIndex === targetIndex) return false;
+          const [moved] = draft.panels.splice(sourceIndex, 1);
+          draft.panels.splice(targetIndex, 0, moved);
+          draft.panels.forEach((item, index) => { item.placement.order = index; });
+          draggedInstanceId = null;
+          render();
+          return true;
+        };
+        dragHandle?.addEventListener("pointerdown", (event) => {
+          if (event.button !== 0) return;
+          event.preventDefault();
+          draggedInstanceId = row.dataset.builderInstance;
+          row.classList.add("is-dragging");
+          const movePointer = (moveEvent) => {
+            root.querySelectorAll(".is-drag-target").forEach((item) => item.classList.remove("is-drag-target"));
+            document.elementFromPoint(moveEvent.clientX, moveEvent.clientY)?.closest?.("[data-builder-instance]")?.classList.add("is-drag-target");
+          };
+          const releasePointer = (upEvent) => {
+            globalThis.removeEventListener("pointermove", movePointer);
+            globalThis.removeEventListener("pointerup", releasePointer);
+            const target = document.elementFromPoint(upEvent.clientX, upEvent.clientY)?.closest?.("[data-builder-instance]");
+            if (!target || !reorderAt(row.dataset.builderInstance, target.dataset.builderInstance)) {
+              draggedInstanceId = null;
+              row.classList.remove("is-dragging");
+              root.querySelectorAll(".is-drag-target").forEach((item) => item.classList.remove("is-drag-target"));
+            }
+          };
+          globalThis.addEventListener("pointermove", movePointer);
+          globalThis.addEventListener("pointerup", releasePointer);
+        });
+        dragHandle?.addEventListener("dragstart", (event) => {
+          syncDraft();
+          draggedInstanceId = row.dataset.builderInstance;
+          row.classList.add("is-dragging");
+          event.dataTransfer.effectAllowed = "move";
+          event.dataTransfer.setData("text/plain", draggedInstanceId);
+        });
+        dragHandle?.addEventListener("dragend", () => {
+          draggedInstanceId = null;
+          row.classList.remove("is-dragging");
+          root.querySelectorAll(".is-drag-target").forEach((item) => item.classList.remove("is-drag-target"));
+        });
+        row.addEventListener("dragover", (event) => { event.preventDefault(); event.dataTransfer.dropEffect = "move"; row.classList.add("is-drag-target"); });
+        row.addEventListener("dragleave", () => row.classList.remove("is-drag-target"));
+        row.addEventListener("drop", (event) => {
+          event.preventDefault();
+          const sourceId = draggedInstanceId || event.dataTransfer.getData("text/plain");
+          reorderAt(sourceId, row.dataset.builderInstance);
+        });
       });
       root.querySelectorAll("[data-builder-add]").forEach((button) => button.addEventListener("click", () => {
         syncDraft();
@@ -2876,8 +2948,8 @@ export class UIController {
       root.syncDraft = syncDraft;
     };
     this.openDialog({
-      eyebrow: "Application builder",
-      title: "Customize application",
+      eyebrow: "Dashboard",
+      title: "Dashboard settings",
       content: `<div class="application-builder" data-application-builder></div>`,
       actions: [
         { label: "Cancel", handler: () => { builderFinished = true; if (previewing) this.applicationRuntime.cancelPreview(); else if (!previous) this.applicationRuntime.deactivate(); this.dialog.close(); } },

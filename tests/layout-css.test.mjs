@@ -30,3 +30,6 @@ assert.match(css, /body\.mobile-atlas-presenting :is\([^}]*\.mobile-panel-nav[^}
 assert.match(css, /\.sidebar__open\[hidden\]\s*\{[^}]*display:none!important/s, "The desktop panel opener must remain hidden in the restored mobile workspace.");
 assert.match(css, /body\.shared-tour-only :is\([^}]*\.sidebar[^}]*\.mobile-panel-nav[^}]*\.map-nav/s, "Tour-only links must hide the GIS authoring and navigation interface.");
 assert.match(css, /body\.shared-tour-only \.mobile-presentation-controls\s*\{[^}]*bottom:calc\(10px \+ env\(safe-area-inset-bottom\)\)/s, "Tour-only mobile playback controls must sit at the bottom safe area.");
+assert.match(css, /\.app-dialog:has\(\.application-builder\)\s*\{[^}]*980px/s, "Dashboard settings should use a usable modal width.");
+assert.match(css, /\.application-builder\s*\{[^}]*container-type:inline-size/s, "Docked dashboard settings must respond to their panel width.");
+assert.match(css, /#app\[data-application-preset\]\s*\{[^}]*color:var\(--ink\)/s, "Application skins must explicitly apply readable foreground colors.");

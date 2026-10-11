@@ -22,3 +22,10 @@ assert.match(ui, /#atlas-use-current-view[^\n]*#syncAtlasEditorToCurrentView\(""
 assert.match(ui, /titleInput\.value = locationDetails/, "The reverse-geocoded location must populate a generic chapter title.");
 assert.match(ui, /QRCode\.toCanvas\(qrCanvas, url/, "Tour QR cards must encode the complete URL in the browser.");
 assert.match(html, /\.\/js\/vendor\/qrcode-1\.5\.4\.js/, "The QR encoder must be served locally instead of depending on a third-party CDN at runtime.");
+assert.match(html, /id="dashboard-settings-open"/, "Configured dashboards need one central settings entry point.");
+assert.doesNotMatch(html, />Workspace panel</, "The right utility panel must not carry redundant workspace chrome.");
+assert.match(ui, /Choose a dashboard view/, "Dashboard settings must offer recognizable layout choices.");
+assert.equal((ui.match(/preview: "(?:left|three|briefing|atlas|operations|right)"/g) || []).length, 6, "Dashboard settings must offer six visual starting views.");
+assert.match(ui, /data-builder-drag draggable="true"/, "Dashboard panel rows must expose real draggable controls.");
+assert.match(ui, /addEventListener\("pointerdown"/, "Dashboard reordering must work with pointer and touch input.");
+assert.match(ui, /Unavailable and planned panels/, "Non-working panels must stay in a folded section.");

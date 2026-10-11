@@ -113,7 +113,7 @@
               <label class="menu__field"><span>Basemap</span><select data-basemap-picker><optgroup label="3D basemaps"><option value="topo-3d">3D Topographic</option><option value="navigation-3d">3D Navigation</option><option value="navigation-dark-3d">3D Navigation — dark</option><option value="osm-3d">3D OpenStreetMap</option><option value="gray-3d">3D Light gray</option><option value="dark-gray-3d">3D Dark gray</option><option value="streets-3d">3D Streets</option><option value="streets-dark-3d">3D Streets — dark</option></optgroup><optgroup label="2D basemaps"><option value="topo-vector">Topographic</option><option value="streets-vector">Streets</option><option value="navigation">Navigation</option><option value="gray-vector">Light gray</option><option value="dark-gray-vector">Dark gray</option><option value="osm">OpenStreetMap</option></optgroup><optgroup label="Imagery"><option value="satellite">Satellite</option><option value="hybrid">Satellite + labels</option></optgroup></select></label>
               <label class="menu__field"><span>Terrain surface</span><select data-ground-picker><option value="world-elevation">World elevation</option><option value="world-topobathymetry">Elevation + bathymetry</option><option value="flat">Flat ground</option></select></label>
               <hr />
-              <button data-action="map-customize">Customize application…</button>
+              <button data-action="map-customize">Dashboard settings…</button>
               <button data-action="map-presentation">Presentation modes…</button>
               <button data-action="tools-display">Layout &amp; display…</button>
               <button type="button" data-sidebar-panel-toggle="bookmarks-panel">Add Bookmarks panel</button>
@@ -283,6 +283,7 @@
           <div id="insights-content"></div>
         </aside>
         <div id="map-status" class="map-status">Loading ArcGIS Maps SDK 5.0…</div>
+        <button id="dashboard-settings-open" class="dashboard-settings-open" type="button" hidden aria-label="Open dashboard settings" title="Dashboard settings"><span aria-hidden="true">⚙</span> Dashboard settings</button>
         <div id="toast-region" class="toast-region" aria-live="polite"></div>
         <div id="application-bottom-dock" class="application-dock application-dock--bottom" aria-label="Bottom application panels" hidden></div>
         <div id="application-floating-dock" class="application-dock application-dock--floating" aria-label="Floating application panels" hidden></div>
@@ -290,7 +291,7 @@
       <aside id="application-right-dock" class="application-dock application-dock--right" aria-label="Right application panels" hidden></aside>
       <aside id="utility-panel" class="utility-panel" aria-label="Map tools" aria-hidden="true">
         <div id="utility-resizer" class="utility-resizer" role="separator" tabindex="0" aria-orientation="vertical" aria-label="Resize map tools panel"></div>
-        <header><div><span class="eyebrow">Workspace panel</span><h2 id="utility-title">Map tools</h2></div><div class="utility-panel__header-actions"><button id="utility-open-modal" class="icon-button" aria-label="Open current panel as a modal" title="Open as modal">↗</button><button id="utility-close" class="icon-button" aria-label="Close current panel">×</button></div></header>
+        <header><h2 id="utility-title">Map tools</h2><div class="utility-panel__header-actions"><button id="utility-open-modal" class="icon-button" aria-label="Open current panel as a modal" title="Open as modal">↗</button><button id="utility-close" class="icon-button" aria-label="Close current panel">×</button></div></header>
         <nav id="utility-tabs" class="utility-tabs" aria-label="Right panel tabs" hidden></nav>
         <div class="utility-panes">
           <div id="utility-basemap-content" class="utility-content" data-utility-pane="basemapGallery" hidden></div>

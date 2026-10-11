@@ -71,6 +71,12 @@ test("AI Map and dock layouts retain independent persisted placement state", () 
   assert.deepEqual(normalized.panels[0].placement.position, { x: 91, y: 73 });
 });
 
+test("operations board is a distinct three-region dashboard preset", () => {
+  const operations = presetApplication("operations");
+  assert.equal(operations.layout.kind, "bottom-workspace");
+  assert.deepEqual(new Set(operations.panels.map((panel) => panel.placement.region)), new Set(["left", "right", "bottom"]));
+});
+
 test("old projects migrate to Standard and legacy Atlas chapters are retained", () => {
   assert.equal(migratePresentationToApplication({ layers: [] }).preset, "standard");
   const atlas = migratePresentationToApplication({ presentation: { template: "atlas", title: "Places", chapters: [{ title: "One", view: { zoom: 4 } }] } });

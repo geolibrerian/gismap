@@ -55,6 +55,8 @@ export class ApplicationRuntime {
     this.document.querySelector("#app").dataset.presentationSkin = normalized.skin;
     this.document.body.dataset.applicationMode = normalized.mode;
     this.document.querySelector("#application-edit-return").hidden = normalized.mode !== "present";
+    const settingsButton = this.document.querySelector("#dashboard-settings-open");
+    if (settingsButton) settingsButton.hidden = false;
     const applied = this.layout.apply(normalized, this.#context());
     if (normalized.layout.kind === "globe" && previousLayout !== "globe") {
       this.mapController.restoreView({ center: [-20, 18], zoom: 2, heading: 0, tilt: 0 }).catch(() => {});
@@ -80,6 +82,8 @@ export class ApplicationRuntime {
     delete app.dataset.applicationPreset;
     delete this.document.body.dataset.applicationMode;
     this.document.querySelector("#application-edit-return").hidden = true;
+    const settingsButton = this.document.querySelector("#dashboard-settings-open");
+    if (settingsButton) settingsButton.hidden = true;
     for (const elementId of Object.values(STATIC_PANELS)) {
       const element = this.document.getElementById(elementId);
       if (element) element.hidden = false;
