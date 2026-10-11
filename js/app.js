@@ -9,6 +9,7 @@ import { ToolManager } from "./tool-manager.js?v=0.16.0";
 import { UIController } from "./ui.js?v=0.16.0";
 import { ExportController } from "./export/export-controller.js?v=0.16.0";
 import { parseShareParameters } from "./share.js?v=0.16.0";
+import { decodeEmbeddedTour } from "./tour-share.js?v=0.16.0";
 import { POPULAR_SERVICES } from "./catalog.js?v=0.16.0";
 import { ApplicationRuntime } from "./application-runtime.js?v=0.16.0";
 
@@ -80,6 +81,20 @@ async function start() {
     }
   } catch (error) {
     events.publish("app:error", { message: error.message });
+  }
+
+  const tourMatch = location.hash.match(/(?:^#|&)tour=([^&]+)/);
+  if (tourMatch) {
+    try {
+      const tour = decodeEmbeddedTour(tourMatch[1], new Set([
+        "topo-3d", "navigation-3d", "navigation-dark-3d", "osm-3d", "gray-3d", "dark-gray-3d", "streets-3d", "streets-dark-3d", "topo-vector", "streets-vector", "navigation", "gray-vector", "dark-gray-vector", "osm", "satellite", "hybrid",
+      ]));
+      projectManager.setPresentation({ template: "atlas", ...tour });
+      const launch = new URLSearchParams(location.search);
+      const chapter = Math.max(0, Number(launch.get("chapter") || 1) - 1);
+      await uiController.openSharedAtlas({ chapterIndex: chapter, autoplay: launch.get("autoplay") === "1" });
+      if (tour.chapters.some((item) => item.sharedBasemapFallback)) events.publish("app:error", { message: "One or more shared basemaps are unavailable; a supported map was used instead." });
+    } catch (error) { events.publish("app:error", { message: error.message }); }
   }
 
   // A narrow, intentional extension surface for local tools and debugging.

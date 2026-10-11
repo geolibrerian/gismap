@@ -1,6 +1,7 @@
 import { POPULAR_SERVICES } from "./catalog.js?v=0.16.0";
 import { ENTERPRISE_CATALOGS, EnterpriseCatalog, normalizeArcGisDirectoryUrl } from "./enterprise-catalog.js?v=0.16.0";
 import { createShareUrl } from "./share.js?v=0.16.0";
+import { createEmbeddedTourUrl } from "./tour-share.js?v=0.16.0";
 import { markdownToPlainText, renderMarkdown } from "./markdown.js?v=0.16.0";
 import { formatAttributeValue } from "./attribute-format.js?v=0.16.0";
 import { normalizeApplicationConfig, presetApplication } from "./application-config.js?v=0.16.0";
@@ -1846,7 +1847,7 @@ export class UIController {
       const chapters = presentation.chapters || [];
       const playing = Boolean(this.presentationState.atlasPlaying);
       const playbackMode = presentation.playbackMode === "manual" ? "manual" : "auto";
-      root.innerHTML = `<section class="mode-dashboard mode-dashboard--atlas"><header><span class="eyebrow">Atlas · ${this.presentationState.atlasPresent ? "present" : "edit"} mode</span><h2>${escapeHtml(presentation.title || "Guided places")}</h2><p>Capture exact map views, descriptions, media, and layer states as a shareable guided tour.</p></header><div class="atlas-present-action"><button type="button" data-atlas-mode>${this.presentationState.atlasPresent ? "Edit chapters" : "Present atlas"}</button></div><label class="atlas-playback-mode"><span>Playback</span><select data-atlas-playback><option value="auto"${playbackMode === "auto" ? " selected" : ""}>Auto · use linger time</option><option value="manual"${playbackMode === "manual" ? " selected" : ""}>Manual · use Back and Next</option></select></label><div class="atlas-actions"><button type="button" data-atlas-capture ${this.presentationState.atlasPresent ? "hidden" : ""}>Add another chapter</button><button type="button" data-atlas-export>Export tour</button></div><div class="mode-records">${chapters.map((chapter, index) => `<article class="atlas-chapter"><button type="button" data-atlas-go="${index}"><span>${index + 1}</span><strong>${escapeHtml(chapter.title || `Chapter ${index + 1}`)}</strong><small>${escapeHtml(chapter.reverseAddress || chapter.body || "Saved map view")}${chapter.basemapId ? ` · ${escapeHtml(this.#basemapLabel(chapter.basemapId))}` : ""}${playbackMode === "auto" && chapter.lingerSeconds ? ` · ${chapter.lingerSeconds}s` : ""}</small></button>${this.presentationState.atlasPresent ? "" : `<div><button type="button" data-atlas-rename="${index}">Edit</button><button type="button" data-atlas-delete="${index}">Delete</button></div>`}</article>`).join("") || "<p class=\"form-note\">No chapters yet. Add another chapter to begin the atlas.</p>"}</div></section>`;
+      root.innerHTML = `<section class="mode-dashboard mode-dashboard--atlas"><header><span class="eyebrow">Atlas · ${this.presentationState.atlasPresent ? "present" : "edit"} mode</span><h2>${escapeHtml(presentation.title || "Guided places")}</h2><p>Capture exact map views, descriptions, media, and layer states as a shareable guided tour.</p></header><div class="atlas-present-action"><button type="button" data-atlas-mode>${this.presentationState.atlasPresent ? "Edit chapters" : "Present atlas"}</button></div><label class="atlas-playback-mode"><span>Playback</span><select data-atlas-playback><option value="auto"${playbackMode === "auto" ? " selected" : ""}>Auto · use linger time</option><option value="manual"${playbackMode === "manual" ? " selected" : ""}>Manual · use Back and Next</option></select></label><div class="atlas-actions"><button type="button" data-atlas-capture ${this.presentationState.atlasPresent ? "hidden" : ""}>Add another chapter</button><button type="button" data-atlas-share>Share tour</button><button type="button" data-atlas-export>Export tour</button></div><div class="mode-records">${chapters.map((chapter, index) => `<article class="atlas-chapter"><button type="button" data-atlas-go="${index}"><span>${index + 1}</span><strong>${escapeHtml(chapter.title || `Chapter ${index + 1}`)}</strong><small>${escapeHtml(chapter.reverseAddress || chapter.body || "Saved map view")}${chapter.basemapId ? ` · ${escapeHtml(this.#basemapLabel(chapter.basemapId))}` : ""}${playbackMode === "auto" && chapter.lingerSeconds ? ` · ${chapter.lingerSeconds}s` : ""}</small></button>${this.presentationState.atlasPresent ? "" : `<div><button type="button" data-atlas-rename="${index}">Edit</button><button type="button" data-atlas-delete="${index}">Delete</button></div>`}</article>`).join("") || "<p class=\"form-note\">No chapters yet. Add another chapter to begin the atlas.</p>"}</div></section>`;
       this.#addPresentationDockControl(root);
       root.querySelector("[data-atlas-mode]")?.addEventListener("click", async () => {
         this.#stopAtlasStory();
@@ -1857,6 +1858,7 @@ export class UIController {
       });
       root.querySelector("[data-atlas-capture]")?.addEventListener("click", () => this.#captureAtlasChapter());
       root.querySelector("[data-atlas-export]")?.addEventListener("click", () => this.projectManager.exportAtlas());
+      root.querySelector("[data-atlas-share]")?.addEventListener("click", () => this.#shareAtlasDialog());
       root.querySelector("[data-atlas-playback]")?.addEventListener("change", (event) => {
         this.#stopAtlasStory();
         this.projectManager.setPresentation({ ...this.projectManager.current.presentation, playbackMode: event.target.value });
@@ -2404,6 +2406,28 @@ export class UIController {
     this.#playAtlasStory(chapters, startIndex);
     const play = document.querySelector("#atlas-chapter-play");
     if (play) { play.setAttribute("aria-label", "Stop tour"); play.innerHTML = "■ <span>Stop</span>"; }
+  }
+
+  #shareAtlasDialog() {
+    let url;
+    try { url = createEmbeddedTourUrl({ baseUrl: location.href, presentation: this.projectManager.current.presentation, allowedBasemaps: BASEMAP_IDS }); }
+    catch (error) { this.error(error.message); return; }
+    const qrUrl = `https://quickchart.io/qr?size=240&text=${encodeURIComponent(url)}`;
+    this.openDialog({ eyebrow: "Share guided places", title: "Camera-only tour link", content: `<p class="form-note">This compact link shares chapter names and map cameras only—no descriptions, images, layers, or credentials.</p><label class="field"><span>Link</span><textarea readonly rows="4" data-tour-share-url>${escapeHtml(url)}</textarea></label><img class="tour-share-qr" src="${escapeHtml(qrUrl)}" alt="QR code for this guided places tour" />`, actions: [
+      { label: "Save a copy", handler: () => this.projectManager.exportAtlas() },
+      { label: "Mobile share", handler: async () => { if (navigator.share) await navigator.share({ title: this.projectManager.current.presentation?.title || "Guided places", url }); else await navigator.clipboard.writeText(url); } },
+      { label: "Copy link", primary: true, handler: async () => { await navigator.clipboard.writeText(url); this.toast("Tour link copied."); } },
+    ] });
+  }
+
+  async openSharedAtlas({ chapterIndex = 0, autoplay = false } = {}) {
+    const chapters = this.projectManager.current.presentation?.chapters || [];
+    if (!chapters.length) return;
+    this.presentationState.atlasPresent = true;
+    this.#renderPresentationDashboard(this.projectManager.current.presentation);
+    const index = Math.max(0, Math.min(chapters.length - 1, Number(chapterIndex) || 0));
+    await this.#goToAtlasChapter(chapters[index], index, chapters);
+    if (autoplay && !matchMedia("(prefers-reduced-motion: reduce)").matches) this.#playAtlasStory(chapters, index);
   }
 
   #playAtlasStory(chapters, startIndex = 0) {
