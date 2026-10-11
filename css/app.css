@@ -601,6 +601,8 @@ body[data-insights-position="bottom"] .insights-overlay { inset: auto 14px 14px;
 .insight-tabs { display: flex; gap: 5px; overflow-x: auto; padding: 4px 0 8px; scrollbar-width: thin; }
 .insight-tabs button { flex: 0 0 auto; max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 7px 10px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); color: var(--muted); cursor: pointer; font-size: 10px; }
 .insight-tabs button[aria-selected="true"] { border-color: var(--green); background: var(--green); color: white; }
+.insight-tabs button.is-isolated-muted { opacity: .42; filter: grayscale(1); }
+.insight-tabs button.is-isolated-muted:hover { opacity: .72; }
 .insight-panel { border: 1px solid var(--line); border-radius: 7px; background: var(--surface); overflow: hidden; }
 .insight-panel > header { display: flex; justify-content: space-between; gap: 10px; padding: 10px; }
 .insight-panel > header > span { display: grid; }

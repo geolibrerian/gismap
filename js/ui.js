@@ -41,6 +41,7 @@ export class UIController {
     this.searchSelection = -1;
     this.lastInsight = null;
     this.selectedInsightIndexes = new Set();
+    this.insightIsolation = null;
     this.lastAIResponseText = null;
     this.lastAIQueryText = null;
     this.aiPending = false;
@@ -232,6 +233,7 @@ export class UIController {
     document.querySelector("#utility-close").addEventListener("click", () => this.#closeActiveUtilityTab());
     this.#activateMobilePanel(null, false);
     document.querySelector("#insights-close").addEventListener("click", () => {
+      this.#clearInsightIsolation();
       this.mapController.clearFeatureHighlight();
       this.#setInsightsOpen(false);
     });
@@ -380,6 +382,7 @@ export class UIController {
     this.events.subscribe("export:cancelled", () => this.toast("Data export cancelled."));
     this.events.subscribe("bookmarks:changed", () => this.#renderBookmarks());
     this.events.subscribe("identify:start", () => {
+      this.#clearInsightIsolation();
       this.mapController.clearFeatureHighlight();
       document.querySelector("#insights-overlay").setAttribute("aria-busy", "true");
       this.identifyPending = true;
@@ -393,6 +396,7 @@ export class UIController {
       this.#renderInsight(payload);
     });
     this.events.subscribe("table:open", () => {
+      this.#clearInsightIsolation();
       this.mapController.clearFeatureHighlight();
       this.#setInsightsOpen(false);
     });
@@ -3148,13 +3152,14 @@ export class UIController {
   }
 
   #renderInsight(payload) {
+    this.#clearInsightIsolation();
     this.lastInsight = payload;
     this.identifyPending = false;
     const results = payload.results ?? [];
     const visibleResults = results.slice(0, 12);
     this.selectedInsightIndexes = new Set(visibleResults.length ? [0] : []);
     payload.selectedResults = visibleResults.length ? [visibleResults[0]] : [];
-    const tabsHtml = visibleResults.length > 1
+    const tabsHtml = visibleResults.length
       ? `<div class="insight-tabs" role="tablist" aria-label="Identified features">${visibleResults.map((result, index) =>
           `<button type="button" role="tab" id="insight-tab-${index}" data-insight-tab="${index}" aria-controls="insight-panel-${index}" aria-selected="${index === 0}">${escapeHtml(result.layerTitle)} ${index + 1}</button>`,
         ).join("")}</div>`
@@ -3180,6 +3185,12 @@ export class UIController {
       this.#setInsightsOpen(true);
       document.querySelectorAll("[data-insight-tab]").forEach((button) =>
         button.addEventListener("click", () => this.#activateInsightTab(Number(button.dataset.insightTab), true)),
+      );
+      document.querySelectorAll("[data-insight-tab]").forEach((button) =>
+        button.addEventListener("dblclick", (event) => {
+          event.preventDefault();
+          this.#isolateInsightResult(Number(button.dataset.insightTab));
+        }),
       );
       document.querySelectorAll("[data-ai-selection]").forEach((input) =>
         input.addEventListener("change", () => this.#setInsightSelection(Number(input.dataset.aiSelection), input.checked)),
@@ -3243,6 +3254,7 @@ export class UIController {
   }
 
   #activateInsightTab(index, selectFeature = false) {
+    if (this.insightIsolation) this.#clearInsightIsolation();
     document.querySelectorAll("[data-insight-tab]").forEach((button) => {
       const active = Number(button.dataset.insightTab) === index;
       button.setAttribute("aria-selected", String(active));
@@ -3260,6 +3272,56 @@ export class UIController {
       if (result?.geometry) void this.mapController.goToFeature(result).catch(() => {});
     }
     void this.mapController.highlightFeature(result, { pulse: true });
+  }
+
+  #isolateInsightResult(index) {
+    const visibleResults = this.lastInsight?.results?.slice(0, 12) ?? [];
+    const result = visibleResults[index];
+    const layer = result ? this.mapController.findLayer(result.layerUid) : null;
+    const objectIdField = layer?.objectIdField;
+    const objectId = objectIdField ? result?.attributes?.[objectIdField] : null;
+    if (!result || !layer || !("definitionExpression" in layer) || objectId == null) {
+      this.error("This feature cannot be isolated because it has no usable object ID.");
+      return;
+    }
+    if (this.insightIsolation) this.#clearInsightIsolation();
+    const literal = typeof objectId === "number" && Number.isFinite(objectId)
+      ? String(objectId)
+      : `'${String(objectId).replaceAll("'", "''")}'`;
+    const previousExpression = layer.definitionExpression || null;
+    const clause = `${objectIdField} = ${literal}`;
+    const appliedExpression = previousExpression ? `(${previousExpression}) AND (${clause})` : clause;
+    layer.definitionExpression = appliedExpression;
+    this.insightIsolation = { index, layerUid: result.layerUid, previousExpression, appliedExpression };
+    this.#syncInsightIsolationUI();
+    void this.mapController.highlightFeature(result, { pulse: false });
+  }
+
+  #clearInsightIsolation() {
+    const isolation = this.insightIsolation;
+    if (!isolation) return false;
+    const layer = this.mapController.findLayer(isolation.layerUid);
+    // Do not overwrite a deliberate filter change made while the temporary
+    // isolate mode was active.
+    if (layer?.definitionExpression === isolation.appliedExpression) {
+      layer.definitionExpression = isolation.previousExpression;
+    }
+    this.insightIsolation = null;
+    this.#syncInsightIsolationUI();
+    return true;
+  }
+
+  #syncInsightIsolationUI() {
+    const isolatedIndex = this.insightIsolation?.index;
+    document.querySelectorAll("[data-insight-tab]").forEach((button) => {
+      const muted = isolatedIndex != null && Number(button.dataset.insightTab) !== isolatedIndex;
+      button.classList.toggle("is-isolated-muted", muted);
+      button.setAttribute("aria-label", muted
+        ? `${button.textContent.trim()} — click to show all selected features`
+        : isolatedIndex != null
+          ? `${button.textContent.trim()} — click to show all selected features`
+          : button.textContent.trim());
+    });
   }
 
   #setInsightSelection(index, selected) {
