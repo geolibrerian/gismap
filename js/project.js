@@ -327,6 +327,7 @@ export class ProjectManager {
           visible: entry?.visible !== false,
         })).filter((entry) => entry.key) : null,
         lingerSeconds: Math.min(120, Math.max(1, Number(chapter?.lingerSeconds) || 4)),
+        transitionMode: chapter?.transitionMode === "instant" ? "instant" : "smooth",
       })) : [],
     };
   }
