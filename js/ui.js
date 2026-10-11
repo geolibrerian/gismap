@@ -2275,7 +2275,7 @@ export class UIController {
     this.openDialog({
       eyebrow: "Atlas chapter",
       title: "Edit chapter",
-      content: `<label class="field"><span>Title</span><input id="atlas-editor-title" value="${escapeHtml(chapter.title || "")}" /></label><label class="field"><span>Description <small>Shown in the lower-right card during the tour</small></span><textarea id="atlas-chapter-body" rows="4">${escapeHtml(chapter.body || "")}</textarea></label><label class="field"><span>Image URL <small>Optional public http(s) image</small></span><input id="atlas-chapter-media" type="url" inputmode="url" placeholder="https://example.com/photo.jpg" value="${escapeHtml(chapter.mediaUrl || "")}" /></label><section class="atlas-geocoder"><label class="field"><span>Zoom to a place or address</span><div class="atlas-geocoder__search"><input id="atlas-place-query" type="search" placeholder="Address, place, or longitude, latitude" /><button id="atlas-place-search" type="button">Find</button></div></label><div id="atlas-place-results" class="atlas-place-results" hidden></div><div class="atlas-reverse-place"><span>Center of view</span><output id="atlas-reverse-address" data-address="${escapeHtml(chapter.reverseAddress || "")}">${escapeHtml(chapter.reverseAddress || "Finding address…")}</output><button id="atlas-use-current-view" type="button">Use current map view</button></div></section><fieldset class="atlas-camera-fields"><legend>Exact camera</legend><label>Longitude<input id="atlas-camera-longitude" type="number" step="0.000001" value="${escapeHtml(geographicPosition.longitude ?? "")}" /></label><label>Latitude<input id="atlas-camera-latitude" type="number" step="0.000001" value="${escapeHtml(geographicPosition.latitude ?? "")}" /></label><label>Altitude (m)<input id="atlas-camera-altitude" type="number" step="0.1" value="${escapeHtml(geographicPosition.altitude ?? "")}" /></label><label>Heading / angle<input id="atlas-camera-heading" type="number" min="0" max="360" step="0.1" value="${escapeHtml(this.atlasEditingViewState.camera?.heading ?? this.atlasEditingViewState.heading ?? 0)}" /></label><label>Tilt<input id="atlas-camera-tilt" type="number" min="0" max="179" step="0.1" value="${escapeHtml(this.atlasEditingViewState.camera?.tilt ?? this.atlasEditingViewState.tilt ?? 0)}" /></label></fieldset><div class="field-grid"><label class="field"><span>Basemap</span><select id="atlas-chapter-basemap">${basemapOptions}</select></label><label class="field"><span>Linger (seconds) <small>Auto playback only</small></span><input id="atlas-chapter-linger" type="number" min="1" max="120" step="1" value="${Number(chapter.lingerSeconds) || 4}" /></label></div><fieldset class="atlas-layer-fields"><legend>Layers in this chapter</legend>${layerChoices}</fieldset>`,
+      content: `<section class="atlas-geocoder"><label class="field"><span>Zoom to a place or address</span><div class="atlas-geocoder__search"><input id="atlas-place-query" type="search" placeholder="Address, place, or longitude, latitude" autocomplete="off" role="combobox" aria-autocomplete="list" aria-controls="atlas-place-results" aria-expanded="false" /><button id="atlas-place-search" type="button">Find</button></div></label><div id="atlas-place-results" class="atlas-place-results" role="listbox" aria-label="Place suggestions" hidden></div><div class="atlas-reverse-place"><span>Center of view</span><output id="atlas-reverse-address" data-address="${escapeHtml(chapter.reverseAddress || "")}">${escapeHtml(chapter.reverseAddress || "Finding address…")}</output><button id="atlas-use-current-view" type="button">Use current map view</button></div></section><label class="field"><span>Title</span><input id="atlas-editor-title" value="${escapeHtml(chapter.title || "")}" /></label><label class="field"><span>Description <small>Shown in the lower-right card during the tour</small></span><textarea id="atlas-chapter-body" rows="4">${escapeHtml(chapter.body || "")}</textarea></label><label class="field"><span>Image URL <small>Optional public http(s) image</small></span><input id="atlas-chapter-media" type="url" inputmode="url" placeholder="https://example.com/photo.jpg" value="${escapeHtml(chapter.mediaUrl || "")}" /></label><fieldset class="atlas-camera-fields"><legend>Exact camera</legend><label>Longitude<input id="atlas-camera-longitude" type="number" step="0.000001" value="${escapeHtml(geographicPosition.longitude ?? "")}" /></label><label>Latitude<input id="atlas-camera-latitude" type="number" step="0.000001" value="${escapeHtml(geographicPosition.latitude ?? "")}" /></label><label>Altitude (m)<input id="atlas-camera-altitude" type="number" step="0.1" value="${escapeHtml(geographicPosition.altitude ?? "")}" /></label><label>Heading / angle<input id="atlas-camera-heading" type="number" min="0" max="360" step="0.1" value="${escapeHtml(this.atlasEditingViewState.camera?.heading ?? this.atlasEditingViewState.heading ?? 0)}" /></label><label>Tilt<input id="atlas-camera-tilt" type="number" min="0" max="179" step="0.1" value="${escapeHtml(this.atlasEditingViewState.camera?.tilt ?? this.atlasEditingViewState.tilt ?? 0)}" /></label></fieldset><div class="field-grid"><label class="field"><span>Basemap</span><select id="atlas-chapter-basemap">${basemapOptions}</select></label><label class="field"><span>Linger (seconds) <small>Auto playback only</small></span><input id="atlas-chapter-linger" type="number" min="1" max="120" step="1" value="${Number(chapter.lingerSeconds) || 4}" /></label><label class="field"><span>Camera transition</span><select id="atlas-chapter-transition"><option value="smooth"${chapter.transitionMode !== "instant" ? " selected" : ""}>Smooth camera move</option><option value="instant"${chapter.transitionMode === "instant" ? " selected" : ""}>Cut instantly</option></select></label></div><fieldset class="atlas-layer-fields"><legend>Layers in this chapter</legend>${layerChoices}</fieldset>`,
       actions: [{ label: "Save", primary: true, handler: () => {
         const mediaUrl = this.dialog.querySelector("#atlas-chapter-media").value.trim();
         if (mediaUrl && !/^https?:\/\//i.test(mediaUrl)) return this.error("Use a full http or https image URL.");
@@ -2291,6 +2291,7 @@ export class UIController {
           viewpoint: null,
           basemapId: this.dialog.querySelector("#atlas-chapter-basemap").value,
           lingerSeconds,
+          transitionMode: this.dialog.querySelector("#atlas-chapter-transition").value,
           layerVisibility,
           visibleLayerIds: undefined,
         } : item);
@@ -2299,27 +2300,69 @@ export class UIController {
       } }],
     });
     this.dialog.querySelector("#atlas-use-current-view").addEventListener("click", () => this.#syncAtlasEditorToCurrentView());
-    const runSearch = async () => {
-      const query = this.dialog.querySelector("#atlas-place-query").value.trim();
+    const queryInput = this.dialog.querySelector("#atlas-place-query");
+    let searchResults = [];
+    let searchSelection = -1;
+    let searchTimer = null;
+    let searchRequestId = 0;
+    const selectResult = async (resultIndex) => {
+      const result = searchResults[resultIndex];
+      if (!result) return;
+      queryInput.value = result.label;
+      queryInput.setAttribute("aria-expanded", "false");
+      this.dialog.querySelector("#atlas-place-results").hidden = true;
+      await this.mapController.goToSearchResult(result);
+      await this.#syncAtlasEditorToCurrentView(result.label);
+    };
+    const runSearch = async (fromSubmit = false) => {
+      const query = queryInput.value.trim();
       const resultsElement = this.dialog.querySelector("#atlas-place-results");
-      if (!query) return;
+      if (query.length < 2) { resultsElement.hidden = true; queryInput.setAttribute("aria-expanded", "false"); return; }
+      const requestId = ++searchRequestId;
       resultsElement.hidden = false;
-      resultsElement.innerHTML = `<div class="loading-row"><span></span> Searching…</div>`;
+      queryInput.setAttribute("aria-expanded", "true");
+      if (fromSubmit) resultsElement.innerHTML = `<div class="loading-row"><span></span> Searching…</div>`;
       try {
         const results = await this.mapController.searchPlaces(query);
-        resultsElement.innerHTML = results.length ? results.map((result, resultIndex) => `<button type="button" data-atlas-place-result="${resultIndex}">${escapeHtml(result.label)}</button>`).join("") : `<p>No matching places found.</p>`;
-        resultsElement.querySelectorAll("[data-atlas-place-result]").forEach((button) => button.addEventListener("click", async () => {
-          const result = results[Number(button.dataset.atlasPlaceResult)];
-          await this.mapController.goToSearchResult(result);
-          resultsElement.hidden = true;
-          await this.#syncAtlasEditorToCurrentView(result.label);
-        }));
+        if (requestId !== searchRequestId || queryInput.value.trim() !== query) return;
+        searchResults = results;
+        searchSelection = fromSubmit && results.length === 1 ? 0 : -1;
+        resultsElement.innerHTML = results.length ? results.map((result, resultIndex) => `<button type="button" role="option" data-atlas-place-result="${resultIndex}" aria-selected="${resultIndex === searchSelection}">${escapeHtml(result.label)}</button>`).join("") : `<p>No matching places found.</p>`;
+        resultsElement.querySelectorAll("[data-atlas-place-result]").forEach((button) => button.addEventListener("click", () => void selectResult(Number(button.dataset.atlasPlaceResult))));
+        if (fromSubmit && results.length === 1) await selectResult(0);
       } catch (error) {
+        if (requestId !== searchRequestId) return;
         resultsElement.innerHTML = `<p>${escapeHtml(error.message)}</p>`;
       }
     };
-    this.dialog.querySelector("#atlas-place-search").addEventListener("click", runSearch);
-    this.dialog.querySelector("#atlas-place-query").addEventListener("keydown", (event) => { if (event.key === "Enter") { event.preventDefault(); void runSearch(); } });
+    this.dialog.querySelector("#atlas-place-search").addEventListener("click", () => void runSearch(true));
+    queryInput.addEventListener("input", () => {
+      clearTimeout(searchTimer);
+      searchRequestId += 1;
+      if (queryInput.value.trim().length < 2) {
+        this.dialog.querySelector("#atlas-place-results").hidden = true;
+        queryInput.setAttribute("aria-expanded", "false");
+        return;
+      }
+      searchTimer = setTimeout(() => void runSearch(), 250);
+    });
+    queryInput.addEventListener("keydown", (event) => {
+      if (["ArrowDown", "ArrowUp"].includes(event.key) && searchResults.length) {
+        event.preventDefault();
+        searchSelection = (searchSelection + (event.key === "ArrowDown" ? 1 : -1) + searchResults.length) % searchResults.length;
+        this.dialog.querySelectorAll("[data-atlas-place-result]").forEach((button, resultIndex) => {
+          button.setAttribute("aria-selected", String(resultIndex === searchSelection));
+          if (resultIndex === searchSelection) button.scrollIntoView({ block: "nearest" });
+        });
+      } else if (event.key === "Enter") {
+        event.preventDefault();
+        if (searchSelection >= 0) void selectResult(searchSelection);
+        else void runSearch(true);
+      } else if (event.key === "Escape") {
+        this.dialog.querySelector("#atlas-place-results").hidden = true;
+        queryInput.setAttribute("aria-expanded", "false");
+      }
+    });
     if (!chapter.reverseAddress) void this.#syncAtlasEditorToCurrentView();
   }
 
@@ -2336,7 +2379,7 @@ export class UIController {
       if (visibility.size) layer.visible = visibility.get(this.#atlasLayerKey(layer)) ?? layer.visible;
       else if (chapter.visibleLayerIds) layer.visible = chapter.visibleLayerIds.includes(layer.uid);
     });
-    const animate = !matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const animate = chapter.transitionMode !== "instant" && !matchMedia("(prefers-reduced-motion: reduce)").matches;
     const state = chapter.viewState;
     if (state?.camera) await this.mapController.view?.goTo?.(state.camera, { animate });
     else if (state?.center) await this.mapController.view?.goTo?.({ center: state.center, zoom: state.zoom, heading: state.heading ?? 0, tilt: state.tilt ?? 0 }, { animate });
@@ -2416,12 +2459,83 @@ export class UIController {
     let url;
     try { url = createEmbeddedTourUrl({ baseUrl: location.href, presentation: this.projectManager.current.presentation, allowedBasemaps: BASEMAP_IDS }); }
     catch (error) { this.error(error.message); return; }
-    const qrUrl = `https://quickchart.io/qr?size=240&text=${encodeURIComponent(url)}`;
-    this.openDialog({ eyebrow: "Share guided places", title: "Camera-only tour link", content: `<p class="form-note">This compact link shares chapter names and map cameras only—no descriptions, images, layers, or credentials.</p><label class="field"><span>Link</span><textarea readonly rows="4" data-tour-share-url>${escapeHtml(url)}</textarea></label><img class="tour-share-qr" src="${escapeHtml(qrUrl)}" alt="QR code for this guided places tour" />`, actions: [
+    const title = this.projectManager.current.presentation?.title || "Guided places";
+    this.tourShareImageFile = null;
+    this.openDialog({ eyebrow: "Share guided places", title: "Camera-only tour link", content: `<p class="form-note">This compact link shares chapter names and map cameras only—no descriptions, images, layers, or credentials. The branded QR card is generated on this device and contains the complete link.</p><label class="field"><span>Link</span><textarea readonly rows="4" data-tour-share-url>${escapeHtml(url)}</textarea></label><div class="tour-share-card"><canvas data-tour-share-card width="760" height="960" role="img" aria-label="Branded QR card for this guided places tour"></canvas><p class="tour-share-card__status" data-tour-share-status>Building complete-link QR card…</p></div>`, actions: [
       { label: "Save a copy", handler: () => this.projectManager.exportAtlas() },
-      { label: "Mobile share", handler: async () => { if (navigator.share) await navigator.share({ title: this.projectManager.current.presentation?.title || "Guided places", url }); else await navigator.clipboard.writeText(url); } },
+      { label: "Download image", handler: () => {
+        if (!this.tourShareImageFile) return this.error("The tour image is still being prepared.");
+        const link = document.createElement("a");
+        link.href = URL.createObjectURL(this.tourShareImageFile);
+        link.download = this.tourShareImageFile.name;
+        link.click();
+        setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+      } },
+      { label: "Mobile share", handler: async () => {
+        let share = { title, text: `Open the ${title} guided tour in GIS Map Online.`, url };
+        const shareWithImage = this.tourShareImageFile ? { ...share, files: [this.tourShareImageFile] } : null;
+        if (shareWithImage && navigator.canShare?.(shareWithImage)) share = shareWithImage;
+        if (navigator.share) await navigator.share(share);
+        else { await navigator.clipboard.writeText(url); this.toast("Tour link copied."); }
+      } },
       { label: "Copy link", primary: true, handler: async () => { await navigator.clipboard.writeText(url); this.toast("Tour link copied."); } },
     ] });
+    void this.#renderTourShareCard(url, title);
+  }
+
+  async #renderTourShareCard(url, title) {
+    const canvas = this.dialog.querySelector("[data-tour-share-card]");
+    const status = this.dialog.querySelector("[data-tour-share-status]");
+    if (!canvas || !status) return;
+    try {
+      if (!globalThis.QRCode?.toCanvas) throw new Error("QR generator unavailable");
+      const qrCanvas = document.createElement("canvas");
+      await globalThis.QRCode.toCanvas(qrCanvas, url, { width: 520, margin: 2, errorCorrectionLevel: "L", color: { dark: "#072f2b", light: "#ffffff" } });
+      const context = canvas.getContext("2d");
+      const gradient = context.createLinearGradient(0, 0, 760, 960);
+      gradient.addColorStop(0, "#071f1c");
+      gradient.addColorStop(1, "#145b4e");
+      context.fillStyle = gradient;
+      context.fillRect(0, 0, 760, 960);
+      context.fillStyle = "#f3ae2b";
+      context.fillRect(0, 0, 12, 960);
+      const logo = new Image();
+      logo.src = "./assets/gis-map-online-mark-v2.png";
+      await new Promise((resolve, reject) => { logo.onload = resolve; logo.onerror = reject; });
+      context.drawImage(logo, 48, 42, 118, 118);
+      context.fillStyle = "#55cdb1";
+      context.font = "700 34px system-ui, sans-serif";
+      context.fillText("GIS MAP", 188, 87);
+      context.fillStyle = "#f3ae2b";
+      context.font = "700 20px system-ui, sans-serif";
+      context.letterSpacing = "6px";
+      context.fillText("ONLINE", 190, 122);
+      context.letterSpacing = "0px";
+      context.fillStyle = "#ffffff";
+      context.font = "700 38px Georgia, serif";
+      const safeTitle = String(title || "Guided places").slice(0, 54);
+      context.fillText(safeTitle, 58, 218, 644);
+      context.fillStyle = "#b8d8d0";
+      context.font = "20px system-ui, sans-serif";
+      context.fillText("Scan to open this guided map tour", 58, 254);
+      context.fillStyle = "#ffffff";
+      context.fillRect(96, 284, 568, 568);
+      context.drawImage(qrCanvas, 120, 308, 520, 520);
+      context.fillStyle = "#d8ebe6";
+      context.font = "16px system-ui, sans-serif";
+      context.textAlign = "center";
+      context.fillText("Complete camera-only tour link encoded in this QR", 380, 900);
+      context.fillStyle = "#f3ae2b";
+      context.font = "700 18px system-ui, sans-serif";
+      context.fillText("gismap.online", 380, 930);
+      const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/png"));
+      if (!blob) throw new Error("Could not create image");
+      const safeName = safeTitle.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "guided-tour";
+      this.tourShareImageFile = new File([blob], `${safeName}-qr.png`, { type: "image/png" });
+      status.textContent = "This QR contains the complete URL, including every encoded chapter.";
+    } catch {
+      status.textContent = "The QR image could not be created here. Copy link still preserves the complete tour URL.";
+    }
   }
 
   async openSharedAtlas({ chapterIndex = 0, autoplay = false } = {}) {

@@ -1,4 +1,7 @@
-const MAX_URL_LENGTH = 4096;
+// Version-40 QR codes top out below 3 KB in byte mode. Keep embedded tour
+// links within a conservative budget so the complete fragment always fits in
+// the branded mobile share card without truncation.
+const MAX_URL_LENGTH = 2800;
 const MAX_CHAPTERS = 50;
 const MAX_TEXT = 120;
 
@@ -31,6 +34,7 @@ export function serializeEmbeddedTour(presentation, allowedBasemaps) {
       zoom: compact(view.zoom, 2), tilt: compact(view.tilt ?? 0, 1), heading: compact(view.heading ?? 0, 1),
       basemap: allowedBasemaps.has(chapter.basemapId) ? chapter.basemapId : undefined,
       linger: Math.min(120, Math.max(1, Math.round(Number(chapter.lingerSeconds) || 4))),
+      cut: chapter.transitionMode === "instant" ? 1 : undefined,
     };
   });
   return { v: 1, title: text(presentation?.title, "Guided places"), skin: text(presentation?.skin, "clean-light"), play: presentation?.playbackMode === "auto" ? "auto" : "manual", chapters };
@@ -49,7 +53,7 @@ export function decodeEmbeddedTour(value, allowedBasemaps) {
     const numbers = [chapter.lat, chapter.lon, chapter.zoom, chapter.tilt, chapter.heading, chapter.linger];
     if (!numbers.every(Number.isFinite) || Math.abs(chapter.lat) > 90 || Math.abs(chapter.lon) > 180 || chapter.zoom < 0 || chapter.zoom > 24 || chapter.tilt < 0 || chapter.tilt > 90 || chapter.heading < -360 || chapter.heading > 360 || chapter.linger < 1 || chapter.linger > 120) throw new Error(`Chapter ${index + 1} has invalid camera settings.`);
     const basemapId = allowedBasemaps.has(chapter.basemap) ? chapter.basemap : null;
-    return { id: `shared-${index + 1}`, title: text(chapter.name, `Chapter ${index + 1}`), body: text(chapter.caption || "").slice(0, 80), mediaUrl: "", basemapId, lingerSeconds: Math.round(chapter.linger), viewState: { center: [chapter.lon, chapter.lat], zoom: chapter.zoom, tilt: chapter.tilt, heading: chapter.heading }, sharedBasemapFallback: chapter.basemap && !basemapId };
+    return { id: `shared-${index + 1}`, title: text(chapter.name, `Chapter ${index + 1}`), body: text(chapter.caption || "").slice(0, 80), mediaUrl: "", basemapId, lingerSeconds: Math.round(chapter.linger), transitionMode: chapter.cut === 1 ? "instant" : "smooth", viewState: { center: [chapter.lon, chapter.lat], zoom: chapter.zoom, tilt: chapter.tilt, heading: chapter.heading }, sharedBasemapFallback: chapter.basemap && !basemapId };
   });
   return { title: text(raw.title, "Guided places"), skin: text(raw.skin, "clean-light"), playbackMode: raw.play === "auto" ? "auto" : "manual", chapters };
 }
@@ -60,6 +64,6 @@ export function createEmbeddedTourUrl({ baseUrl, presentation, allowedBasemaps, 
   url.hash = `tour=${encodeEmbeddedTour(presentation, allowedBasemaps)}`;
   if (chapter != null) url.searchParams.set("chapter", String(chapter));
   if (autoplay != null) url.searchParams.set("autoplay", autoplay ? "1" : "0");
-  if (url.href.length > MAX_URL_LENGTH) throw new Error("This camera-only tour link exceeds the 4 KB sharing limit. Export a .gmoatlas file instead.");
+  if (url.href.length > MAX_URL_LENGTH) throw new Error("This camera-only tour exceeds the QR-safe link limit. Export a .gmoatlas file instead.");
   return url.href;
 }

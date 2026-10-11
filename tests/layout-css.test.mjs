@@ -22,3 +22,5 @@ assert.match(css, /\.insights-overlay\s*\{[^}]*top:\s*0;[^}]*width:\s*100%;[^}]*
 assert.match(css, /body\[data-insights-position="dock-top"\] \.insights-overlay\s*\{[^}]*inset:\s*0 0 auto;/s);
 assert.match(css, /@media \(max-width: 640px\)[\s\S]*\.map-workspace,\s*#viewDiv\s*\{[^}]*touch-action:\s*none;/);
 assert.match(css, /\.insight-tabs\s*\{[^}]*order:\s*2/s);
+assert.match(css, /\.app-dialog--docked \.dialog__content\s*\{[^}]*overflow-y:auto/s, "Docked chapter authoring must keep its form scrollable.");
+assert.match(css, /body\.sidebar-collapsed #app\[data-presentation="atlas"\] \.atlas-chapter-overlay\s*\{[^}]*left:70px/s, "The Atlas title must clear the reopen-sidebar control.");

@@ -91,12 +91,14 @@ test("Atlas chapter settings normalize safely without activating configurable pa
       title: "One",
       mediaUrl: "javascript:alert(1)",
       lingerSeconds: 999,
+      transitionMode: "instant",
       layerVisibility: [{ key: "url:https://example.com/layer", visible: false }],
     }],
   });
   assert.equal(presentation.playbackMode, "manual");
   assert.equal(presentation.chapters[0].mediaUrl, "");
   assert.equal(presentation.chapters[0].lingerSeconds, 120);
+  assert.equal(presentation.chapters[0].transitionMode, "instant");
   assert.deepEqual(presentation.chapters[0].layerVisibility, [{ key: "url:https://example.com/layer", visible: false }]);
   assert.equal(manager.current.application, null);
   const configured = manager.setApplication(presetApplication("standard"));
