@@ -647,7 +647,9 @@ export class UIController {
     const mobileDrawerContent = document.querySelector("#sidebar .sidebar__scroll");
     mobileDrawerContent.inert = mobile && collapsed;
     mobileDrawerContent.setAttribute("aria-hidden", String(mobile && collapsed));
-    document.querySelector("#sidebar-open").setAttribute("aria-expanded", String(!collapsed));
+    const sidebarOpen = document.querySelector("#sidebar-open");
+    sidebarOpen.hidden = mobile;
+    sidebarOpen.setAttribute("aria-expanded", String(!collapsed));
     const handle = document.querySelector("#mobile-drawer-handle");
     handle?.setAttribute("aria-expanded", String(!collapsed));
     handle?.setAttribute("aria-label", `${collapsed ? "Expand" : "Collapse"} tool drawer`);
@@ -2750,6 +2752,7 @@ export class UIController {
       this.presentationState = { template: "standard", records: [], visibleRecords: [], selected: null, layerUid: null, search: "", category: "" };
       this.mapController.clearFeatureHighlight();
       this.#hideAtlasChapterOverlay();
+      this.#syncPresentationMobileControls(presentation);
       if (welcomePanel) welcomePanel.hidden = welcomePanel.dataset.dismissed === "true";
       return;
     }

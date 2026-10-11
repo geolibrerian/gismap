@@ -612,6 +612,7 @@ body.shared-tour-only .atlas-tour-exit { display:none!important; }
 .map-nav { position: absolute; z-index: 8; top: 18px; right: 18px; display: grid; grid-template-columns: repeat(2, 38px); gap: 5px; }
 .map-nav button, .map-button { width: 38px; height: 38px; font-size: 19px; box-shadow: 0 6px 20px rgb(20 46 39 / 18%); }
 .sidebar__open { display: none; position: absolute; z-index: 9; top: 18px; left: 18px; }
+.sidebar__open[hidden] { display:none!important; }
 .map-status { position: absolute; z-index: 7; right: 12px; bottom: 24px; padding: 6px 9px; border-radius: 4px; color: white; background: rgb(18 63 53 / 86%); backdrop-filter: blur(8px); font-size: 10px; letter-spacing: .02em; pointer-events: none; }
 .insights-overlay { position: absolute; z-index: 8; top: 18px; left: 18px; width: min(390px, calc(100% - 36px)); max-height: calc(100% - 70px); overflow: auto; border: 1px solid rgb(255 255 255 / 30%); border-radius: 12px; background: rgb(244 241 232 / 94%); box-shadow: var(--shadow); backdrop-filter: blur(14px); }
 .insights-resizer { display: none; position: absolute; z-index: 3; touch-action: none; }

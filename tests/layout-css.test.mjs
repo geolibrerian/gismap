@@ -27,5 +27,6 @@ assert.match(css, /body\.sidebar-collapsed #app\[data-presentation="atlas"\] \.a
 assert.match(css, /body\.mobile-presentation-panel-open \.utility-panel\s*\{[^}]*height:min\(55dvh,560px\)[^}]*grid-template-rows:auto minmax\(0,1fr\)/s, "Mobile presentation editing must use a scrollable bottom-half sheet.");
 assert.match(css, /body\.mobile-presentation-panel-open :is\(\.atlas-chapter-description,\.mobile-presentation-controls\)/, "Mobile editing must hide lower tour overlays behind it while preserving the chapter heading.");
 assert.match(css, /body\.mobile-atlas-presenting :is\([^}]*\.mobile-panel-nav[^}]*\.mobile-menu-drawer/s, "Mobile Atlas presentation must hide general workspace navigation.");
+assert.match(css, /\.sidebar__open\[hidden\]\s*\{[^}]*display:none!important/s, "The desktop panel opener must remain hidden in the restored mobile workspace.");
 assert.match(css, /body\.shared-tour-only :is\([^}]*\.sidebar[^}]*\.mobile-panel-nav[^}]*\.map-nav/s, "Tour-only links must hide the GIS authoring and navigation interface.");
 assert.match(css, /body\.shared-tour-only \.mobile-presentation-controls\s*\{[^}]*bottom:calc\(10px \+ env\(safe-area-inset-bottom\)\)/s, "Tour-only mobile playback controls must sit at the bottom safe area.");

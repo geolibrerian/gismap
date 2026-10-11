@@ -10,6 +10,7 @@ assert.match(html, /GISMap Online Guided Places/, "The mobile chapter heading mu
 assert.match(html, /data-mobile-atlas-control[^>]*>Control tour</, "Mobile Atlas must provide a dedicated tour control.");
 assert.match(html, /data-mobile-atlas-settings[^>]*>Presentation settings</, "Mobile Atlas must provide presentation settings.");
 assert.match(ui, /#exitAtlasTour\(\)[\s\S]*template:\s*"standard"/, "Exiting a tour must restore the standard workspace.");
+assert.match(ui, /template === "standard"[\s\S]*#syncPresentationMobileControls\(presentation\)/, "Restoring Standard mode must immediately remove mobile tour controls.");
 assert.match(ui, /title:\s*"Control tour"[\s\S]*Save locally[\s\S]*End tour/, "Tour control must offer local save and confirmed exit actions.");
 assert.match(ui, /data-tour-embed-code/, "The share dialog must provide embeddable iframe HTML.");
 assert.match(ui, /Tour only[\s\S]*Hide authoring menus/, "The share dialog must explain tour-only access.");
