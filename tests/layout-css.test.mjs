@@ -24,7 +24,8 @@ assert.match(css, /@media \(max-width: 640px\)[\s\S]*\.map-workspace,\s*#viewDiv
 assert.match(css, /\.insight-tabs\s*\{[^}]*order:\s*2/s);
 assert.match(css, /\.app-dialog--docked \.dialog__content\s*\{[^}]*overflow-y:auto/s, "Docked chapter authoring must keep its form scrollable.");
 assert.match(css, /body\.sidebar-collapsed #app\[data-presentation="atlas"\] \.atlas-chapter-overlay\s*\{[^}]*left:70px/s, "The Atlas title must clear the reopen-sidebar control.");
-assert.match(css, /body\.mobile-presentation-panel-open \.utility-panel\s*\{[^}]*grid-template-rows:minmax\(0,1fr\)/s, "Mobile presentation editing must use one unstacked sheet.");
-assert.match(css, /body\.mobile-presentation-panel-open :is\(\.atlas-chapter-overlay,\.atlas-chapter-description,\.mobile-presentation-controls\)/, "Mobile editing must hide the tour overlays behind it.");
+assert.match(css, /body\.mobile-presentation-panel-open \.utility-panel\s*\{[^}]*height:min\(55dvh,560px\)[^}]*grid-template-rows:auto minmax\(0,1fr\)/s, "Mobile presentation editing must use a scrollable bottom-half sheet.");
+assert.match(css, /body\.mobile-presentation-panel-open :is\(\.atlas-chapter-description,\.mobile-presentation-controls\)/, "Mobile editing must hide lower tour overlays behind it while preserving the chapter heading.");
+assert.match(css, /body\.mobile-atlas-presenting :is\([^}]*\.mobile-panel-nav[^}]*\.mobile-menu-drawer/s, "Mobile Atlas presentation must hide general workspace navigation.");
 assert.match(css, /body\.shared-tour-only :is\([^}]*\.sidebar[^}]*\.mobile-panel-nav[^}]*\.map-nav/s, "Tour-only links must hide the GIS authoring and navigation interface.");
 assert.match(css, /body\.shared-tour-only \.mobile-presentation-controls\s*\{[^}]*bottom:calc\(10px \+ env\(safe-area-inset-bottom\)\)/s, "Tour-only mobile playback controls must sit at the bottom safe area.");

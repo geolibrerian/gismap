@@ -220,8 +220,12 @@
         </section>
         <aside id="atlas-chapter-overlay" class="atlas-chapter-overlay" hidden aria-live="polite">
           <div class="atlas-chapter-overlay__copy">
-            <span id="atlas-chapter-position" class="eyebrow">Atlas chapter</span>
-            <h2 id="atlas-chapter-title">Chapter</h2>
+            <img class="atlas-chapter-brand-mark" src="./assets/gis-map-online-mark-v2.png" alt="" />
+            <div>
+              <span class="atlas-chapter-brand-name">GISMap Online Guided Places</span>
+              <span id="atlas-chapter-position" class="eyebrow">Atlas chapter</span>
+              <h2 id="atlas-chapter-title">Chapter</h2>
+            </div>
           </div>
           <nav class="atlas-chapter-overlay__navigation" aria-label="Atlas chapter navigation">
             <button id="atlas-chapter-previous" type="button" aria-label="Previous chapter">← <span>Back</span></button>
@@ -235,6 +239,10 @@
             <button type="button" data-mobile-atlas-previous aria-label="Previous chapter">←</button>
             <button type="button" data-mobile-atlas-play aria-label="Play tour">▶</button>
             <button type="button" data-mobile-atlas-next aria-label="Next chapter">→</button>
+          </div>
+          <div class="mobile-atlas-menu">
+            <button type="button" data-mobile-atlas-control>Control tour</button>
+            <button type="button" data-mobile-atlas-settings>Presentation settings</button>
           </div>
           <button type="button" class="mobile-briefing-context-button" data-mobile-briefing-context aria-expanded="false">Context ↑</button>
         </nav>

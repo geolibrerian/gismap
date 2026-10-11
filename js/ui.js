@@ -59,6 +59,7 @@ export class UIController {
     this.sharedTourOnly = false;
     this.sharedTourEmbed = false;
     this.tourShareRenderToken = 0;
+    this.mobileAtlasSettingsOpen = false;
     this.presentationState = { template: "standard", records: [], visibleRecords: [], selectedIds: new Set(), layerUid: null, search: "", searchField: "*", searchOperator: "contains", chartField: null, scope: "all", rangeMin: null, rangeMax: null, sortField: null, sortDirection: "asc", page: 1, pageSize: 25, binCount: 12 };
     this.briefingRequest = requestGuard();
     this.keepWelcomeForSharedExample = new URLSearchParams(location.search).has("example");
@@ -306,6 +307,8 @@ export class UIController {
     document.querySelector("[data-mobile-atlas-previous]")?.addEventListener("click", () => void this.#stepAtlasChapter(-1));
     document.querySelector("[data-mobile-atlas-next]")?.addEventListener("click", () => void this.#stepAtlasChapter(1));
     document.querySelector("[data-mobile-atlas-play]")?.addEventListener("click", () => this.#toggleAtlasPlayback());
+    document.querySelector("[data-mobile-atlas-control]")?.addEventListener("click", () => this.#mobileAtlasControlDialog());
+    document.querySelector("[data-mobile-atlas-settings]")?.addEventListener("click", () => this.#openMobileAtlasSettings());
     document.querySelector("[data-mobile-briefing-context]")?.addEventListener("click", () => {
       const open = !document.body.classList.contains("mobile-briefing-context-open");
       document.body.classList.toggle("mobile-briefing-context-open", open);
@@ -594,6 +597,8 @@ export class UIController {
       return;
     }
     if (tabId === "presentation") {
+      const resumeMobileAtlas = this.mobileAtlasSettingsOpen;
+      this.mobileAtlasSettingsOpen = false;
       this.utilityPresentationOpen = false;
       const dashboard = document.querySelector("#presentation-dashboard");
       if (dashboard) document.querySelector(".sidebar__scroll")?.prepend(dashboard);
@@ -606,6 +611,13 @@ export class UIController {
       document.body.classList.remove("presentation-workspace-panels-open");
       document.querySelectorAll(".sidebar__scroll > .panel[data-presentation-hidden]").forEach((panel) => { panel.hidden = true; });
       this.#syncUtilityPanel();
+      if (resumeMobileAtlas && this.projectManager.current.presentation?.template === "atlas") {
+        this.presentationState.atlasPresent = true;
+        this.#renderPresentationDashboard(this.projectManager.current.presentation);
+        const chapters = this.projectManager.current.presentation.chapters || [];
+        const index = Math.max(0, Math.min(chapters.length - 1, this.presentationState.atlasChapterIndex ?? 0));
+        if (chapters[index]) this.#showAtlasChapterOverlay(chapters[index], index, chapters);
+      }
       return;
     }
     if (tabId === "draw") {
@@ -1863,9 +1875,15 @@ export class UIController {
       const chapters = presentation.chapters || [];
       const playing = Boolean(this.presentationState.atlasPlaying);
       const playbackMode = presentation.playbackMode === "manual" ? "manual" : "auto";
-      root.innerHTML = `<section class="mode-dashboard mode-dashboard--atlas"><header><span class="eyebrow">Atlas · ${this.presentationState.atlasPresent ? "present" : "edit"} mode</span><h2>${escapeHtml(presentation.title || "Guided places")}</h2><p>Capture exact map views, descriptions, media, and layer states as a shareable guided tour.</p></header><div class="atlas-present-action"><button type="button" data-atlas-mode>${this.presentationState.atlasPresent ? "Edit chapters" : "Present atlas"}</button></div><label class="atlas-playback-mode"><span>Playback</span><select data-atlas-playback><option value="auto"${playbackMode === "auto" ? " selected" : ""}>Auto · use linger time</option><option value="manual"${playbackMode === "manual" ? " selected" : ""}>Manual · use Back and Next</option></select></label><div class="atlas-actions"><button type="button" data-atlas-capture ${this.presentationState.atlasPresent ? "hidden" : ""}>Add another chapter</button><button type="button" data-atlas-share>Share tour</button><button type="button" data-atlas-export>Export tour</button></div><div class="mode-records">${chapters.map((chapter, index) => `<article class="atlas-chapter"><button type="button" data-atlas-go="${index}"><span>${index + 1}</span><strong>${escapeHtml(chapter.title || `Chapter ${index + 1}`)}</strong><small>${escapeHtml(chapter.reverseAddress || chapter.body || "Saved map view")}${chapter.basemapId ? ` · ${escapeHtml(this.#basemapLabel(chapter.basemapId))}` : ""}${playbackMode === "auto" && chapter.lingerSeconds ? ` · ${chapter.lingerSeconds}s` : ""}</small></button>${this.presentationState.atlasPresent ? "" : `<div><button type="button" data-atlas-rename="${index}">Edit</button><button type="button" data-atlas-delete="${index}">Delete</button></div>`}</article>`).join("") || "<p class=\"form-note\">No chapters yet. Add another chapter to begin the atlas.</p>"}</div></section>`;
+      const skinOptions = [["clean-light","Clean Light"],["dark-analytical","Midnight"],["tidal-95","Pacific ’94"],["portolan","Copperplate"],["velvet-orbit","Velvet Orbit"],["violet-circuit","Violet Circuit"]];
+      root.innerHTML = `<section class="mode-dashboard mode-dashboard--atlas"><header><span class="eyebrow">Atlas · ${this.presentationState.atlasPresent ? "present" : "edit"} mode</span><h2>${escapeHtml(presentation.title || "Guided places")}</h2><p>Capture exact map views, descriptions, media, and layer states as a shareable guided tour.</p></header><label class="atlas-skin-control"><span>Look &amp; feel</span><select data-atlas-skin>${skinOptions.map(([value,label]) => `<option value="${value}"${presentation.skin === value ? " selected" : ""}>${label}</option>`).join("")}</select></label><div class="atlas-present-action"><button type="button" data-atlas-mode>${this.presentationState.atlasPresent ? "Edit chapters" : "Present atlas"}</button></div><label class="atlas-playback-mode"><span>Playback</span><select data-atlas-playback><option value="auto"${playbackMode === "auto" ? " selected" : ""}>Auto · use linger time</option><option value="manual"${playbackMode === "manual" ? " selected" : ""}>Manual · use Back and Next</option></select></label><div class="atlas-actions"><button type="button" data-atlas-capture ${this.presentationState.atlasPresent ? "hidden" : ""}>Add another chapter</button><button type="button" data-atlas-share>Share tour</button><button type="button" data-atlas-export>Export tour</button></div><div class="mode-records">${chapters.map((chapter, index) => `<article class="atlas-chapter"><button type="button" data-atlas-go="${index}"><span>${index + 1}</span><strong>${escapeHtml(chapter.title || `Chapter ${index + 1}`)}</strong><small>${escapeHtml(chapter.reverseAddress || chapter.body || "Saved map view")}${chapter.basemapId ? ` · ${escapeHtml(this.#basemapLabel(chapter.basemapId))}` : ""}${playbackMode === "auto" && chapter.lingerSeconds ? ` · ${chapter.lingerSeconds}s` : ""}</small></button>${this.presentationState.atlasPresent ? "" : `<div><button type="button" data-atlas-rename="${index}">Edit</button><button type="button" data-atlas-delete="${index}">Delete</button></div>`}</article>`).join("") || "<p class=\"form-note\">No chapters yet. Add another chapter to begin the atlas.</p>"}</div></section>`;
       this.#addPresentationDockControl(root);
       root.querySelector("[data-atlas-mode]")?.addEventListener("click", async () => {
+        if (this.mobileAtlasSettingsOpen) {
+          this.presentationState.atlasPresent = true;
+          this.#closeUtilityTab("presentation");
+          return;
+        }
         this.#stopAtlasStory();
         this.presentationState.atlasPresent = !this.presentationState.atlasPresent;
         this.#renderPresentationDashboard(presentation);
@@ -1875,6 +1893,10 @@ export class UIController {
       root.querySelector("[data-atlas-capture]")?.addEventListener("click", () => this.#captureAtlasChapter());
       root.querySelector("[data-atlas-export]")?.addEventListener("click", () => this.projectManager.exportAtlas());
       root.querySelector("[data-atlas-share]")?.addEventListener("click", () => this.#shareAtlasDialog());
+      root.querySelector("[data-atlas-skin]")?.addEventListener("change", (event) => {
+        const updated = this.projectManager.setPresentation({ ...this.projectManager.current.presentation, skin: event.target.value });
+        this.#renderPresentationDashboard(updated);
+      });
       root.querySelector("[data-atlas-playback]")?.addEventListener("change", (event) => {
         this.#stopAtlasStory();
         this.projectManager.setPresentation({ ...this.projectManager.current.presentation, playbackMode: event.target.value });
@@ -1942,6 +1964,8 @@ export class UIController {
     const controls = document.querySelector("#mobile-presentation-controls");
     if (!controls) return;
     const template = presentation.template || "standard";
+    const mobileAtlasPresenting = this.mobileMedia.matches && template === "atlas" && (this.presentationState.atlasPresent || this.mobileAtlasSettingsOpen);
+    document.body.classList.toggle("mobile-atlas-presenting", mobileAtlasPresenting);
     controls.hidden = !["atlas", "briefing"].includes(template) || (template === "atlas" && !this.presentationState.atlasPresent);
     controls.dataset.presentation = template;
     const chapters = presentation.chapters || [];
@@ -1950,15 +1974,48 @@ export class UIController {
     const previous = controls.querySelector("[data-mobile-atlas-previous]");
     const next = controls.querySelector("[data-mobile-atlas-next]");
     const play = controls.querySelector("[data-mobile-atlas-play]");
+    const settings = controls.querySelector("[data-mobile-atlas-settings]");
     previous.disabled = !chapters.length || index <= 0;
     next.disabled = !chapters.length || index >= chapters.length - 1;
     play.hidden = !auto;
     play.textContent = this.presentationState.atlasPlaying ? "❚❚" : "▶";
     play.setAttribute("aria-label", this.presentationState.atlasPlaying ? "Pause tour" : "Play tour");
+    settings.hidden = this.sharedTourOnly;
     const contextButton = controls.querySelector("[data-mobile-briefing-context]");
     contextButton.disabled = !this.presentationState.selected;
     contextButton.setAttribute("aria-expanded", String(document.body.classList.contains("mobile-briefing-context-open")));
     if (template !== "briefing") document.body.classList.remove("mobile-briefing-context-open");
+  }
+
+  #mobileAtlasControlDialog() {
+    const presentation = this.projectManager.current.presentation || {};
+    const defaultName = presentation.title || "Guided places";
+    this.openDialog({
+      eyebrow: "Guided places",
+      title: "Control tour",
+      content: `<p class="form-note">Keep viewing, save this tour and its current project state in this browser, or end the presentation and return to the standard GIS workspace.</p><label class="field"><span>Local project name</span><input id="mobile-tour-project-name" value="${escapeHtml(defaultName)}" /></label>`,
+      actions: [
+        { label: "Continue tour", handler: () => this.dialog.close() },
+        { label: "Save locally", handler: () => {
+          const name = this.dialog.querySelector("#mobile-tour-project-name").value.trim() || defaultName;
+          this.projectManager.save(name);
+          this.dialog.close();
+          this.toast(`Tour saved locally as “${name}”.`);
+        } },
+        { label: "End tour", primary: true, handler: () => { this.dialog.close(); this.#exitAtlasTour(); } },
+      ],
+    });
+  }
+
+  #openMobileAtlasSettings() {
+    const presentation = this.projectManager.current.presentation || {};
+    if (presentation.template !== "atlas") return;
+    this.mobileAtlasSettingsOpen = true;
+    this.#stopAtlasStory();
+    this.presentationState.atlasPresent = false;
+    this.#renderPresentationDashboard(presentation);
+    if (!this.utilityPresentationOpen) this.#togglePresentationDock();
+    else this.#syncUtilityPanel("presentation");
   }
 
   #togglePresentationDock() {
@@ -2481,8 +2538,9 @@ export class UIController {
     this.atlasPlaybackTimer = null;
     this.presentationState.atlasPlaying = false;
     this.presentationState.atlasPresent = false;
+    this.mobileAtlasSettingsOpen = false;
     this.#hideAtlasChapterOverlay();
-    document.body.classList.remove("shared-tour-active", "shared-tour-only", "shared-tour-embed");
+    document.body.classList.remove("shared-tour-active", "shared-tour-only", "shared-tour-embed", "mobile-atlas-presenting", "mobile-presentation-panel-open");
     this.sharedTourLaunch = false;
     this.sharedTourOnly = false;
     this.sharedTourEmbed = false;
