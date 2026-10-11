@@ -19,3 +19,4 @@ assert.match(ui, /#utility-dialog-content/, "The dialog dock action must target 
 assert.ok(ui.indexOf('class="atlas-geocoder"') < ui.indexOf('id="atlas-editor-title"'), "The chapter geocoder must appear before the title field.");
 assert.match(ui, /id="atlas-chapter-transition"/, "Chapter authoring must expose camera transition speed.");
 assert.match(ui, /QRCode\.toCanvas\(qrCanvas, url/, "Tour QR cards must encode the complete URL in the browser.");
+assert.match(html, /\.\/js\/vendor\/qrcode-1\.5\.4\.js/, "The QR encoder must be served locally instead of depending on a third-party CDN at runtime.");

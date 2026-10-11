@@ -2564,10 +2564,21 @@ export class UIController {
       context.fillStyle = "#f3ae2b";
       context.fillRect(0, 0, 12, 960);
       const logo = new Image();
-      logo.src = "./assets/gis-map-online-mark-v2.png";
-      await new Promise((resolve, reject) => { logo.onload = resolve; logo.onerror = reject; });
+      logo.src = new URL("./assets/gis-map-online-mark-v2.png", document.baseURI).href;
+      const logoLoaded = await new Promise((resolve) => { logo.onload = () => resolve(true); logo.onerror = () => resolve(false); });
       if (renderToken !== this.tourShareRenderToken) return;
-      context.drawImage(logo, 48, 42, 118, 118);
+      if (logoLoaded) context.drawImage(logo, 48, 42, 118, 118);
+      else {
+        context.strokeStyle = "#55cdb1";
+        context.lineWidth = 7;
+        context.beginPath();
+        context.arc(107, 101, 45, 0, Math.PI * 2);
+        context.stroke();
+        context.fillStyle = "#f3ae2b";
+        context.beginPath();
+        context.arc(107, 96, 14, 0, Math.PI * 2);
+        context.fill();
+      }
       context.fillStyle = "#55cdb1";
       context.font = "700 34px system-ui, sans-serif";
       context.fillText("GIS MAP", 188, 87);
@@ -2598,8 +2609,9 @@ export class UIController {
       const safeName = safeTitle.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "guided-tour";
       this.tourShareImageFile = new File([blob], `${safeName}-qr.png`, { type: "image/png" });
       status.textContent = "This QR contains the complete URL, including every encoded chapter.";
-    } catch {
-      status.textContent = "The QR image could not be created here. Copy link still preserves the complete tour URL.";
+    } catch (error) {
+      console.error("Tour share image generation failed", error);
+      status.textContent = `The QR image could not be created here (${error?.message || "unknown error"}). Copy link still preserves the complete tour URL.`;
     }
   }
 
