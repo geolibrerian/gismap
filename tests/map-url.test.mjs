@@ -90,6 +90,29 @@ assert.deepEqual(savedCartography.elevationInfo, { mode: "on-the-ground" });
 const restoredCartography = { renderer: null };
 controller.restoreRenderer(restoredCartography, savedCartography.renderer);
 assert.deepEqual(restoredCartography.renderer, cartographicRenderer);
+const greatLakesRenderer = {
+  type: "classBreaks",
+  field: "GRAPES_ACRES_BEAR_NON_BEAR_TOT",
+  minValue: -999,
+  visualVariables: [{ type: "sizeInfo", valueExpression: '$feature["GRAPES_ACRES_BEAR_TOT"] * 0.3', valueUnit: "meter" }],
+  classBreakInfos: [{
+    label: "-999 – 31,265.6",
+    classMaxValue: 31265.6,
+    symbol: { type: "PolygonSymbol3D", symbolLayers: [{ type: "Extrude", size: 0, material: { color: [217, 238, 232], transparency: 15 } }] },
+  }],
+};
+const convertedGreatLakesRenderer = { type: "class-breaks", convertedFromWebMapJson: true };
+let rendererJsonPassedToConverter = null;
+controller.modules.rendererJsonUtils = {
+  fromJSON(rendererJson) {
+    rendererJsonPassedToConverter = rendererJson;
+    return convertedGreatLakesRenderer;
+  },
+};
+const restoredGreatLakesLayer = { renderer: null };
+controller.restoreRenderer(restoredGreatLakesLayer, greatLakesRenderer);
+assert.deepEqual(rendererJsonPassedToConverter, greatLakesRenderer);
+assert.equal(restoredGreatLakesLayer.renderer, convertedGreatLakesRenderer);
 const directLayer = await controller.addService({
   url: "https://example.com/arcgis/rest/services/Hotspots/FeatureServer/0",
   serviceType: "feature",

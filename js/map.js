@@ -666,15 +666,19 @@ export class MapController {
 
   restoreRenderer(layer, rendererJson) {
     if (!layer || !("renderer" in layer) || !rendererJson) return;
-    // Assign JSON directly so the layer's renderer autocaster can handle all
-    // supported 2D and 3D symbol types. rendererJsonUtils is narrower here and
-    // rejects PointSymbol3D JSON used by the catalog's column examples.
+    // renderer.toJSON() produces WebMap JSON names such as `classBreaks`,
+    // `PolygonSymbol3D`, `Extrude`, and `sizeInfo`. Convert that serialized
+    // form back into live SDK objects before assigning it. Direct autocasting
+    // expects API-style names and may silently retain the service renderer.
     try {
-      layer.renderer = rendererJson;
-    } catch {
-      const renderer = this.modules.rendererJsonUtils.fromJSON(rendererJson);
-      if (renderer) layer.renderer = renderer;
-    }
+      const renderer = this.modules.rendererJsonUtils?.fromJSON?.(structuredClone(rendererJson));
+      if (renderer) {
+        layer.renderer = renderer;
+        return renderer;
+      }
+    } catch { /* Some catalog renderers already use API autocast JSON. */ }
+    layer.renderer = structuredClone(rendererJson);
+    return layer.renderer;
   }
 
   async setLayerSymbology(uid, options = {}) {

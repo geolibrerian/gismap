@@ -1,6 +1,6 @@
 import { events } from "./events.js?v=0.16.0";
 import { AuthController } from "./auth.js?v=0.16.0";
-import { MapController } from "./map.js?v=0.16.0";
+import { MapController } from "./map.js?v=0.16.1";
 import { ProjectManager } from "./project.js?v=0.16.0";
 import { IdentifyController } from "./identify.js?v=0.16.0";
 import { AttributeTableController } from "./attribute-table.js?v=0.16.0";
