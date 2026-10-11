@@ -542,6 +542,7 @@ export class UIController {
     document.querySelectorAll("[data-utility-pane]").forEach((pane) => { pane.hidden = pane.dataset.utilityPane !== this.activeUtilityTab; });
     document.querySelector("#utility-title").textContent = tabs.find((tab) => tab.id === this.activeUtilityTab)?.label || "Map tools";
     document.body.classList.toggle("utility-panel-open", open);
+    document.body.classList.toggle("mobile-presentation-panel-open", this.mobileMedia.matches && open && this.activeUtilityTab === "presentation");
     document.querySelector("#utility-panel").setAttribute("aria-hidden", String(!open));
     requestAnimationFrame(() => this.mapController.resize());
   }
@@ -591,6 +592,12 @@ export class UIController {
       this.utilityPresentationOpen = false;
       const dashboard = document.querySelector("#presentation-dashboard");
       if (dashboard) document.querySelector(".sidebar__scroll")?.prepend(dashboard);
+      const dockButton = dashboard?.querySelector("[data-presentation-dock]");
+      if (dockButton) {
+        dockButton.setAttribute("aria-label", "Open in right panel");
+        dockButton.title = "Open in right panel";
+        dockButton.textContent = "↗";
+      }
       document.body.classList.remove("presentation-workspace-panels-open");
       document.querySelectorAll(".sidebar__scroll > .panel[data-presentation-hidden]").forEach((panel) => { panel.hidden = true; });
       this.#syncUtilityPanel();
@@ -1961,6 +1968,13 @@ export class UIController {
       document.querySelector(".sidebar__scroll")?.prepend(dashboard);
       document.body.classList.remove("presentation-workspace-panels-open");
       document.querySelectorAll(".sidebar__scroll > .panel[data-presentation-hidden]").forEach((panel) => { panel.hidden = true; });
+    }
+    const dockButton = dashboard.querySelector("[data-presentation-dock]");
+    if (dockButton) {
+      const label = this.utilityPresentationOpen ? "Return to map" : "Open in right panel";
+      dockButton.setAttribute("aria-label", label);
+      dockButton.title = label;
+      dockButton.textContent = this.utilityPresentationOpen ? "↙" : "↗";
     }
     this.#syncUtilityPanel("presentation");
     this.mapController.resize();

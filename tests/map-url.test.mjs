@@ -71,6 +71,25 @@ assert.match(controller.getLayerConfig(layer).url, /\/query\?/);
 controller.setDefinitionExpression(layer.uid, "ACRES >= 1000");
 assert.equal(layer.definitionExpression, "ACRES >= 1000");
 assert.equal(controller.getLayerConfig(layer).definitionExpression, "ACRES >= 1000");
+const cartographicRenderer = {
+  type: "class-breaks",
+  field: "ACRES",
+  classBreakInfos: [{ minValue: 0, maxValue: 1000, symbol: { type: "polygon-3d", symbolLayers: [{ type: "extrude", material: { color: "#176756" } }] } }],
+  visualVariables: [{ type: "size", valueExpression: "$feature['ACRES'] * 0.3", axis: "height", valueUnit: "meters" }],
+};
+layer.renderer = { toJSON: () => structuredClone(cartographicRenderer) };
+layer.opacity = 0.65;
+layer.visible = false;
+layer.elevationInfo = { toJSON: () => ({ mode: "on-the-ground" }) };
+const savedCartography = controller.getLayerConfig(layer);
+assert.deepEqual(savedCartography.renderer, cartographicRenderer);
+assert.equal(savedCartography.opacity, 0.65);
+assert.equal(savedCartography.visible, false);
+assert.equal(savedCartography.definitionExpression, "ACRES >= 1000");
+assert.deepEqual(savedCartography.elevationInfo, { mode: "on-the-ground" });
+const restoredCartography = { renderer: null };
+controller.restoreRenderer(restoredCartography, savedCartography.renderer);
+assert.deepEqual(restoredCartography.renderer, cartographicRenderer);
 const directLayer = await controller.addService({
   url: "https://example.com/arcgis/rest/services/Hotspots/FeatureServer/0",
   serviceType: "feature",

@@ -1373,6 +1373,19 @@ body.sidebar-collapsed .table-dialog { left: 14px; }
     border-radius: 14px;
     box-shadow: 0 -12px 34px rgb(17 39 33 / 24%);
   }
+  body.mobile-presentation-panel-open :is(.atlas-chapter-overlay,.atlas-chapter-description,.mobile-presentation-controls) { display:none!important; }
+  body.mobile-presentation-panel-open .utility-panel {
+    inset:8px 8px calc(72px + env(safe-area-inset-bottom));
+    width:auto;
+    height:auto;
+    max-height:none;
+    grid-template-rows:minmax(0,1fr);
+  }
+  body.mobile-presentation-panel-open .utility-panel > header,
+  body.mobile-presentation-panel-open .utility-tabs { display:none; }
+  body.mobile-presentation-panel-open .utility-panes,
+  body.mobile-presentation-panel-open .presentation-utility { min-height:0; height:100%; overflow:auto; }
+  body.mobile-presentation-panel-open .presentation-utility #presentation-dashboard { min-height:100%; margin:0; padding:16px 14px 24px; }
 }
 
 @media (max-width: 480px) {
