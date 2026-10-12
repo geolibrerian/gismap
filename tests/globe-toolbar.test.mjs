@@ -16,6 +16,10 @@ test("Orbital Globe has a dedicated accessible map command bar", () => {
 
 test("Globe toolbar replaces overlapping map controls only on desktop Globe layout", () => {
   assert.match(css, /@media \(min-width:881px\)[\s\S]*data-application-layout="globe"[^\n]*\.globe-top-nav/);
+  assert.match(css, /\.globe-top-nav\s*\{[^}]*position:fixed[^}]*top:0[^}]*width:100%/s);
   assert.match(css, /data-application-layout="globe"[^\n]*:is\(\.map-nav,\.dashboard-settings-open\)/);
+  assert.match(css, /data-application-layout="globe"[^\n]*\.insights-overlay\s*\{[^}]*display:none/s);
   assert.match(ui, /#globe-dashboard-settings/);
+  assert.match(ui, /orbital-insight-details/);
+  assert.match(ui, /Selected feature attributes/);
 });

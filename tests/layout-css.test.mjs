@@ -13,7 +13,7 @@ assert.match(css, /@media \(max-width: 640px\)[\s\S]*body:not\(\.sidebar-collaps
 assert.match(css, /@media \(max-width: 880px\)[\s\S]*body\.sidebar-collapsed \.app-shell\s*\{\s*grid-template-columns:\s*minmax\(0, 1fr\)/);
 assert.match(css, /@media \(min-width: 641px\) and \(max-width: 880px\)[\s\S]*body\.utility-panel-open:not\(\.sidebar-collapsed\) \.sidebar/);
 assert.match(css, /body\.sidebar-collapsed\.utility-panel-open \.utility-panel\s*\{[^}]*inset:\s*auto 0 0/s);
-assert.match(css, /body\.mobile-map-tools-open \.map-nav\s*\{[^}]*translate\(0, -50%\)/s);
+assert.match(css, /body\.mobile-map-tools-open \.map-nav\s*\{[^}]*display:grid/s);
 assert.match(css, /\.mobile-panel-nav\s*\{[^}]*overflow-x:\s*auto/s);
 assert.match(css, /grid-template-areas:\s*"mobile-content"/);
 assert.match(css, /body\.insights-open\[data-insights-position="dock-top"\] \.map-workspace/);

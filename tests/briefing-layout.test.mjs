@@ -23,8 +23,8 @@ test("briefing supports scoped feature selection and copyable representative coo
 });
 
 test("desktop and globe map controls can collapse and reopen", () => {
-  assert.match(html, /id="map-navigation-close"/);
+  assert.match(html, /id="map-navigation-toggle"/);
   assert.match(html, /id="globe-navigation-close"/);
-  assert.match(html, /id="map-navigation-open"/);
+  assert.match(css, /\.map-nav__toggle/);
   assert.match(css, /body\.map-tools-collapsed/);
 });

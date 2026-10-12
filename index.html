@@ -263,7 +263,6 @@
           aria-controls="sidebar"
           aria-expanded="false"
         >▦</button>
-        <button id="mobile-map-tools-toggle" class="mobile-map-tools-toggle" type="button" aria-label="Open map controls" aria-controls="map-navigation" aria-expanded="false">‹</button>
         <nav id="globe-top-navigation" class="globe-top-nav" aria-label="Orbital Globe map tools">
           <span class="globe-top-nav__title"><strong>Orbital Globe</strong><small>Map tools</small></span>
           <span class="globe-top-nav__controls">
@@ -279,18 +278,19 @@
           <button id="globe-dashboard-settings" class="globe-top-nav__settings" type="button" title="Dashboard settings" aria-label="Open dashboard settings"><span aria-hidden="true">⚙</span><span>Settings</span></button>
           <button id="globe-navigation-close" class="globe-top-nav__close" type="button" title="Hide map tools" aria-label="Hide map tools">×</button>
         </nav>
-        <div id="map-navigation" class="map-nav" aria-label="Map navigation">
-          <button id="map-navigation-close" class="map-nav__close" type="button" title="Hide map tools" aria-label="Hide map tools">×</button>
-          <button data-nav="home" title="Default extent">⌂</button>
-          <button data-nav="locate" title="My location">◎</button>
-          <button data-nav="in" title="Zoom in">+</button>
-          <button data-nav="out" title="Zoom out">−</button>
-          <button data-nav="rotate-left" title="Rotate left">↶</button>
-          <button data-nav="rotate-right" title="Rotate right">↷</button>
-          <button data-nav="tilt-up" title="Tilt camera up">▲</button>
-          <button data-nav="tilt-down" title="Tilt camera down">▼</button>
+        <div class="map-nav-shell">
+          <div id="map-navigation" class="map-nav" aria-label="Map navigation">
+            <button data-nav="home" title="Default extent">⌂</button>
+            <button data-nav="locate" title="My location">◎</button>
+            <button data-nav="in" title="Zoom in">+</button>
+            <button data-nav="out" title="Zoom out">−</button>
+            <button data-nav="rotate-left" title="Rotate left">↶</button>
+            <button data-nav="rotate-right" title="Rotate right">↷</button>
+            <button data-nav="tilt-up" title="Tilt camera up">▲</button>
+            <button data-nav="tilt-down" title="Tilt camera down">▼</button>
+          </div>
+          <button id="map-navigation-toggle" class="map-nav__toggle" type="button" aria-label="Hide map tools" aria-controls="map-navigation" aria-expanded="true">⌄</button>
         </div>
-        <button id="map-navigation-open" class="map-nav__open" type="button" aria-label="Show map tools" title="Show map tools" hidden>Map tools</button>
         <div id="briefing-context-host" class="briefing-context-host" aria-live="polite"></div>
         <aside id="insights-overlay" class="insights-overlay" hidden aria-live="polite">
           <div id="insights-resizer" class="insights-resizer" role="separator" tabindex="0" aria-label="Resize Map Insight panel"></div>
@@ -369,6 +369,6 @@
     <input id="tool-file-input" type="file" accept=".js,.mjs" hidden />
 
     <noscript>GIS Map Online requires JavaScript.</noscript>
-    <script type="module" src="./js/app.js?v=0.16.15"></script>
+    <script type="module" src="./js/app.js?v=0.16.17"></script>
   </body>
 </html>

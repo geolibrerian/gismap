@@ -78,6 +78,8 @@ export class UIController {
     if (this.mobileMedia.matches) this.#setSidebarCollapsed(true);
     this.mobileMedia.addEventListener?.("change", ({ matches }) => {
       document.body.classList.remove("mobile-map-tools-open", "mobile-drawer-expanded");
+      document.body.classList.remove("map-tools-collapsed");
+      this.#syncMapToolsToggle(matches ? false : true);
       this.#setSidebarCollapsed(matches && this.presentationState.template === "standard");
       this.#applyDisplaySettings(this.#readDisplaySettings());
     });
@@ -239,19 +241,23 @@ export class UIController {
     };
     document.querySelector("#mobile-menu-toggle").addEventListener("click", toggleMobileMenu);
     document.querySelector("#mobile-menu-close")?.addEventListener("click", toggleMobileMenu);
-    document.querySelector("#mobile-map-tools-toggle").addEventListener("click", (event) => {
-      const open = !document.body.classList.contains("mobile-map-tools-open");
-      document.body.classList.toggle("mobile-map-tools-open", open);
-      event.currentTarget.setAttribute("aria-expanded", String(open));
-      event.currentTarget.setAttribute("aria-label", `${open ? "Close" : "Open"} map controls`);
+    document.querySelector("#map-navigation-toggle")?.addEventListener("click", () => {
+      if (this.mobileMedia.matches) {
+        const open = !document.body.classList.contains("mobile-map-tools-open");
+        document.body.classList.toggle("mobile-map-tools-open", open);
+        this.#syncMapToolsToggle(open);
+      } else {
+        const open = document.body.classList.contains("map-tools-collapsed");
+        document.body.classList.toggle("map-tools-collapsed", !open);
+        this.#syncMapToolsToggle(open);
+      }
     });
+    this.#syncMapToolsToggle(!this.mobileMedia.matches);
     const setMapToolsCollapsed = (collapsed) => {
       document.body.classList.toggle("map-tools-collapsed", collapsed);
-      document.querySelector("#map-navigation-open").hidden = !collapsed;
+      this.#syncMapToolsToggle(!collapsed);
     };
-    document.querySelector("#map-navigation-close")?.addEventListener("click", () => setMapToolsCollapsed(true));
     document.querySelector("#globe-navigation-close")?.addEventListener("click", () => setMapToolsCollapsed(true));
-    document.querySelector("#map-navigation-open")?.addEventListener("click", () => setMapToolsCollapsed(false));
     document.querySelectorAll("[data-mobile-panel]").forEach((button) =>
       button.addEventListener("click", () => this.#activateMobilePanel(button.dataset.mobilePanel)),
     );
@@ -340,6 +346,15 @@ export class UIController {
     });
     document.querySelector("#dashboard-settings-open")?.addEventListener("click", () => this.#applicationBuilderDialog());
     document.querySelector("#globe-dashboard-settings")?.addEventListener("click", () => this.#applicationBuilderDialog());
+  }
+
+  #syncMapToolsToggle(open) {
+    const toggle = document.querySelector("#map-navigation-toggle");
+    if (!toggle) return;
+    toggle.setAttribute("aria-expanded", String(open));
+    toggle.setAttribute("aria-label", `${open ? "Hide" : "Show"} map tools`);
+    toggle.title = `${open ? "Hide" : "Show"} map tools`;
+    toggle.textContent = open ? "⌄" : "⌃";
   }
 
   #bindMapEvents() {
@@ -3700,8 +3715,16 @@ export class UIController {
     if (results.length) {
       document.querySelector("#insights-title").textContent =
         results.length === 1 ? results[0].layerTitle : `${results.length} features`;
-      document.querySelector("#insights-content").innerHTML = `${tabsHtml}${resultHtml}`;
-      this.#setInsightsOpen(true);
+      const orbitalGlobe = document.querySelector("#app")?.dataset.applicationLayout === "globe" && !this.mobileMedia.matches;
+      if (orbitalGlobe) {
+        const intelligence = document.querySelector("#intelligence-content");
+        intelligence?.insertAdjacentHTML("beforeend", `<details class="orbital-insight-details" open><summary>Selected feature attributes</summary><div class="orbital-insight-details__content">${tabsHtml}${resultHtml}</div></details>`);
+        document.querySelector("#insights-content").replaceChildren();
+        this.#setInsightsOpen(false);
+      } else {
+        document.querySelector("#insights-content").innerHTML = `${tabsHtml}${resultHtml}`;
+        this.#setInsightsOpen(true);
+      }
       document.querySelectorAll("[data-insight-tab]").forEach((button) =>
         button.addEventListener("click", () => this.#activateInsightTab(Number(button.dataset.insightTab), true)),
       );
