@@ -27,7 +27,7 @@ assert.match(ui, /data-ai-selection/);
 assert.match(ui, /selectedResults/);
 assert.match(html, /id="insights-ai"[^>]*title="AI Insights"/);
 assert.match(html, /id="utility-tabs"/);
-assert.match(html, /class="mobile-map-brand"[^>]*gis-map-online-mark-v2/);
+assert.match(html, /<header class="mobile-map-brand"[^>]*aria-label="GISMap Online"/);
 assert.match(html, /id="mobile-map-tools-toggle"/);
 assert.match(html, /data-action="data-popular" class="button--quiet">Try an example/);
 assert.match(html, /data-mobile-panel="intelligence-panel"[^>]*aria-label="Intel"/);

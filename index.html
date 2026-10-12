@@ -53,7 +53,7 @@
     <link rel="icon" href="./assets/gis-map-online-mark-v2.png" type="image/png" />
     <link rel="preconnect" href="https://js.arcgis.com" />
     <link rel="stylesheet" href="https://js.arcgis.com/5.0/esri/themes/light/main.css" />
-    <link rel="stylesheet" href="./css/app.css?v=0.16.7" />
+    <link rel="stylesheet" href="./css/app.css?v=0.16.9" />
     <script type="module" src="https://js.arcgis.com/5.0/"></script>
     <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
     <script src="https://unpkg.com/@mapbox/shp-write@0.4.3/shpwrite.js"></script>
@@ -204,7 +204,9 @@
 
       <main class="map-workspace">
         <div id="viewDiv" aria-label="Interactive map"></div>
-        <img class="mobile-map-brand" src="./assets/gis-map-online-mark-v2.png" alt="GIS Map Online" />
+        <header class="mobile-map-brand" aria-label="GISMap Online">
+          <span aria-hidden="true"></span><strong>GISMap Online</strong>
+        </header>
         <section id="welcome-panel" class="welcome-panel" aria-labelledby="welcome-title">
           <button id="welcome-close" class="welcome-panel__close" type="button" aria-label="Dismiss introduction">×</button>
           <div class="welcome-brand"><img src="./assets/gis-map-online-mark-v2.png" alt="" /><strong>GIS MAP <span>ONLINE</span></strong></div>
@@ -275,8 +277,10 @@
             <button data-nav="tilt-up" type="button" title="Tilt camera up" aria-label="Tilt camera up">▲</button>
           </span>
           <button id="globe-dashboard-settings" class="globe-top-nav__settings" type="button" title="Dashboard settings" aria-label="Open dashboard settings"><span aria-hidden="true">⚙</span><span>Settings</span></button>
+          <button id="globe-navigation-close" class="globe-top-nav__close" type="button" title="Hide map tools" aria-label="Hide map tools">×</button>
         </nav>
         <div id="map-navigation" class="map-nav" aria-label="Map navigation">
+          <button id="map-navigation-close" class="map-nav__close" type="button" title="Hide map tools" aria-label="Hide map tools">×</button>
           <button data-nav="home" title="Default extent">⌂</button>
           <button data-nav="locate" title="My location">◎</button>
           <button data-nav="in" title="Zoom in">+</button>
@@ -286,6 +290,8 @@
           <button data-nav="tilt-up" title="Tilt camera up">▲</button>
           <button data-nav="tilt-down" title="Tilt camera down">▼</button>
         </div>
+        <button id="map-navigation-open" class="map-nav__open" type="button" aria-label="Show map tools" title="Show map tools" hidden>Map tools</button>
+        <div id="briefing-context-host" class="briefing-context-host" aria-live="polite"></div>
         <aside id="insights-overlay" class="insights-overlay" hidden aria-live="polite">
           <div id="insights-resizer" class="insights-resizer" role="separator" tabindex="0" aria-label="Resize Map Insight panel"></div>
           <header>
@@ -363,6 +369,6 @@
     <input id="tool-file-input" type="file" accept=".js,.mjs" hidden />
 
     <noscript>GIS Map Online requires JavaScript.</noscript>
-    <script type="module" src="./js/app.js?v=0.16.7"></script>
+    <script type="module" src="./js/app.js?v=0.16.9"></script>
   </body>
 </html>

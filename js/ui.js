@@ -96,7 +96,17 @@ export class UIController {
   #buildMobileMenu() {
     const drawer = document.querySelector("#mobile-menu-drawer");
     const desktopMenu = document.querySelector("#sidebar > .menu-bar");
-    drawer.replaceChildren(desktopMenu.cloneNode(true));
+    const header = document.createElement("header");
+    header.className = "mobile-menu-drawer__header";
+    const title = document.createElement("strong");
+    title.textContent = "Main menu";
+    const close = document.createElement("button");
+    close.id = "mobile-menu-close";
+    close.type = "button";
+    close.setAttribute("aria-label", "Close main menu");
+    close.textContent = "×";
+    header.append(title, close);
+    drawer.replaceChildren(header, desktopMenu.cloneNode(true));
   }
 
   #bindMenus() {
@@ -228,12 +238,20 @@ export class UIController {
       if (!opening) this.#closeMenus();
     };
     document.querySelector("#mobile-menu-toggle").addEventListener("click", toggleMobileMenu);
+    document.querySelector("#mobile-menu-close")?.addEventListener("click", toggleMobileMenu);
     document.querySelector("#mobile-map-tools-toggle").addEventListener("click", (event) => {
       const open = !document.body.classList.contains("mobile-map-tools-open");
       document.body.classList.toggle("mobile-map-tools-open", open);
       event.currentTarget.setAttribute("aria-expanded", String(open));
       event.currentTarget.setAttribute("aria-label", `${open ? "Close" : "Open"} map controls`);
     });
+    const setMapToolsCollapsed = (collapsed) => {
+      document.body.classList.toggle("map-tools-collapsed", collapsed);
+      document.querySelector("#map-navigation-open").hidden = !collapsed;
+    };
+    document.querySelector("#map-navigation-close")?.addEventListener("click", () => setMapToolsCollapsed(true));
+    document.querySelector("#globe-navigation-close")?.addEventListener("click", () => setMapToolsCollapsed(true));
+    document.querySelector("#map-navigation-open")?.addEventListener("click", () => setMapToolsCollapsed(false));
     document.querySelectorAll("[data-mobile-panel]").forEach((button) =>
       button.addEventListener("click", () => this.#activateMobilePanel(button.dataset.mobilePanel)),
     );
@@ -1816,7 +1834,12 @@ export class UIController {
     const idField = layer?.objectIdField;
     const selected = idField ? this.presentationState.records.find((record) => featureId(record, idField) === featureId(result, idField)) || result : result;
     this.presentationState.selected = selected;
-    this.presentationState.selectedIds = new Set([featureId(selected, idField)].filter(Boolean));
+    const selectedId = featureId(selected, idField);
+    if (this.presentationState.template === "briefing") {
+      if (selectedId) this.presentationState.selectedIds.add(selectedId);
+    } else {
+      this.presentationState.selectedIds = new Set([selectedId].filter(Boolean));
+    }
     this.mapController.highlightFeature(selected);
     this.#setInsightsOpen(false);
     this.#renderPresentationDashboard(this.projectManager.current.presentation || {});
@@ -1877,6 +1900,7 @@ export class UIController {
     const root = document.querySelector("#presentation-dashboard");
     if (!root) return;
     const template = presentation.template || "standard";
+    if (template !== "briefing") document.querySelector("#briefing-context-host")?.replaceChildren();
     this.#syncPresentationMobileControls(presentation);
     if (template === "standard") { root.replaceChildren(); root.hidden = true; return; }
     root.hidden = false;
@@ -2158,6 +2182,7 @@ export class UIController {
 
   #renderBriefingWorkspace(root, presentation, layer, fields) {
     const state = this.presentationState;
+    document.querySelector("#briefing-context-host")?.replaceChildren();
     const selected = state.selected;
     const contextSettings = this.#briefingContextSettings(presentation);
     const contextSources = [layer, ...this.mapController.getOperationalLayers().filter((item) => item !== layer)]
@@ -2165,18 +2190,36 @@ export class UIController {
     const nameField = state.roles?.title || fields.text[0]?.name;
     const idField = layer.objectIdField;
     const overview = selected ? Object.entries(selected.attributes || {}).filter(([key, value]) => value != null && value !== "" && key !== idField).slice(0, 5) : [];
+    const useAll = state.briefingUseAll === true;
     const section = (key, title, content) => contextSettings.sections[key] ? `<section><h4>${title}</h4>${content}</section>` : "";
     root.innerHTML = `<section class="mode-dashboard mode-dashboard--briefing presentation-workspace"><header class="presentation-compact-header"><span class="eyebrow">Context briefing</span><h2>${escapeHtml(presentation.title || layer.title || "Feature briefing")}</h2><label class="compact-dataset"><span>Dataset</span><select data-mode-dataset>${this.mapController.getOperationalLayers().filter((item) => typeof item.queryFeatures === "function").map((item) => `<option value="${escapeHtml(item.uid)}"${item.uid === layer.uid ? " selected" : ""}>${escapeHtml(item.title || "Untitled layer")}</option>`).join("")}</select></label></header><div class="briefing-search"><label class="field"><span>Search field</span><select data-search-field>${this.#fieldOptions(fields.fields, state.searchField)}</select></label><label class="field"><span>Find a feature</span><input data-mode-search value="${escapeHtml(state.search)}" placeholder="Search ${escapeHtml(fields.fields.find((field) => field.name === state.searchField)?.alias || nameField || "features")}"/></label><button data-mode-clear>Clear</button></div><div class="mode-records briefing-records">${state.visibleRecords.slice(0, 100).map((record) => `<button class="mode-record${record === selected ? " is-selected" : ""}" data-mode-record-id="${escapeHtml(featureId(record, idField))}"><strong>${escapeHtml(this.#recordLabel(record, fields))}</strong><small>${escapeHtml(featureId(record, idField) || "")}</small></button>`).join("") || "<p class=\"form-note\">No locally available features match.</p>"}</div><aside class="mode-details briefing-context"><button class="context-settings-button" data-briefing-settings aria-label="Context settings" title="Context settings">⚙</button><span class="eyebrow">${selected ? "Feature context" : "Select a feature"}</span>${selected ? `<h3>${escapeHtml(this.#recordLabel(selected, fields))}</h3><div class="detail-actions"><button data-selection-zoom aria-label="Zoom to feature" title="Zoom to feature">⌕</button><button data-selection-clear aria-label="Clear selected feature" title="Clear selected feature">×</button></div>${section("overview", "Overview", `<dl>${overview.map(([key,value]) => `<div><dt>${escapeHtml(fields.fields.find((field) => field.name === key)?.alias || key)}</dt><dd>${escapeHtml(formatAttributeValue(value, fields.fields.find((field) => field.name === key), key))}</dd></div>`).join("")}</dl>`)}${section("surroundings", "Surroundings", `<p data-briefing-surroundings>Checking visible contextual datasets…</p>`)}${section("ai", "AI context", `<p data-briefing-ai>${this.aiController.isConfigured() ? "Deterministic context appears first. Generate a concise explanation after reviewing it." : "AI is not configured. Spatial context and source details remain available."}</p>${this.aiController.isConfigured() ? "<button data-briefing-ai-run>Generate sourced context</button>" : ""}`)}${section("sources", "Sources", contextSources.map((source) => `<p>${escapeHtml(source.title || "Dataset")} ${source === layer ? `· retrieved ${escapeHtml(this.#formatExplorerTime(state.fetchedAt))}` : ""}</p>${source.url ? `<a href="${escapeHtml(source.url)}" target="_blank" rel="noopener">Open dataset source ↗</a>` : ""}`).join("") || "<p>No sources selected.</p>")}<details><summary>All attributes</summary><dl>${Object.entries(selected.attributes || {}).map(([key,value]) => `<div><dt>${escapeHtml(key)}</dt><dd>${escapeHtml(value)}</dd></div>`).join("")}</dl></details>` : "<p>Choose a named feature or click it on the map. The right context panel keeps selection, map highlight, and details synchronized.</p>"}</aside></section>`;
+    const records = root.querySelector(".briefing-records");
+    if (records) {
+      const scope = document.createElement("div");
+      scope.className = "briefing-scope";
+      scope.innerHTML = `<label><input type="checkbox" data-briefing-use-all${useAll ? " checked" : ""}> Use all matching features</label><span>${useAll ? `${state.visibleRecords.length} included` : `${state.selectedIds.size} selected for briefing`}</span>`;
+      records.before(scope);
+      records.querySelectorAll("[data-mode-record-id]").forEach((button) => {
+        const id = button.dataset.modeRecordId;
+        const row = document.createElement("article");
+        row.className = `briefing-record${state.selectedIds.has(id) ? " is-included" : ""}`;
+        row.innerHTML = `<label class="briefing-record__include" title="Include in briefing"><input type="checkbox" data-briefing-include="${escapeHtml(id)}"${useAll || state.selectedIds.has(id) ? " checked" : ""}${useAll ? " disabled" : ""}><span class="sr-only">Include feature in briefing</span></label>`;
+        button.before(row);
+        row.append(button);
+      });
+    }
     if (selected) {
       const location = document.createElement("section");
       location.className = "briefing-location-details";
-      location.innerHTML = `<span class="eyebrow">Location details</span><p data-briefing-address>Finding nearest address…</p>`;
+      location.innerHTML = `<span class="eyebrow">Location details</span><p data-briefing-address>Finding nearest address…</p><div class="briefing-coordinates"><code data-briefing-coordinates>Finding coordinates…</code><button type="button" data-copy-briefing-coordinates>Copy X/Y</button></div>`;
       root.querySelector(".briefing-records")?.after(location);
       document.body.dataset.briefingContextDock = contextSettings.dock;
     }
     this.#addPresentationDockControl(root);
     this.#bindBriefingWorkspace(root, presentation, layer, fields);
-    if (selected) void this.#loadBriefingContext(root, selected, layer);
+    const context = root.querySelector(".briefing-context");
+    if (context) document.querySelector("#briefing-context-host")?.replaceChildren(context);
+    if (selected) void this.#loadBriefingContext(root, context, selected, layer);
   }
 
   #bindBriefingWorkspace(root, presentation, layer, fields) {
@@ -2186,8 +2229,10 @@ export class UIController {
     root.querySelector("[data-search-field]")?.addEventListener("change", (event) => { state.searchField = event.target.value; state.searchOperator = "contains"; refresh(); });
     root.querySelector("[data-mode-search]")?.addEventListener("input", (event) => { state.search = event.target.value; clearTimeout(this.presentationSearchTimer); this.presentationSearchTimer = setTimeout(refresh, 180); });
     root.querySelector("[data-mode-clear]")?.addEventListener("click", () => { state.search = ""; refresh(); });
+    root.querySelector("[data-briefing-use-all]")?.addEventListener("change", (event) => { state.briefingUseAll = event.target.checked; this.#renderBriefingWorkspace(root, presentation, layer, fields); });
+    root.querySelectorAll("[data-briefing-include]").forEach((input) => input.addEventListener("change", () => { input.checked ? state.selectedIds.add(input.dataset.briefingInclude) : state.selectedIds.delete(input.dataset.briefingInclude); this.#renderBriefingWorkspace(root, presentation, layer, fields); }));
     root.querySelectorAll("[data-mode-record-id]").forEach((button) => button.addEventListener("click", () => { const record = state.visibleRecords.find((item) => featureId(item, layer.objectIdField) === button.dataset.modeRecordId); this.#selectPresentationResult(record); }));
-    root.querySelector("[data-selection-clear]")?.addEventListener("click", () => { this.briefingRequest.cancel(); state.selected = null; state.selectedIds.clear(); this.mapController.clearFeatureHighlight(); this.#renderBriefingWorkspace(root, presentation, layer, fields); });
+    root.querySelector("[data-selection-clear]")?.addEventListener("click", () => { this.briefingRequest.cancel(); state.selected = null; this.mapController.clearFeatureHighlight(); this.#renderBriefingWorkspace(root, presentation, layer, fields); });
     root.querySelectorAll("[data-mode-record-id]").forEach((button) => button.addEventListener("click", async () => { const record = state.visibleRecords.find((item) => featureId(item, layer.objectIdField) === button.dataset.modeRecordId); if (record?.geometry) await this.mapController.view?.goTo?.({ target: record.geometry, zoom: this.mapController.view?.zoom }, { animate: true }); }));
     root.querySelector("[data-selection-zoom]")?.addEventListener("click", async () => { if (state.selected?.geometry) await this.mapController.view?.goTo?.({ target: state.selected.geometry, zoom: Math.min(18, (this.mapController.view?.zoom || 10) + 2) }, { padding: { left: 80, right: 420 } }); });
     root.querySelector("[data-briefing-settings]")?.addEventListener("click", () => this.#briefingSettingsDialog(presentation, layer));
@@ -2241,22 +2286,31 @@ export class UIController {
     });
   }
 
-  async #loadBriefingContext(root, selected, primaryLayer) {
+  async #loadBriefingContext(root, contextRoot, selected, primaryLayer) {
     const token = this.briefingRequest.next();
-    const output = root.querySelector("[data-briefing-surroundings]");
-    if (!output) return;
+    const output = contextRoot?.querySelector("[data-briefing-surroundings]");
     const addressOutput = root.querySelector("[data-briefing-address]");
-    if (selected.geometry?.type === "point") {
-      void this.mapController.reverseGeocode(selected.geometry).then((result) => {
+    const location = this.mapController.geographicCoordinates(selected.geometry);
+    const representativePoint = location?.point || this.mapController.representativePoint(selected.geometry);
+    const coordinatesOutput = root.querySelector("[data-briefing-coordinates]");
+    const coordinatesText = location ? `${location.longitude.toFixed(6)}, ${location.latitude.toFixed(6)}` : "Coordinates unavailable";
+    if (coordinatesOutput) coordinatesOutput.textContent = coordinatesText;
+    root.querySelector("[data-copy-briefing-coordinates]")?.addEventListener("click", async () => {
+      await navigator.clipboard?.writeText(coordinatesText);
+      this.toast("Coordinates copied.");
+    });
+    if (representativePoint) {
+      void this.mapController.reverseGeocode(representativePoint).then((result) => {
         if (this.briefingRequest.valid(token) && this.presentationState.selected === selected && addressOutput?.isConnected) {
           addressOutput.textContent = result?.address ? `Nearest address: ${result.address}` : "Nearest address: not available for this feature.";
         }
       }).catch(() => { if (addressOutput?.isConnected) addressOutput.textContent = "Nearest address: not available for this feature."; });
     } else if (addressOutput) {
-      addressOutput.textContent = "Location details are available for point features.";
+      addressOutput.textContent = "Nearest address: not available for this feature.";
     }
     const settings = this.#briefingContextSettings(this.projectManager.current.presentation);
     const contextual = this.mapController.getOperationalLayers().filter((layer) => layer !== primaryLayer && layer.visible && typeof layer.queryFeatureCount === "function" && (!settings.layerIds.length || settings.layerIds.includes(layer.uid)));
+    if (!output) return;
     if (!contextual.length) { output.textContent = "No other visible queryable datasets are available. Add or show a contextual layer to inspect surroundings."; return; }
     const results = await Promise.all(contextual.map(async (layer) => {
       try {

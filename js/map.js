@@ -1221,6 +1221,23 @@ export class MapController {
     }
   }
 
+  representativePoint(geometry) {
+    if (!geometry) return null;
+    return geometry.type === "point" ? geometry : geometry.centroid ?? geometry.extent?.center ?? null;
+  }
+
+  geographicCoordinates(geometry) {
+    let point = this.representativePoint(geometry);
+    if (!point) return null;
+    const wkid = point.spatialReference?.wkid;
+    if (![4326, 4269].includes(wkid) && this.modules.webMercatorUtils?.canProject(point, { wkid: 4326 })) {
+      point = this.modules.webMercatorUtils.project(point, { wkid: 4326 });
+    }
+    const longitude = Number(point.longitude ?? point.x);
+    const latitude = Number(point.latitude ?? point.y);
+    return Number.isFinite(longitude) && Number.isFinite(latitude) ? { longitude, latitude, point } : null;
+  }
+
   async toggleWidget(name) {
     const existing = this.widgets.get(name);
     if (existing) {
