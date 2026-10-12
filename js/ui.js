@@ -527,6 +527,17 @@ export class UIController {
 
   #dockDialogInUtilityPanel() {
     if (!this.dialog.open) return;
+    // A dialog opened from an existing utility pane must return that pane to
+    // its original tab. Docking the dialog shell as a second tab would give
+    // one tool two owners (and produced duplicate Guided Places tabs).
+    if (this.utilityModalPane) {
+      const returnTab = this.utilityModalPane.dataset.utilityPane;
+      this.#restoreUtilityModal();
+      this.suppressNextDialogClose = true;
+      this.dialog.close();
+      this.#syncUtilityPanel(returnTab);
+      return;
+    }
     this.suppressNextDialogClose = true;
     this.dialog.close();
     this.dialog.classList.add("app-dialog--docked");
@@ -576,6 +587,8 @@ export class UIController {
     tabList.querySelectorAll("[data-close-utility-tab]").forEach((button) => button.addEventListener("click", () => this.#closeUtilityTab(button.dataset.closeUtilityTab)));
     document.querySelectorAll("[data-utility-pane]").forEach((pane) => { pane.hidden = pane.dataset.utilityPane !== this.activeUtilityTab; });
     document.querySelector("#utility-title").textContent = tabs.find((tab) => tab.id === this.activeUtilityTab)?.label || "Map tools";
+    const utilityModalButton = document.querySelector("#utility-open-modal");
+    if (utilityModalButton) utilityModalButton.hidden = this.activeUtilityTab === "presentation";
     document.body.classList.toggle("utility-panel-open", open);
     document.body.classList.toggle("mobile-presentation-panel-open", this.mobileMedia.matches && open && this.activeUtilityTab === "presentation");
     document.querySelector("#utility-panel").setAttribute("aria-hidden", String(!open));

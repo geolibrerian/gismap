@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { PanelManager } from "../js/panel-manager.js";
+import { readFileSync } from "node:fs";
 
 class FakeElement {
   constructor(name) { this.name = name; this.children = []; this.parentElement = null; this.dataset = {}; this.hidden = false; }
@@ -48,4 +49,10 @@ test("a managed panel has exactly one DOM owner and returns to its original orde
   assert.equal(utility.children.length, 0);
   assert.equal(shell.hidden, false);
   assert.equal(manager.surface("intelligence"), "home");
+});
+
+test("utility modal docking returns an existing pane instead of creating a duplicate tab", () => {
+  const ui = readFileSync(new URL("../js/ui.js", import.meta.url), "utf8");
+  assert.match(ui, /if \(this\.utilityModalPane\)[\s\S]*?#restoreUtilityModal\(\)[\s\S]*?#syncUtilityPanel\(returnTab\)/);
+  assert.match(ui, /utilityModalButton\.hidden = this\.activeUtilityTab === "presentation"/);
 });
