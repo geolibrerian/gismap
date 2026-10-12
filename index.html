@@ -53,7 +53,7 @@
     <link rel="icon" href="./assets/gis-map-online-mark-v2.png" type="image/png" />
     <link rel="preconnect" href="https://js.arcgis.com" />
     <link rel="stylesheet" href="https://js.arcgis.com/5.0/esri/themes/light/main.css" />
-    <link rel="stylesheet" href="./css/app.css?v=0.16.6" />
+    <link rel="stylesheet" href="./css/app.css?v=0.16.7" />
     <script type="module" src="https://js.arcgis.com/5.0/"></script>
     <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
     <script src="https://unpkg.com/@mapbox/shp-write@0.4.3/shpwrite.js"></script>
@@ -262,6 +262,20 @@
           aria-expanded="false"
         >▦</button>
         <button id="mobile-map-tools-toggle" class="mobile-map-tools-toggle" type="button" aria-label="Open map controls" aria-controls="map-navigation" aria-expanded="false">‹</button>
+        <nav id="globe-top-navigation" class="globe-top-nav" aria-label="Orbital Globe map tools">
+          <span class="globe-top-nav__title"><strong>Orbital Globe</strong><small>Map tools</small></span>
+          <span class="globe-top-nav__controls">
+            <button data-nav="home" type="button" title="Default extent" aria-label="Default extent">⌂</button>
+            <button data-nav="locate" type="button" title="My location" aria-label="My location">◎</button>
+            <button data-nav="out" type="button" title="Zoom out" aria-label="Zoom out">−</button>
+            <button data-nav="in" type="button" title="Zoom in" aria-label="Zoom in">+</button>
+            <button data-nav="rotate-left" type="button" title="Rotate left" aria-label="Rotate left">↶</button>
+            <button data-nav="rotate-right" type="button" title="Rotate right" aria-label="Rotate right">↷</button>
+            <button data-nav="tilt-down" type="button" title="Tilt camera down" aria-label="Tilt camera down">▼</button>
+            <button data-nav="tilt-up" type="button" title="Tilt camera up" aria-label="Tilt camera up">▲</button>
+          </span>
+          <button id="globe-dashboard-settings" class="globe-top-nav__settings" type="button" title="Dashboard settings" aria-label="Open dashboard settings"><span aria-hidden="true">⚙</span><span>Settings</span></button>
+        </nav>
         <div id="map-navigation" class="map-nav" aria-label="Map navigation">
           <button data-nav="home" title="Default extent">⌂</button>
           <button data-nav="locate" title="My location">◎</button>
@@ -349,6 +363,6 @@
     <input id="tool-file-input" type="file" accept=".js,.mjs" hidden />
 
     <noscript>GIS Map Online requires JavaScript.</noscript>
-    <script type="module" src="./js/app.js?v=0.16.6"></script>
+    <script type="module" src="./js/app.js?v=0.16.7"></script>
   </body>
 </html>

@@ -321,6 +321,7 @@ export class UIController {
       this.projectManager.setApplication(application);
     });
     document.querySelector("#dashboard-settings-open")?.addEventListener("click", () => this.#applicationBuilderDialog());
+    document.querySelector("#globe-dashboard-settings")?.addEventListener("click", () => this.#applicationBuilderDialog());
   }
 
   #bindMapEvents() {
