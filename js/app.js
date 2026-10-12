@@ -1,12 +1,12 @@
 import { events } from "./events.js?v=0.16.0";
 import { AuthController } from "./auth.js?v=0.16.0";
 import { MapController } from "./map.js?v=0.16.4";
-import { ProjectManager } from "./project.js?v=0.16.5";
+import { ProjectManager } from "./project.js?v=0.16.6";
 import { IdentifyController } from "./identify.js?v=0.16.0";
 import { AttributeTableController } from "./attribute-table.js?v=0.16.0";
 import { AIController } from "./ai.js?v=0.16.0";
 import { ToolManager } from "./tool-manager.js?v=0.16.0";
-import { UIController } from "./ui.js?v=0.16.5";
+import { UIController } from "./ui.js?v=0.16.6";
 import { ExportController } from "./export/export-controller.js?v=0.16.0";
 import { parseShareParameters } from "./share.js?v=0.16.0";
 import { decodeEmbeddedTour } from "./tour-share.js?v=0.16.0";
