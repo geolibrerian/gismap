@@ -1934,13 +1934,32 @@ export class UIController {
       const playing = Boolean(this.presentationState.atlasPlaying);
       const playbackMode = presentation.playbackMode === "manual" ? "manual" : "auto";
       const skinOptions = [["clean-light","Clean Light"],["highway","Highway"],["steeler","Steeler"],["dark-analytical","Midnight"],["tidal-95","Pacific ’94"],["portolan","Copperplate"],["velvet-orbit","Velvet Orbit"],["violet-circuit","Violet Circuit"]];
-      root.innerHTML = `<section class="mode-dashboard mode-dashboard--atlas"><header><span class="eyebrow">Atlas · ${this.presentationState.atlasPresent ? "present" : "edit"} mode</span><h2>${escapeHtml(presentation.title || "Guided places")}</h2><p>Capture exact map views, descriptions, media, and layer states as a shareable guided tour.</p></header><label class="atlas-skin-control"><span>Look &amp; feel</span><select data-atlas-skin>${skinOptions.map(([value,label]) => `<option value="${value}"${presentation.skin === value ? " selected" : ""}>${label}</option>`).join("")}</select></label><div class="atlas-present-action"><button type="button" data-atlas-mode>${this.presentationState.atlasPresent ? "Edit chapters" : "Present atlas"}</button></div><label class="atlas-playback-mode"><span>Playback</span><select data-atlas-playback><option value="auto"${playbackMode === "auto" ? " selected" : ""}>Auto · use linger time</option><option value="manual"${playbackMode === "manual" ? " selected" : ""}>Manual · use Back and Next</option></select></label><div class="atlas-actions"><button type="button" data-atlas-capture ${this.presentationState.atlasPresent ? "hidden" : ""}>Add another chapter</button><button type="button" data-atlas-share>Share tour</button><button type="button" data-atlas-export>Export tour</button></div><div class="mode-records">${chapters.map((chapter, index) => `<article class="atlas-chapter"><button type="button" data-atlas-go="${index}"><span>${index + 1}</span><strong>${escapeHtml(chapter.title || `Chapter ${index + 1}`)}</strong><small>${escapeHtml(chapter.reverseAddress || chapter.body || "Saved map view")}${chapter.basemapId ? ` · ${escapeHtml(this.#basemapLabel(chapter.basemapId))}` : ""}${playbackMode === "auto" && chapter.lingerSeconds ? ` · ${chapter.lingerSeconds}s` : ""}</small></button>${this.presentationState.atlasPresent ? "" : `<div><button type="button" data-atlas-rename="${index}">Edit</button><button type="button" data-atlas-delete="${index}">Delete</button></div>`}</article>`).join("") || "<p class=\"form-note\">No chapters yet. Add another chapter to begin the atlas.</p>"}</div></section>`;
+      root.innerHTML = `<section class="mode-dashboard mode-dashboard--atlas"><header><span class="eyebrow">Atlas · ${this.presentationState.atlasPresent ? "present" : "edit"} mode</span><h2>${escapeHtml(presentation.title || "Guided places")}</h2><p>Capture exact map views, descriptions, media, and layer states as a shareable guided tour.</p></header><label class="atlas-skin-control"><span>Look &amp; feel</span><select data-atlas-skin>${skinOptions.map(([value,label]) => `<option value="${value}"${presentation.skin === value ? " selected" : ""}>${label}</option>`).join("")}</select></label><div class="atlas-present-action"><button type="button" data-atlas-mode>${this.presentationState.atlasPresent ? "Edit chapters" : "Present atlas"}</button></div><label class="atlas-playback-mode"><span>Playback</span><select data-atlas-playback><option value="auto"${playbackMode === "auto" ? " selected" : ""}>Auto · use linger time</option><option value="manual"${playbackMode === "manual" ? " selected" : ""}>Manual · use Back and Next</option></select></label><div class="atlas-actions"><button type="button" data-atlas-capture ${this.presentationState.atlasPresent ? "hidden" : ""}>Add another chapter</button><button type="button" data-atlas-share>Share tour</button><button type="button" data-atlas-export>Export tour</button></div><div class="mode-records">${chapters.map((chapter, index) => `<article class="atlas-chapter"><button type="button" data-atlas-go="${index}"><span>${index + 1}</span><strong>${escapeHtml(chapter.title || `Chapter ${index + 1}`)}</strong><small>${escapeHtml(chapter.reverseAddress || chapter.body || "Saved map view")}${chapter.basemapId ? ` · ${escapeHtml(this.#basemapLabel(chapter.basemapId))}` : ""}${playbackMode === "auto" && chapter.lingerSeconds ? ` · ${chapter.lingerSeconds}s` : ""}</small></button>${this.presentationState.atlasPresent ? "" : `<div><button type="button" data-atlas-rename="${index}">Edit</button><button type="button" data-atlas-delete="${index}">Delete</button></div>`}</article>`).join("") || "<p class=\"form-note\">No chapters yet. Add a chapter to begin the atlas.</p>"}</div></section>`;
       if (!this.presentationState.atlasPresent) {
         const titleControl = document.createElement("label");
         titleControl.className = "atlas-title-control";
         titleControl.innerHTML = `<span>Tour name</span><input data-atlas-title type="text" maxlength="80" value="${escapeHtml(presentation.title || "")}" placeholder="Guided places" autocomplete="off">`;
         root.querySelector(".mode-dashboard--atlas > header")?.after(titleControl);
       }
+      const atlasActions = root.querySelector(".atlas-actions");
+      const modeButton = root.querySelector("[data-atlas-mode]");
+      const captureButton = root.querySelector("[data-atlas-capture]");
+      const shareButton = root.querySelector("[data-atlas-share]");
+      if (atlasActions && modeButton) {
+        modeButton.textContent = this.presentationState.atlasPresent ? "Edit tour" : "Present tour";
+        atlasActions.prepend(modeButton);
+        const settingsButton = document.createElement("button");
+        settingsButton.type = "button";
+        settingsButton.dataset.atlasSettings = "";
+        settingsButton.textContent = "Tour settings";
+        modeButton.after(settingsButton);
+      }
+      if (captureButton) captureButton.textContent = "Add a chapter";
+      if (shareButton) shareButton.textContent = "Share & export";
+      root.querySelector("[data-atlas-export]")?.remove();
+      root.querySelector(".atlas-present-action")?.remove();
+      root.querySelector(".atlas-skin-control")?.remove();
+      root.querySelector(".atlas-playback-mode")?.remove();
       this.#addPresentationDockControl(root);
       root.querySelector("[data-atlas-mode]")?.addEventListener("click", async () => {
         if (this.mobileAtlasSettingsOpen) {
@@ -1957,6 +1976,7 @@ export class UIController {
       root.querySelector("[data-atlas-capture]")?.addEventListener("click", () => this.#captureAtlasChapter());
       root.querySelector("[data-atlas-export]")?.addEventListener("click", () => this.projectManager.exportAtlas());
       root.querySelector("[data-atlas-share]")?.addEventListener("click", () => this.#shareAtlasDialog());
+      root.querySelector("[data-atlas-settings]")?.addEventListener("click", () => this.#atlasSettingsDialog());
       root.querySelector("[data-atlas-title]")?.addEventListener("change", (event) => {
         const title = event.target.value.trim().slice(0, 80);
         const updated = this.projectManager.setPresentation({ ...this.projectManager.current.presentation, title });
@@ -2673,6 +2693,31 @@ export class UIController {
     if (play) { play.setAttribute("aria-label", "Stop tour"); play.innerHTML = "■ <span>Stop</span>"; }
   }
 
+  #atlasSettingsDialog() {
+    const presentation = this.projectManager.current.presentation || {};
+    const playbackMode = presentation.playbackMode === "manual" ? "manual" : "auto";
+    const skins = [["clean-light","Clean Light"],["highway","Highway"],["steeler","Steeler"],["dark-analytical","Midnight"],["tidal-95","Pacific ’94"],["portolan","Copperplate"],["velvet-orbit","Velvet Orbit"],["violet-circuit","Violet Circuit"]];
+    this.openDialog({
+      eyebrow: "Guided places",
+      title: "Tour settings",
+      content: `<div class="atlas-settings"><label class="field"><span>Look &amp; feel</span><select data-atlas-settings-skin>${skins.map(([value, label]) => `<option value="${value}"${presentation.skin === value ? " selected" : ""}>${label}</option>`).join("")}</select></label><label class="field"><span>Playback</span><select data-atlas-settings-playback><option value="auto"${playbackMode === "auto" ? " selected" : ""}>Auto · advance after each linger time</option><option value="manual"${playbackMode === "manual" ? " selected" : ""}>Manual · use Back and Next</option></select></label><p class="form-note">Chapter camera movement, linger time, basemap, descriptions, images, and visible layers are edited on each chapter.</p></div>`,
+      actions: [
+        { label: "Cancel", handler: () => this.dialog.close() },
+        { label: "Save settings", primary: true, handler: () => {
+          this.#stopAtlasStory();
+          const updated = this.projectManager.setPresentation({
+            ...this.projectManager.current.presentation,
+            skin: this.dialog.querySelector("[data-atlas-settings-skin]").value,
+            playbackMode: this.dialog.querySelector("[data-atlas-settings-playback]").value,
+          });
+          this.dialog.close();
+          this.#renderPresentationDashboard(updated);
+          this.toast("Tour settings saved.");
+        } },
+      ],
+    });
+  }
+
   #shareAtlasDialog() {
     let regularUrl;
     let tourOnlyUrl;
@@ -2688,8 +2733,8 @@ export class UIController {
     const iframe = `<iframe src="${escapeHtml(embedUrl)}" title="${escapeHtml(title)} guided map tour" loading="lazy" allow="fullscreen; geolocation" allowfullscreen style="width:100%;height:600px;border:0"></iframe>`;
     const selectedUrl = () => this.dialog.querySelector("[data-tour-share-url]")?.value || regularUrl;
     this.tourShareImageFile = null;
-    this.openDialog({ eyebrow: "Share guided places", title: "Camera-only tour link", content: `<p class="form-note">This compact link shares chapter names and map cameras only—no descriptions, images, layers, or credentials. Choose whether viewers may exit into the full GIS workspace.</p><fieldset class="tour-share-options"><legend>Viewer access</legend><label><input type="radio" name="tour-share-mode" value="regular" checked><span><strong>Tour with GIS tools</strong><small>Viewers can exit the tour and continue in the standard map workspace.</small></span></label><label><input type="radio" name="tour-share-mode" value="tour-only"><span><strong>Tour only</strong><small>Hide authoring menus, map tools, and the Exit tour control.</small></span></label></fieldset><label class="field"><span>Link</span><textarea readonly rows="4" data-tour-share-url>${escapeHtml(regularUrl)}</textarea></label><details class="tour-embed"><summary>Embed this tour on a website</summary><p class="form-note">Paste this iframe into your page. It opens the same camera-only tour without the GIS authoring interface.</p><textarea readonly rows="6" data-tour-embed-code>${escapeHtml(iframe)}</textarea><button type="button" data-tour-copy-embed>Copy embed HTML</button></details><div class="tour-share-card"><canvas data-tour-share-card width="760" height="960" role="img" aria-label="Branded QR card for this guided places tour"></canvas><p class="tour-share-card__status" data-tour-share-status>Building complete-link QR card…</p></div>`, actions: [
-      { label: "Save a copy", handler: () => this.projectManager.exportAtlas() },
+    this.openDialog({ eyebrow: "Guided places", title: "Share & export", content: `<p class="form-note">Share a camera-only link or download the complete tour file. Links omit descriptions, images, layers, and credentials; the .gmoatlas file preserves the complete authored tour.</p><fieldset class="tour-share-options"><legend>Viewer access</legend><label><input type="radio" name="tour-share-mode" value="regular" checked><span><strong>Tour with GIS tools</strong><small>Viewers can exit the tour and continue in the standard map workspace.</small></span></label><label><input type="radio" name="tour-share-mode" value="tour-only"><span><strong>Tour only</strong><small>Hide authoring menus, map tools, and the Exit tour control.</small></span></label></fieldset><label class="field"><span>Link</span><textarea readonly rows="4" data-tour-share-url>${escapeHtml(regularUrl)}</textarea></label><details class="tour-embed"><summary>Embed this tour on a website</summary><p class="form-note">Paste this iframe into your page. It opens the same camera-only tour without the GIS authoring interface.</p><textarea readonly rows="6" data-tour-embed-code>${escapeHtml(iframe)}</textarea><button type="button" data-tour-copy-embed>Copy embed HTML</button></details><div class="tour-share-card"><canvas data-tour-share-card width="760" height="960" role="img" aria-label="Branded QR card for this guided places tour"></canvas><p class="tour-share-card__status" data-tour-share-status>Building complete-link QR card…</p></div>`, actions: [
+      { label: "Download .gmoatlas", handler: () => this.projectManager.exportAtlas() },
       { label: "Download image", handler: () => {
         if (!this.tourShareImageFile) return this.error("The tour image is still being prepared.");
         const link = document.createElement("a");
@@ -2732,6 +2777,10 @@ export class UIController {
       await globalThis.QRCode.toCanvas(qrCanvas, url, { width: 520, margin: 2, errorCorrectionLevel: "L", color: { dark: "#072f2b", light: "#ffffff" } });
       if (renderToken !== this.tourShareRenderToken) return;
       const context = canvas.getContext("2d");
+      context.setTransform(1, 0, 0, 1, 0, 0);
+      context.clearRect(0, 0, canvas.width, canvas.height);
+      context.textAlign = "left";
+      context.textBaseline = "alphabetic";
       const gradient = context.createLinearGradient(0, 0, 760, 960);
       gradient.addColorStop(0, "#071f1c");
       gradient.addColorStop(1, "#145b4e");
@@ -2780,6 +2829,7 @@ export class UIController {
       context.fillStyle = "#f3ae2b";
       context.font = "700 18px system-ui, sans-serif";
       context.fillText("gismap.online", 380, 930);
+      context.textAlign = "left";
       const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/png"));
       if (!blob) throw new Error("Could not create image");
       const safeName = safeTitle.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "guided-tour";
