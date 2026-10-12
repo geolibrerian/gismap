@@ -61,7 +61,10 @@ export class MapController {
     this.map = null;
     this.view = null;
     this.drawLayer = null;
+    this.tourLayer = null;
     this.clickFeedbackLayer = null;
+    this.tourMarkerChapters = [];
+    this.tourMarkerActiveIndex = null;
     this.modules = {};
     this.layerConfigs = new Map();
     this.localAssets = new Map();
@@ -148,11 +151,16 @@ export class MapController {
     });
 
     this.drawLayer = new GraphicsLayer({ title: "Drawings", listMode: "hide" });
+    this.tourLayer = new GraphicsLayer({
+      title: "Guided tour locations",
+      listMode: "hide",
+      elevationInfo: { mode: "relative-to-ground", offset: 12 },
+    });
     this.clickFeedbackLayer = new GraphicsLayer({ title: "Click feedback", listMode: "hide" });
     this.map = new ArcGISMap({
       basemap: this.basemapId,
       ground: this.groundId,
-      layers: [this.drawLayer, this.clickFeedbackLayer],
+      layers: [this.drawLayer, this.tourLayer, this.clickFeedbackLayer],
     });
     this.view = new SceneView({
       container,
@@ -171,7 +179,17 @@ export class MapController {
     });
     await this.view.when();
     this.view.ui.empty("top-left");
-    this.view.on("click", (event) => {
+    this.view.on("click", async (event) => {
+      try {
+        const response = await this.view.hitTest(event, { include: [this.tourLayer] });
+        const tourHit = response?.results?.find((result) => result.graphic?.attributes?.tourMarker === true);
+        if (tourHit) {
+          this.events.publish("tour-marker:click", { index: Number(tourHit.graphic.attributes.chapterIndex) });
+          return;
+        }
+      } catch {
+        // A marker hit test must never prevent ordinary map interaction.
+      }
       this.showClickMarker(event.mapPoint);
       this.events.publish("map:click", event);
     });
@@ -449,7 +467,8 @@ export class MapController {
     } else if (!layer.title?.trim()) {
       layer.title = this.#titleFromUrl(config.url || layer.url);
     }
-    this.map.add(layer, Math.max(0, this.map.layers.length - 1));
+    // Keep internal tour and click-feedback graphics above operational data.
+    this.map.add(layer, Math.max(0, this.map.layers.length - 2));
     this.layerConfigs.set(layer.uid, { ...config });
     this.events.publish("layer:added", { layer, config: this.getLayerConfig(layer) });
     return layer;
@@ -468,7 +487,7 @@ export class MapController {
 
   removeLayer(uid) {
     const layer = this.findLayer(uid);
-    if (!layer || layer === this.drawLayer || layer === this.clickFeedbackLayer) return;
+    if (!layer || layer === this.drawLayer || layer === this.tourLayer || layer === this.clickFeedbackLayer) return;
     this.clearFeatureHighlight();
     this.map.remove(layer);
     this.layerConfigs.delete(uid);
@@ -596,7 +615,81 @@ export class MapController {
 
   getOperationalLayers() {
     return this.map?.layers?.toArray()
-      .filter((layer) => layer !== this.drawLayer && layer !== this.clickFeedbackLayer) ?? [];
+      .filter((layer) => layer !== this.drawLayer && layer !== this.tourLayer && layer !== this.clickFeedbackLayer) ?? [];
+  }
+
+  setTourMarkers(chapters = [], activeIndex = null) {
+    this.tourMarkerChapters = Array.isArray(chapters) ? chapters : [];
+    this.tourMarkerActiveIndex = Number.isInteger(activeIndex) ? activeIndex : null;
+    this.tourLayer?.removeAll();
+    if (!this.tourLayer || !this.modules.Graphic) return;
+
+    const graphics = [];
+    this.tourMarkerChapters.forEach((chapter, chapterIndex) => {
+      const point = this.#tourChapterPoint(chapter);
+      if (!point) return;
+      const active = chapterIndex === this.tourMarkerActiveIndex;
+      const geometry = { type: "point", longitude: point.longitude, latitude: point.latitude, spatialReference: { wkid: 4326 } };
+      const attributes = { tourMarker: true, chapterIndex, title: String(chapter?.title || `Chapter ${chapterIndex + 1}`) };
+      graphics.push(new this.modules.Graphic({
+        geometry,
+        attributes,
+        symbol: {
+          type: "simple-marker",
+          style: "circle",
+          size: active ? 22 : 17,
+          color: active ? [18, 63, 53, 245] : [255, 253, 248, 238],
+          outline: { color: active ? [255, 255, 255, 255] : [217, 149, 30, 255], width: active ? 3 : 2.5 },
+        },
+      }));
+      graphics.push(new this.modules.Graphic({
+        geometry,
+        attributes,
+        symbol: {
+          type: "text",
+          text: String(chapterIndex + 1),
+          color: active ? [255, 255, 255, 255] : [18, 63, 53, 255],
+          haloColor: active ? [18, 63, 53, 255] : [255, 253, 248, 255],
+          haloSize: 1,
+          font: { family: "sans-serif", size: active ? 10 : 9, weight: "bold" },
+        },
+      }));
+    });
+    if (graphics.length) this.tourLayer.addMany(graphics);
+  }
+
+  setActiveTourMarker(index = null) {
+    this.setTourMarkers(this.tourMarkerChapters, Number.isInteger(index) ? index : null);
+  }
+
+  clearTourMarkers() {
+    this.tourMarkerChapters = [];
+    this.tourMarkerActiveIndex = null;
+    this.tourLayer?.removeAll();
+  }
+
+  #tourChapterPoint(chapter = {}) {
+    const state = chapter.viewState || {};
+    const center = state.center;
+    if (Array.isArray(center) && Number.isFinite(Number(center[0])) && Number.isFinite(Number(center[1]))) {
+      const longitude = Number(center[0]);
+      const latitude = Number(center[1]);
+      if (Math.abs(longitude) <= 180 && Math.abs(latitude) <= 90) return { longitude, latitude };
+    }
+
+    const target = chapter.viewpoint?.targetGeometry || chapter.viewpoint?.target || state.camera?.position;
+    if (!target) return null;
+    let longitude = Number(target.longitude ?? target.x);
+    let latitude = Number(target.latitude ?? target.y);
+    const wkid = target.spatialReference?.latestWkid ?? target.spatialReference?.wkid;
+    if ([3857, 102100, 102113].includes(wkid)) {
+      const radius = 6378137;
+      longitude = (longitude / radius) * (180 / Math.PI);
+      latitude = (2 * Math.atan(Math.exp(latitude / radius)) - (Math.PI / 2)) * (180 / Math.PI);
+    }
+    return Number.isFinite(longitude) && Number.isFinite(latitude) && Math.abs(longitude) <= 180 && Math.abs(latitude) <= 90
+      ? { longitude, latitude }
+      : null;
   }
 
   getLayerConfig(layer) {

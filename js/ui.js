@@ -374,6 +374,11 @@ export class UIController {
       this.#applyPresentation({ template: "standard" });
       this.applicationRuntime.apply(application);
     });
+    this.events.subscribe("tour-marker:click", ({ index }) => {
+      if (this.presentationState.template !== "atlas" || !Number.isInteger(index)) return;
+      const chapters = this.projectManager.current.presentation?.chapters || [];
+      if (chapters[index]) void this.#goToAtlasChapter(chapters[index], index, chapters);
+    });
     this.events.subscribe("identify:complete", (payload) => this.#selectPresentationResult(payload.results?.find((result) => result.layerUid === this.presentationState.layerUid)));
     this.events.subscribe("project:exported", ({ kind }) => this.toast(`${kind === "package" ? "Project package (.gmop)" : kind === "atlas" ? "Guided tour (.gmoatlas)" : "Project file (.gmo)"} downloaded.`));
     this.events.subscribe("export:progress", ({ stage, completed, total }) => {
@@ -2479,6 +2484,7 @@ export class UIController {
     // than the chapter linger (or never resolve after an interrupted camera
     // transition), but it must not hold the player hostage.
     const chapterIndex = Number.isInteger(index) ? index : chapters.indexOf(chapter);
+    this.mapController.setActiveTourMarker(chapterIndex);
     this.#showAtlasChapterOverlay(chapter, chapterIndex, chapters);
     if (chapter.basemapId && BASEMAP_IDS.has(chapter.basemapId)) this.mapController.setBasemap(chapter.basemapId);
     const visibility = new Map((chapter.layerVisibility || []).map((entry) => [entry.key, entry.visible !== false]));
@@ -2528,6 +2534,7 @@ export class UIController {
     const description = document.querySelector("#atlas-chapter-description");
     if (description) description.hidden = true;
     this.presentationState.atlasChapterIndex = null;
+    this.mapController.setActiveTourMarker(null);
   }
 
   async #stepAtlasChapter(direction) {
@@ -2749,6 +2756,12 @@ export class UIController {
     app.dataset.presentation = template;
     app.dataset.presentationSkin = presentation.skin || "clean-light";
     document.body.dataset.presentation = template;
+    if (template === "atlas") {
+      const activeIndex = Number.isInteger(this.presentationState.atlasChapterIndex) ? this.presentationState.atlasChapterIndex : null;
+      this.mapController.setTourMarkers(presentation.chapters || [], activeIndex);
+    } else {
+      this.mapController.clearTourMarkers();
+    }
     document.querySelector("#presentation-status")?.remove();
     const welcomePanel = document.querySelector("#welcome-panel");
     let context = document.querySelector("#presentation-context");
