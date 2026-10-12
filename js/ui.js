@@ -804,6 +804,9 @@ export class UIController {
         case "map-presentation":
           this.#presentationDialog();
           break;
+        case "map-guided-tours":
+          this.#openGuidedTours();
+          break;
         case "map-customize":
           this.#applicationBuilderDialog();
           break;
@@ -3209,6 +3212,28 @@ export class UIController {
     this.dialog.querySelectorAll("[data-skin-choice]").forEach((card) => card.addEventListener("click", () => chooseSkin(card.dataset.skinChoice)));
     chooseSkin(current.skin === "retro-print" ? "portolan" : current.skin);
     select(this.dialog.querySelector(`[data-presentation-template="${current.template}"]`) || this.dialog.querySelector("[data-presentation-template=standard]"));
+  }
+
+  #openGuidedTours() {
+    const current = this.projectManager.current.presentation || {};
+    const returningToTour = current.template === "atlas";
+    const presentation = this.projectManager.setPresentation({
+      ...current,
+      template: "atlas",
+      skin: returningToTour ? (current.skin || "portolan") : "portolan",
+      title: current.title || "Guided places",
+      chapters: Array.isArray(current.chapters) ? current.chapters : [],
+    });
+    this.atlasPlaybackToken += 1;
+    clearTimeout(this.atlasPlaybackTimer);
+    this.atlasPlaybackTimer = null;
+    this.presentationState.atlasPlaying = false;
+    this.presentationState.atlasPresent = false;
+    this.mobileAtlasSettingsOpen = false;
+    this.#applyPresentation(presentation);
+    if (this.utilityPresentationOpen) this.#syncUtilityPanel("presentation");
+    this.#setSidebarCollapsed(false);
+    this.toast(returningToTour ? "Guided tour opened." : "Guided tours ready. Add a chapter to begin.");
   }
 
   async #importProject(event) {

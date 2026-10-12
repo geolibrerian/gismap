@@ -3,6 +3,11 @@ import { readFile } from "node:fs/promises";
 
 const html = await readFile(new URL("../index.html", import.meta.url), "utf8");
 const ui = await readFile(new URL("../js/ui.js", import.meta.url), "utf8");
+const html = await readFile(new URL("../index.html", import.meta.url), "utf8");
+
+assert.match(html, /data-action="map-guided-tours">Guided tours…</, "The Map menu must expose Guided Tours directly.");
+assert.match(ui, /case "map-guided-tours":[\s\S]*?#openGuidedTours\(\)/, "The direct Map menu route must open the existing Guided Tours workflow.");
+assert.match(ui, /#openGuidedTours\(\)[\s\S]*?template: "atlas"[\s\S]*?chapters: Array\.isArray\(current\.chapters\)/, "Opening Guided Tours directly must preserve existing chapters.");
 const app = await readFile(new URL("../js/app.js", import.meta.url), "utf8");
 
 assert.match(html, /id="atlas-tour-exit"[^>]*aria-label="Exit tour"/, "The chapter overlay must expose an Exit tour control.");
