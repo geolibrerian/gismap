@@ -571,7 +571,7 @@ export class UIController {
       ...(this.utilityDrawOpen ? [{ id: "draw", label: "Draw" }] : []),
       ...(this.utilityStyleLayerUid ? [{ id: "style", label: `Style: ${this.mapController.findLayer(this.utilityStyleLayerUid)?.title || "Layer"}` }] : []),
       ...(this.utilityIntelligenceOpen ? [{ id: "intelligence", label: "Intelligence" }] : []),
-      ...(this.utilityPresentationOpen ? [{ id: "presentation", label: this.projectManager.current.presentation?.template === "briefing" ? "Context briefing" : this.projectManager.current.presentation?.template === "explorer" ? "Dataset explorer" : "Guided places" }] : []),
+      ...(this.utilityPresentationOpen ? [{ id: "presentation", label: this.projectManager.current.presentation?.template === "briefing" ? "Context briefing" : this.projectManager.current.presentation?.template === "explorer" ? "Dataset explorer" : this.projectManager.current.presentation?.title || "Guided places" }] : []),
     ];
     const validTabs = new Set(tabs.map((tab) => tab.id));
     this.activeUtilityTab = validTabs.has(preferredTab)
@@ -1935,6 +1935,12 @@ export class UIController {
       const playbackMode = presentation.playbackMode === "manual" ? "manual" : "auto";
       const skinOptions = [["clean-light","Clean Light"],["highway","Highway"],["steeler","Steeler"],["dark-analytical","Midnight"],["tidal-95","Pacific ’94"],["portolan","Copperplate"],["velvet-orbit","Velvet Orbit"],["violet-circuit","Violet Circuit"]];
       root.innerHTML = `<section class="mode-dashboard mode-dashboard--atlas"><header><span class="eyebrow">Atlas · ${this.presentationState.atlasPresent ? "present" : "edit"} mode</span><h2>${escapeHtml(presentation.title || "Guided places")}</h2><p>Capture exact map views, descriptions, media, and layer states as a shareable guided tour.</p></header><label class="atlas-skin-control"><span>Look &amp; feel</span><select data-atlas-skin>${skinOptions.map(([value,label]) => `<option value="${value}"${presentation.skin === value ? " selected" : ""}>${label}</option>`).join("")}</select></label><div class="atlas-present-action"><button type="button" data-atlas-mode>${this.presentationState.atlasPresent ? "Edit chapters" : "Present atlas"}</button></div><label class="atlas-playback-mode"><span>Playback</span><select data-atlas-playback><option value="auto"${playbackMode === "auto" ? " selected" : ""}>Auto · use linger time</option><option value="manual"${playbackMode === "manual" ? " selected" : ""}>Manual · use Back and Next</option></select></label><div class="atlas-actions"><button type="button" data-atlas-capture ${this.presentationState.atlasPresent ? "hidden" : ""}>Add another chapter</button><button type="button" data-atlas-share>Share tour</button><button type="button" data-atlas-export>Export tour</button></div><div class="mode-records">${chapters.map((chapter, index) => `<article class="atlas-chapter"><button type="button" data-atlas-go="${index}"><span>${index + 1}</span><strong>${escapeHtml(chapter.title || `Chapter ${index + 1}`)}</strong><small>${escapeHtml(chapter.reverseAddress || chapter.body || "Saved map view")}${chapter.basemapId ? ` · ${escapeHtml(this.#basemapLabel(chapter.basemapId))}` : ""}${playbackMode === "auto" && chapter.lingerSeconds ? ` · ${chapter.lingerSeconds}s` : ""}</small></button>${this.presentationState.atlasPresent ? "" : `<div><button type="button" data-atlas-rename="${index}">Edit</button><button type="button" data-atlas-delete="${index}">Delete</button></div>`}</article>`).join("") || "<p class=\"form-note\">No chapters yet. Add another chapter to begin the atlas.</p>"}</div></section>`;
+      if (!this.presentationState.atlasPresent) {
+        const titleControl = document.createElement("label");
+        titleControl.className = "atlas-title-control";
+        titleControl.innerHTML = `<span>Tour name</span><input data-atlas-title type="text" maxlength="80" value="${escapeHtml(presentation.title || "")}" placeholder="Guided places" autocomplete="off">`;
+        root.querySelector(".mode-dashboard--atlas > header")?.after(titleControl);
+      }
       this.#addPresentationDockControl(root);
       root.querySelector("[data-atlas-mode]")?.addEventListener("click", async () => {
         if (this.mobileAtlasSettingsOpen) {
@@ -1951,6 +1957,12 @@ export class UIController {
       root.querySelector("[data-atlas-capture]")?.addEventListener("click", () => this.#captureAtlasChapter());
       root.querySelector("[data-atlas-export]")?.addEventListener("click", () => this.projectManager.exportAtlas());
       root.querySelector("[data-atlas-share]")?.addEventListener("click", () => this.#shareAtlasDialog());
+      root.querySelector("[data-atlas-title]")?.addEventListener("change", (event) => {
+        const title = event.target.value.trim().slice(0, 80);
+        const updated = this.projectManager.setPresentation({ ...this.projectManager.current.presentation, title });
+        this.#renderPresentationDashboard(updated);
+        this.#syncUtilityPanel("presentation");
+      });
       root.querySelector("[data-atlas-skin]")?.addEventListener("change", (event) => {
         const updated = this.projectManager.setPresentation({ ...this.projectManager.current.presentation, skin: event.target.value });
         this.#renderPresentationDashboard(updated);

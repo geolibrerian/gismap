@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { createEmbeddedTourUrl, decodeEmbeddedTour } from "../js/tour-share.js";
+import { readFileSync } from "node:fs";
 
 const basemaps = new Set(["topo-3d", "satellite"]);
 const presentation = { title: "Lakes & cafés", skin: "portolan", playbackMode: "auto", chapters: [{ title: "São Paulo: café", lingerSeconds: 12, transitionMode: "instant", basemapId: "satellite", viewState: { center: [-46.6333, -23.5505], zoom: 8.25, tilt: 35, heading: 15 } }] };
@@ -18,3 +19,9 @@ assert.ok(embedUrl.hash.startsWith("#tour="));
 assert.throws(() => decodeEmbeddedTour("not-a-tour", basemaps), /not valid/);
 const invalid = btoa(JSON.stringify({ v: 1, chapters: [{ name: "Nope", lat: 91, lon: 0, zoom: 1, tilt: 0, heading: 0, linger: 4 }] })).replaceAll("+", "-").replaceAll("/", "_").replaceAll("=", "");
 assert.throws(() => decodeEmbeddedTour(invalid, basemaps), /invalid camera/);
+
+const ui = readFileSync(new URL("../js/ui.js", import.meta.url), "utf8");
+assert.match(ui, /data-atlas-title/);
+assert.match(ui, /Tour name/);
+assert.match(ui, /#renderTourShareCard\(regularUrl, title\)/);
+assert.match(ui, /safeTitle = String\(title \|\| "Guided places"\)/);
