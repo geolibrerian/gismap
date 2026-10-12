@@ -30,3 +30,4 @@ assert.match(ui, /Download \.gmoatlas/);
 assert.match(ui, /#renderTourShareCard\(regularUrl, title\)/);
 assert.match(ui, /safeTitle = String\(title \|\| "Guided places"\)/);
 assert.match(ui, /context\.textAlign = "left"/);
+assert.match(ui, /long-click the QR code/);

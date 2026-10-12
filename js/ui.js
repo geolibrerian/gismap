@@ -2818,10 +2818,11 @@ export class UIController {
       context.fillText(safeTitle, 58, 218, 644);
       context.fillStyle = "#b8d8d0";
       context.font = "20px system-ui, sans-serif";
-      context.fillText("Scan to open this guided map tour", 58, 254);
+      context.fillText("Scan to open guided map tour, or long-click the QR code", 58, 250);
+      context.fillText("to open it in a browser.", 58, 278);
       context.fillStyle = "#ffffff";
-      context.fillRect(96, 284, 568, 568);
-      context.drawImage(qrCanvas, 120, 308, 520, 520);
+      context.fillRect(96, 300, 568, 568);
+      context.drawImage(qrCanvas, 120, 324, 520, 520);
       context.fillStyle = "#d8ebe6";
       context.font = "16px system-ui, sans-serif";
       context.textAlign = "center";
