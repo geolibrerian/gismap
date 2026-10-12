@@ -293,7 +293,7 @@ export class ProjectManager {
 
   #presentation(value = {}) {
     const templates = new Set(["standard", "briefing", "explorer", "atlas", "ai-map"]);
-    const skins = new Set(["clean-light", "dark-analytical", "retro-print", "tidal-95", "portolan", "velvet-orbit", "violet-circuit"]);
+    const skins = new Set(["clean-light", "dark-analytical", "retro-print", "tidal-95", "portolan", "velvet-orbit", "violet-circuit", "highway"]);
     const normalizedSkin = value.skin === "retro-print" ? "portolan" : value.skin;
     return {
       schemaVersion: 1,

@@ -1,4 +1,4 @@
-@import url("https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Newsreader:opsz,wght@6..72,600&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=Newsreader:opsz,wght@6..72,600&display=swap");
 
 :root {
   --ink: #17221f;
@@ -35,11 +35,36 @@
 #app[data-presentation-skin="portolan"] { --ink:#33251d; --muted:#705e4d; --paper:#e9ddbd; --surface:#f6edcf; --surface-2:#eadbb5; --green:#4b3a2b; --green-2:#8a5934; --amber:#9b742c; --line:#806c48; --shadow:inset 0 0 0 3px rgb(128 108 72 / 13%),0 12px 30px rgb(53 36 20 / 18%); --ui-radius:2px; --ui-radius-small:1px; --ui-font:"DM Sans",system-ui,sans-serif; --ui-heading:"Newsreader",Georgia,serif; --ui-border-width:3px; --ui-panel-shadow:inset 0 0 0 3px rgb(128 108 72 / 13%),0 12px 30px rgb(53 36 20 / 18%); color-scheme:light; }
 #app[data-presentation-skin="velvet-orbit"] { --ink:#fff7dc; --muted:#d4bed3; --paper:#25102e; --surface:#35153f; --surface-2:#4c2257; --green:#872f91; --green-2:#e06cef; --amber:#f0bf61; --line:#774b81; --shadow:0 22px 58px rgb(17 3 23 / 52%); --ui-radius:20px; --ui-radius-small:12px; --ui-font:"DM Sans",system-ui,sans-serif; --ui-heading:"Newsreader",Georgia,serif; --ui-border-width:1px; --ui-panel-shadow:0 22px 58px rgb(17 3 23 / 52%); color-scheme:dark; }
 #app[data-presentation-skin="violet-circuit"] { --ink:#e9e5ff; --muted:#a7a0c4; --paper:#080811; --surface:#0e0d18; --surface-2:#171426; --green:#34205b; --green-2:#9a70ff; --amber:#35d7d0; --line:#594586; --shadow:0 0 0 1px rgb(143 99 255 / 18%),0 18px 54px rgb(0 0 0 / 60%); --ui-radius:4px; --ui-radius-small:2px; --ui-font:"DM Sans",system-ui,sans-serif; --ui-heading:"DM Sans",system-ui,sans-serif; --ui-border-width:1px; --ui-panel-shadow:0 0 0 1px rgb(143 99 255 / 18%),0 18px 54px rgb(0 0 0 / 60%); color-scheme:dark; }
+#app[data-presentation-skin="highway"] { --ink:#17202b; --muted:#657181; --paper:#f7f8f8; --surface:#fff; --surface-2:#f0f2f3; --green:#d83b0b; --green-2:#ff4b0b; --amber:#ff4b0b; --line:#cbd1d5; --danger:#c72f12; --shadow:0 8px 22px rgb(31 42 52 / 10%); --ui-radius:2px; --ui-radius-small:1px; --ui-font:"IBM Plex Mono","SFMono-Regular",Consolas,monospace; --ui-heading:"IBM Plex Mono","SFMono-Regular",Consolas,monospace; --ui-border-width:1px; --ui-panel-shadow:0 1px 0 rgb(255 255 255 / 80%),0 7px 22px rgb(31 42 52 / 10%); color-scheme:light; }
 #app[data-presentation]:not([data-presentation="standard"]) { font-family:var(--ui-font); background:var(--paper); }
 #app[data-presentation]:not([data-presentation="standard"]) :is(.sidebar,.application-dock,.dialog__shell,.insights-overlay,.atlas-chapter-overlay,.atlas-chapter-description,.mode-details,.explorer-distribution,.mode-records,.presentation-empty) { border-width:var(--ui-border-width); border-radius:var(--ui-radius); box-shadow:var(--ui-panel-shadow); background-color:var(--surface); color:var(--ink); }
 #app[data-presentation]:not([data-presentation="standard"]) :is(button,input,select,textarea,.explorer-counts span,.explorer-counts button) { border-radius:var(--ui-radius-small); }
 #app[data-presentation]:not([data-presentation="standard"]) :is(h1,h2,h3,h4,.brand__name,.mode-dashboard header h2,.mode-details h3,.atlas-chapter-overlay h2) { font-family:var(--ui-heading); }
 #app[data-presentation-skin="violet-circuit"] :is(.sidebar,.mode-details,.explorer-distribution,.atlas-chapter-overlay) { background-image:linear-gradient(90deg,transparent 97%,rgb(143 99 255 / 10%) 100%); background-size:24px 24px; }
+#app[data-presentation-skin="highway"] :is(.sidebar,.application-dock,.dialog__shell,.insights-overlay,.atlas-chapter-overlay,.atlas-chapter-description,.mode-details,.explorer-distribution,.mode-records,.presentation-empty) { background-image:linear-gradient(rgb(23 32 43 / 2%) 1px,transparent 1px); background-size:100% 24px; }
+#app[data-presentation-skin="highway"] :is(.sidebar,.application-dock--right) { border-color:var(--line); box-shadow:none; }
+#app[data-presentation-skin="highway"] .brand { height:72px; padding:8px 14px; background:rgb(255 255 255 / 96%); border-bottom:1px solid var(--line); }
+#app[data-presentation-skin="highway"] .brand__mark { width:43px; height:43px; filter:saturate(.2) contrast(1.25); }
+#app[data-presentation-skin="highway"] .brand__wordmark strong { color:var(--ink); font:600 18px/1 var(--ui-heading); letter-spacing:-.04em; }
+#app[data-presentation-skin="highway"] .brand__wordmark span { color:var(--amber); font:600 9px/1 var(--ui-heading); }
+#app[data-presentation-skin="highway"] .brand__wordmark small { margin-top:6px; font:500 7px/1 var(--ui-heading); letter-spacing:.12em; }
+#app[data-presentation-skin="highway"] .menu-bar { padding:0; background:rgb(255 255 255 / 96%); }
+#app[data-presentation-skin="highway"] .menu__trigger { padding-block:10px; border-right:1px solid var(--line); font:500 10px/1 var(--ui-heading); text-transform:uppercase; letter-spacing:.06em; }
+#app[data-presentation-skin="highway"] :is(.panel summary,.application-panel > header,.dialog__header,.insights-overlay > header) { background:rgb(255 255 255 / 94%); }
+#app[data-presentation-skin="highway"] .panel summary { padding-block:13px; }
+#app[data-presentation-skin="highway"] .panel summary span { font:600 13px/1 var(--ui-heading); text-transform:uppercase; letter-spacing:.06em; }
+#app[data-presentation-skin="highway"] :is(.eyebrow,.menu__label) { color:var(--amber); font-family:var(--ui-heading); letter-spacing:.16em; }
+#app[data-presentation-skin="highway"] :is(button,input,select,textarea) { font-family:var(--ui-font); }
+#app[data-presentation-skin="highway"] :is(button,.button--quiet) { box-shadow:none; }
+#app[data-presentation-skin="highway"] :is(button:hover,.presentation-card.is-selected,.skin-card.is-selected) { border-color:var(--amber); }
+#app[data-presentation-skin="highway"] :is(.atlas-present-action button,.dialog__actions .button--primary,.insight-tabs button[aria-selected="true"],.application-bottom-tabs button[aria-selected="true"]) { border-color:var(--amber); color:white; background:var(--amber); }
+#app[data-presentation-skin="highway"] .atlas-chapter-overlay { border:1px solid var(--line); border-left:3px solid var(--amber); background:rgb(255 255 255 / 95%); backdrop-filter:blur(8px) grayscale(.35); }
+#app[data-presentation-skin="highway"] .atlas-chapter-description { border-top:3px solid var(--amber); background:rgb(255 255 255 / 96%); backdrop-filter:blur(8px) grayscale(.35); }
+#app[data-presentation-skin="highway"] .atlas-chapter-overlay__navigation button { border-color:var(--line); color:var(--ink); background:white; }
+#app[data-presentation-skin="highway"] .atlas-chapter-overlay__navigation button:hover { border-color:var(--amber); color:var(--amber); }
+#app[data-presentation-skin="highway"] .map-nav button { border:1px solid var(--line); color:var(--ink); background:rgb(255 255 255 / 94%); box-shadow:0 4px 14px rgb(31 42 52 / 12%); }
+#app[data-presentation-skin="highway"] .map-status { border:1px solid var(--line); border-radius:1px; color:var(--ink); background:rgb(255 255 255 / 92%); }
+#app[data-presentation-skin="highway"] :is(.mode-details dl div,.composable-details dl div,.insight-panel dl div) { border-color:color-mix(in srgb,var(--line) 68%,transparent); }
 #app[data-application-preset] { color:var(--ink); background:var(--paper); }
 #app[data-application-preset] .brand { color:var(--ink); background:linear-gradient(120deg,var(--surface),var(--surface-2)); }
 /* Standard authoring follows the user's display appearance; presentation skin
@@ -361,6 +386,7 @@ body.utility-resizing iframe, body.utility-resizing canvas { pointer-events: non
 .skin-card--portolan { --preview-paper:#f6edcf;--preview-surface:#eadbb5;--preview-ink:#33251d;--preview-accent:#8a5934;--preview-radius:0;--preview-shadow:inset 0 0 0 2px #806c48; }
 .skin-card--velvet-orbit { --preview-paper:#35153f;--preview-surface:#4c2257;--preview-ink:#fff7dc;--preview-accent:#e06cef;--preview-radius:12px;--preview-shadow:3px 5px 10px #16031d; }
 .skin-card--violet-circuit { --preview-paper:#0e0d18;--preview-surface:#211b36;--preview-ink:#e9e5ff;--preview-accent:#35d7d0;--preview-radius:1px;--preview-shadow:0 0 5px #9a70ff; }
+.skin-card--highway { --preview-paper:#f7f8f8;--preview-surface:#fff;--preview-ink:#17202b;--preview-accent:#ff4b0b;--preview-radius:1px;--preview-shadow:0 3px 7px #cbd1d5; }
 #app[data-presentation-skin="dark-analytical"] .sidebar { border-right-color: #174f42; }
 #app[data-presentation-skin="retro-print"] .sidebar { border-right-color: #b55d46; }
 #app[data-presentation="briefing"] .sidebar { border-right: 4px solid var(--amber); }
