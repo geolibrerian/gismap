@@ -53,6 +53,15 @@ export const APPLICATION_PRESETS = Object.freeze({
       PRESET_PANEL("chart-main", "charts", "Live distribution", "bottom", 0, { settings: { chartType: "histogram" } }),
     ],
   },
+  globe: {
+    preset: "globe", title: "Orbital globe", skin: "velvet-orbit", layout: { kind: "globe" },
+    panels: [
+      PRESET_PANEL("places-main", "places", "Places", "left", 0),
+      PRESET_PANEL("layers-main", "layers", "Layers", "left", 1),
+      PRESET_PANEL("intelligence-main", "intelligence", "Map intelligence", "right", 0),
+      PRESET_PANEL("bookmarks-main", "bookmarks", "Saved places", "right", 1, { audienceVisible: false }),
+    ],
+  },
 });
 
 const clone = (value) => structuredClone(value);

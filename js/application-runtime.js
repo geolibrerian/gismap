@@ -1,7 +1,7 @@
 import { ApplicationState } from "./application-state.js?v=0.16.0";
 import { PanelRegistry, ToolRegistry } from "./application-registry.js?v=0.16.0";
 import { LayoutManager } from "./layout-manager.js?v=0.16.0";
-import { normalizeApplicationConfig, presetApplication } from "./application-config.js?v=0.16.0";
+import { normalizeApplicationConfig, presetApplication } from "./application-config.js?v=0.16.3";
 import { DuckDBBrowserClient } from "./duckdb-client.js?v=0.16.0";
 import { normalizeDataCatalog, planNaturalLanguageQuery, validateReadOnlySQL } from "./data-catalog.js?v=0.16.0";
 import { PanelManager } from "./panel-manager.js?v=0.16.2";
@@ -124,7 +124,7 @@ export class ApplicationRuntime {
     if (!request) throw new Error("Describe the application you want to build.");
     let config = this.snapshot();
     const operations = [];
-    const preset = ["briefing", "explorer", "atlas", "standard", "ai-map"].find((id) => new RegExp(`\\b${id.replace("-", "[ -]")}\\b`, "i").test(request));
+    const preset = ["briefing", "explorer", "atlas", "standard", "ai-map", "globe"].find((id) => new RegExp(`\\b${id.replace("-", "[ -]")}\\b`, "i").test(request));
     if (preset) {
       config = presetApplication(preset);
       operations.push({ tool: "application.preset.apply", input: { preset } });
@@ -185,7 +185,7 @@ export class ApplicationRuntime {
       },
     });
     applicationChange("application.preset.apply", "Apply application preset", (_config, input) => {
-      if (!["standard", "explorer", "briefing", "atlas", "ai-map"].includes(input.preset)) throw new Error(`Unknown application preset: ${input.preset}`);
+      if (!["standard", "explorer", "briefing", "atlas", "ai-map", "operations", "globe"].includes(input.preset)) throw new Error(`Unknown application preset: ${input.preset}`);
       return presetApplication(input.preset);
     });
     applicationChange("application.panel.add", "Add panel", (config, input) => {

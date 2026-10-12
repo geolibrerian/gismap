@@ -77,6 +77,13 @@ test("operations board is a distinct three-region dashboard preset", () => {
   assert.deepEqual(new Set(operations.panels.map((panel) => panel.placement.region)), new Set(["left", "right", "bottom"]));
 });
 
+test("orbital globe is a first-class dashboard preset", () => {
+  const globe = presetApplication("globe");
+  assert.equal(globe.layout.kind, "globe");
+  assert.equal(globe.skin, "velvet-orbit");
+  assert.deepEqual(new Set(globe.panels.map((panel) => panel.placement.region)), new Set(["left", "right"]));
+});
+
 test("old projects migrate to Standard and legacy Atlas chapters are retained", () => {
   assert.equal(migratePresentationToApplication({ layers: [] }).preset, "standard");
   const atlas = migratePresentationToApplication({ presentation: { template: "atlas", title: "Places", chapters: [{ title: "One", view: { zoom: 4 } }] } });

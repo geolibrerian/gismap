@@ -4,7 +4,7 @@ import { createShareUrl } from "./share.js?v=0.16.0";
 import { createEmbeddedTourUrl } from "./tour-share.js?v=0.16.0";
 import { markdownToPlainText, renderMarkdown } from "./markdown.js?v=0.16.0";
 import { formatAttributeValue } from "./attribute-format.js?v=0.16.0";
-import { normalizeApplicationConfig, presetApplication } from "./application-config.js?v=0.16.0";
+import { normalizeApplicationConfig, presetApplication } from "./application-config.js?v=0.16.3";
 import { featureId, fieldKind, filterRecords, histogram, requestGuard, sortRecords } from "./presentation-query.js?v=0.16.0";
 
 const DISPLAY_SETTINGS_KEY = "gismap-online:display:v1";
@@ -754,6 +754,9 @@ export class UIController {
           break;
         case "map-customize":
           this.#applicationBuilderDialog();
+          break;
+        case "map-globe":
+          this.#applicationBuilderDialog("globe");
           break;
         case "tools-about":
           this.#aboutDialog();
@@ -2785,11 +2788,11 @@ export class UIController {
     this.#loadPresentationRecords(presentation);
   }
 
-  #applicationBuilderDialog() {
+  #applicationBuilderDialog(startingPreset = null) {
     const previous = this.projectManager.current.application?.configured
       ? structuredClone(this.projectManager.current.application)
       : null;
-    let draft = normalizeApplicationConfig(previous || presetApplication("standard"));
+    let draft = normalizeApplicationConfig(startingPreset ? presetApplication(startingPreset) : (previous || presetApplication("standard")));
     let previewing = false;
     let builderFinished = false;
     const panelTypes = this.applicationRuntime.panels.list();
@@ -2801,6 +2804,7 @@ export class UIController {
       { id: "atlas", label: "Guided atlas", description: "Chapters and saved places with detail at right.", preview: "atlas" },
       { id: "operations", label: "Operations board", description: "Layers and intelligence with a live bottom deck.", preview: "operations" },
       { id: "ai-map", label: "AI copilot", description: "A map-first workspace with the assistant at right.", preview: "right" },
+      { id: "globe", label: "Orbital globe", description: "A circular full-Earth view framed by curved tool rails.", preview: "globe" },
     ];
     const presetLabels = Object.fromEntries(dashboardViews.map((view) => [view.id, view.label]));
     let draggedInstanceId = null;

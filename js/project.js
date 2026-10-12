@@ -1,4 +1,4 @@
-import { applicationToLegacyPresentation, normalizeApplicationConfig } from "./application-config.js?v=0.16.0";
+import { applicationToLegacyPresentation, normalizeApplicationConfig } from "./application-config.js?v=0.16.3";
 import { normalizeDataCatalog } from "./data-catalog.js?v=0.16.0";
 
 const STORAGE_KEY = "gismap-online:projects:v1";
