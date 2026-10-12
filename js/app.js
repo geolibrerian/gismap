@@ -12,6 +12,7 @@ import { parseShareParameters } from "./share.js?v=0.16.0";
 import { decodeEmbeddedTour } from "./tour-share.js?v=0.16.0";
 import { POPULAR_SERVICES } from "./catalog.js?v=0.16.0";
 import { ApplicationRuntime } from "./application-runtime.js?v=0.16.0";
+import { PanelManager } from "./panel-manager.js?v=0.16.2";
 
 async function loadSharedLayer(mapController, config) {
   const rootUrl = config.url.replace(/\/+$/, "");
@@ -42,7 +43,8 @@ async function start() {
   const toolManager = new ToolManager(events, mapController);
   const tableController = new AttributeTableController(events, mapController);
   const exportController = new ExportController(events, mapController);
-  const applicationRuntime = new ApplicationRuntime({ events, mapController, projectManager, aiController });
+  const panelManager = new PanelManager();
+  const applicationRuntime = new ApplicationRuntime({ events, mapController, projectManager, aiController, panelManager });
   const uiController = new UIController(
     events,
     mapController,
@@ -52,6 +54,7 @@ async function start() {
     toolManager,
     exportController,
     applicationRuntime,
+    panelManager,
   );
 
   identifyController.initialize();

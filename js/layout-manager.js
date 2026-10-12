@@ -62,8 +62,12 @@ export class LayoutManager {
     if (app) app.dataset.applicationLayout = config.layout.kind;
     this.document?.body?.style?.setProperty("--application-bottom-height", `${config.layout.bottomHeight}px`);
     const ordered = [...config.panels].sort((a, b) => a.placement.region.localeCompare(b.placement.region) || a.placement.order - b.placement.order);
+    const mountedSingletons = new Set();
     for (const panel of ordered) {
       if (config.mode === "present" && !panel.audienceVisible) continue;
+      const definition = this.registry.get(panel.type);
+      if (definition?.multiple === false && mountedSingletons.has(panel.type)) continue;
+      if (definition?.multiple === false) mountedSingletons.add(panel.type);
       const region = panel.placement.region;
       const dock = this.hosts[region] || this.hosts.left;
       if (!dock) continue;

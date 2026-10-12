@@ -4,6 +4,7 @@ import { LayoutManager } from "./layout-manager.js?v=0.16.0";
 import { normalizeApplicationConfig, presetApplication } from "./application-config.js?v=0.16.0";
 import { DuckDBBrowserClient } from "./duckdb-client.js?v=0.16.0";
 import { normalizeDataCatalog, planNaturalLanguageQuery, validateReadOnlySQL } from "./data-catalog.js?v=0.16.0";
+import { PanelManager } from "./panel-manager.js?v=0.16.2";
 
 const STATIC_PANELS = {
   places: "places-panel",
@@ -16,12 +17,12 @@ const STATIC_PANELS = {
 const escapeHtml = (value) => String(value ?? "").replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char]);
 
 export class ApplicationRuntime {
-  constructor({ events, mapController, projectManager, aiController, documentRef = document }) {
+  constructor({ events, mapController, projectManager, aiController, panelManager = null, documentRef = document }) {
     Object.assign(this, { events, mapController, projectManager, aiController, document: documentRef });
+    this.panelManager = panelManager || new PanelManager({ documentRef });
     this.state = new ApplicationState();
     this.tools = new ToolRegistry();
     this.panels = new PanelRegistry();
-    this.staticHomes = new Map();
     this.layout = new LayoutManager({
       registry: this.panels,
       state: this.state,
@@ -61,13 +62,7 @@ export class ApplicationRuntime {
     if (normalized.layout.kind === "globe" && previousLayout !== "globe") {
       this.mapController.restoreView({ center: [-20, 18], zoom: 2, heading: 0, tilt: 0 }).catch(() => {});
     }
-    const visibleTypes = new Set(normalized.panels
-      .filter((panel) => normalized.mode !== "present" || panel.audienceVisible)
-      .map((panel) => panel.type));
-    for (const [type, elementId] of Object.entries(STATIC_PANELS)) {
-      const element = this.document.getElementById(elementId);
-      if (element) element.hidden = !visibleTypes.has(type);
-    }
+    this.syncStaticPanelVisibility();
     const welcome = this.document.querySelector("#welcome-panel");
     if (welcome && normalized.preset !== "standard") welcome.hidden = true;
     return applied;
@@ -84,9 +79,19 @@ export class ApplicationRuntime {
     this.document.querySelector("#application-edit-return").hidden = true;
     const settingsButton = this.document.querySelector("#dashboard-settings-open");
     if (settingsButton) settingsButton.hidden = true;
-    for (const elementId of Object.values(STATIC_PANELS)) {
+    this.syncStaticPanelVisibility();
+  }
+
+  syncStaticPanelVisibility() {
+    const config = this.layout.current;
+    const visibleTypes = config ? new Set(config.panels
+      .filter((panel) => config.mode !== "present" || panel.audienceVisible)
+      .map((panel) => panel.type)) : new Set(Object.keys(STATIC_PANELS));
+    for (const [type, elementId] of Object.entries(STATIC_PANELS)) {
       const element = this.document.getElementById(elementId);
-      if (element) element.hidden = false;
+      if (!element) continue;
+      const utilityOwnsContent = this.panelManager?.isOn(`content:${type}`, "utility");
+      element.hidden = utilityOwnsContent || !visibleTypes.has(type);
     }
   }
 
@@ -211,6 +216,8 @@ export class ApplicationRuntime {
 
   #registerPanels() {
     for (const [type, elementId] of Object.entries(STATIC_PANELS)) {
+      const staticElement = this.document.getElementById(elementId);
+      this.panelManager?.register(`workspace:${type}`, staticElement);
       this.panels.register({
         type,
         displayName: type[0].toUpperCase() + type.slice(1),
@@ -221,17 +228,15 @@ export class ApplicationRuntime {
         mount: (host) => {
           const element = this.document.getElementById(elementId);
           if (!element) return;
-          if (!this.staticHomes.has(elementId)) this.staticHomes.set(elementId, { parent: element.parentElement, next: element.nextSibling });
           element.hidden = false;
           element.open = true;
-          host.append(element);
+          if (!this.panelManager?.move(`workspace:${type}`, host, { surface: "application" })) host.append(element);
           return { element };
         },
         unmount: (_host, mounted) => {
           const element = mounted?.element;
-          const home = this.staticHomes.get(elementId);
-          if (!element || !home?.parent) return;
-          home.parent.insertBefore(element, home.next?.isConnected ? home.next : null);
+          if (!element) return;
+          this.panelManager?.restore(`workspace:${type}`);
         },
       });
     }

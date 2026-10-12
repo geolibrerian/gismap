@@ -32,8 +32,8 @@ const escapeHtml = (value) =>
   })[char]);
 
 export class UIController {
-  constructor(events, mapController, projectManager, authController, aiController, toolManager, exportController, applicationRuntime) {
-    Object.assign(this, { events, mapController, projectManager, authController, aiController, toolManager, exportController, applicationRuntime });
+  constructor(events, mapController, projectManager, authController, aiController, toolManager, exportController, applicationRuntime, panelManager) {
+    Object.assign(this, { events, mapController, projectManager, authController, aiController, toolManager, exportController, applicationRuntime, panelManager });
     this.dialog = document.querySelector("#app-dialog");
     this.searchResults = [];
     this.searchTimer = null;
@@ -68,6 +68,8 @@ export class UIController {
   }
 
   initialize() {
+    this.panelManager?.register("content:intelligence", document.querySelector("#intelligence-content"), { shell: document.querySelector("#intelligence-panel") });
+    this.panelManager?.register("content:draw", document.querySelector(".draw-tools"), { shell: document.querySelector("#draw-panel") });
     this.#applyDisplaySettings(this.#readDisplaySettings());
     this.systemThemeMedia.addEventListener?.("change", () => {
       const settings = this.#readDisplaySettings();
@@ -566,7 +568,11 @@ export class UIController {
     this.utilityIntelligenceOpen = true;
     const intelligencePanel = document.querySelector("#intelligence-panel");
     intelligencePanel.open = false;
-    intelligencePanel.hidden = true;
+    this.panelManager?.move("content:intelligence", document.querySelector("#utility-intelligence-content"), {
+      surface: "utility",
+      hideShell: true,
+      replaceHost: true,
+    });
     this.#renderIntelligenceContents();
     this.#syncUtilityPanel("intelligence");
   }
@@ -575,8 +581,11 @@ export class UIController {
     this.utilityDrawOpen = true;
     const drawPanel = document.querySelector("#draw-panel");
     drawPanel.open = false;
-    drawPanel.hidden = true;
-    document.querySelector("#utility-draw-content").append(document.querySelector(".draw-tools"));
+    this.panelManager?.move("content:draw", document.querySelector("#utility-draw-content"), {
+      surface: "utility",
+      hideShell: true,
+      replaceHost: true,
+    });
     this.#syncUtilityPanel("draw");
   }
 
@@ -593,7 +602,8 @@ export class UIController {
     }
     if (tabId === "intelligence") {
       this.utilityIntelligenceOpen = false;
-      document.querySelector("#intelligence-panel").hidden = false;
+      this.panelManager?.restore("content:intelligence", { restoreShell: false });
+      this.applicationRuntime.syncStaticPanelVisibility();
       this.#syncUtilityPanel();
       return;
     }
@@ -602,7 +612,7 @@ export class UIController {
       this.mobileAtlasSettingsOpen = false;
       this.utilityPresentationOpen = false;
       const dashboard = document.querySelector("#presentation-dashboard");
-      if (dashboard) document.querySelector(".sidebar__scroll")?.prepend(dashboard);
+      if (dashboard) this.panelManager?.restore("presentation:dashboard");
       const dockButton = dashboard?.querySelector("[data-presentation-dock]");
       if (dockButton) {
         dockButton.setAttribute("aria-label", "Open in right panel");
@@ -623,9 +633,8 @@ export class UIController {
     }
     if (tabId === "draw") {
       this.utilityDrawOpen = false;
-      const drawPanel = document.querySelector("#draw-panel");
-      drawPanel.querySelector("summary").after(document.querySelector(".draw-tools"));
-      drawPanel.hidden = false;
+      this.panelManager?.restore("content:draw", { restoreShell: false });
+      this.applicationRuntime.syncStaticPanelVisibility();
       this.#syncUtilityPanel();
       return;
     }
@@ -2024,22 +2033,27 @@ export class UIController {
   #togglePresentationDock() {
     const dashboard = document.querySelector("#presentation-dashboard");
     if (!dashboard) return;
+    this.panelManager?.register("presentation:dashboard", dashboard);
     this.utilityPresentationOpen = !this.utilityPresentationOpen;
     if (this.utilityPresentationOpen) {
-      document.querySelector("#utility-presentation-content")?.append(dashboard);
+      this.panelManager?.move("presentation:dashboard", document.querySelector("#utility-presentation-content"), {
+        surface: "utility",
+        replaceHost: true,
+      });
       document.body.classList.add("presentation-workspace-panels-open");
       document.querySelectorAll(".sidebar__scroll > .panel[data-presentation-hidden]").forEach((panel) => { panel.hidden = false; });
     } else {
-      document.querySelector(".sidebar__scroll")?.prepend(dashboard);
+      this.panelManager?.restore("presentation:dashboard");
       document.body.classList.remove("presentation-workspace-panels-open");
       document.querySelectorAll(".sidebar__scroll > .panel[data-presentation-hidden]").forEach((panel) => { panel.hidden = true; });
     }
     const dockButton = dashboard.querySelector("[data-presentation-dock]");
     if (dockButton) {
-      const label = this.utilityPresentationOpen ? "Return to map" : "Open in right panel";
+      const mobileSettings = this.mobileMedia.matches && this.utilityPresentationOpen;
+      const label = mobileSettings ? "Close presentation settings" : this.utilityPresentationOpen ? "Return to map" : "Open in right panel";
       dockButton.setAttribute("aria-label", label);
       dockButton.title = label;
-      dockButton.textContent = this.utilityPresentationOpen ? "↙" : "↗";
+      dockButton.textContent = mobileSettings ? "×" : this.utilityPresentationOpen ? "↙" : "↗";
     }
     this.#syncUtilityPanel("presentation");
     this.mapController.resize();
@@ -2052,10 +2066,11 @@ export class UIController {
     button.type = "button";
     button.className = "presentation-dock-button";
     button.dataset.presentationDock = "";
-    button.setAttribute("aria-label", this.utilityPresentationOpen ? "Return to left panel" : "Open in right panel");
+    const mobileSettings = this.mobileMedia.matches && this.utilityPresentationOpen;
+    button.setAttribute("aria-label", mobileSettings ? "Close presentation settings" : this.utilityPresentationOpen ? "Return to left panel" : "Open in right panel");
     button.title = button.getAttribute("aria-label");
-    button.textContent = this.utilityPresentationOpen ? "↙" : "↗";
-    button.addEventListener("click", () => this.#togglePresentationDock());
+    button.textContent = mobileSettings ? "×" : this.utilityPresentationOpen ? "↙" : "↗";
+    button.addEventListener("click", () => mobileSettings ? this.#closeUtilityTab("presentation") : this.#togglePresentationDock());
     header.append(button);
   }
 
@@ -2741,6 +2756,7 @@ export class UIController {
       dashboard.hidden = true;
       document.querySelector(".sidebar__scroll")?.prepend(dashboard);
     }
+    this.panelManager?.register("presentation:dashboard", dashboard);
     document.querySelectorAll(".sidebar__scroll > .panel[data-presentation-hidden]").forEach((panel) => {
       panel.hidden = false;
       delete panel.dataset.presentationHidden;
@@ -3544,7 +3560,8 @@ export class UIController {
   }
 
   #renderIntelligenceContents(payload = this.lastInsight) {
-    const targets = [document.querySelector("#intelligence-content"), document.querySelector("#utility-intelligence-content")].filter(Boolean);
+    const target = document.querySelector("#intelligence-content");
+    if (!target) return;
     const point = payload?.point;
     const coord = point ? `${point.latitude.toFixed(6)}, ${point.longitude.toFixed(6)}` : "Unknown location";
     const selectedCount = payload?.selectedResults?.length ?? 0;
@@ -3564,11 +3581,10 @@ export class UIController {
       ? '<div class="loading-row"><span></span> Inspecting location…</div>'
       : this.aiPending ? '<div class="loading-row ai-loading"><span></span> Generating AI insights…</div>' : "";
     const html = `<div class="intelligence-toolbar"><button type="button" data-open-intelligence-utility title="Open Intelligence in the right panel">Open in right panel ↗</button></div>${loadingHtml}${locationHtml}${aiForm}${locationReportHtml}${responseHtml}`;
-    targets.forEach((target) => {
-      target.classList.toggle("intelligence-empty", !payload);
-      target.innerHTML = html;
-      target.querySelector("[data-open-intelligence-utility]")?.addEventListener("click", () => this.#openIntelligenceUtility());
-      target.querySelector(".ai-question")?.addEventListener("submit", (event) => {
+    target.classList.toggle("intelligence-empty", !payload);
+    target.innerHTML = html;
+    target.querySelector("[data-open-intelligence-utility]")?.addEventListener("click", () => this.#openIntelligenceUtility());
+    target.querySelector(".ai-question")?.addEventListener("submit", (event) => {
         event.preventDefault();
         const prompt = event.currentTarget.querySelector("input").value.trim();
         this.#askAI(
@@ -3576,15 +3592,14 @@ export class UIController {
           payload,
           prompt || "Current map extent and location",
         );
-      });
-      target.querySelector(".ai-response__clear")?.addEventListener("click", () => {
-        this.lastAIResponseText = null;
-        this.lastAIQueryText = null;
-        this.#renderIntelligenceContents();
-      });
-      target.querySelector(".ai-response__download")?.addEventListener("click", () => this.#downloadAIReport(payload));
-      target.querySelector(".location-report-download")?.addEventListener("click", () => this.#downloadAIReport(payload));
     });
+    target.querySelector(".ai-response__clear")?.addEventListener("click", () => {
+      this.lastAIResponseText = null;
+      this.lastAIQueryText = null;
+      this.#renderIntelligenceContents();
+    });
+    target.querySelector(".ai-response__download")?.addEventListener("click", () => this.#downloadAIReport(payload));
+    target.querySelector(".location-report-download")?.addEventListener("click", () => this.#downloadAIReport(payload));
   }
 
   #askAI(prompt, payload = this.lastInsight, displayQuery = prompt) {
