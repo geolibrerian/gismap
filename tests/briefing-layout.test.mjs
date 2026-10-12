@@ -11,6 +11,7 @@ test("briefing context has a map-owned host independent of the sidebar", () => {
   assert.match(html, /id="briefing-context-host"/);
   assert.match(ui, /briefing-context-host/);
   assert.match(css, /\.briefing-context-host:empty/);
+  assert.match(css, /sidebar-collapsed\[data-briefing-context-dock="left"\] \.briefing-context[\s\S]*?left:0/);
 });
 
 test("briefing supports scoped feature selection and copyable representative coordinates", () => {
