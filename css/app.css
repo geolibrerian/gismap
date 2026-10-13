@@ -360,6 +360,7 @@ body.utility-panel-open .utility-panel { display: grid; grid-template-rows: auto
 body.utility-resizing { cursor: col-resize; user-select: none; }
 body.utility-resizing iframe, body.utility-resizing canvas { pointer-events: none; }
 .mobile-map-brand, .mobile-menu-drawer, .mobile-panel-nav { display: none; }
+.mobile-workflow { display:none; }
 .welcome-brand { display: flex; align-items: center; gap: 12px; margin-bottom: 18px; padding-right: 28px; }
 .welcome-brand img { width: 44px; height: 52px; object-fit: contain; }
 .welcome-brand strong { color: var(--green-2); font-size: 19px; letter-spacing: .04em; }
@@ -1412,6 +1413,10 @@ body.sidebar-collapsed .table-dialog { left: 14px; }
     border-radius: 0;
     box-shadow: none;
   }
+  .mobile-menu-workflows { order:-1; padding:10px 4px 14px; border-bottom:1px solid var(--line); }
+  .mobile-menu-workflows h2 { margin:4px 6px 10px; font:700 12px/1 var(--ui-font); letter-spacing:.1em; text-transform:uppercase; color:var(--muted); }
+  .mobile-menu-workflows > div { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; }
+  .mobile-menu-workflows button { min-height:48px; padding:10px; border:1px solid var(--line); border-radius:10px; color:var(--ink); background:var(--surface); text-align:left; font-weight:700; }
   .app-shell,
   body.sidebar-collapsed .app-shell { grid-template-columns: 1fr; }
   .map-workspace { position:absolute; inset:calc(34px + env(safe-area-inset-top)) 0 0; height:auto; }
@@ -1480,6 +1485,52 @@ body.sidebar-collapsed .table-dialog { left: 14px; }
   body.mobile-places-active #places-panel .search-suggestions > button { min-height: 48px; padding: 12px; font-size: 14px; }
   body.mobile-menu-open .utility-panel,
   body:not(.sidebar-collapsed) .utility-panel { display: none; }
+  body.mobile-workflow-open :is(.sidebar,.utility-panel,.insights-overlay,.welcome-panel) { display:none!important; }
+  .mobile-workflow:not([hidden]) {
+    position:fixed;
+    z-index:64;
+    inset:calc(34px + env(safe-area-inset-top)) 0 calc(64px + env(safe-area-inset-bottom));
+    display:grid;
+    grid-template-rows:auto minmax(0,1fr);
+    overflow:hidden;
+    color:#123f42;
+    background:#fbfaf5;
+  }
+  .mobile-workflow__header { display:flex; align-items:end; justify-content:space-between; gap:16px; padding:18px 18px 14px; border-bottom:1px solid #d8ded9; background:#fffef9; }
+  .mobile-workflow__brand { display:block; margin-bottom:7px; color:#0b716d; font:800 12px/1 var(--ui-font); letter-spacing:.08em; text-transform:uppercase; }
+  .mobile-workflow__header h1 { margin:0; color:#082f39; font:800 clamp(30px,9vw,46px)/.95 var(--ui-heading); }
+  .mobile-workflow__header button { width:44px; height:44px; padding:0; border:1px solid #cad5d1; border-radius:50%; color:#123f42; background:white; font-size:26px; }
+  .mobile-workflow__body { min-height:0; padding:16px; overflow-y:auto; overscroll-behavior:contain; -webkit-overflow-scrolling:touch; }
+  .mobile-workflow__subtitle { margin:0 0 16px; color:#456c6b; font-size:17px; }
+  .segmented { display:grid; grid-template-columns:repeat(3,1fr); margin-bottom:18px; border:1px solid #d3dbd7; border-radius:999px; overflow:hidden; }
+  .segmented button { min-height:42px; padding:6px; border:0; border-right:1px solid #d3dbd7; color:#315b5d; background:transparent; font-size:12px; font-weight:700; }
+  .segmented button:last-child { border-right:0; }
+  .segmented button.is-active { color:white; background:#087d78; }
+  .feed-list { display:grid; gap:14px; }
+  .feed-card,.mobile-card,.mobile-empty { padding:17px; border:1px solid #d2dcd8; border-radius:18px; background:#fffefb; box-shadow:0 8px 20px rgb(23 61 55 / 7%); }
+  .feed-card.is-muted { opacity:.68; }
+  .feed-card__meta { display:block; margin-bottom:8px; color:#537474; font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:.05em; }
+  .feed-card h2,.mobile-empty h2 { margin:0 0 8px; color:#073b45; font:800 21px/1.12 var(--ui-heading); }
+  .feed-card p,.mobile-empty p { margin:7px 0; color:#466a6d; line-height:1.42; }
+  .feed-card .metric { color:#082f39; font:800 38px/1 var(--ui-heading); }
+  .feed-card .metric small { font-size:17px; }
+  .feed-card__actions { display:flex; flex-wrap:wrap; gap:9px; margin-top:14px; }
+  .feed-card__actions button,.mobile-card button,.mobile-empty button,.mobile-primary { min-height:44px; padding:10px 16px; border:1px solid #08716f; border-radius:10px; color:#075657; background:white; font-weight:750; }
+  .feed-card__actions button:first-child,.mobile-card button[type="submit"],.mobile-primary { color:white; background:#087d78; }
+  .mobile-primary { width:100%; margin-bottom:14px; }
+  .status-pill { display:inline-block; margin-bottom:10px; padding:5px 10px; border-radius:999px; color:#8a5700; background:#fff0c9; font-size:12px; font-weight:800; text-transform:capitalize; }
+  .mobile-card { display:grid; gap:14px; margin-bottom:16px; }
+  .mobile-card label { display:grid; gap:6px; color:#294f52; font-weight:700; }
+  .mobile-card :is(input,select,textarea) { width:100%; min-height:46px; padding:10px 12px; border:1px solid #b9cbc7; border-radius:9px; color:#143f43; background:white; font:inherit; }
+  .mobile-card textarea { resize:vertical; }
+  .mobile-card fieldset { padding:12px; border:1px solid #d2dcd8; border-radius:10px; }
+  .mobile-card .check-row { display:flex; align-items:center; min-height:44px; border-bottom:1px solid #e1e6e3; }
+  .mobile-card .check-row:last-child { border-bottom:0; }
+  .mobile-card .check-row input { width:22px; min-height:22px; margin-right:10px; }
+  .workflow-grid { display:grid; gap:11px; }
+  .workflow-grid button { display:grid; gap:4px; min-height:82px; padding:14px 16px; border:1px solid #d2dcd8; border-radius:15px; color:#123f42; background:#fffefb; text-align:left; }
+  .workflow-grid strong { font-size:19px; }
+  .workflow-grid span { color:#607879; font-size:13px; }
   .map-status { bottom: calc(70px + env(safe-area-inset-bottom)); }
   body #sidebar-open.sidebar__open,
   body.sidebar-collapsed #sidebar-open.sidebar__open { display:none!important; }

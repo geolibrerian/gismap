@@ -1,5 +1,6 @@
-import { applicationToLegacyPresentation, normalizeApplicationConfig } from "./application-config.js?v=0.16.3";
+import { applicationToLegacyPresentation, normalizeApplicationConfig } from "./application-config.js?v=0.17.0";
 import { normalizeDataCatalog } from "./data-catalog.js?v=0.16.0";
+import { normalizeMobileWorkflow } from "./mobile-feed-store.js?v=0.17.0";
 
 const STORAGE_KEY = "gismap-online:projects:v1";
 const CURRENT_KEY = "gismap-online:current-project:v1";
@@ -44,6 +45,7 @@ export class ProjectManager {
       presentation: { schemaVersion: 1, template: "standard", skin: "clean-light", title: "", primaryLayerId: null, fieldMappings: {}, widgets: {}, chapters: [] },
       application: null,
       dataCatalog: normalizeDataCatalog(),
+      mobile: normalizeMobileWorkflow(),
     };
   }
 
@@ -155,6 +157,7 @@ export class ProjectManager {
       ? normalizeApplicationConfig(project.application)
       : null;
     this.current.dataCatalog = normalizeDataCatalog(project.dataCatalog);
+    this.current.mobile = normalizeMobileWorkflow(project.mobile);
     await this.mapController.restoreView(project.view);
     this.events.publish("project:loaded", { project: this.current, missingFiles });
     return { project: this.current, missingFiles };
@@ -289,6 +292,14 @@ export class ProjectManager {
     this.persistCurrentIfSaved();
     this.events.publish("catalog:changed", { catalog: structuredClone(this.current.dataCatalog) });
     return structuredClone(this.current.dataCatalog);
+  }
+
+  setMobileWorkflow(mobile) {
+    this.current.mobile = normalizeMobileWorkflow(mobile);
+    this.current.updatedAt = new Date().toISOString();
+    this.persistCurrentIfSaved();
+    this.events.publish("mobile:workflow-changed", { mobile: structuredClone(this.current.mobile) });
+    return structuredClone(this.current.mobile);
   }
 
   #presentation(value = {}) {

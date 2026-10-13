@@ -53,23 +53,24 @@
     <link rel="icon" href="./assets/gis-map-online-mark-v2.png" type="image/png" />
     <link rel="preconnect" href="https://js.arcgis.com" />
     <link rel="stylesheet" href="https://js.arcgis.com/5.0/esri/themes/light/main.css" />
-    <link rel="stylesheet" href="./css/app.css?v=0.16.13" />
+    <link rel="stylesheet" href="./css/app.css?v=0.17.0" />
     <script type="module" src="https://js.arcgis.com/5.0/"></script>
     <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
     <script src="https://unpkg.com/@mapbox/shp-write@0.4.3/shpwrite.js"></script>
     <script src="./js/vendor/qrcode-1.5.4.js?v=1"></script>
   </head>
   <body>
-        <nav class="mobile-panel-nav" aria-label="Mobile tool drawer">
+        <nav class="mobile-panel-nav" aria-label="Mobile workflows">
           <button id="mobile-menu-toggle" type="button" aria-label="Menu" aria-controls="mobile-menu-drawer" aria-expanded="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg><small>Menu</small></button>
-          <button type="button" data-mobile-panel="places-panel" aria-label="Places"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5"/></svg><small>Places</small></button>
-          <button type="button" data-mobile-panel="bookmarks-panel" aria-label="Bookmarks"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v17l-6-4-6 4Z"/></svg><small>Bookmarks</small></button>
-          <button type="button" data-mobile-panel="draw-panel" aria-label="Draw"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m14 5 5 5M4 20l5-1L20 8a2 2 0 0 0-5-5L4 14Z"/></svg><small>Draw</small></button>
-          <button type="button" data-mobile-panel="layers-panel" aria-label="Layers"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 10 5-10 5L2 8Zm-9 9 9 5 9-5M3 17l9 5 9-5"/></svg><small>Layers</small></button>
-          <button type="button" data-mobile-panel="intelligence-panel" aria-label="Intel"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="7"/><circle cx="12" cy="12" r="2"/><path d="M12 2v3m0 14v3M2 12h3m14 0h3"/></svg><small>Intel</small></button>
+          <button type="button" data-mobile-workflow="updates" aria-label="Updates"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h12v18H6zM9 7h6M9 11h6M9 15h4"/></svg><small>Updates</small></button>
+          <button type="button" data-mobile-workflow="map" aria-label="Map"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m3 6 6-3 6 3 6-3v15l-6 3-6-3-6 3zM9 3v15m6-12v15"/></svg><small>Map</small></button>
+          <button type="button" data-mobile-workflow="tours" aria-label="Tours"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h14v16H5zM9 8h6M9 12h6M9 16h4"/></svg><small>Tours</small></button>
+          <button type="button" data-mobile-workflow="tasks" aria-label="Field tasks"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5h10v16H5V5h4m0-2h6v4H9zM8 12l2 2 5-5"/></svg><small>Tasks</small></button>
+          <button type="button" data-mobile-workflow="more" aria-label="More workflows"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></svg><small>More</small></button>
         </nav>
     <div id="app" class="app-shell">
       <div id="mobile-menu-drawer" class="mobile-menu-drawer" hidden></div>
+      <section id="mobile-workflow-root" class="mobile-workflow" hidden aria-live="polite"></section>
 
       <aside id="sidebar" class="sidebar" aria-label="GIS Map Online tools">
         <header class="brand">
@@ -370,6 +371,6 @@
     <input id="tool-file-input" type="file" accept=".js,.mjs" hidden />
 
     <noscript>GIS Map Online requires JavaScript.</noscript>
-    <script type="module" src="./js/app.js?v=0.16.20"></script>
+    <script type="module" src="./js/app.js?v=0.17.0"></script>
   </body>
 </html>

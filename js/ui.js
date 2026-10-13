@@ -4,7 +4,7 @@ import { createShareUrl } from "./share.js?v=0.16.0";
 import { createEmbeddedTourUrl } from "./tour-share.js?v=0.16.0";
 import { markdownToPlainText, renderMarkdown } from "./markdown.js?v=0.16.0";
 import { formatAttributeValue } from "./attribute-format.js?v=0.16.0";
-import { normalizeApplicationConfig, presetApplication } from "./application-config.js?v=0.16.3";
+import { normalizeApplicationConfig, presetApplication } from "./application-config.js?v=0.17.0";
 import { featureId, fieldKind, filterRecords, histogram, requestGuard, sortRecords } from "./presentation-query.js?v=0.16.0";
 
 const DISPLAY_SETTINGS_KEY = "gismap-online:display:v1";
@@ -122,7 +122,13 @@ export class UIController {
     close.setAttribute("aria-label", "Close main menu");
     close.textContent = "×";
     header.append(title, close);
-    drawer.replaceChildren(header, desktopMenu.cloneNode(true));
+    const mobileMenu = desktopMenu.cloneNode(true);
+    mobileMenu.querySelectorAll('[data-action="map-customize"], [data-action="map-globe"], [data-action="map-presentation"]').forEach((item) => item.remove());
+    const workflows = document.createElement("section");
+    workflows.className = "mobile-menu-workflows";
+    workflows.innerHTML = `<h2>Workflows</h2><div><button type="button" data-mobile-workflow="updates">Updates</button><button type="button" data-mobile-workflow="briefing">Briefing</button><button type="button" data-mobile-workflow="tours">Tours</button><button type="button" data-mobile-workflow="compare">Compare</button><button type="button" data-mobile-workflow="tasks">Field tasks</button><button type="button" data-mobile-workflow="watchlist">Watchlist</button></div>`;
+    mobileMenu.prepend(workflows);
+    drawer.replaceChildren(header, mobileMenu);
   }
 
   #bindMenus() {
@@ -3155,7 +3161,7 @@ export class UIController {
     const cards = [
       ["briefing", "Briefing", "Understand events, changes, and their sources", "dark-analytical"],
       ["explorer", "Explorer", "Search, filter, and compare mapped records", "clean-light"],
-      ["atlas", "Atlas", "Present places through guided chapters and stories", "retro-print"],
+      ["atlas", "Atlas", "Present places through guided chapters and stories", "clean-light"],
     ];
     this.openDialog({
       eyebrow: "Presentation",
@@ -3221,7 +3227,7 @@ export class UIController {
     const presentation = this.projectManager.setPresentation({
       ...current,
       template: "atlas",
-      skin: returningToTour ? (current.skin || "portolan") : "portolan",
+      skin: returningToTour ? (current.skin || "clean-light") : "clean-light",
       title: current.title || "Guided places",
       chapters: Array.isArray(current.chapters) ? current.chapters : [],
     });
@@ -3235,6 +3241,21 @@ export class UIController {
     if (this.utilityPresentationOpen) this.#syncUtilityPanel("presentation");
     this.#setSidebarCollapsed(false);
     this.toast(returningToTour ? "Guided tour opened." : "Guided tours ready. Add a chapter to begin.");
+  }
+
+  openMobileWorkflow(route) {
+    if (route === "tours") {
+      this.#openGuidedTours();
+      return;
+    }
+    if (route === "briefing") {
+      const current = this.projectManager.current.presentation || {};
+      const primaryLayerId = current.primaryLayerId || this.mapController.getOperationalLayers().find((layer) => typeof layer.queryFeatures === "function")?.uid || null;
+      const presentation = this.projectManager.setPresentation({ ...current, template: "briefing", skin: current.template === "briefing" ? (current.skin || "clean-light") : "clean-light", primaryLayerId });
+      this.#applyPresentation(presentation);
+      this.#setSidebarCollapsed(false);
+      this.toast("Briefing opened.");
+    }
   }
 
   async #importProject(event) {

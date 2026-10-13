@@ -1,7 +1,7 @@
 import { ApplicationState } from "./application-state.js?v=0.16.0";
 import { PanelRegistry, ToolRegistry } from "./application-registry.js?v=0.16.0";
 import { LayoutManager } from "./layout-manager.js?v=0.16.0";
-import { normalizeApplicationConfig, presetApplication } from "./application-config.js?v=0.16.3";
+import { normalizeApplicationConfig, presetApplication } from "./application-config.js?v=0.17.0";
 import { DuckDBBrowserClient } from "./duckdb-client.js?v=0.16.0";
 import { normalizeDataCatalog, planNaturalLanguageQuery, validateReadOnlySQL } from "./data-catalog.js?v=0.16.0";
 import { PanelManager } from "./panel-manager.js?v=0.16.2";

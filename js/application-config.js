@@ -31,7 +31,7 @@ export const APPLICATION_PRESETS = Object.freeze({
     ],
   },
   atlas: {
-    preset: "atlas", title: "Guided atlas", skin: "retro-print",
+    preset: "atlas", title: "Guided atlas", skin: "clean-light",
     panels: [
       PRESET_PANEL("chapters-main", "chapters", "Chapters", "left", 0),
       PRESET_PANEL("bookmarks-main", "bookmarks", "Saved places", "left", 1),
