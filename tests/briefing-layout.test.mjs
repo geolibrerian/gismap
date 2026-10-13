@@ -28,3 +28,8 @@ test("desktop and globe map controls can collapse and reopen", () => {
   assert.match(css, /\.map-nav__toggle/);
   assert.match(css, /body\.map-tools-collapsed/);
 });
+
+test("mobile map tools toggle sits above the tools at the top right", () => {
+  assert.match(css, /\.map-nav-shell \{ top:8px; right:8px; justify-items:end; transform:none; \}/);
+  assert.match(css, /\.map-nav__toggle \{ order:-1; width:42px; height:34px; \}/);
+});

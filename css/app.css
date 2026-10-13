@@ -708,6 +708,9 @@ body.shared-tour-only .atlas-tour-exit { display:none!important; }
 .atlas-reverse-place output { grid-column: 1; font-size: 11px; line-height: 1.4; }
 .atlas-reverse-place button { grid-column: 2; grid-row: 1 / span 2; }
 .atlas-camera-fields, .atlas-layer-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px 12px; margin: 0 0 14px; padding: 12px; border: 1px solid var(--line); border-radius: 8px; }
+.atlas-chapter-advanced { margin-top:12px; border:1px solid var(--line); border-radius:8px; background:var(--surface-2); }
+.atlas-chapter-advanced > summary { padding:11px 12px; color:var(--ink); cursor:pointer; font-weight:700; }
+.atlas-chapter-advanced__content { padding:2px 12px 12px; }
 .atlas-camera-fields legend, .atlas-layer-fields legend { padding: 0 6px; color: var(--muted); font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; }
 .atlas-camera-fields label { display: grid; gap: 4px; color: var(--muted); font-size: 10px; font-weight: 700; }
 .atlas-layer-fields { grid-template-columns: 1fr; max-height: 190px; overflow: auto; }
@@ -1543,7 +1546,7 @@ body.sidebar-collapsed .table-dialog { left: 14px; }
   .map-status { bottom: calc(70px + env(safe-area-inset-bottom)); }
   body #sidebar-open.sidebar__open,
   body.sidebar-collapsed #sidebar-open.sidebar__open { display:none!important; }
-  .map-nav-shell { top:50%; right:8px; justify-items:end; transform:translateY(-50%); }
+  .map-nav-shell { top:8px; right:8px; justify-items:end; transform:none; }
   .map-nav {
     display:none;
     max-height: min(390px, 74dvh);
@@ -1556,7 +1559,7 @@ body.sidebar-collapsed .table-dialog { left: 14px; }
     backdrop-filter: blur(14px);
   }
   .map-nav button { width: 42px; height: 42px; box-shadow: none; }
-  .map-nav__toggle { width:42px; height:34px; }
+  .map-nav__toggle { order:-1; width:42px; height:34px; }
   body.mobile-map-tools-open .map-nav { display:grid; }
   body.mobile-map-tools-open .map-nav__toggle { width:100%; }
   .insights-overlay {
@@ -1657,6 +1660,11 @@ body.sidebar-collapsed .table-dialog { left: 14px; }
   .app-dialog--presentation-sheet #dialog-dock { display:none; }
   .app-dialog--presentation-sheet .dialog__content { padding:10px 12px; }
   .app-dialog--presentation-sheet .atlas-geocoder { margin-top:0; }
+  .app-dialog--presentation-sheet .dialog__header { position:absolute; z-index:3; top:8px; right:8px; min-height:0; padding:0; border:0; background:transparent; }
+  .app-dialog--presentation-sheet .dialog__header > div { display:none; }
+  .app-dialog--presentation-sheet .dialog__header-actions { padding:0; }
+  .app-dialog--presentation-sheet .dialog__content { padding-top:14px; }
+  .app-dialog--presentation-sheet .atlas-chapter-advanced { background:var(--surface); }
 }
 
 @media (max-width: 480px) {

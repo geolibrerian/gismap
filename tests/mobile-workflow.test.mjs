@@ -28,6 +28,20 @@ test("mobile navigation exposes focused workflows", async () => {
   assert.match(html, /id="mobile-workflow-root"/);
 });
 
+test("mobile tours own the active nav state instead of highlighting Map", async () => {
+  const router = await readFile(new URL("../js/mobile-workflow-router.js", import.meta.url), "utf8");
+  const ui = await readFile(new URL("../js/ui.js", import.meta.url), "utf8");
+  assert.match(router, /if \(route === "tours" \|\| route === "briefing"\) \{\s*this\.route = route;/);
+  assert.match(router, /"mobile:workflow-route"/);
+  assert.match(ui, /publish\("mobile:workflow-route", \{ route: "tours" \}\)/);
+});
+
+test("mobile chapter editing hides advanced fields in a fold by default", async () => {
+  const ui = await readFile(new URL("../js/ui.js", import.meta.url), "utf8");
+  assert.match(ui, /class="atlas-chapter-advanced"\$\{this\.mobileMedia\.matches \? "" : " open"\}/);
+  assert.match(ui, /<summary>More chapter options<\/summary>/);
+});
+
 test("mobile menu removes desktop-only builders and adds workflow routes", async () => {
   const ui = await readFile(new URL("../js/ui.js", import.meta.url), "utf8");
   assert.match(ui, /map-customize.*map-globe.*map-presentation/s);

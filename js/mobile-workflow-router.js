@@ -19,6 +19,13 @@ export class MobileWorkflowRouter {
     this.root?.addEventListener("submit", (event) => this.#submit(event));
     this.events.subscribe?.("project:loaded", () => { if (this.route !== "map") this.render(); });
     this.events.subscribe?.("mobile:workflow-changed", () => { if (this.route !== "map") this.render(); });
+    this.events.subscribe?.("mobile:workflow-route", ({ route }) => {
+      if (!this.media.matches || !route) return;
+      this.route = route;
+      this.root.hidden = true;
+      document.body.classList.remove("mobile-workflow-open", "mobile-menu-open");
+      this.#syncNav();
+    });
     this.media.addEventListener?.("change", ({ matches }) => { if (!matches) this.navigate("map"); });
   }
 
@@ -33,7 +40,10 @@ export class MobileWorkflowRouter {
       return;
     }
     if (route === "tours" || route === "briefing") {
-      this.navigate("map");
+      this.route = route;
+      this.root.hidden = true;
+      document.body.classList.remove("mobile-workflow-open", "mobile-menu-open");
+      this.#syncNav();
       this.openWorkflow(route);
       return;
     }
