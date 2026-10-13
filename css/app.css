@@ -1612,7 +1612,7 @@ body.sidebar-collapsed .table-dialog { left: 14px; }
   body.mobile-presentation-panel-open .utility-panel {
     inset:auto 0 0;
     width:100%;
-    height:min(55dvh,560px);
+    height:60dvh;
     max-height:none;
     grid-template-rows:auto minmax(0,1fr);
     border:1px solid var(--line);
@@ -1627,6 +1627,21 @@ body.sidebar-collapsed .table-dialog { left: 14px; }
   body.mobile-presentation-panel-open .presentation-utility #presentation-dashboard { min-height:100%; max-height:100%; margin:0; padding:16px 14px calc(24px + env(safe-area-inset-bottom)); overflow-x:hidden; overflow-y:auto; overscroll-behavior:contain; touch-action:pan-y; -webkit-overflow-scrolling:touch; }
   body.mobile-presentation-panel-open .presentation-utility .mode-dashboard { min-width:0; }
   body.mobile-presentation-panel-open .presentation-utility .mode-records { max-height:none; }
+  body.mobile-presentation-panel-open .mode-dashboard--atlas > header { display:none; }
+  body.mobile-presentation-panel-open .mode-dashboard--atlas .atlas-title-control { order:-2; grid-template-columns:1fr; gap:4px; }
+  body.mobile-presentation-panel-open .mode-dashboard--atlas .atlas-title-control span { font-size:9px; text-transform:uppercase; letter-spacing:.08em; }
+  body.mobile-presentation-panel-open .mode-dashboard--atlas .atlas-title-control input { padding:8px 0; border:0; border-bottom:1px solid var(--line); border-radius:0; background:transparent; font:700 22px/1.15 var(--ui-heading); }
+  body.mobile-presentation-panel-open .mode-dashboard--atlas .atlas-actions { order:-1; grid-template-columns:repeat(3,minmax(0,1fr)); gap:6px; }
+  body.mobile-presentation-panel-open .mode-dashboard--atlas .atlas-actions [data-atlas-settings] { display:none; }
+  body.mobile-presentation-panel-open .mode-dashboard--atlas .atlas-actions button { min-height:40px; padding:7px 4px; font-size:12px; }
+  body.mobile-presentation-panel-open .mode-dashboard--atlas .mode-records { min-height:120px; }
+  .app-dialog--presentation-sheet { position:fixed; z-index:72; inset:auto 0 0; width:100%; max-width:none; height:60dvh; max-height:none; margin:0; padding:0; border:0; background:transparent; }
+  .app-dialog--presentation-sheet .dialog__shell { height:100%; border-radius:16px 16px 0 0; box-shadow:0 -14px 34px rgb(17 39 33 / 24%); }
+  .app-dialog--presentation-sheet .dialog__header { min-height:54px; padding:9px 12px; }
+  .app-dialog--presentation-sheet .dialog__header h2 { font-size:20px; }
+  .app-dialog--presentation-sheet #dialog-dock { display:none; }
+  .app-dialog--presentation-sheet .dialog__content { padding:10px 12px; }
+  .app-dialog--presentation-sheet .atlas-geocoder { margin-top:0; }
 }
 
 @media (max-width: 480px) {

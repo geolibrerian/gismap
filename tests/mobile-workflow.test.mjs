@@ -34,3 +34,13 @@ test("mobile menu removes desktop-only builders and adds workflow routes", async
   assert.match(ui, /Updates.*Briefing.*Tours.*Compare.*Field tasks.*Watchlist/s);
   assert.match(ui, /skin: returningToTour \? \(current\.skin \|\| "clean-light"\) : "clean-light"/);
 });
+
+test("mobile Atlas authoring uses a sixty-percent bottom workspace", async () => {
+  const ui = await readFile(new URL("../js/ui.js", import.meta.url), "utf8");
+  const css = await readFile(new URL("../css/app.css", import.meta.url), "utf8");
+  assert.match(ui, /presentationSheet:\s*true/);
+  assert.match(ui, /compactAtlas \? "Present" : "Present tour"/);
+  assert.match(css, /body\.mobile-presentation-panel-open \.utility-panel[\s\S]*?height:60dvh/);
+  assert.match(css, /\.app-dialog--presentation-sheet[\s\S]*?height:60dvh/);
+  assert.match(css, /grid-template-columns:repeat\(3,minmax\(0,1fr\)\)/);
+});

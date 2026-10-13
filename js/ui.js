@@ -1971,7 +1971,8 @@ export class UIController {
       const captureButton = root.querySelector("[data-atlas-capture]");
       const shareButton = root.querySelector("[data-atlas-share]");
       if (atlasActions && modeButton) {
-        modeButton.textContent = this.presentationState.atlasPresent ? "Edit tour" : "Present tour";
+        const compactAtlas = this.mobileMedia.matches;
+        modeButton.textContent = this.presentationState.atlasPresent ? (compactAtlas ? "Edit" : "Edit tour") : (compactAtlas ? "Present" : "Present tour");
         atlasActions.prepend(modeButton);
         const settingsButton = document.createElement("button");
         settingsButton.type = "button";
@@ -1979,8 +1980,8 @@ export class UIController {
         settingsButton.textContent = "Tour settings";
         modeButton.after(settingsButton);
       }
-      if (captureButton) captureButton.textContent = "Add a chapter";
-      if (shareButton) shareButton.textContent = "Share & export";
+      if (captureButton) captureButton.textContent = this.mobileMedia.matches ? "Add" : "Add a chapter";
+      if (shareButton) shareButton.textContent = this.mobileMedia.matches ? "Share" : "Share & export";
       root.querySelector("[data-atlas-export]")?.remove();
       root.querySelector(".atlas-present-action")?.remove();
       root.querySelector(".atlas-skin-control")?.remove();
@@ -2512,6 +2513,7 @@ export class UIController {
     this.openDialog({
       eyebrow: "Atlas chapter",
       title: "Edit chapter",
+      presentationSheet: true,
       content: `<section class="atlas-geocoder"><label class="field"><span>Zoom to a place or address</span><div class="atlas-geocoder__search"><input id="atlas-place-query" type="search" placeholder="Address, place, or longitude, latitude" autocomplete="off" role="combobox" aria-autocomplete="list" aria-controls="atlas-place-results" aria-expanded="false" /><button id="atlas-place-search" type="button">Find</button></div></label><div id="atlas-place-results" class="atlas-place-results" role="listbox" aria-label="Place suggestions" hidden></div><div class="atlas-reverse-place"><span>Center of view</span><output id="atlas-reverse-address" data-address="${escapeHtml(chapter.reverseAddress || "")}">${escapeHtml(chapter.reverseAddress || "Finding address…")}</output><button id="atlas-use-current-view" type="button">Use current map view</button></div></section><label class="field"><span>Title</span><input id="atlas-editor-title" value="${escapeHtml(chapter.title || "")}" /></label><label class="field"><span>Description <small>Shown in the lower-right card during the tour</small></span><textarea id="atlas-chapter-body" rows="4">${escapeHtml(chapter.body || "")}</textarea></label><label class="field"><span>Image URL <small>Optional public http(s) image</small></span><input id="atlas-chapter-media" type="url" inputmode="url" placeholder="https://example.com/photo.jpg" value="${escapeHtml(chapter.mediaUrl || "")}" /></label><fieldset class="atlas-camera-fields"><legend>Exact camera</legend><label>Longitude<input id="atlas-camera-longitude" type="number" step="0.000001" value="${escapeHtml(geographicPosition.longitude ?? "")}" /></label><label>Latitude<input id="atlas-camera-latitude" type="number" step="0.000001" value="${escapeHtml(geographicPosition.latitude ?? "")}" /></label><label>Altitude (m)<input id="atlas-camera-altitude" type="number" step="0.1" value="${escapeHtml(geographicPosition.altitude ?? "")}" /></label><label>Heading / angle<input id="atlas-camera-heading" type="number" min="0" max="360" step="0.1" value="${escapeHtml(this.atlasEditingViewState.camera?.heading ?? this.atlasEditingViewState.heading ?? 0)}" /></label><label>Tilt<input id="atlas-camera-tilt" type="number" min="0" max="179" step="0.1" value="${escapeHtml(this.atlasEditingViewState.camera?.tilt ?? this.atlasEditingViewState.tilt ?? 0)}" /></label></fieldset><div class="field-grid"><label class="field"><span>Basemap</span><select id="atlas-chapter-basemap">${basemapOptions}</select></label><label class="field"><span>Linger (seconds) <small>Auto playback only</small></span><input id="atlas-chapter-linger" type="number" min="1" max="120" step="1" value="${Number(chapter.lingerSeconds) || 4}" /></label><label class="field"><span>Camera transition</span><select id="atlas-chapter-transition"><option value="smooth"${chapter.transitionMode !== "instant" ? " selected" : ""}>Smooth camera move</option><option value="instant"${chapter.transitionMode === "instant" ? " selected" : ""}>Cut instantly</option></select></label></div><fieldset class="atlas-layer-fields"><legend>Layers in this chapter</legend>${layerChoices}</fieldset>`,
       actions: [{ label: "Save", primary: true, handler: () => {
         const mediaUrl = this.dialog.querySelector("#atlas-chapter-media").value.trim();
@@ -4127,8 +4129,9 @@ export class UIController {
     document.querySelector("#save-state").textContent = state;
   }
 
-  openDialog({ eyebrow = "GIS Map Online", title, content, actions = [] }) {
-    this.dialog.classList.remove("app-dialog--docked");
+  openDialog({ eyebrow = "GIS Map Online", title, content, actions = [], presentationSheet = false }) {
+    this.dialog.classList.remove("app-dialog--docked", "app-dialog--presentation-sheet");
+    this.dialog.classList.toggle("app-dialog--presentation-sheet", presentationSheet);
     document.querySelector("#dialog-dock").setAttribute("aria-label", "Move dialog to the right panel");
     document.querySelector("#dialog-dock").textContent = "↗";
     document.querySelector("#dialog-eyebrow").textContent = eyebrow;
@@ -4144,7 +4147,10 @@ export class UIController {
       button.addEventListener("click", action.handler);
       footer.append(button);
     });
-    if (!this.dialog.open) this.dialog.showModal();
+    if (!this.dialog.open) {
+      if (presentationSheet && this.mobileMedia.matches) this.dialog.show();
+      else this.dialog.showModal();
+    }
   }
 
   toast(message) {

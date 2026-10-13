@@ -24,7 +24,7 @@ assert.match(css, /@media \(max-width: 640px\)[\s\S]*\.map-workspace,\s*#viewDiv
 assert.match(css, /\.insight-tabs\s*\{[^}]*order:\s*2/s);
 assert.match(css, /\.app-dialog--docked \.dialog__content\s*\{[^}]*overflow-y:auto/s, "Docked chapter authoring must keep its form scrollable.");
 assert.match(css, /body\.sidebar-collapsed #app\[data-presentation="atlas"\] \.atlas-chapter-overlay\s*\{[^}]*left:70px/s, "The Atlas title must clear the reopen-sidebar control.");
-assert.match(css, /body\.mobile-presentation-panel-open \.utility-panel\s*\{[^}]*height:min\(55dvh,560px\)[^}]*grid-template-rows:auto minmax\(0,1fr\)/s, "Mobile presentation editing must use a scrollable bottom-half sheet.");
+assert.match(css, /body\.mobile-presentation-panel-open \.utility-panel\s*\{[^}]*height:60dvh[^}]*grid-template-rows:auto minmax\(0,1fr\)/s, "Mobile presentation editing must use a scrollable sixty-percent sheet.");
 assert.match(css, /body\.mobile-presentation-panel-open :is\(\.atlas-chapter-description,\.mobile-presentation-controls\)/, "Mobile editing must hide lower tour overlays behind it while preserving the chapter heading.");
 assert.match(css, /body\.mobile-atlas-presenting :is\([^}]*\.mobile-panel-nav[^}]*\.mobile-menu-drawer/s, "Mobile Atlas presentation must hide general workspace navigation.");
 assert.match(css, /\.sidebar__open\[hidden\]\s*\{[^}]*display:none!important/s, "The desktop panel opener must remain hidden in the restored mobile workspace.");
