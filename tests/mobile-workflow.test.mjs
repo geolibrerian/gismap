@@ -42,5 +42,14 @@ test("mobile Atlas authoring uses a sixty-percent bottom workspace", async () =>
   assert.match(ui, /compactAtlas \? "Present" : "Present tour"/);
   assert.match(css, /body\.mobile-presentation-panel-open \.utility-panel[\s\S]*?height:60dvh/);
   assert.match(css, /\.app-dialog--presentation-sheet[\s\S]*?height:60dvh/);
+  assert.match(css, /#app\[data-presentation="atlas"\] \.sidebar \{ height:60dvh; max-height:60dvh; \}/);
+  assert.match(css, /#app\[data-presentation="atlas"\] \.mode-dashboard--atlas \{ align-content:start; grid-auto-rows:max-content/);
   assert.match(css, /grid-template-columns:repeat\(3,minmax\(0,1fr\)\)/);
+  assert.match(css, /\.atlas-actions button \{ height:40px; min-height:0; max-height:40px/);
+});
+
+test("Clean Light keeps the full-screen mobile menu legible", async () => {
+  const css = await readFile(new URL("../css/app.css", import.meta.url), "utf8");
+  assert.match(css, /data-presentation-skin="clean-light"\] \.mobile-menu-drawer \{ color:var\(--ink\); background:var\(--surface\); \}/);
+  assert.match(css, /data-presentation-skin="clean-light"\] \.mobile-menu-drawer \.menu__trigger/);
 });
