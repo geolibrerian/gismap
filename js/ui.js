@@ -32,8 +32,8 @@ const escapeHtml = (value) =>
   })[char]);
 
 export class UIController {
-  constructor(events, mapController, projectManager, authController, aiController, toolManager, exportController, applicationRuntime, panelManager) {
-    Object.assign(this, { events, mapController, projectManager, authController, aiController, toolManager, exportController, applicationRuntime, panelManager });
+  constructor(events, mapController, projectManager, authController, aiController, toolManager, exportController, applicationRuntime, panelManager, mobilePanelManager) {
+    Object.assign(this, { events, mapController, projectManager, authController, aiController, toolManager, exportController, applicationRuntime, panelManager, mobilePanelManager });
     this.dialog = document.querySelector("#app-dialog");
     this.searchResults = [];
     this.searchTimer = null;
@@ -64,7 +64,7 @@ export class UIController {
     this.briefingRequest = requestGuard();
     this.keepWelcomeForSharedExample = new URLSearchParams(location.search).has("example");
     this.systemThemeMedia = matchMedia("(prefers-color-scheme: dark)");
-    this.mobileMedia = matchMedia("(max-width: 640px)");
+    this.mobileMedia = mobilePanelManager?.media || matchMedia("(max-width: 640px), (max-width: 880px) and (orientation: portrait)");
   }
 
   initialize() {
@@ -75,13 +75,27 @@ export class UIController {
       const settings = this.#readDisplaySettings();
       if (settings.appearance === "system") this.#applyDisplaySettings(settings);
     });
-    if (this.mobileMedia.matches) this.#setSidebarCollapsed(true);
+    if (this.mobileMedia.matches) {
+      this.mobilePanelManager?.enter();
+      this.#setSidebarCollapsed(true);
+    }
     this.mobileMedia.addEventListener?.("change", ({ matches }) => {
       document.body.classList.remove("mobile-map-tools-open", "mobile-drawer-expanded");
       document.body.classList.remove("map-tools-collapsed");
       this.#syncMapToolsToggle(matches ? false : true);
       this.#setSidebarCollapsed(matches && this.presentationState.template === "standard");
       this.#applyDisplaySettings(this.#readDisplaySettings());
+      if (matches) {
+        this.utilityIntelligenceOpen = false;
+        this.utilityDrawOpen = false;
+        this.utilityStyleLayerUid = null;
+        this.utilityPresentationOpen = false;
+        this.activeUtilityTab = null;
+        this.#syncUtilityPanel();
+        this.mobilePanelManager?.enter();
+      } else {
+        this.mobilePanelManager?.leave();
+      }
     });
     this.#buildMobileMenu();
     this.#bindMenus();
@@ -719,25 +733,12 @@ export class UIController {
   }
 
   #activateMobilePanel(panelId, openSidebar = true) {
-    const current = document.querySelector("[data-mobile-panel].is-active")?.dataset.mobilePanel;
-    const closing = openSidebar && current === panelId && !document.body.classList.contains("sidebar-collapsed");
     if (openSidebar) {
       this.#closeMenus();
       this.#dismissWelcome();
     }
-    if (closing) panelId = null;
-    document.querySelectorAll("[data-mobile-panel]").forEach((button) => {
-      const active = button.dataset.mobilePanel === panelId;
-      button.classList.toggle("is-active", active);
-      button.setAttribute("aria-pressed", String(active));
-    });
-    document.querySelectorAll(".sidebar__scroll > .panel").forEach((panel) => {
-      const active = panel.id === panelId;
-      panel.classList.toggle("is-mobile-active", active);
-      if (active) panel.open = true;
-    });
-    document.body.classList.toggle("mobile-places-active", panelId === "places-panel");
-    if (openSidebar) this.#setSidebarCollapsed(!panelId);
+    const activePanelId = this.mobilePanelManager?.activate(panelId) ?? panelId;
+    if (openSidebar) this.#setSidebarCollapsed(!activePanelId);
   }
 
   async #handleAction(action) {

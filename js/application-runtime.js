@@ -17,9 +17,11 @@ const STATIC_PANELS = {
 const escapeHtml = (value) => String(value ?? "").replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char]);
 
 export class ApplicationRuntime {
-  constructor({ events, mapController, projectManager, aiController, panelManager = null, documentRef = document }) {
+  constructor({ events, mapController, projectManager, aiController, panelManager = null, mobilePanelManager = null, documentRef = document }) {
     Object.assign(this, { events, mapController, projectManager, aiController, document: documentRef });
     this.panelManager = panelManager || new PanelManager({ documentRef });
+    this.mobilePanelManager = mobilePanelManager;
+    this.currentConfig = null;
     this.state = new ApplicationState();
     this.tools = new ToolRegistry();
     this.panels = new PanelRegistry();
@@ -46,11 +48,13 @@ export class ApplicationRuntime {
     this.#registerTools();
     this.#registerPanels();
     this.#bridgeState();
+    this.mobilePanelManager?.media?.addEventListener?.("change", () => this.#syncResponsiveLayout());
   }
 
   apply(config, { preview = false } = {}) {
     if (preview) this.layout.beginPreview();
     const normalized = normalizeApplicationConfig(config);
+    this.currentConfig = normalized;
     const previousLayout = this.layout.current?.layout?.kind;
     this.document.querySelector("#app").dataset.applicationPreset = normalized.preset;
     this.document.querySelector("#app").dataset.presentationSkin = normalized.skin;
@@ -58,7 +62,16 @@ export class ApplicationRuntime {
     this.document.querySelector("#application-edit-return").hidden = normalized.mode !== "present";
     const settingsButton = this.document.querySelector("#dashboard-settings-open");
     if (settingsButton) settingsButton.hidden = false;
-    const applied = this.layout.apply(normalized, this.#context());
+    let applied;
+    if (this.mobilePanelManager?.compact) {
+      this.layout.deactivate(this.#context());
+      this.document.querySelector("#app").dataset.applicationLayout = "mobile";
+      this.mobilePanelManager.enter();
+      applied = structuredClone(normalized);
+    } else {
+      this.mobilePanelManager?.leave();
+      applied = this.layout.apply(normalized, this.#context());
+    }
     if (normalized.layout.kind === "globe" && previousLayout !== "globe") {
       this.mapController.restoreView({ center: [-20, 18], zoom: 2, heading: 0, tilt: 0 }).catch(() => {});
     }
@@ -73,6 +86,9 @@ export class ApplicationRuntime {
 
   deactivate() {
     this.layout.deactivate(this.#context());
+    this.currentConfig = null;
+    if (this.mobilePanelManager?.compact) this.mobilePanelManager.enter();
+    else this.mobilePanelManager?.leave();
     const app = this.document.querySelector("#app");
     delete app.dataset.applicationPreset;
     delete this.document.body.dataset.applicationMode;
@@ -83,6 +99,12 @@ export class ApplicationRuntime {
   }
 
   syncStaticPanelVisibility() {
+    if (this.mobilePanelManager?.compact) {
+      this.mobilePanelManager.activePanelId
+        ? this.mobilePanelManager.activate(this.mobilePanelManager.activePanelId, { toggle: false })
+        : this.mobilePanelManager.close();
+      return;
+    }
     const config = this.layout.current;
     const visibleTypes = config ? new Set(config.panels
       .filter((panel) => config.mode !== "present" || panel.audienceVisible)
@@ -96,11 +118,17 @@ export class ApplicationRuntime {
   }
 
   setMode(mode) {
-    const next = { ...(this.layout.current || presetApplication()), mode: mode === "present" ? "present" : "edit" };
+    const next = { ...(this.currentConfig || this.layout.current || presetApplication()), mode: mode === "present" ? "present" : "edit" };
     return this.apply(next);
   }
 
-  snapshot() { return normalizeApplicationConfig(this.layout.current || presetApplication()); }
+  snapshot() { return normalizeApplicationConfig(this.currentConfig || this.layout.current || presetApplication()); }
+
+  #syncResponsiveLayout() {
+    if (this.currentConfig) this.apply(this.currentConfig);
+    else if (this.mobilePanelManager?.compact) this.mobilePanelManager.enter();
+    else this.mobilePanelManager?.leave();
+  }
 
   async runTool(id, input, { preview = false } = {}) {
     if (preview) this.undoStack.push(this.snapshot());

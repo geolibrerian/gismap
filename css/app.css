@@ -322,7 +322,7 @@ body:has(.application-dock--bottom.is-collapsed).application-bottom-open #viewDi
   body.application-right-open .app-shell, body.sidebar-collapsed.application-right-open .app-shell { grid-template-columns: minmax(0, 1fr); }
   .application-dock--right { position: fixed; z-index: 58; inset: 52px 0 0 auto; width: min(88vw, 440px); box-shadow: -14px 0 34px rgb(17 39 33 / 22%); }
 }
-@media (max-width: 640px) {
+@media (max-width: 640px), (max-width: 880px) and (orientation: portrait) {
   html, body { width:100%; max-width:100%; overflow:hidden; -webkit-text-size-adjust:100%; }
   .application-builder__top, .application-builder__gallery { grid-template-columns: 1fr; }
   .application-builder__instance { grid-template-columns: 1fr 1fr; }
@@ -734,7 +734,7 @@ body.shared-tour-only .atlas-tour-exit { display:none!important; }
   #app[data-presentation="atlas"] #draw-panel { display: none; }
   body.presentation-workspace-panels-open #app[data-presentation] .sidebar__scroll > .panel[data-presentation-hidden] { display: block; }
 }
-@media (max-width: 640px) {
+@media (max-width: 640px), (max-width: 880px) and (orientation: portrait) {
   .skin-picker { grid-template-columns:1fr; }
   .presentation-compact-header { grid-template-columns:1fr; }.presentation-compact-header .eyebrow { grid-column:auto; }
   .compact-dataset select { max-width:none; width:100%; }
@@ -1309,7 +1309,7 @@ body.sidebar-collapsed .table-dialog { left: 14px; }
   }
 }
 
-@media (max-width: 640px) {
+@media (max-width: 640px), (max-width: 880px) and (orientation: portrait) {
   .atlas-chapter-overlay { top: 8px; right: 8px; left: 8px; grid-template-columns: 1fr; width: auto; gap: 10px; padding:12px 14px; }
   .atlas-chapter-overlay__copy { display:grid; grid-template-columns:48px minmax(0,1fr); gap:11px; align-items:center; padding-right:0; }
   .atlas-chapter-brand-mark { display:block; width:48px; height:48px; object-fit:contain; }
