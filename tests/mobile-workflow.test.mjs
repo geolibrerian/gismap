@@ -56,6 +56,8 @@ test("mobile Atlas authoring uses a sixty-percent bottom workspace", async () =>
   assert.match(ui, /compactAtlas \? "Present" : "Present tour"/);
   assert.match(css, /body\.mobile-presentation-panel-open \.utility-panel[\s\S]*?height:60dvh/);
   assert.match(css, /\.app-dialog--presentation-sheet[\s\S]*?height:60dvh/);
+  assert.match(css, /\.app-dialog--presentation-sheet \.dialog__shell \{ grid-template-rows:minmax\(0,1fr\) auto/);
+  assert.match(css, /\.app-dialog--presentation-sheet \.dialog__actions button \{ flex:0 0 auto; width:auto; min-width:88px; height:40px/);
   assert.match(css, /#app\[data-presentation="atlas"\] \.sidebar \{ height:60dvh; max-height:60dvh; \}/);
   assert.match(css, /#app\[data-presentation="atlas"\] \.mode-dashboard--atlas \{ align-content:start; grid-auto-rows:max-content/);
   assert.match(css, /grid-template-columns:repeat\(3,minmax\(0,1fr\)\)/);

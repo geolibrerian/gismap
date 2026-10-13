@@ -1653,8 +1653,8 @@ body.sidebar-collapsed .table-dialog { left: 14px; }
   #app[data-presentation="atlas"] .mode-dashboard--atlas .atlas-actions [data-atlas-settings] { display:none; }
   #app[data-presentation="atlas"] .mode-dashboard--atlas .atlas-actions button { height:40px; min-height:0; max-height:40px; padding:7px 4px; font-size:12px; }
   #app[data-presentation="atlas"] .mode-dashboard--atlas .mode-records { align-self:start; min-height:120px; }
-  .app-dialog--presentation-sheet { position:fixed; z-index:72; inset:auto 0 0; width:100%; max-width:none; height:60dvh; max-height:none; margin:0; padding:0; border:0; background:transparent; }
-  .app-dialog--presentation-sheet .dialog__shell { height:100%; border-radius:16px 16px 0 0; box-shadow:0 -14px 34px rgb(17 39 33 / 24%); }
+  .app-dialog--presentation-sheet { position:fixed; z-index:72; inset:auto 0 calc(70px + env(safe-area-inset-bottom)); width:100%; max-width:none; height:60dvh; max-height:calc(100dvh - 120px - env(safe-area-inset-bottom)); margin:0; padding:0; border:0; background:transparent; }
+  .app-dialog--presentation-sheet .dialog__shell { grid-template-rows:minmax(0,1fr) auto; height:100%; border-radius:16px 16px 0 0; box-shadow:0 -14px 34px rgb(17 39 33 / 24%); }
   .app-dialog--presentation-sheet .dialog__header { min-height:54px; padding:9px 12px; }
   .app-dialog--presentation-sheet .dialog__header h2 { font-size:20px; }
   .app-dialog--presentation-sheet #dialog-dock { display:none; }
@@ -1663,7 +1663,9 @@ body.sidebar-collapsed .table-dialog { left: 14px; }
   .app-dialog--presentation-sheet .dialog__header { position:absolute; z-index:3; top:8px; right:8px; min-height:0; padding:0; border:0; background:transparent; }
   .app-dialog--presentation-sheet .dialog__header > div { display:none; }
   .app-dialog--presentation-sheet .dialog__header-actions { padding:0; }
-  .app-dialog--presentation-sheet .dialog__content { padding-top:14px; }
+  .app-dialog--presentation-sheet .dialog__content { min-height:0; padding-top:14px; overflow-y:auto; }
+  .app-dialog--presentation-sheet .dialog__actions { align-items:center; flex:0 0 auto; padding:8px 12px calc(8px + env(safe-area-inset-bottom)); border-top:1px solid var(--line); background:var(--paper); }
+  .app-dialog--presentation-sheet .dialog__actions button { flex:0 0 auto; width:auto; min-width:88px; height:40px; min-height:40px; max-height:40px; padding:7px 14px; }
   .app-dialog--presentation-sheet .atlas-chapter-advanced { background:var(--surface); }
 }
 
