@@ -43,12 +43,23 @@ test("mobile chapter editing hides advanced fields in a fold by default", async 
   assert.match(ui, /<summary>More chapter options<\/summary>/);
 });
 
-test("mobile menu exposes only free workflows and hides desktop authoring", async () => {
+test("mobile menu nests public workflows below the standard tools", async () => {
   const ui = await readFile(new URL("../js/ui.js", import.meta.url), "utf8");
   assert.match(ui, /dashboard-builder.*map-presentation/s);
-  assert.match(ui, /Free workflows.*Briefing.*Tours.*Field tasks.*Map tools/s);
+  assert.match(ui, /mobile-workflows-menu.*Workflows.*Briefing.*Tours.*Field tasks.*Map tools/s);
+  assert.match(ui, /mobileMenu\.append\(workflows\)/);
+  assert.doesNotMatch(ui, /Free workflows/);
   assert.doesNotMatch(ui.match(/workflows\.innerHTML[^;]+/s)?.[0] || "", /Updates|Compare|Watchlist/);
   assert.match(ui, /skin: returningToTour \? \(current\.skin \|\| "clean-light"\) : "clean-light"/);
+});
+
+test("mobile navigation keeps workflow, menu, and map-tool selection exclusive", async () => {
+  const router = await readFile(new URL("../js/mobile-workflow-router.js", import.meta.url), "utf8");
+  const ui = await readFile(new URL("../js/ui.js", import.meta.url), "utf8");
+  assert.match(router, /!menuOpen && !this\.activePanelId && button\.dataset\.mobileWorkflow === this\.route/);
+  assert.match(router, /"mobile:panel-active"/);
+  assert.match(ui, /prepareMobileWorkflow\(route\)/);
+  assert.match(ui, /setPresentation\(\{ \.\.\.current, template: "standard" \}\)/);
 });
 
 test("map tool strip is mobile-only and limited to the Map route", async () => {
@@ -79,10 +90,19 @@ test("mobile Atlas authoring uses a sixty-percent bottom workspace", async () =>
   assert.match(css, /\.app-dialog--presentation-sheet[\s\S]*?height:60dvh/);
   assert.match(css, /\.app-dialog--presentation-sheet \.dialog__shell \{ grid-template-rows:minmax\(0,1fr\) auto/);
   assert.match(css, /\.app-dialog--presentation-sheet \.dialog__actions button \{ flex:0 0 auto; width:auto; min-width:88px; height:40px/);
-  assert.match(css, /#app\[data-presentation="atlas"\] \.sidebar \{ height:60dvh; max-height:60dvh; \}/);
+  assert.match(css, /#app\[data-presentation="briefing"\] \.sidebar,[\s\S]*?#app\[data-presentation="atlas"\] \.sidebar \{ height:60dvh; max-height:60dvh; \}/);
   assert.match(css, /#app\[data-presentation="atlas"\] \.mode-dashboard--atlas \{ align-content:start; grid-auto-rows:max-content/);
   assert.match(css, /grid-template-columns:repeat\(3,minmax\(0,1fr\)\)/);
   assert.match(css, /\.atlas-actions button \{ height:40px; min-height:0; max-height:40px/);
+});
+
+test("mobile map tools open in a resizable forty-to-sixty-percent sheet", async () => {
+  const html = await readFile(new URL("../index.html", import.meta.url), "utf8");
+  const ui = await readFile(new URL("../js/ui.js", import.meta.url), "utf8");
+  const css = await readFile(new URL("../css/app.css", import.meta.url), "utf8");
+  assert.match(html, /id="mobile-drawer-handle"/);
+  assert.match(ui, /Math\.min\(window\.innerHeight \* 0\.6, Math\.max\(window\.innerHeight \* 0\.4, height\)\)/);
+  assert.match(css, /height: var\(--mobile-tool-drawer-height, 40dvh\);[\s\S]*?max-height: 60dvh/);
 });
 
 test("Clean Light keeps the full-screen mobile menu legible", async () => {

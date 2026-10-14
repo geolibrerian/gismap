@@ -103,6 +103,7 @@ export class UIController {
     this.#bindStaticActions();
     this.#bindInsightResize();
     this.#bindUtilityPanel();
+    this.#bindMobileDrawerResize();
     this.#bindMapEvents();
     this.#renderBookmarks();
     this.#renderLayers();
@@ -125,10 +126,10 @@ export class UIController {
     header.append(title, close);
     const mobileMenu = desktopMenu.cloneNode(true);
     mobileMenu.querySelectorAll('[data-action="dashboard-builder"], [data-action="map-presentation"]').forEach((item) => item.remove());
-    const workflows = document.createElement("section");
-    workflows.className = "mobile-menu-workflows";
-    workflows.innerHTML = `<h2>Free workflows</h2><div><button type="button" data-mobile-workflow="briefing">Briefing</button><button type="button" data-mobile-workflow="tours">Tours</button><button type="button" data-mobile-workflow="tasks">Field tasks</button><button type="button" data-mobile-workflow="map">Map tools</button></div>`;
-    mobileMenu.prepend(workflows);
+    const workflows = document.createElement("div");
+    workflows.className = "menu mobile-workflows-menu";
+    workflows.innerHTML = `<button class="menu__trigger" aria-expanded="false">Workflows <span>⌄</span></button><div class="menu__content" role="menu"><button type="button" data-mobile-workflow="briefing">Briefing</button><button type="button" data-mobile-workflow="tours">Tours</button><button type="button" data-mobile-workflow="tasks">Field tasks</button><button type="button" data-mobile-workflow="map">Map tools</button></div>`;
+    mobileMenu.append(workflows);
     drawer.replaceChildren(header, mobileMenu);
   }
 
@@ -252,13 +253,12 @@ export class UIController {
       document.body.classList.toggle("mobile-menu-open", opening);
       if (opening) {
         this.#dismissWelcome();
-        document.querySelectorAll("[data-mobile-panel]").forEach((button) => {
-          button.classList.remove("is-active");
-          button.setAttribute("aria-pressed", "false");
-        });
+        this.mobilePanelManager?.close();
+        this.events.publish("mobile:panel-active", { panelId: null });
       }
       if (opening && matchMedia("(max-width: 640px)").matches) this.#setSidebarCollapsed(true);
       if (!opening) this.#closeMenus();
+      this.events.publish("mobile:menu-toggled", { open: opening });
     };
     document.querySelector("#mobile-menu-toggle").addEventListener("click", toggleMobileMenu);
     document.querySelector("#mobile-menu-close")?.addEventListener("click", toggleMobileMenu);
@@ -743,9 +743,11 @@ export class UIController {
     if (openSidebar) {
       this.#closeMenus();
       this.#dismissWelcome();
+      this.#setInsightsOpen(false);
     }
     const activePanelId = this.mobilePanelManager?.activate(panelId) ?? panelId;
     if (openSidebar) this.#setSidebarCollapsed(!activePanelId);
+    this.events.publish("mobile:panel-active", { panelId: activePanelId || null });
   }
 
   async #handleAction(action) {
@@ -1193,6 +1195,41 @@ export class UIController {
       };
       window.addEventListener("pointermove", move);
       window.addEventListener("pointerup", finish);
+    });
+  }
+
+  #bindMobileDrawerResize() {
+    const handle = document.querySelector("#mobile-drawer-handle");
+    if (!handle) return;
+    const clamp = (height) => Math.min(window.innerHeight * 0.6, Math.max(window.innerHeight * 0.4, height));
+    const setHeight = (height) => {
+      document.body.style.setProperty("--mobile-tool-drawer-height", `${clamp(height)}px`);
+      requestAnimationFrame(() => this.mapController.resize());
+    };
+    handle.addEventListener("keydown", (event) => {
+      const delta = ({ ArrowUp: 32, ArrowDown: -32 })[event.key];
+      if (delta == null) return;
+      event.preventDefault();
+      const current = parseFloat(getComputedStyle(document.body).getPropertyValue("--mobile-tool-drawer-height")) || window.innerHeight * 0.4;
+      setHeight(current + delta);
+    });
+    handle.addEventListener("pointerdown", (event) => {
+      event.preventDefault();
+      const startY = event.clientY;
+      const startHeight = document.querySelector("#sidebar")?.getBoundingClientRect().height || window.innerHeight * 0.4;
+      document.body.classList.add("mobile-drawer-resizing");
+      handle.setPointerCapture?.(event.pointerId);
+      const move = (moveEvent) => setHeight(startHeight + startY - moveEvent.clientY);
+      const finish = () => {
+        window.removeEventListener("pointermove", move);
+        window.removeEventListener("pointerup", finish);
+        window.removeEventListener("pointercancel", finish);
+        document.body.classList.remove("mobile-drawer-resizing");
+        this.mapController.resize();
+      };
+      window.addEventListener("pointermove", move);
+      window.addEventListener("pointerup", finish);
+      window.addEventListener("pointercancel", finish);
     });
   }
 
@@ -3244,6 +3281,23 @@ export class UIController {
     this.#setSidebarCollapsed(false);
     this.events.publish("mobile:workflow-route", { route: "tours" });
     this.toast(returningToTour ? "Guided tour opened." : "Guided tours ready. Add a chapter to begin.");
+  }
+
+  prepareMobileWorkflow(route) {
+    if (!this.mobileMedia.matches) return;
+    this.mobilePanelManager?.close();
+    this.events.publish("mobile:panel-active", { panelId: null });
+    this.#setSidebarCollapsed(true);
+    document.body.classList.remove("mobile-briefing-context-open", "mobile-map-tools-open", "mobile-drawer-resizing");
+    this.#syncMapToolsToggle(false);
+    this.#setInsightsOpen(false);
+    if (this.utilityPresentationOpen) this.#closeUtilityTab("presentation");
+    if (!["briefing", "tours"].includes(route)) {
+      const current = this.projectManager.current.presentation || {};
+      if ((current.template || "standard") !== "standard") {
+        this.projectManager.setPresentation({ ...current, template: "standard" });
+      }
+    }
   }
 
   openMobileWorkflow(route) {

@@ -67,6 +67,7 @@ async function start() {
   uiController.initialize();
   const mobileWorkflowRouter = new MobileWorkflowRouter({
     events, projectManager, mapController,
+    prepareWorkflow: (route) => uiController.prepareMobileWorkflow(route),
     openWorkflow: (route) => uiController.openMobileWorkflow(route),
     shareWorkflow: (route, payload) => uiController.shareMobileWorkflow(route, payload),
   });

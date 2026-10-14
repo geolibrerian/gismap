@@ -4,12 +4,13 @@ const escapeHtml = (value) => String(value ?? "").replace(/[&<>"']/g, (char) => 
 const dateLabel = (value) => value ? new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }).format(new Date(value)) : "Recently";
 
 export class MobileWorkflowRouter {
-  constructor({ events, projectManager, mapController, openWorkflow, shareWorkflow }) {
-    Object.assign(this, { events, projectManager, mapController, openWorkflow, shareWorkflow });
+  constructor({ events, projectManager, mapController, prepareWorkflow, openWorkflow, shareWorkflow }) {
+    Object.assign(this, { events, projectManager, mapController, prepareWorkflow, openWorkflow, shareWorkflow });
     this.media = matchMedia("(max-width: 640px), (max-width: 880px) and (orientation: portrait)");
     this.store = new MobileFeedStore({ projectManager, events });
     this.root = document.querySelector("#mobile-workflow-root");
     this.route = "map";
+    this.activePanelId = null;
   }
 
   initialize() {
@@ -23,9 +24,15 @@ export class MobileWorkflowRouter {
       if (!this.media.matches || !route) return;
       this.route = route;
       this.root.hidden = true;
-      document.body.classList.remove("mobile-workflow-open", "mobile-menu-open");
+      document.body.classList.remove("mobile-workflow-open");
+      this.#closeMenu();
       this.#syncNav();
     });
+    this.events.subscribe?.("mobile:panel-active", ({ panelId }) => {
+      this.activePanelId = panelId || null;
+      this.#syncNav();
+    });
+    this.events.subscribe?.("mobile:menu-toggled", () => this.#syncNav());
     this.media.addEventListener?.("change", ({ matches }) => { if (!matches) this.navigate("map"); else this.#syncNav(); });
     this.#syncNav();
     this.#importSharedTask();
@@ -34,7 +41,8 @@ export class MobileWorkflowRouter {
   navigate(route) {
     if (!this.media.matches) return;
     if (!["map", "briefing", "tours", "tasks", "more"].includes(route)) route = "more";
-    if (route === "more") route = "more";
+    this.#closeMenu();
+    this.prepareWorkflow?.(route);
     if (route === "map") {
       this.route = "map";
       this.root.hidden = true;
@@ -45,7 +53,7 @@ export class MobileWorkflowRouter {
     if (route === "tours" || route === "briefing") {
       this.route = route;
       this.root.hidden = true;
-      document.body.classList.remove("mobile-workflow-open", "mobile-menu-open");
+      document.body.classList.remove("mobile-workflow-open");
       this.#syncNav();
       this.openWorkflow(route);
       return;
@@ -53,7 +61,6 @@ export class MobileWorkflowRouter {
     this.route = route;
     this.root.hidden = false;
     document.body.classList.add("mobile-workflow-open");
-    document.body.classList.remove("mobile-menu-open");
     this.render();
     this.#syncNav();
   }
@@ -64,7 +71,7 @@ export class MobileWorkflowRouter {
     this.root.innerHTML = `<header class="mobile-workflow__header"><div><span class="mobile-workflow__brand">GISMap Online</span><h1>${escapeHtml(this.#title())}</h1></div><button type="button" data-workflow-close aria-label="Return to map">×</button></header><div class="mobile-workflow__body">${renderer()}</div>`;
   }
 
-  #title() { return ({ tasks: "Field tasks", more: "Free workflows" })[this.route] || "Free workflows"; }
+  #title() { return ({ tasks: "Field tasks", more: "Workflows" })[this.route] || "Workflows"; }
 
   #updates() {
     const mobile = this.store.snapshot();
@@ -103,7 +110,7 @@ export class MobileWorkflowRouter {
   }
 
   #more() {
-    return `<p class="mobile-workflow__subtitle">The free mobile app keeps the map and three shareable workflows focused and easy to reach.</p><div class="workflow-grid"><button data-route="briefing"><strong>Briefing</strong><span>Selected features and context · share by QR</span></button><button data-route="tours"><strong>Tours</strong><span>Guided places and chapters · share by QR</span></button><button data-route="tasks"><strong>Field tasks</strong><span>Assignments and drafts · share by QR</span></button><button data-route="map"><strong>Map tools</strong><span>Places, bookmarks, draw, layers, and intelligence</span></button></div><section class="account-workflows"><span>With an account · coming soon</span><p>Updates, Compare, Watchlist, custom dashboards, and their desktop authoring tools.</p></section>`;
+    return `<p class="mobile-workflow__subtitle">The mobile app keeps the map and three shareable workflows focused and easy to reach.</p><div class="workflow-grid"><button data-route="briefing"><strong>Briefing</strong><span>Selected features and context · share by QR</span></button><button data-route="tours"><strong>Tours</strong><span>Guided places and chapters · share by QR</span></button><button data-route="tasks"><strong>Field tasks</strong><span>Assignments and drafts · share by QR</span></button><button data-route="map"><strong>Map tools</strong><span>Places, bookmarks, draw, layers, and intelligence</span></button></div><section class="account-workflows"><span>With an account · coming soon</span><p>Updates, Compare, Watchlist, custom dashboards, and their desktop authoring tools.</p></section>`;
   }
 
   async #click(event) {
@@ -145,8 +152,23 @@ export class MobileWorkflowRouter {
   }
 
   #syncNav() {
-    document.querySelectorAll("[data-mobile-workflow]").forEach((button) => button.classList.toggle("is-active", button.dataset.mobileWorkflow === this.route));
+    const menuOpen = document.body.classList.contains("mobile-menu-open");
+    document.querySelectorAll("[data-mobile-workflow]").forEach((button) => {
+      button.classList.toggle("is-active", !menuOpen && !this.activePanelId && button.dataset.mobileWorkflow === this.route);
+    });
+    const menuToggle = document.querySelector("#mobile-menu-toggle");
+    menuToggle?.classList.toggle("is-active", menuOpen);
+    menuToggle?.setAttribute("aria-expanded", String(menuOpen));
     document.body.classList.toggle("mobile-map-route", this.media.matches && this.route === "map");
+  }
+
+  #closeMenu() {
+    const drawer = document.querySelector("#mobile-menu-drawer");
+    if (drawer) drawer.hidden = true;
+    document.body.classList.remove("mobile-menu-open");
+    const menuToggle = document.querySelector("#mobile-menu-toggle");
+    menuToggle?.classList.remove("is-active");
+    menuToggle?.setAttribute("aria-expanded", "false");
   }
 
   async #captureTaskLocation(form) {

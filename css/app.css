@@ -360,6 +360,7 @@ body.utility-panel-open .utility-panel { display: grid; grid-template-rows: auto
 body.utility-resizing { cursor: col-resize; user-select: none; }
 body.utility-resizing iframe, body.utility-resizing canvas { pointer-events: none; }
 .mobile-map-brand, .mobile-menu-drawer, .mobile-panel-nav, .mobile-map-tool-strip { display: none; }
+.mobile-drawer-handle { display:none; }
 .mobile-workflow { display:none; }
 .account-required { display:block; margin-top:3px; color:var(--muted); font-size:9px; font-weight:700; text-transform:uppercase; letter-spacing:.06em; }
 .workflow-share { display:grid; justify-items:center; gap:12px; text-align:center; }
@@ -1454,10 +1455,7 @@ body.sidebar-collapsed .table-dialog { left: 14px; }
   #app[data-presentation-skin="clean-light"] .mobile-menu-drawer .menu.is-open > .menu__trigger,
   #app[data-presentation-skin="clean-light"] .mobile-menu-drawer .menu__content button:hover,
   #app[data-presentation-skin="clean-light"] .mobile-menu-drawer .menu__content button.is-active { color:var(--green); background:var(--surface-2); }
-  .mobile-menu-workflows { order:-1; padding:10px 4px 14px; border-bottom:1px solid var(--line); }
-  .mobile-menu-workflows h2 { margin:4px 6px 10px; font:700 12px/1 var(--ui-font); letter-spacing:.1em; text-transform:uppercase; color:var(--muted); }
-  .mobile-menu-workflows > div { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; }
-  .mobile-menu-workflows button { min-height:48px; padding:10px; border:1px solid var(--line); border-radius:10px; color:var(--ink); background:var(--surface); text-align:left; font-weight:700; }
+  .mobile-menu-drawer .mobile-workflows-menu .menu__content button { font-weight:700; }
   .app-shell,
   body.sidebar-collapsed .app-shell { grid-template-columns: 1fr; }
   .map-workspace { position:absolute; inset:calc(34px + env(safe-area-inset-top)) 0 0; height:auto; }
@@ -1510,6 +1508,30 @@ body.sidebar-collapsed .table-dialog { left: 14px; }
     overscroll-behavior: contain;
     -webkit-overflow-scrolling: touch;
   }
+  body.mobile-map-route:not(.sidebar-collapsed) .sidebar {
+    bottom: calc(134px + env(safe-area-inset-bottom));
+    height: var(--mobile-tool-drawer-height, 40dvh);
+    max-height: 60dvh;
+    padding-top: 18px;
+  }
+  body.mobile-map-route:not(.sidebar-collapsed) .sidebar__scroll { height:100%; max-height:none; }
+  body.mobile-map-route:not(.sidebar-collapsed) .mobile-drawer-handle {
+    position:absolute;
+    z-index:3;
+    top:0;
+    left:0;
+    display:block;
+    width:100%;
+    height:20px;
+    padding:0;
+    border:0;
+    color:var(--muted);
+    background:transparent;
+    cursor:ns-resize;
+    touch-action:none;
+  }
+  body.mobile-map-route:not(.sidebar-collapsed) .mobile-drawer-handle span { position:absolute; top:7px; left:calc(50% - 22px); width:44px; height:4px; border-radius:999px; background:currentColor; }
+  body.mobile-drawer-resizing { cursor:ns-resize; user-select:none; }
   .sidebar__scroll > .panel { display: none; min-height: 0; border-bottom: 0; }
   .sidebar__scroll > .panel.is-mobile-active { display: block; }
   .sidebar__scroll > .panel summary { display: none; }
@@ -1517,8 +1539,6 @@ body.sidebar-collapsed .table-dialog { left: 14px; }
   .sidebar__scroll > .panel summary span { font-size: 18px; }
   .sidebar__scroll > .panel summary::after { display: none; }
   .sidebar__scroll > .panel .panel__body { padding: 12px; }
-  body.mobile-places-active .sidebar { max-height: calc(56dvh + env(safe-area-inset-bottom)); }
-  body.mobile-places-active .sidebar__scroll { max-height: calc(56dvh - 65px); }
   body.mobile-places-active #places-panel .search-row { grid-template-columns: 1fr 48px; }
   body.mobile-places-active #places-panel .search-row input { min-height: 48px; padding: 12px; font-size: 16px; }
   body.mobile-places-active #places-panel .search-row button { min-height: 48px; font-size: 24px; }
@@ -1674,7 +1694,9 @@ body.sidebar-collapsed .table-dialog { left: 14px; }
   /* Atlas can be opened from Tours or directly from the Map menu. Keep both
      routes on one compact authoring layout instead of depending on a body
      class that is only set by the workflow router. */
+  #app[data-presentation="briefing"] .sidebar,
   #app[data-presentation="atlas"] .sidebar { height:60dvh; max-height:60dvh; }
+  #app[data-presentation="briefing"] .sidebar__scroll,
   #app[data-presentation="atlas"] .sidebar__scroll { max-height:60dvh; }
   #app[data-presentation="atlas"] .mode-dashboard--atlas { align-content:start; grid-auto-rows:max-content; min-height:0; }
   #app[data-presentation="atlas"] .mode-dashboard--atlas > header { display:none; }

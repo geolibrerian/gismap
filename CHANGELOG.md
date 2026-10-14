@@ -8,6 +8,7 @@ All notable changes to GIS Map Online are documented here. This project follows
 
 ### Changed
 
+- Consolidated mobile workflows under the Tools menu, made workflow and tool selection mutually exclusive, and standardized mobile sheets at 40–60% of the viewport.
 - Restored the legacy SVG icon set for mobile Map tools and fitted all five tools into a fixed, non-scrolling tray.
 - Simplified the public mobile experience around Map, Briefing, Tours, and Field Tasks; Map-only tool shortcuts no longer appear on desktop or over non-map workflows.
 - Replaced duplicated dashboard controls with quick Instant Presentations and a clearly gated, account-oriented Dashboard Builder placeholder.
