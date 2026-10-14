@@ -6,6 +6,11 @@ All notable changes to GIS Map Online are documented here. This project follows
 
 ## [Unreleased]
 
+### Added
+
+- Places keeps a list of recent places below the search box; picking a place clears the input.
+- Added a desktop Workflows menu with Instant presentations, Briefing mode, Tours mode, Field tasks, and a return to the standard map; these entries left the Map menu.
+
 ### Fixed
 
 - Zooming to a layer, feature, search result, or your location now frames it from directly above instead of tilting the camera toward the horizon.

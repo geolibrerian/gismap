@@ -107,6 +107,7 @@ export class MapController {
       "@arcgis/core/request.js",
       "@arcgis/core/widgets/Sketch/SketchViewModel.js",
       "@arcgis/core/geometry/support/webMercatorUtils.js",
+      "@arcgis/core/geometry/Extent.js",
     ];
     const [
       ArcGISMap,
@@ -127,6 +128,7 @@ export class MapController {
       esriRequest,
       SketchViewModel,
       webMercatorUtils,
+      Extent,
     ] = await $arcgis.import(moduleIds);
 
     Object.assign(this.modules, {
@@ -148,6 +150,7 @@ export class MapController {
       esriRequest,
       SketchViewModel,
       webMercatorUtils,
+      Extent,
     });
 
     this.drawLayer = new GraphicsLayer({ title: "Drawings", listMode: "hide" });
@@ -1105,8 +1108,12 @@ export class MapController {
   }
 
   async goToSearchResult(result) {
-    return result.extent
-      ? this.view.goTo({ target: result.extent, tilt: 0 })
+    // Recent places come back from storage as plain JSON, which goTo does not autocast.
+    const extent = result.extent && !result.extent.declaredClass && this.modules.Extent
+      ? this.modules.Extent.fromJSON(result.extent)
+      : result.extent;
+    return extent
+      ? this.view.goTo({ target: extent, tilt: 0 })
       : this.view.goTo({ center: result.location, zoom: 14, tilt: 0 });
   }
 

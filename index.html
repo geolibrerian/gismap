@@ -53,7 +53,7 @@
     <link rel="icon" href="./assets/gis-map-online-mark-v2.png" type="image/png" />
     <link rel="preconnect" href="https://js.arcgis.com" />
     <link rel="stylesheet" href="https://js.arcgis.com/5.0/esri/themes/light/main.css" />
-    <link rel="stylesheet" href="./css/app.css?v=0.18.3" />
+    <link rel="stylesheet" href="./css/app.css?v=0.18.5" />
     <script type="module" src="https://js.arcgis.com/5.0/"></script>
     <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
     <script src="https://unpkg.com/@mapbox/shp-write@0.4.3/shpwrite.js"></script>
@@ -126,8 +126,6 @@
               <label class="menu__field"><span>Basemap</span><select data-basemap-picker><optgroup label="3D basemaps"><option value="topo-3d">3D Topographic</option><option value="navigation-3d">3D Navigation</option><option value="navigation-dark-3d">3D Navigation — dark</option><option value="osm-3d">3D OpenStreetMap</option><option value="gray-3d">3D Light gray</option><option value="dark-gray-3d">3D Dark gray</option><option value="streets-3d">3D Streets</option><option value="streets-dark-3d">3D Streets — dark</option></optgroup><optgroup label="2D basemaps"><option value="topo-vector">Topographic</option><option value="streets-vector">Streets</option><option value="navigation">Navigation</option><option value="gray-vector">Light gray</option><option value="dark-gray-vector">Dark gray</option><option value="osm">OpenStreetMap</option></optgroup><optgroup label="Imagery"><option value="satellite">Satellite</option><option value="hybrid">Satellite + labels</option></optgroup></select></label>
               <label class="menu__field"><span>Terrain surface</span><select data-ground-picker><option value="world-elevation">World elevation</option><option value="world-topobathymetry">Elevation + bathymetry</option><option value="flat">Flat ground</option></select></label>
               <hr />
-              <button data-action="map-presentation">Instant presentations…</button>
-              <button type="button" data-mobile-workflow="tasks" data-desktop-only>Field tasks…</button>
               <button data-action="tools-display">Layout &amp; display…</button>
               <button type="button" data-sidebar-panel-toggle="bookmarks-panel">Add Bookmarks panel</button>
               <button type="button" data-sidebar-panel-toggle="draw-panel">Add Draw panel</button>
@@ -136,6 +134,18 @@
               <button data-widget="compass">Compass</button>
               <button data-widget="measurement">Measurement</button>
               <button data-widget="elevationProfile">Elevation profile</button>
+            </div>
+          </div>
+          <div class="menu desktop-workflows-menu" data-desktop-only>
+            <button class="menu__trigger" aria-expanded="false">Workflows <span>⌄</span></button>
+            <div class="menu__content" role="menu">
+              <button data-action="map-presentation">Instant presentations…</button>
+              <hr />
+              <button type="button" data-mobile-workflow="briefing">Briefing mode</button>
+              <button type="button" data-mobile-workflow="tours">Tours mode</button>
+              <button type="button" data-mobile-workflow="tasks">Field tasks</button>
+              <hr />
+              <button type="button" data-mobile-workflow="map">Standard map</button>
             </div>
           </div>
           <div class="menu">
@@ -164,6 +174,10 @@
                 </form>
                 <div id="search-results" class="compact-list search-suggestions" role="listbox" aria-label="Place suggestions" aria-live="polite" hidden></div>
               </div>
+              <section id="recent-places" class="recent-places" aria-labelledby="recent-places-title" hidden>
+                <div class="recent-places__header"><h3 id="recent-places-title">Recent places</h3><button id="recent-places-clear" type="button" class="text-button">Clear</button></div>
+                <div id="recent-places-list" class="compact-list"></div>
+              </section>
             </div>
           </details>
 
@@ -381,6 +395,6 @@
     <input id="tool-file-input" type="file" accept=".js,.mjs" hidden />
 
     <noscript>GIS Map Online requires JavaScript.</noscript>
-    <script type="module" src="./js/app.js?v=0.18.4"></script>
+    <script type="module" src="./js/app.js?v=0.18.5"></script>
   </body>
 </html>

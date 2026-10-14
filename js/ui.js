@@ -10,6 +10,8 @@ import { DEFAULT_SKIN, INTERFACE_SKINS, applyInterfaceSkin, normalizeSkin, skinO
 import { compactMedia } from "./viewport.js?v=0.18.2";
 
 const DISPLAY_SETTINGS_KEY = "gismap-online:display:v1";
+const RECENT_PLACES_KEY = "gismap-online:recent-places:v1";
+const RECENT_PLACES_LIMIT = 6;
 const INSIGHT_POSITIONS = new Set(["upper-left", "lower-left", "bottom", "dock-left", "dock-right", "dock-top", "dock-bottom"]);
 const TABLE_POSITIONS = new Set(["overlay-bottom", "dock-left", "dock-right", "dock-top", "dock-bottom"]);
 const BASEMAP_OPTIONS = [
@@ -40,6 +42,7 @@ export class UIController {
     this.searchResults = [];
     this.searchTimer = null;
     this.searchRequestId = 0;
+    this.lastPlaceLabel = "";
     this.searchSelection = -1;
     this.lastInsight = null;
     this.selectedInsightIndexes = new Set();
@@ -320,7 +323,19 @@ export class UIController {
     );
     const placeInput = document.querySelector("#place-query");
     document.querySelector("#place-search").addEventListener("submit", (event) => this.#search(event));
-    placeInput.addEventListener("input", () => this.#schedulePlaceSearch(placeInput.value));
+    placeInput.addEventListener("input", () => {
+      this.lastPlaceLabel = "";
+      this.#schedulePlaceSearch(placeInput.value);
+    });
+    document.querySelector("#recent-places-list").addEventListener("click", (event) => {
+      const button = event.target.closest("[data-recent-place]");
+      if (button) void this.#goToRecentPlace(Number(button.dataset.recentPlace));
+    });
+    document.querySelector("#recent-places-clear").addEventListener("click", () => {
+      this.#writeRecentPlaces([]);
+      this.#renderRecentPlaces();
+    });
+    this.#renderRecentPlaces();
     placeInput.addEventListener("keydown", (event) => {
       if (event.key === "ArrowDown" || event.key === "ArrowUp") {
         event.preventDefault();
@@ -3517,9 +3532,69 @@ export class UIController {
   async #selectSearchResult(index) {
     const result = this.searchResults[index];
     if (!result) return;
-    document.querySelector("#place-query").value = result.label;
+    const input = document.querySelector("#place-query");
+    input.value = "";
+    this.lastPlaceLabel = result.label;
     this.#clearSearchResults();
-    await this.mapController.goToSearchResult(result);
+    this.#rememberPlace(result);
+    input.blur();
+    await this.#goToPlace(result);
+  }
+
+  async #goToPlace(place) {
+    try {
+      await this.mapController.goToSearchResult(place);
+    } catch (error) {
+      // A newer camera move interrupting this one is expected, not a failure.
+      if (error?.name !== "AbortError") this.error(error.message);
+    }
+  }
+
+  #readRecentPlaces() {
+    try {
+      const places = JSON.parse(localStorage.getItem(RECENT_PLACES_KEY));
+      return Array.isArray(places) ? places.filter((place) => place?.label && (place.extent || Array.isArray(place.location))) : [];
+    } catch {
+      return [];
+    }
+  }
+
+  #writeRecentPlaces(places) {
+    try {
+      localStorage.setItem(RECENT_PLACES_KEY, JSON.stringify(places));
+    } catch {
+      // Storage can be unavailable (private mode); recent places are a convenience only.
+    }
+  }
+
+  #rememberPlace(result) {
+    const extent = result.extent;
+    const place = {
+      label: result.label,
+      location: Array.isArray(result.location) ? result.location : null,
+      extent: extent && Number.isFinite(extent.xmin)
+        ? { type: "extent", xmin: extent.xmin, ymin: extent.ymin, xmax: extent.xmax, ymax: extent.ymax, spatialReference: { wkid: extent.spatialReference?.wkid ?? 4326 } }
+        : null,
+    };
+    const places = [place, ...this.#readRecentPlaces().filter((saved) => saved.label !== place.label)].slice(0, RECENT_PLACES_LIMIT);
+    this.#writeRecentPlaces(places);
+    this.#renderRecentPlaces(places);
+  }
+
+  #renderRecentPlaces(places = this.#readRecentPlaces()) {
+    const section = document.querySelector("#recent-places");
+    const list = document.querySelector("#recent-places-list");
+    if (!section || !list) return;
+    section.hidden = !places.length;
+    list.innerHTML = places.map((place, index) => `<button type="button" data-recent-place="${index}" title="${escapeHtml(place.label)}"><span aria-hidden="true">↺</span><span class="recent-places__label">${escapeHtml(place.label)}</span></button>`).join("");
+  }
+
+  async #goToRecentPlace(index) {
+    const place = this.#readRecentPlaces()[index];
+    if (!place) return;
+    this.lastPlaceLabel = place.label;
+    this.#rememberPlace(place);
+    await this.#goToPlace({ ...place, extent: place.extent || undefined });
   }
 
   #clearSearchResults() {
@@ -3535,7 +3610,7 @@ export class UIController {
 
   async #addBookmark() {
     const view = this.mapController.view;
-    const name = document.querySelector("#place-query").value.trim() || `View at ${view.center.latitude.toFixed(3)}, ${view.center.longitude.toFixed(3)}`;
+    const name = document.querySelector("#place-query").value.trim() || this.lastPlaceLabel || `View at ${view.center.latitude.toFixed(3)}, ${view.center.longitude.toFixed(3)}`;
     const address = await this.mapController.reverseGeocode(view.center).catch(() => null);
     this.projectManager.addBookmark({
       name,
