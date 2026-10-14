@@ -751,19 +751,21 @@ body.shared-tour-only .atlas-tour-exit { display:none!important; }
     right: 8px;
     bottom: calc(70px + env(safe-area-inset-bottom));
     left: 8px;
-    display: flex;
-    gap: 6px;
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 2px;
     padding: 6px;
-    overflow-x: auto;
+    overflow: hidden;
     border: 1px solid var(--line);
     border-radius: 13px;
     background: color-mix(in srgb, var(--surface) 95%, transparent);
     box-shadow: 0 -8px 24px rgb(17 39 33 / 14%);
     backdrop-filter: blur(14px);
   }
-  .mobile-map-tool-strip button { display:flex; flex:1 0 auto; align-items:center; justify-content:center; gap:5px; min-height:40px; padding:7px 10px; border:0; border-radius:9px; color:var(--ink); background:transparent; }
+  .mobile-map-tool-strip button { display:grid; min-width:0; place-items:center; gap:3px; min-height:48px; padding:5px 1px; border:0; border-radius:9px; color:var(--green-2); background:transparent; }
+  .mobile-map-tool-strip button svg { width:22px; height:22px; fill:none; stroke:currentColor; stroke-width:1.7; stroke-linecap:round; stroke-linejoin:round; }
   .mobile-map-tool-strip button.is-active { color:white; background:var(--green); }
-  .mobile-map-tool-strip small { font:700 11px/1 var(--ui-font); }
+  .mobile-map-tool-strip small { min-width:0; max-width:100%; overflow:hidden; font:600 10px/1 var(--ui-font); text-overflow:ellipsis; }
   body.mobile-menu-open .mobile-map-tool-strip, body.mobile-workflow-open .mobile-map-tool-strip, body.mobile-atlas-presenting .mobile-map-tool-strip { display:none; }
   body.mobile-workflow-open .mobile-presentation-controls { display:none!important; }
   .skin-picker { grid-template-columns:1fr; }

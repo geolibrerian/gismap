@@ -52,9 +52,13 @@ test("mobile menu exposes only free workflows and hides desktop authoring", asyn
 });
 
 test("map tool strip is mobile-only and limited to the Map route", async () => {
+  const html = await readFile(new URL("../index.html", import.meta.url), "utf8");
   const css = await readFile(new URL("../css/app.css", import.meta.url), "utf8");
   assert.match(css, /mobile-panel-nav, \.mobile-map-tool-strip \{ display: none; \}/);
-  assert.match(css, /body\.mobile-map-route \.mobile-map-tool-strip[\s\S]*?display: flex/);
+  assert.match(css, /body\.mobile-map-route \.mobile-map-tool-strip[\s\S]*?display: grid/);
+  assert.match(css, /grid-template-columns: repeat\(5, minmax\(0, 1fr\)\)/);
+  assert.match(css, /\.mobile-map-tool-strip button svg/);
+  assert.doesNotMatch(html.match(/<nav class="mobile-map-tool-strip"[\s\S]*?<\/nav>/)?.[0] || "", /<span>[⌕◇✎▱◎]<\/span>/);
 });
 
 test("free workflows provide QR sharing while account workflows remain gated", async () => {
