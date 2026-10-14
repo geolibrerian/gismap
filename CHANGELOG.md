@@ -6,6 +6,10 @@ All notable changes to GIS Map Online are documented here. This project follows
 
 ## [Unreleased]
 
+### Fixed
+
+- Zooming to a layer, feature, search result, or your location now frames it from directly above instead of tilting the camera toward the horizon.
+
 ## [0.18.2] - 2026-10-14
 
 ### Changed

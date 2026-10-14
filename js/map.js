@@ -1076,7 +1076,7 @@ export class MapController {
         return await this.view.goTo({
           center: [position.coords.longitude, position.coords.latitude],
           zoom: 15,
-          tilt: 55,
+          tilt: 0,
         });
       }
     } catch (error) {
@@ -1106,8 +1106,8 @@ export class MapController {
 
   async goToSearchResult(result) {
     return result.extent
-      ? this.view.goTo({ target: result.extent, tilt: 55 })
-      : this.view.goTo({ center: result.location, zoom: 14, tilt: 55 });
+      ? this.view.goTo({ target: result.extent, tilt: 0 })
+      : this.view.goTo({ center: result.location, zoom: 14, tilt: 0 });
   }
 
   resize() {
@@ -1154,7 +1154,7 @@ export class MapController {
       }
     }
     if (!target) return false;
-    await this.view.goTo({ target, tilt: 55 });
+    await this.view.goTo({ target, tilt: 0 });
     return true;
   }
 
@@ -1211,10 +1211,10 @@ export class MapController {
     const geometry = feature?.geometry;
     if (!geometry) throw new Error("This record does not have a geometry to zoom to.");
     if (geometry.type === "point") {
-      return this.view.goTo({ center: geometry, zoom: 15, tilt: 55 });
+      return this.view.goTo({ center: geometry, zoom: 15, tilt: 0 });
     }
     const target = geometry.extent?.expand?.(1.25) ?? geometry.extent ?? geometry;
-    return this.view.goTo({ target, tilt: 55 });
+    return this.view.goTo({ target, tilt: 0 });
   }
 
   async reverseGeocode(point) {
