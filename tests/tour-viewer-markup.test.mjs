@@ -6,7 +6,7 @@ const ui = await readFile(new URL("../js/ui.js", import.meta.url), "utf8");
 
 assert.doesNotMatch(html, /data-action="map-guided-tours"/, "The simplified Map menu must not duplicate the Tours workflow.");
 assert.match(html, /data-action="map-presentation">Instant presentations…</, "The Map menu must expose the quick presentation picker.");
-assert.match(ui, /\["atlas", "Atlas", "Present places through guided chapters and stories"/, "The quick presentation picker must expose Atlas.");
+assert.match(ui, /\["atlas", "Tour", "Present places through guided chapters and stories"/, "The quick presentation picker must expose the Tour (atlas) mode under the same name as the mobile tab.");
 assert.match(ui, /#openGuidedTours\(\)[\s\S]*?template: "atlas"[\s\S]*?chapters: Array\.isArray\(current\.chapters\)/, "Opening Guided Tours directly must preserve existing chapters.");
 const app = await readFile(new URL("../js/app.js", import.meta.url), "utf8");
 

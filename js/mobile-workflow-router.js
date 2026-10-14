@@ -1,4 +1,6 @@
 import { MobileFeedStore } from "./mobile-feed-store.js?v=0.17.0";
+import { compactMedia } from "./viewport.js?v=0.18.1";
+import { INTERFACE_SKINS, applyInterfaceSkin, normalizeSkin } from "./skin-catalog.js?v=0.18.1";
 
 const escapeHtml = (value) => String(value ?? "").replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char]);
 const dateLabel = (value) => value ? new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }).format(new Date(value)) : "Recently";
@@ -6,7 +8,7 @@ const dateLabel = (value) => value ? new Intl.DateTimeFormat(undefined, { month:
 export class MobileWorkflowRouter {
   constructor({ events, projectManager, mapController, prepareWorkflow, openWorkflow, shareWorkflow }) {
     Object.assign(this, { events, projectManager, mapController, prepareWorkflow, openWorkflow, shareWorkflow });
-    this.media = matchMedia("(max-width: 640px), (max-width: 880px) and (orientation: portrait)");
+    this.media = compactMedia();
     this.store = new MobileFeedStore({ projectManager, events });
     this.root = document.querySelector("#mobile-workflow-root");
     this.route = "map";
@@ -18,14 +20,27 @@ export class MobileWorkflowRouter {
     this.root?.addEventListener("click", (event) => this.#click(event));
     this.root?.addEventListener("change", (event) => this.#change(event));
     this.root?.addEventListener("submit", (event) => this.#submit(event));
-    this.events.subscribe?.("project:loaded", () => { if (this.route !== "map") this.render(); });
-    this.events.subscribe?.("mobile:workflow-changed", () => { if (this.route !== "map") this.render(); });
+    this.events.subscribe?.("project:loaded", () => { if (this.#rootOpen()) this.render(); });
+    this.events.subscribe?.("mobile:workflow-changed", () => { if (this.#rootOpen()) this.render(); });
     this.events.subscribe?.("mobile:workflow-route", ({ route }) => {
-      if (!this.media.matches || !route) return;
+      if (!route) return;
       this.route = route;
-      this.root.hidden = true;
-      document.body.classList.remove("mobile-workflow-open");
+      this.#hideRoot();
       this.#closeMenu();
+      this.#syncNav();
+    });
+    // The active presentation is the source of truth for which mode is showing.
+    // Keep the route in step when a mode is chosen elsewhere (desktop dialog,
+    // shared link, project load) so a stale screen can never reappear.
+    this.events.subscribe?.("presentation:changed", ({ presentation }) => {
+      const template = presentation?.template || "standard";
+      const route = ({ briefing: "briefing", atlas: "tours" })[template] || (template === "standard" ? null : "map");
+      if (route && route !== this.route) {
+        this.route = route;
+        this.#hideRoot();
+      } else if (!route && ["briefing", "tours"].includes(this.route)) {
+        this.route = "map";
+      }
       this.#syncNav();
     });
     this.events.subscribe?.("mobile:panel-active", ({ panelId }) => {
@@ -33,36 +48,47 @@ export class MobileWorkflowRouter {
       this.#syncNav();
     });
     this.events.subscribe?.("mobile:menu-toggled", () => this.#syncNav());
-    this.media.addEventListener?.("change", ({ matches }) => { if (!matches) this.navigate("map"); else this.#syncNav(); });
+    this.media.addEventListener?.("change", ({ matches }) => {
+      // Rotating or resizing across the breakpoint: screens that exist only in
+      // the compact app close, so they cannot resurface later.
+      this.#closeMenu();
+      if (!matches && this.route === "more") {
+        this.route = "map";
+        this.#hideRoot();
+      }
+      if (this.#rootOpen()) this.render();
+      this.#syncNav();
+    });
     this.#syncNav();
     this.#importSharedTask();
   }
 
   navigate(route) {
-    if (!this.media.matches) return;
-    if (!["map", "briefing", "tours", "tasks", "more"].includes(route)) route = "more";
+    const compact = this.media.matches;
+    if (!["map", "briefing", "tours", "tasks", "more"].includes(route)) route = compact ? "more" : "map";
+    if (!compact && route === "more") route = "tasks";
     this.#closeMenu();
+    // Messages about the previous screen should not linger over the next one.
+    document.querySelectorAll("#toast-region .toast").forEach((toast) => toast.remove());
     this.prepareWorkflow?.(route);
-    if (route === "map") {
-      this.route = "map";
-      this.root.hidden = true;
-      document.body.classList.remove("mobile-workflow-open");
-      this.#syncNav();
-      return;
-    }
-    if (route === "tours" || route === "briefing") {
-      this.route = route;
-      this.root.hidden = true;
-      document.body.classList.remove("mobile-workflow-open");
-      this.#syncNav();
-      this.openWorkflow(route);
-      return;
-    }
     this.route = route;
+    if (route === "map" || route === "tours" || route === "briefing") {
+      this.#hideRoot();
+      this.#syncNav();
+      if (route !== "map") this.openWorkflow(route);
+      return;
+    }
     this.root.hidden = false;
     document.body.classList.add("mobile-workflow-open");
     this.render();
     this.#syncNav();
+  }
+
+  #rootOpen() { return Boolean(this.root && !this.root.hidden); }
+
+  #hideRoot() {
+    if (this.root) this.root.hidden = true;
+    document.body.classList.remove("mobile-workflow-open");
   }
 
   render() {
@@ -72,6 +98,11 @@ export class MobileWorkflowRouter {
   }
 
   #title() { return ({ tasks: "Field tasks", more: "Workflows" })[this.route] || "Workflows"; }
+
+  #skinPicker() {
+    const active = normalizeSkin(this.projectManager.current.presentation?.skin);
+    return `<section class="mobile-skin-section"><h2>Look &amp; feel</h2><p class="mobile-workflow__subtitle">One skin styles the whole app — map, sheets, and menus. It never changes your data colors.</p><div class="skin-picker">${INTERFACE_SKINS.map(({ id, label, description }) => `<button type="button" class="skin-card skin-card--${id}${id === active ? " is-selected" : ""}" data-mobile-skin="${id}" aria-pressed="${id === active}"><span class="skin-mini"><i></i><b></b><em></em></span><strong>${escapeHtml(label)}</strong><small>${escapeHtml(description)}</small></button>`).join("")}</div></section>`;
+  }
 
   #updates() {
     const mobile = this.store.snapshot();
@@ -110,7 +141,7 @@ export class MobileWorkflowRouter {
   }
 
   #more() {
-    return `<p class="mobile-workflow__subtitle">The mobile app keeps the map and three shareable workflows focused and easy to reach.</p><div class="workflow-grid"><button data-route="briefing"><strong>Briefing</strong><span>Selected features and context · share by QR</span></button><button data-route="tours"><strong>Tours</strong><span>Guided places and chapters · share by QR</span></button><button data-route="tasks"><strong>Field tasks</strong><span>Assignments and drafts · share by QR</span></button><button data-route="map"><strong>Map tools</strong><span>Places, bookmarks, draw, layers, and intelligence</span></button></div><section class="account-workflows"><span>With an account · coming soon</span><p>Updates, Compare, Watchlist, custom dashboards, and their desktop authoring tools.</p></section>`;
+    return `<p class="mobile-workflow__subtitle">The mobile app keeps the map and three shareable workflows focused and easy to reach.</p><div class="workflow-grid"><button data-route="briefing"><strong>Briefing</strong><span>Selected features and context · share by QR</span></button><button data-route="tours"><strong>Tours</strong><span>Guided places and chapters · share by QR</span></button><button data-route="tasks"><strong>Field tasks</strong><span>Assignments and drafts · share by QR</span></button><button data-route="map"><strong>Map tools</strong><span>Places, bookmarks, draw, layers, and intelligence</span></button></div>${this.#skinPicker()}<section class="account-workflows"><span>With an account · coming soon</span><p>Updates, Compare, Watchlist, custom dashboards, and their desktop authoring tools.</p></section>`;
   }
 
   async #click(event) {
@@ -118,6 +149,12 @@ export class MobileWorkflowRouter {
     if (!button) return;
     if (button.matches("[data-workflow-close]")) return this.navigate("map");
     if (button.dataset.route) return this.navigate(button.dataset.route);
+    if (button.dataset.mobileSkin) {
+      const skin = applyInterfaceSkin(button.dataset.mobileSkin);
+      this.projectManager.patchPresentation({ skin });
+      this.render();
+      return;
+    }
     if (button.dataset.feedScope) { this.store.setScope(button.dataset.feedScope); return; }
     if (button.matches("[data-new-task]")) { this.root.querySelector(".mobile-workflow__body").innerHTML = this.#taskEditor(); await this.#captureTaskLocation(this.root.querySelector("[data-task-form]")); return; }
     if (button.dataset.openTask) { const task = this.store.snapshot().fieldTasks.find((item) => item.id === button.dataset.openTask); this.root.querySelector(".mobile-workflow__body").innerHTML = this.#taskEditor(task); return; }
@@ -154,7 +191,7 @@ export class MobileWorkflowRouter {
   #syncNav() {
     const menuOpen = document.body.classList.contains("mobile-menu-open");
     document.querySelectorAll("[data-mobile-workflow]").forEach((button) => {
-      button.classList.toggle("is-active", !menuOpen && !this.activePanelId && button.dataset.mobileWorkflow === this.route);
+      button.classList.toggle("is-active", !menuOpen && button.dataset.mobileWorkflow === this.route);
     });
     const menuToggle = document.querySelector("#mobile-menu-toggle");
     menuToggle?.classList.toggle("is-active", menuOpen);

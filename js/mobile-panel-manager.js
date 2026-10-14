@@ -1,5 +1,7 @@
+import { COMPACT_QUERY } from "./viewport.js?v=0.18.1";
+
 const MOBILE_PANEL_IDS = ["places-panel", "bookmarks-panel", "draw-panel", "layers-panel", "intelligence-panel"];
-export const MOBILE_PANEL_QUERY = "(max-width: 640px), (max-width: 880px) and (orientation: portrait)";
+export const MOBILE_PANEL_QUERY = COMPACT_QUERY;
 
 /**
  * Owns the compact, single-panel tool surface used by phones and portrait

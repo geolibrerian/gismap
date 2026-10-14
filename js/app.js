@@ -1,20 +1,20 @@
 import { events } from "./events.js?v=0.16.0";
 import { AuthController } from "./auth.js?v=0.16.0";
 import { MapController } from "./map.js?v=0.16.4";
-import { ProjectManager } from "./project.js?v=0.17.0";
+import { ProjectManager } from "./project.js?v=0.18.1";
 import { IdentifyController } from "./identify.js?v=0.16.0";
 import { AttributeTableController } from "./attribute-table.js?v=0.16.0";
 import { AIController } from "./ai.js?v=0.16.0";
 import { ToolManager } from "./tool-manager.js?v=0.16.0";
-import { UIController } from "./ui.js?v=0.17.3";
+import { UIController } from "./ui.js?v=0.18.1";
 import { ExportController } from "./export/export-controller.js?v=0.16.0";
 import { parseShareParameters } from "./share.js?v=0.16.0";
 import { decodeEmbeddedTour } from "./tour-share.js?v=0.16.0";
 import { POPULAR_SERVICES } from "./catalog.js?v=0.16.0";
-import { ApplicationRuntime } from "./application-runtime.js?v=0.16.4";
+import { ApplicationRuntime } from "./application-runtime.js?v=0.18.1";
 import { PanelManager } from "./panel-manager.js?v=0.16.2";
-import { MobilePanelManager } from "./mobile-panel-manager.js?v=0.16.0";
-import { MobileWorkflowRouter } from "./mobile-workflow-router.js?v=0.17.1";
+import { MobilePanelManager } from "./mobile-panel-manager.js?v=0.18.1";
+import { MobileWorkflowRouter } from "./mobile-workflow-router.js?v=0.18.1";
 
 async function loadSharedLayer(mapController, config) {
   const rootUrl = config.url.replace(/\/+$/, "");
@@ -97,7 +97,13 @@ async function start() {
     events.publish("app:error", { message: error.message });
   }
 
-  const requestedWorkflow = new URLSearchParams(location.search).get("workflow");
+  const launchParams = new URLSearchParams(location.search);
+  const requestedWorkflow = launchParams.get("workflow");
+  const sharedBriefingIds = launchParams.get("briefing");
+  if (requestedWorkflow === "briefing" && sharedBriefingIds) {
+    const layer = mapController.getOperationalLayers().find((item) => typeof item.queryFeatures === "function");
+    if (layer) projectManager.patchPresentation({ primaryLayerId: layer.uid, briefingSelection: { layerId: layer.uid, ids: sharedBriefingIds.split(",").filter(Boolean), useAll: false } });
+  }
   if (["briefing", "tours", "tasks"].includes(requestedWorkflow)) mobileWorkflowRouter.navigate(requestedWorkflow);
 
   const tourMatch = location.hash.match(/(?:^#|&)tour=([^&]+)/);

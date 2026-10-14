@@ -13,8 +13,8 @@ test("Highway provides a technical-console treatment and appears in each skin se
   const css = fs.readFileSync(new URL("../css/app.css", import.meta.url), "utf8");
   const ui = fs.readFileSync(new URL("../js/ui.js", import.meta.url), "utf8");
   const catalog = fs.readFileSync(new URL("../js/skin-catalog.js", import.meta.url), "utf8");
-  assert.match(css, /data-presentation-skin="highway"[^}]*--amber:#ff4b0b/);
-  assert.match(css, /data-presentation-skin="highway"[^\n]*atlas-chapter-overlay/);
+  assert.match(css, /data-skin="highway"[^}]*--amber:#ff4b0b/);
+  assert.match(css, /data-skin="highway"[^\n]*atlas-chapter-overlay/);
   assert.match(css, /skin-card--highway/);
   assert.match(ui, /INTERFACE_SKINS/);
   assert.match(catalog, /id: "highway"/);

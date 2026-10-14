@@ -90,3 +90,19 @@ export const requestGuard = () => {
     cancel: () => ++current,
   };
 };
+
+/**
+ * Build a client-side layer-view filter that shows only the matching records.
+ * Returns null when every loaded record matches, so the layer draws normally.
+ * Object-ID filters only accept numbers; layers whose ID field holds text
+ * (for example GeoJSON feeds keyed by event codes) use a where clause instead,
+ * otherwise every feature would be hidden.
+ */
+export function featureFilterFor(records = [], totalLoaded = 0, idField = null) {
+  if (!idField || records.length >= totalLoaded) return null;
+  const ids = records.map((record) => record?.attributes?.[idField]).filter((value) => value != null);
+  if (ids.every((value) => typeof value === "number" && Number.isFinite(value))) return { objectIds: ids };
+  if (!ids.length) return { where: "1=0" };
+  const quoted = ids.map((value) => `'${String(value).replace(/'/g, "''")}'`);
+  return { where: `${idField} IN (${quoted.join(",")})` };
+}

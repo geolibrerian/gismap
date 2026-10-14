@@ -1,5 +1,6 @@
 import { applicationToLegacyPresentation, normalizeApplicationConfig } from "./application-config.js?v=0.17.0";
 import { normalizeDataCatalog } from "./data-catalog.js?v=0.16.0";
+import { normalizeSkin } from "./skin-catalog.js?v=0.18.1";
 import { normalizeMobileWorkflow } from "./mobile-feed-store.js?v=0.17.0";
 
 const STORAGE_KEY = "gismap-online:projects:v1";
@@ -42,7 +43,7 @@ export class ProjectManager {
       tools: [],
       ai: { provider: null, model: null },
       connections: [],
-      presentation: { schemaVersion: 1, template: "standard", skin: "clean-light", title: "", primaryLayerId: null, fieldMappings: {}, widgets: {}, chapters: [] },
+      presentation: { schemaVersion: 1, template: "standard", skin: "gismap", title: "", primaryLayerId: null, fieldMappings: {}, widgets: {}, chapters: [] },
       application: null,
       dataCatalog: normalizeDataCatalog(),
       mobile: normalizeMobileWorkflow(),
@@ -277,6 +278,17 @@ export class ProjectManager {
     return this.current.presentation;
   }
 
+  /**
+   * Save presentation details that do not change the active mode (briefing
+   * selection, per-mode titles). Unlike setPresentation, this does not
+   * re-render the workspace, so in-progress lists and selections survive.
+   */
+  patchPresentation(patch = {}) {
+    this.current.presentation = this.#presentation({ ...this.current.presentation, ...patch });
+    this.persistCurrentIfSaved();
+    return this.current.presentation;
+  }
+
   setApplication(application) {
     this.current.application = normalizeApplicationConfig({ ...application, configured: true });
     this.current.presentation = this.#presentation(applicationToLegacyPresentation(this.current.application, this.current.presentation));
@@ -304,13 +316,27 @@ export class ProjectManager {
 
   #presentation(value = {}) {
     const templates = new Set(["standard", "briefing", "explorer", "atlas", "ai-map"]);
-    const skins = new Set(["clean-light", "dark-analytical", "retro-print", "tidal-95", "portolan", "velvet-orbit", "violet-circuit", "highway", "steeler"]);
-    const normalizedSkin = value.skin === "retro-print" ? "portolan" : value.skin;
+    const template = templates.has(value.template) ? value.template : "standard";
+    const title = String(value.title || "");
+    // Each mode keeps its own title so Briefing and Tours never rename each other.
+    const modeTitles = {};
+    for (const mode of ["briefing", "explorer", "atlas"]) {
+      const saved = value.modeTitles?.[mode];
+      if (typeof saved === "string" && saved) modeTitles[mode] = saved;
+    }
+    if (template !== "standard" && template !== "ai-map" && title) modeTitles[template] = title;
+    const selection = value.briefingSelection;
     return {
       schemaVersion: 1,
-      template: templates.has(value.template) ? value.template : "standard",
-      skin: skins.has(normalizedSkin) ? normalizedSkin : "clean-light",
-      title: String(value.title || ""),
+      template,
+      skin: normalizeSkin(value.skin),
+      title,
+      modeTitles,
+      briefingSelection: selection && typeof selection === "object" ? {
+        layerId: selection.layerId ? String(selection.layerId) : null,
+        ids: Array.isArray(selection.ids) ? [...new Set(selection.ids.map(String))].slice(0, 500) : [],
+        useAll: selection.useAll === true,
+      } : { layerId: null, ids: [], useAll: false },
       primaryLayerId: value.primaryLayerId || null,
       fieldMappings: value.fieldMappings && typeof value.fieldMappings === "object" ? value.fieldMappings : {},
       widgets: value.widgets && typeof value.widgets === "object" ? value.widgets : {},

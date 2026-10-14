@@ -5,8 +5,9 @@ import { createEmbeddedTourUrl } from "./tour-share.js?v=0.16.0";
 import { markdownToPlainText, renderMarkdown } from "./markdown.js?v=0.16.0";
 import { formatAttributeValue } from "./attribute-format.js?v=0.16.0";
 import { normalizeApplicationConfig, presetApplication } from "./application-config.js?v=0.17.0";
-import { featureId, fieldKind, filterRecords, histogram, requestGuard, sortRecords } from "./presentation-query.js?v=0.16.0";
-import { INTERFACE_SKINS, skinOptionsMarkup } from "./skin-catalog.js?v=0.18.0";
+import { featureFilterFor, featureId, fieldKind, filterRecords, histogram, requestGuard, sortRecords } from "./presentation-query.js?v=0.18.1";
+import { DEFAULT_SKIN, INTERFACE_SKINS, applyInterfaceSkin, normalizeSkin, skinOptionsMarkup } from "./skin-catalog.js?v=0.18.1";
+import { compactMedia } from "./viewport.js?v=0.18.1";
 
 const DISPLAY_SETTINGS_KEY = "gismap-online:display:v1";
 const INSIGHT_POSITIONS = new Set(["upper-left", "lower-left", "bottom", "dock-left", "dock-right", "dock-top", "dock-bottom"]);
@@ -65,7 +66,7 @@ export class UIController {
     this.briefingRequest = requestGuard();
     this.keepWelcomeForSharedExample = new URLSearchParams(location.search).has("example");
     this.systemThemeMedia = matchMedia("(prefers-color-scheme: dark)");
-    this.mobileMedia = mobilePanelManager?.media || matchMedia("(max-width: 640px), (max-width: 880px) and (orientation: portrait)");
+    this.mobileMedia = mobilePanelManager?.media || compactMedia();
   }
 
   initialize() {
@@ -125,7 +126,7 @@ export class UIController {
     close.textContent = "×";
     header.append(title, close);
     const mobileMenu = desktopMenu.cloneNode(true);
-    mobileMenu.querySelectorAll('[data-action="dashboard-builder"], [data-action="map-presentation"]').forEach((item) => item.remove());
+    mobileMenu.querySelectorAll('[data-action="dashboard-builder"], [data-action="map-presentation"], [data-desktop-only]').forEach((item) => item.remove());
     const workflows = document.createElement("div");
     workflows.className = "menu mobile-workflows-menu";
     workflows.innerHTML = `<button class="menu__trigger" aria-expanded="false">Workflows <span>⌄</span></button><div class="menu__content" role="menu"><button type="button" data-mobile-workflow="briefing">Briefing</button><button type="button" data-mobile-workflow="tours">Tours</button><button type="button" data-mobile-workflow="tasks">Field tasks</button><button type="button" data-mobile-workflow="map">Map tools</button></div>`;
@@ -172,6 +173,10 @@ export class UIController {
 
   #bindStaticActions() {
     document.querySelector("#welcome-close").addEventListener("click", () => this.#dismissWelcome());
+    document.querySelector("#layers-list")?.addEventListener("click", (event) => {
+      const button = event.target.closest("[data-empty-action]");
+      if (button) this.#handleAction(button.dataset.emptyAction);
+    });
     document.querySelectorAll("[data-action]").forEach((button) =>
       button.addEventListener("click", () => {
         if (button.closest("#welcome-panel")) this.#dismissWelcome();
@@ -256,7 +261,7 @@ export class UIController {
         this.mobilePanelManager?.close();
         this.events.publish("mobile:panel-active", { panelId: null });
       }
-      if (opening && matchMedia("(max-width: 640px)").matches) this.#setSidebarCollapsed(true);
+      if (opening && this.mobileMedia.matches) this.#setSidebarCollapsed(true);
       if (!opening) this.#closeMenus();
       this.events.publish("mobile:menu-toggled", { open: opening });
     };
@@ -615,7 +620,7 @@ export class UIController {
       : validTabs.has(this.activeUtilityTab) ? this.activeUtilityTab : tabs[0]?.id || null;
     const open = tabs.length > 0;
     if (open) this.#dismissWelcome();
-    if (open && matchMedia("(max-width: 640px)").matches) this.#setSidebarCollapsed(true);
+    if (open && this.mobileMedia.matches) this.#setSidebarCollapsed(true);
     const tabList = document.querySelector("#utility-tabs");
     tabList.hidden = tabs.length < 2;
     tabList.innerHTML = tabs.map((tab) => `<span class="utility-tab"><button type="button" data-utility-tab="${tab.id}" aria-selected="${tab.id === this.activeUtilityTab}">${escapeHtml(tab.label)}</button><button type="button" class="utility-tab__close" data-close-utility-tab="${tab.id}" aria-label="Close ${escapeHtml(tab.label)}" title="Close ${escapeHtml(tab.label)}">×</button></span>`).join("");
@@ -723,7 +728,7 @@ export class UIController {
   }
 
   #setSidebarCollapsed(collapsed) {
-    const mobile = matchMedia("(max-width: 640px)").matches;
+    const mobile = this.mobileMedia.matches;
     document.body.classList.toggle("sidebar-collapsed", collapsed);
     if (collapsed) document.body.classList.remove("mobile-drawer-expanded");
     document.querySelector("#sidebar").setAttribute("aria-hidden", String(mobile ? false : collapsed));
@@ -988,8 +993,8 @@ export class UIController {
     const prefersDark = matchMedia("(prefers-color-scheme: dark)").matches;
     const resolvedTheme = settings.appearance === "system" ? (prefersDark ? "dark" : "light") : settings.appearance;
     document.documentElement.dataset.theme = resolvedTheme;
-    document.documentElement.style.colorScheme = resolvedTheme;
-    document.body.classList.toggle("calcite-mode-dark", resolvedTheme === "dark");
+    // Light/Dark applies to the GISMap house skin; other skins keep their own palette.
+    applyInterfaceSkin(document.documentElement.dataset.skin || this.projectManager?.current?.presentation?.skin);
     const mobile = this.mobileMedia.matches;
     const insightPosition = mobile ? "dock-top" : settings.insightPosition;
     const tablePosition = mobile ? "dock-top" : settings.tablePosition;
@@ -1201,7 +1206,7 @@ export class UIController {
   #bindMobileDrawerResize() {
     const handle = document.querySelector("#mobile-drawer-handle");
     if (!handle) return;
-    const clamp = (height) => Math.min(window.innerHeight * 0.6, Math.max(window.innerHeight * 0.4, height));
+    const clamp = (height) => Math.min(window.innerHeight * 0.6, Math.max(window.innerHeight * 0.2, height));
     const setHeight = (height) => {
       document.body.style.setProperty("--mobile-tool-drawer-height", `${clamp(height)}px`);
       requestAnimationFrame(() => this.mapController.resize());
@@ -1869,11 +1874,26 @@ export class UIController {
       this.presentationState.metricMin = metricValues.length ? Math.min(...metricValues) : null;
       this.presentationState.metricMax = metricValues.length ? Math.max(...metricValues) : null;
       this.presentationState.metricUnit = this.presentationState.records.map((record) => record.attributes?.[roles.unit]).find(Boolean) || "";
+      if (presentation.template === "briefing") this.#restoreBriefingSelection(layer);
       this.#filterPresentationRecords();
     } catch (error) {
       this.presentationState.error = error.message;
       this.#renderPresentationDashboard(presentation);
     }
+  }
+
+  #restoreBriefingSelection(layer) {
+    const saved = this.projectManager.current.presentation?.briefingSelection;
+    if (!saved || !layer || saved.layerId !== layer.uid) return;
+    const available = new Set(this.presentationState.records.map((record) => featureId(record, layer.objectIdField)).filter(Boolean));
+    this.presentationState.selectedIds = new Set(saved.ids.filter((id) => available.has(id)));
+    this.presentationState.briefingUseAll = saved.useAll === true;
+  }
+
+  #saveBriefingSelection() {
+    const state = this.presentationState;
+    if (state.template !== "briefing" || !state.layerUid) return;
+    this.projectManager.patchPresentation({ briefingSelection: { layerId: state.layerUid, ids: [...state.selectedIds], useAll: state.briefingUseAll === true } });
   }
 
   #recordLabel(result, fields) {
@@ -1915,6 +1935,7 @@ export class UIController {
     const selectedId = featureId(selected, idField);
     if (this.presentationState.template === "briefing") {
       if (selectedId) this.presentationState.selectedIds.add(selectedId);
+      this.#saveBriefingSelection();
     } else {
       this.presentationState.selectedIds = new Set([selectedId].filter(Boolean));
     }
@@ -1927,8 +1948,7 @@ export class UIController {
     if (!layer || !this.mapController.view?.whenLayerView) return;
     try {
       const layerView = await this.mapController.view.whenLayerView(layer);
-      const objectIdField = layer.objectIdField;
-      layerView.filter = objectIdField ? { objectIds: records.map((record) => record.attributes?.[objectIdField]).filter((value) => value != null) } : null;
+      layerView.filter = featureFilterFor(records, this.presentationState.records.length, layer.objectIdField);
     } catch { /* Not every layer view supports a client-side object ID filter. */ }
   }
 
@@ -1984,9 +2004,8 @@ export class UIController {
     root.hidden = false;
     const layer = this.mapController.findLayer(this.presentationState.layerUid);
     if (!layer && template !== "atlas") {
-      root.innerHTML = `<section class="presentation-empty"><span class="eyebrow">${escapeHtml(template)}</span><h2>Start with a dataset</h2><p>This mode becomes interactive after you add a feature layer. Your project and map remain unchanged.</p><div><button type="button" data-presentation-setup="data-arcgis">Connect a service</button><button type="button" data-presentation-setup="data-file">Add a file</button><button type="button" data-presentation-example>Open an example</button></div></section>`;
+      root.innerHTML = `<section class="presentation-empty"><span class="eyebrow">${escapeHtml(template)}</span><h2>Start with a dataset</h2><p>This mode becomes interactive after you add a feature layer. Your project and map remain unchanged.</p><div><button type="button" data-presentation-setup="data-arcgis">Connect a service</button><button type="button" data-presentation-setup="data-file">Add a file</button><button type="button" data-presentation-setup="data-popular">Open an example</button></div></section>`;
       root.querySelectorAll("[data-presentation-setup]").forEach((button) => button.addEventListener("click", () => this.#handleAction(button.dataset.presentationSetup)));
-      root.querySelector("[data-presentation-example]")?.addEventListener("click", () => location.assign("/examples/"));
       return;
     }
     const fields = this.#presentationFields(layer);
@@ -1999,7 +2018,7 @@ export class UIController {
       const playing = Boolean(this.presentationState.atlasPlaying);
       const playbackMode = presentation.playbackMode === "manual" ? "manual" : "auto";
       const skinOptions = INTERFACE_SKINS.map(({ id, label }) => [id, label]);
-      root.innerHTML = `<section class="mode-dashboard mode-dashboard--atlas"><header><span class="eyebrow">Atlas · ${this.presentationState.atlasPresent ? "present" : "edit"} mode</span><h2>${escapeHtml(presentation.title || "Guided places")}</h2><p>Capture exact map views, descriptions, media, and layer states as a shareable guided tour.</p></header><label class="atlas-skin-control"><span>Look &amp; feel</span><select data-atlas-skin>${skinOptions.map(([value,label]) => `<option value="${value}"${presentation.skin === value ? " selected" : ""}>${label}</option>`).join("")}</select></label><div class="atlas-present-action"><button type="button" data-atlas-mode>${this.presentationState.atlasPresent ? "Edit chapters" : "Present atlas"}</button></div><label class="atlas-playback-mode"><span>Playback</span><select data-atlas-playback><option value="auto"${playbackMode === "auto" ? " selected" : ""}>Auto · use linger time</option><option value="manual"${playbackMode === "manual" ? " selected" : ""}>Manual · use Back and Next</option></select></label><div class="atlas-actions"><button type="button" data-atlas-capture ${this.presentationState.atlasPresent ? "hidden" : ""}>Add another chapter</button><button type="button" data-atlas-share>Share tour</button><button type="button" data-atlas-export>Export tour</button></div><div class="mode-records">${chapters.map((chapter, index) => `<article class="atlas-chapter"><button type="button" data-atlas-go="${index}"><span>${index + 1}</span><strong>${escapeHtml(chapter.title || `Chapter ${index + 1}`)}</strong><small>${escapeHtml(chapter.reverseAddress || chapter.body || "Saved map view")}${chapter.basemapId ? ` · ${escapeHtml(this.#basemapLabel(chapter.basemapId))}` : ""}${playbackMode === "auto" && chapter.lingerSeconds ? ` · ${chapter.lingerSeconds}s` : ""}</small></button>${this.presentationState.atlasPresent ? "" : `<div><button type="button" data-atlas-rename="${index}">Edit</button><button type="button" data-atlas-delete="${index}">Delete</button></div>`}</article>`).join("")}</div></section>`;
+      root.innerHTML = `<section class="mode-dashboard mode-dashboard--atlas"><header><span class="eyebrow">Tour · ${this.presentationState.atlasPresent ? "present" : "edit"} mode</span><h2>${escapeHtml(presentation.title || "Guided places")}</h2><p>Capture exact map views, descriptions, media, and layer states as a shareable guided tour.</p></header><label class="atlas-skin-control"><span>Look &amp; feel</span><select data-atlas-skin>${skinOptions.map(([value,label]) => `<option value="${value}"${presentation.skin === value ? " selected" : ""}>${label}</option>`).join("")}</select></label><div class="atlas-present-action"><button type="button" data-atlas-mode>${this.presentationState.atlasPresent ? "Edit chapters" : "Present tour"}</button></div><label class="atlas-playback-mode"><span>Playback</span><select data-atlas-playback><option value="auto"${playbackMode === "auto" ? " selected" : ""}>Auto · use linger time</option><option value="manual"${playbackMode === "manual" ? " selected" : ""}>Manual · use Back and Next</option></select></label><div class="atlas-actions"><button type="button" data-atlas-capture ${this.presentationState.atlasPresent ? "hidden" : ""}>Add another chapter</button><button type="button" data-atlas-share>Share tour</button><button type="button" data-atlas-export>Export tour</button></div><div class="mode-records">${chapters.map((chapter, index) => `<article class="atlas-chapter"><button type="button" data-atlas-go="${index}"><span>${index + 1}</span><strong>${escapeHtml(chapter.title || `Chapter ${index + 1}`)}</strong><small>${escapeHtml(chapter.reverseAddress || chapter.body || "Saved map view")}${chapter.basemapId ? ` · ${escapeHtml(this.#basemapLabel(chapter.basemapId))}` : ""}${playbackMode === "auto" && chapter.lingerSeconds ? ` · ${chapter.lingerSeconds}s` : ""}</small></button>${this.presentationState.atlasPresent ? "" : `<div><button type="button" data-atlas-rename="${index}">Edit</button><button type="button" data-atlas-delete="${index}">Delete</button></div>`}</article>`).join("") || `<p class="atlas-empty">No chapters yet. Move the map to the first place in your story, then choose <strong>Add</strong> to save it as chapter 1.</p>`}</div></section>`;
       if (!this.presentationState.atlasPresent) {
         const titleControl = document.createElement("label");
         titleControl.className = "atlas-title-control";
@@ -2347,8 +2366,8 @@ export class UIController {
     root.querySelector("[data-search-field]")?.addEventListener("change", (event) => { state.searchField = event.target.value; state.searchOperator = "contains"; refresh(); });
     root.querySelector("[data-mode-search]")?.addEventListener("input", (event) => { state.search = event.target.value; clearTimeout(this.presentationSearchTimer); this.presentationSearchTimer = setTimeout(refresh, 180); });
     root.querySelector("[data-mode-clear]")?.addEventListener("click", () => { state.search = ""; refresh(); });
-    root.querySelector("[data-briefing-use-all]")?.addEventListener("change", (event) => { state.briefingUseAll = event.target.checked; this.#renderBriefingWorkspace(root, presentation, layer, fields); });
-    root.querySelectorAll("[data-briefing-include]").forEach((input) => input.addEventListener("change", () => { input.checked ? state.selectedIds.add(input.dataset.briefingInclude) : state.selectedIds.delete(input.dataset.briefingInclude); this.#renderBriefingWorkspace(root, presentation, layer, fields); }));
+    root.querySelector("[data-briefing-use-all]")?.addEventListener("change", (event) => { state.briefingUseAll = event.target.checked; this.#saveBriefingSelection(); this.#renderBriefingWorkspace(root, presentation, layer, fields); });
+    root.querySelectorAll("[data-briefing-include]").forEach((input) => input.addEventListener("change", () => { input.checked ? state.selectedIds.add(input.dataset.briefingInclude) : state.selectedIds.delete(input.dataset.briefingInclude); this.#saveBriefingSelection(); this.#renderBriefingWorkspace(root, presentation, layer, fields); }));
     root.querySelectorAll("[data-mode-record-id]").forEach((button) => button.addEventListener("click", () => { const record = state.visibleRecords.find((item) => featureId(item, layer.objectIdField) === button.dataset.modeRecordId); this.#selectPresentationResult(record); }));
     root.querySelector("[data-selection-clear]")?.addEventListener("click", () => { this.briefingRequest.cancel(); state.selected = null; this.mapController.clearFeatureHighlight(); this.#renderBriefingWorkspace(root, presentation, layer, fields); });
     root.querySelectorAll("[data-mode-record-id]").forEach((button) => button.addEventListener("click", async () => { const record = state.visibleRecords.find((item) => featureId(item, layer.objectIdField) === button.dataset.modeRecordId); if (record?.geometry) await this.mapController.view?.goTo?.({ target: record.geometry, zoom: this.mapController.view?.zoom }, { animate: false }); }));
@@ -2772,7 +2791,7 @@ export class UIController {
   #atlasSettingsDialog() {
     const presentation = this.projectManager.current.presentation || {};
     const playbackMode = presentation.playbackMode === "manual" ? "manual" : "auto";
-    const skins = [["clean-light","Clean Light"],["highway","Highway"],["steeler","Steeler"],["dark-analytical","Midnight"],["tidal-95","Pacific ’94"],["portolan","Copperplate"],["velvet-orbit","Velvet Orbit"],["violet-circuit","Violet Circuit"]];
+    const skins = INTERFACE_SKINS.map(({ id, label }) => [id, label]);
     this.openDialog({
       eyebrow: "Guided places",
       title: "Tour settings",
@@ -2957,11 +2976,29 @@ export class UIController {
     advance(Math.max(0, Math.min(chapters.length - 1, startIndex)));
   }
 
+  /**
+   * Undo everything a presentation mode did to the shared map and overlays, so
+   * the next mode (or the plain map) starts clean.
+   */
+  #leavePresentationMode() {
+    clearTimeout(this.presentationSearchTimer);
+    this.briefingRequest.cancel();
+    document.querySelector("#briefing-context-host")?.replaceChildren();
+    document.body.classList.remove("mobile-briefing-context-open");
+    delete document.body.dataset.briefingContextDock;
+    const layer = this.mapController.findLayer(this.presentationState.layerUid);
+    if (layer && this.mapController.view?.whenLayerView) {
+      this.mapController.view.whenLayerView(layer).then((layerView) => { layerView.filter = null; }).catch(() => {});
+    }
+    this.mapController.clearFeatureHighlight();
+  }
+
   #applyPresentation(presentation = {}) {
     const app = document.querySelector("#app");
     const template = presentation.template || "standard";
+    if (template === "standard" || template !== this.presentationState.template) this.#leavePresentationMode();
     app.dataset.presentation = template;
-    app.dataset.presentationSkin = presentation.skin || "clean-light";
+    applyInterfaceSkin(presentation.skin ?? this.projectManager.current.presentation?.skin);
     document.body.dataset.presentation = template;
     if (template === "atlas") {
       const activeIndex = Number.isInteger(this.presentationState.atlasChapterIndex) ? this.presentationState.atlasChapterIndex : null;
@@ -2989,14 +3026,14 @@ export class UIController {
       context?.remove();
       dashboard.replaceChildren();
       dashboard.hidden = true;
-      this.presentationState = { template: "standard", records: [], visibleRecords: [], selected: null, layerUid: null, search: "", category: "" };
-      this.mapController.clearFeatureHighlight();
+      this.presentationState = { template: "standard", records: [], visibleRecords: [], selected: null, selectedIds: new Set(), layerUid: null, search: "", category: "" };
       this.#hideAtlasChapterOverlay();
       this.#syncPresentationMobileControls(presentation);
       if (welcomePanel) welcomePanel.hidden = welcomePanel.dataset.dismissed === "true";
       return;
     }
-    if (welcomePanel) welcomePanel.hidden = true;
+    // Choosing a workflow means the visitor has engaged; the introduction stays dismissed.
+    this.#dismissWelcome();
     if (this.mobileMedia.matches) this.#setSidebarCollapsed(false);
     if (template !== "atlas") this.#hideAtlasChapterOverlay();
     this.presentationState.template = template;
@@ -3210,19 +3247,21 @@ export class UIController {
 
   #presentationDialog() {
     const previous = structuredClone(this.projectManager.current.presentation || {});
-    const current = { template: "standard", skin: "clean-light", title: "", primaryLayerId: null, ...previous };
+    const current = { template: "standard", skin: DEFAULT_SKIN, title: "", primaryLayerId: null, ...previous };
     const layers = this.mapController.getOperationalLayers();
+    // The skin is independent of the mode: choosing a mode never changes the look.
     const cards = [
-      ["briefing", "Briefing", "Understand events, changes, and their sources", "dark-analytical"],
-      ["explorer", "Explorer", "Search, filter, and compare mapped records", "clean-light"],
-      ["atlas", "Atlas", "Present places through guided chapters and stories", "clean-light"],
+      ["briefing", "Briefing", "Understand events, changes, and their sources"],
+      ["explorer", "Explorer", "Search, filter, and compare mapped records"],
+      ["atlas", "Tour", "Present places through guided chapters and stories"],
     ];
+    let applied = false;
     this.openDialog({
       eyebrow: "Presentation",
       title: "Instant presentations",
       content: `<div class="presentation-picker"><p class="form-note">Choose a ready-made presentation, then choose its look. These quick modes do not change layer data, map symbology, or classifications.</p><div class="presentation-cards"><button type="button" class="presentation-card" data-presentation-template="standard"><span class="presentation-preview presentation-preview--standard"></span><strong>Standard map</strong><small>Return to the free map workspace.</small></button>${cards.map(([id, title, description]) => `<button type="button" class="presentation-card" data-presentation-template="${id}"><span class="presentation-preview presentation-preview--${id}"><i></i><i></i><i></i></span><strong>${title}</strong><small>${description}</small></button>`).join("")}</div><p class="form-note" data-presentation-preview-status></p><fieldset class="skin-picker"><legend>Interface skin</legend>${INTERFACE_SKINS.map(({ id,label,description }) => `<button type="button" class="skin-card skin-card--${id}" data-skin-choice="${id}"><span class="skin-mini"><i></i><b></b><em></em><small></small></span><strong>${label}</strong><small>${description}</small></button>`).join("")}<select id="presentation-skin" hidden>${skinOptionsMarkup(current.skin)}</select></fieldset><label class="field"><span>Presentation title</span><input id="presentation-title" value="${escapeHtml(current.title)}" placeholder="Optional title" /></label><label class="field"><span>Primary layer</span><select id="presentation-primary"><option value="">Choose later</option>${layers.map((layer) => `<option value="${escapeHtml(layer.uid)}">${escapeHtml(layer.title || "Untitled layer")}</option>`).join("")}</select></label><p class="form-note" data-presentation-note>Dataset roles remain configurable inside Explorer and Briefing after applying.</p></div>`,
       actions: [
-        { label: "Cancel", handler: () => { this.#applyPresentation(previous); this.dialog.close(); } },
+        { label: "Cancel", handler: () => this.dialog.close() },
         { label: "Preview", handler: () => {
           const template = this.dialog.querySelector(".presentation-card.is-selected")?.dataset.presentationTemplate || current.template;
           this.#applyPresentation({ template, skin: this.dialog.querySelector("#presentation-skin").value });
@@ -3230,19 +3269,26 @@ export class UIController {
         { label: "Apply", primary: true, handler: () => {
           const template = this.dialog.querySelector(".presentation-card.is-selected")?.dataset.presentationTemplate || current.template;
           const presentation = this.projectManager.setPresentation({ ...current, template, skin: this.dialog.querySelector("#presentation-skin").value, title: this.dialog.querySelector("#presentation-title").value.trim(), primaryLayerId: this.dialog.querySelector("#presentation-primary").value || null });
+          applied = true;
           this.#applyPresentation(presentation);
           this.dialog.close();
-          this.toast(`${template === "standard" ? "Standard workspace" : `${template[0].toUpperCase()}${template.slice(1)} presentation`} applied.`);
+          this.toast(`${template === "standard" ? "Standard workspace" : `${template === "atlas" ? "Tour" : `${template[0].toUpperCase()}${template.slice(1)}`} presentation`} applied.`);
         } },
       ],
     });
+    // Closing by any route (Cancel, ×, Escape) restores the previous appearance.
+    const session = this.dialogSession;
+    this.dialog.addEventListener("close", () => {
+      if (!applied && session === this.dialogSession) this.#applyPresentation(previous);
+    }, { once: true });
     const skin = this.dialog.querySelector("#presentation-skin");
     skin.value = current.skin;
     this.dialog.querySelector("#presentation-primary").value = current.primaryLayerId || "";
     const select = (button) => {
       this.dialog.querySelectorAll("[data-presentation-template]").forEach((card) => card.classList.toggle("is-selected", card === button));
-      if (button.dataset.presentationTemplate !== "standard" && current.template === "standard") chooseSkin(cards.find(([id]) => id === button.dataset.presentationTemplate)?.[3] || skin.value);
       const template = button.dataset.presentationTemplate;
+      const titleInput = this.dialog.querySelector("#presentation-title");
+      if (titleInput) titleInput.value = current.modeTitles?.[template] || (template === current.template ? current.title : "");
       this.#applyPresentation({ template, skin: skin.value });
       this.dialog.querySelector("[data-presentation-preview-status]").textContent = template === "standard"
         ? "Previewing the standard authoring workspace."
@@ -3256,7 +3302,7 @@ export class UIController {
       this.#applyPresentation({ template, skin: skin.value });
     };
     this.dialog.querySelectorAll("[data-skin-choice]").forEach((card) => card.addEventListener("click", () => chooseSkin(card.dataset.skinChoice)));
-    chooseSkin(current.skin === "retro-print" ? "portolan" : current.skin);
+    chooseSkin(normalizeSkin(current.skin));
     select(this.dialog.querySelector(`[data-presentation-template="${current.template}"]`) || this.dialog.querySelector("[data-presentation-template=standard]"));
   }
 
@@ -3266,8 +3312,7 @@ export class UIController {
     const presentation = this.projectManager.setPresentation({
       ...current,
       template: "atlas",
-      skin: returningToTour ? (current.skin || "clean-light") : "clean-light",
-      title: current.title || "Guided places",
+      title: current.modeTitles?.atlas || (returningToTour ? current.title : "") || "Guided places",
       chapters: Array.isArray(current.chapters) ? current.chapters : [],
     });
     this.atlasPlaybackToken += 1;
@@ -3284,7 +3329,14 @@ export class UIController {
   }
 
   prepareMobileWorkflow(route) {
-    if (!this.mobileMedia.matches) return;
+    if (!this.mobileMedia.matches) {
+      // Desktop: only an explicit return to the map leaves a presentation.
+      if (route === "map") {
+        const current = this.projectManager.current.presentation || {};
+        if ((current.template || "standard") !== "standard") this.projectManager.setPresentation({ ...current, template: "standard" });
+      }
+      return;
+    }
     this.mobilePanelManager?.close();
     this.events.publish("mobile:panel-active", { panelId: null });
     this.#setSidebarCollapsed(true);
@@ -3313,10 +3365,8 @@ export class UIController {
       const presentation = this.projectManager.setPresentation({
         ...current,
         template: "briefing",
-        skin: returningToBriefing ? (current.skin || "clean-light") : "clean-light",
-        title: returningToBriefing ? current.title : `${primaryLayer?.title || "Feature"} briefing`,
+        title: current.modeTitles?.briefing || (returningToBriefing ? current.title : "") || `${primaryLayer?.title || "Feature"} briefing`,
         primaryLayerId,
-        briefingItems: returningToBriefing ? current.briefingItems : [],
       });
       this.#applyPresentation(presentation);
       this.#setSidebarCollapsed(false);
@@ -3340,13 +3390,19 @@ export class UIController {
       } else {
         const target = new URL(createShareUrl({ baseUrl: location.href, layers: this.mapController.getAllLayerConfigs(), basemap: this.mapController.getBasemapId() }));
         target.searchParams.set("workflow", route);
+        const state = this.presentationState;
+        // Carry the chosen features so the recipient sees the same briefing.
+        if (route === "briefing" && state.template === "briefing" && !state.briefingUseAll && state.selectedIds?.size) {
+          target.searchParams.set("briefing", [...state.selectedIds].slice(0, 100).join(","));
+        }
         url = target.href;
-        title = this.projectManager.current.presentation?.title || "GISMap briefing";
+        const presentation = this.projectManager.current.presentation || {};
+        title = presentation.modeTitles?.[route === "tours" ? "atlas" : "briefing"] || presentation.title || "GISMap briefing";
       }
       this.openDialog({
         eyebrow: "Shareable workflow",
         title,
-        content: `<div class="workflow-share"><canvas data-workflow-share-qr width="280" height="280" aria-label="QR code for ${escapeHtml(title)}"></canvas><p>Scan this code to open the ${route === "tasks" ? "field task" : "briefing"} on another device.</p><label class="field"><span>Share link</span><input data-workflow-share-url readonly value="${escapeHtml(url)}"></label></div>`,
+        content: `<div class="workflow-share"><canvas data-workflow-share-qr width="280" height="280" aria-label="QR code for ${escapeHtml(title)}"></canvas><p>Scan this code to open the ${({ tasks: "field task", tours: "tour", briefing: "briefing" })[route] || "map"} on another device.</p><label class="field"><span>Share link</span><input data-workflow-share-url readonly value="${escapeHtml(url)}"></label></div>`,
         actions: [
           { label: "Share", handler: async () => { if (navigator.share) await navigator.share({ title, url }); else await navigator.clipboard.writeText(url); } },
           { label: "Copy link", primary: true, handler: async () => { await navigator.clipboard.writeText(url); this.toast("Share link copied."); } },
@@ -3573,7 +3629,8 @@ export class UIController {
       this.#syncUtilityPanel();
     }
     const welcomePanel = document.querySelector("#welcome-panel");
-    if (layers.length && !this.keepWelcomeForSharedExample) this.#dismissWelcome();
+    // On a phone the map is the point once data is loaded; keep the intro only on desktop shared-example landings.
+    if (layers.length && (!this.keepWelcomeForSharedExample || this.mobileMedia.matches)) this.#dismissWelcome();
     const applicationPreset = this.applicationRuntime?.snapshot?.().preset || "standard";
     welcomePanel.hidden = welcomePanel.dataset.dismissed === "true" || applicationPreset !== "standard";
     const exportable = new Set(this.exportController.listExportableLayers().map((layer) => layer.uid));
@@ -3590,7 +3647,7 @@ export class UIController {
           <div class="layer-card__actions"><button data-layer-action="zoom">Zoom</button><button data-layer-action="table">Table</button><button data-layer-action="filter">Filter</button><button data-layer-action="export" ${exportable.has(layer.uid) ? "" : "disabled title=\"This layer is not queryable\""}>Export</button><button data-layer-action="style">Style</button><button data-layer-action="refresh">Refresh</button></div>
         </article>`;
       }).join("")
-      : '<div class="empty-state">Add a file or service from the Data menu.</div>';
+      : '<div class="empty-state empty-state--layers"><p>No layers yet. Add data to start.</p><div class="empty-state__actions"><button type="button" data-empty-action="data-arcgis">ArcGIS service</button><button type="button" data-empty-action="data-geojson">GeoJSON URL</button><button type="button" data-empty-action="data-file">Local file</button><button type="button" data-empty-action="data-popular">Try an example</button></div></div>';
     container.querySelectorAll(".layer-card").forEach((card) => this.#bindLayerCard(card));
   }
 
@@ -4230,6 +4287,7 @@ export class UIController {
   }
 
   openDialog({ eyebrow = "GIS Map Online", title, content, actions = [], presentationSheet = false }) {
+    this.dialogSession = (this.dialogSession || 0) + 1;
     this.dialog.classList.remove("app-dialog--docked", "app-dialog--presentation-sheet");
     this.dialog.classList.toggle("app-dialog--presentation-sheet", presentationSheet);
     document.querySelector("#dialog-dock").setAttribute("aria-label", "Move dialog to the right panel");

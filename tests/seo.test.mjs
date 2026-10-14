@@ -21,7 +21,7 @@ assert.doesNotMatch(ui, /welcomePanel\.hidden\s*=\s*Boolean\(layers\.length\)/);
 assert.match(ui, /button\.closest\("#welcome-panel"\)/);
 assert.match(ui, /if \(open\) this\.#dismissWelcome\(\)/);
 assert.match(ui, /keepWelcomeForSharedExample/);
-assert.match(ui, /if \(layers\.length && !this\.keepWelcomeForSharedExample\) this\.#dismissWelcome\(\)/);
+assert.match(ui, /if \(layers\.length && \(!this\.keepWelcomeForSharedExample \|\| this\.mobileMedia\.matches\)\) this\.#dismissWelcome\(\)/);
 assert.doesNotMatch(ui, /WELCOME_DISMISSED_KEY|sessionStorage/);
 assert.match(ui, /data-ai-selection/);
 assert.match(ui, /selectedResults/);
