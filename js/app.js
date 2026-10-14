@@ -1,7 +1,7 @@
 import { events } from "./events.js?v=0.18.2";
 import { AuthController } from "./auth.js?v=0.18.2";
 import { MapController } from "./map.js?v=0.18.5";
-import { ProjectManager } from "./project.js?v=0.18.2";
+import { ProjectManager } from "./project.js?v=0.18.7";
 import { IdentifyController } from "./identify.js?v=0.18.2";
 import { AttributeTableController } from "./attribute-table.js?v=0.18.2";
 import { AIController } from "./ai.js?v=0.18.2";
@@ -15,7 +15,7 @@ import { POPULAR_SERVICES } from "./catalog.js?v=0.18.2";
 import { ApplicationRuntime } from "./application-runtime.js?v=0.18.2";
 import { PanelManager } from "./panel-manager.js?v=0.18.2";
 import { MobilePanelManager } from "./mobile-panel-manager.js?v=0.18.2";
-import { MobileWorkflowRouter } from "./mobile-workflow-router.js?v=0.18.6";
+import { MobileWorkflowRouter } from "./mobile-workflow-router.js?v=0.18.7";
 
 async function loadSharedLayer(mapController, config) {
   const rootUrl = config.url.replace(/\/+$/, "");

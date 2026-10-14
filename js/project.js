@@ -1,7 +1,7 @@
 import { applicationToLegacyPresentation, normalizeApplicationConfig } from "./application-config.js?v=0.18.2";
 import { normalizeDataCatalog } from "./data-catalog.js?v=0.18.2";
 import { normalizeSkin } from "./skin-catalog.js?v=0.18.2";
-import { normalizeMobileWorkflow } from "./mobile-feed-store.js?v=0.18.2";
+import { normalizeMobileWorkflow } from "./mobile-feed-store.js?v=0.18.7";
 
 const STORAGE_KEY = "gismap-online:projects:v1";
 const CURRENT_KEY = "gismap-online:current-project:v1";

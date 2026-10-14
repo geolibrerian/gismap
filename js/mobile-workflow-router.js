@@ -1,4 +1,4 @@
-import { MobileFeedStore } from "./mobile-feed-store.js?v=0.18.2";
+import { MobileFeedStore } from "./mobile-feed-store.js?v=0.18.7";
 import { compactMedia } from "./viewport.js?v=0.18.2";
 import { INTERFACE_SKINS, applyInterfaceSkin, normalizeSkin } from "./skin-catalog.js?v=0.18.2";
 import { FIELD_TASK_LIMITS, createFieldTaskUrl, featureLayerUrl, taskSteps } from "./field-task-share.js?v=0.18.6";
