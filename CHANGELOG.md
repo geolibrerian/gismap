@@ -8,6 +8,7 @@ All notable changes to GIS Map Online are documented here. This project follows
 
 ### Added
 
+- On phones, Briefing and Tours keep their main actions (Connect / Add file / Example, then Context; Present / Add / Share) in a full-width bar docked above the bottom navigation, the same slot the Map tools use. Their sheets open at half the screen and drag up to the top bar.
 - Field tasks can be tied to a latitude and longitude alone (typed, the map center, or picked on the map); attached features are optional. Zooming to a task on a phone pins the task and shows your own position.
 - "My location" now marks where you are with a dot that follows the device.
 - Field tasks can be written with custom steps and up to five attached feature service features (location and object ID), then shared as a link or QR code. The recipient opens a Tasks to complete view, checks off steps and features, adds a report, and sends a return link; opening it on the assigning device records the report on the original task.
@@ -16,6 +17,8 @@ All notable changes to GIS Map Online are documented here. This project follows
 
 ### Fixed
 
+- Removed the gap under the mobile Tours sheet, the floating Briefing Context button, and the Map tool sheet showing behind the floating tool row; the tool row now spans the screen and sheets sit flush on it.
+- Data added from an empty Briefing now becomes its dataset right away.
 - Zooming to a layer, feature, search result, or your location now frames it from directly above instead of tilting the camera toward the horizon.
 
 ## [0.18.2] - 2026-10-14

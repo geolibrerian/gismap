@@ -108,6 +108,7 @@ export class UIController {
     this.#bindInsightResize();
     this.#bindUtilityPanel();
     this.#bindMobileDrawerResize();
+    this.#bindMobileActionBar();
     this.#bindMapEvents();
     this.#renderBookmarks();
     this.#renderLayers();
@@ -472,6 +473,12 @@ export class UIController {
     });
     this.events.subscribe("export:cancelled", () => this.toast("Data export cancelled."));
     this.events.subscribe("bookmarks:changed", () => this.#renderBookmarks());
+    // Data added from an empty Briefing becomes its dataset straight away.
+    this.events.subscribe("layer:added", ({ layer }) => {
+      const current = this.projectManager.current.presentation || {};
+      if (current.template !== "briefing" || current.primaryLayerId || typeof layer?.queryFeatures !== "function") return;
+      this.#applyPresentation(this.projectManager.setPresentation({ ...current, primaryLayerId: layer.uid, title: current.title || `${layer.title || "Feature"} briefing` }));
+    });
     this.events.subscribe("identify:start", () => {
       this.#clearInsightIsolation();
       this.mapController.clearFeatureHighlight();
@@ -1219,19 +1226,92 @@ export class UIController {
     });
   }
 
+  #bindMobileActionBar() {
+    const bar = document.querySelector("#mobile-action-bar");
+    if (!bar) return;
+    this.mobileActionSources = [];
+    this.mobileActionSignature = "";
+    bar.addEventListener("click", (event) => {
+      const button = event.target.closest("[data-action-proxy]");
+      if (button) this.mobileActionSources[Number(button.dataset.actionProxy)]?.click();
+    });
+    const schedule = () => {
+      if (this.mobileActionFrame) return;
+      this.mobileActionFrame = requestAnimationFrame(() => {
+        this.mobileActionFrame = null;
+        this.#syncMobileActionBar();
+      });
+    };
+    const watch = (selector, options) => {
+      const target = selector === "body" ? document.body : document.querySelector(selector);
+      if (target) new MutationObserver(schedule).observe(target, options);
+    };
+    watch("#presentation-dashboard", { childList: true, subtree: true, attributes: true, attributeFilter: ["disabled", "hidden"] });
+    watch("#mobile-presentation-controls", { subtree: true, attributes: true, attributeFilter: ["disabled", "aria-expanded"] });
+    watch("body", { attributes: true, attributeFilter: ["class"] });
+    watch("#app", { attributes: true, attributeFilter: ["data-presentation"] });
+    this.mobileMedia.addEventListener?.("change", schedule);
+    schedule();
+  }
+
+  /**
+   * On phones, Briefing and Tours keep their main actions in a bar docked above
+   * the bottom navigation, in the same slot the Map route uses for its tools.
+   * The bar mirrors the sheet's own buttons, so their behaviour stays in one place.
+   */
+  #syncMobileActionBar() {
+    const bar = document.querySelector("#mobile-action-bar");
+    const dashboard = document.querySelector("#presentation-dashboard");
+    if (!bar || !dashboard) return;
+    const template = document.querySelector("#app")?.dataset.presentation;
+    const body = document.body.classList;
+    const available = this.mobileMedia.matches && ["briefing", "atlas"].includes(template)
+      && !body.contains("mobile-map-route") && !body.contains("mobile-atlas-presenting") && !body.contains("mobile-workflow-open") && !body.contains("mobile-menu-open");
+    let sources = [];
+    if (available && template === "atlas") {
+      sources = [...dashboard.querySelectorAll(".atlas-actions :is([data-atlas-mode],[data-atlas-capture],[data-atlas-share])")].filter((button) => !button.hidden);
+    } else if (available && template === "briefing") {
+      sources = dashboard.querySelector(".presentation-empty")
+        ? [...dashboard.querySelectorAll(".presentation-empty [data-presentation-setup]")]
+        : [document.querySelector("[data-mobile-briefing-context]")].filter(Boolean);
+    }
+    const open = sources.length > 0;
+    body.toggle("mobile-action-bar-open", open);
+    const short = { "Connect a service": "Connect", "Add a file": "Add file", "Open an example": "Example" };
+    const label = (button) => short[button.textContent.trim()] || button.textContent.trim();
+    const signature = `${template}|${sources.map((button) => `${label(button)}:${button.disabled}:${button.getAttribute("aria-expanded")}`).join(",")}`;
+    bar.hidden = !open;
+    if (signature === this.mobileActionSignature) return;
+    this.mobileActionSignature = signature;
+    this.mobileActionSources = sources;
+    bar.innerHTML = sources.map((button, index) => {
+      const primary = button.matches("[data-atlas-mode],[data-atlas-capture],[data-mobile-briefing-context]") || (template === "briefing" && index === 0);
+      const expanded = button.getAttribute("aria-expanded");
+      return `<button type="button" data-action-proxy="${index}" class="${primary ? "is-primary" : ""}"${button.disabled ? " disabled" : ""}${expanded ? ` aria-expanded="${expanded}"` : ""}>${escapeHtml(label(button))}</button>`;
+    }).join("");
+  }
+
   #bindMobileDrawerResize() {
     const handle = document.querySelector("#mobile-drawer-handle");
     if (!handle) return;
-    const clamp = (height) => Math.min(window.innerHeight * 0.6, Math.max(window.innerHeight * 0.2, height));
+    // Map tool sheets stop at 60% of the screen; Briefing and Tour sheets can grow to the top bar.
+    const presentationSheet = () => !document.body.classList.contains("mobile-map-route") && ["briefing", "atlas"].includes(document.querySelector("#app")?.dataset.presentation);
+    const variable = () => (presentationSheet() ? "--mobile-sheet-height" : "--mobile-tool-drawer-height");
+    const clamp = (height) => {
+      const sheetBottom = document.querySelector("#sidebar")?.getBoundingClientRect().bottom ?? window.innerHeight;
+      const topLimit = document.querySelector(".mobile-map-brand")?.getBoundingClientRect().bottom ?? 0;
+      const max = presentationSheet() ? sheetBottom - topLimit : window.innerHeight * 0.6;
+      return Math.min(max, Math.max(window.innerHeight * 0.2, height));
+    };
     const setHeight = (height) => {
-      document.body.style.setProperty("--mobile-tool-drawer-height", `${clamp(height)}px`);
+      document.body.style.setProperty(variable(), `${clamp(height)}px`);
       requestAnimationFrame(() => this.mapController.resize());
     };
     handle.addEventListener("keydown", (event) => {
       const delta = ({ ArrowUp: 32, ArrowDown: -32 })[event.key];
       if (delta == null) return;
       event.preventDefault();
-      const current = parseFloat(getComputedStyle(document.body).getPropertyValue("--mobile-tool-drawer-height")) || window.innerHeight * 0.4;
+      const current = document.querySelector("#sidebar")?.getBoundingClientRect().height || window.innerHeight * 0.4;
       setHeight(current + delta);
     });
     handle.addEventListener("pointerdown", (event) => {
@@ -2158,7 +2238,8 @@ export class UIController {
     const template = presentation.template || "standard";
     const mobileAtlasPresenting = this.mobileMedia.matches && template === "atlas" && (this.presentationState.atlasPresent || this.mobileAtlasSettingsOpen);
     document.body.classList.toggle("mobile-atlas-presenting", mobileAtlasPresenting);
-    controls.hidden = !["atlas", "briefing"].includes(template) || (template === "atlas" && !this.presentationState.atlasPresent);
+    // Briefing actions live in the docked action bar; these controls are for presenting a tour.
+    controls.hidden = template !== "atlas" || !this.presentationState.atlasPresent;
     controls.dataset.presentation = template;
     const chapters = presentation.chapters || [];
     const index = Number.isInteger(this.presentationState.atlasChapterIndex) ? this.presentationState.atlasChapterIndex : 0;

@@ -53,7 +53,7 @@
     <link rel="icon" href="./assets/gis-map-online-mark-v2.png" type="image/png" />
     <link rel="preconnect" href="https://js.arcgis.com" />
     <link rel="stylesheet" href="https://js.arcgis.com/5.0/esri/themes/light/main.css" />
-    <link rel="stylesheet" href="./css/app.css?v=0.18.8" />
+    <link rel="stylesheet" href="./css/app.css?v=0.18.9" />
     <script type="module" src="https://js.arcgis.com/5.0/"></script>
     <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
     <script src="https://unpkg.com/@mapbox/shp-write@0.4.3/shpwrite.js"></script>
@@ -275,6 +275,7 @@
           </div>
           <button type="button" class="mobile-briefing-context-button" data-mobile-briefing-context aria-expanded="false">Context ↑</button>
         </nav>
+        <nav id="mobile-action-bar" class="mobile-action-bar" aria-label="Workflow actions" hidden></nav>
         <aside id="atlas-chapter-description" class="atlas-chapter-description" hidden>
           <img id="atlas-chapter-image" alt="" hidden />
           <div>
@@ -395,6 +396,6 @@
     <input id="tool-file-input" type="file" accept=".js,.mjs" hidden />
 
     <noscript>GIS Map Online requires JavaScript.</noscript>
-    <script type="module" src="./js/app.js?v=0.18.8"></script>
+    <script type="module" src="./js/app.js?v=0.18.9"></script>
   </body>
 </html>
