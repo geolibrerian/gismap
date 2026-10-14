@@ -68,6 +68,7 @@ async function start() {
   const mobileWorkflowRouter = new MobileWorkflowRouter({
     events, projectManager, mapController,
     openWorkflow: (route) => uiController.openMobileWorkflow(route),
+    shareWorkflow: (route, payload) => uiController.shareMobileWorkflow(route, payload),
   });
   mobileWorkflowRouter.initialize();
   await mapController.initialize();
@@ -94,6 +95,9 @@ async function start() {
   } catch (error) {
     events.publish("app:error", { message: error.message });
   }
+
+  const requestedWorkflow = new URLSearchParams(location.search).get("workflow");
+  if (["briefing", "tours", "tasks"].includes(requestedWorkflow)) mobileWorkflowRouter.navigate(requestedWorkflow);
 
   const tourMatch = location.hash.match(/(?:^#|&)tour=([^&]+)/);
   if (tourMatch) {

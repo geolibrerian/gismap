@@ -22,9 +22,10 @@ test("Atlas starts with Clean Light", () => {
 
 test("mobile navigation exposes focused workflows", async () => {
   const html = await readFile(new URL("../index.html", import.meta.url), "utf8");
-  for (const route of ["updates", "map", "tours", "tasks", "more"]) {
+  for (const route of ["briefing", "map", "tours", "tasks", "more"]) {
     assert.match(html, new RegExp(`data-mobile-workflow="${route}"`));
   }
+  assert.doesNotMatch(html, /data-mobile-workflow="updates"/);
   assert.match(html, /id="mobile-workflow-root"/);
 });
 
@@ -42,11 +43,27 @@ test("mobile chapter editing hides advanced fields in a fold by default", async 
   assert.match(ui, /<summary>More chapter options<\/summary>/);
 });
 
-test("mobile menu removes desktop-only builders and adds workflow routes", async () => {
+test("mobile menu exposes only free workflows and hides desktop authoring", async () => {
   const ui = await readFile(new URL("../js/ui.js", import.meta.url), "utf8");
-  assert.match(ui, /map-customize.*map-globe.*map-presentation/s);
-  assert.match(ui, /Updates.*Briefing.*Tours.*Compare.*Field tasks.*Watchlist/s);
+  assert.match(ui, /dashboard-builder.*map-presentation/s);
+  assert.match(ui, /Free workflows.*Briefing.*Tours.*Field tasks.*Map tools/s);
+  assert.doesNotMatch(ui.match(/workflows\.innerHTML[^;]+/s)?.[0] || "", /Updates|Compare|Watchlist/);
   assert.match(ui, /skin: returningToTour \? \(current\.skin \|\| "clean-light"\) : "clean-light"/);
+});
+
+test("map tool strip is mobile-only and limited to the Map route", async () => {
+  const css = await readFile(new URL("../css/app.css", import.meta.url), "utf8");
+  assert.match(css, /mobile-panel-nav, \.mobile-map-tool-strip \{ display: none; \}/);
+  assert.match(css, /body\.mobile-map-route \.mobile-map-tool-strip[\s\S]*?display: flex/);
+});
+
+test("free workflows provide QR sharing while account workflows remain gated", async () => {
+  const router = await readFile(new URL("../js/mobile-workflow-router.js", import.meta.url), "utf8");
+  const ui = await readFile(new URL("../js/ui.js", import.meta.url), "utf8");
+  assert.match(router, /share by QR/);
+  assert.match(router, /With an account · coming soon/);
+  assert.match(ui, /QRCode\.toCanvas\(canvas, url/);
+  assert.match(ui, /shareMobileWorkflow\("briefing"\)/);
 });
 
 test("mobile Atlas authoring uses a sixty-percent bottom workspace", async () => {

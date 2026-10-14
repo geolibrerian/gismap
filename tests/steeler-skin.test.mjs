@@ -12,9 +12,11 @@ test("Steeler is a persisted presentation skin", () => {
 test("Steeler provides its striped slate treatment in every skin selector", () => {
   const css = fs.readFileSync(new URL("../css/app.css", import.meta.url), "utf8");
   const ui = fs.readFileSync(new URL("../js/ui.js", import.meta.url), "utf8");
+  const catalog = fs.readFileSync(new URL("../js/skin-catalog.js", import.meta.url), "utf8");
   assert.match(css, /data-presentation-skin="steeler"[^}]*--green:#4f5d73/);
   assert.match(css, /data-presentation-skin="steeler"[^\n]*repeating-linear-gradient/);
   assert.match(css, /skin-card--steeler/);
-  assert.ok((ui.match(/"steeler"/g) || []).length >= 4);
-  assert.match(ui, /Soft striped field journal/);
+  assert.match(ui, /INTERFACE_SKINS/);
+  assert.match(catalog, /id: "steeler"/);
+  assert.match(catalog, /Soft striped field journal/);
 });

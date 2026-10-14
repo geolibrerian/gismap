@@ -69,7 +69,7 @@
         </nav>
         <nav class="mobile-panel-nav" aria-label="Mobile workflows">
           <button id="mobile-menu-toggle" type="button" aria-label="Menu" aria-controls="mobile-menu-drawer" aria-expanded="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg><small>Menu</small></button>
-          <button type="button" data-mobile-workflow="updates" aria-label="Updates"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h12v18H6zM9 7h6M9 11h6M9 15h4"/></svg><small>Updates</small></button>
+          <button type="button" data-mobile-workflow="briefing" aria-label="Briefing"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h12v18H6zM9 7h6M9 11h6M9 15h4"/></svg><small>Briefing</small></button>
           <button type="button" data-mobile-workflow="map" aria-label="Map"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m3 6 6-3 6 3 6-3v15l-6 3-6-3-6 3zM9 3v15m6-12v15"/></svg><small>Map</small></button>
           <button type="button" data-mobile-workflow="tours" aria-label="Tours"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h14v16H5zM9 8h6M9 12h6M9 16h4"/></svg><small>Tours</small></button>
           <button type="button" data-mobile-workflow="tasks" aria-label="Field tasks"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5h10v16H5V5h4m0-2h6v4H9zM8 12l2 2 5-5"/></svg><small>Tasks</small></button>
@@ -96,6 +96,7 @@
               <button data-action="project-create">Create project</button>
               <button data-action="project-save">Save project</button>
               <button data-action="project-share">Copy share link</button>
+              <button data-action="dashboard-builder">Dashboard Builder <span class="account-required">Account · coming soon</span></button>
               <hr />
               <button data-action="project-export">Export project (.gmo)</button>
               <button data-action="project-package">Export package (.gmop)</button>
@@ -121,10 +122,7 @@
               <label class="menu__field"><span>Basemap</span><select data-basemap-picker><optgroup label="3D basemaps"><option value="topo-3d">3D Topographic</option><option value="navigation-3d">3D Navigation</option><option value="navigation-dark-3d">3D Navigation — dark</option><option value="osm-3d">3D OpenStreetMap</option><option value="gray-3d">3D Light gray</option><option value="dark-gray-3d">3D Dark gray</option><option value="streets-3d">3D Streets</option><option value="streets-dark-3d">3D Streets — dark</option></optgroup><optgroup label="2D basemaps"><option value="topo-vector">Topographic</option><option value="streets-vector">Streets</option><option value="navigation">Navigation</option><option value="gray-vector">Light gray</option><option value="dark-gray-vector">Dark gray</option><option value="osm">OpenStreetMap</option></optgroup><optgroup label="Imagery"><option value="satellite">Satellite</option><option value="hybrid">Satellite + labels</option></optgroup></select></label>
               <label class="menu__field"><span>Terrain surface</span><select data-ground-picker><option value="world-elevation">World elevation</option><option value="world-topobathymetry">Elevation + bathymetry</option><option value="flat">Flat ground</option></select></label>
               <hr />
-              <button data-action="map-customize">Dashboard settings…</button>
-              <button data-action="map-globe">Orbital globe…</button>
-              <button data-action="map-guided-tours">Guided tours…</button>
-              <button data-action="map-presentation">Presentation modes…</button>
+              <button data-action="map-presentation">Instant presentations…</button>
               <button data-action="tools-display">Layout &amp; display…</button>
               <button type="button" data-sidebar-panel-toggle="bookmarks-panel">Add Bookmarks panel</button>
               <button type="button" data-sidebar-panel-toggle="draw-panel">Add Draw panel</button>
@@ -284,7 +282,7 @@
             <button data-nav="tilt-down" type="button" title="Tilt camera down" aria-label="Tilt camera down">▼</button>
             <button data-nav="tilt-up" type="button" title="Tilt camera up" aria-label="Tilt camera up">▲</button>
           </span>
-          <button id="globe-dashboard-settings" class="globe-top-nav__settings" type="button" title="Dashboard settings" aria-label="Open dashboard settings"><span aria-hidden="true">⚙</span><span>Settings</span></button>
+          <button id="globe-dashboard-settings" class="globe-top-nav__settings" type="button" title="Dashboard Builder (account required)" aria-label="Open Dashboard Builder information"><span aria-hidden="true">⚙</span><span>Builder</span></button>
           <button id="globe-navigation-close" class="globe-top-nav__close" type="button" title="Hide map tools" aria-label="Hide map tools">×</button>
         </nav>
         <div class="map-nav-shell">
@@ -313,7 +311,7 @@
           <div id="insights-content"></div>
         </aside>
         <div id="map-status" class="map-status">Loading ArcGIS Maps SDK 5.0…</div>
-        <button id="dashboard-settings-open" class="dashboard-settings-open" type="button" hidden aria-label="Open dashboard settings" title="Dashboard settings"><span aria-hidden="true">⚙</span> Dashboard settings</button>
+        <button id="dashboard-settings-open" class="dashboard-settings-open" type="button" hidden aria-label="Open Dashboard Builder information" title="Dashboard Builder (account required)"><span aria-hidden="true">⚙</span> Dashboard Builder</button>
         <div id="toast-region" class="toast-region" aria-live="polite"></div>
         <div id="application-bottom-dock" class="application-dock application-dock--bottom" aria-label="Bottom application panels" hidden></div>
         <div id="application-floating-dock" class="application-dock application-dock--floating" aria-label="Floating application panels" hidden></div>

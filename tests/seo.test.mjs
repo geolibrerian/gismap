@@ -30,7 +30,7 @@ assert.match(html, /id="utility-tabs"/);
 assert.match(html, /<header class="mobile-map-brand"[^>]*aria-label="GISMap Online"/);
 assert.match(html, /id="map-navigation-toggle"/);
 assert.match(html, /data-action="data-popular" class="button--quiet">Try an example/);
-assert.match(html, /data-mobile-workflow="updates"[^>]*aria-label="Updates"/);
+assert.match(html, /data-mobile-workflow="briefing"[^>]*aria-label="Briefing"/);
 assert.match(html, /aria-label="Mobile workflows"/);
 assert.match(ui, /mobileDrawerContent\.inert/);
 assert.match(html, /data-widget="legend">Legend/);

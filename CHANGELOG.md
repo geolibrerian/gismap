@@ -6,6 +6,12 @@ All notable changes to GIS Map Online are documented here. This project follows
 
 ## [Unreleased]
 
+### Changed
+
+- Simplified the public mobile experience around Map, Briefing, Tours, and Field Tasks; Map-only tool shortcuts no longer appear on desktop or over non-map workflows.
+- Replaced duplicated dashboard controls with quick Instant Presentations and a clearly gated, account-oriented Dashboard Builder placeholder.
+- Unified presentation and builder skin choices through one catalog, and added QR sharing for Briefings and Field Tasks alongside Tours.
+
 ## [0.16.0] - 2026-10-09
 
 ### Added

@@ -4,8 +4,8 @@ const escapeHtml = (value) => String(value ?? "").replace(/[&<>"']/g, (char) => 
 const dateLabel = (value) => value ? new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }).format(new Date(value)) : "Recently";
 
 export class MobileWorkflowRouter {
-  constructor({ events, projectManager, mapController, openWorkflow }) {
-    Object.assign(this, { events, projectManager, mapController, openWorkflow });
+  constructor({ events, projectManager, mapController, openWorkflow, shareWorkflow }) {
+    Object.assign(this, { events, projectManager, mapController, openWorkflow, shareWorkflow });
     this.media = matchMedia("(max-width: 640px), (max-width: 880px) and (orientation: portrait)");
     this.store = new MobileFeedStore({ projectManager, events });
     this.root = document.querySelector("#mobile-workflow-root");
@@ -28,10 +28,12 @@ export class MobileWorkflowRouter {
     });
     this.media.addEventListener?.("change", ({ matches }) => { if (!matches) this.navigate("map"); else this.#syncNav(); });
     this.#syncNav();
+    this.#importSharedTask();
   }
 
   navigate(route) {
     if (!this.media.matches) return;
+    if (!["map", "briefing", "tours", "tasks", "more"].includes(route)) route = "more";
     if (route === "more") route = "more";
     if (route === "map") {
       this.route = "map";
@@ -58,11 +60,11 @@ export class MobileWorkflowRouter {
 
   render() {
     if (!this.root || this.root.hidden) return;
-    const renderer = { updates: () => this.#updates(), compare: () => this.#compare(), tasks: () => this.#tasks(), watchlist: () => this.#watchlist(), more: () => this.#more() }[this.route] || (() => this.#more());
+    const renderer = { tasks: () => this.#tasks(), more: () => this.#more() }[this.route] || (() => this.#more());
     this.root.innerHTML = `<header class="mobile-workflow__header"><div><span class="mobile-workflow__brand">GISMap Online</span><h1>${escapeHtml(this.#title())}</h1></div><button type="button" data-workflow-close aria-label="Return to map">×</button></header><div class="mobile-workflow__body">${renderer()}</div>`;
   }
 
-  #title() { return ({ updates: "Updates", compare: "Compare", tasks: "Field tasks", watchlist: "Watchlist", more: "Workflows" })[this.route] || "Workflows"; }
+  #title() { return ({ tasks: "Field tasks", more: "Free workflows" })[this.route] || "Free workflows"; }
 
   #updates() {
     const mobile = this.store.snapshot();
@@ -88,7 +90,7 @@ export class MobileWorkflowRouter {
 
   #tasks() {
     const tasks = this.store.snapshot().fieldTasks;
-    return `<p class="mobile-workflow__subtitle">Assignments and drafts for work in the field.</p><button class="mobile-primary" data-new-task>+ New field task</button><div class="feed-list">${tasks.map((task) => `<article class="feed-card"><span class="status-pill">${escapeHtml(task.status || "draft")}</span><h2>${escapeHtml(task.title || "Untitled task")}</h2><p>${escapeHtml(task.location || "No location set")}</p>${task.capturedAt ? `<span class="feed-card__meta">Captured ${dateLabel(task.capturedAt)}${Number.isFinite(task.latitude) ? ` · ${Number(task.latitude).toFixed(5)}, ${Number(task.longitude).toFixed(5)}` : ""}</span>` : ""}<div class="feed-card__actions"><button data-open-task="${escapeHtml(task.id)}">Open task →</button><button data-share-task="${escapeHtml(task.id)}">Share</button></div></article>`).join("") || `<div class="mobile-empty"><h2>No field tasks</h2><p>Create a client-side draft with a location, checklist, notes, and capture time.</p></div>`}</div>`;
+    return `<p class="mobile-workflow__subtitle">Assignments and drafts for work in the field. Share a task link or QR code with another device.</p><button class="mobile-primary" data-new-task>+ New field task</button><div class="feed-list">${tasks.map((task) => `<article class="feed-card"><span class="status-pill">${escapeHtml(task.status || "draft")}</span><h2>${escapeHtml(task.title || "Untitled task")}</h2><p>${escapeHtml(task.location || "No location set")}</p>${task.capturedAt ? `<span class="feed-card__meta">Captured ${dateLabel(task.capturedAt)}${Number.isFinite(task.latitude) ? ` · ${Number(task.latitude).toFixed(5)}, ${Number(task.longitude).toFixed(5)}` : ""}</span>` : ""}<div class="feed-card__actions"><button data-open-task="${escapeHtml(task.id)}">Open task →</button><button data-share-task="${escapeHtml(task.id)}">Share QR</button></div></article>`).join("") || `<div class="mobile-empty"><h2>No field tasks</h2><p>Create a client-side draft with a location, checklist, notes, and capture time.</p></div>`}</div>`;
   }
 
   #taskEditor(task = {}) {
@@ -101,7 +103,7 @@ export class MobileWorkflowRouter {
   }
 
   #more() {
-    return `<p class="mobile-workflow__subtitle">Focused mobile views use one screen at a time. Desktop dashboard layouts are intentionally unavailable here.</p><div class="workflow-grid"><button data-route="briefing"><strong>Briefing</strong><span>Selected features and context</span></button><button data-route="tours"><strong>Tours</strong><span>Guided places and chapters</span></button><button data-route="compare"><strong>Compare</strong><span>Before, after, and change</span></button><button data-route="watchlist"><strong>Watchlist</strong><span>Places and thresholds</span></button><button data-route="tasks"><strong>Field tasks</strong><span>Assignments and drafts</span></button><button data-open-mobile-menu><strong>Map tools</strong><span>Project, data, layers, and tools</span></button></div>`;
+    return `<p class="mobile-workflow__subtitle">The free mobile app keeps the map and three shareable workflows focused and easy to reach.</p><div class="workflow-grid"><button data-route="briefing"><strong>Briefing</strong><span>Selected features and context · share by QR</span></button><button data-route="tours"><strong>Tours</strong><span>Guided places and chapters · share by QR</span></button><button data-route="tasks"><strong>Field tasks</strong><span>Assignments and drafts · share by QR</span></button><button data-route="map"><strong>Map tools</strong><span>Places, bookmarks, draw, layers, and intelligence</span></button></div><section class="account-workflows"><span>With an account · coming soon</span><p>Updates, Compare, Watchlist, custom dashboards, and their desktop authoring tools.</p></section>`;
   }
 
   async #click(event) {
@@ -169,10 +171,18 @@ export class MobileWorkflowRouter {
   async #shareTask(id) {
     const task = this.store.snapshot().fieldTasks.find((item) => item.id === id);
     if (!task) return;
-    const file = new File([JSON.stringify({ schema: "https://gismap.online/field-task/v1", task }, null, 2)], `${String(task.title || "field-task").replace(/[^a-z0-9]+/gi, "-").toLowerCase()}.gmotask`, { type: "application/json" });
-    if (navigator.share && (!navigator.canShare || navigator.canShare({ files: [file] }))) {
-      try { await navigator.share({ title: task.title || "GISMap field task", text: `${task.location || "Field task"} · ${dateLabel(task.capturedAt)}`, files: [file] }); return; } catch (error) { if (error?.name === "AbortError") return; }
-    }
-    const link = document.createElement("a"); link.href = URL.createObjectURL(file); link.download = file.name; link.click(); setTimeout(() => URL.revokeObjectURL(link.href), 5000);
+    return this.shareWorkflow?.("tasks", { task: { ...task, photos: [] } });
+  }
+
+  #importSharedTask() {
+    const encoded = new URLSearchParams(location.hash.replace(/^#/, "")).get("fieldTask");
+    if (!encoded) return;
+    try {
+      const padded = encoded.replace(/-/g, "+").replace(/_/g, "/").padEnd(Math.ceil(encoded.length / 4) * 4, "=");
+      const bytes = Uint8Array.from(atob(padded), (character) => character.charCodeAt(0));
+      const task = JSON.parse(new TextDecoder().decode(bytes));
+      if (!task?.title || typeof task !== "object") throw new Error("Invalid field task");
+      this.store.saveTask({ ...task, id: task.id || globalThis.crypto?.randomUUID?.() || `task-${Date.now()}`, status: task.status || "shared" });
+    } catch { /* A malformed shared task must not interrupt map startup. */ }
   }
 }

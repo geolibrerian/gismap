@@ -6,6 +6,7 @@ import { markdownToPlainText, renderMarkdown } from "./markdown.js?v=0.16.0";
 import { formatAttributeValue } from "./attribute-format.js?v=0.16.0";
 import { normalizeApplicationConfig, presetApplication } from "./application-config.js?v=0.17.0";
 import { featureId, fieldKind, filterRecords, histogram, requestGuard, sortRecords } from "./presentation-query.js?v=0.16.0";
+import { INTERFACE_SKINS, skinOptionsMarkup } from "./skin-catalog.js?v=0.18.0";
 
 const DISPLAY_SETTINGS_KEY = "gismap-online:display:v1";
 const INSIGHT_POSITIONS = new Set(["upper-left", "lower-left", "bottom", "dock-left", "dock-right", "dock-top", "dock-bottom"]);
@@ -123,10 +124,10 @@ export class UIController {
     close.textContent = "×";
     header.append(title, close);
     const mobileMenu = desktopMenu.cloneNode(true);
-    mobileMenu.querySelectorAll('[data-action="map-customize"], [data-action="map-globe"], [data-action="map-presentation"]').forEach((item) => item.remove());
+    mobileMenu.querySelectorAll('[data-action="dashboard-builder"], [data-action="map-presentation"]').forEach((item) => item.remove());
     const workflows = document.createElement("section");
     workflows.className = "mobile-menu-workflows";
-    workflows.innerHTML = `<h2>Workflows</h2><div><button type="button" data-mobile-workflow="updates">Updates</button><button type="button" data-mobile-workflow="briefing">Briefing</button><button type="button" data-mobile-workflow="tours">Tours</button><button type="button" data-mobile-workflow="compare">Compare</button><button type="button" data-mobile-workflow="tasks">Field tasks</button><button type="button" data-mobile-workflow="watchlist">Watchlist</button></div>`;
+    workflows.innerHTML = `<h2>Free workflows</h2><div><button type="button" data-mobile-workflow="briefing">Briefing</button><button type="button" data-mobile-workflow="tours">Tours</button><button type="button" data-mobile-workflow="tasks">Field tasks</button><button type="button" data-mobile-workflow="map">Map tools</button></div>`;
     mobileMenu.prepend(workflows);
     drawer.replaceChildren(header, mobileMenu);
   }
@@ -364,8 +365,8 @@ export class UIController {
       const application = this.applicationRuntime.setMode("edit");
       this.projectManager.setApplication(application);
     });
-    document.querySelector("#dashboard-settings-open")?.addEventListener("click", () => this.#applicationBuilderDialog());
-    document.querySelector("#globe-dashboard-settings")?.addEventListener("click", () => this.#applicationBuilderDialog());
+    document.querySelector("#dashboard-settings-open")?.addEventListener("click", () => this.#dashboardBuilderComingSoon());
+    document.querySelector("#globe-dashboard-settings")?.addEventListener("click", () => this.#dashboardBuilderComingSoon());
   }
 
   #syncMapToolsToggle(open) {
@@ -815,7 +816,8 @@ export class UIController {
           this.#openGuidedTours();
           break;
         case "map-customize":
-          this.#applicationBuilderDialog();
+        case "dashboard-builder":
+          this.#dashboardBuilderComingSoon();
           break;
         case "map-globe":
           this.#applicationBuilderDialog("globe");
@@ -1959,7 +1961,7 @@ export class UIController {
       const chapters = presentation.chapters || [];
       const playing = Boolean(this.presentationState.atlasPlaying);
       const playbackMode = presentation.playbackMode === "manual" ? "manual" : "auto";
-      const skinOptions = [["clean-light","Clean Light"],["highway","Highway"],["steeler","Steeler"],["dark-analytical","Midnight"],["tidal-95","Pacific ’94"],["portolan","Copperplate"],["velvet-orbit","Velvet Orbit"],["violet-circuit","Violet Circuit"]];
+      const skinOptions = INTERFACE_SKINS.map(({ id, label }) => [id, label]);
       root.innerHTML = `<section class="mode-dashboard mode-dashboard--atlas"><header><span class="eyebrow">Atlas · ${this.presentationState.atlasPresent ? "present" : "edit"} mode</span><h2>${escapeHtml(presentation.title || "Guided places")}</h2><p>Capture exact map views, descriptions, media, and layer states as a shareable guided tour.</p></header><label class="atlas-skin-control"><span>Look &amp; feel</span><select data-atlas-skin>${skinOptions.map(([value,label]) => `<option value="${value}"${presentation.skin === value ? " selected" : ""}>${label}</option>`).join("")}</select></label><div class="atlas-present-action"><button type="button" data-atlas-mode>${this.presentationState.atlasPresent ? "Edit chapters" : "Present atlas"}</button></div><label class="atlas-playback-mode"><span>Playback</span><select data-atlas-playback><option value="auto"${playbackMode === "auto" ? " selected" : ""}>Auto · use linger time</option><option value="manual"${playbackMode === "manual" ? " selected" : ""}>Manual · use Back and Next</option></select></label><div class="atlas-actions"><button type="button" data-atlas-capture ${this.presentationState.atlasPresent ? "hidden" : ""}>Add another chapter</button><button type="button" data-atlas-share>Share tour</button><button type="button" data-atlas-export>Export tour</button></div><div class="mode-records">${chapters.map((chapter, index) => `<article class="atlas-chapter"><button type="button" data-atlas-go="${index}"><span>${index + 1}</span><strong>${escapeHtml(chapter.title || `Chapter ${index + 1}`)}</strong><small>${escapeHtml(chapter.reverseAddress || chapter.body || "Saved map view")}${chapter.basemapId ? ` · ${escapeHtml(this.#basemapLabel(chapter.basemapId))}` : ""}${playbackMode === "auto" && chapter.lingerSeconds ? ` · ${chapter.lingerSeconds}s` : ""}</small></button>${this.presentationState.atlasPresent ? "" : `<div><button type="button" data-atlas-rename="${index}">Edit</button><button type="button" data-atlas-delete="${index}">Delete</button></div>`}</article>`).join("")}</div></section>`;
       if (!this.presentationState.atlasPresent) {
         const titleControl = document.createElement("label");
@@ -2266,6 +2268,12 @@ export class UIController {
     const useAll = state.briefingUseAll === true;
     const section = (key, title, content) => contextSettings.sections[key] ? `<section><h4>${title}</h4>${content}</section>` : "";
     root.innerHTML = `<section class="mode-dashboard mode-dashboard--briefing presentation-workspace"><header class="presentation-compact-header"><span class="eyebrow">Context briefing</span><h2>${escapeHtml(presentation.title || layer.title || "Feature briefing")}</h2><label class="compact-dataset"><span>Dataset</span><select data-mode-dataset>${this.mapController.getOperationalLayers().filter((item) => typeof item.queryFeatures === "function").map((item) => `<option value="${escapeHtml(item.uid)}"${item.uid === layer.uid ? " selected" : ""}>${escapeHtml(item.title || "Untitled layer")}</option>`).join("")}</select></label></header><div class="briefing-search"><label class="field"><span>Search field</span><select data-search-field>${this.#fieldOptions(fields.fields, state.searchField)}</select></label><label class="field"><span>Find a feature</span><input data-mode-search value="${escapeHtml(state.search)}" placeholder="Search ${escapeHtml(fields.fields.find((field) => field.name === state.searchField)?.alias || nameField || "features")}"/></label><button data-mode-clear>Clear</button></div><div class="mode-records briefing-records">${state.visibleRecords.slice(0, 100).map((record) => `<button class="mode-record${record === selected ? " is-selected" : ""}" data-mode-record-id="${escapeHtml(featureId(record, idField))}"><strong>${escapeHtml(this.#recordLabel(record, fields))}</strong><small>${escapeHtml(featureId(record, idField) || "")}</small></button>`).join("") || "<p class=\"form-note\">No locally available features match.</p>"}</div><aside class="mode-details briefing-context"><button class="context-settings-button" data-briefing-settings aria-label="Context settings" title="Context settings">⚙</button><span class="eyebrow">${selected ? "Feature context" : "Select a feature"}</span>${selected ? `<h3>${escapeHtml(this.#recordLabel(selected, fields))}</h3><div class="detail-actions"><button data-selection-zoom aria-label="Zoom to feature" title="Zoom to feature">⌕</button><button data-selection-clear aria-label="Clear selected feature" title="Clear selected feature">×</button></div>${section("overview", "Overview", `<dl>${overview.map(([key,value]) => `<div><dt>${escapeHtml(fields.fields.find((field) => field.name === key)?.alias || key)}</dt><dd>${escapeHtml(formatAttributeValue(value, fields.fields.find((field) => field.name === key), key))}</dd></div>`).join("")}</dl>`)}${section("surroundings", "Surroundings", `<p data-briefing-surroundings>Checking visible contextual datasets…</p>`)}${section("ai", "AI context", `<p data-briefing-ai>${this.aiController.isConfigured() ? "Deterministic context appears first. Generate a concise explanation after reviewing it." : "AI is not configured. Spatial context and source details remain available."}</p>${this.aiController.isConfigured() ? "<button data-briefing-ai-run>Generate sourced context</button>" : ""}`)}${section("sources", "Sources", contextSources.map((source) => `<p>${escapeHtml(source.title || "Dataset")} ${source === layer ? `· retrieved ${escapeHtml(this.#formatExplorerTime(state.fetchedAt))}` : ""}</p>${source.url ? `<a href="${escapeHtml(source.url)}" target="_blank" rel="noopener">Open dataset source ↗</a>` : ""}`).join("") || "<p>No sources selected.</p>")}<details><summary>All attributes</summary><dl>${Object.entries(selected.attributes || {}).map(([key,value]) => `<div><dt>${escapeHtml(key)}</dt><dd>${escapeHtml(value)}</dd></div>`).join("")}</dl></details>` : "<p>Choose a named feature or click it on the map. The right context panel keeps selection, map highlight, and details synchronized.</p>"}</aside></section>`;
+    const briefingShare = document.createElement("button");
+    briefingShare.type = "button";
+    briefingShare.className = "briefing-share";
+    briefingShare.dataset.briefingShare = "";
+    briefingShare.textContent = "Share QR";
+    root.querySelector(".presentation-compact-header")?.append(briefingShare);
     const records = root.querySelector(".briefing-records");
     if (records) {
       const scope = document.createElement("div");
@@ -2309,6 +2317,7 @@ export class UIController {
     root.querySelectorAll("[data-mode-record-id]").forEach((button) => button.addEventListener("click", async () => { const record = state.visibleRecords.find((item) => featureId(item, layer.objectIdField) === button.dataset.modeRecordId); if (record?.geometry) await this.mapController.view?.goTo?.({ target: record.geometry, zoom: this.mapController.view?.zoom }, { animate: false }); }));
     root.querySelector("[data-selection-zoom]")?.addEventListener("click", async () => { if (state.selected?.geometry) await this.mapController.view?.goTo?.({ target: state.selected.geometry, zoom: Math.min(18, (this.mapController.view?.zoom || 10) + 2) }, { padding: { left: 80, right: 420 } }); });
     root.querySelector("[data-briefing-settings]")?.addEventListener("click", () => this.#briefingSettingsDialog(presentation, layer));
+    root.querySelector("[data-briefing-share]")?.addEventListener("click", () => this.shareMobileWorkflow("briefing"));
     root.querySelector("[data-briefing-ai-run]")?.addEventListener("click", () => {
       if (!state.selected || !this.aiController.isConfigured()) return;
       const context = root.querySelector("[data-briefing-surroundings]")?.textContent || "No surrounding results available.";
@@ -3004,13 +3013,7 @@ export class UIController {
           : "";
         return `<div class="application-builder__instance" data-builder-instance="${escapeHtml(panel.instanceId)}"><button type="button" class="application-builder__drag" data-builder-drag draggable="true" aria-label="Drag ${escapeHtml(panel.title)} to reorder" title="Drag to reorder">⠿</button><label class="application-builder__instance-title"><span>Panel</span><input data-builder-panel-title value="${escapeHtml(panel.title)}" /></label><label><span>Position</span><select data-builder-region aria-label="Panel placement">${["left", "right", "bottom", "floating"].map((region) => `<option value="${region}"${panel.placement.region === region ? " selected" : ""}>${region === "floating" ? "Floating" : `${region[0].toUpperCase()}${region.slice(1)} dock`}</option>`).join("")}</select></label><label><span>Dataset</span><select data-builder-layer aria-label="Dataset binding"><option value="">Follow active layer</option>${layers.map((layer) => `<option value="${escapeHtml(layer.uid)}"${panel.binding?.layerId === layer.uid ? " selected" : ""}>${escapeHtml(layer.title || "Untitled layer")}</option>`).join("")}</select></label>${fieldControl ? `<label><span>Field</span>${fieldControl}</label>` : ""}<label class="application-builder__audience"><input data-builder-audience type="checkbox"${panel.audienceVisible ? " checked" : ""} /> Show to audience</label><span class="application-builder__order"><button type="button" class="button--quiet" data-builder-up aria-label="Move ${escapeHtml(panel.title)} earlier"${panelIndex === 0 ? " disabled" : ""}>↑</button><button type="button" class="button--quiet" data-builder-down aria-label="Move ${escapeHtml(panel.title)} later"${panelIndex === draft.panels.length - 1 ? " disabled" : ""}>↓</button></span><button type="button" class="button--quiet application-builder__remove" data-builder-remove aria-label="Remove ${escapeHtml(panel.title)}">Remove</button></div>`;
       }).join("");
-      root.innerHTML = `<section class="application-builder__views"><div><h3>Choose a dashboard view</h3><p>Start with a recognizable arrangement, then fine-tune it below.</p></div><div class="application-builder__view-grid">${dashboardViews.map((view) => `<button type="button" class="application-builder__view${draft.preset === view.id ? " is-selected" : ""}" data-builder-preset="${view.id}" aria-pressed="${draft.preset === view.id}"><span class="application-builder__view-preview application-builder__view-preview--${view.preview}"><i></i><i></i><i></i><i></i></span><strong>${view.label}</strong><small>${view.description}</small></button>`).join("")}</div></section><div class="application-builder__top"><label class="field"><span>Dashboard title</span><input data-builder-title value="${escapeHtml(draft.title)}" placeholder="Wildfire briefing" /></label><label class="field"><span>Skin</span><select data-builder-skin><option value="clean-light"${draft.skin === "clean-light" ? " selected" : ""}>Clean Light</option><option value="dark-analytical"${draft.skin === "dark-analytical" ? " selected" : ""}>Dark Analytical</option><option value="retro-print"${draft.skin === "retro-print" ? " selected" : ""}>Retro Print</option></select></label><label class="field"><span>View</span><select data-builder-mode><option value="edit"${draft.mode === "edit" ? " selected" : ""}>Edit</option><option value="present"${draft.mode === "present" ? " selected" : ""}>Present</option></select></label></div><div class="application-builder__section"><div><h3>Dashboard panels</h3><p class="application-builder__hint">Drag rows to reorder them. Position sends a panel to the left, right, bottom, or a floating window.</p></div><div class="application-builder__instances">${panelRows || `<p class="application-builder__notice">Add at least one panel. The map and project data remain available even when no panels are shown.</p>`}</div></div><div class="application-builder__section"><h3>Add a working panel</h3><div class="application-builder__gallery">${usablePanels.map((panel) => galleryCard(panel)).join("")}</div>${unavailablePanels.length ? `<details class="application-builder__roadmap"><summary>Unavailable and planned panels (${unavailablePanels.length})</summary><p>These stay hidden until their required data or implementation is available.</p><div class="application-builder__gallery">${unavailablePanels.map((panel) => galleryCard(panel, true)).join("")}</div></details>` : ""}</div><p class="application-builder__notice">Panel settings live here instead of on every dashboard panel. Removing a panel removes only its interface; project layers, drawings, filters, and saved analysis remain.</p><div class="application-builder__secondary-actions"><button type="button" class="button--quiet" data-builder-reset-layout>Reset positions</button><button type="button" class="button--quiet" data-builder-save-copy>Save as new dashboard</button></div>`;
-      const skinSelect = root.querySelector("[data-builder-skin]");
-      [["highway", "Highway"], ["steeler", "Steeler"], ["tidal-95", "Tidal ’95"], ["portolan", "Portolan"], ["velvet-orbit", "Velvet Orbit"], ["violet-circuit", "Violet Circuit"]].forEach(([value, label]) => {
-        if ([...skinSelect.options].some((option) => option.value === value)) return;
-        skinSelect.add(new Option(label, value));
-      });
-      skinSelect.value = draft.skin;
+      root.innerHTML = `<section class="application-builder__views"><div><h3>Choose a dashboard view</h3><p>Start with a recognizable arrangement, then fine-tune it below.</p></div><div class="application-builder__view-grid">${dashboardViews.map((view) => `<button type="button" class="application-builder__view${draft.preset === view.id ? " is-selected" : ""}" data-builder-preset="${view.id}" aria-pressed="${draft.preset === view.id}"><span class="application-builder__view-preview application-builder__view-preview--${view.preview}"><i></i><i></i><i></i><i></i></span><strong>${view.label}</strong><small>${view.description}</small></button>`).join("")}</div></section><div class="application-builder__top"><label class="field"><span>Dashboard title</span><input data-builder-title value="${escapeHtml(draft.title)}" placeholder="Wildfire briefing" /></label><label class="field"><span>Skin</span><select data-builder-skin>${skinOptionsMarkup(draft.skin)}</select></label><label class="field"><span>View</span><select data-builder-mode><option value="edit"${draft.mode === "edit" ? " selected" : ""}>Edit</option><option value="present"${draft.mode === "present" ? " selected" : ""}>Present</option></select></label></div><div class="application-builder__section"><div><h3>Dashboard panels</h3><p class="application-builder__hint">Drag rows to reorder them. Position sends a panel to the left, right, bottom, or a floating window.</p></div><div class="application-builder__instances">${panelRows || `<p class="application-builder__notice">Add at least one panel. The map and project data remain available even when no panels are shown.</p>`}</div></div><div class="application-builder__section"><h3>Add a working panel</h3><div class="application-builder__gallery">${usablePanels.map((panel) => galleryCard(panel)).join("")}</div>${unavailablePanels.length ? `<details class="application-builder__roadmap"><summary>Unavailable and planned panels (${unavailablePanels.length})</summary><p>These stay hidden until their required data or implementation is available.</p><div class="application-builder__gallery">${unavailablePanels.map((panel) => galleryCard(panel, true)).join("")}</div></details>` : ""}</div><p class="application-builder__notice">Panel settings live here instead of on every dashboard panel. Removing a panel removes only its interface; project layers, drawings, filters, and saved analysis remain.</p><div class="application-builder__secondary-actions"><button type="button" class="button--quiet" data-builder-reset-layout>Reset positions</button><button type="button" class="button--quiet" data-builder-save-copy>Save as new dashboard</button></div>`;
       const layoutField = document.createElement("label");
       layoutField.className = "field";
       layoutField.innerHTML = `<span>Layout behavior</span><select data-builder-layout><option value="workspace">Workspace docks</option><option value="bottom-nav">Bottom navigation</option><option value="bottom-workspace">Bottom workspace</option><option value="ai-map">Map + right assistant</option><option value="globe">Orbital globe</option></select>`;
@@ -3142,8 +3145,8 @@ export class UIController {
       root.syncDraft = syncDraft;
     };
     this.openDialog({
-      eyebrow: "Dashboard",
-      title: "Dashboard settings",
+      eyebrow: "Account workspace",
+      title: "Dashboard Builder",
       content: `<div class="application-builder" data-application-builder></div>`,
       actions: [
         { label: "Cancel", handler: () => { builderFinished = true; if (previewing) this.applicationRuntime.cancelPreview(); else if (!previous) this.applicationRuntime.deactivate(); this.dialog.close(); } },
@@ -3159,6 +3162,15 @@ export class UIController {
     render();
   }
 
+  #dashboardBuilderComingSoon() {
+    this.openDialog({
+      eyebrow: "Account feature · coming soon",
+      title: "Dashboard Builder",
+      content: `<div class="dashboard-builder-gate"><p>Dashboard Builder is the signed-in authoring workspace for custom panel layouts, data bindings, and reusable applications.</p><p>The free viewer keeps instant presentations simple: choose Briefing, Explorer, or Atlas from <strong>Map → Instant presentations</strong>.</p><ul><li>Free now: Map tools, Briefing, Tours, and Field Tasks</li><li>With an account: custom dashboards and advanced operational workflows</li></ul></div>`,
+      actions: [{ label: "Close", primary: true, handler: () => this.dialog.close() }],
+    });
+  }
+
   #presentationDialog() {
     const previous = structuredClone(this.projectManager.current.presentation || {});
     const current = { template: "standard", skin: "clean-light", title: "", primaryLayerId: null, ...previous };
@@ -3170,8 +3182,8 @@ export class UIController {
     ];
     this.openDialog({
       eyebrow: "Presentation",
-      title: "Choose a data theme",
-      content: `<div class="presentation-picker"><p class="form-note">Templates change the working interface. Skins change the complete visual system without changing map symbology or classifications.</p><div class="presentation-cards"><button type="button" class="presentation-card" data-presentation-template="standard"><span class="presentation-preview presentation-preview--standard"></span><strong>Standard workspace</strong><small>Restore the authoring workspace.</small></button>${cards.map(([id, title, description]) => `<button type="button" class="presentation-card" data-presentation-template="${id}"><span class="presentation-preview presentation-preview--${id}"><i></i><i></i><i></i></span><strong>${title}</strong><small>${description}</small></button>`).join("")}</div><p class="form-note" data-presentation-preview-status></p><fieldset class="skin-picker"><legend>Interface skin</legend>${[["clean-light","Clean Light","Modern analytical workspace"],["dark-analytical","Midnight","Quiet professional night interface"],["tidal-95","Pacific ’94","Classic digital cartography"],["portolan","Copperplate","Historical atlas and field journal"],["velvet-orbit","Velvet Orbit","Editorial presentation"],["violet-circuit","Violet Circuit","Operational console"]].map(([id,label,description]) => `<button type="button" class="skin-card skin-card--${id}" data-skin-choice="${id}"><span class="skin-mini"><i></i><b></b><em></em><small></small></span><strong>${label}</strong><small>${description}</small></button>`).join("")}<select id="presentation-skin" hidden><option value="clean-light">Clean Light</option><option value="dark-analytical">Midnight</option><option value="tidal-95">Pacific ’94</option><option value="portolan">Copperplate</option><option value="velvet-orbit">Velvet Orbit</option><option value="violet-circuit">Violet Circuit</option></select></fieldset><label class="field"><span>Presentation title</span><input id="presentation-title" value="${escapeHtml(current.title)}" placeholder="Optional title" /></label><label class="field"><span>Primary layer</span><select id="presentation-primary"><option value="">Choose later</option>${layers.map((layer) => `<option value="${escapeHtml(layer.uid)}">${escapeHtml(layer.title || "Untitled layer")}</option>`).join("")}</select></label><p class="form-note" data-presentation-note>Dataset roles remain configurable inside Explorer and Briefing after applying.</p></div>`,
+      title: "Instant presentations",
+      content: `<div class="presentation-picker"><p class="form-note">Choose a ready-made presentation, then choose its look. These quick modes do not change layer data, map symbology, or classifications.</p><div class="presentation-cards"><button type="button" class="presentation-card" data-presentation-template="standard"><span class="presentation-preview presentation-preview--standard"></span><strong>Standard map</strong><small>Return to the free map workspace.</small></button>${cards.map(([id, title, description]) => `<button type="button" class="presentation-card" data-presentation-template="${id}"><span class="presentation-preview presentation-preview--${id}"><i></i><i></i><i></i></span><strong>${title}</strong><small>${description}</small></button>`).join("")}</div><p class="form-note" data-presentation-preview-status></p><fieldset class="skin-picker"><legend>Interface skin</legend>${INTERFACE_SKINS.map(({ id,label,description }) => `<button type="button" class="skin-card skin-card--${id}" data-skin-choice="${id}"><span class="skin-mini"><i></i><b></b><em></em><small></small></span><strong>${label}</strong><small>${description}</small></button>`).join("")}<select id="presentation-skin" hidden>${skinOptionsMarkup(current.skin)}</select></fieldset><label class="field"><span>Presentation title</span><input id="presentation-title" value="${escapeHtml(current.title)}" placeholder="Optional title" /></label><label class="field"><span>Primary layer</span><select id="presentation-primary"><option value="">Choose later</option>${layers.map((layer) => `<option value="${escapeHtml(layer.uid)}">${escapeHtml(layer.title || "Untitled layer")}</option>`).join("")}</select></label><p class="form-note" data-presentation-note>Dataset roles remain configurable inside Explorer and Briefing after applying.</p></div>`,
       actions: [
         { label: "Cancel", handler: () => { this.#applyPresentation(previous); this.dialog.close(); } },
         { label: "Preview", handler: () => {
@@ -3187,21 +3199,6 @@ export class UIController {
         } },
       ],
     });
-    const highwayCard = document.createElement("button");
-    highwayCard.type = "button";
-    highwayCard.className = "skin-card skin-card--highway";
-    highwayCard.dataset.skinChoice = "highway";
-    highwayCard.innerHTML = `<span class="skin-mini"><i></i><b></b><em></em><small></small></span><strong>Highway</strong><small>Clean technical map console</small>`;
-    const hiddenSkinSelect = this.dialog.querySelector("#presentation-skin");
-    hiddenSkinSelect.before(highwayCard);
-    hiddenSkinSelect.add(new Option("Highway", "highway"));
-    const steelerCard = document.createElement("button");
-    steelerCard.type = "button";
-    steelerCard.className = "skin-card skin-card--steeler";
-    steelerCard.dataset.skinChoice = "steeler";
-    steelerCard.innerHTML = `<span class="skin-mini"><i></i><b></b><em></em><small></small></span><strong>Steeler</strong><small>Soft striped field journal</small>`;
-    hiddenSkinSelect.before(steelerCard);
-    hiddenSkinSelect.add(new Option("Steeler", "steeler"));
     const skin = this.dialog.querySelector("#presentation-skin");
     skin.value = current.skin;
     this.dialog.querySelector("#presentation-primary").value = current.primaryLayerId || "";
@@ -3271,6 +3268,41 @@ export class UIController {
       this.#setSidebarCollapsed(false);
       this.events.publish("mobile:workflow-route", { route: "briefing" });
       this.toast("Briefing opened.");
+    }
+  }
+
+  async shareMobileWorkflow(route, payload = {}) {
+    try {
+      let url;
+      let title;
+      if (route === "tasks" && payload.task) {
+        const bytes = new TextEncoder().encode(JSON.stringify(payload.task));
+        const encoded = btoa(String.fromCharCode(...bytes)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+        const target = new URL(location.href);
+        target.searchParams.set("workflow", "tasks");
+        target.hash = new URLSearchParams({ fieldTask: encoded }).toString();
+        url = target.href;
+        title = payload.task.title || "GISMap field task";
+      } else {
+        const target = new URL(createShareUrl({ baseUrl: location.href, layers: this.mapController.getAllLayerConfigs(), basemap: this.mapController.getBasemapId() }));
+        target.searchParams.set("workflow", route);
+        url = target.href;
+        title = this.projectManager.current.presentation?.title || "GISMap briefing";
+      }
+      this.openDialog({
+        eyebrow: "Shareable workflow",
+        title,
+        content: `<div class="workflow-share"><canvas data-workflow-share-qr width="280" height="280" aria-label="QR code for ${escapeHtml(title)}"></canvas><p>Scan this code to open the ${route === "tasks" ? "field task" : "briefing"} on another device.</p><label class="field"><span>Share link</span><input data-workflow-share-url readonly value="${escapeHtml(url)}"></label></div>`,
+        actions: [
+          { label: "Share", handler: async () => { if (navigator.share) await navigator.share({ title, url }); else await navigator.clipboard.writeText(url); } },
+          { label: "Copy link", primary: true, handler: async () => { await navigator.clipboard.writeText(url); this.toast("Share link copied."); } },
+        ],
+      });
+      const canvas = this.dialog.querySelector("[data-workflow-share-qr]");
+      if (!globalThis.QRCode?.toCanvas) throw new Error("QR generator unavailable");
+      await globalThis.QRCode.toCanvas(canvas, url, { width: 280, margin: 2, errorCorrectionLevel: "M", color: { dark: "#072f2b", light: "#ffffff" } });
+    } catch (error) {
+      this.error(error.message);
     }
   }
 
