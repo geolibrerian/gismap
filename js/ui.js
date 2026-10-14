@@ -1079,6 +1079,7 @@ export class UIController {
     const wasOpen = !overlay.hidden;
     overlay.hidden = !open;
     document.body.classList.toggle("insights-open", open);
+    if (open && this.mobileMedia.matches) this.#setSidebarCollapsed(true);
     if (wasOpen !== open) requestAnimationFrame(() => this.mapController.resize());
   }
 
@@ -1114,7 +1115,7 @@ export class UIController {
         const startHeight = overlay.getBoundingClientRect().height;
         document.body.classList.add("insights-resizing");
         const move = (moveEvent) => {
-          const height = Math.min(window.innerHeight * 0.45, Math.max(window.innerHeight * 0.25, startHeight + moveEvent.clientY - startY));
+          const height = Math.min(window.innerHeight * 0.45, Math.max(window.innerHeight * 0.25, startHeight + startY - moveEvent.clientY));
           document.body.style.setProperty("--insights-overlay-height", `${height}px`);
         };
         const finish = () => {
@@ -1959,17 +1960,18 @@ export class UIController {
       const playing = Boolean(this.presentationState.atlasPlaying);
       const playbackMode = presentation.playbackMode === "manual" ? "manual" : "auto";
       const skinOptions = [["clean-light","Clean Light"],["highway","Highway"],["steeler","Steeler"],["dark-analytical","Midnight"],["tidal-95","Pacific ’94"],["portolan","Copperplate"],["velvet-orbit","Velvet Orbit"],["violet-circuit","Violet Circuit"]];
-      root.innerHTML = `<section class="mode-dashboard mode-dashboard--atlas"><header><span class="eyebrow">Atlas · ${this.presentationState.atlasPresent ? "present" : "edit"} mode</span><h2>${escapeHtml(presentation.title || "Guided places")}</h2><p>Capture exact map views, descriptions, media, and layer states as a shareable guided tour.</p></header><label class="atlas-skin-control"><span>Look &amp; feel</span><select data-atlas-skin>${skinOptions.map(([value,label]) => `<option value="${value}"${presentation.skin === value ? " selected" : ""}>${label}</option>`).join("")}</select></label><div class="atlas-present-action"><button type="button" data-atlas-mode>${this.presentationState.atlasPresent ? "Edit chapters" : "Present atlas"}</button></div><label class="atlas-playback-mode"><span>Playback</span><select data-atlas-playback><option value="auto"${playbackMode === "auto" ? " selected" : ""}>Auto · use linger time</option><option value="manual"${playbackMode === "manual" ? " selected" : ""}>Manual · use Back and Next</option></select></label><div class="atlas-actions"><button type="button" data-atlas-capture ${this.presentationState.atlasPresent ? "hidden" : ""}>Add another chapter</button><button type="button" data-atlas-share>Share tour</button><button type="button" data-atlas-export>Export tour</button></div><div class="mode-records">${chapters.map((chapter, index) => `<article class="atlas-chapter"><button type="button" data-atlas-go="${index}"><span>${index + 1}</span><strong>${escapeHtml(chapter.title || `Chapter ${index + 1}`)}</strong><small>${escapeHtml(chapter.reverseAddress || chapter.body || "Saved map view")}${chapter.basemapId ? ` · ${escapeHtml(this.#basemapLabel(chapter.basemapId))}` : ""}${playbackMode === "auto" && chapter.lingerSeconds ? ` · ${chapter.lingerSeconds}s` : ""}</small></button>${this.presentationState.atlasPresent ? "" : `<div><button type="button" data-atlas-rename="${index}">Edit</button><button type="button" data-atlas-delete="${index}">Delete</button></div>`}</article>`).join("") || "<p class=\"form-note\">No chapters yet. Add a chapter to begin the atlas.</p>"}</div></section>`;
+      root.innerHTML = `<section class="mode-dashboard mode-dashboard--atlas"><header><span class="eyebrow">Atlas · ${this.presentationState.atlasPresent ? "present" : "edit"} mode</span><h2>${escapeHtml(presentation.title || "Guided places")}</h2><p>Capture exact map views, descriptions, media, and layer states as a shareable guided tour.</p></header><label class="atlas-skin-control"><span>Look &amp; feel</span><select data-atlas-skin>${skinOptions.map(([value,label]) => `<option value="${value}"${presentation.skin === value ? " selected" : ""}>${label}</option>`).join("")}</select></label><div class="atlas-present-action"><button type="button" data-atlas-mode>${this.presentationState.atlasPresent ? "Edit chapters" : "Present atlas"}</button></div><label class="atlas-playback-mode"><span>Playback</span><select data-atlas-playback><option value="auto"${playbackMode === "auto" ? " selected" : ""}>Auto · use linger time</option><option value="manual"${playbackMode === "manual" ? " selected" : ""}>Manual · use Back and Next</option></select></label><div class="atlas-actions"><button type="button" data-atlas-capture ${this.presentationState.atlasPresent ? "hidden" : ""}>Add another chapter</button><button type="button" data-atlas-share>Share tour</button><button type="button" data-atlas-export>Export tour</button></div><div class="mode-records">${chapters.map((chapter, index) => `<article class="atlas-chapter"><button type="button" data-atlas-go="${index}"><span>${index + 1}</span><strong>${escapeHtml(chapter.title || `Chapter ${index + 1}`)}</strong><small>${escapeHtml(chapter.reverseAddress || chapter.body || "Saved map view")}${chapter.basemapId ? ` · ${escapeHtml(this.#basemapLabel(chapter.basemapId))}` : ""}${playbackMode === "auto" && chapter.lingerSeconds ? ` · ${chapter.lingerSeconds}s` : ""}</small></button>${this.presentationState.atlasPresent ? "" : `<div><button type="button" data-atlas-rename="${index}">Edit</button><button type="button" data-atlas-delete="${index}">Delete</button></div>`}</article>`).join("")}</div></section>`;
       if (!this.presentationState.atlasPresent) {
         const titleControl = document.createElement("label");
         titleControl.className = "atlas-title-control";
-        titleControl.innerHTML = `<span>Tour name</span><input data-atlas-title type="text" maxlength="80" value="${escapeHtml(presentation.title || "")}" placeholder="Guided places" autocomplete="off">`;
+        titleControl.innerHTML = `<span>Tour name <small>Tap to edit</small></span><input data-atlas-title aria-label="Editable tour name" type="text" maxlength="80" value="${escapeHtml(presentation.title || "")}" placeholder="Name this tour" autocomplete="off">`;
         root.querySelector(".mode-dashboard--atlas > header")?.after(titleControl);
       }
       const atlasActions = root.querySelector(".atlas-actions");
       const modeButton = root.querySelector("[data-atlas-mode]");
       const captureButton = root.querySelector("[data-atlas-capture]");
       const shareButton = root.querySelector("[data-atlas-share]");
+      shareButton?.classList.toggle("is-ready", chapters.length > 0);
       if (atlasActions && modeButton) {
         const compactAtlas = this.mobileMedia.matches;
         modeButton.textContent = this.presentationState.atlasPresent ? (compactAtlas ? "Edit" : "Edit tour") : (compactAtlas ? "Present" : "Present tour");
@@ -2304,7 +2306,7 @@ export class UIController {
     root.querySelectorAll("[data-briefing-include]").forEach((input) => input.addEventListener("change", () => { input.checked ? state.selectedIds.add(input.dataset.briefingInclude) : state.selectedIds.delete(input.dataset.briefingInclude); this.#renderBriefingWorkspace(root, presentation, layer, fields); }));
     root.querySelectorAll("[data-mode-record-id]").forEach((button) => button.addEventListener("click", () => { const record = state.visibleRecords.find((item) => featureId(item, layer.objectIdField) === button.dataset.modeRecordId); this.#selectPresentationResult(record); }));
     root.querySelector("[data-selection-clear]")?.addEventListener("click", () => { this.briefingRequest.cancel(); state.selected = null; this.mapController.clearFeatureHighlight(); this.#renderBriefingWorkspace(root, presentation, layer, fields); });
-    root.querySelectorAll("[data-mode-record-id]").forEach((button) => button.addEventListener("click", async () => { const record = state.visibleRecords.find((item) => featureId(item, layer.objectIdField) === button.dataset.modeRecordId); if (record?.geometry) await this.mapController.view?.goTo?.({ target: record.geometry, zoom: this.mapController.view?.zoom }, { animate: true }); }));
+    root.querySelectorAll("[data-mode-record-id]").forEach((button) => button.addEventListener("click", async () => { const record = state.visibleRecords.find((item) => featureId(item, layer.objectIdField) === button.dataset.modeRecordId); if (record?.geometry) await this.mapController.view?.goTo?.({ target: record.geometry, zoom: this.mapController.view?.zoom }, { animate: false }); }));
     root.querySelector("[data-selection-zoom]")?.addEventListener("click", async () => { if (state.selected?.geometry) await this.mapController.view?.goTo?.({ target: state.selected.geometry, zoom: Math.min(18, (this.mapController.view?.zoom || 10) + 2) }, { padding: { left: 80, right: 420 } }); });
     root.querySelector("[data-briefing-settings]")?.addEventListener("click", () => this.#briefingSettingsDialog(presentation, layer));
     root.querySelector("[data-briefing-ai-run]")?.addEventListener("click", () => {
@@ -3255,7 +3257,16 @@ export class UIController {
     if (route === "briefing") {
       const current = this.projectManager.current.presentation || {};
       const primaryLayerId = current.primaryLayerId || this.mapController.getOperationalLayers().find((layer) => typeof layer.queryFeatures === "function")?.uid || null;
-      const presentation = this.projectManager.setPresentation({ ...current, template: "briefing", skin: current.template === "briefing" ? (current.skin || "clean-light") : "clean-light", primaryLayerId });
+      const returningToBriefing = current.template === "briefing";
+      const primaryLayer = this.mapController.findLayer(primaryLayerId);
+      const presentation = this.projectManager.setPresentation({
+        ...current,
+        template: "briefing",
+        skin: returningToBriefing ? (current.skin || "clean-light") : "clean-light",
+        title: returningToBriefing ? current.title : `${primaryLayer?.title || "Feature"} briefing`,
+        primaryLayerId,
+        briefingItems: returningToBriefing ? current.briefingItems : [],
+      });
       this.#applyPresentation(presentation);
       this.#setSidebarCollapsed(false);
       this.events.publish("mobile:workflow-route", { route: "briefing" });

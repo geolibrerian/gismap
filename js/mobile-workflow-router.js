@@ -26,7 +26,8 @@ export class MobileWorkflowRouter {
       document.body.classList.remove("mobile-workflow-open", "mobile-menu-open");
       this.#syncNav();
     });
-    this.media.addEventListener?.("change", ({ matches }) => { if (!matches) this.navigate("map"); });
+    this.media.addEventListener?.("change", ({ matches }) => { if (!matches) this.navigate("map"); else this.#syncNav(); });
+    this.#syncNav();
   }
 
   navigate(route) {
@@ -87,11 +88,11 @@ export class MobileWorkflowRouter {
 
   #tasks() {
     const tasks = this.store.snapshot().fieldTasks;
-    return `<p class="mobile-workflow__subtitle">Assignments and drafts for work in the field.</p><button class="mobile-primary" data-new-task>+ New field task</button><div class="feed-list">${tasks.map((task) => `<article class="feed-card"><span class="status-pill">${escapeHtml(task.status || "draft")}</span><h2>${escapeHtml(task.title || "Untitled task")}</h2><p>${escapeHtml(task.location || "No location set")}</p><div class="feed-card__actions"><button data-open-task="${escapeHtml(task.id)}">Open task →</button></div></article>`).join("") || `<div class="mobile-empty"><h2>No field tasks</h2><p>Create a client-side draft with a location, checklist, and notes.</p></div>`}</div>`;
+    return `<p class="mobile-workflow__subtitle">Assignments and drafts for work in the field.</p><button class="mobile-primary" data-new-task>+ New field task</button><div class="feed-list">${tasks.map((task) => `<article class="feed-card"><span class="status-pill">${escapeHtml(task.status || "draft")}</span><h2>${escapeHtml(task.title || "Untitled task")}</h2><p>${escapeHtml(task.location || "No location set")}</p>${task.capturedAt ? `<span class="feed-card__meta">Captured ${dateLabel(task.capturedAt)}${Number.isFinite(task.latitude) ? ` · ${Number(task.latitude).toFixed(5)}, ${Number(task.longitude).toFixed(5)}` : ""}</span>` : ""}<div class="feed-card__actions"><button data-open-task="${escapeHtml(task.id)}">Open task →</button><button data-share-task="${escapeHtml(task.id)}">Share</button></div></article>`).join("") || `<div class="mobile-empty"><h2>No field tasks</h2><p>Create a client-side draft with a location, checklist, notes, and capture time.</p></div>`}</div>`;
   }
 
   #taskEditor(task = {}) {
-    return `<form class="mobile-card task-editor" data-task-form data-task-id="${escapeHtml(task.id || "")}"><label>Task title<input name="title" required value="${escapeHtml(task.title || "")}" placeholder="Inspect shoreline access" /></label><label>Location<input name="location" value="${escapeHtml(task.location || "")}" placeholder="Place or address" /></label><fieldset><legend>Checklist</legend>${["Access is clear", "Signage is readable", "Site condition documented"].map((label, index) => `<label class="check-row"><input type="checkbox" name="check${index}" ${task.checklist?.[index] ? "checked" : ""}/> ${label}</label>`).join("")}</fieldset><label>Field notes<textarea name="notes" rows="4">${escapeHtml(task.notes || "")}</textarea></label><label>Photos<input type="file" accept="image/*" capture="environment" multiple /></label><div class="feed-card__actions"><button type="submit">Save draft</button><button type="button" data-cancel-task>Cancel</button></div></form>`;
+    return `<form class="mobile-card task-editor" data-task-form data-task-id="${escapeHtml(task.id || "")}"><label>Task title<input name="title" required value="${escapeHtml(task.title || "")}" placeholder="Inspect shoreline access" /></label><label>Location<input name="location" value="${escapeHtml(task.location || "")}" placeholder="Place or address" /></label><input type="hidden" name="longitude" value="${escapeHtml(task.longitude ?? "")}"><input type="hidden" name="latitude" value="${escapeHtml(task.latitude ?? "")}"><input type="hidden" name="capturedAt" value="${escapeHtml(task.capturedAt || "")}"><div class="task-location-status" data-task-location-status>${task.capturedAt ? `Captured ${escapeHtml(dateLabel(task.capturedAt))}${Number.isFinite(task.latitude) ? ` · ${Number(task.latitude).toFixed(5)}, ${Number(task.longitude).toFixed(5)}` : ""}` : "Location and time have not been captured."}</div><button type="button" data-capture-task-location>Capture current map location &amp; time</button><fieldset><legend>Checklist</legend>${["Access is clear", "Signage is readable", "Site condition documented"].map((label, index) => `<label class="check-row"><input type="checkbox" name="check${index}" ${task.checklist?.[index] ? "checked" : ""}/> ${label}</label>`).join("")}</fieldset><label>Field notes<textarea name="notes" rows="4">${escapeHtml(task.notes || "")}</textarea></label><label>Photos<input name="photos" type="file" accept="image/*" capture="environment" multiple /></label>${task.photos?.length ? `<p>${task.photos.length} photo${task.photos.length === 1 ? "" : "s"} attached</p>` : ""}<div class="feed-card__actions"><button type="submit">Save draft</button><button type="button" data-cancel-task>Cancel</button></div></form>`;
   }
 
   #watchlist() {
@@ -103,30 +104,35 @@ export class MobileWorkflowRouter {
     return `<p class="mobile-workflow__subtitle">Focused mobile views use one screen at a time. Desktop dashboard layouts are intentionally unavailable here.</p><div class="workflow-grid"><button data-route="briefing"><strong>Briefing</strong><span>Selected features and context</span></button><button data-route="tours"><strong>Tours</strong><span>Guided places and chapters</span></button><button data-route="compare"><strong>Compare</strong><span>Before, after, and change</span></button><button data-route="watchlist"><strong>Watchlist</strong><span>Places and thresholds</span></button><button data-route="tasks"><strong>Field tasks</strong><span>Assignments and drafts</span></button><button data-open-mobile-menu><strong>Map tools</strong><span>Project, data, layers, and tools</span></button></div>`;
   }
 
-  #click(event) {
+  async #click(event) {
     const button = event.target.closest("button");
     if (!button) return;
     if (button.matches("[data-workflow-close]")) return this.navigate("map");
     if (button.dataset.route) return this.navigate(button.dataset.route);
     if (button.dataset.feedScope) { this.store.setScope(button.dataset.feedScope); return; }
-    if (button.matches("[data-new-task]")) { this.root.querySelector(".mobile-workflow__body").innerHTML = this.#taskEditor(); return; }
+    if (button.matches("[data-new-task]")) { this.root.querySelector(".mobile-workflow__body").innerHTML = this.#taskEditor(); await this.#captureTaskLocation(this.root.querySelector("[data-task-form]")); return; }
     if (button.dataset.openTask) { const task = this.store.snapshot().fieldTasks.find((item) => item.id === button.dataset.openTask); this.root.querySelector(".mobile-workflow__body").innerHTML = this.#taskEditor(task); return; }
     if (button.matches("[data-cancel-task]")) return this.render();
+    if (button.matches("[data-capture-task-location]")) return this.#captureTaskLocation(button.closest("form"));
+    if (button.dataset.shareTask) return this.#shareTask(button.dataset.shareTask);
     if (button.dataset.ackRule) { this.store.acknowledge(button.dataset.ackRule); return; }
     if (button.matches("[data-open-mobile-menu]")) { this.navigate("map"); document.querySelector("#mobile-menu-toggle")?.click(); }
   }
 
   #change() {}
 
-  #submit(event) {
+  async #submit(event) {
     event.preventDefault();
     const form = event.target;
     const data = new FormData(form);
     if (form.matches("[data-task-form]")) {
+      const existing = this.store.snapshot().fieldTasks.find((item) => item.id === form.dataset.taskId);
+      const uploaded = await Promise.all([...form.querySelector('[name="photos"]')?.files || []].slice(0, 6).map((file) => this.#fileDataUrl(file)));
       this.store.saveTask({
         id: form.dataset.taskId || undefined,
         title: data.get("title"), location: data.get("location"), notes: data.get("notes"),
-        checklist: [0, 1, 2].map((index) => data.has(`check${index}`)), status: "draft",
+        longitude: Number(data.get("longitude")), latitude: Number(data.get("latitude")), capturedAt: data.get("capturedAt") || new Date().toISOString(),
+        photos: [...(existing?.photos || []), ...uploaded], checklist: [0, 1, 2].map((index) => data.has(`check${index}`)), status: "draft",
       });
       this.render();
     }
@@ -138,5 +144,35 @@ export class MobileWorkflowRouter {
 
   #syncNav() {
     document.querySelectorAll("[data-mobile-workflow]").forEach((button) => button.classList.toggle("is-active", button.dataset.mobileWorkflow === this.route));
+    document.body.classList.toggle("mobile-map-route", this.media.matches && this.route === "map");
+  }
+
+  async #captureTaskLocation(form) {
+    if (!form || !this.mapController.view?.center) return;
+    const point = this.mapController.view.center;
+    const location = this.mapController.geographicCoordinates(point);
+    const capturedAt = new Date().toISOString();
+    form.elements.longitude.value = location?.longitude ?? point.longitude ?? point.x ?? "";
+    form.elements.latitude.value = location?.latitude ?? point.latitude ?? point.y ?? "";
+    form.elements.capturedAt.value = capturedAt;
+    let address = "";
+    try { address = (await this.mapController.reverseGeocode(location?.point || point))?.address || ""; } catch { /* coordinates remain useful offline */ }
+    if (address) form.elements.location.value = address;
+    const status = form.querySelector("[data-task-location-status]");
+    if (status) status.textContent = `Captured ${dateLabel(capturedAt)} · ${Number(form.elements.latitude.value).toFixed(5)}, ${Number(form.elements.longitude.value).toFixed(5)}`;
+  }
+
+  #fileDataUrl(file) {
+    return new Promise((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(reader.result); reader.onerror = reject; reader.readAsDataURL(file); });
+  }
+
+  async #shareTask(id) {
+    const task = this.store.snapshot().fieldTasks.find((item) => item.id === id);
+    if (!task) return;
+    const file = new File([JSON.stringify({ schema: "https://gismap.online/field-task/v1", task }, null, 2)], `${String(task.title || "field-task").replace(/[^a-z0-9]+/gi, "-").toLowerCase()}.gmotask`, { type: "application/json" });
+    if (navigator.share && (!navigator.canShare || navigator.canShare({ files: [file] }))) {
+      try { await navigator.share({ title: task.title || "GISMap field task", text: `${task.location || "Field task"} · ${dateLabel(task.capturedAt)}`, files: [file] }); return; } catch (error) { if (error?.name === "AbortError") return; }
+    }
+    const link = document.createElement("a"); link.href = URL.createObjectURL(file); link.download = file.name; link.click(); setTimeout(() => URL.revokeObjectURL(link.href), 5000);
   }
 }
