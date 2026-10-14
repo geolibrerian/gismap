@@ -8,6 +8,7 @@ import { normalizeApplicationConfig, presetApplication } from "./application-con
 import { featureFilterFor, featureId, fieldKind, filterRecords, histogram, requestGuard, sortRecords } from "./presentation-query.js?v=0.18.2";
 import { DEFAULT_SKIN, INTERFACE_SKINS, applyInterfaceSkin, normalizeSkin, skinOptionsMarkup } from "./skin-catalog.js?v=0.18.2";
 import { compactMedia } from "./viewport.js?v=0.18.2";
+import { PdfDocument, dataUrlBytes, imageToJpeg } from "./pdf-document.js?v=0.18.12";
 
 const DISPLAY_SETTINGS_KEY = "gismap-online:display:v1";
 const RECENT_PLACES_KEY = "gismap-online:recent-places:v1";
@@ -3567,29 +3568,50 @@ export class UIController {
       };
       const renderToken = ++this.workflowShareRenderToken;
       this.workflowShareImageFile = null;
+      // Extra files offered beside the QR (a field task's PDF and CSV), made once per dialog on first use.
+      const downloads = payload.downloads || [];
+      const made = new Map();
+      const fileFor = (download) => {
+        if (!made.has(download)) made.set(download, Promise.resolve(download.create()).catch((error) => { made.delete(download); throw error; }));
+        return made.get(download);
+      };
+      const saveFile = (file) => {
+        const link = document.createElement("a");
+        link.href = URL.createObjectURL(file);
+        link.download = file.name;
+        link.click();
+        setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+      };
       this.openDialog({
         eyebrow: payload.eyebrow || "Shareable workflow",
         title,
-        content: `<div class="workflow-share"><div class="tour-share-card"><canvas data-workflow-share-card width="760" height="960" role="img" aria-label="Branded QR card for ${escapeHtml(title)}"></canvas><p class="tour-share-card__status" data-workflow-share-status>Building QR card…</p></div><p>${escapeHtml(payload.message || `Scan this code to open the ${kind} on another device.`)}</p><label class="field"><span>Share link</span><input data-workflow-share-url readonly value="${escapeHtml(url)}"></label></div>`,
+        content: `<div class="workflow-share"><div class="tour-share-card"><canvas data-workflow-share-card width="760" height="960" role="img" aria-label="Branded QR card for ${escapeHtml(title)}"></canvas><p class="tour-share-card__status" data-workflow-share-status>Building QR card…</p></div><p>${escapeHtml(payload.message || `Scan this code to open the ${kind} on another device.`)}</p><label class="field"><span>Share link</span><input data-workflow-share-url readonly value="${escapeHtml(url)}"></label>${downloads.length ? `<div class="workflow-share-downloads"><span>Report files</span><div>${downloads.map((download, index) => `<button type="button" data-share-download="${index}">${escapeHtml(download.label)}</button>`).join("")}</div></div>` : ""}</div>`,
         actions: [
           { label: "Download image", handler: () => {
             if (!this.workflowShareImageFile) return this.error("The QR image is still being prepared.");
-            const link = document.createElement("a");
-            link.href = URL.createObjectURL(this.workflowShareImageFile);
-            link.download = this.workflowShareImageFile.name;
-            link.click();
-            setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+            saveFile(this.workflowShareImageFile);
           } },
           { label: "Share", handler: async () => {
-            let share = { title, url };
-            const withImage = this.workflowShareImageFile ? { ...share, files: [this.workflowShareImageFile] } : null;
-            if (withImage && navigator.canShare?.(withImage)) share = withImage;
+            const attachments = (await Promise.all(downloads.filter((download) => download.share).map((download) => fileFor(download).catch(() => null)))).filter(Boolean);
+            // Offer the richest bundle the device accepts: QR image and reports, then the image alone, then just the link.
+            const options = [
+              [this.workflowShareImageFile, ...attachments].filter(Boolean),
+              [this.workflowShareImageFile].filter(Boolean),
+            ].filter((files) => files.length).map((files) => ({ title, url, files }));
+            const share = options.find((option) => navigator.canShare?.(option)) || { title, url };
             if (navigator.share) await navigator.share(share);
             else { await navigator.clipboard.writeText(url); this.toast("Share link copied."); }
           } },
           { label: "Copy link", primary: true, handler: async () => { await navigator.clipboard.writeText(url); this.toast("Share link copied."); } },
         ],
       });
+      this.dialog.querySelectorAll("[data-share-download]").forEach((button) => button.addEventListener("click", async () => {
+        const label = button.textContent;
+        button.disabled = true;
+        button.textContent = "Preparing…";
+        try { saveFile(await fileFor(downloads[Number(button.dataset.shareDownload)])); } catch (error) { this.error(error.message); }
+        finally { button.disabled = false; button.textContent = label; }
+      }));
       const canvas = this.dialog.querySelector("[data-workflow-share-card]");
       const status = this.dialog.querySelector("[data-workflow-share-status]");
       try {
@@ -4355,98 +4377,33 @@ export class UIController {
       return;
     }
     const hasAIResponse = Boolean(this.lastAIResponseText);
-    const margin = 48;
-    const pageWidth = 612;
-    const pageHeight = 792;
-    const textEncoder = new TextEncoder();
-    const dataUrlBytes = (dataUrl) => Uint8Array.from(atob(dataUrl.split(",")[1] || ""), (character) => character.charCodeAt(0));
-    const toJpeg = (source, width = 96, height = 96) => new Promise((resolve) => {
-      const image = new Image();
-      image.onload = () => {
-        const canvas = document.createElement("canvas");
-        canvas.width = width;
-        canvas.height = height;
-        const context = canvas.getContext("2d");
-        context.fillStyle = "#ffffff";
-        context.fillRect(0, 0, width, height);
-        const scale = Math.min(width / image.naturalWidth, height / image.naturalHeight);
-        const drawWidth = image.naturalWidth * scale;
-        const drawHeight = image.naturalHeight * scale;
-        context.drawImage(image, (width - drawWidth) / 2, (height - drawHeight) / 2, drawWidth, drawHeight);
-        resolve({ bytes: dataUrlBytes(canvas.toDataURL("image/jpeg", 0.92)), width, height });
-      };
-      image.onerror = () => resolve(null);
-      image.src = source;
-    });
-    const logo = await toJpeg("./assets/gis-map-online-mark-v2.png", 96, 96);
+    const logo = await imageToJpeg("./assets/gis-map-online-mark-v2.png", { width: 96, height: 96 });
     const mapCapture = await this.mapController.takeMapScreenshot().catch(() => null);
     const mapImage = mapCapture?.dataUrl
       ? { bytes: dataUrlBytes(mapCapture.dataUrl), width: mapCapture.width, height: mapCapture.height }
       : null;
-    const safeText = (value) => String(value ?? "")
-      // The built-in PDF fonts use a limited encoding. Preserve the meaning of
-      // common map and measurement characters instead of emitting question marks.
-      .replace(/[µμ]/g, "u").replace(/³/g, "3").replace(/²/g, "2")
-      .replace(/[‘’]/g, "'").replace(/[“”]/g, '"').replace(/[–—]/g, "-")
-      .replace(/[\\()]/g, "\\$&").replace(/[^\x20-\x7e]/g, "?");
-    const wrap = (value, maxChars = 91) => String(value ?? "").split(/\n/).flatMap((paragraph) => {
-      if (!paragraph.trim()) return [""];
-      const words = paragraph.trim().split(/\s+/);
-      const lines = [];
-      let line = "";
-      words.forEach((word) => {
-        if (`${line} ${word}`.trim().length > maxChars && line) {
-          lines.push(line);
-          line = word;
-        } else line = `${line} ${word}`.trim();
-      });
-      if (line) lines.push(line);
-      return lines;
-    });
-    const pages = [];
-    let page;
-    let y;
-    const newPage = () => {
-      page = { commands: [
-        "0.06 0.16 0.13 rg 48 712 516 32 re f",
-        "1 1 1 rg BT /F2 14 Tf 96 724 Td (GIS MAP ONLINE) Tj ET",
-        "0.08 0.37 0.30 rg BT /F2 11 Tf 48 682 Td (LOCATION INTELLIGENCE REPORT) Tj ET",
-      ], images: [] };
-      if (logo) {
-        page.images.push({ name: "ImLogo", asset: logo });
-        page.commands.push("q 24 0 0 24 60 716 cm /ImLogo Do Q");
-      }
-      pages.push(page);
-      y = 660;
-    };
-    const addLines = (text, { size = 10, leading = 15, color = "0.09 0.16 0.14", bold = false } = {}) => {
-      wrap(text).forEach((line) => {
-        if (y < margin + leading) newPage();
-        page.commands.push(`${color} rg BT /F${bold ? 2 : 1} ${size} Tf ${margin} ${y} Td (${safeText(line)}) Tj ET`);
-        y -= leading;
-      });
-    };
-    newPage();
+    const report = new PdfDocument({ heading: "LOCATION INTELLIGENCE REPORT", logo });
+    const addLines = (text, options) => report.addLines(text, options);
     const point = payload?.point;
     const coordinates = point ? `${point.latitude.toFixed(6)}, ${point.longitude.toFixed(6)}` : "Unknown location";
     const location = payload?.address?.address || coordinates;
     addLines(`Generated ${new Date().toLocaleString()}`, { size: 9, leading: 14, color: "0.36 0.44 0.41" });
-    y -= 10;
+    report.gap(10);
     addLines("Location", { size: 13, leading: 18, color: "0.08 0.36 0.30", bold: true });
     addLines(location, { size: 12, leading: 18, bold: true });
     addLines(`Coordinates: ${coordinates}`);
     const extent = this.mapController.getCurrentExtentDetails?.();
     if (extent) addLines(`Map extent: ${extent.west.toFixed(4)}, ${extent.south.toFixed(4)} to ${extent.east.toFixed(4)}, ${extent.north.toFixed(4)}${extent.zoom != null ? ` (zoom ${extent.zoom})` : ""}`);
     if (hasAIResponse) {
-      y -= 10;
+      report.gap(10);
       addLines("Query", { size: 13, leading: 18, color: "0.08 0.36 0.30", bold: true });
       addLines(this.lastAIQueryText || "Map context query", { size: 11, leading: 16 });
-      y -= 10;
+      report.gap(10);
       addLines("Generated intelligence", { size: 13, leading: 18, color: "0.08 0.36 0.30", bold: true });
       addLines(markdownToPlainText(this.lastAIResponseText), { size: 10, leading: 15 });
     } else {
       const reportResults = payload.selectedResults?.length ? payload.selectedResults : (payload.results ?? []).slice(0, 1);
-      y -= 10;
+      report.gap(10);
       addLines("Map Insight attributes", { size: 13, leading: 18, color: "0.08 0.36 0.30", bold: true });
       if (!reportResults.length) {
         addLines("No map feature was identified at the clicked location.");
@@ -4459,72 +4416,21 @@ export class UIController {
             addLines(`${key}: ${typeof value === "object" ? JSON.stringify(value) : value}`, { size: 10, leading: 15 });
           });
           if (attributes.length > 60) addLines(`… ${attributes.length - 60} additional attributes omitted.`, { size: 9, leading: 14, color: "0.36 0.44 0.41" });
-          y -= 6;
+          report.gap(6);
         });
       }
     }
     if (mapImage) {
-      newPage();
+      report.newPage();
       addLines("Map snapshot", { size: 13, leading: 18, color: "0.08 0.36 0.30", bold: true });
       addLines("The map view at the time this Location Intelligence Report was created.", { size: 9, leading: 14, color: "0.36 0.44 0.41" });
-      const imageWidth = pageWidth - (margin * 2);
-      const imageHeight = Math.min(360, imageWidth * (mapImage.height / mapImage.width));
-      const imageName = "ImMap";
-      page.images.push({ name: imageName, asset: mapImage });
-      page.commands.push(`q ${imageWidth} 0 0 ${imageHeight} ${margin} ${y - imageHeight} cm /${imageName} Do Q`);
-      y -= imageHeight + 18;
-      addLines(`Map extent: ${this.mapController.getCurrentExtentDetails()?.west.toFixed(4)}, ${this.mapController.getCurrentExtentDetails()?.south.toFixed(4)} to ${this.mapController.getCurrentExtentDetails()?.east.toFixed(4)}, ${this.mapController.getCurrentExtentDetails()?.north.toFixed(4)}`, { size: 9, leading: 14, color: "0.36 0.44 0.41" });
+      report.addImage(mapImage, { maxHeight: 360 });
+      const details = this.mapController.getCurrentExtentDetails();
+      addLines(`Map extent: ${details?.west.toFixed(4)}, ${details?.south.toFixed(4)} to ${details?.east.toFixed(4)}, ${details?.north.toFixed(4)}`, { size: 9, leading: 14, color: "0.36 0.44 0.41" });
     }
-    const objects = [null];
-    const reserve = () => { objects.push(""); return objects.length - 1; };
-    const setObject = (id, value) => { objects[id] = value; };
-    const catalogId = reserve();
-    const pagesId = reserve();
-    const regularFontId = reserve();
-    const boldFontId = reserve();
-    setObject(regularFontId, "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>");
-    setObject(boldFontId, "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>");
-    const imageIds = new Map();
-    const imageObject = (asset) => {
-      if (imageIds.has(asset)) return imageIds.get(asset);
-      const imageId = reserve();
-      const header = textEncoder.encode(`<< /Type /XObject /Subtype /Image /Width ${asset.width} /Height ${asset.height} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${asset.bytes.length} >>\nstream\n`);
-      const footer = textEncoder.encode("\nendstream");
-      const bytes = new Uint8Array(header.length + asset.bytes.length + footer.length);
-      bytes.set(header);
-      bytes.set(asset.bytes, header.length);
-      bytes.set(footer, header.length + asset.bytes.length);
-      setObject(imageId, bytes);
-      imageIds.set(asset, imageId);
-      return imageId;
-    };
-    const pageIds = pages.map((currentPage) => {
-      const stream = currentPage.commands.join("\n");
-      const contentId = reserve();
-      setObject(contentId, `<< /Length ${textEncoder.encode(stream).length} >>\nstream\n${stream}\nendstream`);
-      const pageId = reserve();
-      const xObjects = currentPage.images.map(({ name, asset }) => `/${name} ${imageObject(asset)} 0 R`).join(" ");
-      setObject(pageId, `<< /Type /Page /Parent ${pagesId} 0 R /MediaBox [0 0 ${pageWidth} ${pageHeight}] /Resources << /Font << /F1 ${regularFontId} 0 R /F2 ${boldFontId} 0 R >>${xObjects ? ` /XObject << ${xObjects} >>` : ""} >> /Contents ${contentId} 0 R >>`);
-      return pageId;
-    });
-    setObject(pagesId, `<< /Type /Pages /Kids [${pageIds.map((id) => `${id} 0 R`).join(" ")}] /Count ${pageIds.length} >>`);
-    setObject(catalogId, `<< /Type /Catalog /Pages ${pagesId} 0 R >>`);
-    const chunks = [textEncoder.encode("%PDF-1.4\n%????\n")];
-    let length = chunks[0].length;
-    const offsets = [0];
-    objects.slice(1).forEach((object, index) => {
-      offsets[index + 1] = length;
-      const head = textEncoder.encode(`${index + 1} 0 obj\n`);
-      const body = typeof object === "string" ? textEncoder.encode(object) : object;
-      const tail = textEncoder.encode("\nendobj\n");
-      chunks.push(head, body, tail);
-      length += head.length + body.length + tail.length;
-    });
-    const xrefOffset = length;
-    chunks.push(textEncoder.encode(`xref\n0 ${objects.length}\n0000000000 65535 f \n${offsets.slice(1).map((offset) => `${String(offset).padStart(10, "0")} 00000 n \n`).join("")}trailer\n<< /Size ${objects.length} /Root ${catalogId} 0 R >>\nstartxref\n${xrefOffset}\n%%EOF`));
     const slug = String(location).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "").slice(0, 48) || "map-location";
     const download = document.createElement("a");
-    download.href = URL.createObjectURL(new Blob(chunks, { type: "application/pdf" }));
+    download.href = URL.createObjectURL(report.toBlob());
     download.download = `location-intelligence-report-${slug}.pdf`;
     download.click();
     setTimeout(() => URL.revokeObjectURL(download.href), 1000);

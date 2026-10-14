@@ -2,9 +2,11 @@ import { MobileFeedStore } from "./mobile-feed-store.js?v=0.18.7";
 import { compactMedia } from "./viewport.js?v=0.18.2";
 import { INTERFACE_SKINS, applyInterfaceSkin, normalizeSkin } from "./skin-catalog.js?v=0.18.2";
 import { FIELD_TASK_LIMITS, createFieldTaskUrl, featureLayerUrl, taskSteps } from "./field-task-share.js?v=0.18.6";
+import { fieldTaskCsv, fieldTaskFileStem, fieldTaskPdf, fieldTaskPoints, photoDataUrl } from "./field-task-report.js?v=0.18.12";
 
 const escapeHtml = (value) => String(value ?? "").replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char]);
 const STATUS_LABELS = { draft: "Draft", sent: "Sent", assigned: "To complete", "in-progress": "In progress", completed: "Completed", returned: "Report received", shared: "Shared" };
+const MAX_TASK_PHOTOS = 8;
 const newId = (prefix) => globalThis.crypto?.randomUUID?.() || `${prefix}-${Date.now()}`;
 const dateLabel = (value) => value ? new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }).format(new Date(value)) : "Recently";
 
@@ -189,13 +191,13 @@ export class MobileWorkflowRouter {
   #taskCompletion(task) {
     const steps = taskSteps(task);
     const completed = task.status === "completed";
-    return `<form class="mobile-card task-editor task-complete" data-task-complete-form data-task-id="${escapeHtml(task.id)}"><span class="feed-card__meta">Tasks to complete</span><h2>${escapeHtml(task.title)}</h2>${task.notes ? `<p class="task-instructions">${escapeHtml(task.notes)}</p>` : ""}${this.#locationRow(task)}${task.features?.length ? `<fieldset><legend>Features to visit</legend>${this.#featureRows(task.features, { checkable: true })}</fieldset>` : ""}<fieldset><legend>Steps</legend>${steps.map((step, index) => `<label class="check-row"><input type="checkbox" name="stepDone" value="${index}" ${step.done ? "checked" : ""}/> ${escapeHtml(step.text)}</label>`).join("") || `<p class="task-feature-empty">No steps listed.</p>`}</fieldset><label>Report<textarea name="report" rows="4" maxlength="${FIELD_TASK_LIMITS.maxNotes}" placeholder="What did you find?">${escapeHtml(task.report || "")}</textarea></label><label>Your name <small>optional</small><input name="completedBy" value="${escapeHtml(task.completedBy || "")}" maxlength="60" /></label><div class="feed-card__actions"><button type="submit" name="intent" value="return" data-mobile-bar="primary" data-bar-label="${completed ? "Send again" : "Send back"}">${completed ? "Create return link again" : "Complete &amp; send back"}</button><button type="submit" name="intent" value="save" data-mobile-bar data-bar-label="Save">Save progress</button><button type="button" data-cancel-task data-mobile-bar>Back</button></div></form>`;
+    return `<form class="mobile-card task-editor task-complete" data-task-complete-form data-task-id="${escapeHtml(task.id)}"><span class="feed-card__meta">Tasks to complete</span><h2>${escapeHtml(task.title)}</h2>${task.notes ? `<p class="task-instructions">${escapeHtml(task.notes)}</p>` : ""}${this.#locationRow(task)}${task.features?.length ? `<fieldset><legend>Features to visit</legend>${this.#featureRows(task.features, { checkable: true })}</fieldset>` : ""}<fieldset><legend>Steps</legend>${steps.map((step, index) => `<label class="check-row"><input type="checkbox" name="stepDone" value="${index}" ${step.done ? "checked" : ""}/> ${escapeHtml(step.text)}</label>`).join("") || `<p class="task-feature-empty">No steps listed.</p>`}</fieldset><label>Report<textarea name="report" rows="4" maxlength="${FIELD_TASK_LIMITS.maxNotes}" placeholder="What did you find?">${escapeHtml(task.report || "")}</textarea></label><label>Photos <small>kept on this device and added to the PDF report</small><input name="photos" type="file" accept="image/*" capture="environment" multiple /></label>${task.photos?.length ? `<p class="form-note">${task.photos.length} photo${task.photos.length === 1 ? "" : "s"} attached</p>` : ""}<label>Your name <small>optional</small><input name="completedBy" value="${escapeHtml(task.completedBy || "")}" maxlength="60" /></label><div class="feed-card__actions"><button type="submit" name="intent" value="return" data-mobile-bar="primary" data-bar-label="${completed ? "Send again" : "Send back"}">${completed ? "Create return link again" : "Complete &amp; send back"}</button><button type="submit" name="intent" value="save" data-mobile-bar data-bar-label="Save">Save progress</button><button type="button" data-cancel-task data-mobile-bar>Back</button></div></form>`;
   }
 
   #taskReport(task) {
     const steps = taskSteps(task);
     const done = steps.filter((step) => step.done).length;
-    return `<section class="mobile-card task-report"><span class="feed-card__meta">Report received · ${escapeHtml(dateLabel(task.completedAt))}${task.completedBy ? ` · ${escapeHtml(task.completedBy)}` : ""}</span><h2>${escapeHtml(task.title)}</h2><p><strong>${done}/${steps.length}</strong> steps done${task.features?.length ? ` · <strong>${task.features.filter((feature) => feature.done).length}/${task.features.length}</strong> features visited` : ""}</p>${this.#locationRow(task)}<ul class="task-report-steps">${steps.map((step) => `<li class="${step.done ? "is-done" : ""}"><span aria-hidden="true">${step.done ? "✓" : "○"}</span> ${escapeHtml(step.text)}</li>`).join("")}</ul>${task.features?.length ? `<h3>Features</h3>${this.#featureRows(task.features)}` : ""}${task.report ? `<h3>Report</h3><p class="task-instructions">${escapeHtml(task.report)}</p>` : ""}<div class="feed-card__actions"><button type="button" data-open-task="${escapeHtml(task.id)}" data-mobile-bar="primary">Edit &amp; reassign</button><button type="button" data-cancel-task data-mobile-bar>Back</button></div></section>`;
+    return `<section class="mobile-card task-report"><span class="feed-card__meta">Report received · ${escapeHtml(dateLabel(task.completedAt))}${task.completedBy ? ` · ${escapeHtml(task.completedBy)}` : ""}</span><h2>${escapeHtml(task.title)}</h2><p><strong>${done}/${steps.length}</strong> steps done${task.features?.length ? ` · <strong>${task.features.filter((feature) => feature.done).length}/${task.features.length}</strong> features visited` : ""}</p>${this.#locationRow(task)}<ul class="task-report-steps">${steps.map((step) => `<li class="${step.done ? "is-done" : ""}"><span aria-hidden="true">${step.done ? "✓" : "○"}</span> ${escapeHtml(step.text)}</li>`).join("")}</ul>${task.features?.length ? `<h3>Features</h3>${this.#featureRows(task.features)}` : ""}${task.report ? `<h3>Report</h3><p class="task-instructions">${escapeHtml(task.report)}</p>` : ""}${task.photos?.length ? `<p class="form-note">${task.photos.length} photo${task.photos.length === 1 ? "" : "s"} on this device are included in the PDF.</p>` : ""}<div class="task-report-downloads"><button type="button" data-task-pdf="${escapeHtml(task.id)}">Download PDF</button><button type="button" data-task-csv="${escapeHtml(task.id)}">Download CSV</button></div><div class="feed-card__actions"><button type="button" data-open-task="${escapeHtml(task.id)}" data-mobile-bar="primary">Edit &amp; reassign</button><button type="button" data-cancel-task data-mobile-bar>Back</button></div></section>`;
   }
 
   #watchlist() {
@@ -231,6 +233,8 @@ export class MobileWorkflowRouter {
     if (button.matches("[data-capture-task-location]")) return this.#captureTaskLocation(button.closest("form"));
     if (button.dataset.shareTask) return this.#shareTask(button.dataset.shareTask);
     if (button.dataset.sendBack) return this.#sendBack(button.dataset.sendBack);
+    if (button.dataset.taskPdf) return this.#downloadTaskFile(button, () => this.#taskPdfFile(this.#task(button.dataset.taskPdf)));
+    if (button.dataset.taskCsv) return this.#downloadTaskFile(button, async () => this.#taskCsvFile(this.#task(button.dataset.taskCsv)));
     if (button.dataset.deleteTask) return this.#deleteTask(button.dataset.deleteTask);
     if (button.matches("[data-add-step]")) { this.#editDraft(button.closest("form"), (draft) => draft.steps.push({ text: "", done: false })); this.root.querySelector('[name="stepText"]:last-of-type')?.focus(); return; }
     if (button.dataset.removeStep) return this.#editDraft(button.closest("form"), (draft) => draft.steps.splice(Number(button.dataset.removeStep), 1));
@@ -258,9 +262,9 @@ export class MobileWorkflowRouter {
         return;
       }
       const existing = this.#task(form.dataset.taskId);
-      const uploaded = await Promise.all([...form.querySelector('[name="photos"]')?.files || []].slice(0, 6).map((file) => this.#fileDataUrl(file)));
+      const uploaded = await Promise.all([...form.querySelector('[name="photos"]')?.files || []].slice(0, MAX_TASK_PHOTOS).map((file) => photoDataUrl(file)));
       const id = form.dataset.taskId || newId("task");
-      this.store.saveTask({ ...draft, id, photos: [...(existing?.photos || []), ...uploaded], capturedAt: draft.capturedAt || new Date().toISOString(), status: existing?.status && existing.status !== "returned" ? existing.status : "draft", role: "author" });
+      this.store.saveTask({ ...draft, id, photos: [...(existing?.photos || []), ...uploaded].slice(-MAX_TASK_PHOTOS), capturedAt: draft.capturedAt || new Date().toISOString(), status: existing?.status && existing.status !== "returned" ? existing.status : "draft", role: "author" });
       this.taskDraft = null;
       this.#showTaskView(null);
       if (event.submitter?.value === "share") await this.#shareTask(id);
@@ -271,8 +275,10 @@ export class MobileWorkflowRouter {
       const stepsDone = new Set(data.getAll("stepDone").map(Number));
       const featuresDone = new Set(data.getAll("featureDone").map(Number));
       const finishing = event.submitter?.value === "return";
+      const uploaded = await Promise.all([...form.querySelector('[name="photos"]')?.files || []].slice(0, MAX_TASK_PHOTOS).map((file) => photoDataUrl(file)));
       this.store.saveTask({
         id: task.id,
+        photos: [...(task.photos || []), ...uploaded].slice(-MAX_TASK_PHOTOS),
         steps: taskSteps(task).map((step, index) => ({ ...step, done: stepsDone.has(index) })),
         features: (task.features || []).map((feature, index) => ({ ...feature, done: featuresDone.has(index) })),
         report: String(data.get("report") || ""),
@@ -327,10 +333,6 @@ export class MobileWorkflowRouter {
     if (address) form.elements.location.value = address;
     const status = form.querySelector("[data-task-location-status]");
     if (status) status.textContent = `Captured ${dateLabel(capturedAt)} · ${Number(form.elements.latitude.value).toFixed(5)}, ${Number(form.elements.longitude.value).toFixed(5)}`;
-  }
-
-  #fileDataUrl(file) {
-    return new Promise((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(reader.result); reader.onerror = reject; reader.readAsDataURL(file); });
   }
 
   #task(id) {
@@ -524,9 +526,48 @@ export class MobileWorkflowRouter {
     if (!task) return;
     try {
       const url = createFieldTaskUrl({ baseUrl: location.href, task: { ...task, id: task.assignmentId || task.id }, kind: "return" });
-      return await this.shareWorkflow?.("tasks", { url, title: `Report: ${task.title || "Field task"}`, eyebrow: "Completed field task", card: { lines: ["Scan to record this completed field task report,", "or long-click the QR code to open it in a browser."], footer: "Completed field task report encoded in this QR" }, message: "Send this link or QR code back to whoever assigned the task. Opening it records your report." });
+      return await this.shareWorkflow?.("tasks", { url, title: `Report: ${task.title || "Field task"}`, eyebrow: "Completed field task", card: { lines: ["Scan to record this completed field task report,", "or long-click the QR code to open it in a browser."], footer: "Completed field task report encoded in this QR" }, message: "Send this link or QR code back to whoever assigned the task. Opening it records your report. The PDF and CSV are copies to keep or attach.", downloads: [
+        { label: "Download PDF", share: true, create: () => this.#taskPdfFile(task) },
+        { label: "Download CSV", create: async () => this.#taskCsvFile(task) },
+      ] });
     } catch (error) {
       this.notify?.(error.message);
+    }
+  }
+
+  async #taskPdfFile(task) {
+    if (!task) throw new Error("That field task is no longer on this device.");
+    // The snapshot needs the map to render (it cannot while the page is hidden), so it gets a time limit;
+    // the report is still useful without it.
+    const mapImage = await Promise.race([
+      Promise.resolve(this.mapController.captureTaskMap?.(fieldTaskPoints(task))).catch(() => null),
+      new Promise((resolve) => setTimeout(() => resolve(null), 15000)),
+    ]);
+    const blob = await fieldTaskPdf(task, { mapImage });
+    return new File([blob], `${fieldTaskFileStem(task)}.pdf`, { type: "application/pdf" });
+  }
+
+  #taskCsvFile(task) {
+    if (!task) throw new Error("That field task is no longer on this device.");
+    return new File([fieldTaskCsv(task)], `${fieldTaskFileStem(task)}.csv`, { type: "text/csv" });
+  }
+
+  async #downloadTaskFile(button, create) {
+    const label = button.textContent;
+    button.disabled = true;
+    button.textContent = "Preparing…";
+    try {
+      const file = await create();
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(file);
+      link.download = file.name;
+      link.click();
+      setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+    } catch (error) {
+      this.notify?.(error.message);
+    } finally {
+      button.disabled = false;
+      button.textContent = label;
     }
   }
 

@@ -657,16 +657,53 @@ export class MapController {
     this.locationLayer.addMany([halo, dot]);
   }
 
-  /** Marks the place a field task points at; pass nothing to clear it. */
-  setTaskPin(point = null) {
+  /** Marks the place (or places) a field task points at; pass nothing to clear them. */
+  setTaskPin(points = null) {
     if (!this.locationLayer) return;
     this.locationLayer.graphics.filter((graphic) => graphic.attributes?.kind === "task").forEach((graphic) => this.locationLayer.remove(graphic));
-    if (!point || !this.modules.Graphic || !Number.isFinite(point.longitude) || !Number.isFinite(point.latitude)) return;
-    this.locationLayer.add(new this.modules.Graphic({
-      geometry: { type: "point", longitude: point.longitude, latitude: point.latitude },
-      attributes: { kind: "task", label: point.label || "" },
-      symbol: { type: "simple-marker", style: "diamond", size: 20, color: [217, 149, 30, 1], outline: { color: [255, 255, 255, 1], width: 2.5 } },
-    }));
+    if (!this.modules.Graphic) return;
+    (Array.isArray(points) ? points : [points])
+      .filter((point) => point && Number.isFinite(point.longitude) && Number.isFinite(point.latitude))
+      .forEach((point) => this.locationLayer.add(new this.modules.Graphic({
+        geometry: { type: "point", longitude: point.longitude, latitude: point.latitude },
+        attributes: { kind: "task", label: point.label || "" },
+        symbol: { type: "simple-marker", style: "diamond", size: 20, color: [217, 149, 30, 1], outline: { color: [255, 255, 255, 1], width: 2.5 } },
+      })));
+  }
+
+  /**
+   * Captures the map framed on a field task's places, pinned, then puts the
+   * camera and pins back the way they were.
+   */
+  async captureTaskMap(points = []) {
+    const places = points.filter((point) => Number.isFinite(point?.longitude) && Number.isFinite(point?.latitude));
+    if (!this.view?.takeScreenshot || !places.length) return null;
+    const camera = this.view.camera?.clone?.();
+    const previousPins = this.locationLayer?.graphics.filter((graphic) => graphic.attributes?.kind === "task").toArray() ?? [];
+    this.setTaskPin(places);
+    try {
+      if (places.length === 1) {
+        await this.view.goTo({ center: [places[0].longitude, places[0].latitude], zoom: 16, tilt: 0, heading: 0 }, { animate: false });
+      } else {
+        const longitudes = places.map((point) => point.longitude);
+        const latitudes = places.map((point) => point.latitude);
+        const pad = (min, max) => Math.max((max - min) * 0.2, 0.002);
+        const [west, east, south, north] = [Math.min(...longitudes), Math.max(...longitudes), Math.min(...latitudes), Math.max(...latitudes)];
+        await this.view.goTo({ target: { type: "extent", xmin: west - pad(west, east), xmax: east + pad(west, east), ymin: south - pad(south, north), ymax: north + pad(south, north), spatialReference: { wkid: 4326 } }, tilt: 0, heading: 0 }, { animate: false });
+      }
+      // Give tiles a moment to arrive before the snapshot.
+      const started = Date.now();
+      while (this.view.updating && Date.now() - started < 8000) await new Promise((resolve) => setTimeout(resolve, 150));
+      // A 4:3 crop around the centre keeps the pins in frame on tall phone screens.
+      const width = this.view.width;
+      const height = Math.min(this.view.height, Math.round(width * 0.75));
+      const capture = await this.view.takeScreenshot({ format: "jpg", quality: 82, width: 1200, area: { x: 0, y: Math.round((this.view.height - height) / 2), width, height } });
+      return capture?.dataUrl && capture?.data ? { dataUrl: capture.dataUrl, width: capture.data.width, height: capture.data.height } : null;
+    } finally {
+      this.locationLayer?.graphics.filter((graphic) => graphic.attributes?.kind === "task").forEach((graphic) => this.locationLayer.remove(graphic));
+      if (previousPins.length) this.locationLayer?.addMany(previousPins);
+      if (camera) await this.view.goTo(camera, { animate: false }).catch(() => {});
+    }
   }
 
   getOperationalLayers() {

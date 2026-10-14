@@ -8,6 +8,7 @@ All notable changes to GIS Map Online are documented here. This project follows
 
 ### Added
 
+- Field tasks produce a branded PDF report (map snapshot with pinned task places, steps, features, instructions, report and photos) and a CSV. Both are offered when a task is sent back, beside the QR code, and from the received report; Share attaches the PDF where the device allows. Field workers can attach photos while completing a task.
 - Field task, briefing and other workflow share dialogs now show the branded GIS Map Online QR card used for tours, with Download image and image-aware Share.
 - On phones, the Field tasks screens put their main buttons (New field task; Save & share / Save draft / Cancel; Send back / Save / Back) in the same docked bar, within thumb reach.
 - On phones, Briefing and Tours keep their main actions (Connect / Add file / Example, then Context; Present / Add / Share) in a full-width bar docked above the bottom navigation, the same slot the Map tools use. Their sheets open at half the screen and drag up to the top bar.
@@ -28,6 +29,7 @@ All notable changes to GIS Map Online are documented here. This project follows
 
 ### Changed
 
+- The Location Intelligence PDF and the field task PDF share one small PDF writer (js/pdf-document.js); map snapshots in the location report keep their proportions.
 - Consolidated mobile workflows under the Tools menu, made workflow and tool selection mutually exclusive, and standardized mobile sheets at 40–60% of the viewport.
 - Restored the legacy SVG icon set for mobile Map tools and fitted all five tools into a fixed, non-scrolling tray.
 - Simplified the public mobile experience around Map, Briefing, Tours, and Field Tasks; Map-only tool shortcuts no longer appear on desktop or over non-map workflows.

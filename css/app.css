@@ -423,6 +423,8 @@ body.utility-resizing iframe, body.utility-resizing canvas { pointer-events: non
 .task-instructions { margin:0; white-space:pre-wrap; }
 .task-report-steps li { display:flex; gap:8px; color:var(--muted); }
 .task-report-steps li.is-done { color:var(--ink); }
+.task-report-downloads { display:flex; flex-wrap:wrap; gap:8px; }
+.mobile-card .task-report-downloads button { flex:1 1 140px; min-height:40px; padding:8px 12px; }
 .task-report-steps li span { color:var(--green); font-weight:800; }
 .task-feature-done { color:var(--green); }
 .field-task-banner { position:fixed; z-index:80; top:calc(14px + env(safe-area-inset-top)); left:50%; display:flex; align-items:center; gap:12px; max-width:calc(100vw - 24px); padding:8px 8px 8px 16px; border:1px solid var(--green); border-radius:999px; color:var(--ink); background:var(--surface); box-shadow:var(--shadow); transform:translateX(-50%); font-weight:700; }
@@ -442,6 +444,11 @@ body.mobile-workflow-open .field-task-banner { left:auto; right:calc(min(440px,1
 .workflow-share { display:grid; justify-items:center; gap:12px; text-align:center; }
 .workflow-share canvas { width:min(280px,100%); height:auto; padding:8px; border:1px solid var(--line); border-radius:12px; background:white; }
 .workflow-share .field { width:100%; text-align:left; }
+.workflow-share-downloads { display:grid; gap:6px; width:100%; text-align:left; }
+.workflow-share-downloads > span { font-size:12px; font-weight:700; }
+.workflow-share-downloads > div { display:grid; grid-template-columns:repeat(auto-fit,minmax(120px,1fr)); gap:8px; }
+.workflow-share-downloads button { min-height:40px; padding:8px 12px; border:1px solid var(--green); border-radius:var(--ui-radius-small,7px); color:var(--green); background:var(--surface); font-weight:700; cursor:pointer; }
+.workflow-share-downloads button:disabled { opacity:.55; cursor:progress; }
 .briefing-share { align-self:center; padding:7px 10px; border:1px solid var(--green); border-radius:7px; color:var(--green); background:var(--surface); font-weight:700; cursor:pointer; }
 .welcome-brand { display: flex; align-items: center; gap: 12px; margin-bottom: 18px; padding-right: 28px; }
 .welcome-brand img { width: 44px; height: 52px; object-fit: contain; }
