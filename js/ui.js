@@ -480,7 +480,8 @@ export class UIController {
       this.#renderIntelligenceContents();
     });
     this.events.subscribe("identify:complete", (payload) => {
-      if (this.presentationState.template === "briefing") {
+      // Picking a feature for a field task should not cover the map with its details.
+      if (this.presentationState.template === "briefing" || document.body.classList.contains("field-task-picking")) {
         this.#setInsightsOpen(false);
         return;
       }
@@ -3394,7 +3395,10 @@ export class UIController {
     try {
       let url;
       let title;
-      if (route === "tasks" && payload.task) {
+      if (payload.url) {
+        url = payload.url;
+        title = payload.title || "GISMap field task";
+      } else if (route === "tasks" && payload.task) {
         const bytes = new TextEncoder().encode(JSON.stringify(payload.task));
         const encoded = btoa(String.fromCharCode(...bytes)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
         const target = new URL(location.href);
@@ -3415,9 +3419,9 @@ export class UIController {
         title = presentation.modeTitles?.[route === "tours" ? "atlas" : "briefing"] || presentation.title || "GISMap briefing";
       }
       this.openDialog({
-        eyebrow: "Shareable workflow",
+        eyebrow: payload.eyebrow || "Shareable workflow",
         title,
-        content: `<div class="workflow-share"><canvas data-workflow-share-qr width="280" height="280" aria-label="QR code for ${escapeHtml(title)}"></canvas><p>Scan this code to open the ${({ tasks: "field task", tours: "tour", briefing: "briefing" })[route] || "map"} on another device.</p><label class="field"><span>Share link</span><input data-workflow-share-url readonly value="${escapeHtml(url)}"></label></div>`,
+        content: `<div class="workflow-share"><canvas data-workflow-share-qr width="280" height="280" aria-label="QR code for ${escapeHtml(title)}"></canvas><p>${escapeHtml(payload.message || `Scan this code to open the ${({ tasks: "field task", tours: "tour", briefing: "briefing" })[route] || "map"} on another device.`)}</p><label class="field"><span>Share link</span><input data-workflow-share-url readonly value="${escapeHtml(url)}"></label></div>`,
         actions: [
           { label: "Share", handler: async () => { if (navigator.share) await navigator.share({ title, url }); else await navigator.clipboard.writeText(url); } },
           { label: "Copy link", primary: true, handler: async () => { await navigator.clipboard.writeText(url); this.toast("Share link copied."); } },

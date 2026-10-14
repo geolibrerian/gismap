@@ -397,6 +397,33 @@ body.utility-resizing iframe, body.utility-resizing canvas { pointer-events: non
 .mobile-card .check-row { display:flex; align-items:center; min-height:44px; border-bottom:1px solid var(--line); }
 .mobile-card .check-row:last-child { border-bottom:0; }
 .mobile-card .check-row input { width:22px; min-height:22px; margin-right:10px; }
+.mobile-card legend small { color:var(--muted); font-weight:600; }
+.task-step-list, .task-feature-list, .task-report-steps { display:grid; gap:8px; margin:0 0 10px; padding:0; list-style:none; }
+.task-step-list li { display:grid; grid-template-columns:22px minmax(0,1fr) 40px; align-items:center; gap:8px; }
+.mobile-card .task-step-list input[type="checkbox"] { width:22px; min-height:22px; }
+.mobile-card .task-step-list button, .mobile-card .task-feature-actions button { min-height:36px; padding:6px 10px; }
+.task-feature-list li { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:2px 10px; align-items:center; padding:8px 0; border-bottom:1px solid var(--line); }
+.task-feature-list li:last-child { border-bottom:0; }
+.task-feature-list li > span:first-child, .task-feature-list .check-row { min-width:0; overflow:hidden; font-weight:700; text-overflow:ellipsis; white-space:nowrap; }
+.task-feature-list .check-row { min-height:32px; border:0; }
+.task-feature-list .check-row input { flex:none; }
+.task-feature-list .check-row span { min-width:0; overflow:hidden; text-overflow:ellipsis; }
+.task-feature-list small { grid-column:1; color:var(--muted); font-size:12px; }
+.task-feature-actions { display:flex; grid-column:2; grid-row:1 / span 2; gap:6px; }
+.task-feature-empty { margin:0 0 10px; color:var(--muted); }
+.mobile-card .form-note { margin:0; color:var(--muted); font-size:12px; font-weight:400; }
+.mobile-card :is(h2,h3) { margin:0; font-family:var(--ui-heading); }
+.task-instructions { margin:0; white-space:pre-wrap; }
+.task-report-steps li { display:flex; gap:8px; color:var(--muted); }
+.task-report-steps li.is-done { color:var(--ink); }
+.task-report-steps li span { color:var(--green); font-weight:800; }
+.task-feature-done { color:var(--green); }
+.field-task-banner { position:fixed; z-index:80; top:calc(14px + env(safe-area-inset-top)); left:50%; display:flex; align-items:center; gap:12px; max-width:calc(100vw - 24px); padding:8px 8px 8px 16px; border:1px solid var(--green); border-radius:999px; color:var(--ink); background:var(--surface); box-shadow:var(--shadow); transform:translateX(-50%); font-weight:700; }
+body.field-task-on-map .welcome-panel { display:none!important; }
+body.mobile-workflow-open .field-task-banner { left:auto; right:calc(min(440px,100vw) + 16px); transform:none; }
+.field-task-banner span { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.field-task-banner button { flex:none; min-height:36px; padding:6px 14px; border:0; border-radius:999px; color:var(--on-accent,#fff); background:var(--green); font-weight:700; cursor:pointer; }
+@media (max-width: 640px), (max-width: 880px) and (orientation: portrait) { .field-task-banner { top:calc(44px + env(safe-area-inset-top)); } }
 .workflow-grid { display:grid; gap:11px; }
 .workflow-grid button { display:grid; gap:4px; min-height:72px; padding:13px 15px; border:var(--ui-border-width,1px) solid var(--line); border-radius:var(--ui-radius); color:var(--ink); background:var(--surface); text-align:left; }
 .workflow-grid strong { font:700 18px/1.15 var(--ui-heading); }
