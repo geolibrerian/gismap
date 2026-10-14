@@ -67,7 +67,10 @@ export class MobileWorkflowRouter {
       if (this.#rootOpen()) this.render();
       this.#syncNav();
     });
-    this.events.subscribe?.("identify:complete", (payload) => { if (this.picking) this.#attachPickedFeature(payload); });
+    this.events.subscribe?.("identify:complete", (payload) => {
+      if (this.picking === "location") this.#setPickedLocation(payload);
+      else if (this.picking) this.#attachPickedFeature(payload);
+    });
     this.#syncNav();
   }
 
@@ -84,6 +87,7 @@ export class MobileWorkflowRouter {
     this.#removeMapBanner();
     this.taskView = null;
     this.taskDraft = null;
+    if (route !== "tasks") this.mapController.setTaskPin?.(null);
     this.route = route;
     if (route === "map" || route === "tours" || route === "briefing") {
       this.#hideRoot();
@@ -168,25 +172,30 @@ export class MobileWorkflowRouter {
     return `<ol class="task-feature-list">${features.map((feature, index) => `<li>${checkable ? `<label class="check-row"><input type="checkbox" name="featureDone" value="${index}" ${feature.done ? "checked" : ""}/> <span>${escapeHtml(feature.label)}</span></label>` : `<span>${feature.done ? '<b class="task-feature-done" aria-label="Visited">✓</b> ' : ""}${escapeHtml(feature.label)}</span>`}<small>${feature.objectId != null ? `ID ${escapeHtml(feature.objectId)} · ` : ""}${Number(feature.latitude).toFixed(5)}, ${Number(feature.longitude).toFixed(5)}</small><span class="task-feature-actions"><button type="button" data-zoom-feature="${index}">Zoom</button>${editable ? `<button type="button" data-remove-feature="${index}" aria-label="Remove ${escapeHtml(feature.label)}">×</button>` : ""}</span></li>`).join("")}</ol>`;
   }
 
+  #locationRow(task) {
+    if (!Number.isFinite(task.latitude) || !Number.isFinite(task.longitude)) return "";
+    return `<div class="task-location-row"><span><b>${escapeHtml(task.location || "Task location")}</b><small>${Number(task.latitude).toFixed(5)}, ${Number(task.longitude).toFixed(5)}</small></span><button type="button" data-zoom-location>Zoom</button></div>`;
+  }
+
   #taskEditor(task = {}) {
     // Unlike shared and completed views, the editor keeps blank rows the author is still filling in.
     const steps = Array.isArray(task.steps) ? task.steps : taskSteps(task);
     const features = task.features || [];
     const full = features.length >= FIELD_TASK_LIMITS.maxFeatures;
     const stepRows = steps.map((step, index) => `<li><input type="checkbox" name="stepDone" value="${index}" ${step.done ? "checked" : ""} aria-label="Step ${index + 1} done"/><input name="stepText" value="${escapeHtml(step.text)}" placeholder="Step ${index + 1}" aria-label="Step ${index + 1}" maxlength="120"/><button type="button" data-remove-step="${index}" aria-label="Remove step ${index + 1}">×</button></li>`).join("");
-    return `<form class="mobile-card task-editor" data-task-form data-task-id="${escapeHtml(task.id || "")}"><label>Task title<input name="title" required value="${escapeHtml(task.title || "")}" placeholder="Inspect shoreline access" maxlength="120" /></label><label>Location<input name="location" value="${escapeHtml(task.location || "")}" placeholder="Place or address" maxlength="120" /></label><input type="hidden" name="longitude" value="${escapeHtml(task.longitude ?? "")}"><input type="hidden" name="latitude" value="${escapeHtml(task.latitude ?? "")}"><input type="hidden" name="capturedAt" value="${escapeHtml(task.capturedAt || "")}"><div class="task-location-status" data-task-location-status>${task.capturedAt ? `Captured ${escapeHtml(dateLabel(task.capturedAt))}${Number.isFinite(task.latitude) ? ` · ${Number(task.latitude).toFixed(5)}, ${Number(task.longitude).toFixed(5)}` : ""}` : "Location and time have not been captured."}</div><button type="button" data-capture-task-location>Capture current map location &amp; time</button><label>Instructions<textarea name="notes" rows="3" maxlength="${FIELD_TASK_LIMITS.maxNotes}" placeholder="What should the field worker know?">${escapeHtml(task.notes || "")}</textarea></label><fieldset><legend>Steps to complete</legend><ol class="task-step-list">${stepRows}</ol>${steps.length < FIELD_TASK_LIMITS.maxSteps ? `<button type="button" data-add-step>+ Add step</button>` : ""}</fieldset><fieldset><legend>Features <small>${features.length}/${FIELD_TASK_LIMITS.maxFeatures}</small></legend>${this.#featureRows(features, { editable: true })}<button type="button" data-attach-feature ${full ? "disabled" : ""}>${full ? `Limit of ${FIELD_TASK_LIMITS.maxFeatures} features reached` : "+ Attach a feature from the map"}</button><p class="form-note">Click a feature from a feature service layer. Its location and ID travel with the shared task.</p></fieldset><label>Photos<input name="photos" type="file" accept="image/*" capture="environment" multiple /></label>${task.photos?.length ? `<p>${task.photos.length} photo${task.photos.length === 1 ? "" : "s"} attached · photos stay on this device</p>` : ""}<div class="feed-card__actions"><button type="submit" name="intent" value="share">Save &amp; share</button><button type="submit" name="intent" value="save">Save draft</button><button type="button" data-cancel-task>Cancel</button>${task.id ? `<button type="button" data-delete-task="${escapeHtml(task.id)}">Delete</button>` : ""}</div></form>`;
+    return `<form class="mobile-card task-editor" data-task-form data-task-id="${escapeHtml(task.id || "")}"><label>Task title<input name="title" required value="${escapeHtml(task.title || "")}" placeholder="Inspect shoreline access" maxlength="120" /></label><fieldset><legend>Task location</legend><label>Place name<input name="location" value="${escapeHtml(task.location || "")}" placeholder="Place or address" maxlength="120" /></label><div class="task-coordinates"><label>Latitude<input name="latitude" type="number" inputmode="decimal" step="any" min="-90" max="90" value="${escapeHtml(task.latitude ?? "")}" placeholder="45.52345" /></label><label>Longitude<input name="longitude" type="number" inputmode="decimal" step="any" min="-180" max="180" value="${escapeHtml(task.longitude ?? "")}" placeholder="-122.67621" /></label></div><input type="hidden" name="capturedAt" value="${escapeHtml(task.capturedAt || "")}"><div class="task-location-status" data-task-location-status>${task.capturedAt ? `Captured ${escapeHtml(dateLabel(task.capturedAt))}${Number.isFinite(task.latitude) ? ` · ${Number(task.latitude).toFixed(5)}, ${Number(task.longitude).toFixed(5)}` : ""}` : "Enter coordinates, use the map center, or pick a point."}</div><div class="task-location-actions"><button type="button" data-capture-task-location>Use map center</button><button type="button" data-pick-location>Pick on map</button>${Number.isFinite(task.latitude) && Number.isFinite(task.longitude) ? `<button type="button" data-zoom-location>Zoom</button>` : ""}</div></fieldset><label>Instructions<textarea name="notes" rows="3" maxlength="${FIELD_TASK_LIMITS.maxNotes}" placeholder="What should the field worker know?">${escapeHtml(task.notes || "")}</textarea></label><fieldset><legend>Steps to complete</legend><ol class="task-step-list">${stepRows}</ol>${steps.length < FIELD_TASK_LIMITS.maxSteps ? `<button type="button" data-add-step>+ Add step</button>` : ""}</fieldset><fieldset><legend>Features <small>optional · ${features.length}/${FIELD_TASK_LIMITS.maxFeatures}</small></legend>${this.#featureRows(features, { editable: true })}<button type="button" data-attach-feature ${full ? "disabled" : ""}>${full ? `Limit of ${FIELD_TASK_LIMITS.maxFeatures} features reached` : "+ Attach a feature from the map"}</button><p class="form-note">Optional. Click a feature from a feature service layer; its location and ID travel with the shared task. A task can also rely on its location alone.</p></fieldset><label>Photos<input name="photos" type="file" accept="image/*" capture="environment" multiple /></label>${task.photos?.length ? `<p>${task.photos.length} photo${task.photos.length === 1 ? "" : "s"} attached · photos stay on this device</p>` : ""}<div class="feed-card__actions"><button type="submit" name="intent" value="share">Save &amp; share</button><button type="submit" name="intent" value="save">Save draft</button><button type="button" data-cancel-task>Cancel</button>${task.id ? `<button type="button" data-delete-task="${escapeHtml(task.id)}">Delete</button>` : ""}</div></form>`;
   }
 
   #taskCompletion(task) {
     const steps = taskSteps(task);
     const completed = task.status === "completed";
-    return `<form class="mobile-card task-editor task-complete" data-task-complete-form data-task-id="${escapeHtml(task.id)}"><span class="feed-card__meta">Tasks to complete${task.location ? ` · ${escapeHtml(task.location)}` : ""}</span><h2>${escapeHtml(task.title)}</h2>${task.notes ? `<p class="task-instructions">${escapeHtml(task.notes)}</p>` : ""}${task.features?.length ? `<fieldset><legend>Features to visit</legend>${this.#featureRows(task.features, { checkable: true })}</fieldset>` : ""}<fieldset><legend>Steps</legend>${steps.map((step, index) => `<label class="check-row"><input type="checkbox" name="stepDone" value="${index}" ${step.done ? "checked" : ""}/> ${escapeHtml(step.text)}</label>`).join("") || `<p class="task-feature-empty">No steps listed.</p>`}</fieldset><label>Report<textarea name="report" rows="4" maxlength="${FIELD_TASK_LIMITS.maxNotes}" placeholder="What did you find?">${escapeHtml(task.report || "")}</textarea></label><label>Your name <small>optional</small><input name="completedBy" value="${escapeHtml(task.completedBy || "")}" maxlength="60" /></label><div class="feed-card__actions"><button type="submit" name="intent" value="return">${completed ? "Create return link again" : "Complete &amp; send back"}</button><button type="submit" name="intent" value="save">Save progress</button><button type="button" data-cancel-task>Back</button></div></form>`;
+    return `<form class="mobile-card task-editor task-complete" data-task-complete-form data-task-id="${escapeHtml(task.id)}"><span class="feed-card__meta">Tasks to complete</span><h2>${escapeHtml(task.title)}</h2>${task.notes ? `<p class="task-instructions">${escapeHtml(task.notes)}</p>` : ""}${this.#locationRow(task)}${task.features?.length ? `<fieldset><legend>Features to visit</legend>${this.#featureRows(task.features, { checkable: true })}</fieldset>` : ""}<fieldset><legend>Steps</legend>${steps.map((step, index) => `<label class="check-row"><input type="checkbox" name="stepDone" value="${index}" ${step.done ? "checked" : ""}/> ${escapeHtml(step.text)}</label>`).join("") || `<p class="task-feature-empty">No steps listed.</p>`}</fieldset><label>Report<textarea name="report" rows="4" maxlength="${FIELD_TASK_LIMITS.maxNotes}" placeholder="What did you find?">${escapeHtml(task.report || "")}</textarea></label><label>Your name <small>optional</small><input name="completedBy" value="${escapeHtml(task.completedBy || "")}" maxlength="60" /></label><div class="feed-card__actions"><button type="submit" name="intent" value="return">${completed ? "Create return link again" : "Complete &amp; send back"}</button><button type="submit" name="intent" value="save">Save progress</button><button type="button" data-cancel-task>Back</button></div></form>`;
   }
 
   #taskReport(task) {
     const steps = taskSteps(task);
     const done = steps.filter((step) => step.done).length;
-    return `<section class="mobile-card task-report"><span class="feed-card__meta">Report received · ${escapeHtml(dateLabel(task.completedAt))}${task.completedBy ? ` · ${escapeHtml(task.completedBy)}` : ""}</span><h2>${escapeHtml(task.title)}</h2><p><strong>${done}/${steps.length}</strong> steps done${task.features?.length ? ` · <strong>${task.features.filter((feature) => feature.done).length}/${task.features.length}</strong> features visited` : ""}</p><ul class="task-report-steps">${steps.map((step) => `<li class="${step.done ? "is-done" : ""}"><span aria-hidden="true">${step.done ? "✓" : "○"}</span> ${escapeHtml(step.text)}</li>`).join("")}</ul>${task.features?.length ? `<h3>Features</h3>${this.#featureRows(task.features)}` : ""}${task.report ? `<h3>Report</h3><p class="task-instructions">${escapeHtml(task.report)}</p>` : ""}<div class="feed-card__actions"><button type="button" data-open-task="${escapeHtml(task.id)}">Edit &amp; reassign</button><button type="button" data-cancel-task>Back</button></div></section>`;
+    return `<section class="mobile-card task-report"><span class="feed-card__meta">Report received · ${escapeHtml(dateLabel(task.completedAt))}${task.completedBy ? ` · ${escapeHtml(task.completedBy)}` : ""}</span><h2>${escapeHtml(task.title)}</h2><p><strong>${done}/${steps.length}</strong> steps done${task.features?.length ? ` · <strong>${task.features.filter((feature) => feature.done).length}/${task.features.length}</strong> features visited` : ""}</p>${this.#locationRow(task)}<ul class="task-report-steps">${steps.map((step) => `<li class="${step.done ? "is-done" : ""}"><span aria-hidden="true">${step.done ? "✓" : "○"}</span> ${escapeHtml(step.text)}</li>`).join("")}</ul>${task.features?.length ? `<h3>Features</h3>${this.#featureRows(task.features)}` : ""}${task.report ? `<h3>Report</h3><p class="task-instructions">${escapeHtml(task.report)}</p>` : ""}<div class="feed-card__actions"><button type="button" data-open-task="${escapeHtml(task.id)}">Edit &amp; reassign</button><button type="button" data-cancel-task>Back</button></div></section>`;
   }
 
   #watchlist() {
@@ -226,7 +235,9 @@ export class MobileWorkflowRouter {
     if (button.matches("[data-add-step]")) { this.#editDraft(button.closest("form"), (draft) => draft.steps.push({ text: "", done: false })); this.root.querySelector('[name="stepText"]:last-of-type')?.focus(); return; }
     if (button.dataset.removeStep) return this.#editDraft(button.closest("form"), (draft) => draft.steps.splice(Number(button.dataset.removeStep), 1));
     if (button.dataset.removeFeature) return this.#editDraft(button.closest("form"), (draft) => draft.features.splice(Number(button.dataset.removeFeature), 1));
-    if (button.matches("[data-attach-feature]")) return this.#startPicking(button.closest("form"));
+    if (button.matches("[data-attach-feature]")) return this.#startPicking(button.closest("form"), "feature");
+    if (button.matches("[data-pick-location]")) return this.#startPicking(button.closest("form"), "location");
+    if (button.matches("[data-zoom-location]")) return this.#zoomToTaskLocation(button);
     if (button.dataset.zoomFeature) return this.#zoomToTaskFeature(button);
     if (button.dataset.ackRule) { this.store.acknowledge(button.dataset.ackRule); return; }
     if (button.matches("[data-open-mobile-menu]")) { this.navigate("map"); document.querySelector("#mobile-menu-toggle")?.click(); }
@@ -240,6 +251,12 @@ export class MobileWorkflowRouter {
     const data = new FormData(form);
     if (form.matches("[data-task-form]")) {
       const draft = this.#readTaskForm(form);
+      const hasLat = Number.isFinite(draft.latitude);
+      const hasLon = Number.isFinite(draft.longitude);
+      if (hasLat !== hasLon || (hasLat && (Math.abs(draft.latitude) > 90 || Math.abs(draft.longitude) > 180))) {
+        this.notify?.("Enter both a latitude (−90 to 90) and a longitude (−180 to 180), or leave both empty.");
+        return;
+      }
       const existing = this.#task(form.dataset.taskId);
       const uploaded = await Promise.all([...form.querySelector('[name="photos"]')?.files || []].slice(0, 6).map((file) => this.#fileDataUrl(file)));
       const id = form.dataset.taskId || newId("task");
@@ -351,13 +368,13 @@ export class MobileWorkflowRouter {
     this.render();
   }
 
-  #startPicking(form) {
+  #startPicking(form, mode = "feature") {
     this.taskDraft = this.#readTaskForm(form);
-    if ((this.taskDraft.features || []).length >= FIELD_TASK_LIMITS.maxFeatures) return;
-    this.picking = true;
+    if (mode === "feature" && (this.taskDraft.features || []).length >= FIELD_TASK_LIMITS.maxFeatures) return;
+    this.picking = mode;
     document.body.classList.add("field-task-picking");
     if (this.media.matches) this.#hideRoot();
-    this.#showMapBanner("Pick a feature to attach", "Cancel", () => this.#stopPicking());
+    this.#showMapBanner(mode === "location" ? "Pick the task location" : "Pick a feature to attach", "Cancel", () => this.#stopPicking());
   }
 
   #stopPicking() {
@@ -369,6 +386,21 @@ export class MobileWorkflowRouter {
       document.body.classList.add("mobile-workflow-open");
       this.render();
     }
+  }
+
+  #setPickedLocation({ point, address }) {
+    const location = point && this.mapController.geographicCoordinates(point);
+    if (!location) {
+      this.notify?.("Pick a point on the ground.");
+      return;
+    }
+    Object.assign(this.taskDraft, {
+      latitude: Number(location.latitude.toFixed(6)),
+      longitude: Number(location.longitude.toFixed(6)),
+      capturedAt: new Date().toISOString(),
+    });
+    if (!this.taskDraft.location && address?.address) this.taskDraft.location = String(address.address).slice(0, 120);
+    this.#stopPicking();
   }
 
   #attachPickedFeature({ results = [] }) {
@@ -412,22 +444,42 @@ export class MobileWorkflowRouter {
     const feature = task?.features?.[index];
     if (!feature) return;
     if (this.taskView?.mode === "edit") this.taskDraft = this.#readTaskForm(button.closest("form"));
+    await this.#flyToTaskPoint(feature, async () => {
+      const layer = this.mapController.getOperationalLayers().find((item) => featureLayerUrl(item) === feature.layerUrl && typeof item.queryFeatures === "function");
+      if (!layer || feature.objectId == null) return false;
+      const { features = [] } = await layer.queryFeatures({ objectIds: [feature.objectId], returnGeometry: true, outFields: [] });
+      if (!features[0]?.geometry) return false;
+      await this.mapController.goToFeature(features[0]);
+      return true;
+    });
+  }
+
+  async #zoomToTaskLocation(button) {
+    const editing = this.taskView?.mode === "edit";
+    if (editing) this.taskDraft = this.#readTaskForm(button.closest("form"));
+    const task = editing ? this.taskDraft : this.#task(this.taskView?.id);
+    if (!task || !Number.isFinite(task.latitude) || !Number.isFinite(task.longitude)) return;
+    await this.#flyToTaskPoint({ label: task.location || task.title || "Task location", longitude: task.longitude, latitude: task.latitude });
+  }
+
+  /** Pins a task place and flies there; on phones the screen steps aside and your own position is shown too. */
+  async #flyToTaskPoint(point, goToFeature = null) {
+    this.mapController.setTaskPin?.(point);
     if (this.media.matches) {
       this.#hideRoot();
-      this.#showMapBanner(feature.label, "Back to task", () => {
+      this.#showMapBanner(point.label, "Back to task", () => {
         this.#removeMapBanner();
         if (this.root) this.root.hidden = false;
         document.body.classList.add("mobile-workflow-open");
         this.render();
       });
+      this.mapController.locateUser?.({ move: false }).catch(() => {
+        this.notify?.("Your location is unavailable, so only the task is marked.");
+      });
     }
     try {
-      const layer = this.mapController.getOperationalLayers().find((item) => featureLayerUrl(item) === feature.layerUrl && typeof item.queryFeatures === "function");
-      if (layer && feature.objectId != null) {
-        const { features = [] } = await layer.queryFeatures({ objectIds: [feature.objectId], returnGeometry: true, outFields: [] });
-        if (features[0]?.geometry) return await this.mapController.goToFeature(features[0]);
-      }
-      await this.mapController.goToSearchResult({ location: [feature.longitude, feature.latitude] });
+      if (goToFeature && await goToFeature()) return;
+      await this.mapController.goToSearchResult({ location: [point.longitude, point.latitude] });
     } catch (error) {
       if (error?.name !== "AbortError") this.notify?.(error.message);
     }

@@ -63,6 +63,8 @@ export class MapController {
     this.drawLayer = null;
     this.tourLayer = null;
     this.clickFeedbackLayer = null;
+    this.locationLayer = null;
+    this.locationWatchId = null;
     this.tourMarkerChapters = [];
     this.tourMarkerActiveIndex = null;
     this.modules = {};
@@ -160,10 +162,11 @@ export class MapController {
       elevationInfo: { mode: "relative-to-ground", offset: 12 },
     });
     this.clickFeedbackLayer = new GraphicsLayer({ title: "Click feedback", listMode: "hide" });
+    this.locationLayer = new GraphicsLayer({ title: "Your location", listMode: "hide" });
     this.map = new ArcGISMap({
       basemap: this.basemapId,
       ground: this.groundId,
-      layers: [this.drawLayer, this.tourLayer, this.clickFeedbackLayer],
+      layers: [this.drawLayer, this.tourLayer, this.clickFeedbackLayer, this.locationLayer],
     });
     this.view = new SceneView({
       container,
@@ -490,7 +493,7 @@ export class MapController {
 
   removeLayer(uid) {
     const layer = this.findLayer(uid);
-    if (!layer || layer === this.drawLayer || layer === this.tourLayer || layer === this.clickFeedbackLayer) return;
+    if (!layer || layer === this.drawLayer || layer === this.tourLayer || layer === this.clickFeedbackLayer || layer === this.locationLayer) return;
     this.clearFeatureHighlight();
     this.map.remove(layer);
     this.layerConfigs.delete(uid);
@@ -616,9 +619,59 @@ export class MapController {
     this.clickMarkerAnimation = schedule(animate);
   }
 
+  /**
+   * Finds the device and marks it with a "you are here" dot. Once found, the dot
+   * keeps following the device until the page closes.
+   */
+  async locateUser({ move = true } = {}) {
+    if (!navigator.geolocation) throw new Error("Geolocation is not supported by this browser.");
+    const position = await new Promise((resolve, reject) =>
+      navigator.geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy: true, timeout: 15000, maximumAge: 10000 }),
+    );
+    this.#showUserLocation(position.coords);
+    if (this.locationWatchId == null && navigator.geolocation.watchPosition) {
+      this.locationWatchId = navigator.geolocation.watchPosition(
+        ({ coords }) => this.#showUserLocation(coords),
+        () => {},
+        { enableHighAccuracy: true, maximumAge: 10000 },
+      );
+    }
+    if (!move) return position.coords;
+    return await this.view.goTo({ center: [position.coords.longitude, position.coords.latitude], zoom: 15, tilt: 0 });
+  }
+
+  #showUserLocation({ longitude, latitude, accuracy }) {
+    if (!this.locationLayer || !this.modules.Graphic || !Number.isFinite(longitude) || !Number.isFinite(latitude)) return;
+    this.locationLayer.graphics.filter((graphic) => graphic.attributes?.kind === "user").forEach((graphic) => this.locationLayer.remove(graphic));
+    const geometry = { type: "point", longitude, latitude };
+    const halo = new this.modules.Graphic({
+      geometry,
+      attributes: { kind: "user", accuracy: Math.round(accuracy || 0) },
+      symbol: { type: "simple-marker", style: "circle", size: 30, color: [37, 99, 235, 0.18], outline: { color: [37, 99, 235, 0.35], width: 1 } },
+    });
+    const dot = new this.modules.Graphic({
+      geometry,
+      attributes: { kind: "user" },
+      symbol: { type: "simple-marker", style: "circle", size: 14, color: [37, 99, 235, 1], outline: { color: [255, 255, 255, 1], width: 2.5 } },
+    });
+    this.locationLayer.addMany([halo, dot]);
+  }
+
+  /** Marks the place a field task points at; pass nothing to clear it. */
+  setTaskPin(point = null) {
+    if (!this.locationLayer) return;
+    this.locationLayer.graphics.filter((graphic) => graphic.attributes?.kind === "task").forEach((graphic) => this.locationLayer.remove(graphic));
+    if (!point || !this.modules.Graphic || !Number.isFinite(point.longitude) || !Number.isFinite(point.latitude)) return;
+    this.locationLayer.add(new this.modules.Graphic({
+      geometry: { type: "point", longitude: point.longitude, latitude: point.latitude },
+      attributes: { kind: "task", label: point.label || "" },
+      symbol: { type: "simple-marker", style: "diamond", size: 20, color: [217, 149, 30, 1], outline: { color: [255, 255, 255, 1], width: 2.5 } },
+    }));
+  }
+
   getOperationalLayers() {
     return this.map?.layers?.toArray()
-      .filter((layer) => layer !== this.drawLayer && layer !== this.tourLayer && layer !== this.clickFeedbackLayer) ?? [];
+      .filter((layer) => layer !== this.drawLayer && layer !== this.tourLayer && layer !== this.clickFeedbackLayer && layer !== this.locationLayer) ?? [];
   }
 
   setTourMarkers(chapters = [], activeIndex = null) {
@@ -1071,17 +1124,7 @@ export class MapController {
         if (action === "tilt-down") camera.tilt = Math.max(0, camera.tilt - 10);
         return await this.view.goTo(camera, { duration: 350 });
       }
-      if (action === "locate") {
-        if (!navigator.geolocation) throw new Error("Geolocation is not supported by this browser.");
-        const position = await new Promise((resolve, reject) =>
-          navigator.geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy: true }),
-        );
-        return await this.view.goTo({
-          center: [position.coords.longitude, position.coords.latitude],
-          zoom: 15,
-          tilt: 0,
-        });
-      }
+      if (action === "locate") return await this.locateUser({ move: true });
     } catch (error) {
       if (isNavigationAbort(error)) return null;
       throw error;

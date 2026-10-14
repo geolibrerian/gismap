@@ -8,6 +8,8 @@ All notable changes to GIS Map Online are documented here. This project follows
 
 ### Added
 
+- Field tasks can be tied to a latitude and longitude alone (typed, the map center, or picked on the map); attached features are optional. Zooming to a task on a phone pins the task and shows your own position.
+- "My location" now marks where you are with a dot that follows the device.
 - Field tasks can be written with custom steps and up to five attached feature service features (location and object ID), then shared as a link or QR code. The recipient opens a Tasks to complete view, checks off steps and features, adds a report, and sends a return link; opening it on the assigning device records the report on the original task.
 - Places keeps a list of recent places below the search box; picking a place clears the input.
 - Added a desktop Workflows menu with Instant presentations, Briefing mode, Tours mode, Field tasks, and a return to the standard map; these entries left the Map menu.

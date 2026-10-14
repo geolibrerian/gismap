@@ -47,6 +47,12 @@ test("a return link carries done flags, the report and who completed it", () => 
   assert.equal(decoded.completedAt, "2026-10-14T18:00:00.000Z");
 });
 
+test("a task can rely on its latitude and longitude alone", () => {
+  const { task: decoded } = decodeFieldTask(encodeFieldTask({ id: "loc", title: "Check sign", location: "Trailhead", latitude: 45.57617, longitude: -122.11576, steps: [{ text: "Photograph sign" }] }));
+  assert.deepEqual([decoded.latitude, decoded.longitude, decoded.location], [45.57617, -122.11576, "Trailhead"]);
+  assert.deepEqual(decoded.features, []);
+});
+
 test("shared tasks are limited to five features", () => {
   assert.equal(FIELD_TASK_LIMITS.maxFeatures, 5);
   const six = { ...task, features: [1, 2, 3, 4, 5, 6].map(feature) };
