@@ -513,7 +513,7 @@ export class MobileWorkflowRouter {
     try {
       const url = createFieldTaskUrl({ baseUrl: location.href, task, kind: "assign" });
       if (!task.status || task.status === "draft") this.store.saveTask({ id, status: "sent" });
-      return await this.shareWorkflow?.("tasks", { url, title: task.title || "Field task", eyebrow: "Field task assignment", message: "Scan or send this link. It opens the steps and features to complete, and lets them send a report back." });
+      return await this.shareWorkflow?.("tasks", { url, title: task.title || "Field task", eyebrow: "Field task assignment", card: { lines: ["Scan to open this field task and its places to visit,", "or long-click the QR code to open it in a browser."], footer: "Complete field task assignment encoded in this QR" }, message: "Scan or send this link. It opens the steps and features to complete, and lets them send a report back." });
     } catch (error) {
       this.notify?.(error.message);
     }
@@ -524,7 +524,7 @@ export class MobileWorkflowRouter {
     if (!task) return;
     try {
       const url = createFieldTaskUrl({ baseUrl: location.href, task: { ...task, id: task.assignmentId || task.id }, kind: "return" });
-      return await this.shareWorkflow?.("tasks", { url, title: `Report: ${task.title || "Field task"}`, eyebrow: "Completed field task", message: "Send this link or QR code back to whoever assigned the task. Opening it records your report." });
+      return await this.shareWorkflow?.("tasks", { url, title: `Report: ${task.title || "Field task"}`, eyebrow: "Completed field task", card: { lines: ["Scan to record this completed field task report,", "or long-click the QR code to open it in a browser."], footer: "Completed field task report encoded in this QR" }, message: "Send this link or QR code back to whoever assigned the task. Opening it records your report." });
     } catch (error) {
       this.notify?.(error.message);
     }

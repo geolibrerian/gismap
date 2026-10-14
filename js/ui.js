@@ -64,6 +64,10 @@ export class UIController {
     this.sharedTourOnly = false;
     this.sharedTourEmbed = false;
     this.tourShareRenderToken = 0;
+    this.workflowShareRenderToken = 0;
+    // Which Briefing sections are unfolded on phones, kept across re-renders of the sheet.
+    this.briefingFolds = { records: true, context: false };
+    this.briefingFoldSelection = null;
     this.mobileAtlasSettingsOpen = false;
     this.presentationState = { template: "standard", records: [], visibleRecords: [], selectedIds: new Set(), layerUid: null, search: "", searchField: "*", searchOperator: "contains", chartField: null, scope: "all", rangeMin: null, rangeMax: null, sortField: null, sortDirection: "asc", page: 1, pageSize: 25, binCount: 12 };
     this.briefingRequest = requestGuard();
@@ -378,6 +382,14 @@ export class UIController {
     document.querySelector("[data-mobile-atlas-control]")?.addEventListener("click", () => this.#mobileAtlasControlDialog());
     document.querySelector("[data-mobile-atlas-settings]")?.addEventListener("click", () => this.#openMobileAtlasSettings());
     document.querySelector("[data-mobile-briefing-context]")?.addEventListener("click", () => {
+      // On phones the context is a folding section of the Briefing sheet: open it and bring it into view.
+      const fold = document.querySelector("#presentation-dashboard .briefing-fold--context");
+      if (this.mobileMedia.matches && fold) {
+        fold.open = true;
+        this.briefingFolds.context = true;
+        fold.scrollIntoView({ block: "start", behavior: "smooth" });
+        return;
+      }
       const open = !document.body.classList.contains("mobile-briefing-context-open");
       document.body.classList.toggle("mobile-briefing-context-open", open);
       document.querySelector("[data-mobile-briefing-context]")?.setAttribute("aria-expanded", String(open));
@@ -2460,7 +2472,8 @@ export class UIController {
     this.#addPresentationDockControl(root);
     this.#bindBriefingWorkspace(root, presentation, layer, fields);
     const context = root.querySelector(".briefing-context");
-    if (context) document.querySelector("#briefing-context-host")?.replaceChildren(context);
+    if (context && this.mobileMedia.matches) this.#foldBriefingSheet(root, context, selected);
+    else if (context) document.querySelector("#briefing-context-host")?.replaceChildren(context);
     if (selected) void this.#loadBriefingContext(root, context, selected, layer);
   }
 
@@ -2966,80 +2979,120 @@ export class UIController {
     void this.#renderTourShareCard(regularUrl, title);
   }
 
+  /** Phones: Features and Feature context become folding sections inside the Briefing sheet. */
+  #foldBriefingSheet(root, context, selected) {
+    document.querySelector("#briefing-context-host")?.replaceChildren();
+    document.body.classList.remove("mobile-briefing-context-open");
+    if (selected !== this.briefingFoldSelection) {
+      // A new selection shows its context; clearing it goes back to the list.
+      this.briefingFoldSelection = selected;
+      this.briefingFolds = { records: !selected, context: Boolean(selected) };
+    }
+    const fold = (key, title, node) => {
+      const details = document.createElement("details");
+      details.className = `briefing-fold briefing-fold--${key}`;
+      details.open = this.briefingFolds[key];
+      const summary = document.createElement("summary");
+      summary.textContent = title;
+      node.before(details);
+      details.append(summary, node);
+      details.addEventListener("toggle", () => { this.briefingFolds[key] = details.open; });
+    };
+    const records = root.querySelector(".briefing-records");
+    if (records) fold("records", `Features · ${records.querySelectorAll(".mode-record").length}`, records);
+    fold("context", selected ? "Feature context" : "Feature context · none selected", context);
+  }
+
   async #renderTourShareCard(url, title) {
     const renderToken = ++this.tourShareRenderToken;
     const canvas = this.dialog.querySelector("[data-tour-share-card]");
     const status = this.dialog.querySelector("[data-tour-share-status]");
     if (!canvas || !status) return;
     try {
-      if (!globalThis.QRCode?.toCanvas) throw new Error("QR generator unavailable");
-      const qrCanvas = document.createElement("canvas");
-      await globalThis.QRCode.toCanvas(qrCanvas, url, { width: 520, margin: 2, errorCorrectionLevel: "L", color: { dark: "#072f2b", light: "#ffffff" } });
-      if (renderToken !== this.tourShareRenderToken) return;
-      const context = canvas.getContext("2d");
-      context.setTransform(1, 0, 0, 1, 0, 0);
-      context.clearRect(0, 0, canvas.width, canvas.height);
-      context.textAlign = "left";
-      context.textBaseline = "alphabetic";
-      const gradient = context.createLinearGradient(0, 0, 760, 960);
-      gradient.addColorStop(0, "#071f1c");
-      gradient.addColorStop(1, "#145b4e");
-      context.fillStyle = gradient;
-      context.fillRect(0, 0, 760, 960);
-      context.fillStyle = "#f3ae2b";
-      context.fillRect(0, 0, 12, 960);
-      const logo = new Image();
-      logo.src = new URL("./assets/gis-map-online-mark-v2.png", document.baseURI).href;
-      const logoLoaded = await new Promise((resolve) => { logo.onload = () => resolve(true); logo.onerror = () => resolve(false); });
-      if (renderToken !== this.tourShareRenderToken) return;
-      if (logoLoaded) context.drawImage(logo, 48, 42, 118, 118);
-      else {
-        context.strokeStyle = "#55cdb1";
-        context.lineWidth = 7;
-        context.beginPath();
-        context.arc(107, 101, 45, 0, Math.PI * 2);
-        context.stroke();
-        context.fillStyle = "#f3ae2b";
-        context.beginPath();
-        context.arc(107, 96, 14, 0, Math.PI * 2);
-        context.fill();
-      }
-      context.fillStyle = "#55cdb1";
-      context.font = "700 34px system-ui, sans-serif";
-      context.fillText("GIS MAP", 188, 87);
-      context.fillStyle = "#f3ae2b";
-      context.font = "700 20px system-ui, sans-serif";
-      context.letterSpacing = "6px";
-      context.fillText("ONLINE", 190, 122);
-      context.letterSpacing = "0px";
-      context.fillStyle = "#ffffff";
-      context.font = "700 38px Georgia, serif";
-      const safeTitle = String(title || "Guided places").slice(0, 54);
-      context.fillText(safeTitle, 58, 218, 644);
-      context.fillStyle = "#b8d8d0";
-      context.font = "20px system-ui, sans-serif";
-      context.fillText("Scan to open guided map tour, or long-click the QR code", 58, 250);
-      context.fillText("to open it in a browser.", 58, 278);
-      context.fillStyle = "#ffffff";
-      context.fillRect(96, 300, 568, 568);
-      context.drawImage(qrCanvas, 120, 324, 520, 520);
-      context.fillStyle = "#d8ebe6";
-      context.font = "16px system-ui, sans-serif";
-      context.textAlign = "center";
-      context.fillText("Complete camera-only tour link encoded in this QR", 380, 900);
-      context.fillStyle = "#f3ae2b";
-      context.font = "700 18px system-ui, sans-serif";
-      context.fillText("gismap.online", 380, 930);
-      context.textAlign = "left";
-      const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/png"));
-      if (!blob) throw new Error("Could not create image");
-      const safeName = safeTitle.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "guided-tour";
-      this.tourShareImageFile = new File([blob], `${safeName}-qr.png`, { type: "image/png" });
+      const file = await this.#drawBrandedQrCard(canvas, url, {
+        title: title || "Guided places",
+        lines: ["Scan to open guided map tour, or long-click the QR code", "to open it in a browser."],
+        footer: "Complete camera-only tour link encoded in this QR",
+        fileStem: "guided-tour",
+        isCurrent: () => renderToken === this.tourShareRenderToken,
+      });
+      if (!file) return;
+      this.tourShareImageFile = file;
       status.textContent = "This QR contains the complete URL, including every encoded chapter.";
     } catch (error) {
       console.error("Tour share image generation failed", error);
       status.textContent = `The QR image could not be created here (${error?.message || "unknown error"}). Copy link still preserves the complete tour URL.`;
     }
+  }
+
+  /**
+   * Draws the GIS Map Online QR card (logo, title, two lines of guidance, the QR
+   * and a footer) onto a 760×960 canvas and returns it as a PNG file, or null if
+   * a newer render replaced this one.
+   */
+  async #drawBrandedQrCard(canvas, url, { title, lines = [], footer = "", fileStem = "gismap", isCurrent = () => true }) {
+    if (!globalThis.QRCode?.toCanvas) throw new Error("QR generator unavailable");
+    const qrCanvas = document.createElement("canvas");
+    await globalThis.QRCode.toCanvas(qrCanvas, url, { width: 520, margin: 2, errorCorrectionLevel: "L", color: { dark: "#072f2b", light: "#ffffff" } });
+    if (!isCurrent()) return null;
+    const context = canvas.getContext("2d");
+    context.setTransform(1, 0, 0, 1, 0, 0);
+    context.clearRect(0, 0, canvas.width, canvas.height);
+    context.textAlign = "left";
+    context.textBaseline = "alphabetic";
+    const gradient = context.createLinearGradient(0, 0, 760, 960);
+    gradient.addColorStop(0, "#071f1c");
+    gradient.addColorStop(1, "#145b4e");
+    context.fillStyle = gradient;
+    context.fillRect(0, 0, 760, 960);
+    context.fillStyle = "#f3ae2b";
+    context.fillRect(0, 0, 12, 960);
+    const logo = new Image();
+    logo.src = new URL("./assets/gis-map-online-mark-v2.png", document.baseURI).href;
+    const logoLoaded = await new Promise((resolve) => { logo.onload = () => resolve(true); logo.onerror = () => resolve(false); });
+    if (!isCurrent()) return null;
+    if (logoLoaded) context.drawImage(logo, 48, 42, 118, 118);
+    else {
+      context.strokeStyle = "#55cdb1";
+      context.lineWidth = 7;
+      context.beginPath();
+      context.arc(107, 101, 45, 0, Math.PI * 2);
+      context.stroke();
+      context.fillStyle = "#f3ae2b";
+      context.beginPath();
+      context.arc(107, 96, 14, 0, Math.PI * 2);
+      context.fill();
+    }
+    context.fillStyle = "#55cdb1";
+    context.font = "700 34px system-ui, sans-serif";
+    context.fillText("GIS MAP", 188, 87);
+    context.fillStyle = "#f3ae2b";
+    context.font = "700 20px system-ui, sans-serif";
+    context.letterSpacing = "6px";
+    context.fillText("ONLINE", 190, 122);
+    context.letterSpacing = "0px";
+    context.fillStyle = "#ffffff";
+    context.font = "700 38px Georgia, serif";
+    const safeTitle = String(title || "GIS Map Online").slice(0, 54);
+    context.fillText(safeTitle, 58, 218, 644);
+    context.fillStyle = "#b8d8d0";
+    context.font = "20px system-ui, sans-serif";
+    lines.slice(0, 2).forEach((line, index) => context.fillText(line, 58, 250 + index * 28, 644));
+    context.fillStyle = "#ffffff";
+    context.fillRect(96, 300, 568, 568);
+    context.drawImage(qrCanvas, 120, 324, 520, 520);
+    context.fillStyle = "#d8ebe6";
+    context.font = "16px system-ui, sans-serif";
+    context.textAlign = "center";
+    if (footer) context.fillText(footer, 380, 900, 680);
+    context.fillStyle = "#f3ae2b";
+    context.font = "700 18px system-ui, sans-serif";
+    context.fillText("gismap.online", 380, 930);
+    context.textAlign = "left";
+    const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/png"));
+    if (!blob) throw new Error("Could not create image");
+    const safeName = safeTitle.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || fileStem;
+    return new File([blob], `${safeName}-qr.png`, { type: "image/png" });
   }
 
   async openSharedAtlas({ chapterIndex = 0, autoplay = false, tourOnly = false, embed = false } = {}) {
@@ -3507,18 +3560,47 @@ export class UIController {
         const presentation = this.projectManager.current.presentation || {};
         title = presentation.modeTitles?.[route === "tours" ? "atlas" : "briefing"] || presentation.title || "GISMap briefing";
       }
+      const kind = payload.kind || ({ tasks: "field task", tours: "tour", briefing: "briefing" })[route] || "map";
+      const card = payload.card || {
+        lines: [`Scan to open this ${kind}, or long-click the QR code`, "to open it in a browser."],
+        footer: `Complete ${kind} link encoded in this QR`,
+      };
+      const renderToken = ++this.workflowShareRenderToken;
+      this.workflowShareImageFile = null;
       this.openDialog({
         eyebrow: payload.eyebrow || "Shareable workflow",
         title,
-        content: `<div class="workflow-share"><canvas data-workflow-share-qr width="280" height="280" aria-label="QR code for ${escapeHtml(title)}"></canvas><p>${escapeHtml(payload.message || `Scan this code to open the ${({ tasks: "field task", tours: "tour", briefing: "briefing" })[route] || "map"} on another device.`)}</p><label class="field"><span>Share link</span><input data-workflow-share-url readonly value="${escapeHtml(url)}"></label></div>`,
+        content: `<div class="workflow-share"><div class="tour-share-card"><canvas data-workflow-share-card width="760" height="960" role="img" aria-label="Branded QR card for ${escapeHtml(title)}"></canvas><p class="tour-share-card__status" data-workflow-share-status>Building QR card…</p></div><p>${escapeHtml(payload.message || `Scan this code to open the ${kind} on another device.`)}</p><label class="field"><span>Share link</span><input data-workflow-share-url readonly value="${escapeHtml(url)}"></label></div>`,
         actions: [
-          { label: "Share", handler: async () => { if (navigator.share) await navigator.share({ title, url }); else await navigator.clipboard.writeText(url); } },
+          { label: "Download image", handler: () => {
+            if (!this.workflowShareImageFile) return this.error("The QR image is still being prepared.");
+            const link = document.createElement("a");
+            link.href = URL.createObjectURL(this.workflowShareImageFile);
+            link.download = this.workflowShareImageFile.name;
+            link.click();
+            setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+          } },
+          { label: "Share", handler: async () => {
+            let share = { title, url };
+            const withImage = this.workflowShareImageFile ? { ...share, files: [this.workflowShareImageFile] } : null;
+            if (withImage && navigator.canShare?.(withImage)) share = withImage;
+            if (navigator.share) await navigator.share(share);
+            else { await navigator.clipboard.writeText(url); this.toast("Share link copied."); }
+          } },
           { label: "Copy link", primary: true, handler: async () => { await navigator.clipboard.writeText(url); this.toast("Share link copied."); } },
         ],
       });
-      const canvas = this.dialog.querySelector("[data-workflow-share-qr]");
-      if (!globalThis.QRCode?.toCanvas) throw new Error("QR generator unavailable");
-      await globalThis.QRCode.toCanvas(canvas, url, { width: 280, margin: 2, errorCorrectionLevel: "M", color: { dark: "#072f2b", light: "#ffffff" } });
+      const canvas = this.dialog.querySelector("[data-workflow-share-card]");
+      const status = this.dialog.querySelector("[data-workflow-share-status]");
+      try {
+        const file = await this.#drawBrandedQrCard(canvas, url, { title, ...card, fileStem: route, isCurrent: () => renderToken === this.workflowShareRenderToken });
+        if (file) {
+          this.workflowShareImageFile = file;
+          status.textContent = "This QR contains the complete link.";
+        }
+      } catch (error) {
+        status.textContent = `The QR image could not be created here (${error?.message || "unknown error"}). Copy link still works.`;
+      }
     } catch (error) {
       this.error(error.message);
     }

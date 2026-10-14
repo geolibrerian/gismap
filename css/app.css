@@ -705,7 +705,7 @@ body.mobile-workflow-open .field-task-banner { left:auto; right:calc(min(440px,1
 .mode-dashboard--briefing { overflow-x:hidden; }
 .mode-dashboard--briefing h2,.mode-dashboard--briefing :is(strong,small,p,dt,dd) { overflow-wrap:anywhere; }
 .mode-dashboard--briefing .presentation-compact-header { position:relative; grid-template-columns:minmax(0,1fr); padding-right:86px; }
-.mode-dashboard--briefing .briefing-share { position:absolute; top:17px; right:0; }
+.mode-dashboard--briefing .briefing-share { position:absolute; top:17px; right:38px; }
 .mode-dashboard--briefing .compact-dataset,.mode-dashboard--briefing .compact-dataset select { width:100%; max-width:100%; }
 .briefing-search { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1.35fr); gap:7px; align-items:end; }.briefing-search > button { grid-column:1/-1; height:34px; border:1px solid var(--line); background:var(--surface); }.briefing-records { max-height:38vh; overflow-x:hidden; }
 .briefing-scope { display:flex; flex-wrap:wrap; justify-content:space-between; gap:6px; padding:8px; border:1px solid var(--line); background:var(--surface-2); color:var(--muted); font-size:10px; }
@@ -1472,8 +1472,17 @@ body.sidebar-collapsed .table-dialog { left: 14px; }
   body.shared-tour-only .atlas-chapter-overlay { top:10px; }
   body.shared-tour-only .mobile-presentation-controls { bottom:calc(10px + env(safe-area-inset-bottom)); }
   body.shared-tour-only .atlas-chapter-description, body.mobile-atlas-presenting .atlas-chapter-description { bottom:calc(136px + env(safe-area-inset-bottom)); }
-  #app[data-presentation="briefing"] .briefing-context { display:none; }
-  body.mobile-briefing-context-open #app[data-presentation="briefing"] .briefing-context { position:fixed; z-index:63; right:0; bottom:calc(124px + env(safe-area-inset-bottom)); left:0; display:block; width:auto; max-height:min(56dvh,560px); padding:14px; overflow:auto; border-radius:16px 16px 0 0; box-shadow:0 -12px 30px rgb(17 39 33 / 24%); }
+  /* Phones: the feature list and its context fold open inside the Briefing sheet
+     instead of floating over it. */
+  .briefing-context-host .briefing-context { display:none; }
+  .briefing-fold { margin-top:10px; border:1px solid var(--line); border-radius:var(--ui-radius-small); background:var(--surface); }
+  .briefing-fold > summary { display:flex; align-items:center; justify-content:space-between; gap:10px; min-height:46px; padding:10px 12px; color:var(--ink); font:800 15px/1.2 var(--ui-font); list-style:none; cursor:pointer; }
+  .briefing-fold > summary::-webkit-details-marker { display:none; }
+  .briefing-fold > summary::after { content:"⌄"; color:var(--green); font-size:20px; line-height:1; transition:transform .15s; }
+  .briefing-fold[open] > summary { border-bottom:1px solid var(--line); }
+  .briefing-fold[open] > summary::after { transform:rotate(180deg); }
+  .briefing-fold > .briefing-records { max-height:none; margin:0; padding:8px; }
+  #app[data-presentation="briefing"] .briefing-fold > .briefing-context { position:relative; inset:auto; display:block; width:auto; max-height:none; margin:0; padding:10px 12px 14px; overflow:visible; border:0; border-radius:0; box-shadow:none; backdrop-filter:none; background:transparent!important; }
   .atlas-camera-fields { grid-template-columns: 1fr; }
   .app-dialog { width:calc(100vw - 16px); max-width:calc(100vw - 16px); height:min(760px,calc(100dvh - 16px)); max-height:calc(100dvh - 16px); margin:auto; overflow:hidden; }
   .app-dialog .dialog__shell { height:100%; max-height:none; overflow:hidden; grid-template-rows:auto minmax(0,1fr) auto; }
