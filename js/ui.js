@@ -1235,10 +1235,13 @@ export class UIController {
       const button = event.target.closest("[data-action-proxy]");
       if (button) this.mobileActionSources[Number(button.dataset.actionProxy)]?.click();
     });
+    // Batch bursts of DOM changes into one update, without waiting for a frame
+    // (frames pause while the page is hidden).
     const schedule = () => {
-      if (this.mobileActionFrame) return;
-      this.mobileActionFrame = requestAnimationFrame(() => {
-        this.mobileActionFrame = null;
+      if (this.mobileActionQueued) return;
+      this.mobileActionQueued = true;
+      queueMicrotask(() => {
+        this.mobileActionQueued = false;
         this.#syncMobileActionBar();
       });
     };
@@ -1248,6 +1251,7 @@ export class UIController {
     };
     watch("#presentation-dashboard", { childList: true, subtree: true, attributes: true, attributeFilter: ["disabled", "hidden"] });
     watch("#mobile-presentation-controls", { subtree: true, attributes: true, attributeFilter: ["disabled", "aria-expanded"] });
+    watch("#mobile-workflow-root", { childList: true, subtree: true, attributes: true, attributeFilter: ["disabled", "hidden"] });
     watch("body", { attributes: true, attributeFilter: ["class"] });
     watch("#app", { attributes: true, attributeFilter: ["data-presentation"] });
     this.mobileMedia.addEventListener?.("change", schedule);
@@ -1255,8 +1259,9 @@ export class UIController {
   }
 
   /**
-   * On phones, Briefing and Tours keep their main actions in a bar docked above
-   * the bottom navigation, in the same slot the Map route uses for its tools.
+   * On phones, Briefing, Tours and the Tasks screens keep their main actions in a
+   * bar docked above the bottom navigation, in the same slot the Map route uses
+   * for its tools, where a thumb reaches them.
    * The bar mirrors the sheet's own buttons, so their behaviour stays in one place.
    */
   #syncMobileActionBar() {
@@ -1268,7 +1273,10 @@ export class UIController {
     const available = this.mobileMedia.matches && ["briefing", "atlas"].includes(template)
       && !body.contains("mobile-map-route") && !body.contains("mobile-atlas-presenting") && !body.contains("mobile-workflow-open") && !body.contains("mobile-menu-open");
     let sources = [];
-    if (available && template === "atlas") {
+    const workflowRoot = document.querySelector("#mobile-workflow-root");
+    if (this.mobileMedia.matches && body.contains("mobile-workflow-open") && !body.contains("mobile-menu-open") && workflowRoot && !workflowRoot.hidden) {
+      sources = [...workflowRoot.querySelectorAll("[data-mobile-bar]")].filter((button) => !button.hidden);
+    } else if (available && template === "atlas") {
       sources = [...dashboard.querySelectorAll(".atlas-actions :is([data-atlas-mode],[data-atlas-capture],[data-atlas-share])")].filter((button) => !button.hidden);
     } else if (available && template === "briefing") {
       sources = dashboard.querySelector(".presentation-empty")
@@ -1278,14 +1286,14 @@ export class UIController {
     const open = sources.length > 0;
     body.toggle("mobile-action-bar-open", open);
     const short = { "Connect a service": "Connect", "Add a file": "Add file", "Open an example": "Example" };
-    const label = (button) => short[button.textContent.trim()] || button.textContent.trim();
+    const label = (button) => button.dataset.barLabel || short[button.textContent.trim()] || button.textContent.trim();
     const signature = `${template}|${sources.map((button) => `${label(button)}:${button.disabled}:${button.getAttribute("aria-expanded")}`).join(",")}`;
     bar.hidden = !open;
     if (signature === this.mobileActionSignature) return;
     this.mobileActionSignature = signature;
     this.mobileActionSources = sources;
     bar.innerHTML = sources.map((button, index) => {
-      const primary = button.matches("[data-atlas-mode],[data-atlas-capture],[data-mobile-briefing-context]") || (template === "briefing" && index === 0);
+      const primary = button.dataset.mobileBar === "primary" || button.matches("[data-atlas-mode],[data-atlas-capture],[data-mobile-briefing-context]") || (template === "briefing" && index === 0 && !button.hasAttribute("data-mobile-bar"));
       const expanded = button.getAttribute("aria-expanded");
       return `<button type="button" data-action-proxy="${index}" class="${primary ? "is-primary" : ""}"${button.disabled ? " disabled" : ""}${expanded ? ` aria-expanded="${expanded}"` : ""}>${escapeHtml(label(button))}</button>`;
     }).join("");

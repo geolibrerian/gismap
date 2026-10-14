@@ -8,6 +8,7 @@ All notable changes to GIS Map Online are documented here. This project follows
 
 ### Added
 
+- On phones, the Field tasks screens put their main buttons (New field task; Save & share / Save draft / Cancel; Send back / Save / Back) in the same docked bar, within thumb reach.
 - On phones, Briefing and Tours keep their main actions (Connect / Add file / Example, then Context; Present / Add / Share) in a full-width bar docked above the bottom navigation, the same slot the Map tools use. Their sheets open at half the screen and drag up to the top bar.
 - Field tasks can be tied to a latitude and longitude alone (typed, the map center, or picked on the map); attached features are optional. Zooming to a task on a phone pins the task and shows your own position.
 - "My location" now marks where you are with a dot that follows the device.
