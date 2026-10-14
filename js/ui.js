@@ -1,13 +1,13 @@
-import { POPULAR_SERVICES } from "./catalog.js?v=0.16.0";
-import { ENTERPRISE_CATALOGS, EnterpriseCatalog, normalizeArcGisDirectoryUrl } from "./enterprise-catalog.js?v=0.16.0";
-import { createShareUrl } from "./share.js?v=0.16.0";
-import { createEmbeddedTourUrl } from "./tour-share.js?v=0.16.0";
-import { markdownToPlainText, renderMarkdown } from "./markdown.js?v=0.16.0";
-import { formatAttributeValue } from "./attribute-format.js?v=0.16.0";
-import { normalizeApplicationConfig, presetApplication } from "./application-config.js?v=0.17.0";
-import { featureFilterFor, featureId, fieldKind, filterRecords, histogram, requestGuard, sortRecords } from "./presentation-query.js?v=0.18.1";
-import { DEFAULT_SKIN, INTERFACE_SKINS, applyInterfaceSkin, normalizeSkin, skinOptionsMarkup } from "./skin-catalog.js?v=0.18.1";
-import { compactMedia } from "./viewport.js?v=0.18.1";
+import { POPULAR_SERVICES } from "./catalog.js?v=0.18.2";
+import { ENTERPRISE_CATALOGS, EnterpriseCatalog, normalizeArcGisDirectoryUrl } from "./enterprise-catalog.js?v=0.18.2";
+import { createShareUrl } from "./share.js?v=0.18.2";
+import { createEmbeddedTourUrl } from "./tour-share.js?v=0.18.2";
+import { markdownToPlainText, renderMarkdown } from "./markdown.js?v=0.18.2";
+import { formatAttributeValue } from "./attribute-format.js?v=0.18.2";
+import { normalizeApplicationConfig, presetApplication } from "./application-config.js?v=0.18.2";
+import { featureFilterFor, featureId, fieldKind, filterRecords, histogram, requestGuard, sortRecords } from "./presentation-query.js?v=0.18.2";
+import { DEFAULT_SKIN, INTERFACE_SKINS, applyInterfaceSkin, normalizeSkin, skinOptionsMarkup } from "./skin-catalog.js?v=0.18.2";
+import { compactMedia } from "./viewport.js?v=0.18.2";
 
 const DISPLAY_SETTINGS_KEY = "gismap-online:display:v1";
 const INSIGHT_POSITIONS = new Set(["upper-left", "lower-left", "bottom", "dock-left", "dock-right", "dock-top", "dock-bottom"]);

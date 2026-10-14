@@ -1,4 +1,4 @@
-import { normalizeApplicationConfig } from "./application-config.js?v=0.17.0";
+import { normalizeApplicationConfig } from "./application-config.js?v=0.18.2";
 
 export class LayoutManager {
   constructor({ registry, state, hosts = {}, mapController = null, documentRef = globalThis.document, onConfigChange = null } = {}) {

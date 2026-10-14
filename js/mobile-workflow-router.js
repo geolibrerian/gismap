@@ -1,6 +1,6 @@
-import { MobileFeedStore } from "./mobile-feed-store.js?v=0.17.0";
-import { compactMedia } from "./viewport.js?v=0.18.1";
-import { INTERFACE_SKINS, applyInterfaceSkin, normalizeSkin } from "./skin-catalog.js?v=0.18.1";
+import { MobileFeedStore } from "./mobile-feed-store.js?v=0.18.2";
+import { compactMedia } from "./viewport.js?v=0.18.2";
+import { INTERFACE_SKINS, applyInterfaceSkin, normalizeSkin } from "./skin-catalog.js?v=0.18.2";
 
 const escapeHtml = (value) => String(value ?? "").replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char]);
 const dateLabel = (value) => value ? new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }).format(new Date(value)) : "Recently";

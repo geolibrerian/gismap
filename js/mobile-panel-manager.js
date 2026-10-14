@@ -1,4 +1,4 @@
-import { COMPACT_QUERY } from "./viewport.js?v=0.18.1";
+import { COMPACT_QUERY } from "./viewport.js?v=0.18.2";
 
 const MOBILE_PANEL_IDS = ["places-panel", "bookmarks-panel", "draw-panel", "layers-panel", "intelligence-panel"];
 export const MOBILE_PANEL_QUERY = COMPACT_QUERY;

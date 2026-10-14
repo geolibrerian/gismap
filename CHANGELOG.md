@@ -6,6 +6,8 @@ All notable changes to GIS Map Online are documented here. This project follows
 
 ## [Unreleased]
 
+## [0.18.2] - 2026-10-14
+
 ### Changed
 
 - Consolidated mobile workflows under the Tools menu, made workflow and tool selection mutually exclusive, and standardized mobile sheets at 40–60% of the viewport.
@@ -577,7 +579,8 @@ All notable changes to GIS Map Online are documented here. This project follows
 - Prevented search suggestions from remaining open after selection.
 - Reduced map and panel flicker during feature identification.
 
-[Unreleased]: https://github.com/geolibrerian/gismap/compare/v0.16.0...HEAD
+[Unreleased]: https://github.com/geolibrerian/gismap/compare/v0.18.2...HEAD
+[0.18.2]: https://github.com/geolibrerian/gismap/compare/v0.16.0...v0.18.2
 [0.16.0]: https://github.com/geolibrerian/gismap/compare/v0.15.40...v0.16.0
 [0.15.40]: https://github.com/geolibrerian/gismap/compare/v0.15.39...v0.15.40
 [0.15.39]: https://github.com/geolibrerian/gismap/compare/v0.15.38...v0.15.39
