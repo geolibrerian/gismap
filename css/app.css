@@ -773,6 +773,7 @@ body.briefing-slides-tab #briefing-context-host { display:none; }
 .briefing-slides__add button, .briefing-slides__included, .briefing-slides__present, .briefing-camera button { min-height:34px; padding:6px 12px; border:1px solid var(--green); border-radius:var(--ui-radius-small,7px); color:var(--green); background:var(--surface); font-weight:700; }
 .briefing-slides__present, .briefing-slides__add button { color:var(--on-accent,#fff); background:var(--green); }
 .briefing-slides__actions { display:flex; gap:8px; }
+.workflow-grid__photo { border-style:dashed!important; }
 .briefing-slides__auto { display:flex; flex-wrap:wrap; gap:8px; }
 .briefing-slides__auto button, .briefing-select__generate { flex:1; min-height:32px; padding:5px 12px; border:1px dashed var(--green); border-radius:var(--ui-radius-small,7px); background:color-mix(in srgb, var(--green) 9%, var(--surface)); color:var(--green); font-weight:800; }
 .briefing-select { display:grid; gap:7px; padding:8px; border:1px solid var(--line); border-radius:var(--ui-radius-small,7px); background:var(--surface); }

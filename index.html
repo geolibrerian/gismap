@@ -57,7 +57,7 @@
     <meta name="theme-color" content="#0f2921" />
     <link rel="preconnect" href="https://js.arcgis.com" />
     <link rel="stylesheet" href="https://js.arcgis.com/5.0/esri/themes/light/main.css" />
-    <link rel="stylesheet" href="./css/app.css?v=0.24.0" />
+    <link rel="stylesheet" href="./css/app.css?v=0.25.0" />
     <script type="module" src="https://js.arcgis.com/5.0/"></script>
     <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
     <script src="https://unpkg.com/@mapbox/shp-write@0.4.3/shpwrite.js"></script>
@@ -112,6 +112,7 @@
               <button data-action="project-export">Download project…</button>
               <button data-action="atlas-export">Export guided tour (.gmoatlas)</button>
               <button data-action="project-import">Import project, tour, or Smart Image</button>
+              <button data-action="open-image">Open from a photo or QR code…</button>
             </div>
           </div>
           <div class="menu">
@@ -398,10 +399,12 @@
     </dialog>
 
     <input id="project-file-input" type="file" accept=".gmo,.gmop,.gmoatlas,.json,.gismap,.zip,.png,image/png" hidden />
+    <!-- Any picture: phones offer the photo library and camera. -->
+    <input id="image-file-input" type="file" accept="image/*" hidden />
     <input id="data-file-input" type="file" accept=".json,.geojson,.kml,.kmz,.zip" multiple hidden />
     <input id="tool-file-input" type="file" accept=".js,.mjs" hidden />
 
     <noscript>GIS Map Online requires JavaScript.</noscript>
-    <script type="module" src="./js/app.js?v=0.24.0"></script>
+    <script type="module" src="./js/app.js?v=0.25.0"></script>
   </body>
 </html>

@@ -1,12 +1,12 @@
 import { events } from "./events.js?v=0.18.2";
 import { AuthController } from "./auth.js?v=0.18.2";
 import { MapController } from "./map.js?v=0.23.1";
-import { ProjectManager } from "./project.js?v=0.23.0";
+import { ProjectManager } from "./project.js?v=0.25.1";
 import { IdentifyController } from "./identify.js?v=0.18.2";
 import { AttributeTableController } from "./attribute-table.js?v=0.18.2";
 import { AIController } from "./ai.js?v=0.22.0";
 import { ToolManager } from "./tool-manager.js?v=0.18.2";
-import { UIController } from "./ui.js?v=0.24.0";
+import { UIController } from "./ui.js?v=0.25.0";
 import { ExportController } from "./export/export-controller.js?v=0.18.2";
 import { parseShareParameters } from "./share.js?v=0.21.0";
 import { readShareLocation } from "./map-share.js?v=0.23.1";
@@ -16,7 +16,7 @@ import { POPULAR_SERVICES } from "./catalog.js?v=0.18.2";
 import { ApplicationRuntime } from "./application-runtime.js?v=0.18.2";
 import { PanelManager } from "./panel-manager.js?v=0.18.2";
 import { MobilePanelManager } from "./mobile-panel-manager.js?v=0.18.2";
-import { MobileWorkflowRouter } from "./mobile-workflow-router.js?v=0.23.0";
+import { MobileWorkflowRouter } from "./mobile-workflow-router.js?v=0.25.0";
 import { createClientApi } from "./briefing-api.js?v=0.23.1";
 
 async function loadSharedLayer(mapController, config) {

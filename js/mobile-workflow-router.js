@@ -228,7 +228,7 @@ export class MobileWorkflowRouter {
   }
 
   #more() {
-    return `<p class="mobile-workflow__subtitle">The mobile app keeps the map and three shareable workflows focused and easy to reach.</p><div class="workflow-grid"><button data-route="briefing"><strong>Briefing</strong><span>Selected features and context · share by QR</span></button><button data-route="tours"><strong>Tours</strong><span>Guided places and chapters · share by QR</span></button><button data-route="tasks"><strong>Field tasks</strong><span>Assignments and drafts · share by QR</span></button><button data-route="map"><strong>Map tools</strong><span>Places, bookmarks, draw, layers, and intelligence</span></button></div>${this.#skinPicker()}<section class="account-workflows"><span>With an account · coming soon</span><p>Updates, Compare, Watchlist, custom dashboards, and their desktop authoring tools.</p></section>`;
+    return `<p class="mobile-workflow__subtitle">The mobile app keeps the map and three shareable workflows focused and easy to reach.</p><div class="workflow-grid"><button data-route="briefing"><strong>Briefing</strong><span>Selected features and context · share by QR</span></button><button data-route="tours"><strong>Tours</strong><span>Guided places and chapters · share by QR</span></button><button data-route="tasks"><strong>Field tasks</strong><span>Assignments and drafts · share by QR</span></button><button data-route="map"><strong>Map tools</strong><span>Places, bookmarks, draw, layers, and intelligence</span></button><button data-open-image class="workflow-grid__photo"><strong>Open from a photo</strong><span>A Smart map image or a picture of a GIS Map QR code</span></button></div>${this.#skinPicker()}<section class="account-workflows"><span>With an account · coming soon</span><p>Updates, Compare, Watchlist, custom dashboards, and their desktop authoring tools.</p></section>`;
   }
 
   async #click(event) {
@@ -236,6 +236,7 @@ export class MobileWorkflowRouter {
     if (!button) return;
     if (button.matches("[data-workflow-close]")) return this.navigate("map");
     if (button.dataset.route) return this.navigate(button.dataset.route);
+    if (button.matches("[data-open-image]")) return document.querySelector("#image-file-input")?.click();
     if (button.dataset.mobileSkin) {
       const skin = applyInterfaceSkin(button.dataset.mobileSkin);
       this.projectManager.patchPresentation({ skin });

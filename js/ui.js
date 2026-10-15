@@ -13,6 +13,7 @@ import { compactMedia } from "./viewport.js?v=0.18.2";
 import { PdfDocument, brandedMapImage, loadBrandLogo, printPalette, qrAsset } from "./pdf-document.js?v=0.23.0";
 import { featureLayerUrl, locationUrl } from "./field-task-share.js?v=0.21.0";
 import { dockIcon } from "./dock-icons.js?v=0.24.0";
+import { decodeQrFromImage, describeGisMapLink, gisMapLinkFrom, openGisMapLink } from "./qr-import.js?v=0.25.1";
 import { BriefingSlides } from "./briefing-slides.js?v=0.23.0";
 import { createSlide, matchesFilter, normalizeFilter } from "./briefing-document.js?v=0.19.0";
 import { aiDescriptionPrompt, applyAiDescriptions, describeWhere, generateBriefing, readAiDescriptions, rendererTheme } from "./briefing-generator.js?v=0.22.0";
@@ -112,6 +113,11 @@ export class UIController {
     this.panelManager?.register("content:intelligence", document.querySelector("#intelligence-content"), { shell: document.querySelector("#intelligence-panel") });
     this.panelManager?.register("content:draw", document.querySelector(".draw-tools"), { shell: document.querySelector("#draw-panel") });
     this.#initDockablePanels();
+    // Smart images carry a QR of the map link as a fallback for their hidden project data.
+    this.projectManager.smartImageLink = async () => {
+      const link = await this.#mapShareLink();
+      return link.qr ? link.url : null;
+    };
     this.#applyDisplaySettings(this.#readDisplaySettings());
     this.systemThemeMedia.addEventListener?.("change", () => {
       const settings = this.#readDisplaySettings();
@@ -405,6 +411,7 @@ export class UIController {
     document.querySelector("#dialog-dock").innerHTML = dockIcon("dock");
     document.querySelector("#utility-open-modal").addEventListener("click", () => this.#openUtilityAsModal());
     document.querySelector("#project-file-input").addEventListener("change", (event) => this.#importProject(event));
+    document.querySelector("#image-file-input")?.addEventListener("change", (event) => this.#importProject(event));
     const projectDropTarget = document.querySelector(".map-workspace");
     projectDropTarget.addEventListener("dragover", (event) => {
       if (![...event.dataTransfer?.items || []].some((item) => item.kind === "file")) return;
@@ -418,9 +425,9 @@ export class UIController {
     projectDropTarget.addEventListener("drop", (event) => {
       event.preventDefault();
       projectDropTarget.classList.remove("is-project-drop-target");
-      const file = [...event.dataTransfer?.files || []].find((item) => /\.(?:png|gmo|gmop|gmoatlas|gismap|json|zip)$/i.test(item.name));
+      const file = [...event.dataTransfer?.files || []].find((item) => /\.(?:png|jpe?g|webp|gif|heic|heif|gmo|gmop|gmoatlas|gismap|json|zip)$/i.test(item.name) || item.type.startsWith("image/"));
       if (file) void this.importProjectFile(file);
-      else this.error("Drop a GISMap project, package, tour, or Smart Image PNG.");
+      else this.error("Drop a GISMap project, package, tour, Smart Image, or a picture of a GIS Map QR code.");
     });
     document.querySelector("#data-file-input").addEventListener("change", (event) => this.#addFiles(event));
     document.querySelector("#tool-file-input").addEventListener("change", (event) => this.#loadTool(event));
@@ -962,6 +969,9 @@ export class UIController {
           break;
         case "project-import":
           document.querySelector("#project-file-input").click();
+          break;
+        case "open-image":
+          this.openImagePicker();
           break;
         case "project-share":
           await this.#copyShareLink();
@@ -4648,8 +4658,42 @@ export class UIController {
     if (file) await this.importProjectFile(file);
   }
 
+  /** The photo library or camera on phones, files on desktop: a Smart image or a QR code picture. */
+  openImagePicker() {
+    document.querySelector("#image-file-input")?.click();
+  }
+
+  /**
+   * A picture: a Smart image opens its whole project; otherwise a GIS Map QR code
+   * in it (a share card, a screenshot, a photo of a screen) opens its link here.
+   */
+  async #openImage(file) {
+    if (file.type === "image/png" || /\.png$/i.test(file.name)) {
+      try {
+        const { project } = await this.projectManager.importFile(file);
+        this.toast(`${project.name} opened from its Smart image.`);
+        return;
+      } catch (error) {
+        // An ordinary PNG (or one whose project data a photo app removed) may still hold a QR code.
+        if (!/ordinary image|not contain a GISMap project/i.test(error.message)) throw error;
+      }
+    }
+    this.toast("Looking for a GIS Map QR code in the picture…");
+    const text = await decodeQrFromImage(file);
+    if (!text) throw new Error("No GIS Map project or QR code was found in this picture. Try a sharper or closer picture of the QR code.");
+    const target = gisMapLinkFrom(text);
+    if (!target) throw new Error(`This QR code is not a GIS Map Online link${/^https?:/i.test(text) ? ` (it opens ${new URL(text).hostname})` : ""}, so it was not opened.`);
+    this.toast(`Opening the ${describeGisMapLink(target)} from the QR code…`);
+    setTimeout(() => openGisMapLink(target), 400);
+  }
+
   /** Opens a project or tour file (from the file picker, or a file opened with the installed app). */
   async importProjectFile(file) {
+    const isImage = file.type.startsWith("image/") || /\.(?:png|jpe?g|webp|gif|heic|heif)$/i.test(file.name);
+    if (isImage) {
+      try { await this.#openImage(file); } catch (error) { this.error(error.message); }
+      return;
+    }
     try {
       const { project } = await this.projectManager.importFile(file);
       this.toast(`${project.name} imported from ${/\.png$/i.test(file.name) ? "Smart Image" : "project file"}.`);

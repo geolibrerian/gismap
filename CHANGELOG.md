@@ -25,6 +25,9 @@ All notable changes to GIS Map Online are documented here. This project follows
 
 ### Added
 
+- Pictures open maps: drop a QR card, a screenshot or a photo of a GIS Map QR code on the map, or choose **Open from a photo or QR code…** (Project menu, and **Open from a photo** on the phone's More screen, which offers the photo library and camera). Smart images still open their whole project; any other picture is searched for a QR code, decoded with the browser's BarcodeDetector or the vendored jsQR 1.4.0 (Apache-2.0), and a GIS Map Online link (the site, its preview builds or this host) opens here in its mode: map, briefing, tour, field task or location. Other links are not followed.
+- Smart images include a "Scan to open this map" QR of the map's share link (sized at 4 px per module, when the link is short enough), so the picture still opens the map after a photo library or chat app strips its hidden project data.
+
 - One-click briefings from the map: **Share as a briefing** (Share & export) and **Make a briefing from this view** (Features and Slides tabs) build slides from the layer's style and filter and the Features-tab choices: a title slide describing the style and filter, key numbers for the styled field (scoped to the filters), counts per category or class, the chosen features or the top five by the styled number (with rank and share of total), and a sources slide. Share as a briefing goes straight to the share dialog.
 - With AI configured, generated briefings get short descriptions for the opening and each feature slide (also **Describe with AI** on the Slides tab), grounded in the features' attributes and marked in the presenter notes for review.
 

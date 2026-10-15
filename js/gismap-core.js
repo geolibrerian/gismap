@@ -33,7 +33,7 @@ import {
   SMART_IMAGE_VERSION,
   embedProjectInPng,
   readProjectFromPng,
-} from "./smart-image.js?v=0.23.0";
+} from "./smart-image.js?v=0.25.1";
 
 export const GISMAP_CORE_VERSION = "0.23.0";
 
