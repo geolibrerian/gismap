@@ -67,6 +67,13 @@ export type SourceMetadata = {
   layers: Array<{ id: string | number; name: string }>;
 };
 
+export type SmartImageManifest = {
+  format: "gismap-smart-image";
+  version: 1;
+  createdAt: string;
+  project: Record<string, unknown> & { version: 1; layers: unknown[] };
+};
+
 export const GISMAP_CORE_VERSION: string;
 export const capabilities: Readonly<Record<string, unknown>>;
 export const briefing: Readonly<{
@@ -96,6 +103,14 @@ export const queries: Readonly<{
 export const sources: Readonly<{
   inspect(url: string, options?: { fetchImpl?: typeof fetch; signal?: AbortSignal; allowHttp?: boolean }): Promise<SourceMetadata>;
 }>;
+export const smartImages: Readonly<{
+  format: "gismap-smart-image";
+  version: 1;
+  chunk: "giMp";
+  limits: Readonly<{ maxImageBytes: number; maxEncodedBytes: number; maxProjectBytes: number }>;
+  embed(png: Blob | ArrayBuffer | Uint8Array, project: SmartImageManifest["project"]): Promise<Blob>;
+  read(png: Blob | ArrayBuffer | Uint8Array): Promise<SmartImageManifest>;
+}>;
 export const utilities: Readonly<{ safeUrl(value: unknown): string | null }>;
 
 declare const core: Readonly<{
@@ -104,6 +119,7 @@ declare const core: Readonly<{
   briefing: typeof briefing;
   queries: typeof queries;
   sources: typeof sources;
+  smartImages: typeof smartImages;
   utilities: typeof utilities;
 }>;
 export default core;

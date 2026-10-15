@@ -5,7 +5,7 @@ import core, { briefing, capabilities, inspectSource, queries } from "../js/gism
 import { createClientApi } from "../js/briefing-api.js";
 
 test("gismap-core exposes a versioned, declarative briefing contract", () => {
-  assert.equal(core.version, "0.20.0");
+  assert.equal(core.version, "0.21.0");
   assert.equal(capabilities.briefingSchemaVersion, 1);
   assert.ok(capabilities.filters.includes("feature_ids"));
   const document = briefing.create({
@@ -71,4 +71,5 @@ test("published schema and capabilities files are valid and the browser global e
   assert.match(types, /export type BriefingDocument/);
   assert.match(app, /briefing: clientApi\.briefing/);
   assert.match(app, /sources: clientApi\.sources/);
+  assert.match(app, /smartImages: clientApi\.smartImages/);
 });

@@ -387,6 +387,23 @@ export class UIController {
     });
     document.querySelector("#utility-open-modal").addEventListener("click", () => this.#openUtilityAsModal());
     document.querySelector("#project-file-input").addEventListener("change", (event) => this.#importProject(event));
+    const projectDropTarget = document.querySelector(".map-workspace");
+    projectDropTarget.addEventListener("dragover", (event) => {
+      if (![...event.dataTransfer?.items || []].some((item) => item.kind === "file")) return;
+      event.preventDefault();
+      event.dataTransfer.dropEffect = "copy";
+      projectDropTarget.classList.add("is-project-drop-target");
+    });
+    projectDropTarget.addEventListener("dragleave", (event) => {
+      if (!projectDropTarget.contains(event.relatedTarget)) projectDropTarget.classList.remove("is-project-drop-target");
+    });
+    projectDropTarget.addEventListener("drop", (event) => {
+      event.preventDefault();
+      projectDropTarget.classList.remove("is-project-drop-target");
+      const file = [...event.dataTransfer?.files || []].find((item) => /\.(?:png|gmo|gmop|gmoatlas|gismap|json|zip)$/i.test(item.name));
+      if (file) void this.#importProjectFile(file);
+      else this.error("Drop a GISMap project, package, tour, or Smart Image PNG.");
+    });
     document.querySelector("#data-file-input").addEventListener("change", (event) => this.#addFiles(event));
     document.querySelector("#tool-file-input").addEventListener("change", (event) => this.#loadTool(event));
     document.querySelector("#atlas-chapter-previous")?.addEventListener("click", () => this.#stepAtlasChapter(-1));
@@ -485,7 +502,7 @@ export class UIController {
       if (chapters[index]) void this.#goToAtlasChapter(chapters[index], index, chapters);
     });
     this.events.subscribe("identify:complete", (payload) => this.#selectPresentationResult(payload.results?.find((result) => result.layerUid === this.presentationState.layerUid)));
-    this.events.subscribe("project:exported", ({ kind }) => this.toast(`${kind === "package" ? "Project package (.gmop)" : kind === "atlas" ? "Guided tour (.gmoatlas)" : "Project file (.gmo)"} downloaded.`));
+    this.events.subscribe("project:exported", ({ kind }) => this.toast(`${kind === "smart-image" ? "Smart map image (.png)" : kind === "package" ? "Project package (.gmop)" : kind === "atlas" ? "Guided tour (.gmoatlas)" : "Project file (.gmo)"} downloaded.`));
     this.events.subscribe("export:progress", ({ stage, completed, total }) => {
       const progress = this.dialog.querySelector("[data-export-progress]");
       const status = this.dialog.querySelector("[data-export-status]");
@@ -851,7 +868,7 @@ export class UIController {
           this.#saveProjectDialog();
           break;
         case "project-export":
-          this.projectManager.exportJson();
+          this.#projectDownloadDialog();
           break;
         case "project-package":
           await this.projectManager.exportPackage();
@@ -973,6 +990,40 @@ export class UIController {
         this.projectManager.save(this.dialog.querySelector("#save-project-name").value);
         this.dialog.close();
       }}],
+    });
+  }
+
+  #projectDownloadDialog() {
+    this.openDialog({
+      eyebrow: "Portable project",
+      title: "Download project",
+      content: `<div class="smart-image-intro"><strong>A map that opens like a project</strong><p>Smart Image creates a polished PNG that works in ordinary image viewers while carrying this GISMap project invisibly. Import the original PNG into GISMap Online to restore its layers, styling, camera, bookmarks, workflows, and Briefing slides.</p></div>
+        <dl class="project-download-formats">
+          <div><dt>Smart map image (.png)</dt><dd>Best for email, AirDrop, chat attachments, and shared drives. Services must remain publicly reachable. Some social networks remove image metadata.</dd></div>
+          <div><dt>Project file (.gmo)</dt><dd>The compact editable project configuration without local source files.</dd></div>
+          <div><dt>Project package (.gmop)</dt><dd>The complete portable package for projects that use local files.</dd></div>
+        </dl>
+        <p class="form-note">Smart Images contain configuration and public data references, never sign-in tokens. Use the package option when local datasets must travel with the project.</p>`,
+      actions: [
+        { label: "Smart map image", primary: true, handler: async () => {
+          const button = this.dialog.querySelector(".button--primary");
+          const label = button.textContent;
+          button.disabled = true;
+          button.textContent = "Rendering map…";
+          try {
+            await this.projectManager.exportSmartImage();
+            this.dialog.close();
+          } catch (error) {
+            this.error(error.message);
+            button.disabled = false;
+            button.textContent = label;
+          }
+        } },
+        { label: "Project file (.gmo)", handler: () => { this.projectManager.exportJson(); this.dialog.close(); } },
+        { label: "Project package (.gmop)", handler: async () => {
+          try { await this.projectManager.exportPackage(); this.dialog.close(); } catch (error) { this.error(error.message); }
+        } },
+      ],
     });
   }
 
@@ -3736,9 +3787,13 @@ export class UIController {
     const [file] = event.target.files;
     event.target.value = "";
     if (!file) return;
+    await this.#importProjectFile(file);
+  }
+
+  async #importProjectFile(file) {
     try {
       const { project } = await this.projectManager.importFile(file);
-      this.toast(`${project.name} imported.`);
+      this.toast(`${project.name} imported from ${/\.png$/i.test(file.name) ? "Smart Image" : "project file"}.`);
     } catch (error) {
       this.error(error.message);
     }

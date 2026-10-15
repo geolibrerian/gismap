@@ -1,4 +1,4 @@
-import core, { normalizeBriefing, updateSlide, validateBriefingDocument } from "./gismap-core.js?v=0.20.0";
+import core, { normalizeBriefing, updateSlide, validateBriefingDocument } from "./gismap-core.js?v=0.21.0";
 
 const clone = (value) => structuredClone(value);
 const cleanName = (value) => String(value || "briefing").trim().replace(/[^a-z0-9._-]+/gi, "-").replace(/^-+|-+$/g, "").slice(0, 80) || "briefing";
@@ -63,11 +63,13 @@ export function createBriefingApi({ projectManager, mapController, baseUrl = () 
 
 export function createClientApi(options) {
   const briefing = createBriefingApi(options);
+  const smartImages = Object.freeze({ ...core.smartImages, downloadCurrent: (settings) => options.projectManager.exportSmartImage(settings) });
   return Object.freeze({
     version: core.version,
     capabilities: () => clone(core.capabilities),
     briefing,
     queries: core.queries,
     sources: core.sources,
+    smartImages,
   });
 }

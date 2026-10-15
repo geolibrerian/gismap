@@ -665,6 +665,7 @@ body.mobile-workflow-open .field-task-banner { left:auto; right:calc(min(440px,1
 .status-dot::before { content: ""; display: inline-block; width: 6px; height: 6px; margin-right: 5px; border-radius: 50%; background: currentColor; }
 
 .map-workspace { position: relative; min-width: 0; height: 100%; background: #dfe8e4; }
+.map-workspace.is-project-drop-target::after { content:"Drop to open this project or Smart Image"; position:absolute; z-index:85; inset:24px; display:grid; place-items:center; border:3px dashed color-mix(in srgb,var(--amber) 82%,white); border-radius:18px; color:white; background:color-mix(in srgb,var(--green) 84%,transparent); box-shadow:inset 0 0 0 999px rgb(4 24 22 / 18%); font:700 clamp(18px,2.5vw,34px)/1.2 Georgia,serif; text-align:center; pointer-events:none; }
 .atlas-chapter-overlay { position: absolute; z-index: 18; top: 18px; left: 18px; display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 12px; align-items: end; width: min(580px, calc(100% - 150px)); padding: 16px 18px; border: 1px solid color-mix(in srgb, var(--line) 76%, transparent); border-left: 4px solid var(--amber); border-radius: 10px; color: var(--ink); background: color-mix(in srgb, var(--surface) 92%, transparent); box-shadow: 0 12px 32px rgb(17 39 33 / 20%); backdrop-filter: blur(16px); }
 .atlas-chapter-overlay[hidden] { display: none; }
 .atlas-chapter-overlay__copy { min-width: 0; }
@@ -1199,6 +1200,14 @@ button.enterprise-row:hover { border-color: var(--green-2); }
 .project-card { display: grid; gap: 3px; width: 100%; padding: 13px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); text-align: left; cursor: pointer; }
 .project-card:hover { border-color: var(--green-2); }
 .project-card span { color: var(--muted); font-size: 10px; }
+.smart-image-intro { padding: 15px; border: 1px solid color-mix(in srgb, var(--green-2) 42%, var(--line)); border-radius: 12px; background: color-mix(in srgb, var(--green-2) 8%, var(--surface)); }
+.smart-image-intro strong { display: block; margin-bottom: 5px; font: 700 20px/1.15 Georgia, serif; color: var(--ink); }
+.smart-image-intro p { margin: 0; color: var(--muted); line-height: 1.5; }
+.project-download-formats { display: grid; gap: 0; margin: 14px 0 0; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+.project-download-formats div { padding: 11px 13px; background: var(--surface); }
+.project-download-formats div + div { border-top: 1px solid var(--line); }
+.project-download-formats dt { font-weight: 750; color: var(--ink); }
+.project-download-formats dd { margin: 3px 0 0; color: var(--muted); font-size: 11px; line-height: 1.4; }
 .catalog-card { display: grid; grid-template-columns: 1fr auto; gap: 12px; align-items: center; padding: 13px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
 .catalog-card h3 { margin: 3px 0; font-size: 13px; }
 .catalog-card p { margin: 0; color: var(--muted); font-size: 10px; line-height: 1.45; }

@@ -26,8 +26,16 @@ import {
   readBriefingHash,
 } from "./briefing-share.js?v=0.20.0";
 import { inspectSource } from "./source-inspector.js?v=0.20.0";
+import {
+  SMART_IMAGE_CHUNK,
+  SMART_IMAGE_FORMAT,
+  SMART_IMAGE_LIMITS,
+  SMART_IMAGE_VERSION,
+  embedProjectInPng,
+  readProjectFromPng,
+} from "./smart-image.js?v=0.21.0";
 
-export const GISMAP_CORE_VERSION = "0.20.0";
+export const GISMAP_CORE_VERSION = "0.21.0";
 
 export const capabilities = Object.freeze({
   apiVersion: GISMAP_CORE_VERSION,
@@ -35,7 +43,7 @@ export const capabilities = Object.freeze({
   briefingSchema: "https://gismap.online/schemas/briefing-v1.schema.json",
   execution: "client",
   sourceTypes: ["arcgis-rest", "geojson", "loaded-records"],
-  outputs: ["briefing-json", "briefing-link", "gmo-project"],
+  outputs: ["briefing-json", "briefing-link", "gmo-project", "smart-image-png"],
   filters: ["eq", "neq", "gt", "gte", "lt", "lte", "in", "not_in", "contains", "starts_with", "is_null", "is_not_null", "and", "or", "not", "feature_ids"],
   limits: { maxSlides: MAX_SLIDES, ...BRIEFING_SHARE_LIMITS },
   unavailableWithoutHost: ["hosted-links", "private-access-control", "background-jobs", "webhooks", "scheduled-runs"],
@@ -76,9 +84,18 @@ export const queries = Object.freeze({
 
 export const sources = Object.freeze({ inspect: inspectSource });
 
+export const smartImages = Object.freeze({
+  format: SMART_IMAGE_FORMAT,
+  version: SMART_IMAGE_VERSION,
+  chunk: SMART_IMAGE_CHUNK,
+  limits: SMART_IMAGE_LIMITS,
+  embed: embedProjectInPng,
+  read: readProjectFromPng,
+});
+
 export const utilities = Object.freeze({ safeUrl });
 
-export default Object.freeze({ version: GISMAP_CORE_VERSION, capabilities, briefing, queries, sources, utilities });
+export default Object.freeze({ version: GISMAP_CORE_VERSION, capabilities, briefing, queries, sources, smartImages, utilities });
 
 export {
   BRIEFING_SCHEMA_VERSION,
@@ -95,11 +112,13 @@ export {
   duplicateSlide,
   encodeBriefing,
   inspectSource,
+  embedProjectInPng,
   matchesFilter,
   moveSlide,
   normalizeBriefing,
   normalizeFilter,
   readBriefingHash,
+  readProjectFromPng,
   removeSlide,
   safeUrl,
   updateBlock,

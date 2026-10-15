@@ -73,6 +73,17 @@ const result = briefing.validate(document);
 
 The machine-readable contracts are [`api/capabilities.json`](api/capabilities.json), [`schemas/briefing-v1.schema.json`](schemas/briefing-v1.schema.json), and the [`gismap-core` TypeScript declarations](js/gismap-core.d.ts). Filters, slides, blocks, cameras and styles are declarative data; credentials and temporary viewer state do not belong in a briefing. Browser source inspection remains subject to CORS. The library does not provide hosted links, access control, or background jobs.
 
+### Smart map images
+
+Project → Download project can create a **Smart map image**: a polished, standards-compliant PNG containing the complete editable project configuration in GISMap's private `giMp` ancillary chunk. The visible image opens normally anywhere; importing the original PNG through Project → Import restores its camera, basemap, public layer references, styling, bookmarks, workflows, and Briefing slides.
+
+```js
+const { blob } = await gisMapOnline.smartImages.downloadCurrent();
+const manifest = await gisMapOnline.smartImages.read(blob);
+```
+
+The payload is versioned, deflate-compressed when supported, protected by PNG CRC and SHA-256 integrity checks, and bounded by explicit input limits. Remote URLs containing credentials are rejected. Smart Images reference public services and do not make those services offline; use `.gmop` when local datasets must travel with the project. Keep the original PNG—social networks and image editors may resize it or remove ancillary metadata.
+
 ### Composable application preview
 
 Feature branches under `codex/**` run `.github/workflows/development-preview.yml`. Every run produces a 14-day static preview artifact after the complete test suite and JavaScript syntax checks pass. An isolated Cloudflare Pages development deployment is enabled only when the `development` GitHub environment defines `CLOUDFLARE_PAGES_PROJECT_DEV`, `CLOUDFLARE_API_TOKEN_DEV`, and `CLOUDFLARE_ACCOUNT_ID_DEV`. These names deliberately do not reuse production credentials or destinations, and the workflow has no production trigger.
@@ -105,6 +116,7 @@ published builds and generated release notes.
 - `js/data-catalog.js` — portable catalog schema, read-only SQL validation, and deterministic natural-language query planning
 - `js/gismap-core.js` — pure client-side API for briefing documents, filters, statistics, source inspection, and share encoding
 - `js/briefing-api.js` — binds the pure API to the active GISMap project and camera as `globalThis.gisMapOnline.briefing`
+- `js/smart-image.js` — renders portable map PNGs and safely embeds or restores versioned GISMap project manifests
 - `js/duckdb-client.js` — optional, lazily loaded DuckDB-Wasm execution for browser feature records and HTTPS analytical sources
 - `js/catalog.js` — public data services plus categories, stable slugs, source
   metadata, reuse guidance, tags, and featured-example controls
