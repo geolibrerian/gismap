@@ -1,4 +1,5 @@
 import { sanitizeSharedResourceUrl } from "./share.js?v=0.18.2";
+import { brandedMapCanvas } from "./pdf-document.js?v=0.21.1";
 
 export const SMART_IMAGE_FORMAT = "gismap-smart-image";
 export const SMART_IMAGE_VERSION = 1;
@@ -203,15 +204,6 @@ export async function readProjectFromPng(png) {
   return decodeManifest(chunk.data);
 }
 
-function loadImage(dataUrl) {
-  return new Promise((resolve, reject) => {
-    const image = new Image();
-    image.onload = () => resolve(image);
-    image.onerror = () => reject(new Error("The captured map image could not be prepared."));
-    image.src = dataUrl;
-  });
-}
-
 function canvasBlob(canvas) {
   return new Promise((resolve, reject) => canvas.toBlob((blob) => blob ? resolve(blob) : reject(new Error("The browser could not encode the Smart Image.")), "image/png"));
 }
@@ -219,45 +211,19 @@ function canvasBlob(canvas) {
 /** Turn a clean map capture into a polished, ordinary PNG before adding project data. */
 export async function composeSmartImage({ dataUrl, title, layerCount = 0, sources = [], width = 1600, height = 1000 }) {
   if (!globalThis.document || !globalThis.Image) throw new Error("Smart Image rendering requires a browser document.");
-  const image = await loadImage(dataUrl);
-  const canvas = document.createElement("canvas");
-  canvas.width = width;
-  canvas.height = height;
-  const context = canvas.getContext("2d");
-  const scale = Math.max(width / image.naturalWidth, height / image.naturalHeight);
-  const drawWidth = image.naturalWidth * scale;
-  const drawHeight = image.naturalHeight * scale;
-  context.drawImage(image, (width - drawWidth) / 2, (height - drawHeight) / 2, drawWidth, drawHeight);
-
-  const shade = context.createLinearGradient(0, height * 0.64, 0, height);
-  shade.addColorStop(0, "rgba(4, 24, 22, 0)");
-  shade.addColorStop(1, "rgba(4, 24, 22, 0.94)");
-  context.fillStyle = shade;
-  context.fillRect(0, 0, width, height);
-
-  context.fillStyle = "rgba(4, 32, 29, 0.86)";
-  context.beginPath();
-  context.roundRect(56, 48, 286, 54, 27);
-  context.fill();
-  context.fillStyle = "#f2b544";
-  context.beginPath();
-  context.arc(84, 75, 8, 0, Math.PI * 2);
-  context.fill();
-  context.fillStyle = "#f8f5ea";
-  context.font = "600 22px system-ui, sans-serif";
-  context.fillText("GISMAP SMART IMAGE", 106, 83);
-
   const displayTitle = String(title || "Untitled project").trim().slice(0, 72);
-  context.fillStyle = "#ffffff";
-  context.font = "700 58px Georgia, serif";
-  context.fillText(displayTitle, 64, height - 112, width - 128);
-  context.fillStyle = "#d4e8df";
-  context.font = "500 23px system-ui, sans-serif";
-  context.fillText(`${layerCount} ${layerCount === 1 ? "layer" : "layers"} · Open in GISMap Online to restore the interactive project`, 66, height - 65, width - 132);
-  const sourceLine = sources.length ? `Sources: ${sources.slice(0, 4).join(" · ")}` : "Map sources and full attribution are preserved in the interactive project";
-  context.fillStyle = "#a8c7ba";
-  context.font = "500 14px system-ui, sans-serif";
-  context.fillText(sourceLine, 67, height - 28, width - 134);
+  const countLabel = `${layerCount} ${layerCount === 1 ? "layer" : "layers"}`;
+  const sourceLabel = sources.length ? sources.slice(0, 3).join(" · ") : "Interactive project included";
+  const canvas = await brandedMapCanvas(
+    { dataUrl, width, height },
+    {
+      title: displayTitle,
+      subtitle: `Smart map image · ${new Date().toLocaleString()}`,
+      footerText: `${countLabel} · ${sourceLabel}`,
+      mapWidth: 1200,
+    },
+  );
+  if (!canvas) throw new Error("The captured map image could not be prepared.");
   return canvasBlob(canvas);
 }
 

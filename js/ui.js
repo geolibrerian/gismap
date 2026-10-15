@@ -8,7 +8,7 @@ import { normalizeApplicationConfig, presetApplication } from "./application-con
 import { featureFilterFor, featureId, fieldKind, filterRecords, histogram, requestGuard, sortRecords } from "./presentation-query.js?v=0.18.2";
 import { DEFAULT_SKIN, INTERFACE_SKINS, applyInterfaceSkin, normalizeSkin, skinOptionsMarkup } from "./skin-catalog.js?v=0.18.2";
 import { compactMedia } from "./viewport.js?v=0.18.2";
-import { PdfDocument, brandedMapImage, loadBrandLogo } from "./pdf-document.js?v=0.18.16";
+import { PdfDocument, brandedMapImage, loadBrandLogo } from "./pdf-document.js?v=0.21.1";
 import { locationUrl } from "./field-task-share.js?v=0.18.16";
 import { BriefingSlides } from "./briefing-slides.js?v=0.20.2";
 

@@ -55,10 +55,12 @@ test("Smart Images reject credentials embedded in remote layer URLs", async () =
 });
 
 test("Project download and import expose the Smart Image workflow", async () => {
-  const [html, projectSource, ui] = await Promise.all([
+  const [html, projectSource, ui, smartImageSource, pdfSource] = await Promise.all([
     readFile(new URL("../index.html", import.meta.url), "utf8"),
     readFile(new URL("../js/project.js", import.meta.url), "utf8"),
     readFile(new URL("../js/ui.js", import.meta.url), "utf8"),
+    readFile(new URL("../js/smart-image.js", import.meta.url), "utf8"),
+    readFile(new URL("../js/pdf-document.js", import.meta.url), "utf8"),
   ]);
   assert.match(html, /Download project…/);
   assert.match(html, /\.png,image\/png/);
@@ -66,5 +68,9 @@ test("Project download and import expose the Smart Image workflow", async () => 
   assert.match(projectSource, /readProjectFromPng\(file\)/);
   assert.match(ui, /Smart map image \(\.png\)/);
   assert.match(ui, /services must remain publicly reachable/i);
+  assert.match(smartImageSource, /brandedMapCanvas/);
+  assert.doesNotMatch(smartImageSource, /GISMAP SMART IMAGE/);
+  assert.match(pdfSource, /export async function brandedMapCanvas/);
+  assert.match(pdfSource, /gismap\.online/);
 });
 
