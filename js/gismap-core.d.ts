@@ -113,6 +113,25 @@ export const smartImages: Readonly<{
 }>;
 export const utilities: Readonly<{ safeUrl(value: unknown): string | null }>;
 
+/**
+ * The in-page API at globalThis.gisMapOnline.briefing: everything in `briefing`
+ * plus calls bound to the open map and project.
+ */
+export type InPageBriefingApi = typeof briefing & {
+  get(): BriefingDocument;
+  /** Opens a document in Briefing; its layerId (a service URL is loaded when missing) and selection apply. */
+  load(document: unknown, options?: { activate?: boolean; present?: boolean; slide?: string; allowInvalid?: boolean }): { valid: boolean; document: BriefingDocument; issues: ValidationIssue[]; ready: Promise<void> };
+  captureCamera(): BriefingCamera;
+  saveCurrentCamera(slideId: string): BriefingDocument;
+  /** Slides from the map as it looks: style, filter, Features-tab choices; optional AI descriptions. */
+  generate(options?: { layerId?: string; ai?: boolean; share?: boolean }): Promise<BriefingDocument>;
+  /** The landscape PDF handout, with a QR code back to the live briefing. */
+  exportPdf(options?: { withLink?: boolean }): Promise<File>;
+  /** The full share link (layers, styles, filters, skin, view), or a slides-only link with documentOnly. */
+  createLink(document?: unknown, options?: { qrSafe?: boolean; documentOnly?: boolean; slide?: string; baseUrl?: string; compress?: boolean }): Promise<string>;
+  exportGmo(document?: unknown, options?: { fileName?: string }): { fileName: string; mimeType: string; text: string; blob: Blob };
+};
+
 declare const core: Readonly<{
   version: string;
   capabilities: typeof capabilities;

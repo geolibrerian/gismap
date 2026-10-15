@@ -1,15 +1,15 @@
 import { events } from "./events.js?v=0.18.2";
 import { AuthController } from "./auth.js?v=0.18.2";
-import { MapController } from "./map.js?v=0.21.0";
+import { MapController } from "./map.js?v=0.23.1";
 import { ProjectManager } from "./project.js?v=0.23.0";
 import { IdentifyController } from "./identify.js?v=0.18.2";
 import { AttributeTableController } from "./attribute-table.js?v=0.18.2";
 import { AIController } from "./ai.js?v=0.22.0";
 import { ToolManager } from "./tool-manager.js?v=0.18.2";
-import { UIController } from "./ui.js?v=0.23.0";
+import { UIController } from "./ui.js?v=0.23.1";
 import { ExportController } from "./export/export-controller.js?v=0.18.2";
 import { parseShareParameters } from "./share.js?v=0.21.0";
-import { readShareLocation } from "./map-share.js?v=0.23.0";
+import { readShareLocation } from "./map-share.js?v=0.23.1";
 import { decodeEmbeddedTour } from "./tour-share.js?v=0.18.2";
 import { decodeFieldTask, featureLayerUrl, readFieldTaskHash, readFocus } from "./field-task-share.js?v=0.21.0";
 import { POPULAR_SERVICES } from "./catalog.js?v=0.18.2";
@@ -17,7 +17,7 @@ import { ApplicationRuntime } from "./application-runtime.js?v=0.18.2";
 import { PanelManager } from "./panel-manager.js?v=0.18.2";
 import { MobilePanelManager } from "./mobile-panel-manager.js?v=0.18.2";
 import { MobileWorkflowRouter } from "./mobile-workflow-router.js?v=0.23.0";
-import { createClientApi } from "./briefing-api.js?v=0.23.0";
+import { createClientApi } from "./briefing-api.js?v=0.23.1";
 
 async function loadSharedLayer(mapController, config) {
   const rootUrl = config.url.replace(/\/+$/, "");
@@ -81,6 +81,8 @@ async function start() {
   mobileWorkflowRouter.initialize();
   // Briefing action items become field tasks.
   uiController.fieldTasks = mobileWorkflowRouter;
+  // Briefing documents can name a service URL as their layer; it loads like a shared layer.
+  uiController.loadLayer = (config) => loadSharedLayer(mapController, config);
   await mapController.initialize();
   events.publish("project:loaded", { project: projectManager.current, missingFiles: [] });
 
@@ -179,7 +181,15 @@ async function start() {
   });
 
   // A narrow, intentional extension surface for local tools and debugging.
-  const clientApi = createClientApi({ projectManager, mapController });
+  const clientApi = createClientApi({
+    projectManager,
+    mapController,
+    host: {
+      openBriefing: (briefing, options) => uiController.openBriefingDocument(briefing, options),
+      generate: (options) => uiController.generateBriefingFromView(options),
+      createPdf: (options) => uiController.briefingPdfFile(options),
+    },
+  });
   globalThis.gisMapOnline = Object.freeze({
     version: clientApi.version,
     events,

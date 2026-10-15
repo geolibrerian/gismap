@@ -4,81 +4,244 @@
   "title": "GISMap Briefing",
   "description": "A portable, client-side GISMap briefing document.",
   "type": "object",
-  "required": ["schemaVersion", "slides"],
+  "required": [
+    "schemaVersion",
+    "slides"
+  ],
   "properties": {
-    "schemaVersion": { "const": 1 },
-    "layerId": { "type": ["string", "null"], "maxLength": 200 },
+    "schemaVersion": {
+      "const": 1
+    },
+    "layerId": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "maxLength": 2048,
+      "description": "The layer the briefing is about. Use the layer's service URL (for example https://…/FeatureServer/0) so the document works anywhere; GISMap loads it when it is not on the map. A layer ID or title also matches a layer that is already loaded."
+    },
     "queries": {
       "type": "object",
-      "propertyNames": { "pattern": "^[A-Za-z0-9_-]{1,40}$" },
-      "additionalProperties": { "$ref": "#/$defs/filter" }
+      "propertyNames": {
+        "pattern": "^[A-Za-z0-9_-]{1,40}$"
+      },
+      "additionalProperties": {
+        "$ref": "#/$defs/filter"
+      }
     },
     "selection": {
       "type": "object",
       "properties": {
-        "ids": { "type": "array", "maxItems": 2000, "items": { "type": "string", "maxLength": 200 } },
-        "useAll": { "type": "boolean" }
+        "ids": {
+          "type": "array",
+          "maxItems": 2000,
+          "items": {
+            "type": "string",
+            "maxLength": 200
+          }
+        },
+        "useAll": {
+          "type": "boolean"
+        }
       },
-      "additionalProperties": true
+      "additionalProperties": true,
+      "description": "Features the briefing is about: their IDs (the layer's object ID values) or useAll for every feature matching the filters."
     },
     "slides": {
       "type": "array",
       "maxItems": 60,
-      "items": { "$ref": "#/$defs/slide" }
+      "items": {
+        "$ref": "#/$defs/slide"
+      }
     }
   },
   "additionalProperties": true,
   "$defs": {
     "filter": {
       "type": "object",
-      "required": ["op"],
+      "required": [
+        "op"
+      ],
       "properties": {
-        "op": { "enum": ["eq", "neq", "gt", "gte", "lt", "lte", "in", "not_in", "contains", "starts_with", "is_null", "is_not_null", "and", "or", "not", "feature_ids"] },
-        "field": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "op": {
+          "enum": [
+            "eq",
+            "neq",
+            "gt",
+            "gte",
+            "lt",
+            "lte",
+            "in",
+            "not_in",
+            "contains",
+            "starts_with",
+            "is_null",
+            "is_not_null",
+            "and",
+            "or",
+            "not",
+            "feature_ids"
+          ]
+        },
+        "field": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
         "value": {},
-        "values": { "type": "array", "maxItems": 200 },
-        "ids": { "type": "array", "maxItems": 2000, "items": { "type": ["string", "number"] } },
-        "args": { "type": "array", "maxItems": 20, "items": { "$ref": "#/$defs/filter" } },
-        "arg": { "$ref": "#/$defs/filter" }
+        "values": {
+          "type": "array",
+          "maxItems": 200
+        },
+        "ids": {
+          "type": "array",
+          "maxItems": 2000,
+          "items": {
+            "type": [
+              "string",
+              "number"
+            ]
+          }
+        },
+        "args": {
+          "type": "array",
+          "maxItems": 20,
+          "items": {
+            "$ref": "#/$defs/filter"
+          }
+        },
+        "arg": {
+          "$ref": "#/$defs/filter"
+        }
       },
       "additionalProperties": false
     },
     "camera": {
       "type": "object",
-      "required": ["center", "zoom", "heading", "tilt"],
+      "required": [
+        "center",
+        "zoom",
+        "heading",
+        "tilt"
+      ],
       "properties": {
         "center": {
           "type": "array",
-          "prefixItems": [{ "type": "number", "minimum": -180, "maximum": 180 }, { "type": "number", "minimum": -90, "maximum": 90 }],
+          "prefixItems": [
+            {
+              "type": "number",
+              "minimum": -180,
+              "maximum": 180
+            },
+            {
+              "type": "number",
+              "minimum": -90,
+              "maximum": 90
+            }
+          ],
           "minItems": 2,
           "maxItems": 2
         },
-        "zoom": { "type": "number", "minimum": 0, "maximum": 24 },
-        "heading": { "type": "number" },
-        "tilt": { "type": "number", "minimum": 0, "maximum": 90 }
+        "zoom": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 24
+        },
+        "heading": {
+          "type": "number"
+        },
+        "tilt": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 90
+        }
       },
       "additionalProperties": false
     },
     "block": {
       "type": "object",
-      "required": ["id", "type"],
+      "required": [
+        "id",
+        "type"
+      ],
       "properties": {
-        "id": { "type": "string", "minLength": 1, "maxLength": 200 },
-        "type": { "type": "string", "minLength": 1, "maxLength": 80 },
-        "markdown": { "type": "string", "maxLength": 4000 },
-        "queryRef": { "type": ["string", "null"], "maxLength": 40 },
-        "stat": { "enum": ["count", "sum", "average", "min", "max"] },
-        "field": { "type": ["string", "null"], "maxLength": 200 },
-        "label": { "type": "string", "maxLength": 120 },
-        "fields": { "type": "array", "maxItems": 12, "items": { "type": "string", "maxLength": 200 } },
-        "items": { "type": "array", "maxItems": 12, "items": { "type": "string", "maxLength": 300 } },
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "type": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "markdown": {
+          "type": "string",
+          "maxLength": 4000
+        },
+        "queryRef": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 40
+        },
+        "stat": {
+          "enum": [
+            "count",
+            "sum",
+            "average",
+            "min",
+            "max"
+          ]
+        },
+        "field": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 200
+        },
+        "label": {
+          "type": "string",
+          "maxLength": 80
+        },
+        "fields": {
+          "type": "array",
+          "maxItems": 12,
+          "items": {
+            "type": "string",
+            "maxLength": 200
+          }
+        },
+        "items": {
+          "type": "array",
+          "maxItems": 12,
+          "items": {
+            "type": "string",
+            "maxLength": 300
+          }
+        },
         "links": {
           "type": "array",
           "maxItems": 8,
           "items": {
             "type": "object",
-            "required": ["label", "url"],
-            "properties": { "label": { "type": "string", "maxLength": 120 }, "url": { "type": "string", "format": "uri", "pattern": "^https?://" } },
+            "required": [
+              "label",
+              "url"
+            ],
+            "properties": {
+              "label": {
+                "type": "string",
+                "maxLength": 120
+              },
+              "url": {
+                "type": "string",
+                "format": "uri",
+                "pattern": "^https?://"
+              }
+            },
             "additionalProperties": true
           }
         }
@@ -87,18 +250,74 @@
     },
     "slide": {
       "type": "object",
-      "required": ["id", "template", "title", "blocks", "hidden"],
+      "required": [
+        "id",
+        "template",
+        "title",
+        "blocks",
+        "hidden"
+      ],
       "properties": {
-        "id": { "type": "string", "minLength": 1, "maxLength": 200 },
-        "template": { "enum": ["title", "feature", "map-narrative", "key-numbers", "actions"] },
-        "title": { "type": "string", "maxLength": 160 },
-        "subtitle": { "type": "string", "maxLength": 160 },
-        "featureId": { "type": ["string", "null"], "maxLength": 200 },
-        "camera": { "anyOf": [{ "$ref": "#/$defs/camera" }, { "type": "null" }] },
-        "fit": { "enum": ["feature", "selection", null] },
-        "blocks": { "type": "array", "maxItems": 12, "items": { "$ref": "#/$defs/block" } },
-        "notes": { "type": "string", "maxLength": 4000 },
-        "hidden": { "type": "boolean" }
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "template": {
+          "enum": [
+            "title",
+            "feature",
+            "map-narrative",
+            "key-numbers",
+            "actions"
+          ]
+        },
+        "title": {
+          "type": "string",
+          "maxLength": 160
+        },
+        "subtitle": {
+          "type": "string",
+          "maxLength": 160
+        },
+        "featureId": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 200
+        },
+        "camera": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/camera"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "fit": {
+          "enum": [
+            "feature",
+            "selection",
+            null
+          ]
+        },
+        "blocks": {
+          "type": "array",
+          "maxItems": 12,
+          "items": {
+            "$ref": "#/$defs/block"
+          }
+        },
+        "notes": {
+          "type": "string",
+          "maxLength": 4000
+        },
+        "hidden": {
+          "type": "boolean"
+        }
       },
       "additionalProperties": true
     }

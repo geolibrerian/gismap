@@ -1,22 +1,63 @@
 import core, { normalizeBriefing, updateSlide, validateBriefingDocument } from "./gismap-core.js?v=0.23.0";
-import { createShareLink } from "./map-share.js?v=0.23.0";
+import { createShareLink } from "./map-share.js?v=0.23.1";
+import { featureLayerUrl } from "./field-task-share.js?v=0.21.0";
 
 const clone = (value) => structuredClone(value);
+const trimUrl = (value) => String(value || "").replace(/\/+$/, "").toLowerCase();
+
+/**
+ * The portable reference a briefing document uses for its layer (`layerId`): the
+ * layer's service URL when it has one, so the document still points at the
+ * right data in another session or on another device; otherwise its layer ID.
+ */
+export function briefingLayerRef(mapController, layer) {
+  if (!layer) return null;
+  const config = mapController?.getLayerConfig?.(layer) || {};
+  return (!config.local && (featureLayerUrl(layer) || config.url)) || layer.id || layer.uid || null;
+}
+
+/**
+ * The map layer a briefing's `layerId` names: matched by service URL, layer ID,
+ * session UID or title. Without a `layerId`, the first feature layer.
+ */
+export function findBriefingLayer(mapController, layerId) {
+  const layers = (mapController?.getOperationalLayers?.() || []).filter((layer) => typeof layer.queryFeatures === "function");
+  if (!layerId) return layers[0] || null;
+  const wanted = String(layerId);
+  return layers.find((layer) => layer.uid === wanted || layer.id === wanted)
+    || layers.find((layer) => [featureLayerUrl(layer), mapController.getLayerConfig?.(layer)?.url].some((url) => url && trimUrl(url) === trimUrl(wanted)))
+    || layers.find((layer) => layer.title && layer.title === wanted)
+    || null;
+}
 const cleanName = (value) => String(value || "briefing").trim().replace(/[^a-z0-9._-]+/gi, "-").replace(/^-+|-+$/g, "").slice(0, 80) || "briefing";
 
 /** Bind the pure core to the active GISMap project and camera. */
-export function createBriefingApi({ projectManager, mapController, baseUrl = () => globalThis.location?.href || "https://gismap.online/" }) {
+/**
+ * `host` (optional) lets the API reach app features beyond the document:
+ * openBriefing(document, { slide, present }) loads a missing layer and opens it,
+ * generate(options) builds slides from the styled map, and createPdf(options)
+ * renders the PDF handout. Without a host (tests, headless) those calls throw.
+ */
+export function createBriefingApi({ projectManager, mapController, host = null, baseUrl = () => globalThis.location?.href || "https://gismap.online/" }) {
   if (!projectManager) throw new Error("The Briefing API requires a project manager.");
 
   const current = () => normalizeBriefing(projectManager.current?.presentation?.briefing);
+  const needHost = (name) => {
+    if (typeof host?.[name] !== "function") throw new Error(`briefing.${name === "openBriefing" ? "load" : name} needs the GISMap app; it is not available here.`);
+    return host[name];
+  };
   const save = (document, { activate = false } = {}) => {
     const briefing = normalizeBriefing(document);
     const presentation = { ...(projectManager.current?.presentation || {}), briefing };
+    // The document's own layer and selection choose what the briefing is about.
+    const layer = findBriefingLayer(mapController, briefing.layerId);
+    if (layer) presentation.primaryLayerId = layer.uid;
+    if (briefing.selection && layer) presentation.briefingSelection = { layerId: layer.uid, ids: (briefing.selection.ids || []).map(String), useAll: briefing.selection.useAll === true };
     if (activate) {
       presentation.template = "briefing";
       projectManager.setPresentation(presentation);
     } else {
-      projectManager.patchPresentation({ briefing });
+      projectManager.patchPresentation(presentation);
     }
     return clone(briefing);
   };
@@ -32,7 +73,32 @@ export function createBriefingApi({ projectManager, mapController, baseUrl = () 
         error.issues = result.issues;
         throw error;
       }
-      return { ...result, document: save(result.document, { activate: options.activate !== false }) };
+      const activate = options.activate !== false;
+      // A layerId naming a service that is not on the map yet: the app loads it, then opens the briefing.
+      const missing = result.document.layerId && !findBriefingLayer(mapController, result.document.layerId) && /^https:\/\//i.test(result.document.layerId);
+      if (missing && activate && typeof host?.openBriefing === "function") {
+        return { ...result, document: clone(result.document), ready: host.openBriefing(result.document, { present: options.present === true, slide: options.slide || null }) };
+      }
+      const saved = save(result.document, { activate });
+      const ready = activate && options.present === true && typeof host?.openBriefing === "function"
+        ? host.openBriefing(saved, { present: true, slide: options.slide || null })
+        : Promise.resolve();
+      return { ...result, document: saved, ready };
+    },
+    /**
+     * Builds slides from the map as it looks (the layer's style and filter, the
+     * Features-tab choices), as "Make a briefing from this view" does.
+     * Options: { layerId, ai (AI descriptions when configured), share (open the share dialog) }.
+     */
+    async generate(options = {}) {
+      const layer = options.layerId ? findBriefingLayer(mapController, options.layerId) : null;
+      if (options.layerId && !layer) throw new Error(`No layer on the map matches ${options.layerId}.`);
+      await needHost("generate")({ uid: layer?.uid || null, share: options.share === true, useAi: options.ai === true, confirmReplace: false });
+      return clone(current());
+    },
+    /** The briefing's PDF handout (landscape, one page per slide, QR back to the live briefing) as a File. */
+    async exportPdf(options = {}) {
+      return needHost("createPdf")(options);
     },
     captureCamera() {
       const state = mapController?.getViewState?.();

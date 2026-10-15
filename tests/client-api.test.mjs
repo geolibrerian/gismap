@@ -5,7 +5,7 @@ import core, { briefing, capabilities, inspectSource, queries } from "../js/gism
 import { createClientApi } from "../js/briefing-api.js";
 
 test("gismap-core exposes a versioned, declarative briefing contract", () => {
-  assert.equal(core.version, "0.21.0");
+  assert.equal(core.version, "0.23.0");
   assert.equal(capabilities.briefingSchemaVersion, 1);
   assert.ok(capabilities.filters.includes("feature_ids"));
   const document = briefing.create({
@@ -72,4 +72,36 @@ test("published schema and capabilities files are valid and the browser global e
   assert.match(app, /briefing: clientApi\.briefing/);
   assert.match(app, /sources: clientApi\.sources/);
   assert.match(app, /smartImages: clientApi\.smartImages/);
+});
+
+test("a briefing document names its layer and selection, and the in-page API generates and renders through the app", async () => {
+  const url = "https://example.org/arcgis/rest/services/Projects/FeatureServer/0";
+  const layer = { uid: "session-uid-7", id: "projects", title: "Projects", url, queryFeatures() {} };
+  const mapController = { getOperationalLayers: () => [layer], getLayerConfig: () => ({ url, local: false }), getViewState: () => ({ center: [0, 0], zoom: 3 }) };
+  const presentation = { template: "standard", briefing: { schemaVersion: 1, queries: {}, slides: [] } };
+  const projectManager = {
+    current: { name: "P", presentation },
+    setPresentation(value) { this.current.presentation = value; return value; },
+    patchPresentation(value) { this.current.presentation = { ...this.current.presentation, ...value }; return this.current.presentation; },
+    snapshot() { return structuredClone(this.current); },
+  };
+  const calls = [];
+  const host = { openBriefing: async (document, options) => calls.push(["open", document.layerId, options]), generate: async (options) => calls.push(["generate", options]), createPdf: async () => new File(["%PDF"], "b.pdf") };
+  const api = createClientApi({ projectManager, mapController, host });
+  const loaded = api.briefing.load({ schemaVersion: 1, layerId: `${url}/`, selection: { ids: [104, "221"] }, slides: [] });
+  await loaded.ready;
+  assert.equal(projectManager.current.presentation.primaryLayerId, "session-uid-7", "a service URL in layerId finds the loaded layer");
+  assert.deepEqual(projectManager.current.presentation.briefingSelection, { layerId: "session-uid-7", ids: ["104", "221"], useAll: false });
+  const elsewhere = api.briefing.load({ schemaVersion: 1, layerId: "https://other.example.org/arcgis/rest/services/X/FeatureServer/0", slides: [] }, { present: true });
+  await elsewhere.ready;
+  assert.deepEqual(calls[0].slice(0, 2), ["open", "https://other.example.org/arcgis/rest/services/X/FeatureServer/0"], "a layer not on the map is loaded by the app");
+  await api.briefing.generate({ layerId: "Projects", ai: true });
+  assert.deepEqual(calls[1], ["generate", { uid: "session-uid-7", share: false, useAi: true, confirmReplace: false }]);
+  assert.equal((await api.briefing.exportPdf()).name, "b.pdf");
+  const headless = createClientApi({ projectManager, mapController });
+  await assert.rejects(() => headless.briefing.exportPdf(), /needs the GISMap app/);
+  const published = JSON.parse(await readFile(new URL("../api/capabilities.json", import.meta.url), "utf8"));
+  assert.equal(published.apiVersion, "0.23.0");
+  assert.ok(published.namespaces.briefing.includes("generate") && published.namespaces.briefing.includes("exportPdf"));
+  assert.ok(published.outputs.includes("briefing-pdf"));
 });

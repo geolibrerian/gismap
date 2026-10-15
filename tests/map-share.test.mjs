@@ -113,3 +113,27 @@ test("one reader opens both briefing link forms: full app links and the API's sl
   assert.match(api, /documentOnly/);
   assert.match(api, /createShareLink\(/, "the API shares the same full link as the app");
 });
+
+test("?briefing= opens a schema briefing document, alone or inside a project, as well as the app's own file", async () => {
+  const file = new URL("https://gismap.online/?briefing=https%3A%2F%2Fexample.org%2Fbriefing.json");
+  const document = { schemaVersion: 1, layerId: LAYER, selection: { ids: ["4"] }, slides: [{ id: "s-1", template: "title", title: "By hand", hidden: false, blocks: [] }] };
+  const fromDocument = await readShareLocation(file, { fetchJson: async () => document });
+  assert.equal(fromDocument.kind, "briefing-document");
+  assert.equal(fromDocument.briefing.layerId, LAYER, "layerId and selection survive for the app to use");
+  assert.deepEqual(fromDocument.briefing.selection, { ids: ["4"] });
+  const fromProject = await readShareLocation(file, { fetchJson: async () => ({ version: 1, presentation: { briefing: document } }) });
+  assert.equal(fromProject.briefing.slides[0].title, "By hand");
+  await assert.rejects(readShareLocation(file, { fetchJson: async () => ({ ...document, schemaVersion: 2 }) }), /newer schema/);
+  const payload = serializeShare({ kind: "briefing", layers: [{ url: LAYER }], briefing: document });
+  assert.equal((await readShareLocation(file, { fetchJson: async () => payload })).kind, "briefing");
+  const ui = await readFile(new URL("../js/ui.js", import.meta.url), "utf8");
+  assert.match(ui, /async openBriefingDocument\(briefing/);
+  assert.match(ui, /layerId: briefingLayerRef\(this\.mapController, layer\)/, "the app writes the portable layer and selection into the document");
+});
+
+test("links carry styles set in GISMap, not a service's own image-heavy style", () => {
+  const serviceStyle = { type: "uniqueValue", field1: "kind", uniqueValueInfos: [{ value: "a", symbol: { type: "esriPMS", imageData: "iVBORw0K".repeat(500) } }] };
+  assert.equal(serializeShare({ kind: "map", layers: [{ url: LAYER, renderer: serviceStyle, styled: false }] }).L[0].r, undefined);
+  assert.deepEqual(serializeShare({ kind: "map", layers: [{ url: LAYER, renderer: serviceStyle, styled: true }] }).L[0].r, serviceStyle);
+  assert.deepEqual(serializeShare({ kind: "map", layers: [{ url: LAYER, renderer }] }).L[0].r, renderer, "small styles travel either way");
+});

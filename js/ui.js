@@ -1,7 +1,8 @@
 import { POPULAR_SERVICES } from "./catalog.js?v=0.18.2";
 import { ENTERPRISE_CATALOGS, EnterpriseCatalog, normalizeArcGisDirectoryUrl } from "./enterprise-catalog.js?v=0.18.2";
 import { createShareUrl } from "./share.js?v=0.21.0";
-import { createShareLink, hasDataFilter } from "./map-share.js?v=0.23.0";
+import { createShareLink, hasDataFilter } from "./map-share.js?v=0.23.1";
+import { briefingLayerRef, findBriefingLayer } from "./briefing-api.js?v=0.23.1";
 import { createEmbeddedTourUrl } from "./tour-share.js?v=0.18.2";
 import { markdownToPlainText, renderMarkdown } from "./markdown.js?v=0.18.2";
 import { formatAttributeValue } from "./attribute-format.js?v=0.18.2";
@@ -1202,14 +1203,14 @@ export class UIController {
    * (generateBriefing), lets AI write descriptions when it is configured, and
    * optionally opens the share dialog.
    */
-  async generateBriefingFromView({ uid = null, share = false, useAi = this.aiController.isConfigured() } = {}) {
+  async generateBriefingFromView({ uid = null, share = false, useAi = this.aiController.isConfigured(), confirmReplace = true } = {}) {
     try {
       const current = this.projectManager.current.presentation || {};
       const queryable = (item) => item && typeof item.queryFeatures === "function";
       const layer = [this.mapController.findLayer(uid), this.mapController.findLayer(this.presentationState.layerUid), this.mapController.findLayer(current.primaryLayerId), ...this.mapController.getOperationalLayers()].find(queryable);
       if (!layer) throw new Error("Add a feature layer to make a briefing from.");
       const existing = current.briefing?.slides?.length && current.primaryLayerId === layer.uid ? current.briefing.slides.length : 0;
-      if (existing && !confirm(`Replace the ${existing} slide${existing === 1 ? "" : "s"} in this briefing with new ones made from the map?`)) return;
+      if (existing && confirmReplace && !confirm(`Replace the ${existing} slide${existing === 1 ? "" : "s"} in this briefing with new ones made from the map?`)) return;
       // Open the briefing on this layer and wait for its features.
       if (this.presentationState.template !== "briefing" || this.presentationState.layerUid !== layer.uid) {
         this.briefingTab = "slides";
@@ -1252,6 +1253,9 @@ export class UIController {
         scopeText,
       });
       this.briefingTab = "slides";
+      // The document records what it is about, portably: the layer's URL and the chosen features.
+      briefing.layerId = briefingLayerRef(this.mapController, layer);
+      briefing.selection = { ids: [...state.selectedIds], useAll: state.briefingUseAll === true };
       this.projectManager.patchPresentation({ briefing, title, modeTitles: { ...(this.projectManager.current.presentation?.modeTitles || {}), briefing: title } });
       this.#renderPresentationDashboard(this.projectManager.current.presentation);
       this.toast(`Briefing made: ${briefing.slides.length} slides from the map's ${theme.field ? "style, " : ""}filters and features.`);
@@ -2478,7 +2482,13 @@ export class UIController {
   #saveBriefingSelection() {
     const state = this.presentationState;
     if (state.template !== "briefing" || !state.layerUid) return;
-    this.projectManager.patchPresentation({ briefingSelection: { layerId: state.layerUid, ids: [...state.selectedIds], useAll: state.briefingUseAll === true, conditions: state.conditions || [] } });
+    const layer = this.mapController.findLayer(state.layerUid);
+    const briefing = this.projectManager.current.presentation?.briefing || {};
+    this.projectManager.patchPresentation({
+      briefingSelection: { layerId: state.layerUid, ids: [...state.selectedIds], useAll: state.briefingUseAll === true, conditions: state.conditions || [] },
+      // The briefing document carries its layer and selection too (portable: the layer by its service URL).
+      briefing: { ...briefing, layerId: briefingLayerRef(this.mapController, layer), selection: { ids: [...state.selectedIds], useAll: state.briefingUseAll === true } },
+    });
   }
 
   /** The Features tab's attribute conditions as one briefing filter (all must match), or null. */
@@ -4376,29 +4386,41 @@ export class UIController {
    * Shares the briefing as one self-contained link: its layers with styles and
    * filters, skin, basemap and slides. The link opens straight into the slides.
    */
+  /** The briefing's full share link, with what the dialog and the PDF need. */
+  async #briefingShareLink() {
+    const presentation = this.projectManager.current.presentation || {};
+    const state = this.presentationState;
+    const inBriefing = state.template === "briefing";
+    const layer = this.mapController.findLayer(inBriefing ? state.layerUid : presentation.primaryLayerId) || this.briefingWorkspace?.layer;
+    if (!layer) throw new Error("Choose the briefing's layer before sharing.");
+    const layers = this.mapController.getAllLayerConfigs();
+    const title = presentation.modeTitles?.briefing || presentation.title || `${layer.title || "Feature"} briefing`;
+    const skin = document.documentElement.dataset.skin || presentation.skin;
+    const link = await createShareLink({
+      baseUrl: location.href,
+      kind: "briefing",
+      title,
+      skin,
+      basemap: this.mapController.getBasemapId(),
+      camera: this.mapController.getViewState(),
+      layers,
+      primary: layers.findIndex((config) => config.uid === layer.uid),
+      briefing: presentation.briefing,
+      selection: inBriefing ? [...(state.selectedIds || [])] : presentation.briefingSelection?.ids || [],
+      useAll: inBriefing ? state.briefingUseAll === true : presentation.briefingSelection?.useAll === true,
+      });
+    return { link, layers, title, skin, presentation };
+  }
+
+  /** The briefing's PDF handout as a File (for the API; the share dialog offers the same). */
+  async briefingPdfFile({ withLink = true } = {}) {
+    const { link, skin } = withLink ? await this.#briefingShareLink() : { link: null, skin: document.documentElement.dataset.skin };
+    return this.briefingSlides.createPdf({ link: link?.url || null, qr: link?.qr ?? false, skin });
+  }
+
   async shareBriefing() {
     try {
-      const presentation = this.projectManager.current.presentation || {};
-      const state = this.presentationState;
-      const inBriefing = state.template === "briefing";
-      const layer = this.mapController.findLayer(inBriefing ? state.layerUid : presentation.primaryLayerId) || this.briefingWorkspace?.layer;
-      if (!layer) throw new Error("Choose the briefing's layer before sharing.");
-      const layers = this.mapController.getAllLayerConfigs();
-      const title = presentation.modeTitles?.briefing || presentation.title || `${layer.title || "Feature"} briefing`;
-      const skin = document.documentElement.dataset.skin || presentation.skin;
-      const link = await createShareLink({
-        baseUrl: location.href,
-        kind: "briefing",
-        title,
-        skin,
-        basemap: this.mapController.getBasemapId(),
-        camera: this.mapController.getViewState(),
-        layers,
-        primary: layers.findIndex((config) => config.uid === layer.uid),
-        briefing: presentation.briefing,
-        selection: inBriefing ? [...(state.selectedIds || [])] : presentation.briefingSelection?.ids || [],
-        useAll: inBriefing ? state.briefingUseAll === true : presentation.briefingSelection?.useAll === true,
-      });
+      const { link, layers, title, skin, presentation } = await this.#briefingShareLink();
       const slides = (presentation.briefing?.slides || []).filter((slide) => !slide.hidden).length;
       const filtered = layers.filter((config) => hasDataFilter(config.definitionExpression) && !config.local).length;
       const stem = briefingFileStem(title);
@@ -4429,15 +4451,39 @@ export class UIController {
    * slides go on the first feature layer the link loaded, then start presenting.
    */
   async #openSharedBriefingDocument(shared) {
+    await this.openBriefingDocument(shared.briefing, { slide: shared.slide, present: true });
+  }
+
+  /**
+   * Opens a briefing document (a schema briefing from a link, a file or the API):
+   * finds its layer by `layerId`, loading it when it is a service URL not yet on
+   * the map, applies its `selection`, and optionally starts presenting.
+   */
+  async openBriefingDocument(briefing, { slide = null, present = false } = {}) {
+    let layer = findBriefingLayer(this.mapController, briefing.layerId);
+    if (!layer && /^https:\/\//i.test(briefing.layerId || "")) {
+      try {
+        const load = this.loadLayer || (async (config) => [await this.mapController.addService(config)]);
+        [layer] = await load({ url: briefing.layerId, serviceType: "arcgis-auto" });
+      } catch (error) {
+        this.error(`The briefing's layer could not be loaded: ${error.message}`);
+      }
+    }
+    layer ||= findBriefingLayer(this.mapController, null);
     const current = this.projectManager.current.presentation || {};
-    const layer = this.mapController.getOperationalLayers().find((item) => typeof item.queryFeatures === "function");
-    const visible = shared.briefing.slides.filter((slide) => !slide.hidden);
+    const visible = briefing.slides.filter((item) => !item.hidden);
     this.briefingTab = visible.length ? "slides" : "features";
-    this.projectManager.setPresentation({ ...current, template: "briefing", primaryLayerId: layer?.uid || current.primaryLayerId || null, briefing: shared.briefing });
+    this.projectManager.setPresentation({
+      ...current,
+      template: "briefing",
+      primaryLayerId: layer?.uid || current.primaryLayerId || null,
+      briefing,
+      ...(briefing.selection && layer ? { briefingSelection: { layerId: layer.uid, ids: (briefing.selection.ids || []).map(String), useAll: briefing.selection.useAll === true } } : {}),
+    });
     this.events.publish("mobile:workflow-route", { route: "briefing" });
     await this.presentationLoading;
-    if (!layer && shared.briefing.slides.some((slide) => slide.featureId)) this.toast("This briefing's feature slides need its layer; add it with ?layer= in the link.");
-    if (visible.length) this.briefingSlides.openPlayer(visible.some((slide) => slide.id === shared.slide) ? shared.slide : visible[0].id);
+    if (!layer && briefing.slides.some((item) => item.featureId)) this.toast("This briefing's feature slides need its layer: set layerId to the layer's URL, or add it with ?layer= in the link.");
+    if (present && visible.length) this.briefingSlides.openPlayer(visible.some((item) => item.id === slide) ? slide : visible[0].id);
   }
 
   /**

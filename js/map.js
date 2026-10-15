@@ -858,6 +858,8 @@ export class MapController {
       customParameters: source.customParameters ?? layer.customParameters ?? null,
       elevationInfo: layer.elevationInfo?.toJSON?.() ?? source.elevationInfo ?? null,
       renderer: layer.renderer?.toJSON?.() ?? null,
+      // True when the style was set in GISMap (or arrived with a shared map), not the service's own.
+      styled: Boolean(source.renderer),
     };
   }
 
@@ -913,10 +915,12 @@ export class MapController {
       const renderer = this.modules.rendererJsonUtils?.fromJSON?.(structuredClone(rendererJson));
       if (renderer) {
         layer.renderer = renderer;
+        this.layerConfigs.set(layer.uid, { ...(this.layerConfigs.get(layer.uid) ?? {}), renderer: structuredClone(rendererJson) });
         return renderer;
       }
     } catch { /* Some catalog renderers already use API autocast JSON. */ }
     layer.renderer = structuredClone(rendererJson);
+    this.layerConfigs.set(layer.uid, { ...(this.layerConfigs.get(layer.uid) ?? {}), renderer: structuredClone(rendererJson) });
     return layer.renderer;
   }
 

@@ -1,16 +1,70 @@
 {
-  "apiVersion": "0.21.0",
+  "apiVersion": "0.23.0",
   "execution": "client",
   "global": "globalThis.gisMapOnline",
   "module": "/js/gismap-core.js",
   "types": "/js/gismap-core.d.ts",
   "briefingSchema": "/schemas/briefing-v1.schema.json",
   "namespaces": {
-    "briefing": ["create", "migrate", "validate", "createSlide", "addSlide", "updateSlide", "moveSlide", "duplicateSlide", "removeSlide", "updateBlock", "get", "load", "captureCamera", "saveCurrentCamera", "encode", "decode", "createLink", "exportGmo"],
-    "queries": ["normalize", "matches", "statistic"],
-    "sources": ["inspect"],
-    "smartImages": ["embed", "read", "downloadCurrent"]
+    "briefing": [
+      "create",
+      "migrate",
+      "validate",
+      "createSlide",
+      "addSlide",
+      "updateSlide",
+      "moveSlide",
+      "duplicateSlide",
+      "removeSlide",
+      "updateBlock",
+      "get",
+      "load",
+      "captureCamera",
+      "saveCurrentCamera",
+      "generate",
+      "exportPdf",
+      "encode",
+      "decode",
+      "createLink",
+      "exportGmo"
+    ],
+    "queries": [
+      "normalize",
+      "matches",
+      "statistic"
+    ],
+    "sources": [
+      "inspect"
+    ],
+    "smartImages": [
+      "embed",
+      "read",
+      "downloadCurrent"
+    ]
   },
-  "outputs": ["briefing-json", "briefing-link", "gmo-project", "smart-image-png"],
-  "unavailableWithoutHost": ["hosted-links", "private-access-control", "background-jobs", "webhooks", "scheduled-runs"]
+  "outputs": [
+    "briefing-json",
+    "briefing-link",
+    "briefing-pdf",
+    "gmo-project",
+    "smart-image-png"
+  ],
+  "unavailableWithoutHost": [
+    "hosted-links",
+    "private-access-control",
+    "background-jobs",
+    "webhooks",
+    "scheduled-runs"
+  ],
+  "inputs": {
+    "briefingLink": "#briefing=<payload>: full links from the app or briefing.createLink; b1./j1. slides-only links apply to the layers the URL loads",
+    "briefingFile": "?briefing=<https URL of a CORS-enabled .json>: a briefing document (schemas/briefing-v1.schema.json), a project containing one, or the app's briefing file",
+    "layerId": "A briefing's layerId may be the layer's service URL (portable; loaded when missing), its layer ID or its title"
+  },
+  "requiresApp": [
+    "briefing.load (layer loading and presenting)",
+    "briefing.generate",
+    "briefing.exportPdf",
+    "smartImages.downloadCurrent"
+  ]
 }

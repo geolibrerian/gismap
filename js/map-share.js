@@ -51,7 +51,11 @@ export function compactBriefing(briefing) {
 
 /** One layer as a link carries it: source, title, filter, style and opacity. */
 export function packLayer(config = {}) {
-  const renderer = config.renderer && JSON.stringify(config.renderer).length <= MAX_RENDERER ? config.renderer : null;
+  // A service's own style loads with the layer anyway; it travels only when set in
+  // GISMap (or when it is small), since service styles often embed symbol images.
+  const json = config.renderer ? JSON.stringify(config.renderer) : "";
+  const wanted = config.styled === true || !json.includes('"imageData"');
+  const renderer = config.renderer && wanted && json.length <= MAX_RENDERER ? config.renderer : null;
   return prune({
     u: config.url,
     y: SHARE_LAYER_TYPES.has(config.sourceType) ? config.sourceType : "arcgis-auto",
@@ -153,7 +157,8 @@ export async function createShareLink({ baseUrl, slide = null, ...state }) {
 
 /**
  * Finds a shared map or briefing in the address: `#map=…` / `#briefing=…`
- * fragments, or `?briefing=https://…/file.json` for briefings too large for a link.
+ * fragments, or `?briefing=https://…/file.json` (the app's briefing file or a
+ * schema briefing document, which may name its layer by URL in `layerId`).
  */
 export async function readShareLocation(location, { fetchJson = (url) => fetch(url).then((response) => { if (!response.ok) throw new Error(`The shared briefing file could not be downloaded (${response.status}).`); return response.json(); }), ...options } = {}) {
   const hash = new URLSearchParams(String(location.hash || "").replace(/^#/, ""));
@@ -167,7 +172,15 @@ export async function readShareLocation(location, { fetchJson = (url) => fetch(u
   }
   const file = new URLSearchParams(String(location.search || "")).get("briefing");
   if (file && /^https?:\/\//i.test(file)) {
-    return { ...readShare(await fetchJson(sanitizeSharedResourceUrl(file, options)), options), slide };
+    const raw = await fetchJson(sanitizeSharedResourceUrl(file, options));
+    // Either the app's own briefing file (a share payload) or a briefing document
+    // written against schemas/briefing-v1.schema.json, alone or inside a project.
+    const document = raw?.k ? null : raw?.presentation?.briefing || raw;
+    if (document && (document.schemaVersion !== undefined || Array.isArray(document.slides))) {
+      if (document.schemaVersion !== undefined && document.schemaVersion !== 1) throw new Error("This briefing file uses a newer schema version than this app supports.");
+      return { kind: "briefing-document", briefing: normalizeBriefing(document), layers: [], slide };
+    }
+    return { ...readShare(raw, options), slide };
   }
   return null;
 }
