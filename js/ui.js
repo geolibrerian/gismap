@@ -11,8 +11,9 @@ import { DEFAULT_SKIN, INTERFACE_SKINS, applyInterfaceSkin, normalizeSkin, skinO
 import { compactMedia } from "./viewport.js?v=0.18.2";
 import { PdfDocument, brandedMapImage, loadBrandLogo, printPalette, qrAsset } from "./pdf-document.js?v=0.21.0";
 import { featureLayerUrl, locationUrl } from "./field-task-share.js?v=0.21.0";
-import { BriefingSlides } from "./briefing-slides.js?v=0.21.0";
-import { createSlide } from "./briefing-document.js?v=0.19.0";
+import { BriefingSlides } from "./briefing-slides.js?v=0.22.0";
+import { createSlide, matchesFilter, normalizeFilter } from "./briefing-document.js?v=0.19.0";
+import { aiDescriptionPrompt, applyAiDescriptions, describeWhere, generateBriefing, readAiDescriptions, rendererTheme } from "./briefing-generator.js?v=0.22.0";
 import { briefingFileStem } from "./briefing-pdf.js?v=0.21.0";
 
 const DISPLAY_SETTINGS_KEY = "gismap-online:display:v1";
@@ -89,6 +90,9 @@ export class UIController {
       share: () => this.shareBriefing(),
       createTask: (draft) => this.fieldTasks?.newTaskFrom(draft),
       createTour: (places, options) => this.createTourFromPlaces(places, options),
+      generate: () => this.generateBriefingFromView(),
+      describeWithAi: () => (this.aiController.isConfigured() ? this.#describeBriefingWithAi() : null),
+      aiReady: () => this.aiController.isConfigured(),
     });
     this.briefingFoldSelection = null;
     this.mobileAtlasSettingsOpen = false;
@@ -443,9 +447,13 @@ export class UIController {
       document.querySelector("#map-status").textContent = `Ready · zoom ${view.zoom.toFixed(1)}`;
       view.watch?.("scale", () => this.#updateLayerScaleIndicators());
       view.watch?.("stationary", (stationary) => {
-        if (stationary && this.presentationState.template === "explorer" && this.presentationState.scope === "extent") {
+        if (stationary && ["explorer", "briefing"].includes(this.presentationState.template) && this.presentationState.scope === "extent") {
           clearTimeout(this.presentationExtentTimer);
-          this.presentationExtentTimer = setTimeout(() => this.#filterPresentationRecords(), 120);
+          // A briefing also fetches features in view that were not among the first records loaded.
+          this.presentationExtentTimer = setTimeout(async () => {
+            if (this.presentationState.template === "briefing") await this.#loadExtentRecords();
+            this.#filterPresentationRecords();
+          }, 250);
         }
       });
       view.on("pointer-move", (event) => {
@@ -490,7 +498,11 @@ export class UIController {
       const chapters = this.projectManager.current.presentation?.chapters || [];
       if (chapters[index]) void this.#goToAtlasChapter(chapters[index], index, chapters);
     });
-    this.events.subscribe("identify:complete", (payload) => this.#selectPresentationResult(payload.results?.find((result) => result.layerUid === this.presentationState.layerUid)));
+    this.events.subscribe("identify:complete", (payload) => {
+      const result = payload.results?.find((item) => item.layerUid === this.presentationState.layerUid);
+      if (this.presentationState.template === "briefing" && this.presentationState.mapSelect) return this.#toggleBriefingInclude(result);
+      this.#selectPresentationResult(result);
+    });
     this.events.subscribe("project:exported", ({ kind }) => this.toast(`${kind === "package" ? "Project package (.gmop)" : kind === "atlas" ? "Guided tour (.gmoatlas)" : "Project file (.gmo)"} downloaded.`));
     this.events.subscribe("export:progress", ({ stage, completed, total }) => {
       const progress = this.dialog.querySelector("[data-export-progress]");
@@ -1014,7 +1026,8 @@ export class UIController {
         <div class="share-export__grid">
           ${card("share", "Share map", "Link and QR code with the layers, styles, filters, view, basemap and skin.", { icon: "⌗", disabled: layers.length > local.length ? "" : "Add a web layer to share a link." })}
           ${card("pdf", "Map PDF", "A branded PDF of this view with a layer key and a QR code back to the live map.", { icon: "▤", disabled: layers.length ? "" : "Add a layer first." })}
-          ${card("briefing", "Create briefing", `Present ${layer ? `“${escapeHtml(layer.title || "this layer")}”` : "a layer"}${styled ? " with its style" : ""} as slides you can share and print.`, { icon: "▣", disabled: queryable ? "" : "Choose a feature layer to brief on." })}
+          ${card("briefing-share", "Share as a briefing", `One click: slides from ${layer ? `“${escapeHtml(layer.title || "this layer")}”` : "the layer"}'s ${styled ? "style, " : ""}filter and top features${this.aiController.isConfigured() ? ", described by AI" : ""}, ready to share.`, { icon: "✦", disabled: queryable ? "" : "Choose a feature layer to brief on." })}
+          ${card("briefing", "Create briefing", `Start a briefing on ${layer ? `“${escapeHtml(layer.title || "this layer")}”` : "a layer"}${styled ? " with its style" : ""} and write the slides yourself.`, { icon: "▣", disabled: queryable ? "" : "Choose a feature layer to brief on." })}
           ${card("tour", "Start a tour here", "Save this view as the first chapter of a guided tour.", { icon: "➤" })}
           ${card("data", "Export data", "Download features as GeoJSON, KML, KMZ or Shapefile.", { icon: "⤓", disabled: exportable.length ? "" : "Add a queryable vector layer first." })}
         </div></div>`,
@@ -1028,6 +1041,7 @@ export class UIController {
         this.dialog.close();
         if (action === "pdf") return await this.#downloadMapPdf();
         if (action === "briefing") return this.createBriefingFromLayer(layer.uid);
+        if (action === "briefing-share") return await this.generateBriefingFromView({ uid: layer.uid, share: true });
         if (action === "tour") return await this.#startTourHere();
       } catch (error) {
         this.error(error.message);
@@ -1155,6 +1169,98 @@ export class UIController {
     this.#setSidebarCollapsed(false);
     this.events.publish("mobile:workflow-route", { route: "briefing" });
     this.toast(featureIds.length ? `Briefing started with ${featureIds.length} feature${featureIds.length === 1 ? "" : "s"}. Add them as slides in the Slides tab.` : "Briefing created. Edit the slides, then Share & PDF.");
+  }
+
+  /**
+   * One click from a styled map to a briefing: opens Briefing on the layer, builds
+   * slides from its style, filter, Features-tab filters and included features
+   * (generateBriefing), lets AI write descriptions when it is configured, and
+   * optionally opens the share dialog.
+   */
+  async generateBriefingFromView({ uid = null, share = false, useAi = this.aiController.isConfigured() } = {}) {
+    try {
+      const current = this.projectManager.current.presentation || {};
+      const queryable = (item) => item && typeof item.queryFeatures === "function";
+      const layer = [this.mapController.findLayer(uid), this.mapController.findLayer(this.presentationState.layerUid), this.mapController.findLayer(current.primaryLayerId), ...this.mapController.getOperationalLayers()].find(queryable);
+      if (!layer) throw new Error("Add a feature layer to make a briefing from.");
+      const existing = current.briefing?.slides?.length && current.primaryLayerId === layer.uid ? current.briefing.slides.length : 0;
+      if (existing && !confirm(`Replace the ${existing} slide${existing === 1 ? "" : "s"} in this briefing with new ones made from the map?`)) return;
+      // Open the briefing on this layer and wait for its features.
+      if (this.presentationState.template !== "briefing" || this.presentationState.layerUid !== layer.uid) {
+        this.briefingTab = "slides";
+        this.projectManager.setPresentation({ ...current, template: "briefing", primaryLayerId: layer.uid, title: current.primaryLayerId === layer.uid ? current.modeTitles?.briefing || "" : "" });
+        this.#setSidebarCollapsed(false);
+        this.events.publish("mobile:workflow-route", { route: "briefing" });
+        await this.presentationLoading;
+      }
+      const state = this.presentationState;
+      const fields = this.#presentationFields(layer);
+      const conditions = this.#briefingConditionFilter();
+      const narrowed = Boolean(conditions || state.search || state.scope === "extent");
+      const records = narrowed ? state.visibleRecords : state.records;
+      const config = this.mapController.getLayerConfig(layer);
+      const alias = (name) => fields.fields.find((field) => field.name === name)?.alias || name;
+      const scopeText = [
+        ...(state.conditions || []).filter((item) => item.field && (item.op === "is_not_null" || String(item.value ?? "") !== "")).map((item) => `${alias(item.field)} ${({ eq: "is", neq: "is not", contains: "contains", starts_with: "starts with", gt: "over", gte: "at least", lt: "under", lte: "at most", is_not_null: "has a value" })[item.op] || item.op}${item.op === "is_not_null" ? "" : ` ${item.value}`}`),
+        state.scope === "extent" ? "in the map view" : "",
+      ].filter(Boolean).join(" and ");
+      // "In view" has no attribute filter to replay, so the view's features are carried by ID.
+      const inView = state.scope === "extent" ? { op: "feature_ids", ids: records.map((record) => featureId(record, layer.objectIdField)).filter(Boolean).slice(0, 2000) } : null;
+      const scope = inView && conditions ? { op: "and", args: [conditions, inView] } : inView || conditions;
+      const view = this.mapController.getViewState();
+      const theme = rendererTheme(config.renderer);
+      const title = `${layer.title || "Feature"}${theme.field ? ` by ${alias(theme.field)}` : ""}`;
+      const briefing = generateBriefing({
+        layerTitle: layer.title || "Features",
+        title,
+        where: config.definitionExpression,
+        renderer: config.renderer,
+        url: config.local ? "" : config.url,
+        records,
+        total: narrowed ? records.length : state.totalCount,
+        fields: fields.fields,
+        idField: layer.objectIdField,
+        label: (record) => this.#recordLabel(record, fields),
+        camera: view.center ? { center: view.center, zoom: view.zoom, heading: view.heading, tilt: view.tilt } : null,
+        selectedIds: state.briefingUseAll ? [] : [...state.selectedIds],
+        scope,
+        scopeText,
+      });
+      this.briefingTab = "slides";
+      this.projectManager.patchPresentation({ briefing, title, modeTitles: { ...(this.projectManager.current.presentation?.modeTitles || {}), briefing: title } });
+      this.#renderPresentationDashboard(this.projectManager.current.presentation);
+      this.toast(`Briefing made: ${briefing.slides.length} slides from the map's ${theme.field ? "style, " : ""}filters and features.`);
+      if (useAi) await this.#describeBriefingWithAi({ quietFailure: true });
+      if (share) await this.shareBriefing();
+    } catch (error) {
+      this.error(error.message);
+    }
+  }
+
+  /** Asks the configured AI for short descriptions of the briefing's opening and feature slides. */
+  async #describeBriefingWithAi({ quietFailure = false } = {}) {
+    if (!this.aiController.isConfigured()) return this.error("Configure an AI provider from Tools first.");
+    const presentation = this.projectManager.current.presentation || {};
+    const layer = this.mapController.findLayer(this.presentationState.layerUid);
+    if (!layer || !presentation.briefing?.slides?.length) return;
+    const fields = this.#presentationFields(layer);
+    const byId = new Map(this.presentationState.records.map((record) => [featureId(record, layer.objectIdField), record]));
+    const records = Object.fromEntries(presentation.briefing.slides.filter((slide) => slide.featureId && byId.has(slide.featureId)).map((slide) => [slide.id, byId.get(slide.featureId)]));
+    const config = this.mapController.getLayerConfig(layer);
+    const theme = rendererTheme(config.renderer);
+    const alias = (name) => fields.fields.find((field) => field.name === name)?.alias || name;
+    this.toast("Writing slide descriptions with AI…");
+    try {
+      const text = await this.aiController.ask(aiDescriptionPrompt({ briefing: presentation.briefing, layerTitle: layer.title || "Features", filterText: describeWhere(config.definitionExpression, alias), themeField: theme.field ? alias(theme.field) : "", records }), { selectedResults: Object.values(records).slice(0, 12) }, { quiet: true });
+      const descriptions = readAiDescriptions(text);
+      if (!descriptions) throw new Error("The AI answer could not be read as slide text.");
+      this.projectManager.patchPresentation({ briefing: applyAiDescriptions(this.projectManager.current.presentation.briefing, descriptions) });
+      this.#renderPresentationDashboard(this.projectManager.current.presentation);
+      this.toast(`AI wrote ${Object.keys(descriptions.features).length + (descriptions.summary ? 1 : 0)} slide descriptions. Check them before sharing.`);
+    } catch (error) {
+      if (quietFailure) this.toast(`AI descriptions skipped: ${error.message}`);
+      else this.error(error.message);
+    }
   }
 
   /** Opens Tours with the current view saved as a chapter. */
@@ -2249,7 +2355,8 @@ export class UIController {
     const layer = this.#presentationLayer(presentation);
     const prior = this.presentationState.template === presentation.template ? this.presentationState : {};
     this.briefingRequest.cancel();
-    this.presentationState = { ...prior, template: presentation.template, layerUid: layer?.uid || null, records: [], visibleRecords: [], selected: null, selectedIds: new Set(), search: "", searchField: "*", searchOperator: "contains", chartField: null, scope: "all", rangeMin: null, rangeMax: null, totalCount: null, sortField: null, sortDirection: "asc", page: 1, pageSize: 25, binCount: 12, fetchedAt: new Date().toISOString() };
+    const sameLayer = prior.layerUid && prior.layerUid === layer?.uid;
+    this.presentationState = { ...prior, conditions: sameLayer ? prior.conditions || [] : [], groupField: sameLayer ? prior.groupField || null : null, mapSelect: false, template: presentation.template, layerUid: layer?.uid || null, records: [], visibleRecords: [], selected: null, selectedIds: new Set(), search: "", searchField: "*", searchOperator: "contains", chartField: null, scope: "all", rangeMin: null, rangeMax: null, totalCount: null, sortField: null, sortDirection: "asc", page: 1, pageSize: 25, binCount: 12, fetchedAt: new Date().toISOString() };
     if (!layer) return this.#renderPresentationDashboard(presentation);
     try {
       const query = layer.createQuery?.() || {};
@@ -2306,12 +2413,62 @@ export class UIController {
     const available = new Set(this.presentationState.records.map((record) => featureId(record, layer.objectIdField)).filter(Boolean));
     this.presentationState.selectedIds = new Set(saved.ids.filter((id) => available.has(id)));
     this.presentationState.briefingUseAll = saved.useAll === true;
+    if (Array.isArray(saved.conditions) && !this.presentationState.conditions?.length) this.presentationState.conditions = saved.conditions;
   }
 
   #saveBriefingSelection() {
     const state = this.presentationState;
     if (state.template !== "briefing" || !state.layerUid) return;
-    this.projectManager.patchPresentation({ briefingSelection: { layerId: state.layerUid, ids: [...state.selectedIds], useAll: state.briefingUseAll === true } });
+    this.projectManager.patchPresentation({ briefingSelection: { layerId: state.layerUid, ids: [...state.selectedIds], useAll: state.briefingUseAll === true, conditions: state.conditions || [] } });
+  }
+
+  /** The Features tab's attribute conditions as one briefing filter (all must match), or null. */
+  #briefingConditionFilter() {
+    const conditions = (this.presentationState.conditions || []).filter((item) => item.field && (item.op === "is_not_null" || String(item.value ?? "").trim() !== ""));
+    return conditions.length ? normalizeFilter({ op: "and", args: conditions.map(({ field, op, value }) => ({ field, op, value })) }) : null;
+  }
+
+  #toRecord(graphic, layer) {
+    return { kind: "feature", layerUid: layer.uid, layerTitle: layer.title || "Layer", attributes: graphic.attributes || {}, geometry: graphic.geometry || null, graphic };
+  }
+
+  /** Adds features in the current view that were not among the first records loaded. */
+  async #loadExtentRecords() {
+    const state = this.presentationState;
+    const layer = this.mapController.findLayer(state.layerUid);
+    const extent = this.mapController.view?.extent;
+    if (!layer?.queryFeatures || !extent) return;
+    try {
+      const query = layer.createQuery?.() || {};
+      Object.assign(query, { geometry: extent, spatialRelationship: "intersects", where: layer.definitionExpression || "1=1", outFields: ["*"], returnGeometry: true, num: 500 });
+      const response = await layer.queryFeatures(query);
+      if (state !== this.presentationState) return;
+      const known = new Set(state.records.map((record) => featureId(record, layer.objectIdField)));
+      const added = (response.features || []).filter((graphic) => !known.has(String(graphic.attributes?.[layer.objectIdField]))).map((graphic) => this.#toRecord(graphic, layer));
+      state.records.push(...added);
+    } catch { /* The loaded records still filter by extent. */ }
+  }
+
+  /** Pick on map: a click includes the feature in the briefing, or takes it out again. */
+  #toggleBriefingInclude(result) {
+    const state = this.presentationState;
+    const layer = this.mapController.findLayer(state.layerUid);
+    const id = featureId(result, layer?.objectIdField);
+    if (!id) return;
+    if (!state.records.some((record) => featureId(record, layer.objectIdField) === id)) state.records.push({ ...result, kind: "feature" });
+    const record = state.records.find((item) => featureId(item, layer.objectIdField) === id);
+    state.briefingUseAll = false;
+    if (state.selectedIds.has(id)) {
+      state.selectedIds.delete(id);
+      this.toast(`Removed ${this.#recordLabel(record, this.#presentationFields(layer))} from the briefing.`);
+    } else {
+      state.selectedIds.add(id);
+      state.selected = record;
+      this.mapController.highlightFeature(record);
+      this.toast(`Included ${this.#recordLabel(record, this.#presentationFields(layer))} · ${state.selectedIds.size} in the briefing.`);
+    }
+    this.#saveBriefingSelection();
+    this.#filterPresentationRecords();
   }
 
   #recordLabel(result, fields) {
@@ -2359,7 +2516,9 @@ export class UIController {
     const layer = this.mapController.findLayer(this.presentationState.layerUid);
     const fields = this.#presentationFields(layer);
     const extent = this.mapController.view?.extent;
-    const filtered = filterRecords(this.presentationState.records, this.presentationState, fields.fields, (result) => !extent || extent.intersects?.(result.geometry?.extent || result.geometry));
+    const conditions = this.#briefingConditionFilter();
+    const filtered = filterRecords(this.presentationState.records, this.presentationState, fields.fields, (result) => !extent || extent.intersects?.(result.geometry?.extent || result.geometry))
+      .filter((record) => !conditions || matchesFilter(conditions, record.attributes || {}));
     this.presentationState.visibleRecords = sortRecords(filtered, this.presentationState.sortField, this.presentationState.sortDirection);
     if (this.presentationState.selected && !this.presentationState.visibleRecords.includes(this.presentationState.selected)) {
       this.presentationState.selected = null;
@@ -2765,6 +2924,116 @@ export class UIController {
     root.querySelectorAll("[data-mode-record-id]").forEach((button) => button.addEventListener("click", async (event) => { const record = state.visibleRecords.find((item) => featureId(item, layer.objectIdField) === button.dataset.modeRecordId); if (!record) return; const id = featureId(record, layer.objectIdField); if (event.metaKey || event.ctrlKey || event.shiftKey) { state.selectedIds.has(id) ? state.selectedIds.delete(id) : state.selectedIds.add(id); state.selected = record; this.mapController.highlightFeature(record); this.#renderExplorerWorkspace(root, presentation, layer, fields); } else { this.#selectPresentationResult(record); if (record.geometry) await this.mapController.view?.goTo?.(record.geometry, { padding: { left: 36, right: 360, bottom: 140 } }); } }));
   }
 
+  /**
+   * Ways to choose features beyond search: limit to the map view, pick on the
+   * map, attribute conditions, and grouping by a field (include a whole group).
+   */
+  #briefingSelectTools(root, presentation, layer, fields) {
+    const state = this.presentationState;
+    state.conditions ||= [];
+    const idField = layer.objectIdField;
+    const kindOf = (name) => fieldKind(fields.fields.find((field) => field.name === name));
+    const OPS = {
+      text: [["eq", "is"], ["neq", "is not"], ["contains", "contains"], ["starts_with", "starts with"], ["is_not_null", "has a value"]],
+      number: [["eq", "="], ["neq", "≠"], ["gt", ">"], ["gte", "≥"], ["lt", "<"], ["lte", "≤"], ["is_not_null", "has a value"]],
+    };
+    const opsFor = (name) => OPS[kindOf(name) === "number" ? "number" : "text"];
+    const fieldOptions = (selectedName) => fields.fields.map((field) => `<option value="${escapeHtml(field.name)}"${field.name === selectedName ? " selected" : ""}>${escapeHtml(field.alias || field.name)}</option>`).join("");
+    const distinct = (name, limit = 40) => {
+      const counts = new Map();
+      state.records.forEach((record) => { const value = record.attributes?.[name]; if (value != null && value !== "") counts.set(String(value), (counts.get(String(value)) || 0) + 1); });
+      return [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, limit);
+    };
+    // Group-by suits text fields with a handful of values.
+    const groupable = fields.fields.filter((field) => { const values = distinct(field.name, 61).length; return values > 1 && values <= (kindOf(field.name) === "number" ? 12 : 60); });
+    if (state.groupField && !groupable.some((field) => field.name === state.groupField)) state.groupField = null;
+    // Groups are counted against every other condition, so choosing one group keeps the others in view.
+    const others = normalizeFilter({ op: "and", args: state.conditions.filter((item) => !(item.field === state.groupField && item.op === "eq") && item.field && (item.op === "is_not_null" || String(item.value ?? "") !== "")) });
+    const groupExtent = state.scope === "extent" ? this.mapController.view?.extent : null;
+    const groupBase = state.groupField ? state.records.filter((record) => (!others || matchesFilter(others, record.attributes || {})) && (!groupExtent || groupExtent.intersects?.(record.geometry?.extent || record.geometry))) : [];
+    const groups = state.groupField ? (() => {
+      const counts = new Map();
+      groupBase.forEach((record) => { const value = record.attributes?.[state.groupField]; const key = value == null || value === "" ? "" : String(value); counts.set(key, (counts.get(key) || 0) + 1); });
+      return [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 24);
+    })() : [];
+    const activeGroup = state.conditions.find((item) => item.field === state.groupField && item.op === "eq")?.value;
+    const conditionRows = state.conditions.map((condition, index) => {
+      const values = kindOf(condition.field) === "number" ? [] : distinct(condition.field);
+      return `<div class="briefing-condition"><select data-cond-field="${index}" aria-label="Field">${fieldOptions(condition.field)}</select><select data-cond-op="${index}" aria-label="Condition">${opsFor(condition.field).map(([op, label]) => `<option value="${op}"${op === condition.op ? " selected" : ""}>${label}</option>`).join("")}</select>${condition.op === "is_not_null" ? "<span></span>" : `<input data-cond-value="${index}" aria-label="Value" value="${escapeHtml(condition.value ?? "")}" ${kindOf(condition.field) === "number" ? 'type="number" step="any"' : `list="cond-values-${index}"`} placeholder="Value">${values.length ? `<datalist id="cond-values-${index}">${values.map(([value]) => `<option value="${escapeHtml(value)}"></option>`).join("")}</datalist>` : ""}`}<button type="button" data-cond-remove="${index}" aria-label="Remove condition">×</button></div>`;
+    }).join("");
+    const tools = document.createElement("section");
+    tools.className = "briefing-select";
+    tools.innerHTML = `<div class="briefing-select__modes">
+        <button type="button" data-select-view aria-pressed="${state.scope === "extent"}" title="Only list features in the current map view">◱ In view</button>
+        <button type="button" data-select-map aria-pressed="${Boolean(state.mapSelect)}" title="Click features on the map to include or remove them">⊕ Pick on map</button>
+        <button type="button" data-cond-add title="Filter by attribute">+ Filter${state.conditions.length ? ` · ${state.conditions.length}` : ""}</button>
+        <label class="briefing-select__group"><span>Group by</span><select data-select-group><option value="">None</option>${groupable.map((field) => `<option value="${escapeHtml(field.name)}"${field.name === state.groupField ? " selected" : ""}>${escapeHtml(field.alias || field.name)}</option>`).join("")}</select></label>
+      </div>
+      ${conditionRows ? `<div class="briefing-conditions">${conditionRows}</div>` : ""}
+      ${groups.length ? `<div class="briefing-groups">${groups.map(([value, count]) => `<span class="briefing-group${activeGroup != null && String(activeGroup) === value ? " is-active" : ""}"><button type="button" data-group-filter="${escapeHtml(value)}" title="Show only this group">${escapeHtml(value || "No value")} <b>${count}</b></button><button type="button" data-group-include="${escapeHtml(value)}" title="Include all ${count} in the briefing" aria-label="Include all ${escapeHtml(value || "no value")}">+</button></span>`).join("")}</div>` : ""}
+      <div class="briefing-select__bulk"><span>${state.visibleRecords.length.toLocaleString()} shown${state.scope === "extent" ? " in view" : ""} · ${state.selectedIds.size.toLocaleString()} included</span><button type="button" data-include-shown${state.visibleRecords.length ? "" : " disabled"}>Include shown</button><button type="button" data-include-clear${state.selectedIds.size ? "" : " disabled"}>Clear</button></div>
+      <button type="button" class="briefing-select__generate" data-generate-briefing data-mobile-bar data-bar-label="Make briefing" title="Build slides from the map's style, filter and these features">✦ Make a briefing from this view</button>`;
+    const refresh = () => { state.page = 1; this.#saveBriefingSelection(); this.#filterPresentationRecords(); };
+    const on = (selector, type, handler) => tools.querySelectorAll(selector).forEach((element) => element.addEventListener(type, () => handler(element)));
+    on("[data-select-view]", "click", async () => {
+      state.scope = state.scope === "extent" ? "all" : "extent";
+      if (state.scope === "extent") await this.#loadExtentRecords();
+      refresh();
+    });
+    on("[data-select-map]", "click", () => {
+      state.mapSelect = !state.mapSelect;
+      document.body.classList.toggle("briefing-map-select", state.mapSelect);
+      this.toast(state.mapSelect ? "Click features on the map to include or remove them." : "Pick on map is off.");
+      this.#renderBriefingWorkspace(root, presentation, layer, fields);
+    });
+    on("[data-cond-add]", "click", () => {
+      const field = state.groupField || fields.text[0]?.name || fields.fields[0]?.name;
+      if (!field) return;
+      state.conditions.push({ field, op: kindOf(field) === "number" ? "gte" : "eq", value: "" });
+      this.#renderBriefingWorkspace(root, presentation, layer, fields);
+      root.querySelector(`[data-cond-value="${state.conditions.length - 1}"]`)?.focus();
+    });
+    on("[data-cond-field]", "change", (select) => {
+      const condition = state.conditions[Number(select.dataset.condField)];
+      condition.field = select.value;
+      condition.op = kindOf(select.value) === "number" ? "gte" : "eq";
+      condition.value = "";
+      refresh();
+    });
+    on("[data-cond-op]", "change", (select) => { state.conditions[Number(select.dataset.condOp)].op = select.value; refresh(); });
+    on("[data-cond-value]", "change", (input) => { state.conditions[Number(input.dataset.condValue)].value = input.value; refresh(); });
+    on("[data-cond-remove]", "click", (button) => { state.conditions.splice(Number(button.dataset.condRemove), 1); refresh(); });
+    on("[data-select-group]", "change", (select) => {
+      state.conditions = state.conditions.filter((item) => !(item.field === state.groupField && item.op === "eq"));
+      state.groupField = select.value || null;
+      refresh();
+    });
+    on("[data-group-filter]", "click", (button) => {
+      const value = button.dataset.groupFilter;
+      const existing = state.conditions.find((item) => item.field === state.groupField && item.op === "eq");
+      if (existing && String(existing.value) === value) state.conditions = state.conditions.filter((item) => item !== existing);
+      else if (existing) existing.value = value;
+      else state.conditions.push({ field: state.groupField, op: "eq", value });
+      refresh();
+    });
+    on("[data-group-include]", "click", (button) => {
+      const value = button.dataset.groupInclude;
+      const members = groupBase.filter((record) => String(record.attributes?.[state.groupField] ?? "") === value);
+      state.briefingUseAll = false;
+      members.forEach((record) => { const id = featureId(record, idField); if (id) state.selectedIds.add(id); });
+      this.toast(`Included ${members.length} feature${members.length === 1 ? "" : "s"} where ${fields.fields.find((field) => field.name === state.groupField)?.alias || state.groupField} is ${value || "empty"}.`);
+      refresh();
+    });
+    on("[data-include-shown]", "click", () => {
+      state.briefingUseAll = false;
+      state.visibleRecords.forEach((record) => { const id = featureId(record, idField); if (id) state.selectedIds.add(id); });
+      refresh();
+    });
+    on("[data-include-clear]", "click", () => { state.selectedIds.clear(); state.briefingUseAll = false; refresh(); });
+    on("[data-generate-briefing]", "click", () => this.generateBriefingFromView({ uid: layer.uid }));
+    return tools;
+  }
+
   #renderBriefingWorkspace(root, presentation, layer, fields) {
     const state = this.presentationState;
     document.querySelector("#briefing-context-host")?.replaceChildren();
@@ -2799,6 +3068,7 @@ export class UIController {
         row.append(button);
       });
     }
+    root.querySelector(".briefing-search")?.after(this.#briefingSelectTools(root, presentation, layer, fields));
     if (selected) {
       const location = document.createElement("section");
       location.className = "briefing-location-details";
@@ -2858,6 +3128,7 @@ export class UIController {
     });
     document.querySelector(".mode-dashboard--briefing")?.classList.toggle("is-slides", slidesTab);
     document.body.classList.toggle("briefing-slides-tab", slidesTab && this.presentationState?.template === "briefing");
+    document.body.classList.toggle("briefing-map-select", Boolean(this.presentationState?.mapSelect) && this.presentationState?.template === "briefing");
   }
 
   #bindBriefingWorkspace(root, presentation, layer, fields) {
@@ -3567,6 +3838,7 @@ export class UIController {
     const template = presentation.template || "standard";
     if (template === "standard" || template !== this.presentationState.template) this.#leavePresentationMode();
     app.dataset.presentation = template;
+    if (template !== "briefing") document.body.classList.remove("briefing-map-select");
     applyInterfaceSkin(presentation.skin ?? this.projectManager.current.presentation?.skin);
     document.body.dataset.presentation = template;
     if (template === "atlas") {

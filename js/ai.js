@@ -184,7 +184,8 @@ export class AIController {
     return this.config.provider === "ollama" || Boolean(this.token);
   }
 
-  async ask(prompt, context = this.lastContext) {
+  /** `quiet` answers without the Intelligence panel (for text the app writes into a briefing). */
+  async ask(prompt, context = this.lastContext, { quiet = false } = {}) {
     if (!this.isConfigured()) throw new Error("Configure an AI provider from Tools first.");
     const system = AI_SYSTEM_PROMPT;
     const mapContext = this.#compactContext(context);
@@ -192,7 +193,7 @@ export class AIController {
       { role: "system", content: system },
       { role: "user", content: `Map context:\n${JSON.stringify(mapContext)}\n\nQuestion: ${prompt}` },
     ];
-    this.events.publish("ai:start");
+    if (!quiet) this.events.publish("ai:start");
     try {
       let text;
       if (this.config.provider === "ollama") {
@@ -257,10 +258,10 @@ export class AIController {
         if (!response.ok) throw new Error(await responseError(response, "AI endpoint"));
         text = (await response.json()).choices?.[0]?.message?.content;
       }
-      this.events.publish("ai:complete", { text: text || "No response returned." });
+      if (!quiet) this.events.publish("ai:complete", { text: text || "No response returned." });
       return text;
     } catch (error) {
-      this.events.publish("ai:error", { error });
+      if (!quiet) this.events.publish("ai:error", { error });
       throw error;
     }
   }

@@ -749,6 +749,28 @@ body.briefing-slides-tab #briefing-context-host { display:none; }
 .briefing-slides__add button, .briefing-slides__included, .briefing-slides__present, .briefing-camera button { min-height:34px; padding:6px 12px; border:1px solid var(--green); border-radius:var(--ui-radius-small,7px); color:var(--green); background:var(--surface); font-weight:700; }
 .briefing-slides__present, .briefing-slides__add button { color:var(--on-accent,#fff); background:var(--green); }
 .briefing-slides__actions { display:flex; gap:8px; }
+.briefing-slides__auto { display:flex; flex-wrap:wrap; gap:8px; }
+.briefing-slides__auto button, .briefing-select__generate { flex:1; min-height:36px; padding:7px 12px; border:1px dashed var(--green); border-radius:var(--ui-radius-small,7px); background:color-mix(in srgb, var(--green) 9%, var(--surface)); color:var(--green); font-weight:800; }
+.briefing-select { display:grid; gap:8px; padding:9px; border:1px solid var(--line); border-radius:var(--ui-radius-small,7px); background:var(--surface); }
+.briefing-select__modes { display:flex; flex-wrap:wrap; gap:6px; align-items:end; }
+.briefing-select__modes > button { min-height:30px; padding:4px 10px; border:1px solid var(--line); border-radius:999px; background:var(--surface-2); color:var(--ink); font-size:12px; font-weight:700; }
+.briefing-select__modes > button[aria-pressed="true"] { border-color:var(--green); background:var(--green); color:var(--on-accent,#fff); }
+.briefing-select__group { display:grid; gap:2px; margin-left:auto; color:var(--muted); font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.04em; }
+.briefing-select__group select { min-height:30px; max-width:150px; font-size:12px; text-transform:none; letter-spacing:0; }
+.briefing-conditions { display:grid; gap:6px; }
+.briefing-condition { display:grid; grid-template-columns:minmax(0,1.2fr) minmax(0,.8fr) minmax(0,1fr) 28px; gap:5px; align-items:center; }
+.briefing-condition :is(select,input) { min-width:0; min-height:30px; font-size:12px; }
+.briefing-condition > button { height:30px; border:1px solid var(--line); background:var(--surface-2); }
+.briefing-groups { display:flex; flex-wrap:wrap; gap:5px; max-height:96px; overflow:auto; }
+.briefing-group { display:inline-flex; border:1px solid var(--line); border-radius:999px; overflow:hidden; background:var(--surface-2); font-size:12px; }
+.briefing-group button { padding:4px 8px; border:0; background:transparent; color:var(--ink); }
+.briefing-group button b { color:var(--muted); font-weight:700; }
+.briefing-group button + button { border-left:1px solid var(--line); color:var(--green); font-weight:800; }
+.briefing-group.is-active { border-color:var(--green); background:color-mix(in srgb, var(--green) 14%, var(--surface)); }
+.briefing-select__bulk { display:flex; flex-wrap:wrap; align-items:center; gap:6px; color:var(--muted); font-size:12px; }
+.briefing-select__bulk span { margin-right:auto; }
+.briefing-select__bulk button { min-height:28px; padding:3px 9px; border:1px solid var(--line); border-radius:var(--ui-radius-small,7px); background:var(--surface); color:var(--green); font-weight:700; }
+body.briefing-map-select #view-div, body.briefing-map-select .esri-view-surface { cursor:crosshair !important; }
 .feed-card__more { display:flex; flex-wrap:wrap; gap:6px; margin-top:8px; padding-top:8px; border-top:1px dashed var(--line); }
 .feed-card__more button { min-height:30px; padding:4px 10px; border:1px solid var(--line); border-radius:999px; background:var(--surface); color:var(--green); font-size:12px; font-weight:700; }
 .share-export { display:grid; gap:12px; }

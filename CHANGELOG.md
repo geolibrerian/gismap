@@ -8,6 +8,8 @@ All notable changes to GIS Map Online are documented here. This project follows
 
 ### Changed
 
+- The Briefing Features tab chooses features in more ways: **In view** lists only features in the map view (fetching ones beyond the first records loaded), **Pick on map** includes or removes features with a click, **+ Filter** adds attribute conditions (is, contains, ranges, has a value; value suggestions from the data), and **Group by** shows a field's values with counts: tap one to filter to it, or + to include the whole group. Include shown and Clear act on the list. Filters are saved with the project and the map follows them.
+
 - Briefing share links open the briefing itself: the slides start presenting (16:9 stage on desktop, swipeable cards on phones) at the linked slide, instead of opening the authoring view. Links carry the layers with their styles and filters, the skin, basemap and view, and the slides, compressed into the URL fragment (`#briefing=…`, with `&slide=` for a deep link). Briefings too large for a QR code still share as a link, and as a briefing file that opens from `?briefing=<file URL>`. Slide features beyond the first 500 records are fetched by ID.
 - Export is now **Share & export** (layer card Share button, Data and Project menus): share a styled map link and QR, make a map PDF, create a briefing, start a tour here, or export data. It warns when data filters are on, and that links, PDFs and briefings keep them.
 - Skins carry into everything shared: PDFs (header, headings, tables, map frame), QR cards, and the skin travels in map and briefing links.
@@ -17,6 +19,9 @@ All notable changes to GIS Map Online are documented here. This project follows
 - On desktop, Field tasks opens as a tab in the right panel instead of a separate overlay, so docking a share dialog (the ↗ button) adds a tab beside it rather than covering it.
 
 ### Added
+
+- One-click briefings from the map: **Share as a briefing** (Share & export) and **Make a briefing from this view** (Features and Slides tabs) build slides from the layer's style and filter and the Features-tab choices: a title slide describing the style and filter, key numbers for the styled field (scoped to the filters), counts per category or class, the chosen features or the top five by the styled number (with rank and share of total), and a sources slide. Share as a briefing goes straight to the share dialog.
+- With AI configured, generated briefings get short descriptions for the opening and each feature slide (also **Describe with AI** on the Slides tab), grounded in the features' attributes and marked in the presenter notes for review.
 
 - Briefing PDF handout: landscape, a cover with the slide list and a QR code back to the live briefing, then one page per slide laid out like the stage, with a map snapshot at each slide's view in the briefing's skin colours. Offered with the QR card from Share & PDF on the Slides tab.
 - Map links (`#map=…`) open the map exactly as shared: layers, renderers, filters, opacity, basemap, camera and skin. Map PDFs show the current view framed in the skin, a layer key (style and filter), the centre coordinates and a QR code back to the live map.

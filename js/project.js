@@ -337,7 +337,9 @@ export class ProjectManager {
         layerId: selection.layerId ? String(selection.layerId) : null,
         ids: Array.isArray(selection.ids) ? [...new Set(selection.ids.map(String))].slice(0, 500) : [],
         useAll: selection.useAll === true,
-      } : { layerId: null, ids: [], useAll: false },
+        // Attribute conditions from the Features tab: { field, op, value }, all must match.
+        conditions: Array.isArray(selection.conditions) ? selection.conditions.filter((item) => item && typeof item.field === "string" && typeof item.op === "string").slice(0, 8).map(({ field, op, value }) => ({ field, op, value: value ?? "" })) : [],
+      } : { layerId: null, ids: [], useAll: false, conditions: [] },
       // Slides for the briefing; a briefing without slides behaves exactly as before.
       briefing: normalizeBriefing(value.briefing),
       primaryLayerId: value.primaryLayerId || null,

@@ -177,12 +177,13 @@ export class BriefingSlides {
       </span>
     </li>`).join("");
     container.innerHTML = `<div class="briefing-slides">
+      ${this.api.generate ? `<div class="briefing-slides__auto"><button type="button" data-slides-generate title="Slides from the layer's style, filter and the features you included">✦ ${briefing.slides.length ? "Remake" : "Make"} from the map</button>${this.api.aiReady?.() && briefing.slides.length ? `<button type="button" data-slides-ai title="Let the configured AI describe the opening and each feature">✦ Describe with AI</button>` : ""}</div>` : ""}
       <div class="briefing-slides__add">
         <label><span>Add a slide</span><select data-slide-template>${SLIDE_TEMPLATES.filter((template) => template.id !== "feature").map((template) => `<option value="${template.id}">${escapeHtml(template.label)}</option>`).join("")}</select></label>
         <button type="button" data-slide-add>Add</button>
       </div>
       <button type="button" class="briefing-slides__included" data-slides-add-included${includedCount ? "" : " disabled"}>${includedCount ? `Add ${includedCount} included feature${includedCount === 1 ? "" : "s"} as slides` : included.length ? "Every included feature has a slide" : "Include features to add them as slides"}</button>
-      ${briefing.slides.length ? `<ol class="briefing-slide-list">${list}</ol>` : `<p class="briefing-slides__empty">No slides yet. Add a title slide, or turn the features you included into slides. A briefing without slides works exactly as before.</p>`}
+      ${briefing.slides.length ? `<ol class="briefing-slide-list">${list}</ol>` : `<p class="briefing-slides__empty">No slides yet. Make them from the map in one step, add a title slide, or turn the features you included into slides. A briefing without slides works exactly as before.</p>`}
       ${issues.length ? `<details class="briefing-slides__issues"><summary>${issues.length} thing${issues.length === 1 ? "" : "s"} to check</summary><ul>${issues.map((issue) => `<li class="is-${issue.level}"><button type="button" data-slide-select="${issue.slideId}">${escapeHtml(issue.message)}</button></li>`).join("")}</ul></details>` : ""}
       ${briefing.slides.length ? `<div class="briefing-slides__actions"><button type="button" class="briefing-slides__present" data-slides-preview data-mobile-bar="primary" data-bar-label="Preview slides">Preview slides</button><button type="button" data-slides-share data-mobile-bar data-bar-label="Share">Share &amp; PDF</button></div>${this.api.createTour ? `<button type="button" class="briefing-link-button" data-slides-tour>Make a guided tour from these slides →</button>` : ""}` : ""}
       <section class="briefing-slide-editor" data-slide-editor></section>
@@ -268,6 +269,12 @@ export class BriefingSlides {
     on("[data-slides-preview]", "click", () => this.openPlayer(this.briefing.slides.find((slide) => !slide.hidden)?.id));
     on("[data-slides-share]", "click", () => this.api.share?.());
     on("[data-slides-tour]", "click", () => this.#toTour());
+    on("[data-slides-generate]", "click", () => this.api.generate());
+    on("[data-slides-ai]", "click", async (button) => {
+      button.disabled = true;
+      button.textContent = "Writing…";
+      await this.api.describeWithAi?.();
+    });
     on("[data-list-task]", "click", (button) => {
       const slide = this.briefing.slides.find((item) => item.id === slideId);
       const block = slide?.blocks.find((item) => item.id === button.dataset.listTask);

@@ -82,7 +82,7 @@ test("briefing selection persists through mode switches without re-rendering", (
   assert.deepEqual(events, [], "patching must not publish presentation:changed");
   const switched = project.setPresentation({ ...project.current.presentation, template: "atlas" });
   const back = project.setPresentation({ ...switched, template: "briefing" });
-  assert.deepEqual(back.briefingSelection, { layerId: "layer-1", ids: ["ci1", "ak2"], useAll: false });
+  assert.deepEqual(back.briefingSelection, { layerId: "layer-1", ids: ["ci1", "ak2"], useAll: false, conditions: [] });
 });
 
 test("map filters never hide every feature when IDs are text", () => {
