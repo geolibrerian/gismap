@@ -554,7 +554,20 @@ body.mobile-workflow-open .field-task-banner { left:auto; right:calc(min(440px,1
 .panel summary::after { content: "+"; position: absolute; right: 18px; top: 14px; color: var(--muted); font-size: 18px; }
 .panel[open] summary::after { content: "−"; }
 .panel summary span { font: 600 19px/1 "Newsreader", Georgia, serif; }
-.panel summary small { margin-right: 20px; color: var(--muted); font-size: 10px; text-transform: uppercase; letter-spacing: .08em; }
+.panel summary small { color: var(--muted); font-size: 10px; text-transform: uppercase; letter-spacing: .08em; }
+/* The hint sits beside the title; the dock button sits just before the +/− fold mark. */
+.panel summary { justify-content: flex-start; gap: 10px; padding-right: 46px; }
+.panel-dock { display: inline-grid; place-items: center; width: 30px; height: 30px; margin: -6px 0 -6px auto; padding: 0; border: 1px solid transparent; border-radius: 8px; color: var(--muted); background: transparent; cursor: pointer; align-self: center; transition: color .15s, background .15s, border-color .15s, transform .15s; }
+.panel-dock:hover, .panel-dock:focus-visible { color: var(--green); border-color: var(--line); background: var(--surface); transform: translateX(2px); }
+/* Dock icons: a two-tone north-arrow needle aimed where the panel will go. */
+.dock-icon { display: block; overflow: visible; }
+.dock-icon__frame { fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linejoin: round; stroke-linecap: round; }
+.dock-icon__pane { fill: currentColor; opacity: .2; }
+.dock-icon__lit { fill: var(--amber, #d9951e); }
+.dock-icon__shade { fill: currentColor; }
+.dock-icon__pivot { fill: var(--surface, #fff); }
+:is(.panel-dock, #utility-open-modal, #dialog-dock, .presentation-dock-button):hover .dock-icon__pane { opacity: .34; }
+:is(#utility-open-modal, #dialog-dock, .presentation-dock-button) .dock-icon { width: 20px; height: 20px; margin: auto; }
 .panel__body { padding: 0 16px 18px; }
 .search-row { display: grid; grid-template-columns: 1fr 38px; gap: 6px; }
 .place-search-combobox { position: relative; z-index: 4; }
@@ -724,7 +737,17 @@ body.mobile-workflow-open .field-task-banner { left:auto; right:calc(min(440px,1
 .mode-dashboard--briefing .presentation-compact-header { position:relative; grid-template-columns:minmax(0,1fr); padding-right:86px; }
 .mode-dashboard--briefing .briefing-share { position:absolute; top:17px; right:38px; }
 .mode-dashboard--briefing .compact-dataset,.mode-dashboard--briefing .compact-dataset select { width:100%; max-width:100%; }
-.briefing-search { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1.35fr); gap:7px; align-items:end; }.briefing-search > button { grid-column:1/-1; height:34px; border:1px solid var(--line); background:var(--surface); }.briefing-records { max-height:38vh; overflow-x:hidden; }
+.briefing-search { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1.35fr) 34px; gap:7px; align-items:end; }.briefing-search > .field { margin-bottom:0; }.briefing-search > button { align-self:stretch; margin-top:22px; height:auto; min-height:34px; border:1px solid var(--line); border-radius:var(--ui-radius-small,7px); background:var(--surface); color:var(--muted); font-size:18px; line-height:1; }.briefing-records { max-height:38vh; overflow-x:hidden; }
+/* Desktop: the feature list folds like a door and fills the panel down to the footer (height set in JS). */
+.briefing-records-fold { border:1px solid var(--line); border-radius:var(--ui-radius-small,7px); background:var(--surface); }
+.briefing-records-fold > summary { display:flex; align-items:center; gap:8px; min-height:38px; padding:8px 12px; color:var(--ink); font:800 13px/1.2 var(--ui-font); list-style:none; cursor:pointer; }
+.briefing-records-fold > summary::-webkit-details-marker { display:none; }
+.briefing-records-fold > summary small { color:var(--muted); font-weight:600; }
+.briefing-records-fold > summary::after { content:"⌄"; margin-left:auto; color:var(--green); font-size:18px; line-height:1; transition:transform .15s; }
+.briefing-records-fold[open] > summary::after { transform:rotate(180deg); }
+.briefing-records-fold[open] > summary { border-bottom:1px solid var(--line); }
+.briefing-records-fold > .briefing-scope { border:0; border-bottom:1px solid var(--line); }
+.briefing-records-fold > .briefing-records { margin:0; border:0; overflow-y:auto; overscroll-behavior:contain; }
 .briefing-scope { display:flex; flex-wrap:wrap; justify-content:space-between; gap:6px; padding:8px; border:1px solid var(--line); background:var(--surface-2); color:var(--muted); font-size:10px; }
 .briefing-scope label { display:flex; align-items:center; gap:6px; color:var(--ink); font-weight:700; }
 .briefing-record { display:grid; grid-template-columns:32px minmax(0,1fr); border-bottom:1px solid var(--line); }
@@ -751,13 +774,13 @@ body.briefing-slides-tab #briefing-context-host { display:none; }
 .briefing-slides__present, .briefing-slides__add button { color:var(--on-accent,#fff); background:var(--green); }
 .briefing-slides__actions { display:flex; gap:8px; }
 .briefing-slides__auto { display:flex; flex-wrap:wrap; gap:8px; }
-.briefing-slides__auto button, .briefing-select__generate { flex:1; min-height:36px; padding:7px 12px; border:1px dashed var(--green); border-radius:var(--ui-radius-small,7px); background:color-mix(in srgb, var(--green) 9%, var(--surface)); color:var(--green); font-weight:800; }
-.briefing-select { display:grid; gap:8px; padding:9px; border:1px solid var(--line); border-radius:var(--ui-radius-small,7px); background:var(--surface); }
+.briefing-slides__auto button, .briefing-select__generate { flex:1; min-height:32px; padding:5px 12px; border:1px dashed var(--green); border-radius:var(--ui-radius-small,7px); background:color-mix(in srgb, var(--green) 9%, var(--surface)); color:var(--green); font-weight:800; }
+.briefing-select { display:grid; gap:7px; padding:8px; border:1px solid var(--line); border-radius:var(--ui-radius-small,7px); background:var(--surface); }
 .briefing-select__modes { display:flex; flex-wrap:wrap; gap:6px; align-items:end; }
 .briefing-select__modes > button { min-height:30px; padding:4px 10px; border:1px solid var(--line); border-radius:999px; background:var(--surface-2); color:var(--ink); font-size:12px; font-weight:700; }
 .briefing-select__modes > button[aria-pressed="true"] { border-color:var(--green); background:var(--green); color:var(--on-accent,#fff); }
-.briefing-select__group { display:grid; gap:2px; margin-left:auto; color:var(--muted); font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.04em; }
-.briefing-select__group select { min-height:30px; max-width:150px; font-size:12px; text-transform:none; letter-spacing:0; }
+.briefing-select__group { display:block; margin-left:auto; }
+.briefing-select__group select { min-height:30px; max-width:140px; padding-block:3px; border-radius:999px; font-size:12px; }
 .briefing-conditions { display:grid; gap:6px; }
 .briefing-condition { display:grid; grid-template-columns:minmax(0,1.2fr) minmax(0,.8fr) minmax(0,1fr) 28px; gap:5px; align-items:center; }
 .briefing-condition :is(select,input) { min-width:0; min-height:30px; font-size:12px; }
@@ -1066,7 +1089,7 @@ body.shared-tour-only .atlas-tour-exit { display:none!important; }
   .presentation-compact-header { grid-template-columns:1fr; }.presentation-compact-header .eyebrow { grid-column:auto; }
   .compact-dataset select { max-width:none; width:100%; }
   .explorer-counts:has(button) { grid-template-columns:1fr 1fr; }
-  .briefing-search { grid-template-columns:1fr; }
+  .briefing-search { grid-template-columns:minmax(0,1fr) 34px; } .briefing-search > label:first-child { grid-column:1/-1; }
   .briefing-context { position:static; width:auto; max-height:none; }
   .results-row { grid-template-columns:minmax(110px,1.5fr) minmax(70px,1fr); }.results-row span:last-child { display:none; }
   #app[data-presentation="explorer"] #presentation-dashboard,
@@ -1527,6 +1550,7 @@ body.sidebar-collapsed .table-dialog { left: 14px; }
   body[data-navigation-layout="top"] .panel { position: relative; border: 0; }
   body[data-navigation-layout="top"] .panel summary { height: 64px; gap: 0; padding: 0 16px; align-items: center; }
   body[data-navigation-layout="top"] .panel summary span { font: 700 12px/1 system-ui, sans-serif; }
+  body[data-navigation-layout="top"] .panel-dock,
   body[data-navigation-layout="top"] .panel summary small,
   body[data-navigation-layout="top"] .panel summary::after { display: none; }
   body[data-navigation-layout="top"] .panel[open] summary { color: var(--green-2); background: var(--surface-2); }
@@ -1676,6 +1700,7 @@ body.sidebar-collapsed .table-dialog { left: 14px; }
   /* Phones: the feature list and its context fold open inside the Briefing sheet
      instead of floating over it. */
   .briefing-context-host .briefing-context { display:none; }
+  .panel-dock { display:none; }
   .briefing-fold { margin-top:10px; border:1px solid var(--line); border-radius:var(--ui-radius-small); background:var(--surface); }
   .briefing-fold > summary { display:flex; align-items:center; justify-content:space-between; gap:10px; min-height:46px; padding:10px 12px; color:var(--ink); font:800 15px/1.2 var(--ui-font); list-style:none; cursor:pointer; }
   .briefing-fold > summary::-webkit-details-marker { display:none; }

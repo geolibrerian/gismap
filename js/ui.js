@@ -12,12 +12,14 @@ import { DEFAULT_SKIN, INTERFACE_SKINS, applyInterfaceSkin, normalizeSkin, skinO
 import { compactMedia } from "./viewport.js?v=0.18.2";
 import { PdfDocument, brandedMapImage, loadBrandLogo, printPalette, qrAsset } from "./pdf-document.js?v=0.23.0";
 import { featureLayerUrl, locationUrl } from "./field-task-share.js?v=0.21.0";
+import { dockIcon } from "./dock-icons.js?v=0.24.0";
 import { BriefingSlides } from "./briefing-slides.js?v=0.23.0";
 import { createSlide, matchesFilter, normalizeFilter } from "./briefing-document.js?v=0.19.0";
 import { aiDescriptionPrompt, applyAiDescriptions, describeWhere, generateBriefing, readAiDescriptions, rendererTheme } from "./briefing-generator.js?v=0.22.0";
 import { briefingFileStem } from "./briefing-pdf.js?v=0.23.0";
 
 const DISPLAY_SETTINGS_KEY = "gismap-online:display:v1";
+const DOCKABLE_PANELS = { places: "Places", bookmarks: "Bookmarks", draw: "Draw", intelligence: "Intelligence", layers: "Layers" };
 const RECENT_PLACES_KEY = "gismap-online:recent-places:v1";
 const RECENT_PLACES_LIMIT = 6;
 const INSIGHT_POSITIONS = new Set(["upper-left", "lower-left", "bottom", "dock-left", "dock-right", "dock-top", "dock-bottom"]);
@@ -73,6 +75,8 @@ export class UIController {
     this.sharedTourEmbed = false;
     this.tourShareRenderToken = 0;
     this.workflowShareRenderToken = 0;
+    // Standard panels currently docked as right-panel tabs (see #initDockablePanels).
+    this.utilityPanelsOpen = new Set();
     // Which Briefing sections are unfolded on phones, kept across re-renders of the sheet.
     this.briefingFolds = { records: true, context: false };
     // Briefing has two tabs: Features (investigate) and Slides (author the presentation).
@@ -107,6 +111,7 @@ export class UIController {
   initialize() {
     this.panelManager?.register("content:intelligence", document.querySelector("#intelligence-content"), { shell: document.querySelector("#intelligence-panel") });
     this.panelManager?.register("content:draw", document.querySelector(".draw-tools"), { shell: document.querySelector("#draw-panel") });
+    this.#initDockablePanels();
     this.#applyDisplaySettings(this.#readDisplaySettings());
     this.systemThemeMedia.addEventListener?.("change", () => {
       const settings = this.#readDisplaySettings();
@@ -270,7 +275,7 @@ export class UIController {
     document.querySelectorAll("[data-draw]").forEach((button) =>
       button.addEventListener("click", () => this.mapController.draw(button.dataset.draw)),
     );
-    document.querySelector("#draw-workspace-open").addEventListener("click", () => this.#openDrawUtility());
+
     document.querySelector("#draw-export").addEventListener("click", () => {
       const drawings = this.exportController.listExportableLayers().find((item) => item.kind === "drawings");
       if (!drawings) {
@@ -396,6 +401,8 @@ export class UIController {
     document.querySelector("#dialog-dock").addEventListener("click", () => {
       this.#dockDialogInUtilityPanel();
     });
+    document.querySelector("#utility-open-modal").innerHTML = dockIcon("popout");
+    document.querySelector("#dialog-dock").innerHTML = dockIcon("dock");
     document.querySelector("#utility-open-modal").addEventListener("click", () => this.#openUtilityAsModal());
     document.querySelector("#project-file-input").addEventListener("change", (event) => this.#importProject(event));
     const projectDropTarget = document.querySelector(".map-workspace");
@@ -698,6 +705,7 @@ export class UIController {
       ...this.#utilityWidgetTabs(),
       ...(this.utilityTasksOpen ? [{ id: "tasks", label: "Field tasks" }] : []),
       ...(this.utilityDialogOpen ? [{ id: "dialog", label: document.querySelector("#dialog-title")?.textContent || "Dialog" }] : []),
+      ...[...this.utilityPanelsOpen].map((id) => ({ id, label: DOCKABLE_PANELS[id] })),
       ...(this.utilityDrawOpen ? [{ id: "draw", label: "Draw" }] : []),
       ...(this.utilityStyleLayerUid ? [{ id: "style", label: `Style: ${this.mapController.findLayer(this.utilityStyleLayerUid)?.title || "Layer"}` }] : []),
       ...(this.utilityIntelligenceOpen ? [{ id: "intelligence", label: "Intelligence" }] : []),
@@ -755,6 +763,56 @@ export class UIController {
     welcomePanel.hidden = true;
   }
 
+  /**
+   * The standard left panels (Places, Bookmarks, Draw, Intelligence, Layers) each
+   * get a dock button in their header that moves the panel into a right-panel
+   * tab; closing the tab puts it back.
+   */
+  #initDockablePanels() {
+    const panes = document.querySelector("#utility-panel .utility-panes");
+    for (const [id, label] of Object.entries(DOCKABLE_PANELS)) {
+      const shell = document.querySelector(`#${id}-panel`);
+      const summary = shell?.querySelector(":scope > summary");
+      if (!summary) continue;
+      if (!["draw", "intelligence"].includes(id)) {
+        const body = shell.querySelector(":scope > .panel__body");
+        this.panelManager?.register(`content:${id}`, body, { shell });
+        if (!document.querySelector(`[data-utility-pane="${id}"]`)) {
+          const pane = document.createElement("div");
+          pane.id = `utility-${id}-content`;
+          pane.className = "utility-content workspace-tool-pane";
+          pane.dataset.utilityPane = id;
+          pane.hidden = true;
+          panes?.append(pane);
+        }
+      }
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "panel-dock";
+      button.dataset.panelDock = id;
+      button.setAttribute("aria-label", `Open ${label} in the right panel`);
+      button.title = `Open ${label} in the right panel`;
+      button.innerHTML = dockIcon("dock");
+      // A button inside <summary> would also fold the panel; it only docks.
+      button.addEventListener("click", (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        this.#openPanelUtility(id);
+      });
+      summary.append(button);
+    }
+  }
+
+  #openPanelUtility(id) {
+    if (id === "intelligence") return this.#openIntelligenceUtility();
+    if (id === "draw") return this.#openDrawUtility();
+    this.utilityPanelsOpen.add(id);
+    const shell = document.querySelector(`#${id}-panel`);
+    if (shell) shell.open = true;
+    this.panelManager?.move(`content:${id}`, document.querySelector(`#utility-${id}-content`), { surface: "utility", hideShell: true, replaceHost: true });
+    this.#syncUtilityPanel(id);
+  }
+
   #openIntelligenceUtility() {
     this.utilityIntelligenceOpen = true;
     const intelligencePanel = document.querySelector("#intelligence-panel");
@@ -785,6 +843,13 @@ export class UIController {
   }
 
   #closeUtilityTab(tabId) {
+    if (this.utilityPanelsOpen.has(tabId)) {
+      this.utilityPanelsOpen.delete(tabId);
+      this.panelManager?.restore(`content:${tabId}`);
+      this.applicationRuntime.syncStaticPanelVisibility();
+      this.#syncUtilityPanel();
+      return;
+    }
     if (tabId === "tasks") {
       // The workflow router owns the Tasks screen; it returns to the map and undocks it.
       this.events.publish("workflow:panel-closed", { route: "tasks" });
@@ -813,7 +878,7 @@ export class UIController {
       if (dockButton) {
         dockButton.setAttribute("aria-label", "Open in right panel");
         dockButton.title = "Open in right panel";
-        dockButton.textContent = "↗";
+        dockButton.innerHTML = dockIcon("dock");
       }
       document.body.classList.remove("presentation-workspace-panels-open");
       document.querySelectorAll(".sidebar__scroll > .panel[data-presentation-hidden]").forEach((panel) => { panel.hidden = true; });
@@ -2899,7 +2964,8 @@ export class UIController {
       const label = mobileSettings ? "Close presentation settings" : this.utilityPresentationOpen ? "Return to map" : "Open in right panel";
       dockButton.setAttribute("aria-label", label);
       dockButton.title = label;
-      dockButton.textContent = mobileSettings ? "×" : this.utilityPresentationOpen ? "↙" : "↗";
+      if (mobileSettings) dockButton.textContent = "×";
+      else dockButton.innerHTML = dockIcon(this.utilityPresentationOpen ? "undock" : "dock");
     }
     this.#syncUtilityPanel("presentation");
     this.mapController.resize();
@@ -2915,7 +2981,8 @@ export class UIController {
     const mobileSettings = this.mobileMedia.matches && this.utilityPresentationOpen;
     button.setAttribute("aria-label", mobileSettings ? "Close presentation settings" : this.utilityPresentationOpen ? "Return to left panel" : "Open in right panel");
     button.title = button.getAttribute("aria-label");
-    button.textContent = mobileSettings ? "×" : this.utilityPresentationOpen ? "↙" : "↗";
+    if (mobileSettings) button.textContent = "×";
+    else button.innerHTML = dockIcon(this.utilityPresentationOpen ? "undock" : "dock");
     button.addEventListener("click", () => mobileSettings ? this.#closeUtilityTab("presentation") : this.#togglePresentationDock());
     header.append(button);
   }
@@ -3036,7 +3103,7 @@ export class UIController {
         <button type="button" data-select-view aria-pressed="${state.scope === "extent"}" title="Only list features in the current map view">◱ In view</button>
         <button type="button" data-select-map aria-pressed="${Boolean(state.mapSelect)}" title="Click features on the map to include or remove them">⊕ Pick on map</button>
         <button type="button" data-cond-add title="Filter by attribute">+ Filter${state.conditions.length ? ` · ${state.conditions.length}` : ""}</button>
-        <label class="briefing-select__group"><span>Group by</span><select data-select-group><option value="">None</option>${groupable.map((field) => `<option value="${escapeHtml(field.name)}"${field.name === state.groupField ? " selected" : ""}>${escapeHtml(field.alias || field.name)}</option>`).join("")}</select></label>
+        <label class="briefing-select__group"><span class="sr-only">Group by</span><select data-select-group aria-label="Group by"><option value="">Group by…</option>${groupable.map((field) => `<option value="${escapeHtml(field.name)}"${field.name === state.groupField ? " selected" : ""}>${escapeHtml(field.alias || field.name)}</option>`).join("")}</select></label>
       </div>
       ${conditionRows ? `<div class="briefing-conditions">${conditionRows}</div>` : ""}
       ${groups.length ? `<div class="briefing-groups">${groups.map(([value, count]) => `<span class="briefing-group${activeGroup != null && String(activeGroup) === value ? " is-active" : ""}"><button type="button" data-group-filter="${escapeHtml(value)}" title="Show only this group">${escapeHtml(value || "No value")} <b>${count}</b></button><button type="button" data-group-include="${escapeHtml(value)}" title="Include all ${count} in the briefing" aria-label="Include all ${escapeHtml(value || "no value")}">+</button></span>`).join("")}</div>` : ""}
@@ -3115,7 +3182,7 @@ export class UIController {
     const overview = selected ? Object.entries(selected.attributes || {}).filter(([key, value]) => value != null && value !== "" && key !== idField).slice(0, 5) : [];
     const useAll = state.briefingUseAll === true;
     const section = (key, title, content) => contextSettings.sections[key] ? `<section><h4>${title}</h4>${content}</section>` : "";
-    root.innerHTML = `<section class="mode-dashboard mode-dashboard--briefing presentation-workspace"><header class="presentation-compact-header"><span class="eyebrow">Context briefing</span><h2>${escapeHtml(presentation.title || layer.title || "Feature briefing")}</h2><label class="compact-dataset"><span>Dataset</span><select data-mode-dataset>${this.mapController.getOperationalLayers().filter((item) => typeof item.queryFeatures === "function").map((item) => `<option value="${escapeHtml(item.uid)}"${item.uid === layer.uid ? " selected" : ""}>${escapeHtml(item.title || "Untitled layer")}</option>`).join("")}</select></label></header><div class="briefing-search"><label class="field"><span>Search field</span><select data-search-field>${this.#fieldOptions(fields.fields, state.searchField)}</select></label><label class="field"><span>Find a feature</span><input data-mode-search value="${escapeHtml(state.search)}" placeholder="Search ${escapeHtml(fields.fields.find((field) => field.name === state.searchField)?.alias || nameField || "features")}"/></label><button data-mode-clear>Clear</button></div><div class="mode-records briefing-records">${state.visibleRecords.slice(0, 100).map((record) => `<button class="mode-record${record === selected ? " is-selected" : ""}" data-mode-record-id="${escapeHtml(featureId(record, idField))}"><strong>${escapeHtml(this.#recordLabel(record, fields))}</strong><small>${escapeHtml(featureId(record, idField) || "")}</small></button>`).join("") || "<p class=\"form-note\">No locally available features match.</p>"}</div><aside class="mode-details briefing-context"><button class="context-settings-button" data-briefing-settings aria-label="Context settings" title="Context settings">⚙</button><span class="eyebrow">${selected ? "Feature context" : "Select a feature"}</span>${selected ? `<h3>${escapeHtml(this.#recordLabel(selected, fields))}</h3><div class="detail-actions"><button data-selection-zoom aria-label="Zoom to feature" title="Zoom to feature">⌕</button><button data-selection-clear aria-label="Clear selected feature" title="Clear selected feature">×</button><button type="button" class="detail-actions__slide" data-briefing-add-slide title="Add this feature to the briefing's slides">+ Slide</button><button type="button" class="detail-actions__slide" data-briefing-add-tour title="Add this feature to the guided tour">+ Tour</button><button type="button" class="detail-actions__slide" data-briefing-add-task title="Make a field task at this feature">Task</button></div>${section("overview", "Overview", `<dl>${overview.map(([key,value]) => `<div><dt>${escapeHtml(fields.fields.find((field) => field.name === key)?.alias || key)}</dt><dd>${escapeHtml(formatAttributeValue(value, fields.fields.find((field) => field.name === key), key))}</dd></div>`).join("")}</dl>`)}${section("surroundings", "Surroundings", `<p data-briefing-surroundings>Checking visible contextual datasets…</p>`)}${section("ai", "AI context", `<p data-briefing-ai>${this.aiController.isConfigured() ? "Deterministic context appears first. Generate a concise explanation after reviewing it." : "AI is not configured. Spatial context and source details remain available."}</p>${this.aiController.isConfigured() ? "<button data-briefing-ai-run>Generate sourced context</button>" : ""}`)}${section("sources", "Sources", contextSources.map((source) => `<p>${escapeHtml(source.title || "Dataset")} ${source === layer ? `· retrieved ${escapeHtml(this.#formatExplorerTime(state.fetchedAt))}` : ""}</p>${source.url ? `<a href="${escapeHtml(source.url)}" target="_blank" rel="noopener">Open dataset source ↗</a>` : ""}`).join("") || "<p>No sources selected.</p>")}<details><summary>All attributes</summary><dl>${Object.entries(selected.attributes || {}).map(([key,value]) => `<div><dt>${escapeHtml(key)}</dt><dd>${escapeHtml(value)}</dd></div>`).join("")}</dl></details>` : "<p>Choose a named feature or click it on the map. The right context panel keeps selection, map highlight, and details synchronized.</p>"}</aside></section>`;
+    root.innerHTML = `<section class="mode-dashboard mode-dashboard--briefing presentation-workspace"><header class="presentation-compact-header"><span class="eyebrow">Context briefing</span><h2>${escapeHtml(presentation.title || layer.title || "Feature briefing")}</h2><label class="compact-dataset"><span>Dataset</span><select data-mode-dataset>${this.mapController.getOperationalLayers().filter((item) => typeof item.queryFeatures === "function").map((item) => `<option value="${escapeHtml(item.uid)}"${item.uid === layer.uid ? " selected" : ""}>${escapeHtml(item.title || "Untitled layer")}</option>`).join("")}</select></label></header><div class="briefing-search"><label class="field"><span>Search field</span><select data-search-field>${this.#fieldOptions(fields.fields, state.searchField)}</select></label><label class="field"><span>Find a feature</span><input data-mode-search value="${escapeHtml(state.search)}" placeholder="Search ${escapeHtml(fields.fields.find((field) => field.name === state.searchField)?.alias || nameField || "features")}"/></label><button data-mode-clear aria-label="Clear the search" title="Clear the search">×</button></div><div class="mode-records briefing-records">${state.visibleRecords.slice(0, 400).map((record) => `<button class="mode-record${record === selected ? " is-selected" : ""}" data-mode-record-id="${escapeHtml(featureId(record, idField))}"><strong>${escapeHtml(this.#recordLabel(record, fields))}</strong><small>${escapeHtml(featureId(record, idField) || "")}</small></button>`).join("") || "<p class=\"form-note\">No locally available features match.</p>"}</div><aside class="mode-details briefing-context"><button class="context-settings-button" data-briefing-settings aria-label="Context settings" title="Context settings">⚙</button><span class="eyebrow">${selected ? "Feature context" : "Select a feature"}</span>${selected ? `<h3>${escapeHtml(this.#recordLabel(selected, fields))}</h3><div class="detail-actions"><button data-selection-zoom aria-label="Zoom to feature" title="Zoom to feature">⌕</button><button data-selection-clear aria-label="Clear selected feature" title="Clear selected feature">×</button><button type="button" class="detail-actions__slide" data-briefing-add-slide title="Add this feature to the briefing's slides">+ Slide</button><button type="button" class="detail-actions__slide" data-briefing-add-tour title="Add this feature to the guided tour">+ Tour</button><button type="button" class="detail-actions__slide" data-briefing-add-task title="Make a field task at this feature">Task</button></div>${section("overview", "Overview", `<dl>${overview.map(([key,value]) => `<div><dt>${escapeHtml(fields.fields.find((field) => field.name === key)?.alias || key)}</dt><dd>${escapeHtml(formatAttributeValue(value, fields.fields.find((field) => field.name === key), key))}</dd></div>`).join("")}</dl>`)}${section("surroundings", "Surroundings", `<p data-briefing-surroundings>Checking visible contextual datasets…</p>`)}${section("ai", "AI context", `<p data-briefing-ai>${this.aiController.isConfigured() ? "Deterministic context appears first. Generate a concise explanation after reviewing it." : "AI is not configured. Spatial context and source details remain available."}</p>${this.aiController.isConfigured() ? "<button data-briefing-ai-run>Generate sourced context</button>" : ""}`)}${section("sources", "Sources", contextSources.map((source) => `<p>${escapeHtml(source.title || "Dataset")} ${source === layer ? `· retrieved ${escapeHtml(this.#formatExplorerTime(state.fetchedAt))}` : ""}</p>${source.url ? `<a href="${escapeHtml(source.url)}" target="_blank" rel="noopener">Open dataset source ↗</a>` : ""}`).join("") || "<p>No sources selected.</p>")}<details><summary>All attributes</summary><dl>${Object.entries(selected.attributes || {}).map(([key,value]) => `<div><dt>${escapeHtml(key)}</dt><dd>${escapeHtml(value)}</dd></div>`).join("")}</dl></details>` : "<p>Choose a named feature or click it on the map. The right context panel keeps selection, map highlight, and details synchronized.</p>"}</aside></section>`;
     const briefingShare = document.createElement("button");
     briefingShare.type = "button";
     briefingShare.className = "briefing-share";
@@ -3163,6 +3230,7 @@ export class UIController {
     if (this.briefingTab === "slides") this.briefingSlides.render(slidesHost);
     this.#addPresentationDockControl(root);
     this.#bindBriefingWorkspace(root, presentation, layer, fields);
+    if (!this.mobileMedia.matches) this.#foldBriefingRecords(root);
     const context = root.querySelector(".briefing-context");
     if (context && this.mobileMedia.matches) this.#foldBriefingSheet(root, context, selected);
     else if (context) document.querySelector("#briefing-context-host")?.replaceChildren(context);
@@ -3729,6 +3797,42 @@ export class UIController {
   }
 
   /** Phones: Features and Feature context become folding sections inside the Briefing sheet. */
+  /**
+   * Desktop: the feature list (with its "use all" bar) folds like a door, and
+   * when open it fills the panel down to the footer, scrolling on its own.
+   */
+  #foldBriefingRecords(root) {
+    const records = root.querySelector(".briefing-records");
+    const scope = root.querySelector(".briefing-scope");
+    if (!records) return;
+    const shown = this.presentationState.visibleRecords.length;
+    const fold = document.createElement("details");
+    fold.className = "briefing-records-fold";
+    fold.open = this.briefingRecordsOpen !== false;
+    fold.innerHTML = `<summary>Features <small>${shown.toLocaleString()} shown${shown > 400 ? " · first 400 listed" : ""}</small></summary>`;
+    (scope || records).before(fold);
+    fold.append(...[scope, records].filter(Boolean));
+    fold.addEventListener("toggle", () => {
+      this.briefingRecordsOpen = fold.open;
+      if (fold.open) this.#fitBriefingRecords(records);
+    });
+    requestAnimationFrame(() => this.#fitBriefingRecords(records));
+    if (!this.briefingRecordsResize) {
+      this.briefingRecordsResize = () => this.#fitBriefingRecords(document.querySelector(".briefing-records-fold .briefing-records"));
+      addEventListener("resize", this.briefingRecordsResize);
+    }
+  }
+
+  #fitBriefingRecords(records) {
+    const scroller = records?.closest(".sidebar__scroll, .utility-content");
+    if (!records?.isConnected || !scroller || this.mobileMedia.matches) return;
+    // Top of the list within the scrolling panel, independent of how far it is scrolled.
+    const top = records.getBoundingClientRect().top - scroller.getBoundingClientRect().top + scroller.scrollTop;
+    const available = scroller.clientHeight - top - 14;
+    // At least about half the panel, so scrolling down to the list shows a useful page of it.
+    records.style.maxHeight = `${Math.max(260, Math.round(scroller.clientHeight * 0.55), available)}px`;
+  }
+
   #foldBriefingSheet(root, context, selected) {
     document.querySelector("#briefing-context-host")?.replaceChildren();
     document.body.classList.remove("mobile-briefing-context-open");
@@ -5158,10 +5262,9 @@ export class UIController {
     const loadingHtml = this.identifyPending
       ? '<div class="loading-row"><span></span> Inspecting location…</div>'
       : this.aiPending ? '<div class="loading-row ai-loading"><span></span> Generating AI insights…</div>' : "";
-    const html = `<div class="intelligence-toolbar"><button type="button" data-open-intelligence-utility title="Open Intelligence in the right panel">Open in right panel ↗</button></div>${loadingHtml}${locationHtml}${aiForm}${locationReportHtml}${responseHtml}`;
+    const html = `${loadingHtml}${locationHtml}${aiForm}${locationReportHtml}${responseHtml}`;
     target.classList.toggle("intelligence-empty", !payload);
     target.innerHTML = html;
-    target.querySelector("[data-open-intelligence-utility]")?.addEventListener("click", () => this.#openIntelligenceUtility());
     target.querySelector(".ai-question")?.addEventListener("submit", (event) => {
         event.preventDefault();
         const prompt = event.currentTarget.querySelector("input").value.trim();
@@ -5363,7 +5466,7 @@ export class UIController {
     this.dialog.classList.remove("app-dialog--docked", "app-dialog--presentation-sheet");
     this.dialog.classList.toggle("app-dialog--presentation-sheet", presentationSheet);
     document.querySelector("#dialog-dock").setAttribute("aria-label", "Move dialog to the right panel");
-    document.querySelector("#dialog-dock").textContent = "↗";
+    document.querySelector("#dialog-dock").innerHTML = dockIcon("dock");
     document.querySelector("#dialog-eyebrow").textContent = eyebrow;
     document.querySelector("#dialog-title").textContent = title;
     document.querySelector("#dialog-content").innerHTML = content;

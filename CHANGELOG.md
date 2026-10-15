@@ -8,6 +8,10 @@ All notable changes to GIS Map Online are documented here. This project follows
 
 ### Changed
 
+- Every standard panel (Places, Bookmarks, Draw, Intelligence, Layers) has a dock button in its header that moves it into a right-panel tab; closing the tab puts it back. This replaces the "Open in right panel ↗" buttons in Draw and Intelligence. Panel hints ("Click the map", "Search", "1 loaded") now sit beside the title.
+- New dock icons, a two-tone north-arrow needle aimed where the panel goes: into the right panel, back to the left, or out of its frame into a floating window. They replace the plain arrows on panel headers, the right-panel "open as modal" button, dialog docking and the presentation dock.
+- The Briefing feature list folds like a door and, when open, fills the panel down to the footer with its own scroll (up to 400 features listed). The search Clear is now an inline ×, and Group by sits in the chip row, so the list starts higher.
+
 - Share links carry a layer's style only when it was set in GISMap (or is small); a service's own style, which often embeds symbol images, loads with the layer anyway. A wildfire briefing link went from 11 KB to about 700 characters and fits a QR code again.
 - The Briefing Features tab chooses features in more ways: **In view** lists only features in the map view (fetching ones beyond the first records loaded), **Pick on map** includes or removes features with a click, **+ Filter** adds attribute conditions (is, contains, ranges, has a value; value suggestions from the data), and **Group by** shows a field's values with counts: tap one to filter to it, or + to include the whole group. Include shown and Clear act on the list. Filters are saved with the project and the map follows them.
 
