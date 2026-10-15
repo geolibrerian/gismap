@@ -11,6 +11,7 @@ const MAX_STEP = 120;
 const MAX_NOTES = 500;
 const MAX_LABEL = 80;
 const MAX_NAME = 60;
+const MAX_ADDRESS = 160;
 
 export const FIELD_TASK_LIMITS = Object.freeze({
   maxUrlLength: MAX_URL_LENGTH,
@@ -43,6 +44,34 @@ const validObjectId = (value) => (Number.isSafeInteger(value) || (typeof value =
 export function taskSteps(task = {}) {
   if (Array.isArray(task.steps)) return task.steps.map((step) => ({ text: text(step?.text, MAX_STEP), done: Boolean(step?.done) })).filter((step) => step.text);
   return DEFAULT_TASK_STEPS.map((label, index) => ({ text: label, done: Boolean(task.checklist?.[index]) }));
+}
+
+/**
+ * Address details from a reverse-geocode result ({ address, attributes }), the
+ * same lookup Location Intelligence uses. Returns null when nothing was found.
+ */
+export function addressDetails(result, { latitude, longitude } = {}) {
+  const attributes = result?.attributes || {};
+  const label = text(attributes.LongLabel || result?.address || attributes.Match_addr, MAX_ADDRESS);
+  if (!label) return null;
+  const details = {
+    label,
+    neighborhood: text(attributes.Neighborhood, MAX_LABEL),
+    city: text(attributes.City, MAX_LABEL),
+    county: text(attributes.Subregion, MAX_LABEL),
+    region: text(attributes.Region, MAX_LABEL),
+    postal: text(attributes.Postal, 20),
+    country: text(attributes.CntryName || attributes.CountryCode, MAX_LABEL),
+  };
+  if (Number.isFinite(latitude) && Number.isFinite(longitude)) Object.assign(details, { latitude, longitude });
+  return Object.fromEntries(Object.entries(details).filter(([, value]) => value !== ""));
+}
+
+/** "Oakland, Alameda County, California 94612, United States" from the parts that are known. */
+export function addressPlace(address) {
+  if (!address) return "";
+  const regionPostal = [address.region, address.postal].filter(Boolean).join(" ");
+  return [address.neighborhood, address.city, address.county, regionPostal, address.country].filter(Boolean).join(", ");
 }
 
 /** The shareable layer URL for a feature layer or map-service sublayer. */
@@ -89,7 +118,18 @@ export function serializeFieldTask(task, kind = "assign") {
     payload.x = coordinate(task.longitude);
     payload.y = coordinate(task.latitude);
   }
+  payload.a = text(task.address?.label, MAX_ADDRESS) || undefined;
   if (kind === "return") {
+    const checkIn = task.checkIn;
+    if (checkIn && Number.isFinite(checkIn.latitude) && Number.isFinite(checkIn.longitude)) {
+      payload.c = {
+        x: coordinate(checkIn.longitude),
+        y: coordinate(checkIn.latitude),
+        t: checkIn.at || undefined,
+        r: Number.isFinite(checkIn.accuracy) ? Math.round(checkIn.accuracy) : undefined,
+        a: text(checkIn.address?.label, MAX_ADDRESS) || undefined,
+      };
+    }
     payload.d = steps.map((step) => flag(step.done));
     payload.r = text(task.report, MAX_NOTES) || undefined;
     payload.by = text(task.completedBy, MAX_NAME) || undefined;
@@ -137,7 +177,19 @@ export function decodeFieldTask(value, options = {}) {
     features,
   };
   if (inRange(raw.x, raw.y)) Object.assign(task, { longitude: raw.x, latitude: raw.y });
+  if (typeof raw.a === "string" && raw.a.trim()) task.address = { label: text(raw.a, MAX_ADDRESS) };
   if (raw.k === "r") {
+    const checkIn = raw.c;
+    if (checkIn && inRange(checkIn.x, checkIn.y)) {
+      const at = new Date(checkIn.t);
+      task.checkIn = {
+        longitude: checkIn.x,
+        latitude: checkIn.y,
+        at: Number.isNaN(at.getTime()) ? null : at.toISOString(),
+        accuracy: Number.isFinite(checkIn.r) && checkIn.r >= 0 ? checkIn.r : null,
+        address: typeof checkIn.a === "string" && checkIn.a.trim() ? { label: text(checkIn.a, MAX_ADDRESS) } : null,
+      };
+    }
     const completedAt = new Date(raw.at);
     Object.assign(task, {
       report: text(raw.r, MAX_NOTES),

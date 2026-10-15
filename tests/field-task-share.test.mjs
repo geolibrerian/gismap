@@ -3,6 +3,8 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import {
   FIELD_TASK_LIMITS,
+  addressDetails,
+  addressPlace,
   createFieldTaskUrl,
   decodeFieldTask,
   encodeFieldTask,
@@ -51,6 +53,25 @@ test("a task can rely on its latitude and longitude alone", () => {
   const { task: decoded } = decodeFieldTask(encodeFieldTask({ id: "loc", title: "Check sign", location: "Trailhead", latitude: 45.57617, longitude: -122.11576, steps: [{ text: "Photograph sign" }] }));
   assert.deepEqual([decoded.latitude, decoded.longitude, decoded.location], [45.57617, -122.11576, "Trailhead"]);
   assert.deepEqual(decoded.features, []);
+});
+
+test("addresses and the field check-in travel in the links", () => {
+  const address = { label: "1 Harrison St, Oakland, California, 94612, USA", city: "Oakland", latitude: 37.8091, longitude: -122.2633 };
+  const assigned = decodeFieldTask(encodeFieldTask({ ...task, latitude: 37.8091, longitude: -122.2633, address }, "assign")).task;
+  assert.deepEqual(assigned.address, { label: address.label });
+  assert.equal(assigned.checkIn, undefined);
+  const checkIn = { latitude: 37.80912, longitude: -122.26338, accuracy: 12.4, at: "2026-10-14T18:30:00.000Z", address: { label: "Snow Park, Oakland, California" } };
+  const returned = decodeFieldTask(encodeFieldTask({ ...task, address, checkIn, completedAt: "2026-10-14T18:40:00.000Z" }, "return")).task;
+  assert.deepEqual(returned.checkIn, { latitude: 37.80912, longitude: -122.26338, accuracy: 12, at: "2026-10-14T18:30:00.000Z", address: { label: "Snow Park, Oakland, California" } });
+  assert.deepEqual(returned.address, { label: address.label });
+});
+
+test("address details keep the parts Location Intelligence returns", () => {
+  const details = addressDetails({ address: "1 Harrison St", attributes: { LongLabel: "1 Harrison St, Oakland, CA, 94612, USA", Neighborhood: "Adams Point", City: "Oakland", Subregion: "Alameda County", Region: "California", Postal: "94612", CntryName: "United States" } }, { latitude: 37.8, longitude: -122.26 });
+  assert.equal(details.label, "1 Harrison St, Oakland, CA, 94612, USA");
+  assert.equal(addressPlace(details), "Adams Point, Oakland, Alameda County, California 94612, United States");
+  assert.deepEqual([details.latitude, details.longitude], [37.8, -122.26]);
+  assert.equal(addressDetails(null), null);
 });
 
 test("shared tasks are limited to five features", () => {

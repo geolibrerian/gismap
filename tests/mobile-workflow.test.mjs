@@ -78,7 +78,8 @@ test("free workflows provide QR sharing while account workflows remain gated", a
   const ui = await readFile(new URL("../js/ui.js", import.meta.url), "utf8");
   assert.match(router, /share by QR/);
   assert.match(router, /With an account · coming soon/);
-  assert.match(ui, /QRCode\.toCanvas\(canvas, url/);
+  assert.match(ui, /#drawBrandedQrCard\(canvas, url, \{ title, \.\.\.card/, "workflow shares draw the branded QR card for the complete link");
+  assert.match(ui, /QRCode\.toCanvas\(qrCanvas, url/);
   assert.match(ui, /shareMobileWorkflow\("briefing"\)/);
 });
 
@@ -91,7 +92,9 @@ test("mobile Atlas authoring uses a content-sized bottom workspace above its con
   assert.match(css, /\.app-dialog--presentation-sheet[\s\S]*?height:60dvh/);
   assert.match(css, /\.app-dialog--presentation-sheet \.dialog__shell \{ grid-template-rows:minmax\(0,1fr\) auto/);
   assert.match(css, /\.app-dialog--presentation-sheet \.dialog__actions button \{ flex:0 0 auto; width:auto; min-width:88px; height:40px/);
-  assert.match(css, /#app\[data-presentation="briefing"\] \.sidebar,[\s\S]*?#app\[data-presentation="atlas"\] \.sidebar \{ bottom:calc\(134px \+ env\(safe-area-inset-bottom\)\); height:auto; max-height:min\(56dvh/);
+  // Briefing and Tour sheets sit on the docked action bar, open at half height and drag to the top bar.
+  assert.match(css, /#app\[data-presentation="briefing"\] \.sidebar,[\s\S]*?#app\[data-presentation="atlas"\] \.sidebar \{ bottom:calc\(124px \+ env\(safe-area-inset-bottom\)\); height:var\(--mobile-sheet-height, 50dvh\)/);
+  assert.match(await readFile(new URL("../index.html", import.meta.url), "utf8"), /id="mobile-action-bar"/);
   assert.match(css, /#app\[data-presentation="atlas"\] \.mode-dashboard--atlas \{ align-content:start; grid-auto-rows:max-content/);
   assert.match(css, /grid-template-columns:repeat\(3,minmax\(0,1fr\)\)/);
   assert.match(css, /\.atlas-actions button \{ height:40px; min-height:0; max-height:40px/);
@@ -102,7 +105,8 @@ test("mobile map tools open in a content-sized, resizable sheet capped at sixty 
   const ui = await readFile(new URL("../js/ui.js", import.meta.url), "utf8");
   const css = await readFile(new URL("../css/app.css", import.meta.url), "utf8");
   assert.match(html, /id="mobile-drawer-handle"/);
-  assert.match(ui, /Math\.min\(window\.innerHeight \* 0\.6, Math\.max\(window\.innerHeight \* 0\.2, height\)\)/);
+  assert.match(ui, /const max = presentationSheet\(\) \? sheetBottom - topLimit : window\.innerHeight \* 0\.6;/);
+  assert.match(ui, /Math\.min\(max, Math\.max\(window\.innerHeight \* 0\.2, height\)\)/);
   assert.match(css, /height: var\(--mobile-tool-drawer-height, auto\);[\s\S]*?max-height: 60dvh/);
 });
 

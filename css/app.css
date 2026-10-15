@@ -418,6 +418,10 @@ body.utility-resizing iframe, body.utility-resizing canvas { pointer-events: non
 .task-location-row span { display:grid; gap:2px; min-width:0; }
 .task-location-row b { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .task-location-row small { color:var(--muted); font-size:12px; }
+.task-checkin { display:grid; gap:10px; }
+.task-checkin-row b { white-space:normal; }
+.task-checkin-row { border-color:color-mix(in srgb, #0f8f6e 55%, var(--line)); background:color-mix(in srgb, #0f8f6e 8%, var(--surface-2)); }
+.task-checkin-row b::before { content:""; display:inline-block; width:10px; height:10px; margin-right:7px; border:2px solid #fff; border-radius:50%; background:#0f8f6e; box-shadow:0 0 0 1px #0f8f6e; vertical-align:-1px; }
 .mobile-card .form-note { margin:0; color:var(--muted); font-size:12px; font-weight:400; }
 .mobile-card :is(h2,h3) { margin:0; font-family:var(--ui-heading); }
 .task-instructions { margin:0; white-space:pre-wrap; }

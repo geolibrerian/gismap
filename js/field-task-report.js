@@ -1,10 +1,12 @@
-// Field task reports: a branded PDF (map snapshot, steps, features, report and
-// photos) and a CSV of the same record, built on the device that holds the task.
-import { PDF_COLORS, PdfDocument, dataUrlBytes, imageToJpeg } from "./pdf-document.js?v=0.18.12";
-import { taskSteps } from "./field-task-share.js?v=0.18.6";
+// Field task reports: a branded PDF (framed map, location details, check-in,
+// steps, features, report, photos and a data table) and a CSV of the same
+// record, built on the device that holds the task.
+import { PDF_COLORS, PdfDocument, dataUrlBytes, imageToJpeg } from "./pdf-document.js?v=0.18.13";
+import { addressPlace, taskSteps } from "./field-task-share.js?v=0.18.13";
 
 const STATUS = { draft: "Draft", sent: "Sent", assigned: "To complete", "in-progress": "In progress", completed: "Completed", returned: "Report received", shared: "Shared" };
 const MAX_PHOTO_SIDE = 1280;
+const LOGO = "./assets/gis-map-online-mark-v2.png";
 
 const hasLocation = (item) => Number.isFinite(item?.latitude) && Number.isFinite(item?.longitude);
 const coordinates = (item) => (hasLocation(item) ? `${Number(item.latitude).toFixed(6)}, ${Number(item.longitude).toFixed(6)}` : "");
@@ -19,12 +21,33 @@ export function fieldTaskFileStem(task) {
   return `field-task-${slug || "report"}`;
 }
 
-/** Every place the task points at: its own location first, then attached features. */
+/**
+ * Every place the task points at, each with a `kind` for its map pin: the task
+ * location, attached features, then where the field worker checked in.
+ */
 export function fieldTaskPoints(task) {
   return [
-    ...(hasLocation(task) ? [{ label: task.location || task.title || "Task location", longitude: task.longitude, latitude: task.latitude }] : []),
-    ...(task?.features || []).filter(hasLocation).map((feature) => ({ label: feature.label, longitude: feature.longitude, latitude: feature.latitude })),
+    ...(hasLocation(task) ? [{ kind: "task", label: task.location || task.title || "Task location", longitude: task.longitude, latitude: task.latitude }] : []),
+    ...(task?.features || []).filter(hasLocation).map((feature) => ({ kind: "feature", label: feature.label, longitude: feature.longitude, latitude: feature.latitude })),
+    ...(hasLocation(task?.checkIn) ? [{ kind: "checkin", label: "Check-in", longitude: task.checkIn.longitude, latitude: task.checkIn.latitude }] : []),
   ];
+}
+
+export const FIELD_TASK_COLUMNS = Object.freeze(["section", "item", "status", "latitude", "longitude", "address", "recorded_at", "object_id", "layer_url", "notes"]);
+
+/** One row per part of the task, in FIELD_TASK_COLUMNS order. Shared by the CSV and the PDF table. */
+export function fieldTaskRows(task) {
+  const row = (values) => FIELD_TASK_COLUMNS.map((column) => values[column] ?? "");
+  const rows = [row({ section: "task", item: task.title || "Field task", status: STATUS[task.status] || task.status || "", latitude: task.latitude, longitude: task.longitude, address: task.address?.label, recorded_at: task.capturedAt, notes: task.notes })];
+  if (task.location || task.address) rows.push(row({ section: "location", item: task.location || "Task location", latitude: task.latitude, longitude: task.longitude, address: task.address?.label, notes: addressPlace(task.address) }));
+  if (hasLocation(task.checkIn)) {
+    rows.push(row({ section: "check-in", item: task.completedBy || "Field check-in", latitude: task.checkIn.latitude, longitude: task.checkIn.longitude, address: task.checkIn.address?.label, recorded_at: task.checkIn.at, notes: [Number.isFinite(task.checkIn.accuracy) && `accuracy ${Math.round(task.checkIn.accuracy)} m`, addressPlace(task.checkIn.address)].filter(Boolean).join("; ") }));
+  }
+  taskSteps(task).forEach((step) => rows.push(row({ section: "step", item: step.text, status: step.done ? "done" : "open" })));
+  (task.features || []).forEach((feature) => rows.push(row({ section: "feature", item: feature.label, status: feature.done ? "visited" : "not visited", latitude: feature.latitude, longitude: feature.longitude, object_id: feature.objectId, layer_url: feature.layerUrl })));
+  if (task.report || task.completedAt || task.completedBy) rows.push(row({ section: "report", item: task.completedBy, status: task.completedAt ? "completed" : "", recorded_at: task.completedAt, notes: task.report }));
+  (task.photos || []).forEach((_, index) => rows.push(row({ section: "photo", item: `Photo ${index + 1}`, status: "in PDF report" })));
+  return rows;
 }
 
 // Spreadsheet apps run cells that start with = + - @ as formulas; quote them as text.
@@ -36,14 +59,7 @@ const csvCell = (value) => {
 };
 
 export function fieldTaskCsv(task) {
-  const rows = [["section", "item", "status", "latitude", "longitude", "object_id", "layer_url", "notes"]];
-  rows.push(["task", task.title || "Field task", STATUS[task.status] || task.status || "", task.latitude ?? "", task.longitude ?? "", "", "", task.notes || ""]);
-  if (task.location) rows.push(["location", task.location, "", task.latitude ?? "", task.longitude ?? "", "", "", ""]);
-  taskSteps(task).forEach((step) => rows.push(["step", step.text, step.done ? "done" : "open", "", "", "", "", ""]));
-  (task.features || []).forEach((feature) => rows.push(["feature", feature.label, feature.done ? "visited" : "not visited", feature.latitude ?? "", feature.longitude ?? "", feature.objectId ?? "", feature.layerUrl || "", ""]));
-  if (task.report || task.completedAt || task.completedBy) rows.push(["report", task.completedBy || "", task.completedAt || "", "", "", "", "", task.report || ""]);
-  (task.photos || []).forEach((_, index) => rows.push(["photo", `Photo ${index + 1}`, "in PDF report", "", "", "", "", ""]));
-  return `${rows.map((row) => row.map(csvCell).join(",")).join("\r\n")}\r\n`;
+  return `${[FIELD_TASK_COLUMNS, ...fieldTaskRows(task)].map((row) => row.map(csvCell).join(",")).join("\r\n")}\r\n`;
 }
 
 /** Downscales a photo from a file input to a JPEG data URL small enough to keep with the task. */
@@ -58,12 +74,98 @@ export async function photoDataUrl(file) {
   return jpeg?.dataUrl || source;
 }
 
+const loadImage = (source) => new Promise((resolve) => {
+  const image = new Image();
+  image.onload = () => resolve(image);
+  image.onerror = () => resolve(null);
+  image.src = source;
+});
+
+/**
+ * Frames a map snapshot like the QR cards: a green border, the GIS Map Online
+ * mark and name, the task name and date above, and a pin legend below.
+ */
+async function brandedMapAsset(mapImage, task) {
+  const [map, logo] = await Promise.all([loadImage(mapImage.dataUrl), loadImage(LOGO)]);
+  if (!map) return null;
+  const border = 18;
+  const header = 118;
+  const footer = 64;
+  const mapWidth = 1200;
+  const mapHeight = Math.round(mapWidth * (mapImage.height / mapImage.width));
+  const canvas = document.createElement("canvas");
+  canvas.width = mapWidth + border * 2;
+  canvas.height = header + mapHeight + footer + border;
+  const context = canvas.getContext("2d");
+  const gradient = context.createLinearGradient(0, 0, canvas.width, canvas.height);
+  gradient.addColorStop(0, "#071f1c");
+  gradient.addColorStop(1, "#145b4e");
+  context.fillStyle = gradient;
+  context.fillRect(0, 0, canvas.width, canvas.height);
+  context.fillStyle = "#f3ae2b";
+  context.fillRect(0, 0, 10, canvas.height);
+  if (logo) context.drawImage(logo, border + 14, 18, 82, 82);
+  context.textBaseline = "alphabetic";
+  context.fillStyle = "#55cdb1";
+  context.font = "700 26px system-ui, sans-serif";
+  context.fillText("GIS MAP", border + 112, 50);
+  context.fillStyle = "#f3ae2b";
+  context.font = "700 15px system-ui, sans-serif";
+  context.fillText("O N L I N E", border + 114, 74);
+  context.fillStyle = "#ffffff";
+  context.font = "700 34px Georgia, serif";
+  context.textAlign = "right";
+  context.fillText(String(task.title || "Field task").slice(0, 48), canvas.width - border - 10, 56, 760);
+  context.fillStyle = "#b8d8d0";
+  context.font = "20px system-ui, sans-serif";
+  const date = when(task.completedAt || task.checkIn?.at || task.updatedAt) || new Date().toLocaleString();
+  context.fillText(`Field task map · ${date}`, canvas.width - border - 10, 90, 760);
+  context.textAlign = "left";
+  context.drawImage(map, border, header, mapWidth, mapHeight);
+  context.strokeStyle = "#55cdb1";
+  context.lineWidth = 3;
+  context.strokeRect(border - 1.5, header - 1.5, mapWidth + 3, mapHeight + 3);
+  const legendY = header + mapHeight + 40;
+  let x = border + 10;
+  const legend = (draw, label) => {
+    draw(x + 12, legendY - 7);
+    context.fillStyle = "#ffffff";
+    context.font = "600 20px system-ui, sans-serif";
+    context.fillText(label, x + 32, legendY);
+    x += 44 + context.measureText(label).width;
+  };
+  const diamond = (size) => (cx, cy) => {
+    context.fillStyle = "#d9951e";
+    context.strokeStyle = "#ffffff";
+    context.lineWidth = 2;
+    context.beginPath();
+    context.moveTo(cx, cy - size); context.lineTo(cx + size, cy); context.lineTo(cx, cy + size); context.lineTo(cx - size, cy); context.closePath();
+    context.fill(); context.stroke();
+  };
+  const points = fieldTaskPoints(task);
+  if (points.some((point) => point.kind === "task")) legend(diamond(10), "Task location");
+  if (points.some((point) => point.kind === "feature")) legend(diamond(7), "Feature");
+  if (points.some((point) => point.kind === "checkin")) legend((cx, cy) => {
+    context.fillStyle = "#0f8f6e";
+    context.strokeStyle = "#ffffff";
+    context.lineWidth = 3;
+    context.beginPath(); context.arc(cx, cy, 9, 0, Math.PI * 2); context.fill(); context.stroke();
+  }, "Check-in");
+  context.fillStyle = "#f3ae2b";
+  context.font = "700 18px system-ui, sans-serif";
+  context.textAlign = "right";
+  context.fillText("gismap.online", canvas.width - border - 10, legendY);
+  context.textAlign = "left";
+  const dataUrl = canvas.toDataURL("image/jpeg", 0.9);
+  return { bytes: dataUrlBytes(dataUrl), width: canvas.width, height: canvas.height };
+}
+
 /**
  * Builds the PDF. `mapImage` is an optional { dataUrl, width, height } capture of
  * the map at the task's places.
  */
 export async function fieldTaskPdf(task, { mapImage = null } = {}) {
-  const logo = await imageToJpeg("./assets/gis-map-online-mark-v2.png", { width: 96, height: 96 });
+  const logo = await imageToJpeg(LOGO, { width: 96, height: 96 });
   const report = new PdfDocument({ heading: "FIELD TASK REPORT", logo });
   const muted = { size: 9, leading: 14, color: PDF_COLORS.muted };
   report.addLines(task.title || "Field task", { size: 16, leading: 22, bold: true });
@@ -71,11 +173,21 @@ export async function fieldTaskPdf(task, { mapImage = null } = {}) {
   if (status) report.addLines(status, { size: 10, leading: 15, color: PDF_COLORS.accent, bold: true });
   report.addLines(`Generated ${new Date().toLocaleString()}`, muted);
 
-  if (task.location || hasLocation(task)) {
+  if (task.location || task.address || hasLocation(task)) {
     report.gap(10);
-    report.heading2("Location");
+    report.heading2("Task location");
     if (task.location) report.addLines(task.location, { size: 11, leading: 16, bold: true });
+    if (task.address?.label) report.addLines(task.address.label);
+    if (addressPlace(task.address)) report.addLines(addressPlace(task.address), muted);
     if (hasLocation(task)) report.addLines(`Coordinates: ${coordinates(task)}`);
+  }
+  if (hasLocation(task.checkIn)) {
+    report.gap(10);
+    report.heading2("Field check-in");
+    report.addLines([when(task.checkIn.at) && `Checked in ${when(task.checkIn.at)}`, task.completedBy && `by ${task.completedBy}`].filter(Boolean).join(" ") || "Checked in", { bold: true });
+    if (task.checkIn.address?.label) report.addLines(task.checkIn.address.label);
+    if (addressPlace(task.checkIn.address)) report.addLines(addressPlace(task.checkIn.address), muted);
+    report.addLines(`Coordinates: ${coordinates(task.checkIn)}${Number.isFinite(task.checkIn.accuracy) ? ` (accuracy ${Math.round(task.checkIn.accuracy)} m)` : ""}`);
   }
   if (task.notes) {
     report.gap(10);
@@ -103,11 +215,11 @@ export async function fieldTaskPdf(task, { mapImage = null } = {}) {
     report.heading2("Report");
     report.addLines(task.report);
   }
-  if (mapImage?.dataUrl) {
+  const map = mapImage?.dataUrl ? await brandedMapAsset(mapImage, task) : null;
+  if (map) {
     report.gap(10);
     report.heading2("Map");
-    report.addLines("The task location and attached features, marked with amber pins.", muted);
-    report.addImage({ bytes: dataUrlBytes(mapImage.dataUrl), width: mapImage.width, height: mapImage.height }, { maxHeight: 340 });
+    report.addImage(map, { maxHeight: 420 });
   }
   const photos = (await Promise.all((task.photos || []).map((photo) => imageToJpeg(photo, { maxSide: 1200, quality: 0.85 })))).filter(Boolean);
   if (photos.length) {
@@ -118,5 +230,26 @@ export async function fieldTaskPdf(task, { mapImage = null } = {}) {
       report.addLines(`Photo ${index + 1}`, { ...muted, leading: 18 });
     });
   }
+  // The same rows as the CSV, condensed to the columns that fit a page.
+  report.newPage();
+  report.heading2("Task data");
+  report.addLines("The rows of the CSV export. Layer URLs are in the CSV.", muted);
+  report.gap(4);
+  const index = Object.fromEntries(FIELD_TASK_COLUMNS.map((column, position) => [column, position]));
+  const shortTime = (value) => {
+    const date = value ? new Date(value) : null;
+    return date && !Number.isNaN(date.getTime()) ? date.toLocaleString(undefined, { dateStyle: "short", timeStyle: "short" }) : "";
+  };
+  report.addTable(
+    [{ label: "Section", width: 50 }, { label: "Item", width: 104 }, { label: "Status", width: 52 }, { label: "Lat, Lon", width: 72 }, { label: "Recorded", width: 62 }, { label: "Address / notes", width: 176 }],
+    fieldTaskRows(task).map((row) => [
+      row[index.section],
+      row[index.item],
+      row[index.status],
+      row[index.latitude] !== "" ? `${Number(row[index.latitude]).toFixed(5)}, ${Number(row[index.longitude]).toFixed(5)}` : "",
+      shortTime(row[index.recorded_at]),
+      [row[index.address], row[index.object_id] !== "" && `ID ${row[index.object_id]}`, row[index.notes]].filter(Boolean).join(" - "),
+    ]),
+  );
   return report.toBlob();
 }

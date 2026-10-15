@@ -111,6 +111,43 @@ export class PdfDocument {
     this.y -= imageHeight + gapAfter;
   }
 
+  /**
+   * A ruled table. `columns` are { label, width } in points (summing to the text
+   * width); cells wrap within their column and rows move to a new page whole,
+   * repeating the header.
+   */
+  addTable(columns, rows, { size = 7, leading = 9, padding = 4 } = {}) {
+    const charsFor = (width) => Math.max(4, Math.floor((width - padding * 2) / (size * 0.5)));
+    const cellLines = (value, width) => wrap(value, charsFor(width)).flatMap((line) => {
+      const max = charsFor(width);
+      const chunks = [];
+      for (let index = 0; index < line.length; index += max) chunks.push(line.slice(index, index + max));
+      return chunks.length ? chunks : [""];
+    });
+    const drawRow = (cells, { header = false } = {}) => {
+      const lines = cells.map((value, index) => cellLines(value, columns[index].width));
+      const height = Math.max(...lines.map((cell) => cell.length)) * leading + padding * 2;
+      if (this.y - height < this.margin) {
+        this.newPage();
+        if (!header) drawRow(columns.map((column) => column.label), { header: true });
+      }
+      const top = this.y;
+      if (header) this.page.commands.push(`0.91 0.95 0.93 rg ${this.margin} ${(top - height).toFixed(2)} ${this.pageWidth - this.margin * 2} ${height.toFixed(2)} re f`);
+      let x = this.margin;
+      lines.forEach((cell, index) => {
+        cell.forEach((line, lineIndex) => {
+          this.page.commands.push(`${header ? PDF_COLORS.accent : PDF_COLORS.ink} rg BT /F${header ? 2 : 1} ${size} Tf ${(x + padding).toFixed(2)} ${(top - padding - size - lineIndex * leading).toFixed(2)} Td (${pdfSafeText(line)}) Tj ET`);
+        });
+        x += columns[index].width;
+      });
+      this.page.commands.push(`0.75 0.80 0.78 RG 0.5 w ${this.margin} ${(top - height).toFixed(2)} m ${this.pageWidth - this.margin} ${(top - height).toFixed(2)} l S`);
+      this.y = top - height;
+    };
+    drawRow(columns.map((column) => column.label), { header: true });
+    rows.forEach((row) => drawRow(row.map((value) => String(value ?? ""))));
+    this.y -= 12;
+  }
+
   toBlob() {
     const objects = [null];
     const reserve = () => { objects.push(""); return objects.length - 1; };

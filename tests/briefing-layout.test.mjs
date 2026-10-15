@@ -29,7 +29,10 @@ test("desktop and globe map controls can collapse and reopen", () => {
   assert.match(css, /body\.map-tools-collapsed/);
 });
 
-test("mobile map tools toggle sits above the tools at the top right", () => {
-  assert.match(css, /\.map-nav-shell \{ top:8px; right:8px; justify-items:end; transform:none; \}/);
-  assert.match(css, /\.map-nav__toggle \{ order:-1; width:42px; height:34px; \}/);
+test("mobile map tools toggle sits in the top bar, separated from the title", () => {
+  // The shell drops its stacking context so the toggle can sit in the top bar above the map.
+  assert.match(css, /\.map-nav-shell \{ z-index:auto; top:8px; right:8px; justify-items:end; transform:none; \}/);
+  assert.match(css, /\.map-nav__toggle,\s*body\.mobile-map-tools-open \.map-nav__toggle \{\s*position:fixed;\s*z-index:69;\s*top:calc\(4px \+ env\(safe-area-inset-top\)\);/);
+  assert.match(css, /\.map-nav__toggle::before \{ content:""; position:absolute;[^}]*left:-9px; width:1px;/);
+  assert.match(css, /body:not\(\.mobile-map-route\) \.map-nav-shell \{ display:none; \}/);
 });

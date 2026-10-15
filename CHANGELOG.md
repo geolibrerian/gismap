@@ -8,6 +8,9 @@ All notable changes to GIS Map Online are documented here. This project follows
 
 ### Added
 
+- Field workers can check in from the completion screen: their position, accuracy, date and time, and the reverse-geocoded address are recorded. Task locations are reverse-geocoded on save with the same details as Location Intelligence. Both addresses and the check-in travel in the share links and appear in the CSV (new address and recorded_at columns) and PDF.
+- The field task PDF adds a Task data table of the CSV rows and frames its map in the GIS Map Online brand (green border, mark, task name and date, legend), showing the task location, features and check-in.
+- Opening a field task link pins its places on the map and zooms to them; an open task keeps its pins after you return to the map.
 - Field tasks produce a branded PDF report (map snapshot with pinned task places, steps, features, instructions, report and photos) and a CSV. Both are offered when a task is sent back, beside the QR code, and from the received report; Share attaches the PDF where the device allows. Field workers can attach photos while completing a task.
 - Field task, briefing and other workflow share dialogs now show the branded GIS Map Online QR card used for tours, with Download image and image-aware Share.
 - On phones, the Field tasks screens put their main buttons (New field task; Save & share / Save draft / Cancel; Send back / Save / Back) in the same docked bar, within thumb reach.
@@ -20,6 +23,8 @@ All notable changes to GIS Map Online are documented here. This project follows
 
 ### Fixed
 
+- Field task maps with more than one place now frame all of them (a plain extent was ignored by the map).
+- Updated five source-text tests that still described the earlier mobile layout, QR card and map-tools toggle.
 - On phones, Briefing's feature list and feature context are folding sections inside the Briefing sheet instead of a panel floating over it; Context opens and scrolls to its section. Share QR no longer overlaps the panel button in the Briefing header.
 - Removed the gap under the mobile Tours sheet, the floating Briefing Context button, and the Map tool sheet showing behind the floating tool row; the tool row now spans the screen and sheets sit flush on it.
 - Data added from an empty Briefing now becomes its dataset right away.
