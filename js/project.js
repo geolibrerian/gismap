@@ -3,6 +3,7 @@ import { normalizeDataCatalog } from "./data-catalog.js?v=0.18.2";
 import { normalizeSkin } from "./skin-catalog.js?v=0.18.2";
 import { normalizeMobileWorkflow } from "./mobile-feed-store.js?v=0.18.7";
 import { normalizeBriefing } from "./briefing-document.js?v=0.19.0";
+import { composeSmartImage, embedProjectInPng, readProjectFromPng } from "./smart-image.js?v=0.23.0";
 
 const STORAGE_KEY = "gismap-online:projects:v1";
 const CURRENT_KEY = "gismap-online:current-project:v1";
@@ -197,6 +198,29 @@ export class ProjectManager {
     this.events.publish("project:exported", { kind: "json" });
   }
 
+  /** With `download: false` the PNG is only returned (as `file`), for share dialogs. */
+  async exportSmartImage({ width = 1600, height = 1000, download = true } = {}) {
+    const project = this.snapshot();
+    const capture = await this.mapController.takeMapScreenshot({ format: "png", width, height });
+    if (!capture?.dataUrl) throw new Error("The map is not ready to create a Smart Image.");
+    const visual = await composeSmartImage({
+      dataUrl: capture.dataUrl,
+      title: project.name,
+      layerCount: project.layers.length,
+      sources: project.layers.map((layer) => layer.title || layer.fileName).filter(Boolean),
+      width,
+      height,
+      skin: globalThis.document?.documentElement?.dataset.skin || project.presentation?.skin,
+    });
+    const blob = await embedProjectInPng(visual, project);
+    const name = `${this.#exportName(project)}-smart-map.png`;
+    if (download) {
+      downloadBlob(blob, name);
+      this.events.publish("project:exported", { kind: "smart-image" });
+    }
+    return { blob, project, file: new File([blob], name, { type: "image/png" }) };
+  }
+
   exportAtlas() {
     const project = this.snapshot();
     const presentation = this.#presentation({ ...project.presentation, template: "atlas" });
@@ -233,6 +257,10 @@ export class ProjectManager {
   }
 
   async importFile(file) {
+    if (file.type === "image/png" || /\.png$/i.test(file.name)) {
+      const manifest = await readProjectFromPng(file);
+      return this.load(manifest.project);
+    }
     if (/\.(?:zip|gmop|gismap)$/i.test(file.name)) {
       if (!globalThis.JSZip) throw new Error("The ZIP library did not load.");
       const zip = await JSZip.loadAsync(file);

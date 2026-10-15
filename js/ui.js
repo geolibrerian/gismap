@@ -1,7 +1,7 @@
 import { POPULAR_SERVICES } from "./catalog.js?v=0.18.2";
 import { ENTERPRISE_CATALOGS, EnterpriseCatalog, normalizeArcGisDirectoryUrl } from "./enterprise-catalog.js?v=0.18.2";
 import { createShareUrl } from "./share.js?v=0.21.0";
-import { createShareLink, hasDataFilter } from "./map-share.js?v=0.21.0";
+import { createShareLink, hasDataFilter } from "./map-share.js?v=0.23.0";
 import { createEmbeddedTourUrl } from "./tour-share.js?v=0.18.2";
 import { markdownToPlainText, renderMarkdown } from "./markdown.js?v=0.18.2";
 import { formatAttributeValue } from "./attribute-format.js?v=0.18.2";
@@ -9,12 +9,12 @@ import { normalizeApplicationConfig, presetApplication } from "./application-con
 import { featureFilterFor, featureId, fieldKind, filterRecords, histogram, requestGuard, sortRecords } from "./presentation-query.js?v=0.18.2";
 import { DEFAULT_SKIN, INTERFACE_SKINS, applyInterfaceSkin, normalizeSkin, skinOptionsMarkup } from "./skin-catalog.js?v=0.18.2";
 import { compactMedia } from "./viewport.js?v=0.18.2";
-import { PdfDocument, brandedMapImage, loadBrandLogo, printPalette, qrAsset } from "./pdf-document.js?v=0.21.0";
+import { PdfDocument, brandedMapImage, loadBrandLogo, printPalette, qrAsset } from "./pdf-document.js?v=0.23.0";
 import { featureLayerUrl, locationUrl } from "./field-task-share.js?v=0.21.0";
-import { BriefingSlides } from "./briefing-slides.js?v=0.22.0";
+import { BriefingSlides } from "./briefing-slides.js?v=0.23.0";
 import { createSlide, matchesFilter, normalizeFilter } from "./briefing-document.js?v=0.19.0";
 import { aiDescriptionPrompt, applyAiDescriptions, describeWhere, generateBriefing, readAiDescriptions, rendererTheme } from "./briefing-generator.js?v=0.22.0";
-import { briefingFileStem } from "./briefing-pdf.js?v=0.21.0";
+import { briefingFileStem } from "./briefing-pdf.js?v=0.23.0";
 
 const DISPLAY_SETTINGS_KEY = "gismap-online:display:v1";
 const RECENT_PLACES_KEY = "gismap-online:recent-places:v1";
@@ -397,6 +397,23 @@ export class UIController {
     });
     document.querySelector("#utility-open-modal").addEventListener("click", () => this.#openUtilityAsModal());
     document.querySelector("#project-file-input").addEventListener("change", (event) => this.#importProject(event));
+    const projectDropTarget = document.querySelector(".map-workspace");
+    projectDropTarget.addEventListener("dragover", (event) => {
+      if (![...event.dataTransfer?.items || []].some((item) => item.kind === "file")) return;
+      event.preventDefault();
+      event.dataTransfer.dropEffect = "copy";
+      projectDropTarget.classList.add("is-project-drop-target");
+    });
+    projectDropTarget.addEventListener("dragleave", (event) => {
+      if (!projectDropTarget.contains(event.relatedTarget)) projectDropTarget.classList.remove("is-project-drop-target");
+    });
+    projectDropTarget.addEventListener("drop", (event) => {
+      event.preventDefault();
+      projectDropTarget.classList.remove("is-project-drop-target");
+      const file = [...event.dataTransfer?.files || []].find((item) => /\.(?:png|gmo|gmop|gmoatlas|gismap|json|zip)$/i.test(item.name));
+      if (file) void this.importProjectFile(file);
+      else this.error("Drop a GISMap project, package, tour, or Smart Image PNG.");
+    });
     document.querySelector("#data-file-input").addEventListener("change", (event) => this.#addFiles(event));
     document.querySelector("#tool-file-input").addEventListener("change", (event) => this.#loadTool(event));
     document.querySelector("#atlas-chapter-previous")?.addEventListener("click", () => this.#stepAtlasChapter(-1));
@@ -503,7 +520,7 @@ export class UIController {
       if (this.presentationState.template === "briefing" && this.presentationState.mapSelect) return this.#toggleBriefingInclude(result);
       this.#selectPresentationResult(result);
     });
-    this.events.subscribe("project:exported", ({ kind }) => this.toast(`${kind === "package" ? "Project package (.gmop)" : kind === "atlas" ? "Guided tour (.gmoatlas)" : "Project file (.gmo)"} downloaded.`));
+    this.events.subscribe("project:exported", ({ kind }) => this.toast(`${kind === "smart-image" ? "Smart map image (.png)" : kind === "package" ? "Project package (.gmop)" : kind === "atlas" ? "Guided tour (.gmoatlas)" : "Project file (.gmo)"} downloaded.`));
     this.events.subscribe("export:progress", ({ stage, completed, total }) => {
       const progress = this.dialog.querySelector("[data-export-progress]");
       const status = this.dialog.querySelector("[data-export-status]");
@@ -869,7 +886,7 @@ export class UIController {
           this.#saveProjectDialog();
           break;
         case "project-export":
-          this.projectManager.exportJson();
+          this.#projectDownloadDialog();
           break;
         case "project-package":
           await this.projectManager.exportPackage();
@@ -1026,6 +1043,7 @@ export class UIController {
         <div class="share-export__grid">
           ${card("share", "Share map", "Link and QR code with the layers, styles, filters, view, basemap and skin.", { icon: "⌗", disabled: layers.length > local.length ? "" : "Add a web layer to share a link." })}
           ${card("pdf", "Map PDF", "A branded PDF of this view with a layer key and a QR code back to the live map.", { icon: "▤", disabled: layers.length ? "" : "Add a layer first." })}
+          ${card("smart-image", "Smart map image", "A PNG of this map that anyone can view, and that reopens the whole project when dropped on GIS Map Online.", { icon: "◩", disabled: layers.length ? "" : "Add a layer first." })}
           ${card("briefing-share", "Share as a briefing", `One click: slides from ${layer ? `“${escapeHtml(layer.title || "this layer")}”` : "the layer"}'s ${styled ? "style, " : ""}filter and top features${this.aiController.isConfigured() ? ", described by AI" : ""}, ready to share.`, { icon: "✦", disabled: queryable ? "" : "Choose a feature layer to brief on." })}
           ${card("briefing", "Create briefing", `Start a briefing on ${layer ? `“${escapeHtml(layer.title || "this layer")}”` : "a layer"}${styled ? " with its style" : ""} and write the slides yourself.`, { icon: "▣", disabled: queryable ? "" : "Choose a feature layer to brief on." })}
           ${card("tour", "Start a tour here", "Save this view as the first chapter of a guided tour.", { icon: "➤" })}
@@ -1040,6 +1058,10 @@ export class UIController {
         if (action === "data") return this.#exportDialog(exportable.some((item) => item.uid === layer?.uid) ? layer.uid : null);
         this.dialog.close();
         if (action === "pdf") return await this.#downloadMapPdf();
+        if (action === "smart-image") {
+          this.toast("Rendering the Smart map image…");
+          return await this.projectManager.exportSmartImage();
+        }
         if (action === "briefing") return this.createBriefingFromLayer(layer.uid);
         if (action === "briefing-share") return await this.generateBriefingFromView({ uid: layer.uid, share: true });
         if (action === "tour") return await this.#startTourHere();
@@ -1082,7 +1104,10 @@ export class UIController {
       ].filter(Boolean).join(" "),
       message: "Opens this map with the same layers, styles, filters, view, basemap and look.",
       card: { lines: ["Scan to open this map, or long-click the QR code", "to open it in a browser."], footer: "Complete map encoded in this QR" },
-      downloads: [{ label: "Map PDF", create: () => this.#mapPdfFile(link) }],
+      downloads: [
+        { label: "Map PDF", create: () => this.#mapPdfFile(link) },
+        { label: "Smart map image", create: async () => (await this.projectManager.exportSmartImage({ download: false })).file },
+      ],
     });
   }
 
@@ -1310,6 +1335,40 @@ export class UIController {
     } catch (error) {
       this.error(error.message);
     }
+  }
+
+  #projectDownloadDialog() {
+    this.openDialog({
+      eyebrow: "Portable project",
+      title: "Download project",
+      content: `<div class="smart-image-intro"><strong>A map that opens like a project</strong><p>Smart Image creates a polished PNG that works in ordinary image viewers while carrying this GISMap project invisibly. Import the original PNG into GISMap Online to restore its layers, styling, camera, bookmarks, workflows, and Briefing slides.</p></div>
+        <dl class="project-download-formats">
+          <div><dt>Smart map image (.png)</dt><dd>Best for email, AirDrop, chat attachments, and shared drives. Services must remain publicly reachable. Some social networks remove image metadata.</dd></div>
+          <div><dt>Project file (.gmo)</dt><dd>The compact editable project configuration without local source files.</dd></div>
+          <div><dt>Project package (.gmop)</dt><dd>The complete portable package for projects that use local files.</dd></div>
+        </dl>
+        <p class="form-note">Smart Images contain configuration and public data references, never sign-in tokens. Use the package option when local datasets must travel with the project.</p>`,
+      actions: [
+        { label: "Smart map image", primary: true, handler: async () => {
+          const button = this.dialog.querySelector(".button--primary");
+          const label = button.textContent;
+          button.disabled = true;
+          button.textContent = "Rendering map…";
+          try {
+            await this.projectManager.exportSmartImage();
+            this.dialog.close();
+          } catch (error) {
+            this.error(error.message);
+            button.disabled = false;
+            button.textContent = label;
+          }
+        } },
+        { label: "Project file (.gmo)", handler: () => { this.projectManager.exportJson(); this.dialog.close(); } },
+        { label: "Project package (.gmop)", handler: async () => {
+          try { await this.projectManager.exportPackage(); this.dialog.close(); } catch (error) { this.error(error.message); }
+        } },
+      ],
+    });
   }
 
   #exportDialog(preselectedUid = null) {
@@ -4366,11 +4425,28 @@ export class UIController {
   }
 
   /**
+   * A slides-only briefing link (made by the client API without a map): the
+   * slides go on the first feature layer the link loaded, then start presenting.
+   */
+  async #openSharedBriefingDocument(shared) {
+    const current = this.projectManager.current.presentation || {};
+    const layer = this.mapController.getOperationalLayers().find((item) => typeof item.queryFeatures === "function");
+    const visible = shared.briefing.slides.filter((slide) => !slide.hidden);
+    this.briefingTab = visible.length ? "slides" : "features";
+    this.projectManager.setPresentation({ ...current, template: "briefing", primaryLayerId: layer?.uid || current.primaryLayerId || null, briefing: shared.briefing });
+    this.events.publish("mobile:workflow-route", { route: "briefing" });
+    await this.presentationLoading;
+    if (!layer && shared.briefing.slides.some((slide) => slide.featureId)) this.toast("This briefing's feature slides need its layer; add it with ?layer= in the link.");
+    if (visible.length) this.briefingSlides.openPlayer(visible.some((slide) => slide.id === shared.slide) ? shared.slide : visible[0].id);
+  }
+
+  /**
    * Opens a shared map or briefing link (see map-share.js): loads its layers
    * with their styles and filters, applies the skin and basemap, then shows the
    * view or starts presenting the briefing's slides.
    */
   async openSharedState(shared, { loadLayer }) {
+    if (shared.kind === "briefing-document") return this.#openSharedBriefingDocument(shared);
     if (shared.basemap) this.mapController.setBasemap(shared.basemap);
     const added = [];
     for (const config of shared.layers) {
@@ -4426,7 +4502,7 @@ export class UIController {
   async importProjectFile(file) {
     try {
       const { project } = await this.projectManager.importFile(file);
-      this.toast(`${project.name} imported.`);
+      this.toast(`${project.name} imported from ${/\.png$/i.test(file.name) ? "Smart Image" : "project file"}.`);
     } catch (error) {
       this.error(error.message);
     }

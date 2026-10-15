@@ -57,7 +57,7 @@
     <meta name="theme-color" content="#0f2921" />
     <link rel="preconnect" href="https://js.arcgis.com" />
     <link rel="stylesheet" href="https://js.arcgis.com/5.0/esri/themes/light/main.css" />
-    <link rel="stylesheet" href="./css/app.css?v=0.22.0" />
+    <link rel="stylesheet" href="./css/app.css?v=0.23.0" />
     <script type="module" src="https://js.arcgis.com/5.0/"></script>
     <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
     <script src="https://unpkg.com/@mapbox/shp-write@0.4.3/shpwrite.js"></script>
@@ -109,10 +109,9 @@
               <button data-action="share-export">Share &amp; export…</button>
               <button data-action="share-map">Share map link &amp; QR…</button>
               <button data-action="map-pdf">Map PDF</button>
-              <button data-action="project-export">Export project (.gmo)</button>
-              <button data-action="project-package">Export package (.gmop)</button>
+              <button data-action="project-export">Download project…</button>
               <button data-action="atlas-export">Export guided tour (.gmoatlas)</button>
-              <button data-action="project-import">Import project or tour file</button>
+              <button data-action="project-import">Import project, tour, or Smart Image</button>
             </div>
           </div>
           <div class="menu">
@@ -399,11 +398,11 @@
       </div>
     </dialog>
 
-    <input id="project-file-input" type="file" accept=".gmo,.gmop,.gmoatlas,.json,.gismap,.zip" hidden />
+    <input id="project-file-input" type="file" accept=".gmo,.gmop,.gmoatlas,.json,.gismap,.zip,.png,image/png" hidden />
     <input id="data-file-input" type="file" accept=".json,.geojson,.kml,.kmz,.zip" multiple hidden />
     <input id="tool-file-input" type="file" accept=".js,.mjs" hidden />
 
     <noscript>GIS Map Online requires JavaScript.</noscript>
-    <script type="module" src="./js/app.js?v=0.22.0"></script>
+    <script type="module" src="./js/app.js?v=0.23.0"></script>
   </body>
 </html>

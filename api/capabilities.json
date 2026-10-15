@@ -1,0 +1,16 @@
+{
+  "apiVersion": "0.21.0",
+  "execution": "client",
+  "global": "globalThis.gisMapOnline",
+  "module": "/js/gismap-core.js",
+  "types": "/js/gismap-core.d.ts",
+  "briefingSchema": "/schemas/briefing-v1.schema.json",
+  "namespaces": {
+    "briefing": ["create", "migrate", "validate", "createSlide", "addSlide", "updateSlide", "moveSlide", "duplicateSlide", "removeSlide", "updateBlock", "get", "load", "captureCamera", "saveCurrentCamera", "encode", "decode", "createLink", "exportGmo"],
+    "queries": ["normalize", "matches", "statistic"],
+    "sources": ["inspect"],
+    "smartImages": ["embed", "read", "downloadCurrent"]
+  },
+  "outputs": ["briefing-json", "briefing-link", "gmo-project", "smart-image-png"],
+  "unavailableWithoutHost": ["hosted-links", "private-access-control", "background-jobs", "webhooks", "scheduled-runs"]
+}

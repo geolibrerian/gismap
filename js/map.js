@@ -1171,9 +1171,12 @@ export class MapController {
     };
   }
 
-  async takeMapScreenshot() {
+  async takeMapScreenshot({ format = "jpg", quality = 82, width = 1200, height = null } = {}) {
     if (!this.view?.takeScreenshot) return null;
-    const capture = await this.view.takeScreenshot({ format: "jpg", quality: 82, width: 1200 });
+    const options = { format, width };
+    if (format !== "png") options.quality = quality;
+    if (Number.isFinite(height)) options.height = height;
+    const capture = await this.view.takeScreenshot(options);
     return capture?.dataUrl && capture?.data
       ? { dataUrl: capture.dataUrl, width: capture.data.width, height: capture.data.height }
       : null;

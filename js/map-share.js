@@ -6,6 +6,13 @@ import { decodePayload, encodePayload } from "./link-codec.js?v=0.21.0";
 import { normalizeBriefing } from "./briefing-document.js?v=0.19.0";
 import { SHARE_BASEMAPS, SHARE_LAYER_TYPES, sanitizeSharedResourceUrl } from "./share.js?v=0.21.0";
 import { normalizeSkin } from "./skin-catalog.js?v=0.18.2";
+import { decodeBriefing } from "./briefing-share.js?v=0.23.0";
+
+/**
+ * Slides-only briefing links from the client API (`#briefing=b1.…` / `j1.…`,
+ * briefing-share.js) carry no layers; full links (`z…` / `j…`, no dot) do.
+ */
+const DOCUMENT_ONLY = /^[bj]\d+\./;
 
 /** Version-40 QR codes hold a little under 3 KB, so only links this short get a QR. */
 export const QR_SAFE_LENGTH = 2800;
@@ -151,6 +158,10 @@ export async function createShareLink({ baseUrl, slide = null, ...state }) {
 export async function readShareLocation(location, { fetchJson = (url) => fetch(url).then((response) => { if (!response.ok) throw new Error(`The shared briefing file could not be downloaded (${response.status}).`); return response.json(); }), ...options } = {}) {
   const hash = new URLSearchParams(String(location.hash || "").replace(/^#/, ""));
   const slide = hash.get("slide");
+  if (DOCUMENT_ONLY.test(hash.get("briefing") || "")) {
+    // The slides apply to whatever layers the link loads (for example with ?layer=).
+    return { kind: "briefing-document", briefing: await decodeBriefing(hash.get("briefing")), layers: [], slide };
+  }
   for (const kind of KINDS) {
     if (hash.has(kind)) return { ...readShare(await decodePayload(hash.get(kind)), options), slide };
   }

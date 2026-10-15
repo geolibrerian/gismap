@@ -82,18 +82,26 @@ const loadImage = (source) => new Promise((resolve) => {
 });
 
 /**
- * Frames a map snapshot like the QR cards, for every PDF the app makes: a green
- * border, the GIS Map Online mark and name, a title and subtitle above, and an
+ * Frames a map snapshot like the QR cards, for every PDF the app makes: a border
+ * in the skin palette, the GIS Map Online mark and name, a title and subtitle above, and an
  * optional pin legend below. `legend` items are { shape: "diamond" | "small-diamond"
- * | "circle", label }.
+ * | "circle", label }. `footerText` provides a plain left-aligned alternative
+ * for exports, such as Smart Images, that do not have a truthful symbol legend.
  */
-export async function brandedMapImage(mapImage, { title = "", subtitle = "", legend = [], palette = PRINT_PALETTES.gismap, footer: footerText = "gismap.online" } = {}) {
+export async function brandedMapCanvas(mapImage, {
+  title = "",
+  subtitle = "",
+  legend = [],
+  footerText = "",
+  mapWidth = 1200,
+  palette = PRINT_PALETTES.gismap,
+  brandText = "gismap.online",
+} = {}) {
   const [map, logo] = await Promise.all([loadImage(mapImage.dataUrl), loadImage(BRAND_LOGO)]);
   if (!map) return null;
   const border = 18;
   const header = 118;
   const footer = 64;
-  const mapWidth = 1200;
   const mapHeight = Math.round(mapWidth * (mapImage.height / mapImage.width));
   const canvas = document.createElement("canvas");
   canvas.width = mapWidth + border * 2;
@@ -153,11 +161,22 @@ export async function brandedMapImage(mapImage, { title = "", subtitle = "", leg
     context.fillText(label, x + 32, legendY);
     x += 44 + context.measureText(label).width;
   });
+  if (!legend.length && footerText) {
+    context.fillStyle = "#ffffff";
+    context.font = "600 18px system-ui, sans-serif";
+    context.fillText(String(footerText).slice(0, 92), x, legendY, canvas.width - border * 2 - 190);
+  }
   context.fillStyle = palette.edge;
   context.font = "700 18px system-ui, sans-serif";
   context.textAlign = "right";
-  context.fillText(footerText, canvas.width - border - 10, legendY);
+  context.fillText(brandText, canvas.width - border - 10, legendY);
   context.textAlign = "left";
+  return canvas;
+}
+
+export async function brandedMapImage(mapImage, options = {}) {
+  const canvas = await brandedMapCanvas(mapImage, options);
+  if (!canvas) return null;
   const dataUrl = canvas.toDataURL("image/jpeg", 0.9);
   return { bytes: dataUrlBytes(dataUrl), width: canvas.width, height: canvas.height };
 }

@@ -20,7 +20,7 @@ import {
 } from "./briefing-document.js?v=0.19.0";
 import { renderMarkdown } from "./markdown.js?v=0.18.2";
 import { BriefingPlayer, slideHasMap } from "./briefing-player.js?v=0.21.0";
-import { briefingFileStem, briefingPdf, markdownToText } from "./briefing-pdf.js?v=0.21.0";
+import { briefingFileStem, briefingPdf, markdownToText } from "./briefing-pdf.js?v=0.23.0";
 import { featureId } from "./presentation-query.js?v=0.18.2";
 
 const escapeHtml = (value) => String(value ?? "").replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char]);

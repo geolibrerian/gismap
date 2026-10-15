@@ -96,3 +96,20 @@ test("the app opens shared links, shares from one Share & export place, and conn
   assert.match(pdf, /PRINT_PALETTES/);
   assert.deepEqual(Object.values(manifest.file_handlers[0].accept).flat().sort(), [".gmo", ".gmoatlas", ".gmop"]);
 });
+
+test("one reader opens both briefing link forms: full app links and the API's slides-only links", async () => {
+  const { createBriefingUrl } = await import("../js/briefing-share.js");
+  const slidesOnly = await createBriefingUrl({ baseUrl: `https://gismap.online/?layer=${encodeURIComponent(LAYER)}`, briefing: { slides: [{ id: "s-1", template: "title", title: "From an agent" }] } });
+  const url = new URL(slidesOnly);
+  assert.equal(url.searchParams.get("layer"), LAYER, "slides-only links keep the layers they load");
+  const opened = await readShareLocation(url);
+  assert.equal(opened.kind, "briefing-document");
+  assert.equal(opened.briefing.slides[0].title, "From an agent");
+  const full = await createShareLink({ baseUrl: "https://gismap.online/", kind: "briefing", layers: [{ url: LAYER }], briefing: { slides: [{ id: "s-2", template: "title" }] } });
+  assert.equal((await readShareLocation(new URL(full.url))).kind, "briefing");
+  const ui = await readFile(new URL("../js/ui.js", import.meta.url), "utf8");
+  const api = await readFile(new URL("../js/briefing-api.js", import.meta.url), "utf8");
+  assert.match(ui, /card\("smart-image", "Smart map image"/);
+  assert.match(api, /documentOnly/);
+  assert.match(api, /createShareLink\(/, "the API shares the same full link as the app");
+});
