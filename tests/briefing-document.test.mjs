@@ -90,3 +90,15 @@ test("the project keeps the briefing and the Briefing panel has a Slides tab", a
   assert.match(ui, /data-briefing-tab="slides"/);
   assert.match(ui, /data-briefing-add-slide/);
 });
+
+test("the player has a 16:9 desktop stage and swipeable phone cards that never pan the map", async () => {
+  const player = await readFile(new URL("../js/briefing-player.js", import.meta.url), "utf8");
+  const css = await readFile(new URL("../css/app.css", import.meta.url), "utf8");
+  assert.match(css, /\.briefing-stage__frame \{[^}]*aspect-ratio:16 \/ 9/);
+  assert.match(css, /\.briefing-cards__deck \{[^}]*scroll-snap-type:y mandatory/);
+  assert.match(css, /body\.briefing-exploring \.briefing-cards__deck/, "exploring hands gestures to the map");
+  assert.match(player, /params\.set\("slide", slideId\)/, "slides are deep-linked by ID");
+  assert.match(player, /requestFullscreen/);
+  assert.match(player, /view\.padding = /, "the camera centres in the visible part of the map");
+  assert.match(player, /Reset slide/);
+});

@@ -19,6 +19,7 @@ import {
   validateBriefing,
 } from "./briefing-document.js?v=0.19.0";
 import { renderMarkdown } from "./markdown.js?v=0.18.2";
+import { BriefingPlayer } from "./briefing-player.js?v=0.20.2";
 import { featureId } from "./presentation-query.js?v=0.18.2";
 
 const escapeHtml = (value) => String(value ?? "").replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char]);
@@ -36,8 +37,15 @@ export class BriefingSlides {
   constructor(api) {
     this.api = api;
     this.selectedSlideId = null;
-    this.player = null;
     this.saveTimer = null;
+    this.player = new BriefingPlayer({
+      getSlides: () => this.briefing.slides.filter((slide) => !slide.hidden),
+      slideHtml: (slide, options) => this.slideHtml(slide, options),
+      showSlide: (slide) => this.showSlideMap(slide),
+      mapController: api.mapController,
+      compact: () => api.compact?.() ?? false,
+      title: () => api.data().title,
+    });
   }
 
   get briefing() {
@@ -354,48 +362,12 @@ export class BriefingSlides {
     </article>`;
   }
 
-  /** A first presenting view: the slide over the live map, with keyboard and button navigation. */
+  /** Presents the visible slides: a 16:9 stage on desktop, swipeable cards on phones. */
   openPlayer(startId = null) {
-    const slides = this.briefing.slides.filter((slide) => !slide.hidden);
-    if (!slides.length) return this.api.notify?.("Every slide is hidden.");
-    this.closePlayer();
-    let index = Math.max(0, slides.findIndex((slide) => slide.id === startId));
-    const overlay = document.createElement("section");
-    overlay.className = "briefing-player";
-    overlay.setAttribute("role", "dialog");
-    overlay.setAttribute("aria-label", "Briefing slides");
-    const show = () => {
-      const slide = slides[index];
-      overlay.innerHTML = `<div class="briefing-player__frame">${this.slideHtml(slide, { index, count: slides.length })}</div>
-        <nav class="briefing-player__controls" aria-label="Slide navigation">
-          <button type="button" data-player-previous aria-label="Previous slide"${index === 0 ? " disabled" : ""}>←</button>
-          <span>${index + 1} / ${slides.length}</span>
-          <button type="button" data-player-next aria-label="Next slide"${index === slides.length - 1 ? " disabled" : ""}>→</button>
-          <button type="button" data-player-close>Done</button>
-        </nav>`;
-      overlay.querySelector("[data-player-previous]").addEventListener("click", () => { index = Math.max(0, index - 1); show(); });
-      overlay.querySelector("[data-player-next]").addEventListener("click", () => { index = Math.min(slides.length - 1, index + 1); show(); });
-      overlay.querySelector("[data-player-close]").addEventListener("click", () => this.closePlayer());
-      void this.showSlideMap(slide);
-    };
-    const keys = (event) => {
-      if (event.target.closest?.("input, textarea, select")) return;
-      if (["ArrowRight", "PageDown"].includes(event.key) && index < slides.length - 1) { index += 1; show(); }
-      else if (["ArrowLeft", "PageUp"].includes(event.key) && index > 0) { index -= 1; show(); }
-      else if (event.key === "Escape") this.closePlayer();
-    };
-    document.addEventListener("keydown", keys);
-    this.player = { overlay, keys };
-    document.querySelector(".map-workspace")?.append(overlay);
-    document.body.classList.add("briefing-presenting");
-    show();
+    if (!this.player.open(startId)) this.api.notify?.("Every slide is hidden.");
   }
 
   closePlayer() {
-    if (!this.player) return;
-    document.removeEventListener("keydown", this.player.keys);
-    this.player.overlay.remove();
-    this.player = null;
-    document.body.classList.remove("briefing-presenting");
+    this.player.close();
   }
 }

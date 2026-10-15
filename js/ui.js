@@ -10,7 +10,7 @@ import { DEFAULT_SKIN, INTERFACE_SKINS, applyInterfaceSkin, normalizeSkin, skinO
 import { compactMedia } from "./viewport.js?v=0.18.2";
 import { PdfDocument, brandedMapImage, loadBrandLogo } from "./pdf-document.js?v=0.18.16";
 import { locationUrl } from "./field-task-share.js?v=0.18.16";
-import { BriefingSlides } from "./briefing-slides.js?v=0.19.2";
+import { BriefingSlides } from "./briefing-slides.js?v=0.20.2";
 
 const DISPLAY_SETTINGS_KEY = "gismap-online:display:v1";
 const RECENT_PLACES_KEY = "gismap-online:recent-places:v1";
@@ -82,6 +82,7 @@ export class UIController {
       mapController: this.mapController,
       notify: (message) => this.toast(message),
       formatValue: (value, field, name) => formatAttributeValue(value, field, name),
+      compact: () => this.mobileMedia.matches,
     });
     this.briefingFoldSelection = null;
     this.mobileAtlasSettingsOpen = false;
