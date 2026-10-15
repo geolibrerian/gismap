@@ -1,8 +1,8 @@
 import { MobileFeedStore } from "./mobile-feed-store.js?v=0.18.7";
 import { compactMedia } from "./viewport.js?v=0.18.2";
 import { INTERFACE_SKINS, applyInterfaceSkin, normalizeSkin } from "./skin-catalog.js?v=0.18.2";
-import { FIELD_TASK_LIMITS, addressDetails, createFieldTaskUrl, featureLayerUrl, taskSteps } from "./field-task-share.js?v=0.18.13";
-import { fieldTaskCsv, fieldTaskFileStem, fieldTaskPdf, fieldTaskPoints, photoDataUrl } from "./field-task-report.js?v=0.18.13";
+import { FIELD_TASK_LIMITS, addressDetails, createFieldTaskUrl, featureLayerUrl, taskSteps } from "./field-task-share.js?v=0.18.16";
+import { fieldTaskCsv, fieldTaskFileStem, fieldTaskPdf, fieldTaskPoints, photoDataUrl } from "./field-task-report.js?v=0.18.16";
 
 const escapeHtml = (value) => String(value ?? "").replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char]);
 const STATUS_LABELS = { draft: "Draft", sent: "Sent", assigned: "To complete", "in-progress": "In progress", completed: "Completed", returned: "Report received", shared: "Shared" };
@@ -461,6 +461,39 @@ export class MobileWorkflowRouter {
     this.#stopPicking();
   }
 
+  /**
+   * Frames a task opened from a link: all of its places, or the place or feature
+   * the link focuses on (`at=lat,lon`, `feature=N`), as PDF report links do.
+   */
+  async #frameSharedTask(id, { at = null, feature: featureIndex = null } = {}) {
+    const task = this.#task(id);
+    if (!task) return;
+    try {
+      const feature = Number.isInteger(featureIndex) ? task.features?.[featureIndex] : null;
+      if (feature) {
+        const graphic = await this.#queryTaskFeature(feature);
+        await this.mapController.view?.when?.();
+        if (graphic) await this.mapController.goToFeature(graphic);
+        else await this.mapController.goToTaskPlaces?.([feature], { animate: false });
+        return;
+      }
+      await this.mapController.goToTaskPlaces?.(at ? [at] : fieldTaskPoints(task), { animate: false });
+    } catch {
+      // Framing is a convenience; the task itself is already open.
+    }
+  }
+
+  /**
+   * The attached feature's own geometry, if its layer is on the map. It is asked for
+   * in WGS84: some services use custom coordinate systems the camera cannot go to.
+   */
+  async #queryTaskFeature(feature) {
+    const layer = this.mapController.getOperationalLayers().find((item) => featureLayerUrl(item) === feature.layerUrl && typeof item.queryFeatures === "function");
+    if (!layer || feature.objectId == null) return null;
+    const { features = [] } = await layer.queryFeatures({ objectIds: [feature.objectId], returnGeometry: true, outFields: [], outSpatialReference: { wkid: 4326 } });
+    return features[0]?.geometry ? features[0] : null;
+  }
+
   async #zoomToTaskFeature(button) {
     const index = Number(button.dataset.zoomFeature);
     const task = this.taskView?.mode === "edit" ? this.taskDraft : this.#task(this.taskView?.id);
@@ -468,11 +501,9 @@ export class MobileWorkflowRouter {
     if (!feature) return;
     if (this.taskView?.mode === "edit") this.taskDraft = this.#readTaskForm(button.closest("form"));
     await this.#flyToTaskPoint(feature, async () => {
-      const layer = this.mapController.getOperationalLayers().find((item) => featureLayerUrl(item) === feature.layerUrl && typeof item.queryFeatures === "function");
-      if (!layer || feature.objectId == null) return false;
-      const { features = [] } = await layer.queryFeatures({ objectIds: [feature.objectId], returnGeometry: true, outFields: [] });
-      if (!features[0]?.geometry) return false;
-      await this.mapController.goToFeature(features[0]);
+      const graphic = await this.#queryTaskFeature(feature);
+      if (!graphic) return false;
+      await this.mapController.goToFeature(graphic);
       return true;
     }, task);
   }
@@ -570,8 +601,19 @@ export class MobileWorkflowRouter {
       Promise.resolve(this.mapController.captureTaskMap?.(fieldTaskPoints(task))).catch(() => null),
       new Promise((resolve) => setTimeout(() => resolve(null), 15000)),
     ]);
-    const blob = await fieldTaskPdf(task, { mapImage });
+    const blob = await fieldTaskPdf(task, { mapImage, reportUrl: this.#taskLink(task) });
     return new File([blob], `${fieldTaskFileStem(task)}.pdf`, { type: "application/pdf" });
+  }
+
+  /** The link that reopens this task as it stands: its report once completed, otherwise the assignment. */
+  #taskLink(task) {
+    const kind = task.role === "assignee" || task.status === "returned" ? "return" : "assign";
+    const id = String(task.assignmentId || task.id || "").replace(/~(assigned|report)$/, "");
+    try {
+      return createFieldTaskUrl({ baseUrl: location.href, task: { ...task, id }, kind });
+    } catch {
+      return null;
+    }
   }
 
   #taskCsvFile(task) {
@@ -657,7 +699,7 @@ export class MobileWorkflowRouter {
   }
 
   /** Records a task opened from a shared link and shows it. */
-  async openSharedTask({ kind, task: shared }) {
+  async openSharedTask({ kind, task: shared }, focus = {}) {
     let tasks = this.store.snapshot().fieldTasks;
     const sharedId = shared.id || newId("task");
     if (kind === "return") {
@@ -675,7 +717,7 @@ export class MobileWorkflowRouter {
       this.store.saveTask({ ...(original || {}), ...shared, address: original?.address || shared.address, id, role: "author", status: "returned" });
       this.navigate("tasks");
       this.#showTaskView({ mode: "report", id });
-      void this.mapController.goToTaskPlaces?.(fieldTaskPoints(this.#task(id)), { animate: false }).catch(() => {});
+      void this.#frameSharedTask(id, focus);
       this.notify?.(original ? "Field report received." : "Field report received for a task not on this device.");
       return;
     }
@@ -698,6 +740,6 @@ export class MobileWorkflowRouter {
     });
     this.navigate("tasks");
     this.#showTaskView({ mode: "complete", id });
-    void this.mapController.goToTaskPlaces?.(fieldTaskPoints(this.#task(id)), { animate: false }).catch(() => {});
+    void this.#frameSharedTask(id, focus);
   }
 }

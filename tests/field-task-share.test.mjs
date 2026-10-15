@@ -9,8 +9,11 @@ import {
   decodeFieldTask,
   encodeFieldTask,
   featureLayerUrl,
+  locationUrl,
   readFieldTaskHash,
+  readFocus,
   taskSteps,
+  withFocus,
 } from "../js/field-task-share.js";
 
 const layer = "https://services.arcgis.com/abc/arcgis/rest/services/Hydrants/FeatureServer/0";
@@ -74,6 +77,18 @@ test("address details keep the parts Location Intelligence returns", () => {
   assert.equal(addressDetails(null), null);
 });
 
+test("report links can focus on a place or an attached feature", () => {
+  const link = createFieldTaskUrl({ baseUrl: "https://gismap.online/", task });
+  const focused = withFocus(link, { latitude: 37.7818661, longitude: -122.1969583, feature: 1 });
+  assert.equal(readFieldTaskHash(new URL(focused).hash), readFieldTaskHash(new URL(link).hash), "the task payload is untouched");
+  assert.deepEqual(readFocus(new URL(focused).hash), { at: { latitude: 37.781866, longitude: -122.196958 }, feature: 1 });
+  assert.deepEqual(readFocus("#fieldTask=abc"), { at: null, feature: null });
+  assert.deepEqual(readFocus("#at=95,10&feature=x"), { at: null, feature: null }, "out-of-range places and bad indexes are ignored");
+  const place = new URL(locationUrl("https://gismap.online/?layer=x#tour=y", { latitude: 45.5, longitude: -122.6 }));
+  assert.equal(place.search, "");
+  assert.deepEqual(readFocus(place.hash).at, { latitude: 45.5, longitude: -122.6 });
+});
+
 test("shared tasks are limited to five features", () => {
   assert.equal(FIELD_TASK_LIMITS.maxFeatures, 5);
   const six = { ...task, features: [1, 2, 3, 4, 5, 6].map(feature) };
@@ -113,8 +128,8 @@ test("the router and app wire assignments, picking and return links", async () =
   const router = await readFile(new URL("../js/mobile-workflow-router.js", import.meta.url), "utf8");
   const app = await readFile(new URL("../js/app.js", import.meta.url), "utf8");
   assert.match(router, /data-attach-feature/);
-  assert.match(router, /openSharedTask\(\{ kind, task: shared \}\)/);
+  assert.match(router, /openSharedTask\(\{ kind, task: shared \}, focus = \{\}\)/);
   assert.match(router, /kind: "return"/);
   assert.match(app, /readFieldTaskHash\(location\.hash\)/);
-  assert.match(app, /mobileWorkflowRouter\.openSharedTask\(shared\)/);
+  assert.match(app, /mobileWorkflowRouter\.openSharedTask\(shared, readFocus\(location\.hash\)\)/);
 });

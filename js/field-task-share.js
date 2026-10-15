@@ -209,6 +209,38 @@ export function createFieldTaskUrl({ baseUrl, task, kind = "assign" }) {
   return url.href;
 }
 
+/**
+ * Adds a focus to a share link: `at=lat,lon` zooms to that place and, for a
+ * field task link, `feature=N` zooms to its Nth attached feature.
+ */
+export function withFocus(url, { latitude, longitude, feature } = {}) {
+  const target = new URL(url);
+  const params = new URLSearchParams(target.hash.replace(/^#/, ""));
+  if (Number.isFinite(latitude) && Number.isFinite(longitude)) params.set("at", `${coordinate(latitude)},${coordinate(longitude)}`);
+  if (Number.isInteger(feature) && feature >= 0) params.set("feature", String(feature));
+  target.hash = params.toString();
+  return target.href;
+}
+
+/** A plain map link that opens the app zoomed to a place, with a pin on it. */
+export function locationUrl(baseUrl, { latitude, longitude }) {
+  const target = new URL(baseUrl);
+  target.search = "";
+  target.hash = "";
+  return withFocus(target.href, { latitude, longitude });
+}
+
+/** The focus part of a link's fragment, if any: { at: { latitude, longitude } | null, feature: number | null }. */
+export function readFocus(hash) {
+  const params = new URLSearchParams(String(hash || "").replace(/^#/, ""));
+  const [latitude, longitude] = String(params.get("at") || "").split(",").map((value) => (value === "" ? NaN : Number(value)));
+  const feature = params.get("feature");
+  return {
+    at: inRange(longitude, latitude) ? { latitude, longitude } : null,
+    feature: feature != null && /^\d{1,2}$/.test(feature) ? Number(feature) : null,
+  };
+}
+
 export function readFieldTaskHash(hash) {
   return new URLSearchParams(String(hash || "").replace(/^#/, "")).get("fieldTask");
 }

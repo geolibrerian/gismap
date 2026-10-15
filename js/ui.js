@@ -8,7 +8,8 @@ import { normalizeApplicationConfig, presetApplication } from "./application-con
 import { featureFilterFor, featureId, fieldKind, filterRecords, histogram, requestGuard, sortRecords } from "./presentation-query.js?v=0.18.2";
 import { DEFAULT_SKIN, INTERFACE_SKINS, applyInterfaceSkin, normalizeSkin, skinOptionsMarkup } from "./skin-catalog.js?v=0.18.2";
 import { compactMedia } from "./viewport.js?v=0.18.2";
-import { PdfDocument, dataUrlBytes, imageToJpeg } from "./pdf-document.js?v=0.18.13";
+import { PdfDocument, brandedMapImage, loadBrandLogo } from "./pdf-document.js?v=0.18.16";
+import { locationUrl } from "./field-task-share.js?v=0.18.16";
 
 const DISPLAY_SETTINGS_KEY = "gismap-online:display:v1";
 const RECENT_PLACES_KEY = "gismap-online:recent-places:v1";
@@ -4407,21 +4408,23 @@ export class UIController {
       return;
     }
     const hasAIResponse = Boolean(this.lastAIResponseText);
-    const logo = await imageToJpeg("./assets/gis-map-online-mark-v2.png", { width: 96, height: 96 });
+    const logo = await loadBrandLogo();
     const mapCapture = await this.mapController.takeMapScreenshot().catch(() => null);
-    const mapImage = mapCapture?.dataUrl
-      ? { bytes: dataUrlBytes(mapCapture.dataUrl), width: mapCapture.width, height: mapCapture.height }
-      : null;
-    const report = new PdfDocument({ heading: "LOCATION INTELLIGENCE REPORT", logo });
-    const addLines = (text, options) => report.addLines(text, options);
     const point = payload?.point;
     const coordinates = point ? `${point.latitude.toFixed(6)}, ${point.longitude.toFixed(6)}` : "Unknown location";
     const location = payload?.address?.address || coordinates;
+    // Coordinates and the map open the app zoomed to this place, with a pin on it.
+    const placeLink = point ? locationUrl(globalThis.location.href, { latitude: point.latitude, longitude: point.longitude }) : null;
+    const mapImage = mapCapture?.dataUrl
+      ? await brandedMapImage(mapCapture, { title: String(location).split(",")[0] || "Location", subtitle: `Location intelligence map · ${new Date().toLocaleString()}` })
+      : null;
+    const report = new PdfDocument({ heading: "LOCATION INTELLIGENCE REPORT", logo, homeUrl: new URL("/", globalThis.location.href).href });
+    const addLines = (text, options) => report.addLines(text, options);
     addLines(`Generated ${new Date().toLocaleString()}`, { size: 9, leading: 14, color: "0.36 0.44 0.41" });
     report.gap(10);
     addLines("Location", { size: 13, leading: 18, color: "0.08 0.36 0.30", bold: true });
     addLines(location, { size: 12, leading: 18, bold: true });
-    addLines(`Coordinates: ${coordinates}`);
+    addLines(`Coordinates: ${coordinates}`, { link: placeLink });
     const extent = this.mapController.getCurrentExtentDetails?.();
     if (extent) addLines(`Map extent: ${extent.west.toFixed(4)}, ${extent.south.toFixed(4)} to ${extent.east.toFixed(4)}, ${extent.north.toFixed(4)}${extent.zoom != null ? ` (zoom ${extent.zoom})` : ""}`);
     if (hasAIResponse) {
@@ -4453,8 +4456,8 @@ export class UIController {
     if (mapImage) {
       report.newPage();
       addLines("Map snapshot", { size: 13, leading: 18, color: "0.08 0.36 0.30", bold: true });
-      addLines("The map view at the time this Location Intelligence Report was created.", { size: 9, leading: 14, color: "0.36 0.44 0.41" });
-      report.addImage(mapImage, { maxHeight: 360 });
+      addLines(`The map view at the time this Location Intelligence Report was created.${placeLink ? " Click it to open this place in GIS Map Online." : ""}`, { size: 9, leading: 14, color: "0.36 0.44 0.41" });
+      report.addImage(mapImage, { maxHeight: 420, link: placeLink });
       const details = this.mapController.getCurrentExtentDetails();
       addLines(`Map extent: ${details?.west.toFixed(4)}, ${details?.south.toFixed(4)} to ${details?.east.toFixed(4)}, ${details?.north.toFixed(4)}`, { size: 9, leading: 14, color: "0.36 0.44 0.41" });
     }

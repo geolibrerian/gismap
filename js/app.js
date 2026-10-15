@@ -6,16 +6,16 @@ import { IdentifyController } from "./identify.js?v=0.18.2";
 import { AttributeTableController } from "./attribute-table.js?v=0.18.2";
 import { AIController } from "./ai.js?v=0.18.2";
 import { ToolManager } from "./tool-manager.js?v=0.18.2";
-import { UIController } from "./ui.js?v=0.18.14";
+import { UIController } from "./ui.js?v=0.18.16";
 import { ExportController } from "./export/export-controller.js?v=0.18.2";
 import { parseShareParameters } from "./share.js?v=0.18.2";
 import { decodeEmbeddedTour } from "./tour-share.js?v=0.18.2";
-import { decodeFieldTask, featureLayerUrl, readFieldTaskHash } from "./field-task-share.js?v=0.18.13";
+import { decodeFieldTask, featureLayerUrl, readFieldTaskHash, readFocus } from "./field-task-share.js?v=0.18.16";
 import { POPULAR_SERVICES } from "./catalog.js?v=0.18.2";
 import { ApplicationRuntime } from "./application-runtime.js?v=0.18.2";
 import { PanelManager } from "./panel-manager.js?v=0.18.2";
 import { MobilePanelManager } from "./mobile-panel-manager.js?v=0.18.2";
-import { MobileWorkflowRouter } from "./mobile-workflow-router.js?v=0.18.14";
+import { MobileWorkflowRouter } from "./mobile-workflow-router.js?v=0.18.16";
 
 async function loadSharedLayer(mapController, config) {
   const rootUrl = config.url.replace(/\/+$/, "");
@@ -111,8 +111,9 @@ async function start() {
   if (fieldTaskPayload) {
     try {
       const shared = decodeFieldTask(fieldTaskPayload, { allowHttp: location.hostname === "localhost" || location.hostname === "127.0.0.1" });
-      if (shared.kind === "assign") {
-        // Bring in the feature layers the assignment points at, unless they are already on the map.
+      {
+        // Bring in the feature layers the task points at (to work on them, or to inspect them in a
+        // report), unless they are already on the map.
         const loaded = new Set(mapController.getOperationalLayers().flatMap((layer) => [featureLayerUrl(layer), mapController.getLayerConfig(layer).url]).filter(Boolean));
         for (const url of new Set(shared.task.features.map((feature) => feature.layerUrl).filter(Boolean))) {
           if (loaded.has(url)) continue;
@@ -124,12 +125,18 @@ async function start() {
         }
       }
       // The fragment stays in place so a reload reopens the task even in an unsaved project.
-      await mobileWorkflowRouter.openSharedTask(shared);
+      await mobileWorkflowRouter.openSharedTask(shared, readFocus(location.hash));
     } catch (error) {
       events.publish("app:error", { message: error.message });
     }
   } else if (["briefing", "tours", "tasks"].includes(requestedWorkflow)) {
     mobileWorkflowRouter.navigate(requestedWorkflow);
+  }
+  // A location link (`#at=lat,lon`, as in PDF reports) opens the map pinned on that place.
+  const sharedPlace = !fieldTaskPayload && readFocus(location.hash).at;
+  if (sharedPlace) {
+    mapController.setTaskPin({ kind: "task", label: "Shared location", ...sharedPlace });
+    mapController.goToTaskPlaces([sharedPlace], { animate: false }).catch(() => {});
   }
 
   const tourMatch = location.hash.match(/(?:^#|&)tour=([^&]+)/);

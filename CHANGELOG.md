@@ -8,10 +8,13 @@ All notable changes to GIS Map Online are documented here. This project follows
 
 ### Changed
 
+- Both PDF reports share one branded look: a header band with the mark on green (no white box), teal "GIS MAP" over gold "ONLINE", and the same framed map (green border, mark, title, date, legend).
 - On desktop, Field tasks opens as a tab in the right panel instead of a separate overlay, so docking a share dialog (the ↗ button) adds a tab beside it rather than covering it.
 
 ### Added
 
+- Field task PDFs include the task's link as a QR code and are clickable: the header opens the site, the map and QR open the task, and each coordinate opens it zoomed to that place (`at=lat,lon`) or attached feature (`feature=N`). Location Intelligence PDFs link their map and coordinates the same way.
+- Links with `#at=lat,lon` open the map pinned and zoomed to that place; field task report links now also load the features' layers so they can be inspected.
 - Field workers can check in from the completion screen: their position, accuracy, date and time, and the reverse-geocoded address are recorded. Task locations are reverse-geocoded on save with the same details as Location Intelligence. Both addresses and the check-in travel in the share links and appear in the CSV (new address and recorded_at columns) and PDF.
 - The field task PDF adds a Task data table of the CSV rows and frames its map in the GIS Map Online brand (green border, mark, task name and date, legend), showing the task location, features and check-in.
 - Opening a field task link pins its places on the map and zooms to them; an open task keeps its pins after you return to the map.
@@ -27,6 +30,7 @@ All notable changes to GIS Map Online are documented here. This project follows
 
 ### Fixed
 
+- Zooming to an attached feature now requests it in WGS84, so services that use custom coordinate systems still zoom correctly.
 - Field task maps with more than one place now frame all of them (a plain extent was ignored by the map).
 - Updated five source-text tests that still described the earlier mobile layout, QR card and map-tools toggle.
 - On phones, Briefing's feature list and feature context are folding sections inside the Briefing sheet instead of a panel floating over it; Context opens and scrolls to its section. Share QR no longer overlaps the panel button in the Briefing header.
