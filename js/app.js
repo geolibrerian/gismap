@@ -16,6 +16,8 @@ import { ApplicationRuntime } from "./application-runtime.js?v=0.18.2";
 import { PanelManager } from "./panel-manager.js?v=0.18.2";
 import { MobilePanelManager } from "./mobile-panel-manager.js?v=0.18.2";
 import { MobileWorkflowRouter } from "./mobile-workflow-router.js?v=0.18.16";
+import { createClientApi } from "./briefing-api.js?v=0.20.0";
+import { readBriefingHash } from "./briefing-share.js?v=0.20.0";
 
 async function loadSharedLayer(mapController, config) {
   const rootUrl = config.url.replace(/\/+$/, "");
@@ -103,6 +105,13 @@ async function start() {
   const launchParams = new URLSearchParams(location.search);
   const requestedWorkflow = launchParams.get("workflow");
   const sharedBriefingIds = launchParams.get("briefing");
+  let sharedBriefing = null;
+  try {
+    sharedBriefing = await readBriefingHash(location.hash);
+    if (sharedBriefing) projectManager.setPresentation({ ...projectManager.current.presentation, template: "briefing", briefing: sharedBriefing });
+  } catch (error) {
+    events.publish("app:error", { message: error.message });
+  }
   if (requestedWorkflow === "briefing" && sharedBriefingIds) {
     const layer = mapController.getOperationalLayers().find((item) => typeof item.queryFeatures === "function");
     if (layer) projectManager.patchPresentation({ primaryLayerId: layer.uid, briefingSelection: { layerId: layer.uid, ids: sharedBriefingIds.split(",").filter(Boolean), useAll: false } });
@@ -129,6 +138,8 @@ async function start() {
     } catch (error) {
       events.publish("app:error", { message: error.message });
     }
+  } else if (sharedBriefing) {
+    mobileWorkflowRouter.navigate("briefing");
   } else if (["briefing", "tours", "tasks"].includes(requestedWorkflow)) {
     mobileWorkflowRouter.navigate(requestedWorkflow);
   }
@@ -159,13 +170,19 @@ async function start() {
   }
 
   // A narrow, intentional extension surface for local tools and debugging.
+  const clientApi = createClientApi({ projectManager, mapController });
   globalThis.gisMapOnline = Object.freeze({
+    version: clientApi.version,
     events,
     map: mapController.map,
     view: mapController.view,
     getProject: () => projectManager.snapshot(),
     getConnections: () => authController.list(),
     exportData: (options) => exportController.exportLayer(options),
+    capabilities: clientApi.capabilities,
+    briefing: clientApi.briefing,
+    queries: clientApi.queries,
+    sources: clientApi.sources,
     application: Object.freeze({
       getState: () => applicationRuntime.state.value,
       getConfig: () => applicationRuntime.snapshot(),

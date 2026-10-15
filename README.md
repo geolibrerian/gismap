@@ -46,6 +46,33 @@ python3 -m http.server 8080
 
 Then open `http://localhost:8080`.
 
+## Client-side Briefing API
+
+GISMap exposes the same versioned Briefing functions to in-page agents and to ES-module callers. No GISMap server or account is required.
+
+```js
+const api = globalThis.gisMapOnline;
+const slide = api.briefing.createSlide("map-narrative", {
+  title: "Where improvements are planned",
+});
+const document = api.briefing.addSlide(api.briefing.create(), slide);
+
+api.briefing.load(document); // opens the document in Briefing
+const link = await api.briefing.createLink(document, { qrSafe: true });
+const project = api.briefing.exportGmo(document); // { fileName, mimeType, text, blob }
+```
+
+Headless agents can import the pure core without opening the app:
+
+```js
+import { briefing, sources } from "./js/gismap-core.js";
+
+const metadata = await sources.inspect("https://example.org/arcgis/rest/services/Projects/FeatureServer/0");
+const result = briefing.validate(document);
+```
+
+The machine-readable contracts are [`api/capabilities.json`](api/capabilities.json), [`schemas/briefing-v1.schema.json`](schemas/briefing-v1.schema.json), and the [`gismap-core` TypeScript declarations](js/gismap-core.d.ts). Filters, slides, blocks, cameras and styles are declarative data; credentials and temporary viewer state do not belong in a briefing. Browser source inspection remains subject to CORS. The library does not provide hosted links, access control, or background jobs.
+
 ### Composable application preview
 
 Feature branches under `codex/**` run `.github/workflows/development-preview.yml`. Every run produces a 14-day static preview artifact after the complete test suite and JavaScript syntax checks pass. An isolated Cloudflare Pages development deployment is enabled only when the `development` GitHub environment defines `CLOUDFLARE_PAGES_PROJECT_DEV`, `CLOUDFLARE_API_TOKEN_DEV`, and `CLOUDFLARE_ACCOUNT_ID_DEV`. These names deliberately do not reuse production credentials or destinations, and the workflow has no production trigger.
@@ -76,6 +103,8 @@ published builds and generated release notes.
 - `js/layout-manager.js` — constrained dock placement and reversible previews around one map instance
 - `js/application-runtime.js` — registered workspace/data/presentation panels and approved builder operations
 - `js/data-catalog.js` — portable catalog schema, read-only SQL validation, and deterministic natural-language query planning
+- `js/gismap-core.js` — pure client-side API for briefing documents, filters, statistics, source inspection, and share encoding
+- `js/briefing-api.js` — binds the pure API to the active GISMap project and camera as `globalThis.gisMapOnline.briefing`
 - `js/duckdb-client.js` — optional, lazily loaded DuckDB-Wasm execution for browser feature records and HTTPS analytical sources
 - `js/catalog.js` — public data services plus categories, stable slugs, source
   metadata, reuse guidance, tags, and featured-example controls
