@@ -2,6 +2,7 @@ import { applicationToLegacyPresentation, normalizeApplicationConfig } from "./a
 import { normalizeDataCatalog } from "./data-catalog.js?v=0.18.2";
 import { normalizeSkin } from "./skin-catalog.js?v=0.18.2";
 import { normalizeMobileWorkflow } from "./mobile-feed-store.js?v=0.18.7";
+import { normalizeBriefing } from "./briefing-document.js?v=0.19.0";
 
 const STORAGE_KEY = "gismap-online:projects:v1";
 const CURRENT_KEY = "gismap-online:current-project:v1";
@@ -337,6 +338,8 @@ export class ProjectManager {
         ids: Array.isArray(selection.ids) ? [...new Set(selection.ids.map(String))].slice(0, 500) : [],
         useAll: selection.useAll === true,
       } : { layerId: null, ids: [], useAll: false },
+      // Slides for the briefing; a briefing without slides behaves exactly as before.
+      briefing: normalizeBriefing(value.briefing),
       primaryLayerId: value.primaryLayerId || null,
       fieldMappings: value.fieldMappings && typeof value.fieldMappings === "object" ? value.fieldMappings : {},
       widgets: value.widgets && typeof value.widgets === "object" ? value.widgets : {},
