@@ -19,7 +19,7 @@ test("only GIS Map Online links in a QR code are opened, and they open in this c
   assert.equal(describeGisMapLink("https://gismap.online/#briefing=z&slide=s-1"), "briefing");
 });
 
-test("pictures open from a drop, the photo library or the menu, and Smart images carry a scannable QR", async () => {
+test("pictures open from a drop, the photo library or the menu; Smart images stay clean", async () => {
   const ui = await readFile(new URL("../js/ui.js", import.meta.url), "utf8");
   const html = await readFile(new URL("../index.html", import.meta.url), "utf8");
   const router = await readFile(new URL("../js/mobile-workflow-router.js", import.meta.url), "utf8");
@@ -30,8 +30,7 @@ test("pictures open from a drop, the photo library or the menu, and Smart images
   assert.match(router, /data-open-image/);
   assert.match(ui, /decodeQrFromImage\(file\)/);
   assert.match(ui, /jpe\?g\|webp\|gif\|heic/, "dropped photos are accepted");
-  assert.match(smart, /pxPerModule: 4/);
-  assert.match(smart, /Scan to open this map/);
+  assert.doesNotMatch(smart, /Scan to open this map|drawQrCard/, "no QR card is drawn on the map");
   assert.match(reader, /BarcodeDetector/);
   assert.match(reader, /"define", source\)\(module, module\.exports, undefined\)/, "jsQR loads despite the page's AMD loader");
 });

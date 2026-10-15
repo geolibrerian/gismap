@@ -3,7 +3,7 @@ import { normalizeDataCatalog } from "./data-catalog.js?v=0.18.2";
 import { normalizeSkin } from "./skin-catalog.js?v=0.18.2";
 import { normalizeMobileWorkflow } from "./mobile-feed-store.js?v=0.18.7";
 import { normalizeBriefing } from "./briefing-document.js?v=0.19.0";
-import { composeSmartImage, embedProjectInPng, readProjectFromPng } from "./smart-image.js?v=0.25.1";
+import { composeSmartImage, embedProjectInPng, readProjectFromPng } from "./smart-image.js?v=0.26.0";
 
 const STORAGE_KEY = "gismap-online:projects:v1";
 const CURRENT_KEY = "gismap-online:current-project:v1";
@@ -211,8 +211,6 @@ export class ProjectManager {
       width,
       height,
       skin: globalThis.document?.documentElement?.dataset.skin || project.presentation?.skin,
-      // A QR of the map's share link, in case the picture loses its hidden project data.
-      qrUrl: await Promise.resolve(this.smartImageLink?.()).catch(() => null),
     });
     const blob = await embedProjectInPng(visual, project);
     const name = `${this.#exportName(project)}-smart-map.png`;

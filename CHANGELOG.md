@@ -8,6 +8,8 @@ All notable changes to GIS Map Online are documented here. This project follows
 
 ### Changed
 
+- Smart images no longer carry a QR card on the map; the picture stays clean, and its hidden project data opens it as before.
+- Adding an ArcGIS REST or GeoJSON service by URL suggests a layer title from the service name (…/California_Historic_Fire_Perimeters/FeatureServer/0 → "California Historic Fire Perimeters"); a title typed by hand is kept.
 - Every standard panel (Places, Bookmarks, Draw, Intelligence, Layers) has a dock button in its header that moves it into a right-panel tab; closing the tab puts it back. This replaces the "Open in right panel ↗" buttons in Draw and Intelligence. Panel hints ("Click the map", "Search", "1 loaded") now sit beside the title.
 - New dock icons, a two-tone north-arrow needle aimed where the panel goes: into the right panel, back to the left, or out of its frame into a floating window. They replace the plain arrows on panel headers, the right-panel "open as modal" button, dialog docking and the presentation dock.
 - The Briefing feature list folds like a door and, when open, fills the panel down to the footer with its own scroll (up to 400 features listed). The search Clear is now an inline ×, and Group by sits in the chip row, so the list starts higher.
@@ -26,7 +28,6 @@ All notable changes to GIS Map Online are documented here. This project follows
 ### Added
 
 - Pictures open maps: drop a QR card, a screenshot or a photo of a GIS Map QR code on the map, or choose **Open from a photo or QR code…** (Project menu, and **Open from a photo** on the phone's More screen, which offers the photo library and camera). Smart images still open their whole project; any other picture is searched for a QR code, decoded with the browser's BarcodeDetector or the vendored jsQR 1.4.0 (Apache-2.0), and a GIS Map Online link (the site, its preview builds or this host) opens here in its mode: map, briefing, tour, field task or location. Other links are not followed.
-- Smart images include a "Scan to open this map" QR of the map's share link (sized at 4 px per module, when the link is short enough), so the picture still opens the map after a photo library or chat app strips its hidden project data.
 
 - One-click briefings from the map: **Share as a briefing** (Share & export) and **Make a briefing from this view** (Features and Slides tabs) build slides from the layer's style and filter and the Features-tab choices: a title slide describing the style and filter, key numbers for the styled field (scoped to the filters), counts per category or class, the chosen features or the top five by the styled number (with rank and share of total), and a sources slide. Share as a briefing goes straight to the share dialog.
 - With AI configured, generated briefings get short descriptions for the opening and each feature slide (also **Describe with AI** on the Slides tab), grounded in the features' attributes and marked in the presenter notes for review.

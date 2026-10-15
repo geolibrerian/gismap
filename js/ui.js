@@ -13,6 +13,7 @@ import { compactMedia } from "./viewport.js?v=0.18.2";
 import { PdfDocument, brandedMapImage, loadBrandLogo, printPalette, qrAsset } from "./pdf-document.js?v=0.23.0";
 import { featureLayerUrl, locationUrl } from "./field-task-share.js?v=0.21.0";
 import { dockIcon } from "./dock-icons.js?v=0.24.0";
+import { serviceNameFromUrl } from "./service-name.js?v=0.26.0";
 import { decodeQrFromImage, describeGisMapLink, gisMapLinkFrom, openGisMapLink } from "./qr-import.js?v=0.25.1";
 import { BriefingSlides } from "./briefing-slides.js?v=0.23.0";
 import { createSlide, matchesFilter, normalizeFilter } from "./briefing-document.js?v=0.19.0";
@@ -113,11 +114,6 @@ export class UIController {
     this.panelManager?.register("content:intelligence", document.querySelector("#intelligence-content"), { shell: document.querySelector("#intelligence-panel") });
     this.panelManager?.register("content:draw", document.querySelector(".draw-tools"), { shell: document.querySelector("#draw-panel") });
     this.#initDockablePanels();
-    // Smart images carry a QR of the map link as a fallback for their hidden project data.
-    this.projectManager.smartImageLink = async () => {
-      const link = await this.#mapShareLink();
-      return link.qr ? link.url : null;
-    };
     this.#applyDisplaySettings(this.#readDisplaySettings());
     this.systemThemeMedia.addEventListener?.("change", () => {
       const settings = this.#readDisplaySettings();
@@ -1923,6 +1919,18 @@ export class UIController {
         }
       }}],
     });
+    // Suggest a title from the service's name as a URL is typed or pasted; a title typed by hand is kept.
+    const urlInput = this.dialog.querySelector("#service-url");
+    const titleInput = this.dialog.querySelector("#service-title");
+    let suggested = "";
+    const suggest = () => {
+      const name = serviceNameFromUrl(urlInput.value);
+      if (titleInput.value.trim() && titleInput.value !== suggested) return;
+      titleInput.value = name;
+      suggested = name;
+    };
+    urlInput.addEventListener("input", suggest);
+    urlInput.addEventListener("change", suggest);
   }
 
   #popularDataDialog() {

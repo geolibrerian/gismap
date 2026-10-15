@@ -209,48 +209,7 @@ function canvasBlob(canvas) {
 }
 
 /** Turn a clean map capture into a polished, ordinary PNG before adding project data. */
-/**
- * The QR is drawn at 4 px per module so phone decoders (Safari has no built-in
- * one) can read it even after a photo app shrinks the picture. A link that
- * would need a QR wider than this is left out; the hidden project data remains.
- */
-export const SMART_IMAGE_QR = Object.freeze({ pxPerModule: 4, minWidth: 200, maxWidth: 360 });
-
-/**
- * Draws a "scan to open" QR card in the bottom-right corner of the map. It is
- * the fallback when the hidden project data is lost (photo libraries and chat
- * apps often re-encode pictures): the QR still opens the same map view.
- */
-async function drawQrCard(canvas, url, palette) {
-  if (!url || !globalThis.QRCode?.toCanvas) return;
-  const modules = globalThis.QRCode.create?.(url, { errorCorrectionLevel: "L" })?.modules?.size;
-  const width = Math.max(SMART_IMAGE_QR.minWidth, ((modules || 0) + 2) * SMART_IMAGE_QR.pxPerModule);
-  if (!modules || width > SMART_IMAGE_QR.maxWidth) return;
-  const qr = document.createElement("canvas");
-  await globalThis.QRCode.toCanvas(qr, url, { width, margin: 1, errorCorrectionLevel: "L", color: { dark: palette.band, light: "#ffffff" } });
-  const context = canvas.getContext("2d");
-  const border = 18;
-  const footer = 64;
-  const card = { width: qr.width + 20, height: qr.height + 46 };
-  const x = canvas.width - border - card.width - 14;
-  const y = canvas.height - border - footer - card.height - 14;
-  context.save();
-  context.shadowColor = "rgb(0 0 0 / 28%)";
-  context.shadowBlur = 14;
-  context.fillStyle = "#ffffff";
-  context.beginPath();
-  context.roundRect(x, y, card.width, card.height, 12);
-  context.fill();
-  context.restore();
-  context.drawImage(qr, x + 10, y + 10);
-  context.fillStyle = palette.band;
-  context.font = "700 15px system-ui, sans-serif";
-  context.textAlign = "center";
-  context.fillText("Scan to open this map", x + card.width / 2, y + card.height - 14);
-  context.textAlign = "left";
-}
-
-export async function composeSmartImage({ dataUrl, title, layerCount = 0, sources = [], width = 1600, height = 1000, skin = null, qrUrl = null }) {
+export async function composeSmartImage({ dataUrl, title, layerCount = 0, sources = [], width = 1600, height = 1000, skin = null }) {
   if (!globalThis.document || !globalThis.Image) throw new Error("Smart Image rendering requires a browser document.");
   const displayTitle = String(title || "Untitled project").trim().slice(0, 72);
   const countLabel = `${layerCount} ${layerCount === 1 ? "layer" : "layers"}`;
@@ -267,7 +226,6 @@ export async function composeSmartImage({ dataUrl, title, layerCount = 0, source
     },
   );
   if (!canvas) throw new Error("The captured map image could not be prepared.");
-  await drawQrCard(canvas, qrUrl, printPalette(skin)).catch(() => {});
   return canvasBlob(canvas);
 }
 
