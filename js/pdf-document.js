@@ -35,11 +35,44 @@ export function imageToJpeg(source, { width, height, maxSide, quality = 0.92, ba
 }
 
 export const BRAND_LOGO = "./assets/gis-map-online-mark-v2.png";
-// The header band colour; the logo is flattened onto it so it has no white box.
-const HEADER_BAND = "#0f2921";
+
+/**
+ * Print colours for each interface skin, so reports and briefings look like the
+ * app they came from. `band` is the dark header and map frame, `accent` the
+ * heading colour on white paper, `edge` the highlight stripe, `brand` the
+ * wordmark on the band, and `soft` a light tint for table headers.
+ */
+export const PRINT_PALETTES = Object.freeze({
+  gismap: { band: "#0f2921", frame: "#145b4e", accent: "#145d4d", edge: "#f3ae2b", brand: "#55cdb1", soft: "#e8f2ee" },
+  "clean-light": { band: "#172033", frame: "#1d4f86", accent: "#145da0", edge: "#cf7b18", brand: "#7cc0f2", soft: "#e8f0f8" },
+  "dark-analytical": { band: "#0c1217", frame: "#14454d", accent: "#176b77", edge: "#d7a64c", brand: "#52c4d1", soft: "#e5f1f3" },
+  "tidal-95": { band: "#073b3a", frame: "#006d6b", accent: "#006d6b", edge: "#ef6f61", brand: "#8fe0d0", soft: "#e3f3ee" },
+  portolan: { band: "#33251d", frame: "#5d4330", accent: "#8a5934", edge: "#c9a24f", brand: "#ead9b0", soft: "#f3ead4" },
+  "velvet-orbit": { band: "#25102e", frame: "#5a1f63", accent: "#872f91", edge: "#f0bf61", brand: "#e06cef", soft: "#f4e6f6" },
+  "violet-circuit": { band: "#080811", frame: "#2b1c4f", accent: "#5b3bb0", edge: "#35d7d0", brand: "#9a70ff", soft: "#ece8fb" },
+  highway: { band: "#17202b", frame: "#2c3744", accent: "#d83b0b", edge: "#ff4b0b", brand: "#ffffff", soft: "#f0f2f3" },
+  steeler: { band: "#303744", frame: "#4f5d73", accent: "#4f5d73", edge: "#b9b2bb", brand: "#dad5d2", soft: "#ebe7e4" },
+});
+
+export const printPalette = (skin) => PRINT_PALETTES[skin === "retro-print" ? "portolan" : skin] || PRINT_PALETTES.gismap;
+
+/** "#rrggbb" as a PDF colour operand ("r g b"). */
+export const pdfColor = (hex) => {
+  const value = String(hex).replace("#", "");
+  return [0, 2, 4].map((index) => (parseInt(value.slice(index, index + 2), 16) / 255).toFixed(3)).join(" ");
+};
 
 /** The GIS Map Online mark as a JPEG asset that blends into the PDF header band. */
-export const loadBrandLogo = () => imageToJpeg(BRAND_LOGO, { width: 120, height: 120, background: HEADER_BAND });
+export const loadBrandLogo = (palette = PRINT_PALETTES.gismap) => imageToJpeg(BRAND_LOGO, { width: 120, height: 120, background: palette.band });
+
+/** A QR code for a link, as a JPEG asset (the same encoding as the share cards). */
+export async function qrAsset(url, { dark = "#072f2b" } = {}) {
+  if (!url || !globalThis.QRCode?.toCanvas) return null;
+  const canvas = document.createElement("canvas");
+  await globalThis.QRCode.toCanvas(canvas, url, { width: 600, margin: 2, errorCorrectionLevel: "L", color: { dark, light: "#ffffff" } });
+  const dataUrl = canvas.toDataURL("image/jpeg", 0.95);
+  return { bytes: dataUrlBytes(dataUrl), width: canvas.width, height: canvas.height };
+}
 
 const loadImage = (source) => new Promise((resolve) => {
   const image = new Image();
@@ -54,7 +87,7 @@ const loadImage = (source) => new Promise((resolve) => {
  * optional pin legend below. `legend` items are { shape: "diamond" | "small-diamond"
  * | "circle", label }.
  */
-export async function brandedMapImage(mapImage, { title = "", subtitle = "", legend = [] } = {}) {
+export async function brandedMapImage(mapImage, { title = "", subtitle = "", legend = [], palette = PRINT_PALETTES.gismap, footer: footerText = "gismap.online" } = {}) {
   const [map, logo] = await Promise.all([loadImage(mapImage.dataUrl), loadImage(BRAND_LOGO)]);
   if (!map) return null;
   const border = 18;
@@ -67,30 +100,30 @@ export async function brandedMapImage(mapImage, { title = "", subtitle = "", leg
   canvas.height = header + mapHeight + footer + border;
   const context = canvas.getContext("2d");
   const gradient = context.createLinearGradient(0, 0, canvas.width, canvas.height);
-  gradient.addColorStop(0, "#071f1c");
-  gradient.addColorStop(1, "#145b4e");
+  gradient.addColorStop(0, palette.band);
+  gradient.addColorStop(1, palette.frame);
   context.fillStyle = gradient;
   context.fillRect(0, 0, canvas.width, canvas.height);
-  context.fillStyle = "#f3ae2b";
+  context.fillStyle = palette.edge;
   context.fillRect(0, 0, 10, canvas.height);
   if (logo) context.drawImage(logo, border + 14, 18, 82, 82);
   context.textBaseline = "alphabetic";
-  context.fillStyle = "#55cdb1";
+  context.fillStyle = palette.brand;
   context.font = "700 26px system-ui, sans-serif";
   context.fillText("GIS MAP", border + 112, 50);
-  context.fillStyle = "#f3ae2b";
+  context.fillStyle = palette.edge;
   context.font = "700 15px system-ui, sans-serif";
   context.fillText("O N L I N E", border + 114, 74);
   context.textAlign = "right";
   context.fillStyle = "#ffffff";
   context.font = "700 34px Georgia, serif";
   context.fillText(String(title).slice(0, 48), canvas.width - border - 10, 56, 760);
-  context.fillStyle = "#b8d8d0";
+  context.fillStyle = "rgb(255 255 255 / 72%)";
   context.font = "20px system-ui, sans-serif";
   context.fillText(String(subtitle).slice(0, 90), canvas.width - border - 10, 90, 760);
   context.textAlign = "left";
   context.drawImage(map, border, header, mapWidth, mapHeight);
-  context.strokeStyle = "#55cdb1";
+  context.strokeStyle = palette.brand;
   context.lineWidth = 3;
   context.strokeRect(border - 1.5, header - 1.5, mapWidth + 3, mapHeight + 3);
   const legendY = header + mapHeight + 40;
@@ -120,10 +153,10 @@ export async function brandedMapImage(mapImage, { title = "", subtitle = "", leg
     context.fillText(label, x + 32, legendY);
     x += 44 + context.measureText(label).width;
   });
-  context.fillStyle = "#f3ae2b";
+  context.fillStyle = palette.edge;
   context.font = "700 18px system-ui, sans-serif";
   context.textAlign = "right";
-  context.fillText("gismap.online", canvas.width - border - 10, legendY);
+  context.fillText(footerText, canvas.width - border - 10, legendY);
   context.textAlign = "left";
   const dataUrl = canvas.toDataURL("image/jpeg", 0.9);
   return { bytes: dataUrlBytes(dataUrl), width: canvas.width, height: canvas.height };
@@ -157,31 +190,43 @@ const wrap = (value, maxChars) => String(value ?? "").split(/\n/).flatMap((parag
 export const PDF_COLORS = Object.freeze({ ink: "0.09 0.16 0.14", muted: "0.36 0.44 0.41", accent: "0.08 0.36 0.30", link: "0.05 0.40 0.55" });
 
 export class PdfDocument {
-  constructor({ heading, logo = null, homeUrl = "https://gismap.online/", pageWidth = 612, pageHeight = 792, margin = 48 }) {
-    Object.assign(this, { heading, logo, homeUrl, pageWidth, pageHeight, margin });
+  /**
+   * Letter portrait by default; pass pageWidth 792 / pageHeight 612 for
+   * landscape. `palette` (see printPalette) colours the header and headings.
+   */
+  constructor({ heading, logo = null, homeUrl = "https://gismap.online/", pageWidth = 612, pageHeight = 792, margin = 48, palette = PRINT_PALETTES.gismap }) {
+    Object.assign(this, { heading, logo, homeUrl, pageWidth, pageHeight, margin, palette });
+    this.colors = { ...PDF_COLORS, accent: pdfColor(palette.accent), soft: pdfColor(palette.soft) };
     this.pages = [];
     this.page = null;
     this.y = 0;
     this.newPage();
   }
 
+  /** The top of the page body, below the header band and page heading. */
+  get top() {
+    return this.pageHeight - 132;
+  }
+
   newPage() {
-    // The header band mirrors the QR cards: dark green, a gold edge, the mark,
-    // "GIS MAP" in teal over a spaced, gold "ONLINE". It links to the site.
+    // The header band mirrors the QR cards: the skin's dark band, an edge stripe,
+    // the mark, "GIS MAP" over a spaced "ONLINE". It links to the site.
+    const { margin: left, pageWidth, pageHeight, palette } = this;
+    const band = pageHeight - 88;
     this.page = { commands: [
-      "0.06 0.16 0.13 rg 48 704 516 44 re f",
-      "0.95 0.68 0.17 rg 48 704 4 44 re f",
-      "0.33 0.80 0.69 rg BT /F2 15 Tf 100 729 Td (GIS MAP) Tj ET",
-      "0.95 0.68 0.17 rg BT /F2 7.5 Tf 2.2 Tc 101 715 Td (ONLINE) Tj ET 0 Tc",
-      `0.08 0.37 0.30 rg BT /F2 11 Tf 48 682 Td (${pdfSafeText(this.heading)}) Tj ET`,
+      `${pdfColor(palette.band)} rg ${left} ${band} ${pageWidth - left * 2} 44 re f`,
+      `${pdfColor(palette.edge)} rg ${left} ${band} 4 44 re f`,
+      `${pdfColor(palette.brand)} rg BT /F2 15 Tf ${left + 52} ${band + 25} Td (GIS MAP) Tj ET`,
+      `${pdfColor(palette.edge)} rg BT /F2 7.5 Tf 2.2 Tc ${left + 53} ${band + 11} Td (ONLINE) Tj ET 0 Tc`,
+      `${this.colors.accent} rg BT /F2 11 Tf ${left} ${band - 22} Td (${pdfSafeText(this.heading)}) Tj ET`,
     ], images: [], links: [] };
     if (this.logo) {
       this.page.images.push({ name: "ImLogo", asset: this.logo });
-      this.page.commands.push("q 36 0 0 36 60 708 cm /ImLogo Do Q");
+      this.page.commands.push(`q 36 0 0 36 ${left + 12} ${band + 4} cm /ImLogo Do Q`);
     }
-    if (this.homeUrl) this.addLink([48, 704, 260, 748], this.homeUrl);
+    if (this.homeUrl) this.addLink([left, band, left + 212, band + 44], this.homeUrl);
     this.pages.push(this.page);
-    this.y = 660;
+    this.y = this.top;
   }
 
   /** Makes a rectangle [x1, y1, x2, y2] on the current page open a URL. */
@@ -209,8 +254,43 @@ export class PdfDocument {
     });
   }
 
+  /** Wrapped text in a box of its own (a column of a landscape slide). Returns the y below it. */
+  addTextAt(text, { x, y, width, size = 10, leading = size * 1.45, color = PDF_COLORS.ink, bold = false, link = null, bottom = this.margin } = {}) {
+    const maxChars = Math.max(8, Math.floor(width / (size * 0.5)));
+    let lineY = y;
+    for (const line of wrap(text, maxChars)) {
+      if (lineY < bottom) break;
+      const lineColor = link ? PDF_COLORS.link : color;
+      this.page.commands.push(`${lineColor} rg BT /F${bold ? 2 : 1} ${size} Tf ${x.toFixed(2)} ${lineY.toFixed(2)} Td (${pdfSafeText(line)}) Tj ET`);
+      if (link) this.addLink([x, lineY - 3, x + Math.min(width, line.length * size * 0.52), lineY + size], link);
+      lineY -= leading;
+    }
+    return lineY;
+  }
+
+  /** An image fitted inside a box, centred; returns the drawn rectangle. */
+  addImageAt(asset, { x, y, width, height, link = null, border = null } = {}) {
+    if (!asset?.bytes?.length) return null;
+    const scale = Math.min(width / asset.width, height / asset.height);
+    const drawWidth = asset.width * scale;
+    const drawHeight = asset.height * scale;
+    const left = x + (width - drawWidth) / 2;
+    const bottom = y - height + (height - drawHeight) / 2;
+    const name = `Im${this.pages.length}x${this.page.images.length}`;
+    this.page.images.push({ name, asset });
+    this.page.commands.push(`q ${drawWidth.toFixed(2)} 0 0 ${drawHeight.toFixed(2)} ${left.toFixed(2)} ${bottom.toFixed(2)} cm /${name} Do Q`);
+    if (border) this.page.commands.push(`${pdfColor(border)} RG 1.5 w ${left.toFixed(2)} ${bottom.toFixed(2)} ${drawWidth.toFixed(2)} ${drawHeight.toFixed(2)} re S`);
+    if (link) this.addLink([left, bottom, left + drawWidth, bottom + drawHeight], link);
+    return { x: left, y: bottom, width: drawWidth, height: drawHeight };
+  }
+
+  /** A filled rectangle in a palette colour ("#rrggbb"). */
+  fillRect(x, y, width, height, hex) {
+    this.page.commands.push(`${pdfColor(hex)} rg ${x.toFixed(2)} ${y.toFixed(2)} ${width.toFixed(2)} ${height.toFixed(2)} re f`);
+  }
+
   heading2(text) {
-    this.addLines(text, { size: 13, leading: 18, color: PDF_COLORS.accent, bold: true });
+    this.addLines(text, { size: 13, leading: 18, color: this.colors.accent, bold: true });
   }
 
   /** Places an image at full text width (or narrower to respect maxHeight), starting a page if it does not fit. */
@@ -249,11 +329,11 @@ export class PdfDocument {
         if (!header) drawRow(columns.map((column) => column.label), { header: true });
       }
       const top = this.y;
-      if (header) this.page.commands.push(`0.91 0.95 0.93 rg ${this.margin} ${(top - height).toFixed(2)} ${this.pageWidth - this.margin * 2} ${height.toFixed(2)} re f`);
+      if (header) this.page.commands.push(`${this.colors.soft} rg ${this.margin} ${(top - height).toFixed(2)} ${this.pageWidth - this.margin * 2} ${height.toFixed(2)} re f`);
       let x = this.margin;
       lines.forEach((cell, index) => {
         cell.forEach((line, lineIndex) => {
-          this.page.commands.push(`${header ? PDF_COLORS.accent : PDF_COLORS.ink} rg BT /F${header ? 2 : 1} ${size} Tf ${(x + padding).toFixed(2)} ${(top - padding - size - lineIndex * leading).toFixed(2)} Td (${pdfSafeText(line)}) Tj ET`);
+          this.page.commands.push(`${header ? this.colors.accent : PDF_COLORS.ink} rg BT /F${header ? 2 : 1} ${size} Tf ${(x + padding).toFixed(2)} ${(top - padding - size - lineIndex * leading).toFixed(2)} Td (${pdfSafeText(line)}) Tj ET`);
         });
         x += columns[index].width;
       });

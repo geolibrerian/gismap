@@ -1,21 +1,22 @@
 import { events } from "./events.js?v=0.18.2";
 import { AuthController } from "./auth.js?v=0.18.2";
-import { MapController } from "./map.js?v=0.18.13";
+import { MapController } from "./map.js?v=0.21.0";
 import { ProjectManager } from "./project.js?v=0.19.0";
 import { IdentifyController } from "./identify.js?v=0.18.2";
 import { AttributeTableController } from "./attribute-table.js?v=0.18.2";
 import { AIController } from "./ai.js?v=0.18.2";
 import { ToolManager } from "./tool-manager.js?v=0.18.2";
-import { UIController } from "./ui.js?v=0.20.2";
+import { UIController } from "./ui.js?v=0.21.1";
 import { ExportController } from "./export/export-controller.js?v=0.18.2";
-import { parseShareParameters } from "./share.js?v=0.18.2";
+import { parseShareParameters } from "./share.js?v=0.21.0";
+import { readShareLocation } from "./map-share.js?v=0.21.0";
 import { decodeEmbeddedTour } from "./tour-share.js?v=0.18.2";
-import { decodeFieldTask, featureLayerUrl, readFieldTaskHash, readFocus } from "./field-task-share.js?v=0.18.16";
+import { decodeFieldTask, featureLayerUrl, readFieldTaskHash, readFocus } from "./field-task-share.js?v=0.21.0";
 import { POPULAR_SERVICES } from "./catalog.js?v=0.18.2";
 import { ApplicationRuntime } from "./application-runtime.js?v=0.18.2";
 import { PanelManager } from "./panel-manager.js?v=0.18.2";
 import { MobilePanelManager } from "./mobile-panel-manager.js?v=0.18.2";
-import { MobileWorkflowRouter } from "./mobile-workflow-router.js?v=0.18.16";
+import { MobileWorkflowRouter } from "./mobile-workflow-router.js?v=0.21.0";
 
 async function loadSharedLayer(mapController, config) {
   const rootUrl = config.url.replace(/\/+$/, "");
@@ -73,8 +74,12 @@ async function start() {
     shareWorkflow: (route, payload) => uiController.shareMobileWorkflow(route, payload),
     notify: (message) => uiController.toast(message),
     dockWorkflow: (open) => uiController.dockWorkflowPanel(open),
+    createTour: (places, options) => uiController.createTourFromPlaces(places, options),
+    createBriefing: (request) => uiController.createBriefingForLayerUrl(request),
   });
   mobileWorkflowRouter.initialize();
+  // Briefing action items become field tasks.
+  uiController.fieldTasks = mobileWorkflowRouter;
   await mapController.initialize();
   events.publish("project:loaded", { project: projectManager.current, missingFiles: [] });
 
@@ -100,10 +105,19 @@ async function start() {
     events.publish("app:error", { message: error.message });
   }
 
+  // A styled map or briefing link (`#map=…`, `#briefing=…`, or `?briefing=<file URL>`).
+  let sharedState = null;
+  try {
+    sharedState = await readShareLocation(location, { allowHttp: location.hostname === "localhost" || location.hostname === "127.0.0.1" });
+    if (sharedState) await uiController.openSharedState(sharedState, { loadLayer: (config) => loadSharedLayer(mapController, config) });
+  } catch (error) {
+    events.publish("app:error", { message: error.message });
+  }
+
   const launchParams = new URLSearchParams(location.search);
-  const requestedWorkflow = launchParams.get("workflow");
+  const requestedWorkflow = sharedState ? null : launchParams.get("workflow");
   const sharedBriefingIds = launchParams.get("briefing");
-  if (requestedWorkflow === "briefing" && sharedBriefingIds) {
+  if (requestedWorkflow === "briefing" && sharedBriefingIds && !/^https?:/i.test(sharedBriefingIds)) {
     const layer = mapController.getOperationalLayers().find((item) => typeof item.queryFeatures === "function");
     if (layer) projectManager.patchPresentation({ primaryLayerId: layer.uid, briefingSelection: { layerId: layer.uid, ids: sharedBriefingIds.split(",").filter(Boolean), useAll: false } });
   }
@@ -118,7 +132,7 @@ async function start() {
         for (const url of new Set(shared.task.features.map((feature) => feature.layerUrl).filter(Boolean))) {
           if (loaded.has(url)) continue;
           try {
-            await loadSharedLayer(mapController, { url, serviceType: "arcgis-auto" });
+            await loadSharedLayer(mapController, { url, serviceType: "arcgis-auto", renderer: shared.task.layerStyles?.[url] || null });
           } catch (error) {
             events.publish("app:error", { message: `A field task layer failed to load: ${error.message}` });
           }
@@ -157,6 +171,11 @@ async function start() {
       if (tour.chapters.some((item) => item.sharedBasemapFallback)) events.publish("app:error", { message: "One or more shared basemaps are unavailable; a supported map was used instead." });
     } catch (error) { events.publish("app:error", { message: error.message }); }
   }
+
+  // Installed as an app, double-clicking a .gmo / .gmop / .gmoatlas file opens it here.
+  globalThis.launchQueue?.setConsumer?.(async ({ files = [] }) => {
+    for (const handle of files) await uiController.importProjectFile(await handle.getFile());
+  });
 
   // A narrow, intentional extension surface for local tools and debugging.
   globalThis.gisMapOnline = Object.freeze({

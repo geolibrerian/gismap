@@ -330,6 +330,8 @@ export class MapController {
           if (common.title) layer.title = common.title;
           layer.opacity = common.opacity;
           layer.visible = common.visible;
+          // Shared and saved filters apply to auto-detected feature layers too.
+          if (config.definitionExpression && "definitionExpression" in layer) layer.definitionExpression = config.definitionExpression;
           break;
       }
 
@@ -715,6 +717,39 @@ export class MapController {
       if (previousPins.length) this.locationLayer?.addMany(previousPins);
       if (camera) await this.view.goTo(camera, { animate: false }).catch(() => {});
     }
+  }
+
+  /**
+   * Snapshots of several map views (for briefing PDFs). Each target is a goTo
+   * target or null for the current view; images are cropped to `aspect` around
+   * the centre. The camera returns to where it was afterwards.
+   */
+  async captureViews(targets = [], { aspect = 4 / 3, width = 1400, onProgress = () => {} } = {}) {
+    if (!this.view?.takeScreenshot) return targets.map(() => null);
+    const camera = this.view.camera?.clone?.();
+    const images = [];
+    try {
+      for (const [index, target] of targets.entries()) {
+        onProgress(index, targets.length);
+        try {
+          if (target) await this.view.goTo(target, { animate: false });
+          const started = Date.now();
+          await new Promise((resolve) => setTimeout(resolve, 120));
+          while (this.view.updating && Date.now() - started < 8000) await new Promise((resolve) => setTimeout(resolve, 150));
+          const viewWidth = this.view.width;
+          const viewHeight = this.view.height;
+          const cropWidth = Math.min(viewWidth, Math.round(viewHeight * aspect));
+          const cropHeight = Math.min(viewHeight, Math.round(cropWidth / aspect));
+          const capture = await this.view.takeScreenshot({ format: "jpg", quality: 84, width: Math.min(width, cropWidth * 2), area: { x: Math.round((viewWidth - cropWidth) / 2), y: Math.round((viewHeight - cropHeight) / 2), width: cropWidth, height: cropHeight } });
+          images.push(capture?.dataUrl && capture?.data ? { dataUrl: capture.dataUrl, width: capture.data.width, height: capture.data.height } : null);
+        } catch {
+          images.push(null);
+        }
+      }
+    } finally {
+      if (camera) await this.view.goTo(camera, { animate: false }).catch(() => {});
+    }
+    return images;
   }
 
   getOperationalLayers() {

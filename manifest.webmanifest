@@ -1,0 +1,30 @@
+{
+  "name": "GIS Map Online",
+  "short_name": "GIS Map",
+  "description": "Free 3D web GIS: open ArcGIS REST, GeoJSON and map files, style them, and share maps, briefings, tours and field tasks.",
+  "id": "/",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#0f2921",
+  "theme_color": "#0f2921",
+  "icons": [
+    { "src": "/assets/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/assets/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" }
+  ],
+  "file_handlers": [
+    {
+      "action": "/",
+      "accept": {
+        "application/vnd.gismap.online.project+json": [".gmo"],
+        "application/zip": [".gmop"],
+        "application/vnd.gismap.online.guided-tour+json": [".gmoatlas"]
+      },
+      "icons": [
+        { "src": "/assets/icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+        { "src": "/assets/icons/icon-512.png", "sizes": "512x512", "type": "image/png" }
+      ],
+      "launch_type": "single-client"
+    }
+  ]
+}

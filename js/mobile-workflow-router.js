@@ -1,8 +1,8 @@
 import { MobileFeedStore } from "./mobile-feed-store.js?v=0.18.7";
 import { compactMedia } from "./viewport.js?v=0.18.2";
 import { INTERFACE_SKINS, applyInterfaceSkin, normalizeSkin } from "./skin-catalog.js?v=0.18.2";
-import { FIELD_TASK_LIMITS, addressDetails, createFieldTaskUrl, featureLayerUrl, taskSteps } from "./field-task-share.js?v=0.18.16";
-import { fieldTaskCsv, fieldTaskFileStem, fieldTaskPdf, fieldTaskPoints, photoDataUrl } from "./field-task-report.js?v=0.18.16";
+import { FIELD_TASK_LIMITS, addressDetails, createFieldTaskUrl, featureLayerUrl, taskSteps } from "./field-task-share.js?v=0.21.0";
+import { fieldTaskCsv, fieldTaskFileStem, fieldTaskPdf, fieldTaskPoints, photoDataUrl } from "./field-task-report.js?v=0.21.0";
 
 const escapeHtml = (value) => String(value ?? "").replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char]);
 const STATUS_LABELS = { draft: "Draft", sent: "Sent", assigned: "To complete", "in-progress": "In progress", completed: "Completed", returned: "Report received", shared: "Shared" };
@@ -11,8 +11,12 @@ const newId = (prefix) => globalThis.crypto?.randomUUID?.() || `${prefix}-${Date
 const dateLabel = (value) => value ? new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }).format(new Date(value)) : "Recently";
 
 export class MobileWorkflowRouter {
-  constructor({ events, projectManager, mapController, prepareWorkflow, openWorkflow, shareWorkflow, notify, dockWorkflow }) {
-    Object.assign(this, { events, projectManager, mapController, prepareWorkflow, openWorkflow, shareWorkflow, notify, dockWorkflow });
+  /**
+   * createTour(places, { title }) and createBriefing({ layerUrl, ids, title }) let a
+   * task become a tour or a briefing; both are provided by the UI controller.
+   */
+  constructor({ events, projectManager, mapController, prepareWorkflow, openWorkflow, shareWorkflow, notify, dockWorkflow, createTour, createBriefing }) {
+    Object.assign(this, { events, projectManager, mapController, prepareWorkflow, openWorkflow, shareWorkflow, notify, dockWorkflow, createTour, createBriefing });
     this.media = compactMedia();
     this.store = new MobileFeedStore({ projectManager, events });
     this.root = document.querySelector("#mobile-workflow-root");
@@ -171,7 +175,11 @@ export class MobileWorkflowRouter {
         : task.status === "returned" ? `<button data-report-task="${escapeHtml(task.id)}">View report →</button>`
         : `<button data-open-task="${escapeHtml(task.id)}">Edit task →</button>`;
       const share = assignee ? (task.status === "completed" ? `<button data-send-back="${escapeHtml(task.id)}">Send back</button>` : "") : `<button data-share-task="${escapeHtml(task.id)}">Share</button>`;
-      return `<article class="feed-card"><span class="status-pill">${escapeHtml(STATUS_LABELS[task.status] || task.status || "Draft")}</span><h2>${escapeHtml(task.title || "Untitled task")}</h2><p>${escapeHtml(task.location || task.notes || "No location set")}</p><span class="feed-card__meta">${done}/${steps.length} steps${features ? ` · ${features} feature${features === 1 ? "" : "s"}` : ""}${task.updatedAt ? ` · ${dateLabel(task.updatedAt)}` : ""}</span><div class="feed-card__actions">${open}${share}</div></article>`;
+      const placed = fieldTaskPoints(task).length;
+      const id = escapeHtml(task.id);
+      // A task's places and features can go on as a tour, a briefing or a PDF map.
+      const more = `<div class="feed-card__more"><button type="button" data-task-pdf="${id}">PDF</button>${placed ? `<button type="button" data-task-tour="${id}">Tour</button>` : ""}${task.features?.some((feature) => feature.layerUrl) ? `<button type="button" data-task-briefing="${id}">Briefing</button>` : ""}</div>`;
+      return `<article class="feed-card"><span class="status-pill">${escapeHtml(STATUS_LABELS[task.status] || task.status || "Draft")}</span><h2>${escapeHtml(task.title || "Untitled task")}</h2><p>${escapeHtml(task.location || task.notes || "No location set")}</p><span class="feed-card__meta">${done}/${steps.length} steps${features ? ` · ${features} feature${features === 1 ? "" : "s"}` : ""}${task.updatedAt ? ` · ${dateLabel(task.updatedAt)}` : ""}</span><div class="feed-card__actions">${open}${share}</div>${more}</article>`;
     };
     return `<p class="mobile-workflow__subtitle">Write the steps, attach up to ${FIELD_TASK_LIMITS.maxFeatures} map features, then share a link or QR code. The person who completes it sends a link back.</p><button class="mobile-primary" data-new-task data-mobile-bar="primary">+ New field task</button><div class="feed-list">${tasks.map(card).join("") || `<div class="mobile-empty"><h2>No field tasks</h2><p>Create a task with steps to do and the features to visit, then share it.</p></div>`}</div>`;
   }
@@ -250,6 +258,8 @@ export class MobileWorkflowRouter {
     if (button.dataset.taskPdf) return this.#downloadTaskFile(button, () => this.#taskPdfFile(this.#task(button.dataset.taskPdf)));
     if (button.dataset.taskCsv) return this.#downloadTaskFile(button, async () => this.#taskCsvFile(this.#task(button.dataset.taskCsv)));
     if (button.dataset.deleteTask) return this.#deleteTask(button.dataset.deleteTask);
+    if (button.dataset.taskTour) return this.#taskToTour(this.#task(button.dataset.taskTour));
+    if (button.dataset.taskBriefing) return this.#taskToBriefing(this.#task(button.dataset.taskBriefing));
     if (button.matches("[data-add-step]")) { this.#editDraft(button.closest("form"), (draft) => draft.steps.push({ text: "", done: false })); this.root.querySelector('[name="stepText"]:last-of-type')?.focus(); return; }
     if (button.dataset.removeStep) return this.#editDraft(button.closest("form"), (draft) => draft.steps.splice(Number(button.dataset.removeStep), 1));
     if (button.dataset.removeFeature) return this.#editDraft(button.closest("form"), (draft) => draft.features.splice(Number(button.dataset.removeFeature), 1));
@@ -571,7 +581,7 @@ export class MobileWorkflowRouter {
     const task = this.#task(id);
     if (!task) return;
     try {
-      const url = createFieldTaskUrl({ baseUrl: location.href, task, kind: "assign" });
+      const url = createFieldTaskUrl({ baseUrl: location.href, task: this.#withStyles(task), kind: "assign" });
       if (!task.status || task.status === "draft") this.store.saveTask({ id, status: "sent" });
       return await this.shareWorkflow?.("tasks", { url, title: task.title || "Field task", eyebrow: "Field task assignment", card: { lines: ["Scan to open this field task and its places to visit,", "or long-click the QR code to open it in a browser."], footer: "Complete field task assignment encoded in this QR" }, message: "Scan or send this link. It opens the steps and features to complete, and lets them send a report back." });
     } catch (error) {
@@ -583,7 +593,7 @@ export class MobileWorkflowRouter {
     const task = this.#task(id);
     if (!task) return;
     try {
-      const url = createFieldTaskUrl({ baseUrl: location.href, task: { ...task, id: task.assignmentId || task.id }, kind: "return" });
+      const url = createFieldTaskUrl({ baseUrl: location.href, task: { ...this.#withStyles(task), id: task.assignmentId || task.id }, kind: "return" });
       return await this.shareWorkflow?.("tasks", { url, title: `Report: ${task.title || "Field task"}`, eyebrow: "Completed field task", card: { lines: ["Scan to record this completed field task report,", "or long-click the QR code to open it in a browser."], footer: "Completed field task report encoded in this QR" }, message: "Send this link or QR code back to whoever assigned the task. Opening it records your report. The PDF and CSV are copies to keep or attach.", downloads: [
         { label: "Download PDF", share: true, create: () => this.#taskPdfFile(task) },
         { label: "Download CSV", create: async () => this.#taskCsvFile(task) },
@@ -601,7 +611,7 @@ export class MobileWorkflowRouter {
       Promise.resolve(this.mapController.captureTaskMap?.(fieldTaskPoints(task))).catch(() => null),
       new Promise((resolve) => setTimeout(() => resolve(null), 15000)),
     ]);
-    const blob = await fieldTaskPdf(task, { mapImage, reportUrl: this.#taskLink(task) });
+    const blob = await fieldTaskPdf(task, { mapImage, reportUrl: this.#taskLink(task), skin: document.documentElement.dataset.skin });
     return new File([blob], `${fieldTaskFileStem(task)}.pdf`, { type: "application/pdf" });
   }
 
@@ -610,10 +620,62 @@ export class MobileWorkflowRouter {
     const kind = task.role === "assignee" || task.status === "returned" ? "return" : "assign";
     const id = String(task.assignmentId || task.id || "").replace(/~(assigned|report)$/, "");
     try {
-      return createFieldTaskUrl({ baseUrl: location.href, task: { ...task, id }, kind });
+      return createFieldTaskUrl({ baseUrl: location.href, task: { ...this.#withStyles(task), id }, kind });
     } catch {
       return null;
     }
+  }
+
+  /** The task with the current styles of the layers its features come from, so they look the same when opened. */
+  #withStyles(task) {
+    const urls = new Set((task.features || []).map((feature) => feature.layerUrl).filter(Boolean));
+    if (!urls.size) return task;
+    const layerStyles = { ...(task.layerStyles || {}) };
+    for (const layer of this.mapController.getOperationalLayers?.() || []) {
+      const url = featureLayerUrl(layer);
+      const renderer = layer.renderer?.toJSON?.();
+      if (url && urls.has(url) && renderer) layerStyles[url] = renderer;
+    }
+    return Object.keys(layerStyles).length ? { ...task, layerStyles } : task;
+  }
+
+  /** The task's location and features as tour chapters. */
+  #taskToTour(task) {
+    if (!task) return;
+    const places = [];
+    if (Number.isFinite(task.latitude) && Number.isFinite(task.longitude)) places.push({ title: task.location || task.title || "Task location", body: task.notes || "", latitude: task.latitude, longitude: task.longitude, address: task.address?.label || "" });
+    (task.features || []).forEach((feature) => places.push({ title: feature.label, body: feature.objectId != null ? `ID ${feature.objectId}` : "", latitude: feature.latitude, longitude: feature.longitude }));
+    if (task.checkIn && Number.isFinite(task.checkIn.latitude)) places.push({ title: "Check-in", body: task.checkIn.address?.label || "", latitude: task.checkIn.latitude, longitude: task.checkIn.longitude });
+    if (!places.length) return this.notify?.("This task has no places to tour.");
+    this.createTour?.(places, { title: task.title });
+  }
+
+  /** The task's features as a briefing on their layer. */
+  #taskToBriefing(task) {
+    const feature = task?.features?.find((item) => item.layerUrl);
+    if (!feature) return this.notify?.("Attach a feature from a feature layer to brief on it.");
+    const ids = task.features.filter((item) => item.layerUrl === feature.layerUrl && item.objectId != null).map((item) => String(item.objectId));
+    const labels = Object.fromEntries(task.features.filter((item) => item.objectId != null).map((item) => [String(item.objectId), item.label]));
+    this.createBriefing?.({ layerUrl: feature.layerUrl, ids, title: task.title, steps: taskSteps(task).map((step) => step.text), labels });
+  }
+
+  /**
+   * Opens the task editor with a prefilled draft, for example the action items
+   * of a briefing slide: { title, notes, steps: [text], latitude, longitude, location }.
+   */
+  newTaskFrom(draft = {}) {
+    this.navigate("tasks");
+    const steps = (draft.steps || []).filter(Boolean).slice(0, FIELD_TASK_LIMITS.maxSteps).map((text) => ({ text: String(text).slice(0, 120), done: false }));
+    this.#showTaskView({ mode: "edit", id: null }, {
+      title: String(draft.title || "").slice(0, 120),
+      notes: String(draft.notes || "").slice(0, FIELD_TASK_LIMITS.maxNotes),
+      location: draft.location || "",
+      latitude: Number.isFinite(draft.latitude) ? Number(draft.latitude.toFixed(6)) : undefined,
+      longitude: Number.isFinite(draft.longitude) ? Number(draft.longitude.toFixed(6)) : undefined,
+      steps: steps.length ? steps : [{ text: "", done: false }],
+      features: (draft.features || []).slice(0, FIELD_TASK_LIMITS.maxFeatures),
+    });
+    this.notify?.("New field task drafted. Check it, then Save & share.");
   }
 
   #taskCsvFile(task) {

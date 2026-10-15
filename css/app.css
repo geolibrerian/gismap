@@ -748,6 +748,21 @@ body.briefing-slides-tab #briefing-context-host { display:none; }
 .briefing-slides textarea { resize:vertical; line-height:1.4; }
 .briefing-slides__add button, .briefing-slides__included, .briefing-slides__present, .briefing-camera button { min-height:34px; padding:6px 12px; border:1px solid var(--green); border-radius:var(--ui-radius-small,7px); color:var(--green); background:var(--surface); font-weight:700; }
 .briefing-slides__present, .briefing-slides__add button { color:var(--on-accent,#fff); background:var(--green); }
+.briefing-slides__actions { display:flex; gap:8px; }
+.feed-card__more { display:flex; flex-wrap:wrap; gap:6px; margin-top:8px; padding-top:8px; border-top:1px dashed var(--line); }
+.feed-card__more button { min-height:30px; padding:4px 10px; border:1px solid var(--line); border-radius:999px; background:var(--surface); color:var(--green); font-size:12px; font-weight:700; }
+.share-export { display:grid; gap:12px; }
+.share-export__grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(180px,1fr)); gap:10px; }
+.share-export__card { display:grid; grid-template-columns:auto 1fr; grid-template-rows:auto auto; column-gap:10px; row-gap:3px; align-items:start; min-height:96px; padding:14px; border:1px solid var(--line); border-radius:var(--ui-radius,10px); background:var(--surface); color:var(--ink); text-align:left; cursor:pointer; transition:border-color .15s, transform .15s, box-shadow .15s; }
+.share-export__card:hover:not(:disabled) { border-color:var(--green); transform:translateY(-1px); box-shadow:0 8px 20px rgb(0 0 0 / 10%); }
+.share-export__card:disabled { opacity:.55; cursor:not-allowed; }
+.share-export__icon { grid-row:span 2; display:grid; place-items:center; width:34px; height:34px; border-radius:50%; background:color-mix(in srgb, var(--green) 14%, var(--surface)); color:var(--green); font-size:17px; }
+.share-export__card strong { font-size:15px; }
+.share-export__card small { color:var(--muted); font-size:12px; line-height:1.35; }
+.workflow-share__notice { margin:0; padding:9px 12px; border:1px solid color-mix(in srgb, var(--amber) 55%, transparent); border-radius:var(--ui-radius-small,7px); background:color-mix(in srgb, var(--amber) 14%, var(--surface)); color:var(--ink); font-size:13px; font-weight:600; }
+.workflow-share__long { margin:0; padding:12px; border-radius:var(--ui-radius-small,7px); background:var(--surface-2); color:var(--ink); }
+.briefing-slides__actions > button { flex:1; }
+.briefing-slides__actions [data-slides-share] { min-height:34px; padding:6px 12px; border:1px solid var(--green); border-radius:var(--ui-radius-small,7px); color:var(--green); background:var(--surface); font-weight:700; }
 .briefing-slides__included:disabled { opacity:.5; cursor:default; }
 .briefing-slides__empty { margin:0; padding:12px; border:1px dashed var(--line); border-radius:var(--ui-radius-small,8px); color:var(--muted); font-size:12px; line-height:1.45; }
 .briefing-slide-list { display:grid; gap:4px; margin:0; padding:0; list-style:none; counter-reset:none; }

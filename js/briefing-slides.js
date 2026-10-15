@@ -19,7 +19,8 @@ import {
   validateBriefing,
 } from "./briefing-document.js?v=0.19.0";
 import { renderMarkdown } from "./markdown.js?v=0.18.2";
-import { BriefingPlayer } from "./briefing-player.js?v=0.20.2";
+import { BriefingPlayer, slideHasMap } from "./briefing-player.js?v=0.21.0";
+import { briefingFileStem, briefingPdf, markdownToText } from "./briefing-pdf.js?v=0.21.0";
 import { featureId } from "./presentation-query.js?v=0.18.2";
 
 const escapeHtml = (value) => String(value ?? "").replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char]);
@@ -31,7 +32,7 @@ const FILTER_LABELS = { eq: "equals", neq: "is not", contains: "contains", gt: "
  * `api` connects the tab to the app:
  *   getBriefing(), saveBriefing(briefing), data() -> { layer, fields, records, total,
  *   selectedIds, useAll, visibleRecords, selected, title, label(record) },
- *   mapController, notify(message)
+ *   mapController, notify(message), share() (opens the share dialog)
  */
 export class BriefingSlides {
   constructor(api) {
@@ -183,7 +184,7 @@ export class BriefingSlides {
       <button type="button" class="briefing-slides__included" data-slides-add-included${includedCount ? "" : " disabled"}>${includedCount ? `Add ${includedCount} included feature${includedCount === 1 ? "" : "s"} as slides` : included.length ? "Every included feature has a slide" : "Include features to add them as slides"}</button>
       ${briefing.slides.length ? `<ol class="briefing-slide-list">${list}</ol>` : `<p class="briefing-slides__empty">No slides yet. Add a title slide, or turn the features you included into slides. A briefing without slides works exactly as before.</p>`}
       ${issues.length ? `<details class="briefing-slides__issues"><summary>${issues.length} thing${issues.length === 1 ? "" : "s"} to check</summary><ul>${issues.map((issue) => `<li class="is-${issue.level}"><button type="button" data-slide-select="${issue.slideId}">${escapeHtml(issue.message)}</button></li>`).join("")}</ul></details>` : ""}
-      ${briefing.slides.length ? `<button type="button" class="briefing-slides__present" data-slides-preview data-mobile-bar="primary" data-bar-label="Preview slides">Preview slides</button>` : ""}
+      ${briefing.slides.length ? `<div class="briefing-slides__actions"><button type="button" class="briefing-slides__present" data-slides-preview data-mobile-bar="primary" data-bar-label="Preview slides">Preview slides</button><button type="button" data-slides-share data-mobile-bar data-bar-label="Share">Share &amp; PDF</button></div>${this.api.createTour ? `<button type="button" class="briefing-link-button" data-slides-tour>Make a guided tour from these slides →</button>` : ""}` : ""}
       <section class="briefing-slide-editor" data-slide-editor></section>
     </div>`;
     const slide = briefing.slides.find((item) => item.id === this.selectedSlideId);
@@ -224,7 +225,7 @@ export class BriefingSlides {
         </fieldset>`;
       }
       if (block.type === "list") {
-        return `<label class="briefing-field"><span>Next steps <small>one per line</small></span><textarea rows="5" data-block-list="${block.id}">${escapeHtml(block.items.join("\n"))}</textarea></label>`;
+        return `<label class="briefing-field"><span>Next steps <small>one per line</small></span><textarea rows="5" data-block-list="${block.id}">${escapeHtml(block.items.join("\n"))}</textarea></label>${this.api.createTask ? `<button type="button" class="briefing-link-button" data-list-task="${block.id}">Send these as a field task →</button>` : ""}`;
       }
       if (block.type === "links") {
         return `<label class="briefing-field"><span>Links <small>one per line: Label | https://…</small></span><textarea rows="3" data-block-links="${block.id}">${escapeHtml(block.links.map((link) => `${link.label} | ${link.url}`).join("\n"))}</textarea></label>`;
@@ -265,6 +266,17 @@ export class BriefingSlides {
       this.#save(removeSlide(this.briefing, button.dataset.slideDelete));
     });
     on("[data-slides-preview]", "click", () => this.openPlayer(this.briefing.slides.find((slide) => !slide.hidden)?.id));
+    on("[data-slides-share]", "click", () => this.api.share?.());
+    on("[data-slides-tour]", "click", () => this.#toTour());
+    on("[data-list-task]", "click", (button) => {
+      const slide = this.briefing.slides.find((item) => item.id === slideId);
+      const block = slide?.blocks.find((item) => item.id === button.dataset.listTask);
+      // Typing saves after a pause, so read the box itself for the latest items.
+      const typed = container.querySelector(`[data-block-list="${button.dataset.listTask}"]`)?.value.split("\n").map((item) => item.trim()).filter(Boolean);
+      const items = typed?.length ? typed : block?.items || [];
+      if (!items.length) return this.api.notify?.("Write the next steps first, one per line.");
+      if (slide) this.#sendAsTask(slide, items);
+    });
     on("[data-slide-preview-one]", "click", (button) => this.openPlayer(button.dataset.slidePreviewOne));
     on("[data-slide-title]", "input", (input) => {
       const item = container.querySelector(".briefing-slide-item.is-selected strong");
@@ -340,7 +352,7 @@ export class BriefingSlides {
       if (block.type === "text" && block.markdown.trim()) return `<div class="briefing-slide__text">${renderMarkdown(block.markdown)}</div>`;
       if (block.type === "facts" && record) {
         const field = (name) => data.fields?.fields?.find((item) => item.name === name);
-        const rows = block.fields.filter((name) => record.attributes?.[name] != null && record.attributes[name] !== "")
+        const rows = (block.fields.length ? block.fields : this.#defaultFacts(record)).filter((name) => record.attributes?.[name] != null && record.attributes[name] !== "")
           .map((name) => `<div><dt>${escapeHtml(field(name)?.alias || name)}</dt><dd>${escapeHtml(this.api.formatValue ? this.api.formatValue(record.attributes[name], field(name), name) : record.attributes[name])}</dd></div>`).join("");
         return rows ? `<dl class="briefing-slide__facts">${rows}</dl>` : "";
       }
@@ -360,6 +372,96 @@ export class BriefingSlides {
       ${body}
       ${slide.featureId && !record ? `<p class="briefing-slide__warning">This slide's feature is not in the loaded data.</p>` : ""}
     </article>`;
+  }
+
+  /**
+   * Hands a slide's action items to Field tasks as a draft: steps from the list,
+   * placed at the slide's feature or saved view (or the map centre).
+   */
+  #sendAsTask(slide, items) {
+    const data = this.api.data();
+    const record = this.#recordFor(slide);
+    const point = record?.geometry ? this.api.mapController.geographicCoordinates?.(record.geometry) : null;
+    const center = slide.camera?.center || [this.api.mapController.view?.center?.longitude, this.api.mapController.view?.center?.latitude];
+    this.api.createTask({
+      title: slide.title || data.title,
+      notes: `From the briefing “${data.title}”.`,
+      steps: items,
+      latitude: point?.latitude ?? center[1],
+      longitude: point?.longitude ?? center[0],
+      location: record ? data.label(record) : "",
+    });
+  }
+
+  /** Each visible slide with a place (saved view or feature) becomes a tour chapter. */
+  #toTour() {
+    const places = this.briefing.slides.filter((slide) => !slide.hidden).map((slide) => {
+      const content = this.slideContent(slide);
+      const body = [slide.subtitle, ...content.paragraphs, ...content.facts.map(([label, value]) => `${label}: ${value}`)].filter(Boolean).join("\n").slice(0, 600);
+      if (slide.camera) return { title: slide.title, body, longitude: slide.camera.center[0], latitude: slide.camera.center[1], zoom: slide.camera.zoom };
+      const record = this.#recordFor(slide);
+      const point = record?.geometry ? this.api.mapController.geographicCoordinates?.(record.geometry) : null;
+      return point ? { title: slide.title, body, ...point, zoom: 15 } : null;
+    }).filter(Boolean);
+    if (!places.length) return this.api.notify?.("Give a slide a map view or a feature to turn it into a tour chapter.");
+    this.api.createTour(places, { title: this.api.data().title });
+  }
+
+  /** A slide's content as plain data, for the PDF handout. */
+  slideContent(slide) {
+    const data = this.api.data();
+    const briefing = this.briefing;
+    const record = this.#recordFor(slide);
+    const field = (name) => data.fields?.fields?.find((item) => item.name === name);
+    const content = { id: slide.id, title: slide.title, subtitle: slide.subtitle, stats: [], facts: [], paragraphs: [], list: [], links: [], notes: slide.notes, missing: Boolean(slide.featureId && !record) };
+    for (const block of slide.blocks) {
+      if (block.type === "text" && block.markdown.trim()) content.paragraphs.push(markdownToText(block.markdown));
+      if (block.type === "facts" && record) {
+        for (const name of block.fields.length ? block.fields : this.#defaultFacts(record)) {
+          const value = record.attributes?.[name];
+          if (value == null || value === "") continue;
+          content.facts.push([field(name)?.alias || name, String(this.api.formatValue ? this.api.formatValue(value, field(name), name) : value)]);
+        }
+      }
+      if (block.type === "list") content.list.push(...block.items);
+      if (block.type === "links") content.links.push(...block.links);
+      if (block.type === "stat") {
+        const result = computeStat(block, data.records, { queries: briefing.queries, idField: data.layer?.objectIdField, total: data.total });
+        content.stats.push({ value: formatStat(result.value), label: block.label || STAT_LABELS[block.stat], sample: result.sample });
+      }
+    }
+    return content;
+  }
+
+  /** Where the map goes for a slide (a goTo target), or null when the slide has no map. */
+  slideTarget(slide) {
+    if (!slideHasMap(slide)) return null;
+    if (slide.camera) return { center: slide.camera.center, zoom: slide.camera.zoom, heading: slide.camera.heading, tilt: slide.camera.tilt };
+    const geometry = this.#recordFor(slide)?.geometry;
+    if (!geometry) return null;
+    if (geometry.type === "point") return { target: geometry, zoom: 15, tilt: 0 };
+    return { target: geometry.extent?.clone?.().expand?.(1.25) ?? geometry, tilt: 0 };
+  }
+
+  /**
+   * A landscape PDF handout of the visible slides, with map snapshots taken
+   * from the live map. `link` is the briefing's share link for the QR code.
+   */
+  async createPdf({ link = null, qr = true, skin = null, onProgress = () => {} } = {}) {
+    const slides = this.briefing.slides.filter((slide) => !slide.hidden);
+    if (!slides.length) throw new Error("Add a visible slide before making a PDF.");
+    const { mapController } = this.api;
+    const targets = slides.map((slide) => this.slideTarget(slide));
+    const withMaps = targets.filter(Boolean);
+    const captured = withMaps.length
+      ? await mapController.captureViews(withMaps, { aspect: 1.02, onProgress: (index, total) => onProgress(`Capturing map ${index + 1} of ${total}…`) })
+      : [];
+    let next = 0;
+    const images = targets.map((target) => (target ? captured[next++] : null));
+    onProgress("Writing PDF…");
+    const title = this.api.data().title;
+    const blob = await briefingPdf({ title, skin, link, qr, slides: slides.map((slide, index) => ({ content: this.slideContent(slide), mapImage: images[index] })) });
+    return new File([blob], `${briefingFileStem(title)}.pdf`, { type: "application/pdf" });
   }
 
   /** Presents the visible slides: a 16:9 stage on desktop, swipeable cards on phones. */

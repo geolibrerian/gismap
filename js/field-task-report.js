@@ -1,8 +1,8 @@
 // Field task reports: a branded PDF (framed map, location details, check-in,
 // steps, features, report, photos and a data table) and a CSV of the same
 // record, built on the device that holds the task.
-import { PDF_COLORS, PdfDocument, brandedMapImage, dataUrlBytes, imageToJpeg, loadBrandLogo } from "./pdf-document.js?v=0.18.16";
-import { addressPlace, taskSteps, withFocus } from "./field-task-share.js?v=0.18.16";
+import { PDF_COLORS, PdfDocument, brandedMapImage, dataUrlBytes, imageToJpeg, loadBrandLogo, printPalette, qrAsset } from "./pdf-document.js?v=0.21.0";
+import { addressPlace, taskSteps, withFocus } from "./field-task-share.js?v=0.21.0";
 
 const STATUS = { draft: "Draft", sent: "Sent", assigned: "To complete", "in-progress": "In progress", completed: "Completed", returned: "Report received", shared: "Shared" };
 const MAX_PHOTO_SIDE = 1280;
@@ -73,29 +73,21 @@ export async function photoDataUrl(file) {
   return jpeg?.dataUrl || source;
 }
 
-/** A QR code for a link, as a JPEG asset (the same encoding as the share cards). */
-async function qrAsset(url) {
-  if (!url || !globalThis.QRCode?.toCanvas) return null;
-  const canvas = document.createElement("canvas");
-  await globalThis.QRCode.toCanvas(canvas, url, { width: 600, margin: 2, errorCorrectionLevel: "L", color: { dark: "#072f2b", light: "#ffffff" } });
-  const dataUrl = canvas.toDataURL("image/jpeg", 0.95);
-  return { bytes: dataUrlBytes(dataUrl), width: canvas.width, height: canvas.height };
-}
-
 /**
  * Builds the PDF. `mapImage` is an optional { dataUrl, width, height } capture of
  * the map at the task's places. `reportUrl` is the task's share link: its QR code
  * goes in the report, and the map and every coordinate link back to it, focused
  * on that place or feature.
  */
-export async function fieldTaskPdf(task, { mapImage = null, reportUrl = null } = {}) {
-  const logo = await loadBrandLogo();
-  const report = new PdfDocument({ heading: "FIELD TASK REPORT", logo, homeUrl: reportUrl ? new URL("/", reportUrl).href : undefined });
+export async function fieldTaskPdf(task, { mapImage = null, reportUrl = null, skin = null } = {}) {
+  const palette = printPalette(skin);
+  const logo = await loadBrandLogo(palette);
+  const report = new PdfDocument({ heading: "FIELD TASK REPORT", logo, palette, homeUrl: reportUrl ? new URL("/", reportUrl).href : undefined });
   const focusLink = (place) => (reportUrl ? withFocus(reportUrl, place) : null);
   const muted = { size: 9, leading: 14, color: PDF_COLORS.muted };
   report.addLines(task.title || "Field task", { size: 16, leading: 22, bold: true });
   const status = [STATUS[task.status] || task.status, task.completedBy && `completed by ${task.completedBy}`, when(task.completedAt)].filter(Boolean).join(" - ");
-  if (status) report.addLines(status, { size: 10, leading: 15, color: PDF_COLORS.accent, bold: true });
+  if (status) report.addLines(status, { size: 10, leading: 15, color: report.colors.accent, bold: true });
   report.addLines(`Generated ${new Date().toLocaleString()}`, muted);
 
   if (task.location || task.address || hasLocation(task)) {
@@ -140,7 +132,7 @@ export async function fieldTaskPdf(task, { mapImage = null, reportUrl = null } =
     report.heading2("Report");
     report.addLines(task.report);
   }
-  const qr = await qrAsset(reportUrl).catch(() => null);
+  const qr = await qrAsset(reportUrl, { dark: palette.band }).catch(() => null);
   if (qr) {
     report.gap(10);
     report.heading2(task.role === "assignee" || task.status === "returned" ? "Completed report link" : "Task link");
@@ -156,7 +148,7 @@ export async function fieldTaskPdf(task, { mapImage = null, reportUrl = null } =
     points.some((point) => point.kind === "checkin") && { shape: "circle", label: "Check-in" },
   ].filter(Boolean);
   const map = mapImage?.dataUrl
-    ? await brandedMapImage(mapImage, { title: task.title || "Field task", subtitle: `Field task map · ${when(task.completedAt || task.checkIn?.at || task.updatedAt) || new Date().toLocaleString()}`, legend })
+    ? await brandedMapImage(mapImage, { title: task.title || "Field task", subtitle: `Field task map · ${when(task.completedAt || task.checkIn?.at || task.updatedAt) || new Date().toLocaleString()}`, legend, palette })
     : null;
   if (map) {
     report.gap(10);

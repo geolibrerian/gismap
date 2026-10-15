@@ -7,6 +7,8 @@ const escapeHtml = (value) => String(value ?? "").replace(/[&<>"']/g, (char) => 
 // Slides that show the map get a content column and a window onto the live map.
 const MAP_TEMPLATES = new Set(["feature", "map-narrative", "title"]);
 const hasMap = (slide) => MAP_TEMPLATES.has(slide.template) && Boolean(slide.camera || slide.fit);
+/** Whether a slide shows the map (the player, cards and PDF agree on this). */
+export const slideHasMap = hasMap;
 
 /**
  * `api`: getSlides() -> visible slides, slideHtml(slide, { index, count }),

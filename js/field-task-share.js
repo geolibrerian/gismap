@@ -12,6 +12,7 @@ const MAX_NOTES = 500;
 const MAX_LABEL = 80;
 const MAX_NAME = 60;
 const MAX_ADDRESS = 160;
+const MAX_STYLE = 2400;
 
 export const FIELD_TASK_LIMITS = Object.freeze({
   maxUrlLength: MAX_URL_LENGTH,
@@ -114,6 +115,9 @@ export function serializeFieldTask(task, kind = "assign") {
     L: layers.length ? layers : undefined,
     f: compactFeatures.length ? compactFeatures : undefined,
   };
+  // Layer styles ride along when the author has styled the layers (createFieldTaskUrl drops them if the link gets too long).
+  const styles = layers.map((url) => task.layerStyles?.[url] || 0);
+  if (styles.some((style) => style && JSON.stringify(style).length <= MAX_STYLE)) payload.R = styles.map((style) => (style && JSON.stringify(style).length <= MAX_STYLE ? style : 0));
   if (Number.isFinite(task.latitude) && Number.isFinite(task.longitude)) {
     payload.x = coordinate(task.longitude);
     payload.y = coordinate(task.latitude);
@@ -166,6 +170,10 @@ export function decodeFieldTask(value, options = {}) {
       done: feature.d === 1,
     };
   });
+  const layerStyles = {};
+  (Array.isArray(raw.R) ? raw.R : []).forEach((style, index) => {
+    if (layers[index] && style && typeof style === "object" && !Array.isArray(style) && JSON.stringify(style).length <= MAX_STYLE) layerStyles[layers[index]] = style;
+  });
   const rawSteps = Array.isArray(raw.s) ? raw.s.slice(0, MAX_STEPS) : [];
   const done = Array.isArray(raw.d) ? raw.d : [];
   const task = {
@@ -176,6 +184,7 @@ export function decodeFieldTask(value, options = {}) {
     steps: rawSteps.map((step, index) => ({ text: text(step, MAX_STEP), done: done[index] === 1 })).filter((step) => step.text),
     features,
   };
+  if (Object.keys(layerStyles).length) task.layerStyles = layerStyles;
   if (inRange(raw.x, raw.y)) Object.assign(task, { longitude: raw.x, latitude: raw.y });
   if (typeof raw.a === "string" && raw.a.trim()) task.address = { label: text(raw.a, MAX_ADDRESS) };
   if (raw.k === "r") {
@@ -205,6 +214,8 @@ export function createFieldTaskUrl({ baseUrl, task, kind = "assign" }) {
   url.search = "";
   url.searchParams.set("workflow", "tasks");
   url.hash = `fieldTask=${encodeFieldTask(task, kind)}`;
+  // Styles are a nicety: without them the task still works, so they go first when space runs out.
+  if (url.href.length > MAX_URL_LENGTH && task.layerStyles) url.hash = `fieldTask=${encodeFieldTask({ ...task, layerStyles: null }, kind)}`;
   if (url.href.length > MAX_URL_LENGTH) throw new Error("This field task is too long for a QR code. Shorten the instructions, steps, or report.");
   return url.href;
 }

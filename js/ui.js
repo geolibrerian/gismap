@@ -1,6 +1,7 @@
 import { POPULAR_SERVICES } from "./catalog.js?v=0.18.2";
 import { ENTERPRISE_CATALOGS, EnterpriseCatalog, normalizeArcGisDirectoryUrl } from "./enterprise-catalog.js?v=0.18.2";
-import { createShareUrl } from "./share.js?v=0.18.2";
+import { createShareUrl } from "./share.js?v=0.21.0";
+import { createShareLink, hasDataFilter } from "./map-share.js?v=0.21.0";
 import { createEmbeddedTourUrl } from "./tour-share.js?v=0.18.2";
 import { markdownToPlainText, renderMarkdown } from "./markdown.js?v=0.18.2";
 import { formatAttributeValue } from "./attribute-format.js?v=0.18.2";
@@ -8,9 +9,11 @@ import { normalizeApplicationConfig, presetApplication } from "./application-con
 import { featureFilterFor, featureId, fieldKind, filterRecords, histogram, requestGuard, sortRecords } from "./presentation-query.js?v=0.18.2";
 import { DEFAULT_SKIN, INTERFACE_SKINS, applyInterfaceSkin, normalizeSkin, skinOptionsMarkup } from "./skin-catalog.js?v=0.18.2";
 import { compactMedia } from "./viewport.js?v=0.18.2";
-import { PdfDocument, brandedMapImage, loadBrandLogo } from "./pdf-document.js?v=0.18.16";
-import { locationUrl } from "./field-task-share.js?v=0.18.16";
-import { BriefingSlides } from "./briefing-slides.js?v=0.20.2";
+import { PdfDocument, brandedMapImage, loadBrandLogo, printPalette, qrAsset } from "./pdf-document.js?v=0.21.0";
+import { featureLayerUrl, locationUrl } from "./field-task-share.js?v=0.21.0";
+import { BriefingSlides } from "./briefing-slides.js?v=0.21.0";
+import { createSlide } from "./briefing-document.js?v=0.19.0";
+import { briefingFileStem } from "./briefing-pdf.js?v=0.21.0";
 
 const DISPLAY_SETTINGS_KEY = "gismap-online:display:v1";
 const RECENT_PLACES_KEY = "gismap-online:recent-places:v1";
@@ -83,6 +86,9 @@ export class UIController {
       notify: (message) => this.toast(message),
       formatValue: (value, field, name) => formatAttributeValue(value, field, name),
       compact: () => this.mobileMedia.matches,
+      share: () => this.shareBriefing(),
+      createTask: (draft) => this.fieldTasks?.newTaskFrom(draft),
+      createTour: (places, options) => this.createTourFromPlaces(places, options),
     });
     this.briefingFoldSelection = null;
     this.mobileAtlasSettingsOpen = false;
@@ -881,7 +887,14 @@ export class UIController {
           this.#serviceDialog("wfs");
           break;
         case "data-export":
-          this.#exportDialog();
+        case "share-export":
+          this.#shareExportDialog();
+          break;
+        case "share-map":
+          this.shareMap().catch((error) => this.error(error.message));
+          break;
+        case "map-pdf":
+          this.#downloadMapPdf().catch((error) => this.error(error.message));
           break;
         case "data-popular":
           this.#popularDataDialog();
@@ -974,6 +987,223 @@ export class UIController {
         this.dialog.close();
       }}],
     });
+  }
+
+  /**
+   * Share & export: one place to send the map on. Share a styled map link and
+   * QR, make a branded map PDF, turn a layer into a briefing or tour, or
+   * download its data. `uid` is the layer it was opened from, if any.
+   */
+  #shareExportDialog(uid = null) {
+    const layers = this.mapController.getAllLayerConfigs();
+    const layer = layers.find((config) => config.uid === uid) || layers.find((config) => this.mapController.findLayer(config.uid)?.queryFeatures) || layers[0] || null;
+    const exportable = this.exportController.listExportableLayers();
+    const filtered = layers.filter((config) => hasDataFilter(config.definitionExpression));
+    const local = layers.filter((config) => config.local || !config.url);
+    const styled = layer?.renderer && layer.renderer.type !== "simple";
+    const queryable = layer && typeof this.mapController.findLayer(layer.uid)?.queryFeatures === "function";
+    const card = (action, title, description, { disabled = "", icon }) => `<button type="button" class="share-export__card" data-share-export="${action}"${disabled ? ` disabled title="${escapeHtml(disabled)}"` : ""}><span class="share-export__icon" aria-hidden="true">${icon}</span><strong>${title}</strong><small>${disabled ? escapeHtml(disabled) : description}</small></button>`;
+    const notices = [
+      filtered.length && `Data filters are on: ${filtered.map((config) => escapeHtml(config.title || "Layer")).join(", ")} ${filtered.length === 1 ? "shows" : "show"} only part of the data. Links, PDFs and briefings keep the filter.`,
+      local.length && `${local.length === 1 ? "One layer comes" : `${local.length} layers come`} from files on this device and cannot travel in a link; save a project package to share ${local.length === 1 ? "it" : "them"}.`,
+    ].filter(Boolean);
+    this.openDialog({
+      eyebrow: layer ? escapeHtml(layer.title || "Layer") : "Current map",
+      title: "Share & export",
+      content: `<div class="share-export">${notices.map((notice) => `<p class="workflow-share__notice">${notice}</p>`).join("")}
+        <div class="share-export__grid">
+          ${card("share", "Share map", "Link and QR code with the layers, styles, filters, view, basemap and skin.", { icon: "⌗", disabled: layers.length > local.length ? "" : "Add a web layer to share a link." })}
+          ${card("pdf", "Map PDF", "A branded PDF of this view with a layer key and a QR code back to the live map.", { icon: "▤", disabled: layers.length ? "" : "Add a layer first." })}
+          ${card("briefing", "Create briefing", `Present ${layer ? `“${escapeHtml(layer.title || "this layer")}”` : "a layer"}${styled ? " with its style" : ""} as slides you can share and print.`, { icon: "▣", disabled: queryable ? "" : "Choose a feature layer to brief on." })}
+          ${card("tour", "Start a tour here", "Save this view as the first chapter of a guided tour.", { icon: "➤" })}
+          ${card("data", "Export data", "Download features as GeoJSON, KML, KMZ or Shapefile.", { icon: "⤓", disabled: exportable.length ? "" : "Add a queryable vector layer first." })}
+        </div></div>`,
+      actions: [{ label: "Close", handler: () => this.dialog.close() }],
+    });
+    this.dialog.querySelectorAll("[data-share-export]").forEach((button) => button.addEventListener("click", async () => {
+      const action = button.dataset.shareExport;
+      try {
+        if (action === "share") return await this.shareMap();
+        if (action === "data") return this.#exportDialog(exportable.some((item) => item.uid === layer?.uid) ? layer.uid : null);
+        this.dialog.close();
+        if (action === "pdf") return await this.#downloadMapPdf();
+        if (action === "briefing") return this.createBriefingFromLayer(layer.uid);
+        if (action === "tour") return await this.#startTourHere();
+      } catch (error) {
+        this.error(error.message);
+      }
+    }));
+  }
+
+  /** The current map as a self-contained link (and QR when it fits). */
+  async #mapShareLink() {
+    const layers = this.mapController.getAllLayerConfigs();
+    const link = await createShareLink({
+      baseUrl: location.href,
+      kind: "map",
+      title: this.projectManager.current.name || "Shared map",
+      skin: document.documentElement.dataset.skin || this.projectManager.current.presentation?.skin,
+      basemap: this.mapController.getBasemapId(),
+      camera: this.mapController.getViewState(),
+      layers,
+    });
+    return { ...link, layers };
+  }
+
+  /** Shares the map exactly as it looks: styles, filters, view, basemap and skin. */
+  async shareMap() {
+    const link = await this.#mapShareLink();
+    const filtered = link.layers.filter((config) => hasDataFilter(config.definitionExpression) && !config.local).length;
+    const local = link.layers.filter((config) => config.local || !config.url).length;
+    const title = this.projectManager.current.name || "Shared map";
+    await this.shareMobileWorkflow("map", {
+      url: link.url,
+      title,
+      kind: "map",
+      eyebrow: "Share map",
+      qr: link.qr,
+      notice: [
+        filtered && `Data filters travel with this link: ${filtered === 1 ? "one layer shows" : `${filtered} layers show`} only part of its data.`,
+        local && `${local === 1 ? "One layer" : `${local} layers`} from this device ${local === 1 ? "is" : "are"} left out.`,
+      ].filter(Boolean).join(" "),
+      message: "Opens this map with the same layers, styles, filters, view, basemap and look.",
+      card: { lines: ["Scan to open this map, or long-click the QR code", "to open it in a browser."], footer: "Complete map encoded in this QR" },
+      downloads: [{ label: "Map PDF", create: () => this.#mapPdfFile(link) }],
+    });
+  }
+
+  async #downloadMapPdf() {
+    this.toast("Making the map PDF…");
+    const link = await this.#mapShareLink().catch(() => null);
+    const file = await this.#mapPdfFile(link);
+    const anchor = document.createElement("a");
+    anchor.href = URL.createObjectURL(file);
+    anchor.download = file.name;
+    anchor.click();
+    setTimeout(() => URL.revokeObjectURL(anchor.href), 1000);
+  }
+
+  /** A landscape, skin-coloured PDF of the current view with a layer key and a QR back to the live map. */
+  async #mapPdfFile(link = null) {
+    const skin = document.documentElement.dataset.skin || this.projectManager.current.presentation?.skin;
+    const palette = printPalette(skin);
+    const title = this.projectManager.current.name || "Map";
+    const now = new Date();
+    const [shot] = await this.mapController.captureViews([null], { aspect: 1.45 });
+    const framed = shot ? await brandedMapImage(shot, { title, subtitle: `${now.toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" })} · ${this.#basemapLabel(this.mapController.getBasemapId())}`, palette }) : null;
+    const pdf = new PdfDocument({ heading: title.toUpperCase(), logo: await loadBrandLogo(palette), palette, pageWidth: 792, pageHeight: 612, homeUrl: link?.url || undefined });
+    const column = { x: 548, width: 196 };
+    if (framed) pdf.addImageAt(framed, { x: 48, y: pdf.top + 12, width: 484, height: pdf.top - 34, link: link?.url || null });
+    let y = pdf.addTextAt("Layers", { x: column.x, y: pdf.top, width: column.width, size: 12, bold: true, color: pdf.colors.accent });
+    const styleLabel = (renderer) => {
+      const field = renderer?.field1 || renderer?.field;
+      return ({ simple: "Single symbol", uniqueValue: field ? `Categories by ${field}` : "Categories", classBreaks: field ? `Classes by ${field}` : "Graduated classes", heatmap: "Heat map" })[renderer?.type] || "";
+    };
+    for (const config of this.mapController.getAllLayerConfigs().filter((item) => item.visible !== false).slice(0, 10)) {
+      y = pdf.addTextAt(config.title || "Layer", { x: column.x, y: y - 4, width: column.width, size: 9.5, bold: true });
+      const details = [styleLabel(config.renderer), hasDataFilter(config.definitionExpression) && `Filter: ${config.definitionExpression}`, config.local && "From a local file"].filter(Boolean).join(" · ");
+      if (details) y = pdf.addTextAt(details, { x: column.x, y: y + 2, width: column.width, size: 7.5, leading: 10, color: "0.36 0.44 0.41" });
+    }
+    const center = this.mapController.view?.center;
+    if (center && Number.isFinite(center.latitude)) {
+      y = pdf.addTextAt("Centre", { x: column.x, y: y - 8, width: column.width, size: 9.5, bold: true });
+      y = pdf.addTextAt(`${center.latitude.toFixed(5)}, ${center.longitude.toFixed(5)}`, { x: column.x, y: y + 2, width: column.width, size: 8.5, link: locationUrl(location.href, { latitude: center.latitude, longitude: center.longitude }) });
+    }
+    if (link?.url) {
+      const code = link.qr ? await qrAsset(link.url, { dark: palette.band }).catch(() => null) : null;
+      if (code) pdf.addImageAt(code, { x: column.x, y: 196, width: 120, height: 120, link: link.url });
+      pdf.addTextAt("Open the live map", { x: column.x, y: code ? 64 : 120, width: column.width, size: 10, bold: true, link: link.url });
+    }
+    pdf.addTextAt(`Made with GIS Map Online · ${now.toLocaleString()}`, { x: 48, y: 22, width: 400, size: 7.5, color: "0.36 0.44 0.41" });
+    const stem = title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "map";
+    return new File([pdf.toBlob()], `${stem}-map.pdf`, { type: "application/pdf" });
+  }
+
+  /**
+   * Turns a layer into a briefing: the layer (with its current style and filter)
+   * becomes the briefing's data, and an empty briefing gets a title slide at the
+   * current view plus a key-numbers slide, ready to edit and share.
+   */
+  createBriefingFromLayer(uid, { featureIds = [], title: givenTitle = "", features = [], actions = [] } = {}) {
+    const layer = this.mapController.findLayer(uid);
+    if (!layer) throw new Error("That layer is no longer on the map.");
+    const current = this.projectManager.current.presentation || {};
+    const title = givenTitle || `${layer.title || "Feature"} briefing`;
+    const fresh = Boolean(givenTitle) || !(current.briefing?.slides?.length && current.primaryLayerId === uid);
+    let briefing = fresh ? { slides: [] } : current.briefing;
+    if (!briefing.slides.length) {
+      const view = this.mapController.getViewState();
+      const camera = view.center ? { center: view.center, zoom: view.zoom, heading: view.heading, tilt: view.tilt } : null;
+      briefing = { ...briefing, slides: [
+        createSlide("title", { title, camera }),
+        { ...createSlide("key-numbers", { title: "At a glance" }), blocks: [{ type: "stat", stat: "count", label: `${layer.title || "Features"}` }] },
+        // Features handed over (from a field task) get a slide each; their facts fill in from the data.
+        ...features.filter((feature) => feature.id != null).map((feature) => createSlide("feature", { title: feature.label || `Feature ${feature.id}`, featureId: String(feature.id) })),
+        ...(actions.length ? [{ ...createSlide("actions", { title: "Next steps" }), blocks: [{ type: "list", items: actions.slice(0, 12) }] }] : []),
+      ] };
+    }
+    this.briefingTab = "slides";
+    this.projectManager.setPresentation({
+      ...current,
+      template: "briefing",
+      title,
+      modeTitles: { ...(current.modeTitles || {}), briefing: fresh ? title : current.modeTitles?.briefing || title },
+      primaryLayerId: uid,
+      briefing,
+      briefingSelection: { layerId: uid, ids: featureIds.map(String), useAll: false },
+    });
+    this.#setSidebarCollapsed(false);
+    this.events.publish("mobile:workflow-route", { route: "briefing" });
+    this.toast(featureIds.length ? `Briefing started with ${featureIds.length} feature${featureIds.length === 1 ? "" : "s"}. Add them as slides in the Slides tab.` : "Briefing created. Edit the slides, then Share & PDF.");
+  }
+
+  /** Opens Tours with the current view saved as a chapter. */
+  async #startTourHere() {
+    this.#openGuidedTours();
+    await this.#captureAtlasChapter();
+  }
+
+  /**
+   * Adds places as tour chapters and opens Tours: from a field task's places,
+   * a briefing's features, or anything else with coordinates.
+   * `places` are { title, body, latitude, longitude, zoom, address }.
+   */
+  createTourFromPlaces(places = [], { title = "", open = true } = {}) {
+    const usable = places.filter((place) => Number.isFinite(place?.latitude) && Number.isFinite(place?.longitude));
+    if (!usable.length) return this.error("There are no places with coordinates to tour.");
+    if (open) this.#openGuidedTours();
+    const chapters = this.projectManager.current.presentation?.chapters || [];
+    const layers = this.mapController.getOperationalLayers();
+    const added = usable.slice(0, Math.max(0, 50 - chapters.length)).map((place, index) => ({
+      id: crypto.randomUUID?.() || `chapter-${Date.now()}-${index}`,
+      title: String(place.title || `Chapter ${chapters.length + index + 1}`).slice(0, 120),
+      body: String(place.body || "").slice(0, 600),
+      mediaUrl: "",
+      reverseAddress: place.address || "",
+      viewState: { type: "scene", center: [place.longitude, place.latitude], zoom: place.zoom ?? 15, heading: 0, tilt: 0 },
+      viewpoint: null,
+      basemapId: this.mapController.getBasemapId(),
+      lingerSeconds: 5,
+      visibleLayerIds: layers.filter((layer) => layer.visible).map((layer) => layer.uid),
+      layerVisibility: layers.map((layer) => ({ key: this.#atlasLayerKey(layer), visible: layer.visible })),
+    }));
+    if (!added.length) return this.error("This tour already has the most chapters it can hold (50).");
+    // Without opening Tours (adding from a briefing), the chapters are saved quietly.
+    if (open) this.#saveAtlasChapters([...chapters, ...added]);
+    else return this.toast(`Added to the tour · ${this.projectManager.patchPresentation({ chapters: [...chapters, ...added] }).chapters.length} chapters. Open Tours to present it.`);
+    if (title && !chapters.length) this.projectManager.patchPresentation({ title, modeTitles: { ...(this.projectManager.current.presentation?.modeTitles || {}), atlas: title } });
+    this.toast(`Added ${added.length} chapter${added.length === 1 ? "" : "s"} to the tour.`);
+  }
+
+  /** A briefing on the layer a field task's features come from, loading it if needed. */
+  async createBriefingForLayerUrl({ layerUrl, ids = [], title = "", steps = [], labels = {} }) {
+    try {
+      let layer = this.mapController.getOperationalLayers().find((item) => featureLayerUrl(item) === layerUrl || this.mapController.getLayerConfig(item).url === layerUrl);
+      if (!layer) layer = await this.mapController.addService({ url: layerUrl, serviceType: "arcgis-auto" });
+      this.createBriefingFromLayer(layer.uid, { featureIds: ids, title: title ? `${title} briefing` : "", features: ids.map((id) => ({ id, label: labels[id] })), actions: steps });
+    } catch (error) {
+      this.error(error.message);
+    }
   }
 
   #exportDialog(preselectedUid = null) {
@@ -2003,7 +2233,8 @@ export class UIController {
     const mapped = (role) => names.has(mappings[role]) ? mappings[role] : null;
     const matching = (list, pattern) => list.find((field) => pattern.test(`${field.name} ${field.alias || ""}`))?.name || null;
     return {
-      title: mapped("title") || matching(fields.text, /location|station|site|name|title/i) || fields.text[0]?.name || null,
+      // No name-like field: the record label picks the most distinguishing text field instead.
+      title: mapped("title") || matching(fields.text, /location|station|site|name|title/i) || null,
       metric: mapped("metric") || matching(fields.numeric, /value|measure|concentration|amount|magnitude|score/i) || fields.numeric[0]?.name || null,
       // UnitID-style fields are commonly organizational identifiers. Only an
       // explicit mapping or a schema field named exactly "unit" is trusted.
@@ -2027,7 +2258,10 @@ export class UIController {
       let totalCount = null;
       try { totalCount = await layer.queryFeatureCount(query); } catch { /* Count metadata is optional. */ }
       if (this.presentationState.layerUid !== layer.uid) return;
-      this.presentationState.records = (response.features || []).map((graphic) => ({
+      const features = response.features || [];
+      if (presentation.template === "briefing") features.push(...await this.#missingSlideFeatures(layer, features));
+      if (this.presentationState.layerUid !== layer.uid) return;
+      this.presentationState.records = features.map((graphic) => ({
         kind: "feature", layerUid: layer.uid, layerTitle: layer.title || "Layer", attributes: graphic.attributes || {}, geometry: graphic.geometry || null, graphic,
       }));
       this.presentationState.totalCount = Number.isFinite(totalCount) ? totalCount : null;
@@ -2049,6 +2283,23 @@ export class UIController {
     }
   }
 
+  /** Slides can point at features beyond the first page of records; fetch those by ID. */
+  async #missingSlideFeatures(layer, features) {
+    const idField = layer.objectIdField;
+    const slides = this.projectManager.current.presentation?.briefing?.slides || [];
+    if (!idField || !slides.length) return [];
+    const loaded = new Set(features.map((graphic) => String(graphic.attributes?.[idField])));
+    const missing = [...new Set(slides.map((slide) => slide.featureId).filter((id) => id && !loaded.has(id)))].map(Number).filter(Number.isInteger).slice(0, 200);
+    if (!missing.length) return [];
+    try {
+      const query = layer.createQuery?.() || {};
+      Object.assign(query, { objectIds: missing, where: "1=1", outFields: ["*"], returnGeometry: true });
+      return (await layer.queryFeatures(query)).features || [];
+    } catch {
+      return [];
+    }
+  }
+
   #restoreBriefingSelection(layer) {
     const saved = this.projectManager.current.presentation?.briefingSelection;
     if (!saved || !layer || saved.layerId !== layer.uid) return;
@@ -2066,8 +2317,39 @@ export class UIController {
   #recordLabel(result, fields) {
     const attributes = result.attributes || {};
     const role = this.presentationState.roles?.title;
-    const preferred = fields.fields.find((field) => field.name === role) || fields.text.find((field) => /name|title|incident|location|label/i.test(`${field.name} ${field.alias || ""}`)) || fields.text[0];
-    return String(attributes[preferred?.name] ?? "Untitled record");
+    const preferred = fields.fields.find((field) => field.name === role) || fields.text.find((field) => /name|title|incident|location|label/i.test(`${field.name} ${field.alias || ""}`)) || this.#distinctTextField(fields);
+    const value = attributes[preferred?.name];
+    if (value != null && String(value).trim()) return String(value);
+    // No field names the records: use the ID, with the date when there is one ("#4521 · 14 Oct 2026").
+    const id = attributes[this.mapController.findLayer(this.presentationState.layerUid)?.objectIdField];
+    const dateField = fields.dates?.[0]?.name;
+    const date = dateField && attributes[dateField] != null ? new Date(attributes[dateField]) : null;
+    const when = date && !Number.isNaN(date.getTime()) ? date.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" }) : "";
+    return [id != null ? `#${id}` : "Untitled record", when].filter(Boolean).join(" · ");
+  }
+
+  /**
+   * With no name-like field, the text field that best tells records apart: a
+   * one-letter code shared by every record (like MODIS's satellite "A") makes a
+   * poor label. Cached per layer and record count.
+   */
+  #distinctTextField(fields) {
+    const records = this.presentationState.records || [];
+    const key = `${this.presentationState.layerUid}:${records.length}`;
+    if (this.labelFieldCache?.key === key) return this.labelFieldCache.field;
+    const sample = records.slice(0, 300);
+    let best = null;
+    let bestScore = 0;
+    for (const field of fields.text) {
+      const values = sample.map((record) => record.attributes?.[field.name]).filter((value) => value != null && String(value).trim());
+      const distinct = new Set(values.map(String)).size;
+      const score = distinct / Math.max(1, sample.length) + (values.length ? Math.min(1, values.reduce((sum, value) => sum + String(value).length, 0) / values.length / 20) * 0.25 : 0);
+      // A field needs some variety to be worth reading (at least one value in five differs).
+      if (distinct > 1 && distinct / Math.max(1, sample.length) >= 0.2 && score > bestScore) { best = field; bestScore = score; }
+    }
+    // Nothing distinguishes the records: fall back to their IDs.
+    this.labelFieldCache = { key, field: best };
+    return best;
   }
 
   #filterPresentationRecords() {
@@ -2495,7 +2777,7 @@ export class UIController {
     const overview = selected ? Object.entries(selected.attributes || {}).filter(([key, value]) => value != null && value !== "" && key !== idField).slice(0, 5) : [];
     const useAll = state.briefingUseAll === true;
     const section = (key, title, content) => contextSettings.sections[key] ? `<section><h4>${title}</h4>${content}</section>` : "";
-    root.innerHTML = `<section class="mode-dashboard mode-dashboard--briefing presentation-workspace"><header class="presentation-compact-header"><span class="eyebrow">Context briefing</span><h2>${escapeHtml(presentation.title || layer.title || "Feature briefing")}</h2><label class="compact-dataset"><span>Dataset</span><select data-mode-dataset>${this.mapController.getOperationalLayers().filter((item) => typeof item.queryFeatures === "function").map((item) => `<option value="${escapeHtml(item.uid)}"${item.uid === layer.uid ? " selected" : ""}>${escapeHtml(item.title || "Untitled layer")}</option>`).join("")}</select></label></header><div class="briefing-search"><label class="field"><span>Search field</span><select data-search-field>${this.#fieldOptions(fields.fields, state.searchField)}</select></label><label class="field"><span>Find a feature</span><input data-mode-search value="${escapeHtml(state.search)}" placeholder="Search ${escapeHtml(fields.fields.find((field) => field.name === state.searchField)?.alias || nameField || "features")}"/></label><button data-mode-clear>Clear</button></div><div class="mode-records briefing-records">${state.visibleRecords.slice(0, 100).map((record) => `<button class="mode-record${record === selected ? " is-selected" : ""}" data-mode-record-id="${escapeHtml(featureId(record, idField))}"><strong>${escapeHtml(this.#recordLabel(record, fields))}</strong><small>${escapeHtml(featureId(record, idField) || "")}</small></button>`).join("") || "<p class=\"form-note\">No locally available features match.</p>"}</div><aside class="mode-details briefing-context"><button class="context-settings-button" data-briefing-settings aria-label="Context settings" title="Context settings">⚙</button><span class="eyebrow">${selected ? "Feature context" : "Select a feature"}</span>${selected ? `<h3>${escapeHtml(this.#recordLabel(selected, fields))}</h3><div class="detail-actions"><button data-selection-zoom aria-label="Zoom to feature" title="Zoom to feature">⌕</button><button data-selection-clear aria-label="Clear selected feature" title="Clear selected feature">×</button><button type="button" class="detail-actions__slide" data-briefing-add-slide title="Add this feature to the briefing's slides">+ Slide</button></div>${section("overview", "Overview", `<dl>${overview.map(([key,value]) => `<div><dt>${escapeHtml(fields.fields.find((field) => field.name === key)?.alias || key)}</dt><dd>${escapeHtml(formatAttributeValue(value, fields.fields.find((field) => field.name === key), key))}</dd></div>`).join("")}</dl>`)}${section("surroundings", "Surroundings", `<p data-briefing-surroundings>Checking visible contextual datasets…</p>`)}${section("ai", "AI context", `<p data-briefing-ai>${this.aiController.isConfigured() ? "Deterministic context appears first. Generate a concise explanation after reviewing it." : "AI is not configured. Spatial context and source details remain available."}</p>${this.aiController.isConfigured() ? "<button data-briefing-ai-run>Generate sourced context</button>" : ""}`)}${section("sources", "Sources", contextSources.map((source) => `<p>${escapeHtml(source.title || "Dataset")} ${source === layer ? `· retrieved ${escapeHtml(this.#formatExplorerTime(state.fetchedAt))}` : ""}</p>${source.url ? `<a href="${escapeHtml(source.url)}" target="_blank" rel="noopener">Open dataset source ↗</a>` : ""}`).join("") || "<p>No sources selected.</p>")}<details><summary>All attributes</summary><dl>${Object.entries(selected.attributes || {}).map(([key,value]) => `<div><dt>${escapeHtml(key)}</dt><dd>${escapeHtml(value)}</dd></div>`).join("")}</dl></details>` : "<p>Choose a named feature or click it on the map. The right context panel keeps selection, map highlight, and details synchronized.</p>"}</aside></section>`;
+    root.innerHTML = `<section class="mode-dashboard mode-dashboard--briefing presentation-workspace"><header class="presentation-compact-header"><span class="eyebrow">Context briefing</span><h2>${escapeHtml(presentation.title || layer.title || "Feature briefing")}</h2><label class="compact-dataset"><span>Dataset</span><select data-mode-dataset>${this.mapController.getOperationalLayers().filter((item) => typeof item.queryFeatures === "function").map((item) => `<option value="${escapeHtml(item.uid)}"${item.uid === layer.uid ? " selected" : ""}>${escapeHtml(item.title || "Untitled layer")}</option>`).join("")}</select></label></header><div class="briefing-search"><label class="field"><span>Search field</span><select data-search-field>${this.#fieldOptions(fields.fields, state.searchField)}</select></label><label class="field"><span>Find a feature</span><input data-mode-search value="${escapeHtml(state.search)}" placeholder="Search ${escapeHtml(fields.fields.find((field) => field.name === state.searchField)?.alias || nameField || "features")}"/></label><button data-mode-clear>Clear</button></div><div class="mode-records briefing-records">${state.visibleRecords.slice(0, 100).map((record) => `<button class="mode-record${record === selected ? " is-selected" : ""}" data-mode-record-id="${escapeHtml(featureId(record, idField))}"><strong>${escapeHtml(this.#recordLabel(record, fields))}</strong><small>${escapeHtml(featureId(record, idField) || "")}</small></button>`).join("") || "<p class=\"form-note\">No locally available features match.</p>"}</div><aside class="mode-details briefing-context"><button class="context-settings-button" data-briefing-settings aria-label="Context settings" title="Context settings">⚙</button><span class="eyebrow">${selected ? "Feature context" : "Select a feature"}</span>${selected ? `<h3>${escapeHtml(this.#recordLabel(selected, fields))}</h3><div class="detail-actions"><button data-selection-zoom aria-label="Zoom to feature" title="Zoom to feature">⌕</button><button data-selection-clear aria-label="Clear selected feature" title="Clear selected feature">×</button><button type="button" class="detail-actions__slide" data-briefing-add-slide title="Add this feature to the briefing's slides">+ Slide</button><button type="button" class="detail-actions__slide" data-briefing-add-tour title="Add this feature to the guided tour">+ Tour</button><button type="button" class="detail-actions__slide" data-briefing-add-task title="Make a field task at this feature">Task</button></div>${section("overview", "Overview", `<dl>${overview.map(([key,value]) => `<div><dt>${escapeHtml(fields.fields.find((field) => field.name === key)?.alias || key)}</dt><dd>${escapeHtml(formatAttributeValue(value, fields.fields.find((field) => field.name === key), key))}</dd></div>`).join("")}</dl>`)}${section("surroundings", "Surroundings", `<p data-briefing-surroundings>Checking visible contextual datasets…</p>`)}${section("ai", "AI context", `<p data-briefing-ai>${this.aiController.isConfigured() ? "Deterministic context appears first. Generate a concise explanation after reviewing it." : "AI is not configured. Spatial context and source details remain available."}</p>${this.aiController.isConfigured() ? "<button data-briefing-ai-run>Generate sourced context</button>" : ""}`)}${section("sources", "Sources", contextSources.map((source) => `<p>${escapeHtml(source.title || "Dataset")} ${source === layer ? `· retrieved ${escapeHtml(this.#formatExplorerTime(state.fetchedAt))}` : ""}</p>${source.url ? `<a href="${escapeHtml(source.url)}" target="_blank" rel="noopener">Open dataset source ↗</a>` : ""}`).join("") || "<p>No sources selected.</p>")}<details><summary>All attributes</summary><dl>${Object.entries(selected.attributes || {}).map(([key,value]) => `<div><dt>${escapeHtml(key)}</dt><dd>${escapeHtml(value)}</dd></div>`).join("")}</dl></details>` : "<p>Choose a named feature or click it on the map. The right context panel keeps selection, map highlight, and details synchronized.</p>"}</aside></section>`;
     const briefingShare = document.createElement("button");
     briefingShare.type = "button";
     briefingShare.className = "briefing-share";
@@ -2596,6 +2878,28 @@ export class UIController {
     root.querySelector("[data-briefing-add-slide]")?.addEventListener("click", () => {
       if (!state.selected) return;
       this.briefingSlides.addFeatureSlide(state.selected);
+    });
+    // The same feature can join the tour or become a field task, without leaving the briefing.
+    const selectedPlace = () => {
+      const point = state.selected?.geometry ? this.mapController.geographicCoordinates(state.selected.geometry) : null;
+      return point ? { ...point, label: this.#recordLabel(state.selected, fields) } : null;
+    };
+    root.querySelector("[data-briefing-add-tour]")?.addEventListener("click", () => {
+      const place = selectedPlace();
+      if (!place) return this.error("This feature has no location to tour.");
+      this.createTourFromPlaces([{ title: place.label, latitude: place.latitude, longitude: place.longitude }], { open: false });
+    });
+    root.querySelector("[data-briefing-add-task]")?.addEventListener("click", () => {
+      const place = selectedPlace();
+      if (!place) return this.error("This feature has no location for a task.");
+      const objectId = state.selected.attributes?.[layer.objectIdField];
+      this.fieldTasks?.newTaskFrom({
+        title: `Visit ${place.label}`,
+        location: place.label,
+        latitude: place.latitude,
+        longitude: place.longitude,
+        features: [{ layerUrl: featureLayerUrl(layer), objectId: objectId ?? null, latitude: place.latitude, longitude: place.longitude, label: place.label.slice(0, 80), done: false }],
+      });
     });
     root.querySelector("[data-briefing-ai-run]")?.addEventListener("click", () => {
       if (!state.selected || !this.aiController.isConfigured()) return;
@@ -3137,8 +3441,10 @@ export class UIController {
    */
   async #drawBrandedQrCard(canvas, url, { title, lines = [], footer = "", fileStem = "gismap", isCurrent = () => true }) {
     if (!globalThis.QRCode?.toCanvas) throw new Error("QR generator unavailable");
+    // The card wears the current skin's print colours, like the PDFs.
+    const palette = printPalette(document.documentElement.dataset.skin);
     const qrCanvas = document.createElement("canvas");
-    await globalThis.QRCode.toCanvas(qrCanvas, url, { width: 520, margin: 2, errorCorrectionLevel: "L", color: { dark: "#072f2b", light: "#ffffff" } });
+    await globalThis.QRCode.toCanvas(qrCanvas, url, { width: 520, margin: 2, errorCorrectionLevel: "L", color: { dark: palette.band, light: "#ffffff" } });
     if (!isCurrent()) return null;
     const context = canvas.getContext("2d");
     context.setTransform(1, 0, 0, 1, 0, 0);
@@ -3146,11 +3452,11 @@ export class UIController {
     context.textAlign = "left";
     context.textBaseline = "alphabetic";
     const gradient = context.createLinearGradient(0, 0, 760, 960);
-    gradient.addColorStop(0, "#071f1c");
-    gradient.addColorStop(1, "#145b4e");
+    gradient.addColorStop(0, palette.band);
+    gradient.addColorStop(1, palette.frame);
     context.fillStyle = gradient;
     context.fillRect(0, 0, 760, 960);
-    context.fillStyle = "#f3ae2b";
+    context.fillStyle = palette.edge;
     context.fillRect(0, 0, 12, 960);
     const logo = new Image();
     logo.src = new URL("./assets/gis-map-online-mark-v2.png", document.baseURI).href;
@@ -3158,20 +3464,20 @@ export class UIController {
     if (!isCurrent()) return null;
     if (logoLoaded) context.drawImage(logo, 48, 42, 118, 118);
     else {
-      context.strokeStyle = "#55cdb1";
+      context.strokeStyle = palette.brand;
       context.lineWidth = 7;
       context.beginPath();
       context.arc(107, 101, 45, 0, Math.PI * 2);
       context.stroke();
-      context.fillStyle = "#f3ae2b";
+      context.fillStyle = palette.edge;
       context.beginPath();
       context.arc(107, 96, 14, 0, Math.PI * 2);
       context.fill();
     }
-    context.fillStyle = "#55cdb1";
+    context.fillStyle = palette.brand;
     context.font = "700 34px system-ui, sans-serif";
     context.fillText("GIS MAP", 188, 87);
-    context.fillStyle = "#f3ae2b";
+    context.fillStyle = palette.edge;
     context.font = "700 20px system-ui, sans-serif";
     context.letterSpacing = "6px";
     context.fillText("ONLINE", 190, 122);
@@ -3180,17 +3486,17 @@ export class UIController {
     context.font = "700 38px Georgia, serif";
     const safeTitle = String(title || "GIS Map Online").slice(0, 54);
     context.fillText(safeTitle, 58, 218, 644);
-    context.fillStyle = "#b8d8d0";
+    context.fillStyle = "rgb(255 255 255 / 72%)";
     context.font = "20px system-ui, sans-serif";
     lines.slice(0, 2).forEach((line, index) => context.fillText(line, 58, 250 + index * 28, 644));
     context.fillStyle = "#ffffff";
     context.fillRect(96, 300, 568, 568);
     context.drawImage(qrCanvas, 120, 324, 520, 520);
-    context.fillStyle = "#d8ebe6";
+    context.fillStyle = "rgb(255 255 255 / 82%)";
     context.font = "16px system-ui, sans-serif";
     context.textAlign = "center";
     if (footer) context.fillText(footer, 380, 900, 680);
-    context.fillStyle = "#f3ae2b";
+    context.fillStyle = palette.edge;
     context.font = "700 18px system-ui, sans-serif";
     context.fillText("gismap.online", 380, 930);
     context.textAlign = "left";
@@ -3305,7 +3611,7 @@ export class UIController {
       panel.dataset.presentationHidden = "true";
       panel.hidden = true;
     });
-    this.#loadPresentationRecords(presentation);
+    this.presentationLoading = this.#loadPresentationRecords(presentation);
   }
 
   #applicationBuilderDialog(startingPreset = null) {
@@ -3639,6 +3945,8 @@ export class UIController {
   }
 
   async shareMobileWorkflow(route, payload = {}) {
+    // A briefing shares as a self-contained link that opens its slides.
+    if (route === "briefing" && !payload.url) return this.shareBriefing();
     try {
       let url;
       let title;
@@ -3689,12 +3997,12 @@ export class UIController {
       this.openDialog({
         eyebrow: payload.eyebrow || "Shareable workflow",
         title,
-        content: `<div class="workflow-share"><div class="tour-share-card"><canvas data-workflow-share-card width="760" height="960" role="img" aria-label="Branded QR card for ${escapeHtml(title)}"></canvas><p class="tour-share-card__status" data-workflow-share-status>Building QR card…</p></div><p>${escapeHtml(payload.message || `Scan this code to open the ${kind} on another device.`)}</p><label class="field"><span>Share link</span><input data-workflow-share-url readonly value="${escapeHtml(url)}"></label>${downloads.length ? `<div class="workflow-share-downloads"><span>Report files</span><div>${downloads.map((download, index) => `<button type="button" data-share-download="${index}">${escapeHtml(download.label)}</button>`).join("")}</div></div>` : ""}</div>`,
+        content: `<div class="workflow-share">${payload.qr === false ? `<p class="workflow-share__long">This ${kind} carries more than a QR code can hold (${url.length.toLocaleString()} characters), so it shares as a link and files instead. The link opens everything on any device.</p>` : `<div class="tour-share-card"><canvas data-workflow-share-card width="760" height="960" role="img" aria-label="Branded QR card for ${escapeHtml(title)}"></canvas><p class="tour-share-card__status" data-workflow-share-status>Building QR card…</p></div>`}${payload.notice ? `<p class="workflow-share__notice">${escapeHtml(payload.notice)}</p>` : ""}<p>${escapeHtml(payload.message || `Scan this code to open the ${kind} on another device.`)}</p><label class="field"><span>Share link</span><input data-workflow-share-url readonly value="${escapeHtml(url)}"></label>${downloads.length ? `<div class="workflow-share-downloads"><span>Report files</span><div>${downloads.map((download, index) => `<button type="button" data-share-download="${index}">${escapeHtml(download.label)}</button>`).join("")}</div></div>` : ""}</div>`,
         actions: [
-          { label: "Download image", handler: () => {
+          ...(payload.qr === false ? [] : [{ label: "Download image", handler: () => {
             if (!this.workflowShareImageFile) return this.error("The QR image is still being prepared.");
             saveFile(this.workflowShareImageFile);
-          } },
+          } }]),
           { label: "Share", handler: async () => {
             const attachments = (await Promise.all(downloads.filter((download) => download.share).map((download) => fileFor(download).catch(() => null)))).filter(Boolean);
             // Offer the richest bundle the device accepts: QR image and reports, then the image alone, then just the link.
@@ -3718,6 +4026,7 @@ export class UIController {
       }));
       const canvas = this.dialog.querySelector("[data-workflow-share-card]");
       const status = this.dialog.querySelector("[data-workflow-share-status]");
+      if (!canvas) return;
       try {
         const file = await this.#drawBrandedQrCard(canvas, url, { title, ...card, fileStem: route, isCurrent: () => renderToken === this.workflowShareRenderToken });
         if (file) {
@@ -3732,10 +4041,117 @@ export class UIController {
     }
   }
 
+  /**
+   * Shares the briefing as one self-contained link: its layers with styles and
+   * filters, skin, basemap and slides. The link opens straight into the slides.
+   */
+  async shareBriefing() {
+    try {
+      const presentation = this.projectManager.current.presentation || {};
+      const state = this.presentationState;
+      const inBriefing = state.template === "briefing";
+      const layer = this.mapController.findLayer(inBriefing ? state.layerUid : presentation.primaryLayerId) || this.briefingWorkspace?.layer;
+      if (!layer) throw new Error("Choose the briefing's layer before sharing.");
+      const layers = this.mapController.getAllLayerConfigs();
+      const title = presentation.modeTitles?.briefing || presentation.title || `${layer.title || "Feature"} briefing`;
+      const skin = document.documentElement.dataset.skin || presentation.skin;
+      const link = await createShareLink({
+        baseUrl: location.href,
+        kind: "briefing",
+        title,
+        skin,
+        basemap: this.mapController.getBasemapId(),
+        camera: this.mapController.getViewState(),
+        layers,
+        primary: layers.findIndex((config) => config.uid === layer.uid),
+        briefing: presentation.briefing,
+        selection: inBriefing ? [...(state.selectedIds || [])] : presentation.briefingSelection?.ids || [],
+        useAll: inBriefing ? state.briefingUseAll === true : presentation.briefingSelection?.useAll === true,
+      });
+      const slides = (presentation.briefing?.slides || []).filter((slide) => !slide.hidden).length;
+      const filtered = layers.filter((config) => hasDataFilter(config.definitionExpression) && !config.local).length;
+      const stem = briefingFileStem(title);
+      const downloads = [];
+      if (slides) downloads.push({ label: "PDF handout", create: () => this.briefingSlides.createPdf({ link: link.url, qr: link.qr, skin }) });
+      downloads.push({ label: "Briefing file", create: () => new File([JSON.stringify(link.payload, null, 2)], `${stem}.briefing.json`, { type: "application/json" }) });
+      await this.shareMobileWorkflow("briefing", {
+        url: link.url,
+        title,
+        kind: "briefing",
+        eyebrow: "Share briefing",
+        qr: link.qr,
+        notice: filtered ? `Data filters travel with this link: ${filtered === 1 ? "one layer shows" : `${filtered} layers show`} only part of its data.` : "",
+        message: `${slides ? `Opens the ${slides}-slide presentation directly` : "Opens this briefing's features"}, with the same layers, styles${filtered ? ", filters" : ""} and look.${link.qr ? "" : " To share by QR, host the briefing file on the web and link to it as ?briefing=<file address>."}`,
+        card: {
+          lines: [slides ? `Scan to present ${slides} slide${slides === 1 ? "" : "s"}, or long-click the QR code` : "Scan to open this briefing, or long-click the QR code", "to open it in a browser."],
+          footer: "Complete briefing encoded in this QR",
+        },
+        downloads,
+      });
+    } catch (error) {
+      this.error(error.message);
+    }
+  }
+
+  /**
+   * Opens a shared map or briefing link (see map-share.js): loads its layers
+   * with their styles and filters, applies the skin and basemap, then shows the
+   * view or starts presenting the briefing's slides.
+   */
+  async openSharedState(shared, { loadLayer }) {
+    if (shared.basemap) this.mapController.setBasemap(shared.basemap);
+    const added = [];
+    for (const config of shared.layers) {
+      try {
+        added.push((await loadLayer(config))[0] || null);
+      } catch (error) {
+        added.push(null);
+        this.error(`A shared layer failed to load: ${error.message}`);
+      }
+    }
+    const filtered = shared.layers.filter((layer) => hasDataFilter(layer.definitionExpression)).length;
+    const filterNote = filtered ? ` ${filtered === 1 ? "One layer has" : `${filtered} layers have`} a data filter, so not every feature is shown.` : "";
+    const current = this.projectManager.current.presentation || {};
+    const goToCamera = () => (shared.camera ? this.mapController.view?.goTo({ ...shared.camera }, { animate: false }).catch(() => {}) : null);
+    if (shared.kind === "map") {
+      this.projectManager.setPresentation({ ...current, template: "standard", skin: shared.skin, title: shared.title || current.title });
+      await goToCamera();
+      this.toast(`${shared.title || "Shared map"} opened.${filterNote}`);
+      return;
+    }
+    const layer = added[shared.primary] || added.find(Boolean);
+    if (!layer) throw new Error("The briefing's layer could not be loaded.");
+    const visible = shared.briefing.slides.filter((slide) => !slide.hidden);
+    this.briefingTab = visible.length ? "slides" : "features";
+    this.projectManager.setPresentation({
+      ...current,
+      template: "briefing",
+      skin: shared.skin,
+      title: shared.title,
+      modeTitles: { ...(current.modeTitles || {}), briefing: shared.title },
+      primaryLayerId: layer.uid,
+      briefing: shared.briefing,
+      briefingSelection: { layerId: layer.uid, ids: shared.selection, useAll: shared.useAll },
+    });
+    this.events.publish("mobile:workflow-route", { route: "briefing" });
+    await this.presentationLoading;
+    if (!visible.length) {
+      await goToCamera();
+      this.toast(`${shared.title || "Briefing"} opened.${filterNote}`);
+      return;
+    }
+    this.briefingSlides.openPlayer(visible.some((slide) => slide.id === shared.slide) ? shared.slide : visible[0].id);
+    if (filterNote) this.toast(filterNote.trim());
+  }
+
   async #importProject(event) {
     const [file] = event.target.files;
     event.target.value = "";
-    if (!file) return;
+    if (file) await this.importProjectFile(file);
+  }
+
+  /** Opens a project or tour file (from the file picker, or a file opened with the installed app). */
+  async importProjectFile(file) {
     try {
       const { project } = await this.projectManager.importFile(file);
       this.toast(`${project.name} imported.`);
@@ -4020,7 +4436,7 @@ export class UIController {
           <div class="layer-card__head"><label class="layer-toggle"><input type="checkbox" data-layer-visible ${layer.visible ? "checked" : ""} /><span></span></label><div><strong title="${escapeHtml(layer.title)}">${escapeHtml(layer.title)}</strong><small>${escapeHtml(config.sourceType)}${config.definitionExpression ? " · Filtered" : ""}${config.refreshInterval ? ` · ${config.refreshInterval}m refresh` : ""}</small></div><button data-layer-action="remove" title="Remove layer">×</button></div>
           <div class="layer-scale-note" data-layer-scale-note ${scaleMessage ? "" : "hidden"}>${escapeHtml(scaleMessage || "")}</div>
           <label class="opacity-row"><span>Opacity</span><input data-layer-opacity type="range" min="0" max="1" step="0.05" value="${layer.opacity}" /><output>${Math.round(layer.opacity * 100)}%</output></label>
-          <div class="layer-card__actions"><button data-layer-action="zoom">Zoom</button><button data-layer-action="table">Table</button><button data-layer-action="filter">Filter</button><button data-layer-action="export" ${exportable.has(layer.uid) ? "" : "disabled title=\"This layer is not queryable\""}>Export</button><button data-layer-action="style">Style</button><button data-layer-action="refresh">Refresh</button></div>
+          <div class="layer-card__actions"><button data-layer-action="zoom">Zoom</button><button data-layer-action="table">Table</button><button data-layer-action="filter">Filter</button><button data-layer-action="export" title="Share this map, make a PDF or briefing, or download data">Share</button><button data-layer-action="style">Style</button><button data-layer-action="refresh">Refresh</button></div>
         </article>`;
       }).join("")
       : '<div class="empty-state empty-state--layers"><p>No layers yet. Add data to start.</p><div class="empty-state__actions"><button type="button" data-empty-action="data-arcgis">ArcGIS service</button><button type="button" data-empty-action="data-geojson">GeoJSON URL</button><button type="button" data-empty-action="data-file">Local file</button><button type="button" data-empty-action="data-popular">Try an example</button></div></div>';
@@ -4066,7 +4482,7 @@ export class UIController {
         }
         case "table": this.events.publish("table:open", { uid }); break;
         case "filter": await this.#filterDialog(uid); break;
-        case "export": this.#exportDialog(uid); break;
+        case "export": this.#shareExportDialog(uid); break;
         case "style": this.#openSymbologyUtility(uid); break;
         case "refresh": this.#refreshDialog(uid); break;
       }

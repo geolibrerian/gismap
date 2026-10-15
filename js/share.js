@@ -84,3 +84,5 @@ export function createShareUrl({ baseUrl, layers = [], basemap = null }) {
 }
 
 export const SHARE_LIMITS = Object.freeze({ maxLayers: MAX_LAYERS, maxUrlLength: MAX_URL_LENGTH });
+export const SHARE_LAYER_TYPES = SUPPORTED_TYPES;
+export const SHARE_BASEMAPS = SUPPORTED_BASEMAPS;
