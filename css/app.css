@@ -344,6 +344,11 @@ body:has(.application-dock--bottom.is-collapsed).application-bottom-open #viewDi
 .utility-content { min-height: 0; overflow: auto; overscroll-behavior: contain; }
 .utility-content > * { display: block; width: 100%; min-width: 0; }
 .utility-content > arcgis-basemap-gallery { height: 100%; overflow: auto; }
+/* Desktop: the Tasks screen sits in the right panel as a tab; the panel header
+   replaces its own, and its body scrolls inside the tab. */
+.utility-tasks-content { overflow: hidden; }
+.utility-tasks-content > .mobile-workflow:not([hidden]) { position: static; inset: auto; z-index: auto; display: grid; grid-template-rows: minmax(0,1fr); width: 100%; height: 100%; border: 0; box-shadow: none; }
+.utility-tasks-content > .mobile-workflow .mobile-workflow__header { display: none; }
 .utility-content > arcgis-legend, .utility-content .esri-elevation-profile { width: 100%; height: 100%; max-height: none; }
 .workspace-tool-pane { padding: 16px; }
 .workspace-tool { display: grid; gap: 12px; }

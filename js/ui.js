@@ -644,6 +644,7 @@ export class UIController {
   #syncUtilityPanel(preferredTab = null) {
     const tabs = [
       ...this.#utilityWidgetTabs(),
+      ...(this.utilityTasksOpen ? [{ id: "tasks", label: "Field tasks" }] : []),
       ...(this.utilityDialogOpen ? [{ id: "dialog", label: document.querySelector("#dialog-title")?.textContent || "Dialog" }] : []),
       ...(this.utilityDrawOpen ? [{ id: "draw", label: "Draw" }] : []),
       ...(this.utilityStyleLayerUid ? [{ id: "style", label: `Style: ${this.mapController.findLayer(this.utilityStyleLayerUid)?.title || "Layer"}` }] : []),
@@ -665,11 +666,35 @@ export class UIController {
     document.querySelectorAll("[data-utility-pane]").forEach((pane) => { pane.hidden = pane.dataset.utilityPane !== this.activeUtilityTab; });
     document.querySelector("#utility-title").textContent = tabs.find((tab) => tab.id === this.activeUtilityTab)?.label || "Map tools";
     const utilityModalButton = document.querySelector("#utility-open-modal");
-    if (utilityModalButton) utilityModalButton.hidden = this.activeUtilityTab === "presentation";
+    if (utilityModalButton) utilityModalButton.hidden = ["presentation", "tasks"].includes(this.activeUtilityTab);
     document.body.classList.toggle("utility-panel-open", open);
     document.body.classList.toggle("mobile-presentation-panel-open", this.mobileMedia.matches && open && this.activeUtilityTab === "presentation");
     document.querySelector("#utility-panel").setAttribute("aria-hidden", String(!open));
     requestAnimationFrame(() => this.mapController.resize());
+  }
+
+  /**
+   * Desktop: the Tasks screen is a tab of the right panel, so a docked dialog
+   * (such as a task's share card) opens as a tab beside it instead of on top.
+   */
+  dockWorkflowPanel(open) {
+    const root = document.querySelector("#mobile-workflow-root");
+    const pane = document.querySelector("#utility-tasks-content");
+    if (!root || !pane) return;
+    if (open && !this.mobileMedia.matches) {
+      if (root.parentElement !== pane) {
+        this.workflowRootHome ??= { parent: root.parentElement, next: root.nextSibling };
+        pane.append(root);
+      }
+      this.utilityTasksOpen = true;
+      this.#syncUtilityPanel("tasks");
+      return;
+    }
+    if (root.parentElement === pane && this.workflowRootHome) this.workflowRootHome.parent.insertBefore(root, this.workflowRootHome.next);
+    if (this.utilityTasksOpen) {
+      this.utilityTasksOpen = false;
+      this.#syncUtilityPanel();
+    }
   }
 
   #dismissWelcome() {
@@ -708,6 +733,11 @@ export class UIController {
   }
 
   #closeUtilityTab(tabId) {
+    if (tabId === "tasks") {
+      // The workflow router owns the Tasks screen; it returns to the map and undocks it.
+      this.events.publish("workflow:panel-closed", { route: "tasks" });
+      return;
+    }
     if (tabId === "dialog") {
       this.utilityDialogOpen = false;
       this.dialog.close();

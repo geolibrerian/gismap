@@ -11,8 +11,8 @@ const newId = (prefix) => globalThis.crypto?.randomUUID?.() || `${prefix}-${Date
 const dateLabel = (value) => value ? new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }).format(new Date(value)) : "Recently";
 
 export class MobileWorkflowRouter {
-  constructor({ events, projectManager, mapController, prepareWorkflow, openWorkflow, shareWorkflow, notify }) {
-    Object.assign(this, { events, projectManager, mapController, prepareWorkflow, openWorkflow, shareWorkflow, notify });
+  constructor({ events, projectManager, mapController, prepareWorkflow, openWorkflow, shareWorkflow, notify, dockWorkflow }) {
+    Object.assign(this, { events, projectManager, mapController, prepareWorkflow, openWorkflow, shareWorkflow, notify, dockWorkflow });
     this.media = compactMedia();
     this.store = new MobileFeedStore({ projectManager, events });
     this.root = document.querySelector("#mobile-workflow-root");
@@ -58,6 +58,7 @@ export class MobileWorkflowRouter {
       this.#syncNav();
     });
     this.events.subscribe?.("mobile:menu-toggled", () => this.#syncNav());
+    this.events.subscribe?.("workflow:panel-closed", () => { if (this.#rootOpen()) this.navigate("map"); });
     this.media.addEventListener?.("change", ({ matches }) => {
       // Rotating or resizing across the breakpoint: screens that exist only in
       // the compact app close, so they cannot resurface later.
@@ -66,7 +67,11 @@ export class MobileWorkflowRouter {
         this.route = "map";
         this.#hideRoot();
       }
-      if (this.#rootOpen()) this.render();
+      if (this.#rootOpen()) {
+        // Phones show the screen full size; desktops hold it in the right panel.
+        this.dockWorkflow?.(!matches);
+        this.render();
+      }
       this.#syncNav();
     });
     this.events.subscribe?.("identify:complete", (payload) => {
@@ -98,6 +103,7 @@ export class MobileWorkflowRouter {
     }
     this.root.hidden = false;
     document.body.classList.add("mobile-workflow-open");
+    if (!compact) this.dockWorkflow?.(true);
     this.render();
     this.#syncNav();
   }
@@ -107,6 +113,8 @@ export class MobileWorkflowRouter {
   #hideRoot() {
     if (this.root) this.root.hidden = true;
     document.body.classList.remove("mobile-workflow-open");
+    // Phones hide the screen only to show the map for a moment (picking, zooming); it stays docked on desktop.
+    if (!this.media.matches) this.dockWorkflow?.(false);
   }
 
   render() {

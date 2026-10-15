@@ -115,3 +115,14 @@ test("Clean Light keeps the full-screen mobile menu legible", async () => {
   assert.match(css, /data-skin="clean-light"\] \.mobile-menu-drawer \{ color:var\(--ink\); background:var\(--surface\); \}/);
   assert.match(css, /data-skin="clean-light"\] \.mobile-menu-drawer \.menu__trigger/);
 });
+
+test("on desktop the Tasks screen is a right-panel tab, so docked dialogs tab beside it", async () => {
+  const html = await readFile(new URL("../index.html", import.meta.url), "utf8");
+  const ui = await readFile(new URL("../js/ui.js", import.meta.url), "utf8");
+  const router = await readFile(new URL("../js/mobile-workflow-router.js", import.meta.url), "utf8");
+  assert.match(html, /id="utility-tasks-content"[^>]*data-utility-pane="tasks"/);
+  assert.match(ui, /this\.utilityTasksOpen \? \[\{ id: "tasks", label: "Field tasks" \}\]/);
+  assert.match(ui, /dockWorkflowPanel\(open\)/);
+  assert.match(router, /if \(!compact\) this\.dockWorkflow\?\.\(true\);/);
+  assert.match(router, /"workflow:panel-closed"/);
+});

@@ -6,6 +6,10 @@ All notable changes to GIS Map Online are documented here. This project follows
 
 ## [Unreleased]
 
+### Changed
+
+- On desktop, Field tasks opens as a tab in the right panel instead of a separate overlay, so docking a share dialog (the ↗ button) adds a tab beside it rather than covering it.
+
 ### Added
 
 - Field workers can check in from the completion screen: their position, accuracy, date and time, and the reverse-geocoded address are recorded. Task locations are reverse-geocoded on save with the same details as Location Intelligence. Both addresses and the check-in travel in the share links and appear in the CSV (new address and recorded_at columns) and PDF.

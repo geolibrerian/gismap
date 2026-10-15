@@ -54,5 +54,6 @@ test("a managed panel has exactly one DOM owner and returns to its original orde
 test("utility modal docking returns an existing pane instead of creating a duplicate tab", () => {
   const ui = readFileSync(new URL("../js/ui.js", import.meta.url), "utf8");
   assert.match(ui, /if \(this\.utilityModalPane\)[\s\S]*?#restoreUtilityModal\(\)[\s\S]*?#syncUtilityPanel\(returnTab\)/);
-  assert.match(ui, /utilityModalButton\.hidden = this\.activeUtilityTab === "presentation"/);
+  // Panes that own their own layout (presentation, field tasks) cannot be popped out as a modal.
+  assert.match(ui, /utilityModalButton\.hidden = \["presentation", "tasks"\]\.includes\(this\.activeUtilityTab\)/);
 });
