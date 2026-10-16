@@ -5,7 +5,7 @@ import core, { briefing, capabilities, inspectSource, queries } from "../js/gism
 import { createClientApi } from "../js/briefing-api.js";
 
 test("gismap-core exposes a versioned, declarative briefing contract", () => {
-  assert.equal(core.version, "0.23.0");
+  assert.equal(core.version, "0.23.1");
   assert.equal(capabilities.briefingSchemaVersion, 1);
   assert.ok(capabilities.filters.includes("feature_ids"));
   const document = briefing.create({
@@ -101,7 +101,38 @@ test("a briefing document names its layer and selection, and the in-page API gen
   const headless = createClientApi({ projectManager, mapController });
   await assert.rejects(() => headless.briefing.exportPdf(), /needs the GISMap app/);
   const published = JSON.parse(await readFile(new URL("../api/capabilities.json", import.meta.url), "utf8"));
-  assert.equal(published.apiVersion, "0.23.0");
+  assert.equal(published.apiVersion, "0.23.1");
   assert.ok(published.namespaces.briefing.includes("generate") && published.namespaces.briefing.includes("exportPdf"));
+  assert.deepEqual(published.namespaces.smartImages, ["embed", "read", "createShareLink", "createCurrent", "downloadCurrent"]);
   assert.ok(published.outputs.includes("briefing-pdf"));
+});
+
+test("the in-page Smart Image API returns an image and equivalent live map for an agent", async () => {
+  const service = "https://services9.arcgis.com/RHVPKKiFTONKtxq3/arcgis/rest/services/MODIS_Thermal_v1/FeatureServer/0";
+  const projectManager = {
+    current: { name: "MODIS Thermal Anomalies", presentation: { skin: "gismap" } },
+    async exportSmartImage(options) {
+      return {
+        blob: new Blob(["png"], { type: "image/png" }),
+        file: new File(["png"], "modis-smart-map.png", { type: "image/png" }),
+        project: { version: 1, layers: [{ url: service }] },
+        options,
+      };
+    },
+  };
+  const mapController = {
+    getAllLayerConfigs: () => [{ url: service, sourceType: "feature", title: "MODIS Thermal v1", visible: true }],
+    getBasemapId: () => "dark-gray-3d",
+    getViewState: () => ({ center: [-98.5, 39.5], zoom: 4, heading: 0, tilt: 35 }),
+    getOperationalLayers: () => [],
+  };
+  const api = createClientApi({ projectManager, mapController, baseUrl: () => "https://gismap.online/" });
+  const output = await api.smartImages.createCurrent();
+  assert.equal(output.file.name, "modis-smart-map.png");
+  assert.equal(output.options.download, false);
+  assert.match(output.share.url, /^https:\/\/gismap\.online\/#map=/);
+  assert.equal(output.share.payload.L[0].u, service);
+  assert.equal(output.share.payload.m, "dark-gray-3d");
+  assert.deepEqual(output.share.payload.c.c, [-98.5, 39.5]);
+  assert.equal((await api.smartImages.downloadCurrent()).options.download, true);
 });

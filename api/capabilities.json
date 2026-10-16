@@ -1,5 +1,5 @@
 {
-  "apiVersion": "0.23.0",
+  "apiVersion": "0.23.1",
   "execution": "client",
   "global": "globalThis.gisMapOnline",
   "module": "/js/gismap-core.js",
@@ -39,6 +39,8 @@
     "smartImages": [
       "embed",
       "read",
+      "createShareLink",
+      "createCurrent",
       "downloadCurrent"
     ]
   },
@@ -65,6 +67,8 @@
     "briefing.load (layer loading and presenting)",
     "briefing.generate",
     "briefing.exportPdf",
+    "smartImages.createShareLink",
+    "smartImages.createCurrent",
     "smartImages.downloadCurrent"
   ]
 }

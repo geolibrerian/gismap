@@ -1,4 +1,4 @@
-import core, { normalizeBriefing, updateSlide, validateBriefingDocument } from "./gismap-core.js?v=0.23.0";
+import core, { normalizeBriefing, updateSlide, validateBriefingDocument } from "./gismap-core.js?v=0.23.1";
 import { createShareLink } from "./map-share.js?v=0.23.1";
 import { featureLayerUrl } from "./field-task-share.js?v=0.21.0";
 
@@ -156,7 +156,32 @@ export function createBriefingApi({ projectManager, mapController, host = null, 
 
 export function createClientApi(options) {
   const briefing = createBriefingApi(options);
-  const smartImages = Object.freeze({ ...core.smartImages, downloadCurrent: (settings) => options.projectManager.exportSmartImage(settings) });
+  const currentMapLink = ({ baseUrl = null } = {}) => {
+    const project = options.projectManager.current || {};
+    const presentation = project.presentation || {};
+    return createShareLink({
+      baseUrl: baseUrl || options.baseUrl?.() || globalThis.location?.href || "https://gismap.online/",
+      kind: "map",
+      title: presentation.title || project.name || "Shared map",
+      skin: globalThis.document?.documentElement?.dataset.skin || presentation.skin,
+      basemap: options.mapController.getBasemapId?.(),
+      camera: options.mapController.getViewState?.(),
+      layers: options.mapController.getAllLayerConfigs?.() || [],
+    });
+  };
+  const createCurrent = async (settings = {}, download = false) => {
+    const [image, share] = await Promise.all([
+      options.projectManager.exportSmartImage({ ...settings, download }),
+      currentMapLink(settings).catch(() => null),
+    ]);
+    return { ...image, share };
+  };
+  const smartImages = Object.freeze({
+    ...core.smartImages,
+    createShareLink: currentMapLink,
+    createCurrent: (settings) => createCurrent(settings, false),
+    downloadCurrent: (settings) => createCurrent(settings, settings?.download !== false),
+  });
   return Object.freeze({
     version: core.version,
     capabilities: () => clone(core.capabilities),

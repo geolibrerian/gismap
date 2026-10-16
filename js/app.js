@@ -17,7 +17,7 @@ import { ApplicationRuntime } from "./application-runtime.js?v=0.18.2";
 import { PanelManager } from "./panel-manager.js?v=0.18.2";
 import { MobilePanelManager } from "./mobile-panel-manager.js?v=0.18.2";
 import { MobileWorkflowRouter } from "./mobile-workflow-router.js?v=0.25.0";
-import { createClientApi } from "./briefing-api.js?v=0.23.1";
+import { createClientApi } from "./briefing-api.js?v=0.23.2";
 
 async function loadSharedLayer(mapController, config) {
   const rootUrl = config.url.replace(/\/+$/, "");

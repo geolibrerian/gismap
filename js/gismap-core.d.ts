@@ -74,6 +74,20 @@ export type SmartImageManifest = {
   project: Record<string, unknown> & { version: 1; layers: unknown[] };
 };
 
+export type SmartImageShare = {
+  url: string;
+  payload: Record<string, unknown>;
+  qr: boolean;
+};
+
+export type SmartImageOutput = {
+  blob: Blob;
+  file: File;
+  project: SmartImageManifest["project"];
+  /** Null when the project has no public web layer that can travel in a link. */
+  share: SmartImageShare | null;
+};
+
 export const GISMAP_CORE_VERSION: string;
 export const capabilities: Readonly<Record<string, unknown>>;
 export const briefing: Readonly<{
@@ -130,6 +144,16 @@ export type InPageBriefingApi = typeof briefing & {
   /** The full share link (layers, styles, filters, skin, view), or a slides-only link with documentOnly. */
   createLink(document?: unknown, options?: { qrSafe?: boolean; documentOnly?: boolean; slide?: string; baseUrl?: string; compress?: boolean }): Promise<string>;
   exportGmo(document?: unknown, options?: { fileName?: string }): { fileName: string; mimeType: string; text: string; blob: Blob };
+};
+
+/** The Smart Image API bound to the currently open GISMap project and map. */
+export type InPageSmartImagesApi = typeof smartImages & {
+  /** A live-map link preserving public layers, styles, filters, camera, basemap and skin. */
+  createShareLink(options?: { baseUrl?: string }): Promise<SmartImageShare>;
+  /** Renders a Smart Image in memory without starting a browser download. */
+  createCurrent(options?: { width?: number; height?: number; baseUrl?: string }): Promise<SmartImageOutput>;
+  /** Renders and downloads a Smart Image; pass download:false to suppress the download. */
+  downloadCurrent(options?: { width?: number; height?: number; baseUrl?: string; download?: boolean }): Promise<SmartImageOutput>;
 };
 
 declare const core: Readonly<{
