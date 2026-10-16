@@ -6,6 +6,11 @@ All notable changes to GIS Map Online are documented here. This project follows
 
 ## [Unreleased]
 
+### Briefing Features tab
+
+- **Add included features as slides** right from the Features tab, as soon as features are included (or "Use all matching features" is on); the new slides open in the Slides tab. Features that already have a slide are not added twice.
+- On desktop the Features tab is the same double-wide workspace as Slides: search, filters and selection tools on the left, the feature list on the right, so switching tabs keeps the panel's size and leaves room for more filters.
+
 ### Briefings: other layers on each slide (0.28.0)
 
 - A briefing keeps one **main layer**, and every other loaded layer can now be part of its slides. Each map slide's details have an **Other layers** section: tick the layers to show with the main layer on that slide (unticked ones are hidden while it shows).

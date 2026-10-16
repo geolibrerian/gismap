@@ -184,7 +184,19 @@ export class BriefingSlides {
     this.api.notify?.("Slide added. Open the Slides tab to edit it.");
   }
 
-  #addIncluded() {
+  /** Included features that do not have a slide yet (the Features tab offers to add them). */
+  pendingIncluded() {
+    const data = this.api.data();
+    const included = data.useAll ? data.visibleRecords : data.records.filter((record) => data.selectedIds.has(this.#idOf(record)));
+    const existing = new Set(this.briefing.slides.map((slide) => slide.featureId).filter(Boolean));
+    return included.filter((record) => {
+      const id = this.#idOf(record);
+      return id && !existing.has(id);
+    });
+  }
+
+  /** Adds a feature slide for each included feature without one; returns how many were added. */
+  addIncluded() {
     const data = this.api.data();
     const included = data.useAll ? data.visibleRecords : data.records.filter((record) => data.selectedIds.has(this.#idOf(record)));
     let briefing = this.briefing;
@@ -199,6 +211,7 @@ export class BriefingSlides {
     }
     this.#save(briefing);
     this.api.notify?.(added ? `Added ${added} feature slide${added === 1 ? "" : "s"}.` : "Every included feature already has a slide.");
+    return added;
   }
 
   #addTemplate(template) {
@@ -380,7 +393,7 @@ export class BriefingSlides {
       if (slide && (slide.camera || slide.fit)) void this.showSlideMap(slide);
     });
     on("[data-slide-add]", "click", () => this.#addTemplate(container.querySelector("[data-slide-template]").value));
-    on("[data-slides-add-included]", "click", () => this.#addIncluded());
+    on("[data-slides-add-included]", "click", () => this.addIncluded());
     on("[data-slide-move]", "click", (button) => this.#save(moveSlide(this.briefing, button.dataset.slideId, Number(button.dataset.slideMove))));
     on("[data-slide-duplicate]", "click", (button) => this.#save(duplicateSlide(this.briefing, button.dataset.slideDuplicate)));
     on("[data-slide-hide]", "click", (button) => {

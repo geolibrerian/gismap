@@ -868,6 +868,15 @@ body.briefing-map-select #view-div, body.briefing-map-select .esri-view-surface 
   body.briefing-slides-tab .briefing-slides__authoring { display:flex; flex-direction:column; overflow:hidden; }
   body.briefing-slides-tab .briefing-slide-list { flex:1 1 220px; max-height:none; }
   body.briefing-slides-tab .briefing-slide-editor { height:100%; }
+  /* Features: the same width as Slides, with search and filters on the left and the feature list on the right. */
+  body.briefing-features-tab:not(.presentation-workspace-panels-open) #app[data-presentation="briefing"] { --sidebar:clamp(720px,58vw,980px); }
+  body.briefing-features-tab:not(.presentation-workspace-panels-open) #presentation-dashboard { flex:1 1 auto; min-height:0; overflow:hidden; }
+  body.briefing-features-tab:not(.presentation-workspace-panels-open) .mode-dashboard--briefing { grid-template-columns:minmax(320px,.9fr) minmax(340px,1.1fr); grid-template-rows:max-content max-content max-content max-content minmax(0,1fr); column-gap:16px; align-content:start; height:100%; overflow:hidden; }
+  body.briefing-features-tab:not(.presentation-workspace-panels-open) .mode-dashboard--briefing > :is(header,.briefing-tabs) { grid-column:1 / -1; }
+  body.briefing-features-tab:not(.presentation-workspace-panels-open) .mode-dashboard--briefing > :is(.briefing-search,.briefing-select,.briefing-location-details) { grid-column:1; }
+  body.briefing-features-tab:not(.presentation-workspace-panels-open) .mode-dashboard--briefing > .briefing-location-details { grid-row:5; align-self:start; max-height:100%; overflow:auto; }
+  body.briefing-features-tab:not(.presentation-workspace-panels-open) .mode-dashboard--briefing > .briefing-records-fold { grid-column:2; grid-row:3 / -1; display:flex; flex-direction:column; min-height:0; overflow:hidden; }
+  body.briefing-features-tab:not(.presentation-workspace-panels-open) .briefing-records-fold > .briefing-records { flex:1 1 auto; min-height:0; max-height:none!important; overflow:auto; }
   body.presentation-workspace-panels-open .presentation-utility .briefing-slides { grid-template-columns:1fr; height:auto; overflow:visible; }
   body.presentation-workspace-panels-open .presentation-utility .briefing-slides__authoring { display:grid; overflow:visible; }
   body.presentation-workspace-panels-open .presentation-utility .briefing-slide-list { max-height:38vh; }
@@ -2139,3 +2148,4 @@ body.sidebar-collapsed .table-dialog { left: 14px; }
 .briefing-layer__relation label { display: grid; gap: 3px; font-size: 11px; font-weight: 600; color: var(--muted); }
 .briefing-layer__distance { display: grid; grid-template-columns: minmax(0, 1fr) 90px; gap: 6px; }
 .briefing-layers .form-note { margin: 0; font-size: 11px; font-weight: 500; color: var(--muted); }
+.briefing-select__add-slides { width:100%; min-height:34px; padding:6px 12px; border:1px solid var(--green); border-radius:var(--ui-radius-small,7px); color:var(--green); background:var(--surface); font-weight:800; cursor:pointer; }

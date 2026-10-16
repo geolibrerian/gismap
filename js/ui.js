@@ -15,7 +15,7 @@ import { featureLayerUrl, locationUrl } from "./field-task-share.js?v=0.29.0";
 import { dockIcon } from "./dock-icons.js?v=0.24.0";
 import { serviceNameFromUrl } from "./service-name.js?v=0.26.0";
 import { decodeQrFromImage, describeGisMapLink, gisMapLinkFrom, openGisMapLink } from "./qr-import.js?v=0.25.1";
-import { BriefingSlides } from "./briefing-slides.js?v=0.32.0";
+import { BriefingSlides } from "./briefing-slides.js?v=0.33.0";
 import { createSlide, matchesFilter, normalizeFilter } from "./briefing-document.js?v=0.32.0";
 import { aiDescriptionPrompt, applyAiDescriptions, describeWhere, generateBriefing, readAiDescriptions, rendererTheme } from "./briefing-generator.js?v=0.32.0";
 import { briefingFileStem } from "./briefing-pdf.js?v=0.23.0";
@@ -2764,7 +2764,7 @@ export class UIController {
     if (template !== "briefing") {
       document.querySelector("#briefing-context-host")?.replaceChildren();
       this.briefingSlides?.closePlayer();
-      document.body.classList.remove("briefing-slides-tab");
+      document.body.classList.remove("briefing-slides-tab", "briefing-features-tab");
     }
     this.#syncPresentationMobileControls(presentation);
     if (template === "standard") { root.replaceChildren(); root.hidden = true; return; }
@@ -3120,6 +3120,8 @@ export class UIController {
     }).join("");
     const tools = document.createElement("section");
     tools.className = "briefing-select";
+    // Included features without a slide yet: the same action as on the Slides tab, where it is first needed.
+    const pendingSlides = this.briefingSlides?.pendingIncluded().length || 0;
     tools.innerHTML = `<div class="briefing-select__modes">
         <button type="button" data-select-view aria-pressed="${state.scope === "extent"}" title="Only list features in the current map view">◱ In view</button>
         <button type="button" data-select-map aria-pressed="${Boolean(state.mapSelect)}" title="Click features on the map to include or remove them">⊕ Pick on map</button>
@@ -3129,9 +3131,16 @@ export class UIController {
       ${conditionRows ? `<div class="briefing-conditions">${conditionRows}</div>` : ""}
       ${groups.length ? `<div class="briefing-groups">${groups.map(([value, count]) => `<span class="briefing-group${activeGroup != null && String(activeGroup) === value ? " is-active" : ""}"><button type="button" data-group-filter="${escapeHtml(value)}" title="Show only this group">${escapeHtml(value || "No value")} <b>${count}</b></button><button type="button" data-group-include="${escapeHtml(value)}" title="Include all ${count} in the briefing" aria-label="Include all ${escapeHtml(value || "no value")}">+</button></span>`).join("")}</div>` : ""}
       <div class="briefing-select__bulk"><span>${state.visibleRecords.length.toLocaleString()} shown${state.scope === "extent" ? " in view" : ""} · ${state.selectedIds.size.toLocaleString()} included</span><button type="button" data-include-shown${state.visibleRecords.length ? "" : " disabled"}>Include shown</button><button type="button" data-include-clear${state.selectedIds.size ? "" : " disabled"}>Clear</button></div>
+      ${pendingSlides ? `<button type="button" class="briefing-select__add-slides" data-include-slides>Add ${pendingSlides.toLocaleString()} included feature${pendingSlides === 1 ? "" : "s"} as slides</button>` : ""}
       <button type="button" class="briefing-select__generate" data-generate-briefing data-mobile-bar data-bar-label="Make briefing" title="Build slides from the map's style, filter and these features">✦ Make a briefing from this view</button>`;
     const refresh = () => { state.page = 1; this.#saveBriefingSelection(); this.#filterPresentationRecords(); };
     const on = (selector, type, handler) => tools.querySelectorAll(selector).forEach((element) => element.addEventListener(type, () => handler(element)));
+    on("[data-include-slides]", "click", () => {
+      if (!this.briefingSlides.addIncluded()) return;
+      // Show the new slides.
+      this.briefingTab = "slides";
+      this.#renderBriefingWorkspace(root, presentation, layer, fields);
+    });
     on("[data-select-view]", "click", async () => {
       state.scope = state.scope === "extent" ? "all" : "extent";
       if (state.scope === "extent") await this.#loadExtentRecords();
@@ -3219,6 +3228,8 @@ export class UIController {
         row.append(button);
       });
     }
+    // Set first: the selection tools count the slides each included feature already has.
+    this.briefingWorkspace = { root, presentation, layer, fields };
     root.querySelector(".briefing-search")?.after(this.#briefingSelectTools(root, presentation, layer, fields));
     if (selected) {
       const location = document.createElement("section");
@@ -3227,7 +3238,6 @@ export class UIController {
       root.querySelector(".briefing-records")?.after(location);
       document.body.dataset.briefingContextDock = contextSettings.dock;
     }
-    this.briefingWorkspace = { root, presentation, layer, fields };
     const workspace = root.querySelector(".mode-dashboard--briefing");
     const tabs = document.createElement("div");
     tabs.className = "briefing-tabs";
@@ -3280,6 +3290,8 @@ export class UIController {
     });
     document.querySelector(".mode-dashboard--briefing")?.classList.toggle("is-slides", slidesTab);
     document.body.classList.toggle("briefing-slides-tab", slidesTab && this.presentationState?.template === "briefing");
+    // Both tabs are the same double-wide workspace on desktop, so switching keeps its size.
+    document.body.classList.toggle("briefing-features-tab", !slidesTab && this.presentationState?.template === "briefing");
     document.body.classList.toggle("briefing-map-select", Boolean(this.presentationState?.mapSelect) && this.presentationState?.template === "briefing");
   }
 
