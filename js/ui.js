@@ -1,4 +1,6 @@
 import { POPULAR_SERVICES } from "./catalog.js?v=0.18.2";
+import { MapAssistantPanel } from "./assistant-panel.js?v=0.36.3";
+import { createAssistantTools, summarizeMapState } from "./map-assistant.js?v=0.36.3";
 import { ENTERPRISE_CATALOGS, EnterpriseCatalog, normalizeArcGisDirectoryUrl } from "./enterprise-catalog.js?v=0.18.2";
 import { createShareUrl } from "./share.js?v=0.29.0";
 import { createShareLink, hasDataFilter } from "./map-share.js?v=0.35.0";
@@ -17,7 +19,7 @@ import { serviceNameFromUrl } from "./service-name.js?v=0.26.0";
 import { decodeQrFromImage, describeGisMapLink, gisMapLinkFrom, openGisMapLink } from "./qr-import.js?v=0.25.1";
 import { BriefingSlides } from "./briefing-slides.js?v=0.35.0";
 import { createSlide, matchesFilter, normalizeFilter } from "./briefing-document.js?v=0.35.0";
-import { aiDescriptionPrompt, applyAiDescriptions, describeWhere, generateBriefing, readAiDescriptions, rendererTheme } from "./briefing-generator.js?v=0.35.0";
+import { aiDescriptionPrompt, applyAiDescriptions, describeWhere, generateBriefing, readAiDescriptions, rendererTheme } from "./briefing-generator.js?v=0.36.1";
 import { briefingFileStem } from "./briefing-pdf.js?v=0.23.0";
 import { rampColors } from "./renderer-spec.js?v=0.29.0";
 
@@ -84,6 +86,14 @@ export class UIController {
     this.briefingFolds = { records: true, context: false };
     // Briefing has two tabs: Features (investigate) and Slides (author the presentation).
     this.briefingTab = "features";
+    // The Map assistant: a chat with the configured AI model that builds maps, briefings, tours and field tasks.
+    this.assistant = new MapAssistantPanel({
+      ai: this.aiController,
+      tools: () => (this.assistantTools ??= createAssistantTools(this.#assistantHost())),
+      state: () => summarizeMapState(globalThis.gisMapOnline),
+      configure: () => this.#aiDialog(),
+    });
+    this.applicationRuntime.mountAssistant = (host) => this.assistant.mount(host);
     this.briefingSlides = new BriefingSlides({
       getBriefing: () => this.projectManager.current.presentation?.briefing,
       saveBriefing: (briefing) => {
@@ -579,6 +589,7 @@ export class UIController {
       document.querySelector("#insights-overlay").setAttribute("aria-busy", "false");
       this.error(`Identify failed: ${error.message}`);
     });
+    this.events.subscribe("ai:configured", () => this.assistant.render());
     this.events.subscribe("ai:start", () => {
       this.aiPending = true;
       this.lastAIResponseText = null;
@@ -713,6 +724,7 @@ export class UIController {
       ...(this.utilityDrawOpen ? [{ id: "draw", label: "Draw" }] : []),
       ...(this.utilityStyleLayerUid ? [{ id: "style", label: `Style: ${this.mapController.findLayer(this.utilityStyleLayerUid)?.title || "Layer"}` }] : []),
       ...(this.utilityIntelligenceOpen ? [{ id: "intelligence", label: "Intelligence" }] : []),
+      ...(this.utilityAssistantOpen ? [{ id: "assistant", label: "Map assistant" }] : []),
       ...(this.utilityPresentationOpen ? [{ id: "presentation", label: this.projectManager.current.presentation?.template === "briefing" ? "Context briefing" : this.projectManager.current.presentation?.template === "explorer" ? "Dataset explorer" : this.projectManager.current.presentation?.title || "Guided places" }] : []),
     ];
     const validTabs = new Set(tabs.map((tab) => tab.id));
@@ -865,6 +877,11 @@ export class UIController {
       this.#syncUtilityPanel();
       return;
     }
+    if (tabId === "assistant") {
+      this.utilityAssistantOpen = false;
+      this.#syncUtilityPanel();
+      return;
+    }
     if (tabId === "intelligence") {
       this.utilityIntelligenceOpen = false;
       this.panelManager?.restore("content:intelligence", { restoreShell: false });
@@ -1009,6 +1026,9 @@ export class UIController {
           break;
         case "tools-ai":
           this.#aiDialog();
+          break;
+        case "tools-assistant":
+          this.openAssistant();
           break;
         case "tools-display":
           this.#displaySettingsDialog();
@@ -1377,6 +1397,62 @@ export class UIController {
    * a briefing's features, or anything else with coordinates.
    * `places` are { title, body, latitude, longitude, zoom, address }.
    */
+  /** Opens the Map assistant in the right panel. */
+  openAssistant() {
+    const pane = document.querySelector("#utility-assistant-content");
+    if (!pane) return;
+    if (this.assistant.host !== pane) this.assistant.mount(pane);
+    this.utilityAssistantOpen = true;
+    this.#syncUtilityPanel("assistant");
+    requestAnimationFrame(() => pane.querySelector("[data-assistant-input]")?.focus());
+  }
+
+  /** What the Map assistant's tools reach in the app (see map-assistant.js createAssistantTools). */
+  #assistantHost() {
+    return {
+      api: globalThis.gisMapOnline,
+      catalog: POPULAR_SERVICES,
+      setBasemap: (id) => this.mapController.setBasemap(id),
+      createTour: (places, options) => this.createTourFromPlaces(places, { ...options, open: true }),
+      draftFieldTask: (draft) => this.fieldTasks?.newTaskFrom(draft),
+      presentBriefing: async () => {
+        const api = globalThis.gisMapOnline;
+        await api.briefing.load(api.briefing.get(), { present: true }).ready;
+      },
+      // Features read for the model: object ID, a point, and the asked-for fields (plus the display field).
+      queryFeatures: async (ref, { where, fields = [], orderBy, limit = 10 } = {}) => {
+        const info = globalThis.gisMapOnline.layers.get(String(ref));
+        const layer = info && this.mapController.findLayer(info.id);
+        if (!layer?.queryFeatures) throw Object.assign(new Error(`No queryable layer on the map matches "${ref}".`), { hint: "Add the layer first, or use a layer id from get_map_state." });
+        await layer.load();
+        const known = new Set((layer.fields || []).map((field) => field.name));
+        const missing = fields.filter((name) => !known.has(name));
+        if (missing.length) throw Object.assign(new Error(`Unknown field${missing.length === 1 ? "" : "s"}: ${missing.join(", ")}.`), { code: "FIELD_NOT_FOUND", hint: `Fields: ${[...known].slice(0, 60).join(", ")}` });
+        const outFields = [...new Set([layer.objectIdField, layer.displayField, ...fields].filter(Boolean))];
+        const query = layer.createQuery();
+        Object.assign(query, { where: [layer.definitionExpression, where].filter(Boolean).map((part) => `(${part})`).join(" AND ") || "1=1", outFields, returnGeometry: true, num: limit, ...(orderBy ? { orderByFields: [orderBy] } : {}) });
+        const { features = [] } = await layer.queryFeatures(query);
+        return features.map((feature) => {
+          const point = this.mapController.geographicCoordinates(feature.geometry);
+          return { objectId: feature.attributes?.[layer.objectIdField], ...(point ? { longitude: Number(point.longitude.toFixed(5)), latitude: Number(point.latitude.toFixed(5)) } : {}), attributes: Object.fromEntries(outFields.map((name) => [name, feature.attributes?.[name]])) };
+        });
+      },
+      // A feature by object ID, as a field task's place: its layer URL and a point on it.
+      featurePlace: async (ref, objectId, label = "") => {
+        const info = globalThis.gisMapOnline.layers.get(String(ref));
+        const layer = info && this.mapController.findLayer(info.id);
+        if (!layer?.queryFeatures) throw Object.assign(new Error(`No queryable layer on the map matches "${ref}".`), { hint: "Use a layer id from get_map_state." });
+        const query = layer.createQuery();
+        Object.assign(query, { objectIds: [Number.isFinite(Number(objectId)) ? Number(objectId) : objectId], outFields: ["*"], returnGeometry: true });
+        const [feature] = (await layer.queryFeatures(query)).features;
+        if (!feature) throw Object.assign(new Error(`Feature ${objectId} was not found in ${info.title}.`), { hint: "Use an object ID from the layer." });
+        const point = this.mapController.geographicCoordinates(feature.geometry);
+        const name = label || feature.attributes?.[layer.displayField] || `${info.title} ${objectId}`;
+        return { layerUrl: info.url, objectId: feature.attributes?.[layer.objectIdField] ?? objectId, latitude: point?.latitude, longitude: point?.longitude, label: String(name).slice(0, 80) };
+      },
+    };
+  }
+
   createTourFromPlaces(places = [], { title = "", open = true } = {}) {
     const usable = places.filter((place) => Number.isFinite(place?.latitude) && Number.isFinite(place?.longitude));
     if (!usable.length) return this.error("There are no places with coordinates to tour.");
@@ -1389,7 +1465,7 @@ export class UIController {
       body: String(place.body || "").slice(0, 600),
       mediaUrl: "",
       reverseAddress: place.address || "",
-      viewState: { type: "scene", center: [place.longitude, place.latitude], zoom: place.zoom ?? 15, heading: 0, tilt: 0 },
+      viewState: { type: "scene", center: [place.longitude, place.latitude], zoom: place.zoom ?? 15, heading: place.heading ?? 0, tilt: place.tilt ?? 0 },
       viewpoint: null,
       basemapId: this.mapController.getBasemapId(),
       lingerSeconds: 5,

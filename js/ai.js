@@ -1,3 +1,5 @@
+import { fromProviderResponse, toProviderRequest } from "./map-assistant.js?v=0.36.3";
+
 const CONFIG_KEY = "gismap-online:ai-config:v2";
 const LEGACY_CONFIG_KEY = "gismap-online:ai-config:v1";
 
@@ -104,7 +106,7 @@ async function responseError(response, provider) {
   let detail = "";
   try {
     const payload = await response.json();
-    detail = payload?.error?.message || payload?.message || "";
+    detail = payload?.error?.message || (typeof payload?.error === "string" ? payload.error : "") || payload?.message || "";
   } catch {
     // Some gateways return an empty or non-JSON error response.
   }
@@ -269,14 +271,50 @@ export class AIController {
     }
   }
 
+  /**
+   * One round of the Map assistant's conversation (js/map-assistant.js): sends the
+   * instructions, the messages and the tools, and returns { content, toolCalls }.
+   * `instructions(textTools)` writes the system message. A model that rejects tools
+   * is asked again with the tools described in text, and stays that way this session.
+   */
+  async chat(messages, { instructions, signal = null } = {}) {
+    if (!this.isConfigured()) throw new Error("Configure an AI provider from Tools first.");
+    const { provider, endpoint, model } = this.config;
+    const send = async (textTools) => {
+      const { path, body } = toProviderRequest(provider, { model, system: instructions(textTools), messages, textTools });
+      const headers = { "Content-Type": "application/json" };
+      if (provider === "anthropic") Object.assign(headers, { "x-api-key": this.token, "anthropic-version": "2023-06-01", "anthropic-dangerous-direct-browser-access": "true" });
+      else if (provider !== "ollama") headers.Authorization = `Bearer ${this.token}`;
+      const options = { method: "POST", headers, body: JSON.stringify(body), signal };
+      const response = provider === "ollama"
+        ? await this.#fetchOllama(`${endpoint}${path}`, options, endpoint, 300000)
+        : await fetch(`${endpoint}${path}`, options);
+      if (!response.ok) {
+        const message = await responseError(response, provider === "ollama" ? "Ollama" : "The AI provider");
+        return { error: message, status: response.status };
+      }
+      return { reply: fromProviderResponse(provider, await response.json(), { textTools }) };
+    };
+    let result = await send(this.textTools === true);
+    if (result.error && !this.textTools && result.status === 400 && /tool|function/i.test(result.error)) {
+      this.textTools = true;
+      result = await send(true);
+    }
+    if (result.error) throw new Error(result.error);
+    return result.reply;
+  }
+
   async #fetchOllama(url, options, endpoint, timeoutMs = 8000) {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), timeoutMs);
+    // A caller's signal (the assistant's Stop button) also cancels the request.
+    options.signal?.addEventListener("abort", () => controller.abort(), { once: true });
     try {
       return await fetch(url, { ...options, signal: controller.signal });
     } catch (error) {
       const origin = globalThis.location?.origin || "this site";
       if (error?.name === "AbortError") {
+        if (options.signal?.aborted) throw error;
         throw new Error(`Ollama at ${endpoint} did not respond before the connection timed out.`);
       }
       if (error instanceof TypeError || /failed to fetch|network/i.test(error?.message || "")) {

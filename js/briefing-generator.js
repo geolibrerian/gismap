@@ -16,13 +16,17 @@ const number = (value) => (Number.isFinite(value) ? value.toLocaleString(undefin
  * (categories, classes or a continuous ramp/size), and its categories or classes.
  * Accepts renderer JSON as layer.renderer.toJSON() writes it.
  */
+// Styles that keep codes like -1 out of their classes draw from an Arcade expression
+// ($feature["FIELD"]) instead of naming the field; the field is read from it.
+const expressionField = (renderer) => String(renderer?.valueExpression || "").match(/\$feature\[(?:"([^"]+)"|'([^']+)')\]|\$feature\.([A-Za-z_]\w*)/)?.slice(1).find(Boolean) || null;
+
 export function rendererTheme(renderer) {
   if (!renderer || typeof renderer !== "object") return { kind: "none", field: null };
   const variable = (renderer.visualVariables || []).find((item) => item?.field);
   if (renderer.type === "uniqueValue" && renderer.field1) {
     return { kind: "categories", field: renderer.field1, categories: (renderer.uniqueValueInfos || []).map((info) => ({ value: info.value, label: info.label || String(info.value) })) };
   }
-  if (renderer.type === "classBreaks" && renderer.field) {
+  if (renderer.type === "classBreaks" && (renderer.field || expressionField(renderer))) {
     let lower = Number.isFinite(renderer.minValue) ? renderer.minValue : -Infinity;
     const classes = (renderer.classBreakInfos || []).map((info) => {
       const min = Number.isFinite(info.classMinValue) ? info.classMinValue : lower;
@@ -30,7 +34,7 @@ export function rendererTheme(renderer) {
       lower = max;
       return { min, max, label: info.label || `${number(min)} – ${number(max)}` };
     });
-    return { kind: "classes", field: renderer.field, classes };
+    return { kind: "classes", field: renderer.field || expressionField(renderer), classes };
   }
   if (variable) return { kind: variable.type === "sizeInfo" ? "size" : "ramp", field: variable.field };
   if (renderer.type === "heatmap") return { kind: "heat", field: renderer.field || null };

@@ -6,6 +6,16 @@ All notable changes to GIS Map Online are documented here. This project follows
 
 ## [Unreleased]
 
+### Map assistant: chat with your map
+
+- **Tools → Map assistant**: a chat with the AI model connected in Configure AI (local Ollama, OpenAI, Anthropic or an OpenAI-compatible endpoint) that builds **interactive maps, briefings, guided tours and field tasks**. Each action it takes shows in the conversation as it happens (with its arguments and result), Stop cancels a turn, and field tasks open as drafts to check before sharing. The composable "AI Map Assistant" panel is now the same chat.
+- **Instructions without registration**: the app writes the model's system message itself on every turn: how to work from data (inspect fields first, exclude sentinel codes, take names, places and IDs from the data, never invent URLs or numbers), the map, briefing, tour and task formats, and the live map state.
+- **17 tools** (`js/map-assistant.js`) over the in-page API: map state, inspect a source, search the curated datasets, query features (real names, IDs and coordinates), add/update/remove layers, suggest styles, set the view or basemap, load a whole map spec, create, generate or present a briefing, create a tour, draft a field task, and get a share link.
+- **Native tool calling** for Ollama (`/api/chat`), OpenAI and OpenAI-compatible endpoints (Chat Completions) and Anthropic (Messages); a model that rejects tools is guided through fenced JSON tool calls instead, for the rest of the session.
+- Tested with a local `qwen3.8:27b` through Ollama: a styled corn map (fields inspected, -1 excluded, automatic classes), a drafted briefing, a five-ballpark tour built from the layer's own names, coordinates and capacities, and a two-site field task with real object IDs.
+- *Make a briefing from this view* now recognises styles that draw from an Arcade expression (those that exclude codes like -1), so their field drives the class and feature slides.
+- Tours made from places can carry tilt and heading.
+
 ### Slide facts skip IDs and geometry measurements
 
 - Feature slides no longer list a layer's IDs and geometry measurements by default (OBJECTID, GlobalID, Shape__Area, Shape__Length, SHAPE_Leng, PERIMETER and fields typed as IDs or geometry), whether the slides come from Make a briefing from this view or from adding included features. They stay in the "Facts to show" list to tick by hand. One rule, `isRoutineField` in `briefing-document.js`, decides for both.

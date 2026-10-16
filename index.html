@@ -61,7 +61,7 @@
     <link rel="help" href="/guides/ai-agents/" />
     <link rel="preconnect" href="https://js.arcgis.com" />
     <link rel="stylesheet" href="https://js.arcgis.com/5.0/esri/themes/light/main.css" />
-    <link rel="stylesheet" href="./css/app.css?v=0.33.0" />
+    <link rel="stylesheet" href="./css/app.css?v=0.36.0" />
     <script type="module" src="https://js.arcgis.com/5.0/"></script>
     <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
     <script src="https://unpkg.com/@mapbox/shp-write@0.4.3/shpwrite.js"></script>
@@ -164,6 +164,7 @@
             <div class="menu__content" role="menu">
               <button data-action="tools-connections">ArcGIS connections</button>
               <button data-action="tools-custom">Load custom JavaScript tool</button>
+              <button data-action="tools-assistant">Map assistant</button>
               <button data-action="tools-ai">Configure AI</button>
               <button data-action="tools-about">About this build</button>
             </div>
@@ -358,6 +359,7 @@
           <div id="utility-draw-content" class="utility-content workspace-tool-pane" data-utility-pane="draw" hidden></div>
           <div id="utility-style-content" class="utility-content workspace-tool-pane" data-utility-pane="style" hidden></div>
           <div id="utility-intelligence-content" class="utility-content intelligence-utility" data-utility-pane="intelligence" hidden></div>
+          <div id="utility-assistant-content" class="utility-content assistant-utility" data-utility-pane="assistant" hidden></div>
           <div id="utility-presentation-content" class="utility-content presentation-utility" data-utility-pane="presentation" hidden></div>
           <div id="utility-tasks-content" class="utility-content utility-tasks-content" data-utility-pane="tasks" hidden></div>
           <div id="utility-dialog-content" class="utility-content utility-dialog-content" data-utility-pane="dialog" hidden></div>
@@ -420,6 +422,6 @@
       </ul>
     </section>
     <noscript>GIS Map Online is an interactive 3D map viewer and needs JavaScript. Without it, a map can still be described as a link: see <a href="/llms.txt">/llms.txt</a> and the <a href="/guides/ai-agents/">guide for AI agents</a>.</noscript>
-    <script type="module" src="./js/app.js?v=0.35.0"></script>
+    <script type="module" src="./js/app.js?v=0.36.3"></script>
   </body>
 </html>

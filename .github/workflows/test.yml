@@ -54,6 +54,8 @@ jobs:
           node --check js/export/export-controller.js
           node --check js/export/export-worker.js
           node --check js/share.js
+          node --check js/map-assistant.js
+          node --check js/assistant-panel.js
           node --check js/markdown.js
           node --check js/catalog.js
           node --check scripts/build-examples.mjs

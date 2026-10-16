@@ -337,7 +337,7 @@ export class ApplicationRuntime {
       },
     });
     this.panels.register({
-      type: "ai-chatbot", displayName: "AI Map Assistant", description: "Query data and run approved map actions through the shared tool registry.", category: "Analysis", bindings: ["active-layer", "shared-selection", "shared-time"], placements: ["left", "right", "bottom", "floating"], multiple: false,
+      type: "ai-chatbot", displayName: "AI Map Assistant", description: "Chat with your AI model to build maps, briefings, tours and field tasks.", category: "Analysis", bindings: ["active-layer", "shared-selection", "shared-time"], placements: ["left", "right", "bottom", "floating"], multiple: false,
       mount: (host, context) => this.#mountAIQueryPanel(host, context),
     });
     this.panels.register({
@@ -390,6 +390,9 @@ export class ApplicationRuntime {
   }
 
   #mountAIQueryPanel(host, context) {
+    // The app's Map assistant (js/assistant-panel.js) when the UI provides it; the
+    // rule-based query planner below remains for headless and test runtimes.
+    if (this.mountAssistant) return this.mountAssistant(host, context);
     const catalog = this.#catalogWithActiveLayer();
     const session = this.panelSessions.get(context.config.instanceId) || { prompt: "", messages: [] };
     this.panelSessions.set(context.config.instanceId, session);

@@ -2149,3 +2149,43 @@ body.sidebar-collapsed .table-dialog { left: 14px; }
 .briefing-layer__distance { display: grid; grid-template-columns: minmax(0, 1fr) 90px; gap: 6px; }
 .briefing-layers .form-note { margin: 0; font-size: 11px; font-weight: 500; color: var(--muted); }
 .briefing-select__add-slides { width:100%; min-height:34px; padding:6px 12px; border:1px solid var(--green); border-radius:var(--ui-radius-small,7px); color:var(--green); background:var(--surface); font-weight:800; cursor:pointer; }
+
+/* Map assistant: a chat with the configured AI model that acts on the map. */
+.assistant-utility { display: flex; min-height: 0; }
+.assistant { display: flex; flex: 1; flex-direction: column; gap: 10px; min-height: 0; height: 100%; padding: 12px; }
+.assistant__head { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
+.assistant__head > div { display: grid; }
+.assistant__head small { color: var(--muted); font-size: 11px; }
+.assistant__log { flex: 1 1 auto; min-height: 180px; overflow: auto; display: flex; flex-direction: column; gap: 8px; padding: 2px; }
+.assistant__message { max-width: 92%; padding: 9px 12px; border-radius: 12px; font-size: 13px; line-height: 1.45; overflow-wrap: anywhere; }
+.assistant__message p { margin: 0 0 6px; }
+.assistant__message p:last-child { margin-bottom: 0; }
+.assistant__message--user { align-self: flex-end; color: white; background: var(--green); border-bottom-right-radius: 4px; }
+.assistant__message--assistant { align-self: flex-start; color: var(--ink); background: var(--surface); border: 1px solid var(--line); border-bottom-left-radius: 4px; }
+.assistant__message--error { align-self: stretch; color: var(--danger, #b3261e); background: color-mix(in srgb, var(--danger, #b3261e) 8%, var(--surface)); border: 1px solid color-mix(in srgb, var(--danger, #b3261e) 35%, var(--line)); }
+.assistant__message--note { align-self: center; color: var(--muted); font-size: 12px; }
+.assistant__tool { align-self: flex-start; max-width: 92%; border: 1px solid var(--line); border-radius: 8px; background: var(--surface-2); font-size: 12px; }
+.assistant__tool summary { display: flex; gap: 6px; align-items: baseline; padding: 6px 10px; color: var(--ink); cursor: pointer; list-style: none; }
+.assistant__tool summary::-webkit-details-marker { display: none; }
+.assistant__tool.is-done summary > span { color: var(--green); font-weight: 800; }
+.assistant__tool.is-failed summary > span { color: var(--danger, #b3261e); font-weight: 800; }
+.assistant__tool.is-pending summary { color: var(--muted); }
+.assistant__tool pre { max-height: 220px; margin: 0; padding: 8px 10px; overflow: auto; border-top: 1px solid var(--line); font-size: 11px; white-space: pre-wrap; word-break: break-word; }
+.assistant__thinking { align-self: flex-start; color: var(--muted); font-size: 12px; animation: assistant-pulse 1.4s ease-in-out infinite; }
+@keyframes assistant-pulse { 50% { opacity: .45; } }
+@media (prefers-reduced-motion: reduce) { .assistant__thinking { animation: none; } }
+.assistant__empty p { margin: 0 0 10px; color: var(--muted); font-size: 13px; }
+.assistant__starters { display: grid; gap: 6px; }
+.assistant__starters button { padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; color: var(--ink); background: var(--surface); text-align: left; font-size: 12px; cursor: pointer; }
+.assistant__starters button:hover { border-color: var(--green); }
+.assistant__form { display: grid; gap: 6px; }
+.assistant__form textarea { width: 100%; min-height: 64px; padding: 9px 10px; border: 1px solid var(--line); border-radius: 8px; color: var(--ink); background: var(--surface); font: inherit; font-size: 13px; resize: vertical; }
+.assistant__actions { display: flex; justify-content: flex-end; gap: 6px; }
+.assistant__actions button { min-height: 32px; padding: 6px 14px; border: 1px solid var(--green); border-radius: 6px; color: var(--green); background: var(--surface); font-weight: 700; cursor: pointer; }
+.assistant__actions .button--primary { color: white; background: var(--green); }
+.assistant__actions button:disabled { opacity: .5; cursor: progress; }
+.assistant__note { margin: 0; color: var(--muted); font-size: 11px; }
+.assistant__setup { display: grid; gap: 8px; }
+.assistant__setup h3 { margin: 0; }
+.assistant__setup p { margin: 0; color: var(--muted); font-size: 13px; }
+.assistant__setup button { justify-self: start; padding: 8px 14px; border: 1px solid var(--green); border-radius: 6px; color: white; background: var(--green); font-weight: 700; cursor: pointer; }
