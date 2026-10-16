@@ -6,6 +6,12 @@ All notable changes to GIS Map Online are documented here. This project follows
 
 ## [Unreleased]
 
+### Briefings, Map Insight and filters (0.27.0)
+
+- **Cut or pan between slides.** A briefing-level "Between slides" choice: *Pan and zoom* (the default) flies from one view to the next; *Cut* jumps straight there, for briefings whose slides are far apart. Stored as `transition: "cut"` in the briefing document (schema updated) and carried by briefing links, QR codes and Smart images; documents without it behave as before.
+- **Map Insight** scrolls its title away with the attributes and keeps the feature tabs pinned at the top, so long attribute lists get the room.
+- **Compound filters.** The layer filter dialog takes several conditions, combined with *all* (AND) or *any* (OR); each is parenthesised. Reopening the dialog shows the conditions as built.
+
 ### Briefing authoring layout
 
 - Briefing authoring now uses a desktop two-pane layout with an independently scrollable slide outline and selected-slide settings, adds confirmed delete controls to every slide row, and removes the duplicate header QR action in favor of the existing Share & PDF workflow.

@@ -40,6 +40,8 @@ export type BriefingSlide = {
 export type BriefingDocument = {
   schemaVersion: 1;
   layerId?: string | null;
+  /** How the map moves between slides: "pan" (default) flies there, "cut" jumps straight there. */
+  transition?: "pan" | "cut";
   queries: Record<string, BriefingFilter>;
   selection?: { ids?: string[]; useAll?: boolean; [key: string]: unknown };
   slides: BriefingSlide[];

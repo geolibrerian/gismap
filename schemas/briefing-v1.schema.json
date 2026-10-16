@@ -20,6 +20,14 @@
       "maxLength": 2048,
       "description": "The layer the briefing is about. Use the layer's service URL (for example https://…/FeatureServer/0) so the document works anywhere; GISMap loads it when it is not on the map. A layer ID or title also matches a layer that is already loaded."
     },
+    "transition": {
+      "enum": [
+        "pan",
+        "cut"
+      ],
+      "default": "pan",
+      "description": "How the map moves between slides: pan flies from one view to the next; cut jumps straight there (better when slides are far apart)."
+    },
     "queries": {
       "type": "object",
       "propertyNames": {

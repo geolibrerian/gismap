@@ -19,6 +19,8 @@ export const SLIDE_TEMPLATES = Object.freeze([
 const TEMPLATE_IDS = new Set(SLIDE_TEMPLATES.map((template) => template.id));
 
 export const STAT_TYPES = Object.freeze(["count", "sum", "average", "min", "max"]);
+/** How the map moves between slides: "pan" flies there (the default), "cut" jumps straight there. */
+export const SLIDE_TRANSITIONS = Object.freeze(["pan", "cut"]);
 const FILTER_OPERATORS = new Set(["eq", "neq", "gt", "gte", "lt", "lte", "in", "not_in", "contains", "starts_with", "is_null", "is_not_null", "and", "or", "not", "feature_ids"]);
 
 const text = (value, max) => String(value ?? "").slice(0, max);
@@ -122,7 +124,9 @@ export function normalizeBriefing(value = {}) {
   }
   const seen = new Set();
   const slides = array(source.slides).map(normalizeSlide).filter((slide) => slide && !seen.has(slide.id) && seen.add(slide.id)).slice(0, MAX_SLIDES);
-  return { ...source, schemaVersion: BRIEFING_SCHEMA_VERSION, queries, slides };
+  // "pan" is the default and is left out, so older documents and links stay byte-identical.
+  const { transition, ...rest } = source;
+  return { ...rest, schemaVersion: BRIEFING_SCHEMA_VERSION, ...(transition === "cut" ? { transition: "cut" } : {}), queries, slides };
 }
 
 /** A new slide from a template, prefilled from what the briefing already knows. */

@@ -17,11 +17,11 @@ import {
   updateBlock,
   updateSlide,
   validateBriefing,
-} from "./briefing-document.js?v=0.27.0";
+} from "./briefing-document.js?v=0.30.0";
 import { renderMarkdown } from "./markdown.js?v=0.18.2";
 import { BriefingPlayer, slideHasMap } from "./briefing-player.js?v=0.30.1";
 import { briefingFileStem, briefingPdf, markdownToText } from "./briefing-pdf.js?v=0.23.0";
-import { featureId } from "./presentation-query.js?v=0.18.2";
+import { featureId } from "./presentation-query.js?v=0.30.0";
 
 const escapeHtml = (value) => String(value ?? "").replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char]);
 const templateLabel = (id) => SLIDE_TEMPLATES.find((template) => template.id === id)?.label || "Slide";
@@ -140,11 +140,13 @@ export class BriefingSlides {
   async showSlideMap(slide) {
     const { mapController } = this.api;
     const record = this.#recordFor(slide);
+    // A "cut" briefing jumps between views; slides far apart would otherwise fly out and back in.
+    const animate = this.briefing.transition !== "cut";
     try {
       if (slide.camera) {
-        await mapController.view?.goTo({ center: slide.camera.center, zoom: slide.camera.zoom, heading: slide.camera.heading, tilt: slide.camera.tilt });
+        await mapController.view?.goTo({ center: slide.camera.center, zoom: slide.camera.zoom, heading: slide.camera.heading, tilt: slide.camera.tilt }, { animate });
       } else if (slide.fit === "feature" && record?.geometry) {
-        await mapController.goToFeature(record);
+        await mapController.goToFeature(record, { animate });
       }
       if (record) await mapController.highlightFeature?.(record, { pulse: false });
       else mapController.clearFeatureHighlight?.();
@@ -187,6 +189,7 @@ export class BriefingSlides {
         <button type="button" class="briefing-slides__included" data-slides-add-included${includedCount ? "" : " disabled"}>${includedCount ? `Add ${includedCount} included feature${includedCount === 1 ? "" : "s"} as slides` : included.length ? "Every included feature has a slide" : "Include features to add them as slides"}</button>
         ${briefing.slides.length ? `<ol class="briefing-slide-list" aria-label="Briefing slides">${list}</ol>` : `<p class="briefing-slides__empty">No slides yet. Make them from the map in one step, add a title slide, or turn the features you included into slides. A briefing without slides works exactly as before.</p>`}
         ${issues.length ? `<details class="briefing-slides__issues"><summary>${issues.length} thing${issues.length === 1 ? "" : "s"} to check</summary><ul>${issues.map((issue) => `<li class="is-${issue.level}"><button type="button" data-slide-select="${issue.slideId}">${escapeHtml(issue.message)}</button></li>`).join("")}</ul></details>` : ""}
+        ${briefing.slides.length ? `<label class="briefing-slides__transition"><span>Between slides</span><select data-slides-transition><option value="pan"${briefing.transition === "cut" ? "" : " selected"}>Pan and zoom</option><option value="cut"${briefing.transition === "cut" ? " selected" : ""}>Cut (jump straight there)</option></select></label>` : ""}
         ${briefing.slides.length ? `<div class="briefing-slides__actions"><button type="button" class="briefing-slides__present" data-slides-preview data-mobile-bar="primary" data-bar-label="Preview slides">Preview slides</button><button type="button" data-slides-share data-mobile-bar data-bar-label="Share">Share &amp; PDF</button></div>${this.api.createTour ? `<button type="button" class="briefing-link-button" data-slides-tour>Make a guided tour from these slides →</button>` : ""}` : ""}
       </div>
       <section class="briefing-slide-editor" data-slide-editor aria-label="Selected slide settings"></section>
@@ -272,6 +275,7 @@ export class BriefingSlides {
       if (this.selectedSlideId === slide.id) this.selectedSlideId = briefing.slides[index + 1]?.id || briefing.slides[index - 1]?.id || null;
       this.#save(removeSlide(briefing, slide.id));
     });
+    on("[data-slides-transition]", "change", (select) => this.#save({ ...this.briefing, transition: select.value }, { render: false }));
     on("[data-slides-preview]", "click", () => this.openPlayer(this.briefing.slides.find((slide) => !slide.hidden)?.id));
     on("[data-slides-share]", "click", () => this.api.share?.());
     on("[data-slides-tour]", "click", () => this.#toTour());

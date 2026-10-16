@@ -1616,14 +1616,14 @@ export class MapController {
     return { width: Math.abs(extent.xmax - extent.xmin), height: Math.abs(extent.ymax - extent.ymin) };
   }
 
-  async goToFeature(feature) {
+  async goToFeature(feature, { animate = true } = {}) {
     const geometry = feature?.geometry;
     if (!geometry) throw new Error("This record does not have a geometry to zoom to.");
     if (geometry.type === "point") {
-      return this.view.goTo({ center: geometry, zoom: 15, tilt: 0 });
+      return this.view.goTo({ center: geometry, zoom: 15, tilt: 0 }, { animate });
     }
     const target = geometry.extent?.expand?.(1.25) ?? geometry.extent ?? geometry;
-    return this.view.goTo({ target, tilt: 0 });
+    return this.view.goTo({ target, tilt: 0 }, { animate });
   }
 
   async reverseGeocode(point) {

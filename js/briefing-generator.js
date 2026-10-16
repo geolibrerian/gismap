@@ -2,7 +2,7 @@
 // themed field, categories or classes), its filter, the loaded features and any
 // chosen ones. Pure functions, so the result is plain briefing JSON
 // (briefing-document.js) that the author can edit before sharing.
-import { createSlide, newId, normalizeBriefing } from "./briefing-document.js?v=0.27.0";
+import { createSlide, newId, normalizeBriefing } from "./briefing-document.js?v=0.30.0";
 
 const MAX_FEATURE_SLIDES = 12;
 const TOP_FEATURES = 5;

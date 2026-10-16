@@ -106,3 +106,15 @@ export function featureFilterFor(records = [], totalLoaded = 0, idField = null) 
   const quoted = ids.map((value) => `'${String(value).replace(/'/g, "''")}'`);
   return { where: `${idField} IN (${quoted.join(",")})` };
 }
+
+/**
+ * One where clause from several conditions (each already a valid clause):
+ * "AND" keeps features matching all of them, "OR" features matching any.
+ * Each condition is parenthesised so mixed clauses keep their meaning.
+ */
+export function combineConditions(conditions = [], logic = "AND") {
+  const parts = conditions.map((condition) => String(condition || "").trim()).filter(Boolean);
+  if (!parts.length) return null;
+  if (parts.length === 1) return parts[0];
+  return parts.map((part) => `(${part})`).join(logic === "OR" ? " OR " : " AND ");
+}

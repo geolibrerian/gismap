@@ -1,13 +1,13 @@
 import { POPULAR_SERVICES } from "./catalog.js?v=0.18.2";
 import { ENTERPRISE_CATALOGS, EnterpriseCatalog, normalizeArcGisDirectoryUrl } from "./enterprise-catalog.js?v=0.18.2";
 import { createShareUrl } from "./share.js?v=0.29.0";
-import { createShareLink, hasDataFilter } from "./map-share.js?v=0.29.0";
-import { briefingLayerRef, findBriefingLayer } from "./briefing-api.js?v=0.29.0";
+import { createShareLink, hasDataFilter } from "./map-share.js?v=0.30.0";
+import { briefingLayerRef, findBriefingLayer } from "./briefing-api.js?v=0.30.0";
 import { createEmbeddedTourUrl } from "./tour-share.js?v=0.18.2";
 import { markdownToPlainText, renderMarkdown } from "./markdown.js?v=0.18.2";
 import { formatAttributeValue } from "./attribute-format.js?v=0.18.2";
 import { normalizeApplicationConfig, presetApplication } from "./application-config.js?v=0.18.2";
-import { featureFilterFor, featureId, fieldKind, filterRecords, histogram, requestGuard, sortRecords } from "./presentation-query.js?v=0.18.2";
+import { combineConditions, featureFilterFor, featureId, fieldKind, filterRecords, histogram, requestGuard, sortRecords } from "./presentation-query.js?v=0.30.0";
 import { DEFAULT_SKIN, INTERFACE_SKINS, applyInterfaceSkin, normalizeSkin, skinOptionsMarkup } from "./skin-catalog.js?v=0.18.2";
 import { compactMedia } from "./viewport.js?v=0.18.2";
 import { PdfDocument, brandedMapImage, brandedQrCanvas, loadBrandLogo, printPalette, qrAsset } from "./pdf-document.js?v=0.30.0";
@@ -15,9 +15,9 @@ import { featureLayerUrl, locationUrl } from "./field-task-share.js?v=0.29.0";
 import { dockIcon } from "./dock-icons.js?v=0.24.0";
 import { serviceNameFromUrl } from "./service-name.js?v=0.26.0";
 import { decodeQrFromImage, describeGisMapLink, gisMapLinkFrom, openGisMapLink } from "./qr-import.js?v=0.25.1";
-import { BriefingSlides } from "./briefing-slides.js?v=0.30.1";
-import { createSlide, matchesFilter, normalizeFilter } from "./briefing-document.js?v=0.27.0";
-import { aiDescriptionPrompt, applyAiDescriptions, describeWhere, generateBriefing, readAiDescriptions, rendererTheme } from "./briefing-generator.js?v=0.27.0";
+import { BriefingSlides } from "./briefing-slides.js?v=0.30.0";
+import { createSlide, matchesFilter, normalizeFilter } from "./briefing-document.js?v=0.30.0";
+import { aiDescriptionPrompt, applyAiDescriptions, describeWhere, generateBriefing, readAiDescriptions, rendererTheme } from "./briefing-generator.js?v=0.30.0";
 import { briefingFileStem } from "./briefing-pdf.js?v=0.23.0";
 import { rampColors } from "./renderer-spec.js?v=0.29.0";
 
@@ -4998,26 +4998,36 @@ export class UIController {
     await layer.load?.();
     const fields = (layer.fields ?? []).filter((field) => field.name);
     if (!fields.length) throw new Error("This layer does not expose fields that can be filtered.");
-    const fieldOptions = fields.map((field) =>
-      `<option value="${escapeHtml(field.name)}" data-field-type="${escapeHtml(field.type || "string")}">${escapeHtml(field.alias || field.name)}</option>`,
+    const fieldOptions = (selected) => fields.map((field) =>
+      `<option value="${escapeHtml(field.name)}" data-field-type="${escapeHtml(field.type || "string")}"${field.name === selected ? " selected" : ""}>${escapeHtml(field.alias || field.name)}</option>`,
     ).join("");
+    // Conditions are remembered per layer, so reopening the dialog shows the filter as built.
+    this.filterConditions ??= new Map();
+    const saved = this.filterConditions.get(uid);
+    const savedMatches = saved && saved.expression === (layer.definitionExpression || null);
+    const MAX_CONDITIONS = 10;
     this.openDialog({
       eyebrow: "Attribute query",
       title: `Filter ${layer.title || "layer"}`,
-      content: `<div class="filter-builder"><label class="field"><span>Field</span><select id="filter-field">${fieldOptions}</select></label><label class="field"><span>Operator</span><select id="filter-operator"></select></label><label class="field" id="filter-value-field"><span>Value</span><input id="filter-value" autocomplete="off" /></label></div>${layer.definitionExpression ? `<p class="form-note"><strong>Current filter:</strong> <code>${escapeHtml(layer.definitionExpression)}</code></p>` : '<p class="form-note">Only matching features will draw, appear in identify results, and be returned by the attribute table.</p>'}`,
+      content: `<div class="filter-builder"><label class="field filter-logic" data-filter-logic hidden><span>Show features that match</span><select id="filter-logic"><option value="AND">all of these conditions (AND)</option><option value="OR">any of these conditions (OR)</option></select></label><ol class="filter-conditions" data-filter-conditions></ol><button type="button" class="link-button filter-add" data-filter-add>+ Add a condition</button></div>${layer.definitionExpression ? `<p class="form-note"><strong>Current filter:</strong> <code>${escapeHtml(layer.definitionExpression)}</code></p>` : '<p class="form-note">Only matching features will draw, appear in identify results, and be returned by the attribute table.</p>'}`,
       actions: [
         { label: "Clear filter", handler: () => {
           this.mapController.setDefinitionExpression(uid, null);
+          this.filterConditions.delete(uid);
           this.dialog.close();
           this.toast("Layer filter cleared.");
         }},
         { label: "Apply filter", primary: true, handler: () => {
           try {
-            const field = fields.find((item) => item.name === this.dialog.querySelector("#filter-field").value);
-            const operator = this.dialog.querySelector("#filter-operator").value;
-            const value = this.dialog.querySelector("#filter-value").value;
-            const expression = this.#buildFilterExpression(field, operator, value);
+            const rows = [...this.dialog.querySelectorAll("[data-filter-condition]")].map((row) => ({
+              field: row.querySelector("[data-filter-field]").value,
+              operator: row.querySelector("[data-filter-operator]").value,
+              value: row.querySelector("[data-filter-value]").value,
+            }));
+            const logic = this.dialog.querySelector("#filter-logic").value;
+            const expression = combineConditions(rows.map((row) => this.#buildFilterExpression(fields.find((item) => item.name === row.field), row.operator, row.value)), logic);
             this.mapController.setDefinitionExpression(uid, expression);
+            this.filterConditions.set(uid, { rows, logic, expression });
             this.dialog.close();
             this.toast(`Filter applied: ${expression}`);
           } catch (error) { this.error(error.message); }
@@ -5025,28 +5035,57 @@ export class UIController {
       ],
     });
 
-    const fieldSelect = this.dialog.querySelector("#filter-field");
-    const operatorSelect = this.dialog.querySelector("#filter-operator");
-    const valueField = this.dialog.querySelector("#filter-value-field");
-    const valueInput = this.dialog.querySelector("#filter-value");
-    const updateOperators = () => {
-      const field = fields.find((item) => item.name === fieldSelect.value);
-      const type = String(field?.type || "string").toLowerCase();
-      const comparable = !type.includes("string") && !type.includes("guid") && !type.includes("global-id");
-      const operators = comparable
-        ? [["eq", "equals"], ["ne", "does not equal"], ["gt", "is greater than"], ["gte", "is at least"], ["lt", "is less than"], ["lte", "is at most"], ["null", "is empty"], ["not-null", "is not empty"]]
-        : [["eq", "equals"], ["ne", "does not equal"], ["contains", "contains"], ["starts", "starts with"], ["null", "is empty"], ["not-null", "is not empty"]];
-      operatorSelect.innerHTML = operators.map(([value, label]) => `<option value="${value}">${label}</option>`).join("");
-      valueInput.type = type.includes("date") ? "date" : comparable ? "number" : "text";
-      valueInput.step = "any";
-      valueInput.value = "";
-      valueField.hidden = false;
+    const list = this.dialog.querySelector("[data-filter-conditions]");
+    const logicControl = this.dialog.querySelector("[data-filter-logic]");
+    const addButton = this.dialog.querySelector("[data-filter-add]");
+    const sync = () => {
+      const rows = list.querySelectorAll("[data-filter-condition]");
+      logicControl.hidden = rows.length < 2;
+      addButton.hidden = rows.length >= MAX_CONDITIONS;
+      rows.forEach((row) => { row.querySelector("[data-filter-remove]").hidden = rows.length < 2; });
     };
-    fieldSelect.addEventListener("change", updateOperators);
-    operatorSelect.addEventListener("change", () => {
-      valueField.hidden = ["null", "not-null"].includes(operatorSelect.value);
-    });
-    updateOperators();
+    const addRow = ({ field = fields[0].name, operator = null, value = "" } = {}) => {
+      const row = document.createElement("li");
+      row.className = "filter-condition";
+      row.dataset.filterCondition = "";
+      row.innerHTML = `<label class="field"><span>Field</span><select data-filter-field>${fieldOptions(field)}</select></label><label class="field"><span>Operator</span><select data-filter-operator></select></label><label class="field" data-filter-value-field><span>Value</span><input data-filter-value autocomplete="off" /></label><button type="button" class="icon-button filter-remove" data-filter-remove aria-label="Remove this condition" title="Remove this condition">×</button>`;
+      const fieldSelect = row.querySelector("[data-filter-field]");
+      const operatorSelect = row.querySelector("[data-filter-operator]");
+      const valueField = row.querySelector("[data-filter-value-field]");
+      const valueInput = row.querySelector("[data-filter-value]");
+      const updateOperators = () => {
+        const selected = fields.find((item) => item.name === fieldSelect.value);
+        const type = String(selected?.type || "string").toLowerCase();
+        const comparable = !type.includes("string") && !type.includes("guid") && !type.includes("global-id");
+        const operators = comparable
+          ? [["eq", "equals"], ["ne", "does not equal"], ["gt", "is greater than"], ["gte", "is at least"], ["lt", "is less than"], ["lte", "is at most"], ["null", "is empty"], ["not-null", "is not empty"]]
+          : [["eq", "equals"], ["ne", "does not equal"], ["contains", "contains"], ["starts", "starts with"], ["null", "is empty"], ["not-null", "is not empty"]];
+        operatorSelect.innerHTML = operators.map(([key, label]) => `<option value="${key}">${label}</option>`).join("");
+        valueInput.type = type.includes("date") ? "date" : comparable ? "number" : "text";
+        valueInput.step = "any";
+        valueInput.value = "";
+        valueField.hidden = false;
+      };
+      fieldSelect.addEventListener("change", updateOperators);
+      operatorSelect.addEventListener("change", () => { valueField.hidden = ["null", "not-null"].includes(operatorSelect.value); });
+      row.querySelector("[data-filter-remove]").addEventListener("click", () => { row.remove(); sync(); });
+      updateOperators();
+      if (operator && [...operatorSelect.options].some((option) => option.value === operator)) {
+        operatorSelect.value = operator;
+        valueField.hidden = ["null", "not-null"].includes(operator);
+      }
+      valueInput.value = value;
+      list.append(row);
+      sync();
+      return row;
+    };
+    addButton.addEventListener("click", () => addRow().querySelector("[data-filter-field]").focus());
+    if (savedMatches) {
+      this.dialog.querySelector("#filter-logic").value = saved.logic;
+      saved.rows.forEach(addRow);
+    } else {
+      addRow();
+    }
   }
 
   #buildFilterExpression(field, operator, rawValue) {
