@@ -76,8 +76,8 @@ test("published schema and capabilities files are valid and the browser global e
 
 test("a briefing document names its layer and selection, and the in-page API generates and renders through the app", async () => {
   const url = "https://example.org/arcgis/rest/services/Projects/FeatureServer/0";
-  const layer = { uid: "session-uid-7", id: "projects", title: "Projects", url, queryFeatures() {} };
-  const mapController = { getOperationalLayers: () => [layer], getLayerConfig: () => ({ url, local: false }), getViewState: () => ({ center: [0, 0], zoom: 3 }) };
+  const layer = { uid: "session-uid-7", id: "projects", title: "Projects", url, queryable: true };
+  const mapController = { getLayers: () => [layer], getLayerConfig: () => ({ url, local: false }), getViewState: () => ({ center: [0, 0], zoom: 3 }) };
   const presentation = { template: "standard", briefing: { schemaVersion: 1, queries: {}, slides: [] } };
   const projectManager = {
     current: { name: "P", presentation },
@@ -125,7 +125,7 @@ test("the in-page Smart Image API returns an image and equivalent live map for a
     getAllLayerConfigs: () => [{ url: service, sourceType: "feature", title: "MODIS Thermal v1", visible: true }],
     getBasemapId: () => "dark-gray-3d",
     getViewState: () => ({ center: [-98.5, 39.5], zoom: 4, heading: 0, tilt: 35 }),
-    getOperationalLayers: () => [],
+    getLayers: () => [],
   };
   const api = createClientApi({ projectManager, mapController, baseUrl: () => "https://gismap.online/" });
   const output = await api.smartImages.createCurrent();

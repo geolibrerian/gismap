@@ -60,7 +60,7 @@ export class ProjectManager {
 
   async create(name = "Untitled project") {
     await this.mapController.clearOperationalLayers();
-    this.mapController.drawLayer?.removeAll();
+    this.mapController.clearDrawings();
     this.mapController.setBasemap(this.mapController.getDefaultBasemapId());
     this.mapController.setGround("world-elevation");
     await this.mapController.restoreView({ center: [-98.5, 39.5], zoom: 4, heading: 0, tilt: 35 });
@@ -168,14 +168,11 @@ export class ProjectManager {
   }
 
   async #restoreLayerPresentation(layer, config) {
-    layer.visible = config.visible !== false;
-    layer.opacity = Number.isFinite(config.opacity) ? config.opacity : 1;
+    this.mapController.setVisibility(layer.uid, config.visible !== false, { silent: true });
+    this.mapController.setOpacity(layer.uid, Number.isFinite(config.opacity) ? config.opacity : 1, { silent: true });
     // A service's own style loads with the layer; only styles set in GISMap are restored.
-    if (config.renderer && config.styled !== false) this.mapController.restoreRenderer(layer, config.renderer);
-    if (config.rendererSpec) {
-      const source = this.mapController.layerConfigs.get(layer.uid);
-      if (source) source.rendererSpec = config.rendererSpec;
-    }
+    if (config.renderer && config.styled !== false) this.mapController.restoreRenderer(layer.uid, config.renderer);
+    if (config.rendererSpec) this.mapController.recordRendererSpec(layer.uid, config.rendererSpec);
     if (config.definitionExpression != null) {
       this.mapController.setDefinitionExpression(layer.uid, config.definitionExpression);
     }
@@ -207,7 +204,7 @@ export class ProjectManager {
   /** With `download: false` the PNG is only returned (as `file`), for share dialogs. */
   async exportSmartImage({ width = 1600, height = 1000, download = true } = {}) {
     const project = this.snapshot();
-    const capture = await this.mapController.takeMapScreenshot({ format: "png", width, height });
+    const capture = await this.mapController.captureImage({ format: "png", width, height });
     if (!capture?.dataUrl) throw new Error("The map is not ready to create a Smart Image.");
     const visual = await composeSmartImage({
       dataUrl: capture.dataUrl,
@@ -247,8 +244,8 @@ export class ProjectManager {
     if (!globalThis.JSZip) throw new Error("The ZIP library did not load.");
     const project = this.snapshot();
     const zip = new JSZip();
-    for (const layer of this.mapController.getOperationalLayers()) {
-      const asset = this.mapController.localAssets.get(layer.uid);
+    for (const layer of this.mapController.getLayers()) {
+      const asset = this.mapController.getLocalAsset(layer.uid);
       const config = this.mapController.getLayerConfig(layer);
       if (asset && config.projectPath) zip.file(config.projectPath, asset);
     }

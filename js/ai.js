@@ -330,7 +330,7 @@ export class AIController {
   }
 
   #compactContext(context) {
-    const layers = this.mapController.getOperationalLayers().map((layer) => {
+    const layers = this.mapController.getLayers().map((layer) => {
       const { title, type, url } = this.mapController.getLayerConfig(layer);
       const metadata = this.mapController.layerMetadata?.(layer);
       const sentinels = (metadata?.sentinels || []).filter((item) => item.source !== "heuristic").map(({ field, value, label }) => ({ field, value, label }));

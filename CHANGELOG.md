@@ -6,6 +6,13 @@ All notable changes to GIS Map Online are documented here. This project follows
 
 ## [Unreleased]
 
+### One map engine interface (phase A of multi-engine support)
+
+- **The ArcGIS Maps SDK now sits behind one engine.** `js/map.js` moved to `js/engines/arcgis/arcgis-engine.js` (and `auth.js` to `js/engines/arcgis/arcgis-auth.js`); it implements the contract in `js/engines/engine-interface.js`: the methods every engine provides, a capability list (`getCapabilities()`), the events it publishes, and `unsupported(capability)` for operations an engine cannot do (a `GisMapError` with `details.capability`). A MapLibre engine can implement the same contract later. Nothing changes on screen.
+- **No SDK objects outside the engine.** The rest of the app works with read-only **layer handles** (`getLayers()`, `getLayer(uid)`: `uid`, `title`, `url`, `fields`, `geometryType`, `objectIdField`, `visible`, `opacity`, `where`, `rendererSpec`, `renderer` JSON, and `queryable` / `countable` / `filterable` flags), **plain features** (attributes and geometry JSON) from `queryFeatures` / `queryFeatureCount` / `queryObjectIds`, and **view targets** for `setView` (center/zoom, a saved camera or viewpoint, a feature, several features, or a bounding box). Identify (`identify(screenPoint)`), feature filters (`setFeatureFilter`), view padding, captures (`captureImage`, `captureViews`) and geocoding (`search(text)`, `reverseGeocode({ longitude, latitude })`, ready for a separate geocoder router) are engine methods too. Engine events (`map:click`, `map:ready`, `view:pointer-move`, `view:scale-change`, `view:stationary`, `layer:added`) carry plain data.
+- `gisMapOnline.map` / `.view` and custom tools' `map`, `view` and `getLayers()` still hand out the SDK's own objects, now through the engine's `native()` escape hatch. The in-page API, map-v1 links, briefing, tour and field-task links and project files are unchanged.
+- `tests/engine-boundary.test.mjs` fails when a module outside `js/engines/arcgis/` imports the SDK, reads a view or calls SDK layer methods (its allow-list holds the two engine files), and checks the ArcGIS engine against the contract.
+
 ### Map assistant: chat with your map
 
 - **Tools → Map assistant**: a chat with the AI model connected in Configure AI (local Ollama, OpenAI, Anthropic or an OpenAI-compatible endpoint) that builds **interactive maps, briefings, guided tours and field tasks**. Each action it takes shows in the conversation as it happens (with its arguments and result), Stop cancels a turn, and field tasks open as drafts to check before sharing. The composable "AI Map Assistant" panel is now the same chat.

@@ -42,9 +42,10 @@ test("a slide shows its layers, asks each service which features relate, and the
   const { BriefingSlides } = await import("../js/briefing-slides.js");
   const filters = new Map();
   const queries = [];
+  // Layer handles as the engine hands them out, and an engine that changes them.
   const layer = (uid, url, { visible = true, queryable = true } = {}) => ({
-    uid, title: uid, url, visible, definitionExpression: uid === "parking" ? "SPACES > 10" : null,
-    ...(queryable ? { queryObjectIds: async (query) => { queries.push({ uid, ...query }); return uid === "parking" ? [4, 8] : []; } } : {}),
+    uid, title: uid, url, visible, where: uid === "parking" ? "SPACES > 10" : null, objectIdQueryable: queryable,
+    queryObjectIds: async (query) => { queries.push({ uid, ...query }); return uid === "parking" ? [4, 8] : []; },
   });
   const stadiums = layer("stadiums", STADIUMS);
   const parking = layer("parking", PARKING, { visible: false });
@@ -58,9 +59,11 @@ test("a slide shows its layers, asks each service which features relate, and the
     notify: (message) => notes.push(message),
     data: () => ({ layer: stadiums, records: [record], fields: { fields: [] } }),
     mapController: {
-      getOperationalLayers: () => [stadiums, parking, transit],
+      getLayers: () => [stadiums, parking, transit],
       getLayerConfig: (item) => ({ url: item.url }),
-      view: { whenLayerView: async (item) => ({ set filter(value) { filters.set(item.uid, value); }, get filter() { return filters.get(item.uid) ?? null; } }) },
+      setVisibility: (uid, visible) => { [stadiums, parking, transit].find((item) => item.uid === uid).visible = visible; },
+      queryObjectIds: (uid, query) => [stadiums, parking, transit].find((item) => item.uid === uid).queryObjectIds(query),
+      setFeatureFilter: async (uid, filter) => { filters.set(uid, filter); return true; },
     },
   });
   assert.deepEqual(slides.otherLayers().map((item) => item.layer.uid), ["parking", "transit"], "the main layer is not an other layer");
@@ -118,7 +121,7 @@ test("Features offers to add the included features as slides, in the same double
     saveBriefing: (briefing) => { saved = briefing; },
     notify() {},
     data: () => ({ layer: { objectIdField: "OBJECTID" }, records, visibleRecords: records, selectedIds: new Set(["1", "2"]), useAll: false, fields: { fields: [] }, label: (record) => record.attributes.NAME }),
-    mapController: { getOperationalLayers: () => [] },
+    mapController: { getLayers: () => [] },
   });
   assert.deepEqual(slides.pendingIncluded().map((record) => record.attributes.OBJECTID), [1], "features that already have a slide are not offered again");
   assert.equal(slides.addIncluded(), 1);
@@ -152,7 +155,7 @@ test("slides leave IDs and geometry measurements out of their facts by default",
     saveBriefing: (briefing) => { saved = briefing; },
     notify() {},
     data: () => ({ layer: { objectIdField: "OBJECTID" }, records: [record], visibleRecords: [record], selectedIds: new Set(["1"]), useAll: false, fields: { fields }, label: (item) => item.attributes.DIV_NAME }),
-    mapController: { getOperationalLayers: () => [] },
+    mapController: { getLayers: () => [] },
   });
   slides.addIncluded();
   assert.deepEqual(saved.slides[0].blocks.find((block) => block.type === "facts").fields, ["DIV_NAME"]);

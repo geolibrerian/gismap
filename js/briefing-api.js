@@ -23,7 +23,7 @@ export function briefingLayerRef(mapController, layer) {
  * session UID or title. Without a `layerId`, the first feature layer.
  */
 export function findBriefingLayer(mapController, layerId) {
-  const layers = (mapController?.getOperationalLayers?.() || []).filter((layer) => typeof layer.queryFeatures === "function");
+  const layers = (mapController?.getLayers?.() || []).filter((layer) => layer.queryable);
   if (!layerId) return layers[0] || null;
   const wanted = String(layerId);
   return layers.find((layer) => layer.uid === wanted || layer.id === wanted)

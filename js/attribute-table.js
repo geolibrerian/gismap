@@ -71,12 +71,11 @@ export class AttributeTableController {
     const operationId = ++this.operationId;
     this.#clearRenderedTable("Loading table…");
     try {
-      let layer = this.mapController.findLayer(uid);
-      layer = this.#firstQueryable(layer);
-      if (!layer || typeof layer.queryFeatures !== "function") {
+      let layer = this.mapController.getQueryableLayer(uid);
+      if (!layer?.queryable) {
         throw new Error("This layer does not expose a queryable attribute table.");
       }
-      await layer.load?.();
+      layer = await this.mapController.loadLayer(layer.uid);
       if (operationId !== this.operationId) return;
       this.state = {
         ...this.state,
@@ -87,7 +86,7 @@ export class AttributeTableController {
         where: "1=1",
         search: "",
       };
-      document.querySelector("#table-title").textContent = layer.title || layer.parent?.title || "Layer";
+      document.querySelector("#table-title").textContent = layer.title || layer.parentTitle || "Layer";
       document.querySelector("#table-search-input").value = "";
       document.querySelector("#table-search-clear").hidden = true;
       if (!this.dialog.open) this.dialog.show();
@@ -100,16 +99,6 @@ export class AttributeTableController {
       this.#cancelAndReset();
       this.events.publish("app:error", { message: error.message });
     }
-  }
-
-  #firstQueryable(layer) {
-    if (!layer) return null;
-    if (typeof layer.queryFeatures === "function") return layer;
-    for (const child of layer.sublayers?.toArray?.() ?? []) {
-      const found = this.#firstQueryable(child);
-      if (found) return found;
-    }
-    return null;
   }
 
   async #applySearch(value) {
@@ -140,10 +129,9 @@ export class AttributeTableController {
 
   async #loadIndex(operationId) {
     const { layer, where } = this.state;
-    const query = layer.createQuery?.() ?? {};
-    query.where = this.#combinedWhere(layer, where);
-    if (typeof layer.queryObjectIds === "function") {
-      const objectIds = (await layer.queryObjectIds(query)) ?? [];
+    const query = { where: this.#combinedWhere(layer, where) };
+    if (layer.objectIdQueryable) {
+      const objectIds = (await this.mapController.queryObjectIds(layer.uid, query)) ?? [];
       if (operationId !== this.operationId) return false;
       this.state.objectIds = objectIds;
       this.state.total = objectIds.length;
@@ -151,8 +139,8 @@ export class AttributeTableController {
       return true;
     }
     this.state.objectIds = [];
-    const total = typeof layer.queryFeatureCount === "function"
-      ? await layer.queryFeatureCount(query)
+    const total = layer.countable
+      ? await this.mapController.queryFeatureCount(layer.uid, query)
       : 0;
     if (operationId !== this.operationId) return false;
     this.state.total = total;
@@ -170,19 +158,14 @@ export class AttributeTableController {
     let features = [];
     if (total > 0) {
       const ids = objectIds.slice(page * pageSize, (page + 1) * pageSize);
-      const query = layer.createQuery?.() ?? {};
-      query.outFields = ["*"];
-      query.returnGeometry = true;
-      if (this.mapController.view?.spatialReference) {
-        query.outSpatialReference = this.mapController.view.spatialReference;
-      }
+      const query = { outFields: ["*"], returnGeometry: true, outSpatialReference: "view" };
       if (usesObjectIds) query.objectIds = ids;
       else {
         query.where = this.#combinedWhere(layer, where);
         query.num = pageSize;
         query.start = page * pageSize;
       }
-      const set = await layer.queryFeatures(query);
+      const set = await this.mapController.queryFeatures(layer.uid, query);
       if (operationId !== this.operationId) return;
       features = set.features ?? [];
     }
@@ -197,7 +180,7 @@ export class AttributeTableController {
   }
 
   #combinedWhere(layer, tableWhere) {
-    const layerWhere = String(layer?.definitionExpression || "").trim();
+    const layerWhere = String(layer?.where || "").trim();
     const localWhere = String(tableWhere || "1=1").trim();
     if (!layerWhere) return localWhere;
     if (!localWhere || localWhere === "1=1") return `(${layerWhere})`;

@@ -21,9 +21,9 @@ import {
   DISTANCE_UNITS,
   SPATIAL_RELATIONSHIPS,
 } from "./briefing-document.js?v=0.35.0";
-import { briefingLayerRef } from "./briefing-api.js?v=0.35.0";
+import { briefingLayerRef } from "./briefing-api.js?v=0.37.0";
 import { renderMarkdown } from "./markdown.js?v=0.18.2";
-import { BriefingPlayer, slideHasMap } from "./briefing-player.js?v=0.30.1";
+import { BriefingPlayer, slideHasMap } from "./briefing-player.js?v=0.37.0";
 import { briefingFileStem, briefingPdf, markdownToText } from "./briefing-pdf.js?v=0.23.0";
 import { featureId } from "./presentation-query.js?v=0.30.0";
 
@@ -75,7 +75,7 @@ export class BriefingSlides {
   otherLayers() {
     const { mapController } = this.api;
     const primary = this.api.data().layer;
-    return (mapController.getOperationalLayers?.() || [])
+    return (mapController.getLayers?.() || [])
       .filter((layer) => layer !== primary && layer.uid !== primary?.uid)
       .map((layer) => ({ layer, ref: briefingLayerRef(mapController, layer) || layer.uid }));
   }
@@ -89,13 +89,10 @@ export class BriefingSlides {
   async restoreLayers({ keep = false } = {}) {
     const state = this.layerState;
     if (!state) return;
-    const { view } = this.api.mapController;
-    for (const layer of this.api.mapController.getOperationalLayers?.() || []) {
-      if (state.visible.has(layer.uid)) layer.visible = state.visible.get(layer.uid);
-      if (state.filtered.has(layer.uid)) {
-        const layerView = await view?.whenLayerView?.(layer).catch(() => null);
-        if (layerView) layerView.filter = null;
-      }
+    const { mapController } = this.api;
+    for (const layer of mapController.getLayers?.() || []) {
+      if (state.visible.has(layer.uid)) mapController.setVisibility(layer.uid, state.visible.get(layer.uid), { silent: true });
+      if (state.filtered.has(layer.uid)) await mapController.setFeatureFilter(layer.uid, null);
     }
     state.filtered.clear();
     if (!keep) this.layerState = null;
@@ -118,22 +115,20 @@ export class BriefingSlides {
       const layer = this.#findLayer(entry.layer);
       if (!layer) continue;
       if (!this.layerState.visible.has(layer.uid)) this.layerState.visible.set(layer.uid, layer.visible !== false);
-      layer.visible = entry.visible;
-      if (!entry.visible || !entry.relation || !record?.geometry || typeof layer.queryObjectIds !== "function") continue;
+      mapController.setVisibility(layer.uid, entry.visible, { silent: true });
+      if (!entry.visible || !entry.relation || !record?.geometry || !layer.objectIdQueryable) continue;
       try {
         const { type, distance, units, relationParameter } = entry.relation;
-        const ids = await layer.queryObjectIds({
-          where: layer.definitionExpression || "1=1",
+        const ids = await mapController.queryObjectIds(layer.uid, {
+          where: layer.where || "1=1",
           geometry: record.geometry,
           spatialRelationship: type,
           ...(distance ? { distance, units: units || "meters" } : {}),
           ...(type === "relation" ? { relationParameter } : {}),
-        });
+        }, { layerDefaults: false });
         if (token !== this.layerToken) return;
-        const layerView = await mapController.view?.whenLayerView?.(layer);
-        if (!layerView || token !== this.layerToken) continue;
         // No match draws nothing (an ID that cannot exist), rather than everything.
-        layerView.filter = { objectIds: ids?.length ? ids : [-1] };
+        if (!await mapController.setFeatureFilter(layer.uid, { objectIds: ids?.length ? ids : [-1] }) || token !== this.layerToken) continue;
         this.layerState.filtered.add(layer.uid);
       } catch (error) {
         this.api.notify?.(`${layer.title || "A layer"}: the relationship could not be checked (${error.message || "the service refused the query"}).`);
@@ -231,15 +226,14 @@ export class BriefingSlides {
   }
 
   #currentCamera() {
-    const view = this.api.mapController.view;
-    const camera = view?.camera;
+    const view = this.api.mapController.getViewState?.();
     const center = view?.center;
-    if (!center || !Number.isFinite(center.longitude)) return null;
+    if (!center || !Number.isFinite(center[0])) return null;
     return {
-      center: [Number(center.longitude.toFixed(6)), Number(center.latitude.toFixed(6))],
+      center: [Number(center[0].toFixed(6)), Number(center[1].toFixed(6))],
       zoom: Number((view.zoom ?? 12).toFixed(2)),
-      heading: Number((camera?.heading ?? 0).toFixed(1)),
-      tilt: Number((camera?.tilt ?? 0).toFixed(1)),
+      heading: Number((view.heading ?? 0).toFixed(1)),
+      tilt: Number((view.tilt ?? 0).toFixed(1)),
     };
   }
 
@@ -254,7 +248,7 @@ export class BriefingSlides {
     const layers = this.applySlideLayers(slide, record).catch((error) => this.api.notify?.(error.message));
     try {
       if (slide.camera) {
-        await mapController.view?.goTo({ center: slide.camera.center, zoom: slide.camera.zoom, heading: slide.camera.heading, tilt: slide.camera.tilt }, { animate });
+        await mapController.setView({ center: slide.camera.center, zoom: slide.camera.zoom, heading: slide.camera.heading, tilt: slide.camera.tilt }, { animate });
       } else if (slide.fit === "feature" && record?.geometry) {
         await mapController.goToFeature(record, { animate });
       }
@@ -321,7 +315,7 @@ export class BriefingSlides {
       const entry = entries.get(ref);
       const visible = entry ? entry.visible : (this.layerState?.visible.get(layer.uid) ?? layer.visible !== false);
       const relation = entry?.relation || null;
-      const queryable = typeof layer.queryObjectIds === "function";
+      const queryable = layer.objectIdQueryable;
       const relationControls = queryable
         ? `<div class="briefing-layer__relation"${visible ? "" : " hidden"}>
             <label><span>Features</span><select data-slide-layer-relation${canRelate ? "" : " disabled"}><option value="">All of them</option>${SPATIAL_RELATIONSHIPS.map((type) => `<option value="${type}"${relation?.type === type ? " selected" : ""}>Only those that: ${escapeHtml(RELATION_LABELS[type])}</option>`).join("")}</select></label>
@@ -559,7 +553,7 @@ export class BriefingSlides {
     const data = this.api.data();
     const record = this.#recordFor(slide);
     const point = record?.geometry ? this.api.mapController.geographicCoordinates?.(record.geometry) : null;
-    const center = slide.camera?.center || [this.api.mapController.view?.center?.longitude, this.api.mapController.view?.center?.latitude];
+    const center = slide.camera?.center || this.api.mapController.getViewState?.()?.center || [];
     this.api.createTask({
       title: slide.title || data.title,
       notes: `From the briefing “${data.title}”.`,
@@ -616,8 +610,7 @@ export class BriefingSlides {
     if (slide.camera) return { center: slide.camera.center, zoom: slide.camera.zoom, heading: slide.camera.heading, tilt: slide.camera.tilt };
     const geometry = this.#recordFor(slide)?.geometry;
     if (!geometry) return null;
-    if (geometry.type === "point") return { target: geometry, zoom: 15, tilt: 0 };
-    return { target: geometry.extent?.clone?.().expand?.(1.25) ?? geometry, tilt: 0 };
+    return { geometry, fit: "feature" };
   }
 
   /**

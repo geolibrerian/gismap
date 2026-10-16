@@ -150,8 +150,9 @@ published builds and generated release notes.
 
 ## Modules
 
-- `js/map.js` — 3D scene/camera lifecycle, elevation ground, layer adapters, drawing, refresh, rendering, navigation
-- `js/identify.js` — popup-free hit testing and query fallback normalized across layer types
+- `js/engines/engine-interface.js` — the map engine contract: methods, capabilities, events and plain-data types (layer handles, features, view targets)
+- `js/engines/arcgis/arcgis-engine.js` — the ArcGIS engine, the only module that drives the ArcGIS Maps SDK: 3D scene/camera lifecycle, elevation ground, layer adapters, queries, identify, drawing, refresh, rendering, navigation, capture and geocoding
+- `js/identify.js` — popup-free identify results from the engine, de-duplicated across layer types
 - `js/ui.js` — sidebar, menus, tabbed workspace tools, layer controls, places, and insight rendering
 - `js/project.js` — local projects plus `.gmo` project and `.gmop` package import/export (legacy JSON/ZIP files remain supported)
 - `js/attribute-table.js` — searchable, paginated queryable layer table in a non-modal map drawer
@@ -175,7 +176,7 @@ published builds and generated release notes.
 - `js/share.js` — safe parsing and creation of shareable remote-layer URLs
 - `js/markdown.js` — sanitized Markdown rendering for intelligence responses
 - `js/enterprise-catalog.js` — live ArcGIS Enterprise service-directory browser
-- `js/auth.js` — ArcGIS Online/Enterprise OAuth, standalone Server token/web-tier registration, federation discovery, and connection diagnostics
+- `js/engines/arcgis/arcgis-auth.js` — ArcGIS Online/Enterprise OAuth, standalone Server token/web-tier registration, federation discovery, and connection diagnostics
 - `js/export/` — paginated vector retrieval and background-worker GeoJSON/KML/KMZ/Shapefile conversion
 
 ## Browser and service constraints

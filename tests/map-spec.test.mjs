@@ -178,7 +178,7 @@ test("the schema, capabilities and app describe the same map spec", async () => 
 });
 
 test("renderers in the SDK's autocast form keep their symbols (catalog 3D columns)", async () => {
-  const { MapController } = await import("../js/map.js");
+  const { MapController } = await import("../js/engines/arcgis/arcgis-engine.js");
   const map = new MapController({ publish() {} });
   map.modules = { rendererJsonUtils: { fromJSON: () => ({ type: "simple" }) } };
   const layer = { uid: "pm25", renderer: null };

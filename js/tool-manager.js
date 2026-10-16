@@ -13,11 +13,13 @@ export class ToolManager {
       if (typeof register !== "function") {
         throw new Error("A custom tool must export a default registration function.");
       }
+      // Custom tools get the engine's own map, view and layers (the documented escape hatch).
+      const native = this.mapController.native();
       const context = Object.freeze({
         events: this.events,
-        map: this.mapController.map,
-        view: this.mapController.view,
-        getLayers: () => this.mapController.getOperationalLayers(),
+        map: native.map,
+        view: native.view,
+        getLayers: () => native.layers(),
       });
       const definition = (await register(context)) || {};
       const id = definition.id || file.name;

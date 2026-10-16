@@ -8,16 +8,6 @@ const FORMAT_DETAILS = {
   shapefile: { extension: "zip", label: "zipped Shapefile" },
 };
 
-function firstQueryable(layer) {
-  if (!layer) return null;
-  if (typeof layer.queryFeatures === "function") return layer;
-  for (const child of layer.sublayers?.toArray?.() ?? []) {
-    const found = firstQueryable(child);
-    if (found) return found;
-  }
-  return null;
-}
-
 function downloadBlob(blob, fileName) {
   const link = document.createElement("a");
   link.href = URL.createObjectURL(blob);
@@ -34,11 +24,11 @@ export class ExportController {
   }
 
   listExportableLayers() {
-    const layers = this.mapController.getOperationalLayers().map((root) => {
-      const layer = firstQueryable(root);
+    const layers = this.mapController.getLayers().map((root) => {
+      const layer = this.mapController.getQueryableLayer(root.uid);
       return layer ? { uid: root.uid, title: layer.title || root.title || "Untitled layer", kind: "layer" } : null;
     }).filter(Boolean);
-    if (this.mapController.drawLayer?.graphics?.length) {
+    if (this.mapController.hasDrawings()) {
       layers.unshift({ uid: DRAWINGS_UID, title: "Drawings", kind: "drawings" });
     }
     return layers;
@@ -60,10 +50,10 @@ export class ExportController {
     const formatDetails = FORMAT_DETAILS[format];
     if (!formatDetails) throw new Error("That export format is not supported.");
     const drawings = uid === DRAWINGS_UID;
-    const root = drawings ? null : this.mapController.findLayer(uid);
-    const layer = drawings ? null : firstQueryable(root);
+    const root = drawings ? null : this.mapController.getLayer(uid);
+    let layer = drawings || !root ? null : this.mapController.getQueryableLayer(uid);
     if (!drawings && !layer) throw new Error("This layer does not expose queryable vector features.");
-    await layer?.load?.();
+    if (layer) layer = await this.mapController.loadLayer(layer.uid);
 
     const id = globalThis.crypto?.randomUUID?.() ?? `export-${Date.now()}`;
     const worker = new Worker(new URL("./export-worker.js?v=0.18.2", import.meta.url), { type: "module" });
@@ -87,31 +77,28 @@ export class ExportController {
         worker.postMessage({ type: "batch", id, features });
         this.events.publish("export:progress", { id, stage: "retrieving", completed: retrieved, total });
       } else {
-        const query = layer.createQuery?.() ?? {};
-        query.outFields = ["*"];
-        query.returnGeometry = true;
-        query.outSpatialReference = { wkid: 4326 };
+        const query = { outFields: ["*"], returnGeometry: true, outSpatialReference: { wkid: 4326 } };
         if (scope === "source") query.where = "1=1";
         if (scope === "extent") {
-          query.geometry = this.mapController.view?.extent;
+          // The extent when the export starts: moving the map meanwhile does not change what is exported.
+          query.geometry = this.mapController.getViewExtent();
           query.spatialRelationship = "intersects";
         }
 
         const options = { signal: abortController.signal };
-        const objectIds = typeof layer.queryObjectIds === "function"
-          ? ((await layer.queryObjectIds(query, options)) ?? [])
+        const objectIds = layer.objectIdQueryable
+          ? ((await this.mapController.queryObjectIds(layer.uid, query, options)) ?? [])
           : null;
         total = objectIds
           ? objectIds.length
-          : (typeof layer.queryFeatureCount === "function" ? await layer.queryFeatureCount(query, options) : 0);
-        const batchSize = Math.max(100, Math.min(2000, layer.capabilities?.query?.maxRecordCount || 1000));
+          : (layer.countable ? await this.mapController.queryFeatureCount(layer.uid, query, options) : 0);
+        const batchSize = Math.max(100, Math.min(2000, layer.maxRecordCount || 1000));
 
         if (objectIds) {
           for (let start = 0; start < objectIds.length; start += batchSize) {
             this.#assertActive(job);
-            const pageQuery = layer.createQuery?.() ?? {};
-            Object.assign(pageQuery, query, { objectIds: objectIds.slice(start, start + batchSize) });
-            const result = await layer.queryFeatures(pageQuery, options);
+            const pageQuery = { ...query, objectIds: objectIds.slice(start, start + batchSize) };
+            const result = await this.mapController.queryFeatures(layer.uid, pageQuery, options);
             const features = (result.features ?? []).map(graphicToGeoJSONFeature);
             retrieved += features.length;
             worker.postMessage({ type: "batch", id, features });
@@ -121,9 +108,8 @@ export class ExportController {
           let start = 0;
           do {
             this.#assertActive(job);
-            const pageQuery = layer.createQuery?.() ?? {};
-            Object.assign(pageQuery, query, { start, num: batchSize });
-            const result = await layer.queryFeatures(pageQuery, options);
+            const pageQuery = { ...query, start, num: batchSize };
+            const result = await this.mapController.queryFeatures(layer.uid, pageQuery, options);
             const features = (result.features ?? []).map(graphicToGeoJSONFeature);
             retrieved += features.length;
             worker.postMessage({ type: "batch", id, features });

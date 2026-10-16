@@ -111,10 +111,10 @@ test("?layer= links take style=auto, method and breaks", () => {
 });
 
 test("the map resolves an auto style once, from one read of the data, and records it pinned", async () => {
-  const { MapController } = await import("../js/map.js");
+  const { MapController } = await import("../js/engines/arcgis/arcgis-engine.js");
   const map = new MapController({ publish() {} });
   const layer = { uid: "corn", title: "Corn", renderer: null, geometryType: "polygon", fields: cornLayer.fields.map((field) => ({ name: field.name, type: field.type })), load: async () => {} };
-  map.findLayer = () => layer;
+  map.map = { allLayers: [layer] };
   let reads = 0;
   map.fieldValues = async (_, field) => { reads += 1; assert.equal(field, FIELD); return CORN; };
   const sentinels = [{ field: FIELD, value: -1, label: "Not Disclosed", source: "renderer" }];
