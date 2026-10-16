@@ -1,7 +1,7 @@
-import core, { normalizeBriefing, updateSlide, validateBriefingDocument } from "./gismap-core.js?v=0.35.0";
-import { createShareLink } from "./map-share.js?v=0.35.0";
+import core, { normalizeBriefing, updateSlide, validateBriefingDocument } from "./gismap-core.js?v=0.40.0";
+import { createShareLink } from "./map-share.js?v=0.40.0";
 import { GisMapError, layerLoadError, toGisMapError } from "./gismap-errors.js?v=0.28.0";
-import { featureLayerUrl } from "./field-task-share.js?v=0.29.0";
+import { featureLayerUrl } from "./field-task-share.js?v=0.40.0";
 import { brandedQrFile, printPalette } from "./pdf-document.js?v=0.30.0";
 
 const clone = (value) => structuredClone(value);

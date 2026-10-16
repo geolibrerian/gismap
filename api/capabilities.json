@@ -276,7 +276,8 @@
     "dark-gray-vector",
     "osm",
     "satellite",
-    "hybrid"
+    "hybrid",
+    "skin"
   ],
   "limits": {
     "maxLayers": 10,

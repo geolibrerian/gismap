@@ -1,8 +1,8 @@
 // Stable application-facing map facade. It owns engine selection and the
 // higher-level workflows that can be expressed with provider-neutral
 // primitives. Renderer adapters stay focused on drawing and interaction.
-import { createEngine, getEngineDefinition, listEngines } from "./engines/engine-registry.js?v=0.39.0";
-import { MAP_CONTROLLER_METHODS, METHOD_CAPABILITIES, unsupported } from "./engines/engine-interface.js?v=0.39.0";
+import { createEngine, getEngineDefinition, listEngines } from "./engines/engine-registry.js?v=0.40.0";
+import { MAP_CONTROLLER_METHODS, METHOD_CAPABILITIES, unsupported } from "./engines/engine-interface.js?v=0.40.0";
 import { GisMapError } from "./gismap-errors.js?v=0.28.0";
 
 const wait = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
@@ -26,6 +26,7 @@ const FALLBACKS = Object.freeze({
   clearDrawings: nothing,
   getDrawGraphicsForExport: () => [],
   widgetOpen: () => false,
+  setBasemapTheme: nothing,
   restoreRenderer: nothing,
   recordRendererSpec: nothing,
   layerMetadata: () => null,

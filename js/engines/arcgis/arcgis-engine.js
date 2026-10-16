@@ -3,10 +3,10 @@
 // callers get layer handles, features with plain JSON geometry and view
 // states, never SDK objects. Only native() hands the SDK's own map and view
 // out, for custom tools and the in-page API's escape hatches.
-import { arcgisMetadata } from "../../source-inspector.js?v=0.29.0";
+import { arcgisMetadata } from "../../source-inspector.js?v=0.40.0";
 import { chooseStyleField, compileRenderer, resolveRendererSpec, suggestRenderers, validateRendererSpec } from "../../renderer-spec.js?v=0.29.0";
 import { GisMapError } from "../../gismap-errors.js?v=0.28.0";
-import { ENGINE_CAPABILITIES, unsupported } from "../engine-interface.js?v=0.39.0";
+import { ENGINE_CAPABILITIES, unsupported } from "../engine-interface.js?v=0.40.0";
 import { loadArcGISRuntime } from "./arcgis-loader.js?v=0.38.0";
 
 const ARCGIS_WORLD_GEOCODER =
@@ -167,6 +167,7 @@ export class ArcGISEngine {
     this.defaultBasemapId = "topo-3d";
     this.basemapId = "topo-3d";
     this.groundId = "world-elevation";
+    this.basemapTheme = null;
   }
 
   async initialize(container = "viewDiv") {
@@ -252,7 +253,7 @@ export class ArcGISEngine {
     this.clickFeedbackLayer = new GraphicsLayer({ title: "Click feedback", listMode: "hide" });
     this.locationLayer = new GraphicsLayer({ title: "Your location", listMode: "hide" });
     this.map = new ArcGISMap({
-      basemap: this.basemapId,
+      basemap: this.#sdkBasemap(this.basemapId),
       ground: this.groundId,
       layers: [this.drawLayer, this.tourLayer, this.clickFeedbackLayer, this.locationLayer],
     });
@@ -333,7 +334,7 @@ export class ArcGISEngine {
   }
 
   getCapabilities() {
-    return ENGINE_CAPABILITIES.filter((name) => name !== "view-2d");
+    return ENGINE_CAPABILITIES.filter((name) => name !== "view-2d" && name !== "basemap-themes");
   }
 
   /**
@@ -1697,8 +1698,24 @@ export class ArcGISEngine {
     // Re-assigning the same basemap would tear down and rebuild its layer views for nothing.
     if (this.map && next === this.basemapId && this.map.basemap) return;
     this.basemapId = next;
-    if (this.map) this.map.basemap = this.basemapId;
+    if (this.map) this.map.basemap = this.#sdkBasemap(this.basemapId);
     this.events.publish("map:basemap-changed", { id: this.basemapId });
+  }
+
+  /**
+   * The ArcGIS basemap for a GIS Map basemap id. ArcGIS cannot restyle its
+   * basemaps by skin, so the "skin" basemap is the light or dark gray canvas
+   * that suits the skin.
+   */
+  #sdkBasemap(id) {
+    return id === "skin" ? (this.basemapTheme?.dark ? "dark-gray-vector" : "gray-vector") : id;
+  }
+
+  /** The active skin's basemap theme: only light or dark matters here. */
+  setBasemapTheme(theme) {
+    const wasDark = Boolean(this.basemapTheme?.dark);
+    this.basemapTheme = theme || null;
+    if (this.map && this.basemapId === "skin" && wasDark !== Boolean(this.basemapTheme?.dark)) this.map.basemap = this.#sdkBasemap("skin");
   }
 
   /**

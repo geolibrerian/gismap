@@ -159,7 +159,8 @@
         "dark-gray-vector",
         "osm",
         "satellite",
-        "hybrid"
+        "hybrid",
+        "skin"
       ],
       "description": "The background map, applied before the scene starts.",
       "example": "gray-vector"

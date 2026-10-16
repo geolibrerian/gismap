@@ -2,22 +2,23 @@ import { POPULAR_SERVICES } from "./catalog.js?v=0.18.2";
 import { MapAssistantPanel } from "./assistant-panel.js?v=0.36.3";
 import { createAssistantTools, summarizeMapState } from "./map-assistant.js?v=0.36.3";
 import { ENTERPRISE_CATALOGS, EnterpriseCatalog, normalizeArcGisDirectoryUrl } from "./enterprise-catalog.js?v=0.18.2";
-import { createShareUrl } from "./share.js?v=0.29.0";
-import { createShareLink, hasDataFilter } from "./map-share.js?v=0.35.0";
-import { briefingLayerRef, findBriefingLayer } from "./briefing-api.js?v=0.37.0";
+import { createShareUrl } from "./share.js?v=0.40.0";
+import { createShareLink, hasDataFilter } from "./map-share.js?v=0.40.0";
+import { briefingLayerRef, findBriefingLayer } from "./briefing-api.js?v=0.40.0";
 import { createEmbeddedTourUrl } from "./tour-share.js?v=0.18.2";
 import { markdownToPlainText, renderMarkdown } from "./markdown.js?v=0.18.2";
 import { formatAttributeValue } from "./attribute-format.js?v=0.18.2";
 import { normalizeApplicationConfig, presetApplication } from "./application-config.js?v=0.18.2";
 import { combineConditions, featureFilterFor, featureId, fieldKind, filterRecords, histogram, requestGuard, sortRecords } from "./presentation-query.js?v=0.30.0";
-import { DEFAULT_SKIN, INTERFACE_SKINS, applyInterfaceSkin, normalizeSkin, skinOptionsMarkup } from "./skin-catalog.js?v=0.18.2";
+import { DEFAULT_SKIN, INTERFACE_SKINS, applyInterfaceSkin, normalizeSkin, skinIsDark, skinOptionsMarkup } from "./skin-catalog.js?v=0.18.2";
+import { themeFromComputedStyle } from "./basemap-themes.js?v=0.40.0";
 import { compactMedia } from "./viewport.js?v=0.18.2";
 import { PdfDocument, brandedMapImage, brandedQrCanvas, loadBrandLogo, printPalette, qrAsset } from "./pdf-document.js?v=0.30.0";
-import { featureLayerUrl, locationUrl } from "./field-task-share.js?v=0.29.0";
+import { featureLayerUrl, locationUrl } from "./field-task-share.js?v=0.40.0";
 import { dockIcon } from "./dock-icons.js?v=0.24.0";
 import { serviceNameFromUrl } from "./service-name.js?v=0.26.0";
 import { decodeQrFromImage, describeGisMapLink, gisMapLinkFrom, openGisMapLink } from "./qr-import.js?v=0.25.1";
-import { BriefingSlides } from "./briefing-slides.js?v=0.37.0";
+import { BriefingSlides } from "./briefing-slides.js?v=0.40.0";
 import { createSlide, matchesFilter, normalizeFilter } from "./briefing-document.js?v=0.35.0";
 import { aiDescriptionPrompt, applyAiDescriptions, describeWhere, generateBriefing, readAiDescriptions, rendererTheme } from "./briefing-generator.js?v=0.36.1";
 import { briefingFileStem } from "./briefing-pdf.js?v=0.23.0";
@@ -39,6 +40,7 @@ const BASEMAP_OPTIONS = [
   ["navigation", "2D Navigation"], ["gray-vector", "2D Light gray"],
   ["dark-gray-vector", "2D Dark gray"], ["osm", "2D OpenStreetMap"],
   ["satellite", "Satellite"], ["hybrid", "Satellite + labels"],
+  ["skin", "Skin — follows the look"],
 ];
 const BASEMAP_IDS = new Set(BASEMAP_OPTIONS.map(([id]) => id));
 
@@ -127,6 +129,7 @@ export class UIController {
     this.panelManager?.register("content:draw", document.querySelector(".draw-tools"), { shell: document.querySelector("#draw-panel") });
     this.#initDockablePanels();
     this.#applyDisplaySettings(this.#readDisplaySettings());
+    this.#followSkinOnMap();
     this.systemThemeMedia.addEventListener?.("change", () => {
       const settings = this.#readDisplaySettings();
       if (settings.appearance === "system") this.#applyDisplaySettings(settings);
@@ -1588,6 +1591,26 @@ export class UIController {
       this.error(`Export failed: ${error.message}`);
       this.dialog.close();
     }
+  }
+
+  /**
+   * Keeps the map engine's basemap theme in step with the interface: the
+   * "skin" basemap and unstyled data layers take the active skin's colours,
+   * whichever part of the app changes the skin or the light/dark appearance.
+   */
+  #followSkinOnMap() {
+    const root = document.documentElement;
+    let applied = null;
+    const sync = () => {
+      const skin = normalizeSkin(root.dataset.skin);
+      const theme = themeFromComputedStyle(getComputedStyle(root), { skin, dark: skinIsDark(skin, root.dataset.theme) });
+      const key = JSON.stringify(theme);
+      if (key === applied) return;
+      applied = key;
+      this.mapController.setBasemapTheme(theme);
+    };
+    sync();
+    new MutationObserver(sync).observe(root, { attributes: true, attributeFilter: ["data-skin", "data-theme"] });
   }
 
   #readDisplaySettings() {

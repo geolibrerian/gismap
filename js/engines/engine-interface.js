@@ -19,6 +19,7 @@ export const ENGINE_CAPABILITIES = Object.freeze([
   "view-2d", // a flat map
   "view-3d", // a globe or scene: tilt, heading, elevation
   "basemaps", // setBasemap(id)
+  "basemap-themes", // setBasemapTheme(theme): the "skin" basemap drawn in the skin's colours
   "ground", // setGround(id): terrain elevation
   "layers-arcgis", // ArcGIS REST feature, map image and imagery services
   "layers-ogc", // WMS and WFS
@@ -86,6 +87,7 @@ export const MAP_CONTROLLER_METHODS = Object.freeze([
   "highlightFeature", "clearFeatureHighlight", "configureInteractionFeedback", "clearClickMarker", "locateUser", "geographicCoordinates",
   "search", "reverseGeocode", "captureViews", "captureTaskMap",
   "draw", "hasDrawings", "clearDrawings", "getDrawGraphicsForExport", "setTaskPin", "setTourMarkers", "setActiveTourMarker", "clearTourMarkers", "toggleWidget", "widgetOpen",
+  "setBasemapTheme",
 ]);
 
 /** Capability used when an optional delegated method is absent. */
@@ -98,7 +100,7 @@ export const METHOD_CAPABILITIES = Object.freeze({
   highlightFeature: "highlight", clearFeatureHighlight: "highlight", configureInteractionFeedback: "highlight", clearClickMarker: "highlight", locateUser: "view-2d",
   search: "geocode", reverseGeocode: "geocode", captureViews: "capture", captureTaskMap: "capture",
   draw: "draw", hasDrawings: "draw", clearDrawings: "draw", getDrawGraphicsForExport: "draw", setTaskPin: "draw", setTourMarkers: "tour-markers", setActiveTourMarker: "tour-markers", clearTourMarkers: "tour-markers",
-  toggleWidget: "widgets", widgetOpen: "widgets",
+  toggleWidget: "widgets", widgetOpen: "widgets", setBasemapTheme: "basemap-themes",
 });
 
 /**

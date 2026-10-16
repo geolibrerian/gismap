@@ -154,6 +154,7 @@ published builds and generated release notes.
 - `js/engines/engine-registry.js` — lazy engine registration and factory; ArcGIS is the default and additional renderers can register without changing application consumers
 - `js/engines/engine-interface.js` — the small renderer contract plus the larger application facade, capabilities, events and plain-data types (layer handles, features, view targets)
 - `js/engines/maplibre/maplibre-engine.js` — the MapLibre preview renderer (`?engine=maplibre` or Display settings): 2D map on OpenFreeMap styles, GeoJSON layers filtered, queried and identified in the browser, camera and capture; `where.js`, `geojson.js` and `basemaps.js` beside it are pure helpers
+- `js/basemap-themes.js` — basemap themes derived from a skin's design tokens (the "skin" basemap); `js/engines/maplibre/basemap-theme.js` applies one to an OpenMapTiles style by layer role
 - `js/engine-preference.js` — which engine draws the map: the link's `?engine=`, then the saved Display settings choice, else ArcGIS
 - `js/engines/arcgis/arcgis-loader.js` — loads ArcGIS runtime CSS and JavaScript only when the ArcGIS renderer is selected
 - `js/engines/arcgis/arcgis-engine.js` — the ArcGIS renderer adapter: 3D scene/camera lifecycle, elevation ground, layer adapters, queries, identify, drawing, refresh, rendering, navigation, capture and geocoding

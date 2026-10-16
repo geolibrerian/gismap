@@ -36,7 +36,7 @@ The map in a link is one JSON object (map-v1): layers with filters and styles, b
 
 ## Limits
 - At most 10 layers per map; HTTPS only; URLs containing tokens or keys are refused; sources must allow browser (CORS) access.
-- Basemaps: topo-3d, navigation-3d, navigation-dark-3d, osm-3d, gray-3d, dark-gray-3d, streets-3d, streets-dark-3d, topo-vector, streets-vector, navigation, gray-vector, dark-gray-vector, osm, satellite, hybrid.
+- Basemaps: topo-3d, navigation-3d, navigation-dark-3d, osm-3d, gray-3d, dark-gray-3d, streets-3d, streets-dark-3d, topo-vector, streets-vector, navigation, gray-vector, dark-gray-vector, osm, satellite, hybrid, skin.
 - Colour ramps: greens, blues, reds, oranges, purples, viridis, magma, red-blue-diverging, brown-teal-diverging.
 
 ## Optional

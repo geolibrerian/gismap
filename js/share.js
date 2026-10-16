@@ -5,7 +5,7 @@ const SUPPORTED_BASEMAPS = new Set([
   "topo-3d", "navigation-3d", "navigation-dark-3d", "osm-3d", "gray-3d",
   "dark-gray-3d", "streets-3d", "streets-dark-3d", "topo-vector",
   "streets-vector", "navigation", "gray-vector", "dark-gray-vector", "osm",
-  "satellite", "hybrid",
+  "satellite", "hybrid", "skin",
 ]);
 const MAX_LAYERS = 10;
 const CAMERA_ZOOM_MODES = new Set(["layers", "none"]);

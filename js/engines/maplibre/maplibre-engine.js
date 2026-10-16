@@ -9,16 +9,18 @@
 // one lower for the same scale (512-pixel tiles). Everything that crosses the
 // boundary uses GIS Map levels, so links and projects mean the same view.
 import { GisMapError } from "../../gismap-errors.js?v=0.28.0";
-import { unsupported } from "../engine-interface.js?v=0.39.0";
-import { openBasemapFor } from "./basemaps.js?v=0.39.0";
+import { unsupported } from "../engine-interface.js?v=0.40.0";
+import { openBasemapFor } from "./basemaps.js?v=0.40.0";
+import { applyBasemapTheme } from "./basemap-theme.js?v=0.40.0";
 import { compileWhere } from "./where.js?v=0.39.0";
 import { OBJECT_ID_FIELD, boundsIntersect, boundsOf, expandBounds, geometryTypeOf, inferFields, normalizeFeatures, representativePoint } from "./geojson.js?v=0.39.0";
 import { loadMaplibre } from "./maplibre-loader.js?v=0.39.0";
 
-export const MAPLIBRE_CAPABILITIES = Object.freeze(["view-2d", "basemaps", "layers-files", "query", "feature-filter", "identify", "capture", "native"]);
+export const MAPLIBRE_CAPABILITIES = Object.freeze(["view-2d", "basemaps", "basemap-themes", "layers-files", "query", "feature-filter", "identify", "capture", "native"]);
 
 const ZOOM_OFFSET = 1;
 const SCALE_AT_ZOOM_0 = 591657527.591555;
+// GIS Map green, until a skin's theme gives the data its accent colour.
 const DEFAULT_COLOR = "#1b7f6a";
 const MAX_PITCH = 60;
 const toEngineZoom = (zoom) => Number(zoom) - ZOOM_OFFSET;
@@ -93,6 +95,8 @@ export class MaplibreEngine {
   #records = new Map();
   #count = 0;
   #loaded = null;
+  #styleJson = new Map();
+  #styleToken = 0;
 
   constructor(events) {
     this.id = "maplibre";
@@ -103,6 +107,7 @@ export class MaplibreEngine {
     this.defaultBasemapId = "topo-3d";
     this.basemapId = "topo-3d";
     this.initialBasemapId = null;
+    this.basemapTheme = null;
   }
 
   /* ---------------- Lifecycle ---------------- */
@@ -112,7 +117,7 @@ export class MaplibreEngine {
     const { center, zoom, heading, tilt } = this.defaultView;
     this.map = new this.maplibregl.Map({
       container,
-      style: openBasemapFor(this.basemapId).style,
+      style: await this.#styleFor(this.basemapId),
       center,
       zoom: toEngineZoom(zoom),
       bearing: heading,
@@ -201,20 +206,60 @@ export class MaplibreEngine {
     const next = id || "topo-3d";
     if (!this.map && this.initialBasemapId) return;
     if (this.map && next === this.basemapId) return;
-    const previousStyle = openBasemapFor(this.basemapId).style;
+    const previous = openBasemapFor(this.basemapId);
     this.basemapId = next;
-    const { style } = openBasemapFor(next);
-    // A new style replaces every source and layer; the data layers are carried over.
-    if (this.map && style !== previousStyle) {
-      this.map.setStyle(style, {
-        transformStyle: (_previous, incoming) => ({
-          ...incoming,
-          sources: { ...incoming.sources, ...Object.fromEntries([...this.#records.values()].map((record) => [this.#sourceId(record), this.#sourceSpec(record)])) },
-          layers: [...incoming.layers, ...[...this.#records.values()].flatMap((record) => this.#layerSpecs(record))],
-        }),
-      });
-    }
+    const upcoming = openBasemapFor(next);
+    if (this.map && (upcoming.themed || previous.themed || upcoming.style !== previous.style)) void this.#applyStyle();
     this.events.publish("map:basemap-changed", { id: this.basemapId });
+  }
+
+  /**
+   * The colours of the active skin (basemap-themes.js themeFromTokens): the
+   * "skin" basemap is drawn with them, and data layers without a style of
+   * their own take the theme's accent.
+   */
+  setBasemapTheme(theme) {
+    this.basemapTheme = theme || null;
+    for (const record of this.#records.values()) if (!record.style.color) this.#refresh(record);
+    if (this.map && openBasemapFor(this.basemapId).themed) void this.#applyStyle();
+  }
+
+  #dataColor() {
+    return this.basemapTheme?.accent || DEFAULT_COLOR;
+  }
+
+  /** The style for a basemap id: an OpenFreeMap style URL, or for "skin" that style restyled with the theme. */
+  async #styleFor(id) {
+    const basemap = openBasemapFor(id);
+    if (!basemap.themed || !this.basemapTheme) return basemap.style;
+    if (!this.#styleJson.has(basemap.style)) {
+      this.#styleJson.set(basemap.style, fetch(basemap.style).then((response) => {
+        if (!response.ok) throw new Error(`The basemap style did not load (HTTP ${response.status}).`);
+        return response.json();
+      }).catch((error) => { this.#styleJson.delete(basemap.style); throw error; }));
+    }
+    try {
+      return applyBasemapTheme(await this.#styleJson.get(basemap.style), this.basemapTheme);
+    } catch {
+      return basemap.style;
+    }
+  }
+
+  /** Swaps in the current basemap's style, carrying the data layers over (only what changed is redrawn). */
+  async #applyStyle() {
+    const token = ++this.#styleToken;
+    const style = await this.#styleFor(this.basemapId);
+    // A style still loading cannot be diffed (MapLibre would rebuild from scratch); wait for it.
+    if (this.map && !this.map.isStyleLoaded()) await new Promise((resolve) => { this.map.once("style.load", resolve); setTimeout(resolve, 10000); });
+    if (token !== this.#styleToken || !this.map) return;
+    this.map.setStyle(style, {
+      diff: true,
+      transformStyle: (_previous, incoming) => ({
+        ...incoming,
+        sources: { ...incoming.sources, ...Object.fromEntries([...this.#records.values()].map((record) => [this.#sourceId(record), this.#sourceSpec(record)])) },
+        layers: [...incoming.layers, ...[...this.#records.values()].flatMap((record) => this.#layerSpecs(record))],
+      }),
+    });
   }
 
   async whenBasemapLoaded(timeout = 15000) {
@@ -254,7 +299,7 @@ export class MaplibreEngine {
   #layerSpecs(record) {
     const source = this.#sourceId(record);
     const visibility = record.visible ? "visible" : "none";
-    const color = record.style.color;
+    const color = record.style.color || this.#dataColor();
     const outline = record.style.outline || color;
     const size = Number(record.style.size);
     const opacity = record.opacity;
@@ -267,7 +312,7 @@ export class MaplibreEngine {
       { id: `${source}-fill`, type: "fill", source, filter: filtered(["Polygon", "MultiPolygon"]), layout: { visibility }, paint: { "fill-color": color, "fill-opacity": 0.35 * opacity } },
       { id: `${source}-outline`, type: "line", source, filter: filtered(["Polygon", "MultiPolygon"]), layout: { visibility }, paint: { "line-color": outline, "line-width": Number.isFinite(size) ? size : 1.5, "line-opacity": opacity } },
       { id: `${source}-line`, type: "line", source, filter: filtered(["LineString", "MultiLineString"]), layout: { visibility, "line-cap": "round", "line-join": "round" }, paint: { "line-color": color, "line-width": Number.isFinite(size) ? size : 2.5, "line-opacity": opacity } },
-      { id: `${source}-circle`, type: "circle", source, filter: filtered(["Point", "MultiPoint"]), layout: { visibility }, paint: { "circle-color": color, "circle-radius": Number.isFinite(size) ? size / 2 : 4.5, "circle-stroke-color": record.style.outline || "#ffffff", "circle-stroke-width": 1.5, "circle-opacity": opacity, "circle-stroke-opacity": opacity } },
+      { id: `${source}-circle`, type: "circle", source, filter: filtered(["Point", "MultiPoint"]), layout: { visibility }, paint: { "circle-color": color, "circle-radius": Number.isFinite(size) ? size / 2 : 4.5, "circle-stroke-color": record.style.outline || this.basemapTheme?.labelHalo || "#ffffff", "circle-stroke-width": 1.5, "circle-opacity": opacity, "circle-stroke-opacity": opacity } },
     ];
   }
 
@@ -303,7 +348,7 @@ export class MaplibreEngine {
       where: null,
       featureFilter: null,
       rendererSpec: null,
-      style: { color: DEFAULT_COLOR },
+      style: {},
       config: { sourceType: config.sourceType || "geojson", fileName: config.fileName ?? null, projectPath: config.projectPath ?? null, local: Boolean(config.local), definitionExpression: null },
       asset: config.asset ?? null,
     };
@@ -486,11 +531,11 @@ export class MaplibreEngine {
     const record = this.#require(uid);
     const spec = typeof input === "string" ? { type: input } : { ...(input || {}) };
     if (spec.type === "service") {
-      record.style = { color: DEFAULT_COLOR };
+      record.style = {};
       record.rendererSpec = null;
     } else if (spec.type === "simple") {
       if (spec.color && !/^#[0-9a-f]{6}$/i.test(spec.color)) throw new GisMapError("INVALID_SPEC", "color must be a #rrggbb colour.");
-      record.style = { color: spec.color || DEFAULT_COLOR, outline: spec.outline || null, size: spec.size };
+      record.style = { color: spec.color || null, outline: spec.outline || null, size: spec.size };
       record.rendererSpec = spec;
     } else {
       throw unsupported("renderer-spec", `The MapLibre engine (preview) draws single-colour styles only so far; “${spec.type}” styles need the ArcGIS engine.`);

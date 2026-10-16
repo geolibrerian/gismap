@@ -6,6 +6,14 @@ All notable changes to GIS Map Online are documented here. This project follows
 
 ## [Unreleased]
 
+### Skin basemap: the map in the colours of the interface (phase 1)
+
+- **A new basemap, "Skin — follows the look"** (basemap menu, Display settings, tours, and `basemap=skin` in links and map specs). With the MapLibre engine it is the open Positron style redrawn in the active skin's own colours: land in its paper, water and parks in its muted tone, roads, boundaries and labels from its ink and line colours, points of interest and road shields hidden so the data stands out. Highway gives the white, grey-water technical map that inspired it (with uppercase labels); Midnight, Velvet Orbit and Violet Circuit give dark maps; Pacific ’94 and Copperplate their teal and sepia papers. Changing the skin, or light and dark mode, redraws it at once. The ArcGIS engine shows its light or dark gray canvas for it.
+- **Data takes the skin's accent.** With the MapLibre engine, layers without a style of their own are drawn in the skin's accent colour (Highway orange, Midnight cyan, GIS Map green); a style you choose is kept.
+- How it works: `js/basemap-themes.js` derives a theme from a skin's CSS tokens (`--paper`, `--surface`, `--ink`, `--muted`, `--line`, `--green-2`), keeping every label at 4.5:1 contrast or better; `js/engines/maplibre/basemap-theme.js` gives every layer of the OpenMapTiles styles a role (water, roads, labels, …) and recolours by role, keeping the style's zoom ranges, filters, widths and dashes. Engines advertise it as the `basemap-themes` capability (`setBasemapTheme`).
+- Tests (`tests/basemap-themes.test.mjs`) derive a theme for every skin from `css/app.css` and check contrast, and run the compiler over the three OpenFreeMap styles (`tests/fixtures/openfreemap-*.json`): every layer has a role, and structure is unchanged.
+- The map status no longer says "Loading ArcGIS Maps SDK" while another engine loads.
+
 ### MapLibre engine preview (2D, open basemaps, GeoJSON)
 
 - **A second map engine, opt-in.** Open any link with `?engine=maplibre`, or choose **Tools → Display settings → Map engine → MapLibre (preview)**, which saves the choice and reopens the current map from its link. ArcGIS stays the default; nothing changes unless you choose it.
