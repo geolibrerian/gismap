@@ -6,7 +6,7 @@ const ui = await readFile(new URL("../js/ui.js", import.meta.url), "utf8");
 const robots = await readFile(new URL("../robots.txt", import.meta.url), "utf8");
 const sitemap = await readFile(new URL("../sitemap.xml", import.meta.url), "utf8");
 
-assert.match(html, /<title>GIS Map Online — Free 3D ArcGIS REST &amp; GeoJSON Viewer<\/title>/);
+assert.match(html, /<title>GISMap Online — Create, Visualize &amp; Share Maps for Free<\/title>/);
 assert.match(html, /<link rel="canonical" href="https:\/\/gismap\.online\/" \/>/);
 assert.match(html, /property="og:image"/);
 assert.match(html, /name="twitter:card" content="summary_large_image"/);
@@ -15,7 +15,8 @@ const structuredData = JSON.parse(html.match(/<script type="application\/ld\+jso
 assert.deepEqual(structuredData["@type"], ["SoftwareApplication", "WebApplication"]);
 assert.equal(structuredData.isAccessibleForFree, true);
 assert.equal(structuredData.author.name, "Silas Toms");
-assert.match(html, /id="welcome-title">Explore GIS data instantly/);
+assert.equal(structuredData.name, "GISMap Online");
+assert.match(html, /id="welcome-title">Create, Visualize &amp; Share Maps for Free/);
 assert.match(html, /id="welcome-close"[^>]*aria-label="Dismiss introduction"/);
 assert.doesNotMatch(ui, /welcomePanel\.hidden\s*=\s*Boolean\(layers\.length\)/);
 assert.match(ui, /button\.closest\("#welcome-panel"\)/);
