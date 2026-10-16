@@ -1,12 +1,14 @@
 import { events } from "./events.js?v=0.18.2";
-import { AuthController } from "./engines/arcgis/arcgis-auth.js?v=0.38.0";
-import { MapController } from "./map-controller.js?v=0.38.0";
+import { AuthController } from "./engines/arcgis/arcgis-auth.js?v=0.39.0";
+import { MapController } from "./map-controller.js?v=0.39.0";
+import { listEngines } from "./engines/engine-registry.js?v=0.39.0";
+import { chooseEngine } from "./engine-preference.js?v=0.39.0";
 import { ProjectManager } from "./project.js?v=0.37.0";
 import { IdentifyController } from "./identify.js?v=0.37.0";
 import { AttributeTableController } from "./attribute-table.js?v=0.37.0";
 import { AIController } from "./ai.js?v=0.37.0";
 import { ToolManager } from "./tool-manager.js?v=0.37.0";
-import { UIController } from "./ui.js?v=0.37.0";
+import { UIController } from "./ui.js?v=0.39.0";
 import { ExportController } from "./export/export-controller.js?v=0.37.0";
 import { SHARE_BASEMAPS, parseShareParameters } from "./share.js?v=0.29.0";
 import { readShareLocation } from "./map-share.js?v=0.35.0";
@@ -53,9 +55,13 @@ ready.catch(() => {});
 
 async function start() {
   const allowHttp = location.hostname === "localhost" || location.hostname === "127.0.0.1";
+  // ArcGIS by default; ?engine=maplibre (or the Display settings choice) opts in to the MapLibre preview.
+  const engineId = chooseEngine({ search: location.search, storage: globalThis.localStorage, available: listEngines().map((engine) => engine.id) });
+  document.documentElement.dataset.mapEngine = engineId;
   const authController = new AuthController(events);
-  await authController.initialize();
-  const mapController = new MapController(events, authController, { engineId: "arcgis" });
+  // Saved ArcGIS sign-ins load the ArcGIS identity runtime only when ArcGIS draws the map (or a connection is used).
+  await authController.initialize({ runtime: engineId === "arcgis" });
+  const mapController = new MapController(events, authController, { engineId });
   // Create the selected adapter before UI/settings code configures it; drawing
   // still starts later, after shared-link settings have been read.
   await mapController.prepare();
@@ -147,6 +153,7 @@ async function start() {
       state: {
         status: document.documentElement.dataset.gismapState,
         layers: mapController.isReady() ? layersApi.list() : [],
+        engine: mapController.getEngineId(),
         basemap: mapController.getBasemapId(),
         camera,
         skin: document.documentElement.dataset.skin || presentation.skin || null,

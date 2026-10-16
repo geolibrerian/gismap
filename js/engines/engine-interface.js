@@ -1,6 +1,7 @@
 // The map engine contract. Everything outside js/engines/ talks to the map
-// through one object that implements this interface (today the ArcGIS adapter,
-// js/engines/arcgis/arcgis-engine.js); it never sees a map SDK's own objects.
+// through one object that implements this interface (the ArcGIS adapter,
+// js/engines/arcgis/arcgis-engine.js, and the MapLibre preview,
+// js/engines/maplibre/maplibre-engine.js); it never sees a map SDK's own objects.
 // What crosses the boundary is plain data: layer handles, features with plain
 // JSON geometry, view states and screen points.
 //
@@ -84,7 +85,7 @@ export const MAP_CONTROLLER_METHODS = Object.freeze([
   "goToLayer", "goToLayers", "goToLayerOnInitialLoad", "layerExtent", "dataBounds", "goToFeature", "goToFeatures", "goToSearchResult", "goToTaskPlaces",
   "highlightFeature", "clearFeatureHighlight", "configureInteractionFeedback", "clearClickMarker", "locateUser", "geographicCoordinates",
   "search", "reverseGeocode", "captureViews", "captureTaskMap",
-  "draw", "hasDrawings", "clearDrawings", "getDrawGraphicsForExport", "setTaskPin", "setTourMarkers", "setActiveTourMarker", "clearTourMarkers", "toggleWidget",
+  "draw", "hasDrawings", "clearDrawings", "getDrawGraphicsForExport", "setTaskPin", "setTourMarkers", "setActiveTourMarker", "clearTourMarkers", "toggleWidget", "widgetOpen",
 ]);
 
 /** Capability used when an optional delegated method is absent. */
@@ -97,7 +98,7 @@ export const METHOD_CAPABILITIES = Object.freeze({
   highlightFeature: "highlight", clearFeatureHighlight: "highlight", configureInteractionFeedback: "highlight", clearClickMarker: "highlight", locateUser: "view-2d",
   search: "geocode", reverseGeocode: "geocode", captureViews: "capture", captureTaskMap: "capture",
   draw: "draw", hasDrawings: "draw", clearDrawings: "draw", getDrawGraphicsForExport: "draw", setTaskPin: "draw", setTourMarkers: "tour-markers", setActiveTourMarker: "tour-markers", clearTourMarkers: "tour-markers",
-  toggleWidget: "widgets",
+  toggleWidget: "widgets", widgetOpen: "widgets",
 });
 
 /**

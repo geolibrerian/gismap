@@ -21,7 +21,7 @@ const SDK_ALLOWED = new Set([
 // What only the engine may do, with what it would look like in another module.
 const LEAKS = [
   [/@arcgis\/|\$arcgis/, "imports the ArcGIS Maps SDK"],
-  [/\bmapController\??\.(?:view|map|modules|layerConfigs|localAssets|drawLayer|tourLayer|locationLayer|clickFeedbackLayer|sketch)\b/, "reads the engine's SDK objects"],
+  [/\bmapController\??\.(?:view|map|modules|layerConfigs|localAssets|drawLayer|tourLayer|locationLayer|clickFeedbackLayer|sketch|widgets|engine)\b/, "reads the engine's SDK objects"],
   [/\.view\??\.(?!\w+\s*=>)/, "reads a view (`.view.`)"],
   [/\.(?:findLayer|getOperationalLayers|takeMapScreenshot|searchPlaces|representativePoint|dataExtent)\s*\(/, "calls a pre-engine MapController method that handed out SDK objects"],
   [/(?<!mapController|host)\.(?:createQuery|queryExtent|queryFeatures|queryFeatureCount|queryObjectIds|whenLayerView|hitTest|takeScreenshot|toMap|goTo|zoomIn|zoomOut)\s*\(/, "calls an SDK layer or view method"],
@@ -56,6 +56,16 @@ test("only the engine touches the ArcGIS Maps SDK", async () => {
     });
   }
   assert.deepEqual(leaks, [], `Route these through the engine (js/engines/engine-interface.js):\n${leaks.join("\n")}`);
+});
+
+test("only the MapLibre engine touches MapLibre GL JS", async () => {
+  const outside = [];
+  for (const file of await modules()) {
+    if (file.startsWith("js/engines/maplibre/")) continue;
+    const code = (await readFile(new URL(file, root), "utf8")).split("\n").filter((line) => !/^\s*(?:\/\/|\/?\*)/.test(line)).join("\n");
+    if (/maplibregl|maplibre-gl/.test(code)) outside.push(file);
+  }
+  assert.deepEqual(outside, []);
 });
 
 test("the allow-list holds engine files only, and each still exists", async () => {
@@ -97,6 +107,7 @@ test("the leak patterns catch what they are for", () => {
     "const renderer = layer.renderer?.toJSON?.();",
     "await layer.load();",
     "const sdk = result.graphic;",
+    'if (!this.mapController.widgets.has("legend")) return;',
   ]) assert.ok(caught(code), code);
   for (const code of [
     "await this.mapController.queryFeatures(layer.uid, { where });",

@@ -1,11 +1,38 @@
 // Stable application-facing map facade. It owns engine selection and the
 // higher-level workflows that can be expressed with provider-neutral
 // primitives. Renderer adapters stay focused on drawing and interaction.
-import { createEngine, getEngineDefinition, listEngines } from "./engines/engine-registry.js?v=0.38.0";
-import { MAP_CONTROLLER_METHODS, METHOD_CAPABILITIES, unsupported } from "./engines/engine-interface.js?v=0.38.0";
+import { createEngine, getEngineDefinition, listEngines } from "./engines/engine-registry.js?v=0.39.0";
+import { MAP_CONTROLLER_METHODS, METHOD_CAPABILITIES, unsupported } from "./engines/engine-interface.js?v=0.39.0";
 import { GisMapError } from "./gismap-errors.js?v=0.28.0";
 
 const wait = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
+const nothing = () => undefined;
+
+/**
+ * What the app gets when the engine lacks an optional capability whose
+ * absence is harmless (no click marker, no tour pins, no address lookup).
+ * Anything not listed reports the missing capability instead.
+ */
+const FALLBACKS = Object.freeze({
+  configureInteractionFeedback: nothing,
+  clearClickMarker: nothing,
+  highlightFeature: async () => false,
+  clearFeatureHighlight: nothing,
+  setTaskPin: nothing,
+  setTourMarkers: nothing,
+  setActiveTourMarker: nothing,
+  clearTourMarkers: nothing,
+  hasDrawings: () => false,
+  clearDrawings: nothing,
+  getDrawGraphicsForExport: () => [],
+  widgetOpen: () => false,
+  restoreRenderer: nothing,
+  recordRendererSpec: nothing,
+  layerMetadata: () => null,
+  getLocalAsset: () => null,
+  ignoreScaleRange: () => false,
+  reverseGeocode: async () => null,
+});
 
 export class MapController {
   constructor(events, authController = null, { engineId = "arcgis", engineFactory = createEngine } = {}) {
@@ -16,6 +43,7 @@ export class MapController {
     this.engine = null;
     this.initialBasemapId = null;
     this.defaultBasemapId = null;
+    this.groundId = "world-elevation";
   }
 
   availableEngines() { return listEngines(); }
@@ -62,9 +90,21 @@ export class MapController {
 
   getAllLayerConfigs() { return this.getLayers().map((layer) => this.getLayerConfig(layer)); }
 
+  /** Terrain on engines with 3D ground; others keep the choice so projects save it unchanged. */
+  setGround(id) {
+    this.groundId = id || "world-elevation";
+    if (typeof this.engine?.setGround === "function") return this.engine.setGround(this.groundId);
+  }
+
+  getGroundId() {
+    return typeof this.engine?.getGroundId === "function" ? this.engine.getGroundId() : this.groundId;
+  }
+
   async restoreView(state) {
     if (!state) return;
-    if (state.camera) return this.setView({ camera: state.camera }, { animate: false });
+    // A flat map goes to a saved 3D view's centre and zoom when it has them; the camera position is the eye, not the target.
+    const flat = !this.getCapabilities().includes("view-3d");
+    if (state.camera && !(flat && Array.isArray(state.center))) return this.setView({ camera: state.camera }, { animate: false });
     return this.setView({ center: state.center, zoom: state.zoom, heading: state.heading, tilt: state.tilt }, { animate: false });
   }
 
@@ -146,6 +186,7 @@ export class MapController {
 
   _delegate(name, args) {
     const engine = this.#requireEngine();
+    if (typeof engine[name] !== "function" && FALLBACKS[name]) return FALLBACKS[name](...args);
     if (typeof engine[name] !== "function") throw unsupported(METHOD_CAPABILITIES[name] || name, `${engine.id || this.engineId} does not support ${name}.`);
     return engine[name](...args);
   }

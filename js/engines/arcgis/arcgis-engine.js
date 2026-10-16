@@ -6,7 +6,7 @@
 import { arcgisMetadata } from "../../source-inspector.js?v=0.29.0";
 import { chooseStyleField, compileRenderer, resolveRendererSpec, suggestRenderers, validateRendererSpec } from "../../renderer-spec.js?v=0.29.0";
 import { GisMapError } from "../../gismap-errors.js?v=0.28.0";
-import { ENGINE_CAPABILITIES, unsupported } from "../engine-interface.js?v=0.38.0";
+import { ENGINE_CAPABILITIES, unsupported } from "../engine-interface.js?v=0.39.0";
 import { loadArcGISRuntime } from "./arcgis-loader.js?v=0.38.0";
 
 const ARCGIS_WORLD_GEOCODER =
@@ -2311,6 +2311,11 @@ export class ArcGISEngine {
       ymax: mapPoint.y + dy,
       spatialReference: mapPoint.spatialReference,
     };
+  }
+
+  /** Whether a widget (legend, measurement, …) is open. */
+  widgetOpen(name) {
+    return this.widgets.has(name);
   }
 
   async toggleWidget(name) {

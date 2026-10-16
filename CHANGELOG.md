@@ -6,6 +6,15 @@ All notable changes to GIS Map Online are documented here. This project follows
 
 ## [Unreleased]
 
+### MapLibre engine preview (2D, open basemaps, GeoJSON)
+
+- **A second map engine, opt-in.** Open any link with `?engine=maplibre`, or choose **Tools → Display settings → Map engine → MapLibre (preview)**, which saves the choice and reopens the current map from its link. ArcGIS stays the default; nothing changes unless you choose it.
+- **What it does so far:** a flat map drawn with MapLibre GL JS 5.24.0 on key-free [OpenFreeMap](https://openfreemap.org) styles (GIS Map basemap ids map to Liberty, Bright, Positron or Dark, so links keep their basemap id); **GeoJSON layers** from URLs and files, with visibility, opacity, single-colour styles, attribute filters, the attribute table and search, identify, queries and briefings; the camera (centre, zoom, heading, tilt up to 60°) in the same GIS Map zoom levels as ArcGIS, so map links, projects and tours open on the same view in either engine; navigation buttons; and image capture for Smart images and PDFs.
+- **Not yet:** ArcGIS, WMS, WFS and KML services, KML/KMZ/shapefile files, class-based styles and style suggestions, exact spatial relationships (only "in view" and box queries), geocoding search, drawing, measurement and other widgets, highlights and tour or task pins. Each says it needs the ArcGIS engine instead of failing silently; address lookups are simply skipped.
+- **Optional capabilities are optional.** `MapController` gives harmless defaults when an engine lacks them (no click marker, no tour pins, no address) and reports the missing capability for the rest. With MapLibre selected the ArcGIS runtime is never downloaded; saved ArcGIS sign-ins load it only when a connection is used.
+- New pure modules with Node tests (`tests/maplibre-engine.test.mjs`): `js/engines/maplibre/where.js` evaluates GIS Map's SQL where clauses (comparisons, LIKE, IN, BETWEEN, IS NULL, AND/OR/NOT) against GeoJSON properties, `geojson.js` (object IDs, fields, bounds, representative points), `basemaps.js`, and `js/engine-preference.js`.
+- Fixed: two places in the interface still read the old `mapController.widgets` map, so opening a utility panel (Style, Map assistant, Field tasks) or Show legend threw after the engine host refactor. The facade now has `widgetOpen(name)`, and the boundary test catches the pattern.
+
 ### One map engine interface (phase A of multi-engine support)
 
 - **The ArcGIS Maps SDK now sits behind one engine.** `js/map.js` moved to `js/engines/arcgis/arcgis-engine.js` (and `auth.js` to `js/engines/arcgis/arcgis-auth.js`). A provider-neutral `MapController` selects the renderer through `engine-registry.js`, exposes the existing application API, and owns cross-engine workflows such as multi-view capture, field values, distinct values and feature framing. The smaller renderer contract in `engine-interface.js` is limited to map lifecycle, layers, queries, view/identify and capture primitives, so a MapLibre engine does not have to reproduce ArcGIS-only application behavior.

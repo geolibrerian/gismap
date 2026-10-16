@@ -22,6 +22,7 @@ import { createSlide, matchesFilter, normalizeFilter } from "./briefing-document
 import { aiDescriptionPrompt, applyAiDescriptions, describeWhere, generateBriefing, readAiDescriptions, rendererTheme } from "./briefing-generator.js?v=0.36.1";
 import { briefingFileStem } from "./briefing-pdf.js?v=0.23.0";
 import { rampColors } from "./renderer-spec.js?v=0.29.0";
+import { saveEngine } from "./engine-preference.js?v=0.39.0";
 
 const DISPLAY_SETTINGS_KEY = "gismap-online:display:v1";
 const DOCKABLE_PANELS = { places: "Places", bookmarks: "Bookmarks", draw: "Draw", intelligence: "Intelligence", layers: "Layers" };
@@ -628,7 +629,7 @@ export class UIController {
       legend: "Legend",
     };
     return Object.entries(labels)
-      .filter(([name]) => this.mapController.widgets.has(name))
+      .filter(([name]) => this.mapController.widgetOpen(name))
       .map(([id, label]) => ({ id, label }));
   }
 
@@ -1680,11 +1681,12 @@ export class UIController {
         <label class="field"><span>Map Insight position</span><select id="insight-position"><optgroup label="Floating"><option value="upper-left">Upper left</option><option value="lower-left">Lower left</option><option value="bottom">Bottom overlay</option></optgroup><optgroup label="Dashboard"><option value="dock-left">Dock left</option><option value="dock-right">Dock right</option><option value="dock-top">Dock top</option><option value="dock-bottom">Dock bottom</option></optgroup></select></label>
         <label class="field"><span>Attribute table position</span><select id="table-position"><option value="overlay-bottom">Bottom overlay</option><option value="dock-left">Dock left</option><option value="dock-right">Dock right</option><option value="dock-top">Dock top</option><option value="dock-bottom">Dock bottom</option></select></label>
         <label class="field display-basemap"><span>Default basemap</span><select id="default-basemap">${basemapOptions}</select></label>
+        <label class="field"><span>Map engine</span><select id="map-engine">${this.mapController.availableEngines().map((engine) => `<option value="${escapeHtml(engine.id)}"${engine.id === this.mapController.getEngineId() ? " selected" : ""}>${escapeHtml(engine.id === "arcgis" ? "ArcGIS 3D (default)" : engine.label)}</option>`).join("")}</select></label>
       </div>
       <label class="display-checkbox"><input id="dark-basemap-enabled" type="checkbox" ${current.darkBasemapEnabled ? "checked" : ""} /><span>Use a dark basemap when dark mode is enabled</span></label>
       <fieldset class="feedback-settings"><legend>Map click feedback</legend><label class="display-checkbox"><input id="click-marker-enabled" type="checkbox" ${current.clickMarkerEnabled ? "checked" : ""} /><span>Show a crosshair where the map is clicked</span></label><label class="display-checkbox"><input id="highlight-enabled" type="checkbox" ${current.highlightEnabled ? "checked" : ""} /><span>Highlight the feature selected in Map Insight</span></label><label class="highlight-color"><span>Feedback color</span><input id="highlight-color" type="color" value="${current.highlightColor}" /><output>${current.highlightColor.toUpperCase()}</output></label></fieldset>
       <label class="display-checkbox"><input id="apply-default-basemap" type="checkbox" /><span>Apply the default basemap to the current map</span></label><p class="form-note">Docked panels resize the map instead of covering it. Sizes, navigation, appearance, and feedback preferences are saved in this browser.</p>`,
-      actions: [{ label: "Save settings", primary: true, handler: () => {
+      actions: [{ label: "Save settings", primary: true, handler: async () => {
         const insightPosition = this.dialog.querySelector("#insight-position").value;
         const tablePosition = this.dialog.querySelector("#table-position").value;
         const navigationLayout = this.dialog.querySelector("#navigation-layout").value;
@@ -1696,7 +1698,21 @@ export class UIController {
         if (this.dialog.querySelector("#apply-default-basemap").checked) {
           this.mapController.setBasemap(defaultBasemap);
         }
+        const engine = this.dialog.querySelector("#map-engine")?.value;
         this.dialog.close();
+        if (engine && engine !== this.mapController.getEngineId()) {
+          // The engine is chosen when the page opens; the map spec link carries this map across.
+          saveEngine(globalThis.localStorage, engine);
+          if (confirm("Reload now with the other map engine? This map reopens from its link; save the project first to keep anything a link cannot carry.")) {
+            const url = new URL(location.href);
+            url.searchParams.delete("engine");
+            let target = url.href;
+            try { target = (await this.mapSpec?.createLink(this.mapSpec.fromCurrent()))?.url || target; } catch { /* Reopen without the map. */ }
+            history.replaceState(null, "", target);
+            location.reload();
+          } else this.toast("Display settings saved. The map engine changes the next time GIS Map opens.");
+          return;
+        }
         this.toast("Display settings saved.");
       }}],
     });
@@ -5659,7 +5675,7 @@ export class UIController {
   }
 
   async showLegendWidget() {
-    if (!this.mapController.widgets.has("legend")) await this.mapController.toggleWidget("legend").catch(() => {});
+    if (!this.mapController.widgetOpen("legend")) await this.mapController.toggleWidget("legend").catch(() => {});
   }
 
   /** Lists what a map spec or link could not do, so a person (or an agent reading describe()) can fix it. */
