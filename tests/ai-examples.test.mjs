@@ -3,7 +3,7 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 import { AI_EXAMPLES, CORN_EXAMPLE_SPEC, aiExampleLinks } from "../scripts/ai-examples.mjs";
 import { CORN_LINK } from "../scripts/agent-docs.mjs";
-import { briefing, mapSpec } from "../js/gismap-core.js";
+import { mapSpec } from "../js/gismap-core.js";
 import { normalizeBriefing } from "../js/briefing-document.js";
 import { readShareLocation } from "../js/map-share.js";
 
@@ -29,23 +29,27 @@ test("every AI example has its files, a gismap.online link and a QR code", async
   assert.match(await text("llms.txt"), /## Worked examples\n/);
 });
 
-test("the Philadelphia link opens the tested briefing on the divisions layer, and the agent recipe rebuilds it", async () => {
+test("the Philadelphia link opens nine slides on divisions and districts, and the agent's spec makes the same briefing", async () => {
   const doc = await json("examples/ai/philadelphia-police-divisions/briefing.json");
-  const url = new URL(links["philadelphia-police-divisions"]);
-  const layer = url.searchParams.get("layer");
-  assert.equal(layer, doc.layerId);
-  assert.match(layer, /Philadelphia_Crime_Map_WFL1\/FeatureServer\/1$/, "divisions (layer 1), not crime incidents (layer 0)");
-  const opened = await readShareLocation(url);
-  assert.equal(opened.kind, "briefing-document");
-  assert.deepEqual(opened.briefing, normalizeBriefing(doc));
-  assert.equal(opened.briefing.slides.length, 7);
+  const opened = await readShareLocation(new URL(links["philadelphia-police-divisions"]));
+  assert.equal(opened.kind, "briefing");
+  assert.deepEqual(opened.layers.map((layer) => layer.url.replace(/.*FeatureServer\//, "")), ["1", "2"], "divisions and districts, not crime incidents (layer 0)");
+  assert.equal(opened.layers[opened.primary].url, doc.layerId);
+  assert.deepEqual(canonical(opened.briefing.slides), canonical(normalizeBriefing(doc).slides));
+  assert.equal(doc.slides.length, 9);
+  assert.deepEqual(doc.slides.filter((slide) => slide.template === "feature").map((slide) => slide.featureId), ["1", "2", "3", "4", "5", "6"]);
 
-  // The code-running recipe on the page.
-  assert.equal(briefing.validate(doc).valid, true);
-  const rebuilt = await briefing.createLink({ baseUrl: `https://gismap.online/?layer=${encodeURIComponent(layer)}`, briefing: doc, qrSafe: true });
-  const reopened = await readShareLocation(new URL(rebuilt));
-  assert.deepEqual(reopened.briefing, normalizeBriefing(doc));
-  assert.match(example("philadelphia-police-divisions").agent.code, /briefing\.createLink\(\{\n  baseUrl: `https:\/\/gismap\.online\/\?layer=\$\{encodeURIComponent\(LAYER\)\}`/);
+  // The code-running recipe on the page: one map-v1 spec with both layers and the slides.
+  const file = await json("examples/ai/philadelphia-police-divisions/map.json");
+  const { valid, issues, spec } = mapSpec.validate(file);
+  assert.equal(valid, true, JSON.stringify(issues));
+  assert.deepEqual(spec.layers.map((layer) => layer.url), opened.layers.map((layer) => layer.url));
+  assert.equal(spec.layers[1].opacity, 0.75);
+  assert.deepEqual(canonical(spec.briefing.slides), canonical(normalizeBriefing(doc).slides));
+  const { url, qr } = await mapSpec.createLink(file);
+  assert.equal(qr, true);
+  const reopened = await mapSpec.decode(url.split("#map=")[1]);
+  assert.equal(reopened.briefing.slides.length, 9);
 });
 
 test("the ballparks link is the committed spec: two layers, one contains query per state, Ohio grown by a mile", async () => {

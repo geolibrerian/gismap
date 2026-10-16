@@ -7,54 +7,58 @@ import { CORN_LINK, CORN_SPEC, CORN_URL } from "./agent-docs.mjs";
 
 const SITE = "https://gismap.online";
 const PHILLY_DIVISIONS = "https://services.arcgis.com/P3ePLMYs2RVChkJx/ArcGIS/rest/services/Philadelphia_Crime_Map_WFL1/FeatureServer/1";
+const PHILLY_DISTRICTS = "https://services.arcgis.com/P3ePLMYs2RVChkJx/ArcGIS/rest/services/Philadelphia_Crime_Map_WFL1/FeatureServer/2";
 const STATES = "https://services.arcgis.com/P3ePLMYs2RVChkJx/arcgis/rest/services/USA_States_Generalized_Boundaries/FeatureServer/0";
 const BALLPARKS = "https://services.arcgis.com/P3ePLMYs2RVChkJx/arcgis/rest/services/Major_League_Baseball_Stadiums/FeatureServer/0";
 
 export const AI_EXAMPLES = Object.freeze([
   {
     slug: "philadelphia-police-divisions",
-    openLabel: "Present the finished briefing",
-    title: "A seven-slide briefing from one chatbot prompt",
+    openLabel: "Present the briefing",
+    title: "A police divisions briefing, from one prompt or one click",
     short: "Philadelphia police divisions briefing",
     kind: "Chatbot",
-    eyebrow: "Chatbot · briefing link and QR code",
-    description: "A chatbot turned one public ArcGIS layer into a seven-slide interactive briefing of Philadelphia's police divisions, shared as one link and a QR code.",
-    intro: "This briefing came from a single prompt to a chatbot that can run code. It found the right layer, wrote seven slides with map views and captions, and returned a link and a QR code that open the whole presentation. No account, server or desktop GIS was involved.",
+    eyebrow: "Chatbot or agent · two layers · briefing link and QR code",
+    description: "Philadelphia's six police divisions, with the police districts inside them, as a nine-slide interactive briefing on a dark 3D map, opened from one link or QR code.",
+    intro: "Nine slides on a dark 3D map: a title slide, a count, one slide framed on each of Philadelphia's six police divisions with the police districts drawn over them, and a sources slide. This version was drafted in GIS Map Online itself, with Make a briefing from this view; the prompt and the agent recipe below make the same kind of briefing from scratch. Either way, the whole presentation travels in one link: layers, styles, basemap, look and slides.",
     shows: [
-      "A briefing document (slides, map views, captions, a key number) written by a model and opened from a link",
-      "A slides-only link: ?layer= loads the data, #briefing= carries the slides",
-      "A QR code that opens the exact same presentation on a phone",
-      "Honest framing: division boundaries, not crime statistics",
+      "Two layers in one briefing: the divisions it is about, and the districts as context",
+      "A slide per division, each framed on its feature, with its attributes",
+      "A key number computed from the data (six divisions)",
+      "A full briefing link that carries the layers, styles, 3D basemap, look and camera with the slides",
+      "A QR code that opens the same presentation on a phone",
     ],
     linkFile: "link.txt",
-    files: [{ label: "Briefing document (JSON)", file: "briefing.json" }],
-    qr: { file: "qr.png", caption: "Scan to present the seven slides on a phone." },
+    files: [{ label: "Briefing slides (JSON)", file: "briefing.json" }, { label: "Map spec with the slides (JSON)", file: "map.json" }],
+    qr: { file: "qr.png", caption: "Scan to present the nine slides on a phone." },
     chat: {
-      intro: "Paste this into a chatbot that can run code (so it can compress the briefing into a link). It names the layer, the slides, what not to load and what not to claim.",
-      prompt: `Use GISMap.online to make a seven-slide interactive briefing from the Philadelphia Police Divisions polygon layer at ${PHILLY_DIVISIONS}. Include a title slide; a citywide view; North/Northeast, Center City and West/Southwest views; a slide explaining the DIV_NAME field; and a slide about the source and its limitations. Load only the Police_Divisions layer, not the crime incident points (layer 0). Follow the briefing schema at ${SITE}/schemas/briefing-v1.schema.json and the guide at ${SITE}/guides/ai-agents/. Output a GISMap briefing link, the editable briefing JSON, and a QR code that opens the same link. Do not invent crime totals or imply the boundaries are current.`,
+      intro: "Paste this into a chatbot that can run code (so it can compress the result into a link). It names both layers, the slides, what not to load and what not to claim.",
+      prompt: `Use GISMap.online to make an interactive briefing of Philadelphia's police divisions. Main layer: ${PHILLY_DIVISIONS} (Police_Divisions). Second layer, as context: ${PHILLY_DISTRICTS} (Police_Districts) at 75% opacity. Do not load the crime incident points (layer 0). Slides: a title slide, an "At a glance" slide counting the divisions, one feature slide per division framed on it (DIV_NAME is the division name), and a sources slide linking the layers. Use a dark 3D basemap. Write it as one map-v1 spec with the briefing inside (${SITE}/schemas/map-v1.schema.json, ${SITE}/schemas/briefing-v1.schema.json; see ${SITE}/guides/ai-agents/) and return the link and a QR code. Do not invent crime totals or imply the boundaries are current.`,
     },
     agent: {
       heading: "For a code-running agent",
-      intro: "An agent with Node, Deno or a browser can skip the chat and build the same link with the GISMap core: validate the briefing document, then make the slides-only link with the layer in its query string.",
+      intro: "An agent with Node, Deno or a browser writes the map and its slides as one map-v1 spec, validates it, and makes the link with the GISMap core. A link whose spec carries slides opens presenting them.",
       lang: "js",
-      code: `import { briefing } from "https://gismap.online/js/gismap-core.js";
+      code: `import { mapSpec } from "https://gismap.online/js/gismap-core.js";
 
-const LAYER = "${PHILLY_DIVISIONS}";
-const doc = await (await fetch("https://gismap.online/examples/ai/philadelphia-police-divisions/briefing.json")).json();
+// Two layers, a dark 3D basemap and the nine slides (see map.json for the full spec).
+const spec = await (await fetch("https://gismap.online/examples/ai/philadelphia-police-divisions/map.json")).json();
+// spec.layers: [{ url: ".../FeatureServer/1", title: "Police Divisions" },
+//               { url: ".../FeatureServer/2", title: "Police Districts", opacity: 0.75 }]
+// spec.briefing.slides: title, "At a glance", one { template: "feature", featureId, fit: "feature" } per division, sources
 
-const { valid, issues } = briefing.validate(doc);    // check before sharing
-const url = await briefing.createLink({
-  baseUrl: \`https://gismap.online/?layer=\${encodeURIComponent(LAYER)}\`, // the layer travels in the query string
-  briefing: doc,
-  qrSafe: true,                                      // fails if the link is too long for a QR code
-});`,
+const { valid, issues } = mapSpec.validate(spec); // check before sharing
+const { url, qr } = await mapSpec.createLink(spec); // qr: true when the link fits a QR code`,
     },
     caveats: [
-      "The layer shows police division boundaries, not reported crime. No slide shows crime rates or incident counts.",
-      "The source layer was last edited on September 22, 2021; check for newer boundaries before operational use.",
-      "The slides-only link is long (about 1,700 characters); print the QR code large and test it on a phone first.",
+      "The layers show police division and district boundaries, not reported crime. No slide shows crime rates or incident counts.",
+      "The division slides list the layer's fields as published: DIV_NAME, and geometry measurements such as PERIMETER and Shape__Area.",
+      "The source layers were last edited on September 22, 2021; check for newer boundaries before operational use.",
     ],
-    sources: [{ label: "Police_Divisions (layer 1), Philadelphia_Crime_Map_WFL1", url: PHILLY_DIVISIONS }],
+    sources: [
+      { label: "Police_Divisions (layer 1), Philadelphia_Crime_Map_WFL1", url: PHILLY_DIVISIONS },
+      { label: "Police_Districts (layer 2), Philadelphia_Crime_Map_WFL1", url: PHILLY_DISTRICTS },
+    ],
   },
   {
     slug: "mlb-ballparks-by-state",

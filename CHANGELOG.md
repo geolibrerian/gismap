@@ -6,6 +6,10 @@ All notable changes to GIS Map Online are documented here. This project follows
 
 ## [Unreleased]
 
+### Philadelphia example
+
+- The Philadelphia AI example now uses a nine-slide, two-layer briefing (police divisions with the districts drawn over them, dark 3D basemap), drafted in GIS Map Online with Make a briefing from this view. Its prompt asks a chatbot for the same briefing, and its agent recipe is one map-v1 spec with both layers and the slides (`map.json`). New link, QR code and files.
+
 ### Tour and field task examples; readable pages in light and dark mode
 
 - **[A guided tour of eight classic ballparks](https://gismap.online/examples/tours/classic-ballparks/)**: a tour-only link and QR code that fly the 3D map from Fenway Park to Petco Park, with how to make it by hand, how to generate it from a briefing or a field task, and the tour link format for agents.

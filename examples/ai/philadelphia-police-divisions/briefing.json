@@ -1,200 +1,242 @@
 {
   "schemaVersion": 1,
   "layerId": "https://services.arcgis.com/P3ePLMYs2RVChkJx/ArcGIS/rest/services/Philadelphia_Crime_Map_WFL1/FeatureServer/1",
-  "queries": {},
   "selection": {
     "useAll": true
   },
   "slides": [
     {
-      "id": "slide-1",
+      "id": "s-d2e52c58",
       "template": "title",
-      "title": "Philadelphia Police Divisions",
-      "subtitle": "Historic boundary dataset | GISMap briefing",
-      "blocks": [
-        {
-          "id": "b1a",
-          "type": "text",
-          "markdown": "**Police divisions**, not crime incident points. Select a polygon to inspect its `DIV_NAME`."
-        }
-      ],
+      "title": "Police Divisions",
+      "subtitle": "6 Police Divisions · October 15, 2026",
       "camera": {
         "center": [
-          -75.155,
-          40.0
+          -75.13979450557153,
+          39.95034184219627
         ],
-        "zoom": 10.35,
-        "heading": 0,
-        "tilt": 18
+        "zoom": 12.470380210262963,
+        "heading": 359.9982136757788,
+        "tilt": 24.37715755370049
       },
+      "featureId": null,
+      "fit": null,
+      "notes": "",
       "hidden": false,
-      "notes": ""
-    },
-    {
-      "id": "slide-2",
-      "template": "map-narrative",
-      "title": "Citywide division boundaries",
-      "subtitle": "Philadelphia overview",
       "blocks": [
         {
-          "id": "b2a",
           "type": "text",
-          "markdown": "Explore administrative division boundaries across Philadelphia. Polygon color does **not** indicate crime levels."
+          "markdown": "The map shows **Police Divisions**."
         }
-      ],
-      "camera": {
-        "center": [
-          -75.152,
-          40.0
-        ],
-        "zoom": 10.7,
-        "heading": 0,
-        "tilt": 18
-      },
-      "hidden": false,
-      "notes": ""
+      ]
     },
     {
-      "id": "slide-3",
-      "template": "map-narrative",
-      "title": "North and Northeast",
-      "subtitle": "Inspect the northern divisions",
-      "blocks": [
-        {
-          "id": "b3a",
-          "type": "text",
-          "markdown": "Pan and select polygons to compare northern and northeastern division boundaries and names."
-        }
-      ],
-      "camera": {
-        "center": [
-          -75.084,
-          40.065
-        ],
-        "zoom": 11.15,
-        "heading": 0,
-        "tilt": 18
-      },
-      "hidden": false,
-      "notes": ""
-    },
-    {
-      "id": "slide-4",
-      "template": "map-narrative",
-      "title": "Center City",
-      "subtitle": "Division boundaries near the rivers",
-      "blocks": [
-        {
-          "id": "b4a",
-          "type": "text",
-          "markdown": "Inspect the boundaries surrounding Center City, the Delaware River, and the Schuylkill River."
-        }
-      ],
-      "camera": {
-        "center": [
-          -75.159,
-          39.968
-        ],
-        "zoom": 11.65,
-        "heading": 0,
-        "tilt": 18
-      },
-      "hidden": false,
-      "notes": ""
-    },
-    {
-      "id": "slide-5",
-      "template": "map-narrative",
-      "title": "West and Southwest",
-      "subtitle": "Compare western division footprints",
-      "blocks": [
-        {
-          "id": "b5a",
-          "type": "text",
-          "markdown": "Explore mapped extents in West and Southwest Philadelphia using the same Police_Divisions layer."
-        }
-      ],
-      "camera": {
-        "center": [
-          -75.226,
-          39.948
-        ],
-        "zoom": 11.35,
-        "heading": 0,
-        "tilt": 18
-      },
-      "hidden": false,
-      "notes": ""
-    },
-    {
-      "id": "slide-6",
+      "id": "s-8c602ec9",
       "template": "key-numbers",
-      "title": "Division attributes",
-      "subtitle": "What the layer actually contains",
+      "title": "At a glance",
+      "subtitle": "",
+      "featureId": null,
+      "camera": null,
+      "fit": null,
+      "notes": "",
+      "hidden": false,
       "blocks": [
         {
-          "id": "b6a",
           "type": "stat",
           "stat": "count",
+          "label": "Police Divisions",
           "field": null,
-          "queryRef": null,
-          "label": "Division polygons loaded"
-        },
-        {
-          "id": "b6b",
-          "type": "text",
-          "markdown": "`DIV_NAME` identifies a division. `PERIMETER`, `SHAPE_Leng`, `Shape__Area`, and `Shape__Length` describe geometry—not crime statistics."
+          "queryRef": null
         }
-      ],
-      "camera": {
-        "center": [
-          -75.152,
-          39.99
-        ],
-        "zoom": 10.75,
-        "heading": 0,
-        "tilt": 18
-      },
-      "hidden": false,
-      "notes": ""
+      ]
     },
     {
-      "id": "slide-7",
-      "template": "actions",
-      "title": "Source and interpretation",
-      "subtitle": "Boundary data, not an assessment of crime",
+      "id": "s-63f8b151",
+      "template": "feature",
+      "title": "CPD",
+      "featureId": "1",
+      "fit": "feature",
+      "subtitle": "",
+      "camera": null,
+      "notes": "",
+      "hidden": false,
       "blocks": [
         {
-          "id": "b7a",
-          "type": "list",
-          "items": [
-            "This briefing loads Police_Divisions (layer 1) only—no incident points.",
-            "Source layer last edited September 22, 2021; check for later boundary revisions.",
-            "Division crime comparisons require separate incident data and defensible rates."
+          "type": "facts",
+          "fields": [
+            "PERIMETER",
+            "DIV_NAME",
+            "SHAPE_Leng",
+            "Shape__Area",
+            "Shape__Length"
           ]
         },
         {
-          "id": "b7b",
+          "type": "text",
+          "markdown": ""
+        }
+      ]
+    },
+    {
+      "id": "s-e1c80f87",
+      "template": "feature",
+      "title": "EPD",
+      "featureId": "2",
+      "fit": "feature",
+      "subtitle": "",
+      "camera": null,
+      "notes": "",
+      "hidden": false,
+      "blocks": [
+        {
+          "type": "facts",
+          "fields": [
+            "PERIMETER",
+            "DIV_NAME",
+            "SHAPE_Leng",
+            "Shape__Area",
+            "Shape__Length"
+          ]
+        },
+        {
+          "type": "text",
+          "markdown": ""
+        }
+      ]
+    },
+    {
+      "id": "s-f996334e",
+      "template": "feature",
+      "title": "NEPD",
+      "featureId": "3",
+      "fit": "feature",
+      "subtitle": "",
+      "camera": null,
+      "notes": "",
+      "hidden": false,
+      "blocks": [
+        {
+          "type": "facts",
+          "fields": [
+            "PERIMETER",
+            "DIV_NAME",
+            "SHAPE_Leng",
+            "Shape__Area",
+            "Shape__Length"
+          ]
+        },
+        {
+          "type": "text",
+          "markdown": ""
+        }
+      ]
+    },
+    {
+      "id": "s-464e90a7",
+      "template": "feature",
+      "title": "NWPD",
+      "featureId": "4",
+      "fit": "feature",
+      "subtitle": "",
+      "camera": null,
+      "notes": "",
+      "hidden": false,
+      "blocks": [
+        {
+          "type": "facts",
+          "fields": [
+            "PERIMETER",
+            "DIV_NAME",
+            "SHAPE_Leng",
+            "Shape__Area",
+            "Shape__Length"
+          ]
+        },
+        {
+          "type": "text",
+          "markdown": ""
+        }
+      ]
+    },
+    {
+      "id": "s-f5c658b9",
+      "template": "feature",
+      "title": "SPD",
+      "featureId": "5",
+      "fit": "feature",
+      "subtitle": "",
+      "camera": null,
+      "notes": "",
+      "hidden": false,
+      "blocks": [
+        {
+          "type": "facts",
+          "fields": [
+            "PERIMETER",
+            "DIV_NAME",
+            "SHAPE_Leng",
+            "Shape__Area",
+            "Shape__Length"
+          ]
+        },
+        {
+          "type": "text",
+          "markdown": ""
+        }
+      ]
+    },
+    {
+      "id": "s-997c6c5d",
+      "template": "feature",
+      "title": "SWPD",
+      "featureId": "6",
+      "fit": "feature",
+      "subtitle": "",
+      "camera": null,
+      "notes": "",
+      "hidden": false,
+      "blocks": [
+        {
+          "type": "facts",
+          "fields": [
+            "PERIMETER",
+            "DIV_NAME",
+            "SHAPE_Leng",
+            "Shape__Area",
+            "Shape__Length"
+          ]
+        },
+        {
+          "type": "text",
+          "markdown": ""
+        }
+      ]
+    },
+    {
+      "id": "s-02e2106e",
+      "template": "actions",
+      "title": "Next steps and sources",
+      "subtitle": "",
+      "featureId": null,
+      "camera": null,
+      "fit": null,
+      "notes": "",
+      "hidden": false,
+      "blocks": [
+        {
+          "type": "list",
+          "items": []
+        },
+        {
           "type": "links",
           "links": [
             {
-              "label": "Police Divisions—ArcGIS layer 1",
+              "label": "Data: Police Divisions",
               "url": "https://services.arcgis.com/P3ePLMYs2RVChkJx/ArcGIS/rest/services/Philadelphia_Crime_Map_WFL1/FeatureServer/1"
             }
           ]
         }
-      ],
-      "camera": {
-        "center": [
-          -75.155,
-          40.0
-        ],
-        "zoom": 10.35,
-        "heading": 0,
-        "tilt": 18
-      },
-      "hidden": false,
-      "notes": ""
+      ]
     }
   ]
 }

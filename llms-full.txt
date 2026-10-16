@@ -25,7 +25,7 @@ The map in a link is one JSON object (map-v1): layers with filters and styles, b
 - [ArcGIS FeatureServer viewer](https://gismap.online/arcgis-feature-service-viewer/)
 
 ## Worked examples
-- [A seven-slide briefing from one chatbot prompt](https://gismap.online/examples/ai/philadelphia-police-divisions/): A chatbot turned one public ArcGIS layer into a seven-slide interactive briefing of Philadelphia's police divisions, shared as one link and a QR code.
+- [A police divisions briefing, from one prompt or one click](https://gismap.online/examples/ai/philadelphia-police-divisions/): Philadelphia's six police divisions, with the police districts inside them, as a nine-slide interactive briefing on a dark 3D map, opened from one link or QR code.
 - [A two-layer briefing with spatial queries, built by an agent](https://gismap.online/examples/ai/mlb-ballparks-by-state/): An AI agent built a ten-slide briefing that shows each state with only the Major League ballparks inside it, using a spatial query per slide, an automatic style and cut transitions.
 - [A styled map in one link, written by a chatbot](https://gismap.online/examples/ai/corn-sales-one-link/): Any chatbot, even one that cannot run code, can make a styled county map by writing one JSON object into a link: corn sales by county, with "Not Disclosed" counties kept out of the colour classes.
 - [A guided tour of eight classic ballparks](https://gismap.online/examples/tours/classic-ballparks/): A guided tour that flies the 3D map from Fenway Park to Petco Park, with a caption at each of eight ballparks, opened from one link or QR code.
@@ -336,46 +336,46 @@ The production site remains unchanged until its separate release process is expl
 
 ## Worked examples
 
-### A seven-slide briefing from one chatbot prompt
+### A police divisions briefing, from one prompt or one click
 
-Chatbot. A chatbot turned one public ArcGIS layer into a seven-slide interactive briefing of Philadelphia's police divisions, shared as one link and a QR code.
+Chatbot. Philadelphia's six police divisions, with the police districts inside them, as a nine-slide interactive briefing on a dark 3D map, opened from one link or QR code.
 
-Open it: https://gismap.online/?layer=https%3A%2F%2Fservices.arcgis.com%2FP3ePLMYs2RVChkJx%2FArcGIS%2Frest%2Fservices%2FPhiladelphia_Crime_Map_WFL1%2FFeatureServer%2F1#briefing=b1.vZZtT-M4EMe_iuVXt1XoE7RA7xUH3VtOsKroCrQ6odZJpsSqE2dtB-hxSPch7hPeJ7kZpw8JVAUJaV-lsaf2zG_-mZknbqMEUnENxkqd8UEn4EoswJzHfMAT53I7aLUsmHsZgW0KE91J24x02hrtw-ji8rvtXl2fJvM_HlsnJvr9fNwyYN36D61RIpWIQeWJFJNTI1OYXIp8cvP5otP6DMIVBsZoC6bV4QH_UYCRYPng6TngFhREzjv1xAsLJ0rxgTMF0J6SMdn9-cQlOerf9-gIB2muhANcdNIpoCX_HPCqL2ykFTrIzuS9pMAt2tkiXJl-kdZpIyMW6iKLhVmwWDhhwbG_GQaJIbAQPZ3J7A7_GCodzSvehB1B1y5y7wU8OnxLhZnH-gGD4Y3G8vJ4dXmjEbBMOxYRICazCKPJHMu1zJxtsrEnwQQuqMWdzpjTaGRzWpTOsunZ-fXk68nlcNrkz7cBj0QKRhC2CI8Bg57tHfaanV4vOGg322jxl9Yp5rrd3O8FPAERUyCDNrFSDjeOkHEiY_SCD2ZCWQg4-kfEOX8OatC7deipyPcyYYxw8r4K_1S6xQPar4NeoaV819jX0qTvSUnwsI1ydyfl4WOutAEm4lRmmM7So23XMxEZbS2rXtwkgXjWkcZjWKzRrtFACI0Gso9lhOEu86XgHpR9A333FfrDj5Lffx_5r9q4hIksZv4XCOvqwM-XUsI9VCGZmGyjzW3k93eSH4nMX1d-wCvRWlItFo5cmMo1ZJet3KreW8sPGSHY3YzbRweecb-3odxB8h_FfPBOgXtfGOm8jvdsS0QZCON5GzzEbGV8sJNxNWeVc21hDL1htKziUODtzkCJB6J_RZcGHiutj6OkWKi5VKrceUPJx8H-cfO4f1Sl3P8w5d77KN9gd_GOj3Xhkgd4qeXTpcBopyanmdYuN1RPt8HuvauUoFM5xAz3kYjFMsBeu1OrIqywlAmCbBHnsulM1k2H-Va7k3e32_e8D2q8P162-3Xec1jsZUUalmJ8JV3hnJFh4V7W6ptElBr0gWAhdYVQaoHfeeaE3F48-hXW1gmfQHoMeITSpdeZBIWmWaFUORMsrmC2elciBFX1bV1flEbu8SbQsB_uyuqmazLfbuXM15q1ZJpsOhpenV8Ovw2vpgGbjr-cjIaTC8ju_FsicphMTgyIafkprZbIwiVThgMK9ocQ2B3oFJxZ_PfPv5smTyFjV5LR242D0n9c6xwfzv5hPfvCz1nVzKOeDU4oFJckd3ID5DAOY7X8_1Ydj8oZhoq_tWBtSiOMnpXxbhPCYUUISvovWaJTZMK_JdKuRyyfWfv66_mlVF3nE9OZKvG-Gp7w0GUspbHCPsMgxovwo4Uc70PNs243YN12t_Mrw2k4mmO1IEsqn-sB0MDyWjpyLb4ymWVbk5acMvCjkFgsLOASDQlrj4iRJxrDDDIrQ4X1Hy3wxNuNaA_DKpVsTlkpn0Rupf6X4ysGX87fyzBpFC6M-ukz_PPtTxhAb5__Bw
+Open it: https://gismap.online/#briefing=zzVbbbts4EP0VgY-BLIuUqNubkThtFk7WiIsWi6IwKImyCOtikHRSN_B39b1ftkPZbm0r2Cx2gcIQbGo4M5w5hzOkXtATSrCNlihBqRS8EM0C2UiDOG0rkXHrRjwJJdpGwbSC6VIsyme2AakGqWFPYsE06Ac5k8uBl4MiQ8mL-fs8CKmDvTiMbS92Yuri4IuNvkFA4oQ2KlHiBW4XjPiOv7XRBHxe0NpE0XqlkuFQcfkEWSiHyWwhlJO19XDq8enk_i9FHj9el8s_vg5HMnt3NxtKrvRPh-G0FBXLebUqBZtfS1Hz-T1bzT_dTvDwljO9lnwGtlwOMaS8gZjFbhak5nX40uDSmxUHtRL1qjK2alOnbXWk4UqK2e3M8NBWLfh89ogdYhvjyPZ9IKBd60o0_NxlcuyCaWQffoRS8HoWuQbGsIMJhah6Ux15ziDZHG3P5m8P89tu6_DW_v3kkn8mV2kpMv1_yHXt7vm3vAbAaUhtHMVnvP4HTluUuE5It7DKCl5tlJrYCtRcdZUMdgBmkBNOSUYj01gckDFtltNCdxh34-v9tk4P2sA611s_vlt_ZrpNubQwtS3iksAgZTWXrOtA3mguj9vQpy6lIabevh89H0c-wXFAQtOYbVt3vemHrhe5BMOCJA486FTOcnMwJB4Fvzgi2AtCGoZRZNKvdg3shbBySKkXuq4fAz1p1WbLHRH7_dD8qzYHB5wUeftsCuFDya2arSxVts_Kuro6B3l15aDtF1O4ey6jLHAJz-JTLpd8M2jWNVChjhgdaYtZi4o1meG5n47SzKTTDQmUyLoxYsVSXr22Hyd5BF4RpZji0zx-Vfkhh-vpDUj7-Tvja1wKoU-s-7kVbNcWheBVbjRoOn68ux9_GD_C7M3dx_nD6H4Mr7P3o-l4PuHduT0r2YrP5yPJ2S_J6KDEu-yPN-IED8dZ5BZR-BaecQ8PuUg8RQyV6_n8LTwPfUDeRQLyA5_HLntzgx4-9QD5FwmooFlAo_Ssk_uAZj089CLxxHGYBRnN38TT36DgIgHBOQt3QHDWQpDE_nb6WXHgaSnNV8piTW6pdi3hG-FVCBVc-OgoKNzXS2O5G43h4fS9YZolvTsPTNfSqH_nJww2tJjHRsx8Rf0N
 
 Page: https://gismap.online/examples/ai/philadelphia-police-divisions/
 
 What it shows:
 
-- A briefing document (slides, map views, captions, a key number) written by a model and opened from a link
-- A slides-only link: ?layer= loads the data, #briefing= carries the slides
-- A QR code that opens the exact same presentation on a phone
-- Honest framing: division boundaries, not crime statistics
+- Two layers in one briefing: the divisions it is about, and the districts as context
+- A slide per division, each framed on its feature, with its attributes
+- A key number computed from the data (six divisions)
+- A full briefing link that carries the layers, styles, 3D basemap, look and camera with the slides
+- A QR code that opens the same presentation on a phone
 
 Prompt for a chatbot:
 
-> Use GISMap.online to make a seven-slide interactive briefing from the Philadelphia Police Divisions polygon layer at https://services.arcgis.com/P3ePLMYs2RVChkJx/ArcGIS/rest/services/Philadelphia_Crime_Map_WFL1/FeatureServer/1. Include a title slide; a citywide view; North/Northeast, Center City and West/Southwest views; a slide explaining the DIV_NAME field; and a slide about the source and its limitations. Load only the Police_Divisions layer, not the crime incident points (layer 0). Follow the briefing schema at https://gismap.online/schemas/briefing-v1.schema.json and the guide at https://gismap.online/guides/ai-agents/. Output a GISMap briefing link, the editable briefing JSON, and a QR code that opens the same link. Do not invent crime totals or imply the boundaries are current.
+> Use GISMap.online to make an interactive briefing of Philadelphia's police divisions. Main layer: https://services.arcgis.com/P3ePLMYs2RVChkJx/ArcGIS/rest/services/Philadelphia_Crime_Map_WFL1/FeatureServer/1 (Police_Divisions). Second layer, as context: https://services.arcgis.com/P3ePLMYs2RVChkJx/ArcGIS/rest/services/Philadelphia_Crime_Map_WFL1/FeatureServer/2 (Police_Districts) at 75% opacity. Do not load the crime incident points (layer 0). Slides: a title slide, an "At a glance" slide counting the divisions, one feature slide per division framed on it (DIV_NAME is the division name), and a sources slide linking the layers. Use a dark 3D basemap. Write it as one map-v1 spec with the briefing inside (https://gismap.online/schemas/map-v1.schema.json, https://gismap.online/schemas/briefing-v1.schema.json; see https://gismap.online/guides/ai-agents/) and return the link and a QR code. Do not invent crime totals or imply the boundaries are current.
 
-For a code-running agent: An agent with Node, Deno or a browser can skip the chat and build the same link with the GISMap core: validate the briefing document, then make the slides-only link with the layer in its query string.
+For a code-running agent: An agent with Node, Deno or a browser writes the map and its slides as one map-v1 spec, validates it, and makes the link with the GISMap core. A link whose spec carries slides opens presenting them.
 
 ```js
-import { briefing } from "https://gismap.online/js/gismap-core.js";
+import { mapSpec } from "https://gismap.online/js/gismap-core.js";
 
-const LAYER = "https://services.arcgis.com/P3ePLMYs2RVChkJx/ArcGIS/rest/services/Philadelphia_Crime_Map_WFL1/FeatureServer/1";
-const doc = await (await fetch("https://gismap.online/examples/ai/philadelphia-police-divisions/briefing.json")).json();
+// Two layers, a dark 3D basemap and the nine slides (see map.json for the full spec).
+const spec = await (await fetch("https://gismap.online/examples/ai/philadelphia-police-divisions/map.json")).json();
+// spec.layers: [{ url: ".../FeatureServer/1", title: "Police Divisions" },
+//               { url: ".../FeatureServer/2", title: "Police Districts", opacity: 0.75 }]
+// spec.briefing.slides: title, "At a glance", one { template: "feature", featureId, fit: "feature" } per division, sources
 
-const { valid, issues } = briefing.validate(doc);    // check before sharing
-const url = await briefing.createLink({
-  baseUrl: `https://gismap.online/?layer=${encodeURIComponent(LAYER)}`, // the layer travels in the query string
-  briefing: doc,
-  qrSafe: true,                                      // fails if the link is too long for a QR code
-});
+const { valid, issues } = mapSpec.validate(spec); // check before sharing
+const { url, qr } = await mapSpec.createLink(spec); // qr: true when the link fits a QR code
 ```
 
 Caveats:
 
-- The layer shows police division boundaries, not reported crime. No slide shows crime rates or incident counts.
-- The source layer was last edited on September 22, 2021; check for newer boundaries before operational use.
-- The slides-only link is long (about 1,700 characters); print the QR code large and test it on a phone first.
+- The layers show police division and district boundaries, not reported crime. No slide shows crime rates or incident counts.
+- The division slides list the layer's fields as published: DIV_NAME, and geometry measurements such as PERIMETER and Shape__Area.
+- The source layers were last edited on September 22, 2021; check for newer boundaries before operational use.
 
 ### A two-layer briefing with spatial queries, built by an agent
 
