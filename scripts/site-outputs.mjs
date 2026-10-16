@@ -5,6 +5,7 @@
 import { EXAMPLE_CATEGORIES, POPULAR_SERVICES } from "../js/catalog.js";
 import { CORN_LINK, agentGuide, buildAgentOutputs, layerLink, renderGuideHtml } from "./agent-docs.mjs";
 import { AI_EXAMPLES, aiExampleLinks, aiExamplePath, aiExamplesMarkdown } from "./ai-examples.mjs";
+import { WORKFLOW_EXAMPLES, workflowExampleLinks, workflowExamplePath, workflowExamplesMarkdown } from "./workflow-examples.mjs";
 
 const esc = (value = "") => String(value).replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char]);
 const appLink = (item) => `/?example=${encodeURIComponent(item.slug || item.id)}`;
@@ -39,7 +40,7 @@ function exampleCard(item) {
 
 function examplesIndex() {
   const options = EXAMPLE_CATEGORIES.filter((category) => POPULAR_SERVICES.some((item) => item.category === category)).map((category) => `<option>${esc(category)}</option>`).join("");
-  const body = `<main><section class="hero"><div class="wrap"><div class="eyebrow">Public GIS examples</div><h1>Open useful spatial data in one click.</h1><p class="lede">Browse curated ArcGIS REST services and GeoJSON feeds, then load them directly into GIS Map Online. No account or desktop GIS installation is required.</p><div class="actions"><a class="button" href="/">Open GISMap</a><a class="button button--secondary" href="#catalog">Browse datasets</a></div></div></section>${aiExampleSection()}<section id="catalog"><div class="wrap"><h2>Example data catalog</h2><p>Search by topic, publisher, format, or keyword. Service availability and publisher terms can change; verify source metadata before relying on a dataset.</p><div class="controls"><label><span class="eyebrow">Search</span><input id="example-search" type="search" placeholder="Earthquakes, USGS, FeatureServer…"></label><label><span class="eyebrow">Category</span><select id="example-category"><option value="">All categories</option>${options}</select></label></div><div id="example-grid" class="grid">${POPULAR_SERVICES.map(exampleCard).join("")}</div><p id="example-empty" class="empty">No examples match those filters.</p></div></section><section><div class="wrap"><h2>Viewer guides</h2><div class="grid">${GUIDES.map((guide) => `<article class="card"><div class="eyebrow">Guide</div><h3>${esc(guide.title)}</h3><p>${esc(guide.description)}</p><a href="${guidePath(guide)}">Read guide</a></article>`).join("")}</div></div></section></main><script>(()=>{const q=document.querySelector('#example-search'),c=document.querySelector('#example-category'),cards=[...document.querySelectorAll('.example-card')],empty=document.querySelector('#example-empty');function filter(){const term=q.value.trim().toLowerCase(),category=c.value;let shown=0;cards.forEach(card=>{const visible=(!term||card.dataset.search.includes(term))&&(!category||card.dataset.category===category);card.hidden=!visible;if(visible)shown++});empty.classList.toggle('is-visible',shown===0)}q.addEventListener('input',filter);c.addEventListener('change',filter)})();</script>`;
+  const body = `<main><section class="hero"><div class="wrap"><div class="eyebrow">Public GIS examples</div><h1>Open useful spatial data in one click.</h1><p class="lede">Browse curated ArcGIS REST services and GeoJSON feeds, then load them directly into GIS Map Online. No account or desktop GIS installation is required.</p><div class="actions"><a class="button" href="/">Open GISMap</a><a class="button button--secondary" href="#catalog">Browse datasets</a></div></div></section>${aiExampleSection()}${workflowExampleSection()}<section id="catalog"><div class="wrap"><h2>Example data catalog</h2><p>Search by topic, publisher, format, or keyword. Service availability and publisher terms can change; verify source metadata before relying on a dataset.</p><div class="controls"><label><span class="eyebrow">Search</span><input id="example-search" type="search" placeholder="Earthquakes, USGS, FeatureServer…"></label><label><span class="eyebrow">Category</span><select id="example-category"><option value="">All categories</option>${options}</select></label></div><div id="example-grid" class="grid">${POPULAR_SERVICES.map(exampleCard).join("")}</div><p id="example-empty" class="empty">No examples match those filters.</p></div></section><section><div class="wrap"><h2>Viewer guides</h2><div class="grid">${GUIDES.map((guide) => `<article class="card"><div class="eyebrow">Guide</div><h3>${esc(guide.title)}</h3><p>${esc(guide.description)}</p><a href="${guidePath(guide)}">Read guide</a></article>`).join("")}</div></div></section></main><script>(()=>{const q=document.querySelector('#example-search'),c=document.querySelector('#example-category'),cards=[...document.querySelectorAll('.example-card')],empty=document.querySelector('#example-empty');function filter(){const term=q.value.trim().toLowerCase(),category=c.value;let shown=0;cards.forEach(card=>{const visible=(!term||card.dataset.search.includes(term))&&(!category||card.dataset.category===category);card.hidden=!visible;if(visible)shown++});empty.classList.toggle('is-visible',shown===0)}q.addEventListener('input',filter);c.addEventListener('change',filter)})();</script>`;
   return shell({ title: "Public GIS data examples", description: "Open curated ArcGIS REST services, FeatureServers, MapServers, ImageServers, and GeoJSON feeds directly in a free browser GIS viewer.", path: "/examples/", breadcrumbs: [{ name: "Examples", path: "/examples/" }], body });
 }
 
@@ -74,6 +75,32 @@ function aiExamplePage(example, link) {
 <div class="callout"><strong>Make your own.</strong> The <a href="/guides/ai-agents/">guide for AI agents</a> and <a href="/llms.txt">llms.txt</a> explain the link formats, the map and briefing schemas, and the in-page API, for chatbots and agents alike.</div></div></section></main>`;
   const structuredData = { "@type": "TechArticle", headline: example.title, description: example.description, url: `https://gismap.online${path}`, about: example.sources.map((source) => ({ "@type": "Dataset", name: source.label, url: source.url })) };
   return shell({ title: example.title, description: example.description, path, breadcrumbs: [{ name: "Examples", path: "/examples/" }, { name: "AI examples", path: "/examples/ai/" }, { name: example.short, path }], body, structuredData });
+}
+
+const workflowExampleCard = (example) => `<article class="card"><div class="eyebrow">${esc(example.kind)}</div><h3>${esc(example.title)}</h3><p>${esc(example.description)}</p><div class="card__links"><a href="${workflowExamplePath(example)}">See how it was made</a></div></article>`;
+
+function workflowExampleSection() {
+  return `<section id="workflows"><div class="wrap"><h2>Guided tours and field tasks</h2><p>The other two things a link can carry: a tour that flies the 3D map from place to place, and a field task that sends someone out with a checklist and brings their report back.</p><div class="grid">${WORKFLOW_EXAMPLES.map(workflowExampleCard).join("")}</div></div></section>`;
+}
+
+function workflowExamplePage(example, links) {
+  const path = workflowExamplePath(example);
+  const steps = (list) => `<ol>${list.map((item) => `<li>${esc(item)}</li>`).join("")}</ol>`;
+  const first = links[`${example.slug}/${example.links[0].file}`];
+  const results = example.links.map((item) => {
+    const url = links[`${example.slug}/${item.file}`];
+    return `<div class="ai-result">${item.qr ? `<figure class="ai-qr"><img src="${path}${item.qr.file}" alt="QR code: ${esc(item.label)}" width="380" loading="lazy"><figcaption>${esc(item.qr.caption)} <a href="${path}${item.qr.file}" download>Download the QR code</a></figcaption></figure>` : ""}<div><h3>${esc(item.label)}</h3><p><a href="${esc(url)}">Open it</a> in GIS Map Online. Everything is in the link (${url.length.toLocaleString("en-US")} characters): no account, no server, no upload.</p><details><summary>Show the full link</summary><pre class="endpoint ai-link"><code>${esc(url)}</code></pre></details></div></div>`;
+  }).join("");
+  const body = `<main><section class="hero"><div class="wrap"><div class="eyebrow">${esc(example.eyebrow)}</div><h1>${esc(example.title)}</h1><p class="lede">${esc(example.intro)}</p><div class="actions"><a class="button" href="${esc(first)}">${esc(example.openLabel)}</a><a class="button button--secondary" href="/examples/#workflows">More examples</a></div></div></section><section><div class="wrap prose">
+<h2>What it shows off</h2><ul>${example.shows.map((item) => `<li>${esc(item)}</li>`).join("")}</ul>
+<h2>${esc(example.make.heading)}</h2>${steps(example.make.steps)}
+<h2>${esc(example.generate.heading)}</h2><p>${esc(example.generate.intro)}</p><ul>${example.generate.steps.map((item) => `<li>${esc(item)}</li>`).join("")}</ul>
+${example.agent ? `<h2>${esc(example.agent.heading)}</h2><p>${esc(example.agent.intro)}</p><pre><code class="language-${example.agent.lang}">${esc(example.agent.code)}</code></pre>` : ""}
+<h2>The result</h2>${results}
+<h2>Check before you share</h2><ul>${example.caveats.map((item) => `<li>${esc(item)}</li>`).join("")}</ul>
+<h2>Data</h2><ul>${example.sources.map((source) => `<li><a href="${esc(source.url)}">${esc(source.label)}</a></li>`).join("")}</ul></div></section></main>`;
+  const structuredData = { "@type": "TechArticle", headline: example.title, description: example.description, url: `https://gismap.online${path}` };
+  return shell({ title: example.title, description: example.description, path, breadcrumbs: [{ name: "Examples", path: "/examples/" }, { name: example.short, path }], body, structuredData });
 }
 
 export const GUIDES = [
@@ -163,14 +190,19 @@ export async function buildSiteOutputs({ readText }) {
   const agentHtml = renderGuideHtml(agentGuide({ errorCodes: capabilities.errorCodes }));
   for (const guide of GUIDES) outputs.set(`${guidePath(guide).slice(1)}index.html`, guidePage(guide, guide.slug === "ai-agents" ? agentHtml : guide.html));
   const aiLinks = await aiExampleLinks(readText);
+  const workflowLinks = await workflowExampleLinks(readText);
+  for (const example of WORKFLOW_EXAMPLES) outputs.set(`${workflowExamplePath(example).slice(1)}index.html`, workflowExamplePage(example, workflowLinks));
   outputs.set("examples/ai/index.html", aiExamplesIndex());
   for (const example of AI_EXAMPLES) outputs.set(`${aiExamplePath(example).slice(1)}index.html`, aiExamplePage(example, aiLinks[example.slug]));
   const examples = {
-    items: AI_EXAMPLES.map((example) => ({ title: example.title, url: `https://gismap.online${aiExamplePath(example)}`, summary: example.description })),
-    markdown: aiExamplesMarkdown(aiLinks),
+    items: [
+      ...AI_EXAMPLES.map((example) => ({ title: example.title, url: `https://gismap.online${aiExamplePath(example)}`, summary: example.description })),
+      ...WORKFLOW_EXAMPLES.map((example) => ({ title: example.title, url: `https://gismap.online${workflowExamplePath(example)}`, summary: example.description })),
+    ],
+    markdown: `${aiExamplesMarkdown(aiLinks)}\n\n${workflowExamplesMarkdown(workflowLinks)}`,
   };
   for (const [path, contents] of Object.entries(await buildAgentOutputs({ readText, examples }))) outputs.set(path, contents);
-  const urls = ["/", "/examples/", "/guides/", ...POPULAR_SERVICES.filter((item) => item.featured).map((item) => `/examples/${item.slug}/`), ...GUIDES.map(guidePath), "/examples/ai/", ...AI_EXAMPLES.map(aiExamplePath), "/llms.txt", "/llms-full.txt", "/api/catalog.json"];
+  const urls = ["/", "/examples/", "/guides/", ...POPULAR_SERVICES.filter((item) => item.featured).map((item) => `/examples/${item.slug}/`), ...GUIDES.map(guidePath), "/examples/ai/", ...AI_EXAMPLES.map(aiExamplePath), ...WORKFLOW_EXAMPLES.map(workflowExamplePath), "/llms.txt", "/llms-full.txt", "/api/catalog.json"];
   outputs.set("sitemap.xml", `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls.map((path) => `  <url><loc>https://gismap.online${path}</loc><lastmod>2026-09-06</lastmod></url>`).join("\n")}\n</urlset>\n`);
   return outputs;
 }

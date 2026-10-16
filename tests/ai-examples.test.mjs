@@ -26,7 +26,7 @@ test("every AI example has its files, a gismap.online link and a QR code", async
   }
   const index = await text("examples/index.html");
   assert.match(index, /href="\/examples\/ai\/"/);
-  assert.match(await text("llms.txt"), /## Worked examples for chatbots and agents/);
+  assert.match(await text("llms.txt"), /## Worked examples\n/);
 });
 
 test("the Philadelphia link opens the tested briefing on the divisions layer, and the agent recipe rebuilds it", async () => {

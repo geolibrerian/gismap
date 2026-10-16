@@ -24,10 +24,12 @@ The map in a link is one JSON object (map-v1): layers with filters and styles, b
 - [Making maps with an AI agent](https://gismap.online/guides/ai-agents/): chat-only, code-running and browser-driving recipes
 - [ArcGIS FeatureServer viewer](https://gismap.online/arcgis-feature-service-viewer/)
 
-## Worked examples for chatbots and agents
+## Worked examples
 - [A seven-slide briefing from one chatbot prompt](https://gismap.online/examples/ai/philadelphia-police-divisions/): A chatbot turned one public ArcGIS layer into a seven-slide interactive briefing of Philadelphia's police divisions, shared as one link and a QR code.
 - [A two-layer briefing with spatial queries, built by an agent](https://gismap.online/examples/ai/mlb-ballparks-by-state/): An AI agent built a ten-slide briefing that shows each state with only the Major League ballparks inside it, using a spatial query per slide, an automatic style and cut transitions.
 - [A styled map in one link, written by a chatbot](https://gismap.online/examples/ai/corn-sales-one-link/): Any chatbot, even one that cannot run code, can make a styled county map by writing one JSON object into a link: corn sales by county, with "Not Disclosed" counties kept out of the colour classes.
+- [A guided tour of eight classic ballparks](https://gismap.online/examples/tours/classic-ballparks/): A guided tour that flies the 3D map from Fenway Park to Petco Park, with a caption at each of eight ballparks, opened from one link or QR code.
+- [A field task and its report, sent as two links](https://gismap.online/examples/field-tasks/opening-day-wayfinding/): A two-ballpark field check sent as a link or QR code, and the completed report that comes back the same way: check-in, steps, features and notes, with no server.
 
 ## Data
 - [Curated public datasets (JSON)](https://gismap.online/api/catalog.json): 15 services with ready links
@@ -468,6 +470,75 @@ Caveats:
 - 546 of 3,074 counties are "Not Disclosed" (-1); they appear grey, as No data.
 - Corn sales data last edited in August 2022.
 - The layer hides itself when zoomed in past 1:144,447; add "ignoreServiceScaleRange": true to draw it at every zoom.
+
+### A guided tour of eight classic ballparks
+
+Guided tour. A guided tour that flies the 3D map from Fenway Park to Petco Park, with a caption at each of eight ballparks, opened from one link or QR code.
+
+Tour link: https://gismap.online/?tourOnly=1#tour=eyJ2IjoxLCJ0aXRsZSI6IkVpZ2h0IGNsYXNzaWMgYmFsbHBhcmtzIiwic2tpbiI6ImNsZWFuLWxpZ2h0IiwicGxheSI6ImF1dG8iLCJjaGFwdGVycyI6W3sibmFtZSI6IkZlbndheSBQYXJrIiwiY2FwdGlvbiI6IkJvc3RvbiBSZWQgU294IMK3IG9wZW5lZCAxOTEyLCB0aGUgb2xkZXN0IGJhbGxwYXJrIGluIHRoZSBtYWpvcnMiLCJsYXQiOjQyLjM0NjIyLCJsb24iOi03MS4wOTc3MSwiem9vbSI6MTYuNiwidGlsdCI6NTUsImhlYWRpbmciOjQwLCJiYXNlbWFwIjoic2F0ZWxsaXRlIiwibGluZ2VyIjo2fSx7Im5hbWUiOiJXcmlnbGV5IEZpZWxkIiwiY2FwdGlvbiI6IkNoaWNhZ28gQ3VicyDCtyBvcGVuZWQgMTkxNCwgaXZ5IG9uIHRoZSBvdXRmaWVsZCB3YWxscyIsImxhdCI6NDEuOTQ4MDYsImxvbiI6LTg3LjY1NTY1LCJ6b29tIjoxNi42LCJ0aWx0Ijo1NSwiaGVhZGluZyI6MCwiYmFzZW1hcCI6InNhdGVsbGl0ZSIsImxpbmdlciI6Nn0seyJuYW1lIjoiRG9kZ2VyIFN0YWRpdW0iLCJjYXB0aW9uIjoiTG9zIEFuZ2VsZXMgRG9kZ2VycyDCtyBvcGVuZWQgMTk2MiBpbiBDaGF2ZXogUmF2aW5lIiwibGF0IjozNC4wNzM4OCwibG9uIjotMTE4LjIzOTk1LCJ6b29tIjoxNi42LCJ0aWx0Ijo1NSwiaGVhZGluZyI6MzAsImJhc2VtYXAiOiJzYXRlbGxpdGUiLCJsaW5nZXIiOjZ9LHsibmFtZSI6Ik9yaW9sZSBQYXJrIGF0IENhbWRlbiBZYXJkcyIsImNhcHRpb24iOiJCYWx0aW1vcmUgT3Jpb2xlcyDCtyBvcGVuZWQgMTk5MiBiZXNpZGUgdGhlIEImTyB3YXJlaG91c2UiLCJsYXQiOjM5LjI4Mzk1LCJsb24iOi03Ni42MjE1Niwiem9vbSI6MTYuNiwidGlsdCI6NTUsImhlYWRpbmciOjMwMCwiYmFzZW1hcCI6InNhdGVsbGl0ZSIsImxpbmdlciI6Nn0seyJuYW1lIjoiQ29vcnMgRmllbGQiLCJjYXB0aW9uIjoiQ29sb3JhZG8gUm9ja2llcyDCtyBvcGVuZWQgMTk5NSwgYSBtaWxlIGFib3ZlIHNlYSBsZXZlbCIsImxhdCI6MzkuNzU2MzUsImxvbiI6LTEwNC45OTQxNCwiem9vbSI6MTYuNiwidGlsdCI6NTUsImhlYWRpbmciOjAsImJhc2VtYXAiOiJzYXRlbGxpdGUiLCJsaW5nZXIiOjZ9LHsibmFtZSI6Ik9yYWNsZSBQYXJrIiwiY2FwdGlvbiI6IlNhbiBGcmFuY2lzY28gR2lhbnRzIMK3IG9wZW5lZCAyMDAwIG9uIHRoZSBiYXkiLCJsYXQiOjM3Ljc3ODQsImxvbiI6LTEyMi4zODk2OSwiem9vbSI6MTYuNiwidGlsdCI6NTUsImhlYWRpbmciOjkwLCJiYXNlbWFwIjoic2F0ZWxsaXRlIiwibGluZ2VyIjo2fSx7Im5hbWUiOiJQTkMgUGFyayIsImNhcHRpb24iOiJQaXR0c2J1cmdoIFBpcmF0ZXMgwrcgb3BlbmVkIDIwMDEgZmFjaW5nIGRvd250b3duIiwibGF0Ijo0MC40NDcwNSwibG9uIjotODAuMDA2MTYsInpvb20iOjE2LjYsInRpbHQiOjU1LCJoZWFkaW5nIjoxNTAsImJhc2VtYXAiOiJzYXRlbGxpdGUiLCJsaW5nZXIiOjZ9LHsibmFtZSI6IlBldGNvIFBhcmsiLCJjYXB0aW9uIjoiU2FuIERpZWdvIFBhZHJlcyDCtyBvcGVuZWQgMjAwNCBpbiB0aGUgR2FzbGFtcCBRdWFydGVyIiwibGF0IjozMi43MDc1NywibG9uIjotMTE3LjE1NzA0LCJ6b29tIjoxNi42LCJ0aWx0Ijo1NSwiaGVhZGluZyI6MCwiYmFzZW1hcCI6InNhdGVsbGl0ZSIsImxpbmdlciI6Nn1dfQ
+
+Page: https://gismap.online/examples/tours/classic-ballparks/
+
+Make it by hand:
+
+1. Open Workflows, then Tours mode.
+2. Fly to the first ballpark, tilt the view, and choose Add another chapter. Give the chapter a title and a short caption.
+3. Repeat for each stop, then set the tour to play automatically.
+4. Choose Share tour, and pick the tour-only link for a clean, full-screen tour.
+
+Or generate it: Tours can be made from the features you already have, so the chapters come with their places filled in:
+
+- From a briefing: add the Major League Baseball Stadiums layer, open Briefing, include the ballparks you want, choose Add included features as slides, then Make a guided tour from these slides. Each slide becomes a chapter at its feature; adjust each chapter's tilt and caption.
+- From a field task: a task's Tour button turns its places and features into chapters.
+
+For an AI agent: The tour link is base64url-encoded JSON after #tour=, so an agent can write it directly. Captions are kept to 80 characters, and the link must stay within 2,800 characters to fit a QR code.
+
+```js
+const tour = {
+  v: 1, title: "Eight classic ballparks", skin: "clean-light", play: "auto",
+  chapters: [
+    { name: "Fenway Park", caption: "Boston Red Sox · opened 1912, the oldest ballpark in the majors",
+      lat: 42.34622, lon: -71.09771, zoom: 16.6, tilt: 55, heading: 40, basemap: "satellite", linger: 6 },
+    // … one object per stop (at most 50)
+  ],
+};
+const base64url = (text) => btoa(String.fromCharCode(...new TextEncoder().encode(text))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+const link = `https://gismap.online/?tourOnly=1#tour=${base64url(JSON.stringify(tour))}`;
+```
+
+Caveats:
+
+- A tour moves the camera only; it does not carry data layers. For data with slides, use a briefing.
+- Add &autoplay=1 to the link to start playing as soon as it opens (not when the device asks for reduced motion).
+- Ballpark coordinates come from the Major League Baseball Stadiums layer.
+
+### A field task and its report, sent as two links
+
+Field task. A two-ballpark field check sent as a link or QR code, and the completed report that comes back the same way: check-in, steps, features and notes, with no server.
+
+Assignment link: https://gismap.online/?workflow=tasks#fieldTask=eyJ2IjoxLCJrIjoiYSIsImlkIjoib3BlbmluZy1kYXktcGEiLCJ0IjoiT3BlbmluZy1kYXkgd2F5ZmluZGluZyBjaGVjayIsInAiOiJQaGlsYWRlbHBoaWEgYW5kIFBpdHRzYnVyZ2ggYmFsbHBhcmtzIiwibiI6IkJlZm9yZSB0aGUgZ2F0ZXMgb3BlbiwgY2hlY2sgZWFjaCBiYWxscGFyaydzIGFjY2Vzc2libGUgZW50cmFuY2VzIGFuZCB3YXlmaW5kaW5nIGZyb20gdGhlIG5lYXJlc3QgdHJhbnNpdCBzdG9wLiBNYXJrIGVhY2ggYmFsbHBhcmsgZG9uZSBhbmQgYWRkIHdoYXQgeW91IGZvdW5kLiIsInMiOlsiQWNjZXNzaWJsZSBlbnRyYW5jZXMgb3BlbiBhbmQgc2lnbmVkIiwiV2F5ZmluZGluZyBzaWducyByZWFkYWJsZSBmcm9tIHRoZSB0cmFuc2l0IHN0b3AiLCJQaG90byBvZiB0aGUgbWFpbiBnYXRlIHRha2VuIl0sIkwiOlsiaHR0cHM6Ly9zZXJ2aWNlcy5hcmNnaXMuY29tL1AzZVBMTVlzMlJWQ2hrSngvYXJjZ2lzL3Jlc3Qvc2VydmljZXMvTWFqb3JfTGVhZ3VlX0Jhc2ViYWxsX1N0YWRpdW1zL0ZlYXR1cmVTZXJ2ZXIvMCJdLCJmIjpbeyJsaSI6MCwibyI6MywieCI6LTc1LjE2NjQ3LCJ5IjozOS45MDYxOCwibCI6IkNpdGl6ZW5zIEJhbmsgUGFyayJ9LHsibGkiOjAsIm8iOjE3LCJ4IjotODAuMDA2MTYsInkiOjQwLjQ0NzA1LCJsIjoiUE5DIFBhcmsifV0sIngiOi03Ny41OCwieSI6NDAuMTd9
+
+Completed report (sample): https://gismap.online/?workflow=tasks#fieldTask=eyJ2IjoxLCJrIjoiciIsImlkIjoib3BlbmluZy1kYXktcGEiLCJ0IjoiT3BlbmluZy1kYXkgd2F5ZmluZGluZyBjaGVjayIsInAiOiJQaGlsYWRlbHBoaWEgYW5kIFBpdHRzYnVyZ2ggYmFsbHBhcmtzIiwibiI6IkJlZm9yZSB0aGUgZ2F0ZXMgb3BlbiwgY2hlY2sgZWFjaCBiYWxscGFyaydzIGFjY2Vzc2libGUgZW50cmFuY2VzIGFuZCB3YXlmaW5kaW5nIGZyb20gdGhlIG5lYXJlc3QgdHJhbnNpdCBzdG9wLiBNYXJrIGVhY2ggYmFsbHBhcmsgZG9uZSBhbmQgYWRkIHdoYXQgeW91IGZvdW5kLiIsInMiOlsiQWNjZXNzaWJsZSBlbnRyYW5jZXMgb3BlbiBhbmQgc2lnbmVkIiwiV2F5ZmluZGluZyBzaWducyByZWFkYWJsZSBmcm9tIHRoZSB0cmFuc2l0IHN0b3AiLCJQaG90byBvZiB0aGUgbWFpbiBnYXRlIHRha2VuIl0sIkwiOlsiaHR0cHM6Ly9zZXJ2aWNlcy5hcmNnaXMuY29tL1AzZVBMTVlzMlJWQ2hrSngvYXJjZ2lzL3Jlc3Qvc2VydmljZXMvTWFqb3JfTGVhZ3VlX0Jhc2ViYWxsX1N0YWRpdW1zL0ZlYXR1cmVTZXJ2ZXIvMCJdLCJmIjpbeyJsaSI6MCwibyI6MywieCI6LTc1LjE2NjQ3LCJ5IjozOS45MDYxOCwibCI6IkNpdGl6ZW5zIEJhbmsgUGFyayIsImQiOjF9LHsibGkiOjAsIm8iOjE3LCJ4IjotODAuMDA2MTYsInkiOjQwLjQ0NzA1LCJsIjoiUE5DIFBhcmsiLCJkIjoxfV0sIngiOi03Ny41OCwieSI6NDAuMTcsImMiOnsieCI6LTc1LjE2NjI0LCJ5IjozOS45MDU1MSwidCI6IjIwMjYtMDMtMjZUMTY6NDI6MDAuMDAwWiIsInIiOjEyfSwiZCI6WzEsMCwxXSwiciI6IkJvdGggYWNjZXNzaWJsZSBlbnRyYW5jZXMgb3Blbi4gQXQgQ2l0aXplbnMgQmFuayBQYXJrIHRoZSBzaWduIGZyb20gdGhlIHN1YndheSBleGl0IGlzIGZhZGVkOyBwaG90byBhdHRhY2hlZCB0byB0aGUgd29yayBvcmRlci4iLCJieSI6IkZpZWxkIGNyZXcgQSIsImF0IjoiMjAyNi0wMy0yNlQxNzowNTowMC4wMDBaIn0
+
+Page: https://gismap.online/examples/field-tasks/opening-day-wayfinding/
+
+Make it by hand:
+
+1. Open Workflows, then Field tasks, and choose + New field task.
+2. Write the title, instructions and steps. Choose Attach a feature from the map for each place to visit (up to five).
+3. Choose Share to send the link or show its QR code.
+4. The person in the field opens it, checks in, ticks off steps and places, writes a report and sends the link back. Opening that link shows the report.
+
+Or generate it: Field tasks can come out of the work you have already done:
+
+- From a briefing: an Actions slide's next steps become a field task with Send these as a field task.
+- And back again: a task's Briefing and Tour buttons turn its features into a briefing or a tour.
+
+Caveats:
+
+- Everything is in the link, so anyone with it can read it: keep private details out of tasks and reports.
+- A task holds up to 5 features, 10 steps and 500 characters of notes, so its link fits a QR code.
+- The report here is a sample, written for this example; the app shows its times in your time zone.
 
 ## Curated datasets
 

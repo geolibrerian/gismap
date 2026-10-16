@@ -6,6 +6,13 @@ All notable changes to GIS Map Online are documented here. This project follows
 
 ## [Unreleased]
 
+### Tour and field task examples; readable pages in light and dark mode
+
+- **[A guided tour of eight classic ballparks](https://gismap.online/examples/tours/classic-ballparks/)**: a tour-only link and QR code that fly the 3D map from Fenway Park to Petco Park, with how to make it by hand, how to generate it from a briefing or a field task, and the tour link format for agents.
+- **[A field task and its report, sent as two links](https://gismap.online/examples/field-tasks/opening-day-wayfinding/)**: a two-ballpark check sent as a link or QR code, and a sample completed report (check-in, steps, places, notes) that comes back the same way.
+- Both are on the Examples page under "Guided tours and field tasks", in `llms.txt` and `llms-full.txt`, and in the sitemap (`scripts/workflow-examples.mjs`, `tests/workflow-examples.test.mjs`).
+- **Content pages pass WCAG AA contrast in both themes.** Dark mode: secondary buttons ("All AI examples", "Browse datasets") had near-black text. Light mode: amber labels and grey text were too faint. Page text now lines up with the hero instead of sitting in a centred column.
+
 ### AI examples
 
 - **[/examples/ai/](https://gismap.online/examples/ai/)**: worked examples of chatbots and AI agents making GIS Map Online maps and briefings, each with the prompt, the agent's code, the finished link, a QR code, the source files and what to check before sharing:

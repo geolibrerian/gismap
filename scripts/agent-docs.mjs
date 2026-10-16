@@ -213,7 +213,7 @@ The map in a link is one JSON object (map-v1): layers with filters and styles, b
 ## Guides
 - [Making maps with an AI agent](${SITE}/guides/ai-agents/): chat-only, code-running and browser-driving recipes
 - [ArcGIS FeatureServer viewer](${SITE}/arcgis-feature-service-viewer/)
-${examples?.items?.length ? `\n## Worked examples for chatbots and agents\n${examples.items.map((item) => `- [${item.title}](${item.url}): ${item.summary}`).join("\n")}\n` : ""}
+${examples?.items?.length ? `\n## Worked examples\n${examples.items.map((item) => `- [${item.title}](${item.url}): ${item.summary}`).join("\n")}\n` : ""}
 ## Data
 - [Curated public datasets (JSON)](${SITE}/api/catalog.json): ${POPULAR_SERVICES.length} services with ready links
 

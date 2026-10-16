@@ -60,6 +60,7 @@ jobs:
           node --check scripts/site-outputs.mjs
           node --check scripts/agent-docs.mjs
           node --check scripts/ai-examples.mjs
+          node --check scripts/workflow-examples.mjs
 
       - name: Verify generated examples and guides
         run: node scripts/build-examples.mjs --check

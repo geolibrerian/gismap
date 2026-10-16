@@ -24,10 +24,12 @@ The map in a link is one JSON object (map-v1): layers with filters and styles, b
 - [Making maps with an AI agent](https://gismap.online/guides/ai-agents/): chat-only, code-running and browser-driving recipes
 - [ArcGIS FeatureServer viewer](https://gismap.online/arcgis-feature-service-viewer/)
 
-## Worked examples for chatbots and agents
+## Worked examples
 - [A seven-slide briefing from one chatbot prompt](https://gismap.online/examples/ai/philadelphia-police-divisions/): A chatbot turned one public ArcGIS layer into a seven-slide interactive briefing of Philadelphia's police divisions, shared as one link and a QR code.
 - [A two-layer briefing with spatial queries, built by an agent](https://gismap.online/examples/ai/mlb-ballparks-by-state/): An AI agent built a ten-slide briefing that shows each state with only the Major League ballparks inside it, using a spatial query per slide, an automatic style and cut transitions.
 - [A styled map in one link, written by a chatbot](https://gismap.online/examples/ai/corn-sales-one-link/): Any chatbot, even one that cannot run code, can make a styled county map by writing one JSON object into a link: corn sales by county, with "Not Disclosed" counties kept out of the colour classes.
+- [A guided tour of eight classic ballparks](https://gismap.online/examples/tours/classic-ballparks/): A guided tour that flies the 3D map from Fenway Park to Petco Park, with a caption at each of eight ballparks, opened from one link or QR code.
+- [A field task and its report, sent as two links](https://gismap.online/examples/field-tasks/opening-day-wayfinding/): A two-ballpark field check sent as a link or QR code, and the completed report that comes back the same way: check-in, steps, features and notes, with no server.
 
 ## Data
 - [Curated public datasets (JSON)](https://gismap.online/api/catalog.json): 15 services with ready links
