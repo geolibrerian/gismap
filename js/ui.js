@@ -5044,15 +5044,35 @@ export class UIController {
       addButton.hidden = rows.length >= MAX_CONDITIONS;
       rows.forEach((row) => { row.querySelector("[data-filter-remove]").hidden = rows.length < 2; });
     };
+    // Each field's values, looked up once per dialog, offered as a type-to-search list.
+    const valueLists = new Map();
+    const valuesFor = (name) => {
+      if (!valueLists.has(name)) valueLists.set(name, this.mapController.distinctValues(layer, name).catch(() => ({ values: [], complete: true })));
+      return valueLists.get(name);
+    };
     const addRow = ({ field = fields[0].name, operator = null, value = "" } = {}) => {
+      const listId = `filter-values-${this.filterListId = (this.filterListId || 0) + 1}`;
       const row = document.createElement("li");
       row.className = "filter-condition";
       row.dataset.filterCondition = "";
-      row.innerHTML = `<label class="field"><span>Field</span><select data-filter-field>${fieldOptions(field)}</select></label><label class="field"><span>Operator</span><select data-filter-operator></select></label><label class="field" data-filter-value-field><span>Value</span><input data-filter-value autocomplete="off" /></label><button type="button" class="icon-button filter-remove" data-filter-remove aria-label="Remove this condition" title="Remove this condition">×</button>`;
+      row.innerHTML = `<label class="field"><span>Field</span><select data-filter-field>${fieldOptions(field)}</select></label><label class="field"><span>Operator</span><select data-filter-operator></select></label><label class="field" data-filter-value-field><span>Value</span><input data-filter-value autocomplete="off" list="${listId}" placeholder="Type or pick a value" /><datalist id="${listId}"></datalist><small class="filter-value-hint" data-filter-value-hint></small></label><button type="button" class="icon-button filter-remove" data-filter-remove aria-label="Remove this condition" title="Remove this condition">×</button>`;
       const fieldSelect = row.querySelector("[data-filter-field]");
       const operatorSelect = row.querySelector("[data-filter-operator]");
       const valueField = row.querySelector("[data-filter-value-field]");
       const valueInput = row.querySelector("[data-filter-value]");
+      const valueList = row.querySelector("datalist");
+      const valueHint = row.querySelector("[data-filter-value-hint]");
+      const loadValues = async () => {
+        const name = fieldSelect.value;
+        valueList.replaceChildren();
+        valueHint.textContent = "";
+        const { values, complete } = await valuesFor(name);
+        if (fieldSelect.value !== name || !values.length) return;
+        valueList.innerHTML = values.map((item) => `<option value="${escapeHtml(item.value)}"${item.label !== String(item.value) ? ` label="${escapeHtml(item.label)}"` : ""}></option>`).join("");
+        valueHint.textContent = complete
+          ? `${values.length.toLocaleString()} value${values.length === 1 ? "" : "s"}: pick one or type to search`
+          : `First ${values.length.toLocaleString()} values: type to search`;
+      };
       const updateOperators = () => {
         const selected = fields.find((item) => item.name === fieldSelect.value);
         const type = String(selected?.type || "string").toLowerCase();
@@ -5061,10 +5081,12 @@ export class UIController {
           ? [["eq", "equals"], ["ne", "does not equal"], ["gt", "is greater than"], ["gte", "is at least"], ["lt", "is less than"], ["lte", "is at most"], ["null", "is empty"], ["not-null", "is not empty"]]
           : [["eq", "equals"], ["ne", "does not equal"], ["contains", "contains"], ["starts", "starts with"], ["null", "is empty"], ["not-null", "is not empty"]];
         operatorSelect.innerHTML = operators.map(([key, label]) => `<option value="${key}">${label}</option>`).join("");
-        valueInput.type = type.includes("date") ? "date" : comparable ? "number" : "text";
-        valueInput.step = "any";
+        // Numbers stay text inputs so the value list works in every browser; the filter checks they are numbers.
+        valueInput.type = type.includes("date") ? "date" : "text";
+        valueInput.inputMode = comparable && !type.includes("date") ? "decimal" : "text";
         valueInput.value = "";
         valueField.hidden = false;
+        void loadValues();
       };
       fieldSelect.addEventListener("change", updateOperators);
       operatorSelect.addEventListener("change", () => { valueField.hidden = ["null", "not-null"].includes(operatorSelect.value); });

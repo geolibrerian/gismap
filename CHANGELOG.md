@@ -6,6 +6,10 @@ All notable changes to GIS Map Online are documented here. This project follows
 
 ## [Unreleased]
 
+### Filter values
+
+- The filter dialog's **Value** box lists the field's values as you type (a coded-value domain shows its names), so a filter can be built without knowing the data beforehand. Values come from the service's distinct values (up to 200, sorted), or a sample when the service cannot list them; a hint says how many there are.
+
 ### Briefings, Map Insight and filters (0.27.0)
 
 - **Cut or pan between slides.** A briefing-level "Between slides" choice: *Pan and zoom* (the default) flies from one view to the next; *Cut* jumps straight there, for briefings whose slides are far apart. Stored as `transition: "cut"` in the briefing document (schema updated) and carried by briefing links, QR codes and Smart images; documents without it behave as before.

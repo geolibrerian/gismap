@@ -1,12 +1,12 @@
 import { events } from "./events.js?v=0.18.2";
 import { AuthController } from "./auth.js?v=0.18.2";
-import { MapController } from "./map.js?v=0.30.0";
+import { MapController } from "./map.js?v=0.31.0";
 import { ProjectManager } from "./project.js?v=0.30.0";
 import { IdentifyController } from "./identify.js?v=0.18.2";
 import { AttributeTableController } from "./attribute-table.js?v=0.18.2";
 import { AIController } from "./ai.js?v=0.27.0";
 import { ToolManager } from "./tool-manager.js?v=0.18.2";
-import { UIController } from "./ui.js?v=0.30.0";
+import { UIController } from "./ui.js?v=0.31.0";
 import { ExportController } from "./export/export-controller.js?v=0.18.2";
 import { SHARE_BASEMAPS, parseShareParameters } from "./share.js?v=0.29.0";
 import { readShareLocation } from "./map-share.js?v=0.30.0";

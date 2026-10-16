@@ -944,6 +944,39 @@ export class MapController {
   }
 
   /**
+   * The values a field takes, for filter suggestions: a coded-value domain's
+   * codes and names, otherwise up to `limit` distinct values from the service
+   * (every feature, not just the current filter), sorted. Returns
+   * { values: [{ value, label }], complete } where complete is false when
+   * there may be more values than were listed.
+   */
+  async distinctValues(layer, fieldName, { limit = 200 } = {}) {
+    const field = (layer?.fields || []).find((item) => item.name === fieldName);
+    if (!field) return { values: [], complete: true };
+    const coded = field.domain?.type === "coded-value" ? field.domain.codedValues || [] : [];
+    if (coded.length) return { values: coded.slice(0, limit).map((item) => ({ value: item.code, label: String(item.name ?? item.code) })), complete: coded.length <= limit };
+    if (typeof layer.queryFeatures !== "function" || /date|oid|geometry|guid|global-?id|blob/i.test(String(field.type || ""))) return { values: [], complete: true };
+    const unique = (list) => [...new Set(list.filter((value) => value !== null && value !== undefined && value !== ""))]
+      .sort((a, b) => (typeof a === "number" && typeof b === "number" ? a - b : String(a).localeCompare(String(b))));
+    let values;
+    let sampled = false;
+    try {
+      const query = layer.createQuery();
+      Object.assign(query, { where: "1=1", outFields: [fieldName], returnGeometry: false, returnDistinctValues: true, orderByFields: [fieldName], num: limit + 1 });
+      const { features = [] } = await layer.queryFeatures(query);
+      values = unique(features.map((feature) => feature.attributes?.[fieldName]));
+    } catch {
+      // Services without distinct queries: the values of a sample of features.
+      const query = layer.createQuery();
+      Object.assign(query, { where: "1=1", outFields: [fieldName], returnGeometry: false, num: 2000 });
+      const { features = [] } = await layer.queryFeatures(query).catch(() => ({ features: [] }));
+      values = unique(features.map((feature) => feature.attributes?.[fieldName]));
+      sampled = features.length >= 2000;
+    }
+    return { values: values.slice(0, limit).map((value) => ({ value, label: String(value) })), complete: values.length <= limit && !sampled };
+  }
+
+  /**
    * Styles a layer from a RendererSpec (renderer-spec.js): validates it against
    * the layer's fields, computes class breaks from its values (sentinel codes
    * go to "No data"), and records the spec so projects and links keep it.

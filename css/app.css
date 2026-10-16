@@ -2117,9 +2117,9 @@ body.sidebar-collapsed .table-dialog { left: 14px; }
 .filter-builder { display: grid; gap: 10px; }
 .filter-builder [hidden] { display: none !important; }
 .filter-conditions { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
-.filter-condition { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr) minmax(0, 1fr) 34px; gap: 8px; align-items: end; padding: 8px; border: 1px solid var(--line); border-radius: var(--ui-radius-small, 7px); background: var(--surface); }
+.filter-condition { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr) minmax(0, 1fr) 34px; gap: 8px; align-items: start; padding: 8px; border: 1px solid var(--line); border-radius: var(--ui-radius-small, 7px); background: var(--surface); }
 .filter-condition .field { min-width: 0; margin-bottom: 0; }
-.filter-condition .filter-remove { width: 34px; height: 38px; }
+.filter-condition .filter-remove { width: 34px; height: 38px; margin-top: 22px; }
 .filter-builder .filter-add { justify-self: start; }
 .filter-builder .filter-logic { margin-bottom: 0; }
 @media (max-width: 640px) {
@@ -2127,3 +2127,4 @@ body.sidebar-collapsed .table-dialog { left: 14px; }
   .filter-condition .field { grid-column: 1; }
   .filter-condition .filter-remove { grid-column: 2; grid-row: 1; }
 }
+.filter-value-hint { min-height: 1em; color: var(--muted); font-size: 11px; font-weight: 500; }

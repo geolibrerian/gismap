@@ -47,3 +47,25 @@ test("the filter dialog builds several conditions; Map Insight pins the tabs, no
   assert.match(css, /#insights-content > \.insight-tabs \{ position: sticky; top: 0;/);
   assert.match(css, /\.filter-builder \[hidden\] \{ display: none !important; \}/);
 });
+
+test("filter values: coded domains by name, distinct service values sorted, a sample when distinct fails", async () => {
+  const { MapController } = await import("../js/map.js");
+  const map = new MapController({ publish() {} });
+  const queries = [];
+  const layer = (fields, queryFeatures) => ({ fields, createQuery: () => ({}), queryFeatures: async (query) => { queries.push(query); return queryFeatures(query); } });
+  const ranked = layer([{ name: "county_ranked", type: "small-integer", domain: { type: "coded-value", codedValues: [{ code: 1, name: "Yes" }, { code: 0, name: "No" }] } }], () => ({ features: [] }));
+  assert.deepEqual(await map.distinctValues(ranked, "county_ranked"), { values: [{ value: 1, label: "Yes" }, { value: 0, label: "No" }], complete: true });
+  assert.equal(queries.length, 0, "a domain needs no query");
+  const states = layer([{ name: "STATE", type: "string" }], () => ({ features: ["GA", "AL", null, "GA", ""].map((STATE) => ({ attributes: { STATE } })) }));
+  assert.deepEqual(await map.distinctValues(states, "STATE"), { values: [{ value: "AL", label: "AL" }, { value: "GA", label: "GA" }], complete: true });
+  assert.equal(queries.at(-1).returnDistinctValues, true);
+  assert.equal(queries.at(-1).where, "1=1", "values from every feature, not just the current filter");
+  const many = layer([{ name: "n", type: "integer" }], () => ({ features: [10, 2, 33, 4].map((n) => ({ attributes: { n } })) }));
+  assert.deepEqual(await map.distinctValues(many, "n", { limit: 3 }), { values: [2, 4, 10].map((value) => ({ value, label: String(value) })), complete: false });
+  const noDistinct = layer([{ name: "kind", type: "string" }], (query) => { if (query.returnDistinctValues) throw new Error("not supported"); return { features: [{ attributes: { kind: "b" } }, { attributes: { kind: "a" } }] }; });
+  assert.deepEqual((await map.distinctValues(noDistinct, "kind")).values.map((item) => item.value), ["a", "b"]);
+  assert.deepEqual(await map.distinctValues(layer([{ name: "when", type: "date" }], () => ({ features: [] })), "when"), { values: [], complete: true });
+  const ui = await text("js/ui.js");
+  assert.match(ui, /<input data-filter-value autocomplete="off" list="\$\{listId\}" placeholder="Type or pick a value" \/><datalist id="\$\{listId\}"><\/datalist>/);
+  assert.match(ui, /this\.mapController\.distinctValues\(layer, name\)/);
+});
