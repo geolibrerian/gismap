@@ -30,17 +30,18 @@ jobs:
         with:
           node-version: 22
 
-      - name: Verify application version references
+      # Entry points and imported modules use independent cache versions so a
+      # focused change does not invalidate the entire application graph.
+      - name: Verify cache-busted application references
         run: |
-          VERSION_NUMBER="$(tr -d '\r\n' < VERSION)"
-          grep -Fq "css/app.css?v=${VERSION_NUMBER}" index.html
-          grep -Fq "js/app.js?v=${VERSION_NUMBER}" index.html
-          grep -Fq "events.js?v=${VERSION_NUMBER}" js/app.js
-          grep -Fq "catalog.js?v=${VERSION_NUMBER}" js/ui.js
-          grep -Fq "share.js?v=${VERSION_NUMBER}" js/app.js
-          grep -Fq "share.js?v=${VERSION_NUMBER}" js/ui.js
-          grep -Fq "markdown.js?v=${VERSION_NUMBER}" js/ui.js
-          grep -Fq "export-worker.js?v=${VERSION_NUMBER}" js/export/export-controller.js
+          grep -Eq 'css/app\.css\?v=[0-9]+\.[0-9]+\.[0-9]+' index.html
+          grep -Eq 'js/app\.js\?v=[0-9]+\.[0-9]+\.[0-9]+' index.html
+          grep -Eq 'events\.js\?v=[0-9]+\.[0-9]+\.[0-9]+' js/app.js
+          grep -Eq 'catalog\.js\?v=[0-9]+\.[0-9]+\.[0-9]+' js/ui.js
+          grep -Eq 'share\.js\?v=[0-9]+\.[0-9]+\.[0-9]+' js/app.js
+          grep -Eq 'share\.js\?v=[0-9]+\.[0-9]+\.[0-9]+' js/ui.js
+          grep -Eq 'markdown\.js\?v=[0-9]+\.[0-9]+\.[0-9]+' js/ui.js
+          grep -Eq 'export-worker\.js\?v=[0-9]+\.[0-9]+\.[0-9]+' js/export/export-controller.js
 
       - name: Check JavaScript syntax
         run: |
