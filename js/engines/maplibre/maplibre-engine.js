@@ -1,9 +1,12 @@
-// The MapLibre engine (experimental): a flat web map drawn with MapLibre GL JS
+// The MapLibre engine (experimental): a web map drawn with MapLibre GL JS
 // on open OpenFreeMap basemaps. It implements the renderer contract in
-// ../engine-interface.js for GeoJSON layers held in the browser, which it
-// filters, queries and identifies itself. Capabilities it lacks (3D ground,
-// ArcGIS and OGC services, geocoding, drawing, widgets) are left out of
-// getCapabilities(), and MapController falls back or reports them.
+// ../engine-interface.js. GeoJSON and ArcGIS feature layers are held in the
+// browser as GeoJSON (ArcGIS features keep their service's fields and object
+// IDs), drawn with their service's style or a GIS Map style, and filtered,
+// queried and identified here; ArcGIS map image and imagery services and WMS
+// are drawn as images by their services. Capabilities it lacks (3D ground,
+// WFS and KML, geocoding, drawing, widgets) are left out of getCapabilities(),
+// and MapController falls back or reports them.
 //
 // Zoom: GIS Map zoom levels follow ArcGIS (256-pixel tiles); MapLibre's are
 // one lower for the same scale (512-pixel tiles). Everything that crosses the
@@ -14,10 +17,14 @@ import { openBasemapFor } from "./basemaps.js?v=0.41.0";
 import { basemapOnEngine, basemapsForEngine } from "../../basemap-catalog.js?v=0.41.0";
 import { applyBasemapTheme } from "./basemap-theme.js?v=0.40.0";
 import { compileWhere } from "./where.js?v=0.39.0";
-import { OBJECT_ID_FIELD, boundsIntersect, boundsOf, expandBounds, geometryTypeOf, inferFields, normalizeFeatures, representativePoint } from "./geojson.js?v=0.39.0";
+import { arcgisMetadata } from "../../source-inspector.js?v=0.41.0";
+import { chooseStyleField, compileRenderer, resolveRendererSpec, suggestRenderers, validateRendererSpec } from "../../renderer-spec.js?v=0.29.0";
+import { rendererToPaint } from "./arcgis-renderer.js?v=0.42.0";
+import { MAX_FEATURES, describeArcGIS, featureServiceLayers, fetchFeatures, queryServiceIds } from "./arcgis-service.js?v=0.42.0";
+import { OBJECT_ID_FIELD, boundsIntersect, boundsOf, expandBounds, geometryTypeOf, inferFields, normalizeFeatures, regroupPolygon, representativePoint } from "./geojson.js?v=0.42.0";
 import { loadMaplibre } from "./maplibre-loader.js?v=0.39.0";
 
-export const MAPLIBRE_CAPABILITIES = Object.freeze(["view-2d", "basemaps", "basemap-themes", "layers-files", "query", "feature-filter", "identify", "capture", "native"]);
+export const MAPLIBRE_CAPABILITIES = Object.freeze(["view-2d", "basemaps", "basemap-themes", "layers-arcgis", "layers-files", "query", "feature-filter", "renderer-spec", "renderer-native", "identify", "capture", "native"]);
 
 const ZOOM_OFFSET = 1;
 const SCALE_AT_ZOOM_0 = 591657527.591555;
@@ -64,27 +71,27 @@ function layerHandle(record) {
     get id() { return record.id; },
     get title() { return record.title; },
     get url() { return record.url; },
-    get layerId() { return null; },
-    get type() { return "geojson"; },
+    get layerId() { return record.layerId; },
+    get type() { return record.type; },
     get fields() { return record.fields; },
     get geometryType() { return record.geometryType; },
-    get objectIdField() { return OBJECT_ID_FIELD; },
-    get displayField() { return null; },
+    get objectIdField() { return record.kind === "vector" ? record.objectIdField : null; },
+    get displayField() { return record.displayField; },
     get visible() { return record.visible; },
     get opacity() { return record.opacity; },
     get where() { return record.where || null; },
     get rendererSpec() { return record.rendererSpec; },
-    get renderer() { return null; },
-    get minScale() { return 0; },
-    get maxScale() { return 0; },
+    get renderer() { return record.renderer ?? record.serviceRenderer ?? null; },
+    get minScale() { return record.minScale || 0; },
+    get maxScale() { return record.maxScale || 0; },
     get refreshInterval() { return 0; },
     get loadStatus() { return "loaded"; },
     get loadError() { return null; },
-    get queryable() { return true; },
-    get countable() { return true; },
-    get objectIdQueryable() { return true; },
-    get filterable() { return true; },
-    get stylable() { return true; },
+    get queryable() { return record.kind === "vector"; },
+    get countable() { return record.kind === "vector"; },
+    get objectIdQueryable() { return record.kind === "vector"; },
+    get filterable() { return record.kind === "vector"; },
+    get stylable() { return record.kind === "vector"; },
     get refreshable() { return false; },
     get maxRecordCount() { return 0; },
     get paginated() { return true; },
@@ -147,7 +154,12 @@ export class MaplibreEngine {
       // Basemap tiles come and go; a failure in a data layer's source is worth reporting.
       if (!String(event.sourceId || "").startsWith("gismap-")) return;
       const record = this.#records.get(String(event.sourceId).slice("gismap-".length));
-      this.events.publish("app:error", { message: `Could not draw ${record?.title || "a layer"}: ${event.error?.message || "unknown error"}` });
+      const message = `Could not draw ${record?.title || "a layer"}: ${event.error?.message || "unknown error"}`;
+      // Every failing tile reports; say it once every few seconds.
+      if (this.lastDrawError === message) return;
+      this.lastDrawError = message;
+      setTimeout(() => { if (this.lastDrawError === message) this.lastDrawError = null; }, 5000);
+      this.events.publish("app:error", { message });
     });
   }
 
@@ -226,7 +238,7 @@ export class MaplibreEngine {
    */
   setBasemapTheme(theme) {
     this.basemapTheme = theme || null;
-    for (const record of this.#records.values()) if (!record.style.color) this.#refresh(record);
+    for (const record of this.#records.values()) if (record.kind === "vector" && !record.renderer && !record.serviceRenderer) this.#refresh(record);
     if (this.map && openBasemapFor(this.basemapId).themed) void this.#applyStyle();
   }
 
@@ -289,6 +301,12 @@ export class MaplibreEngine {
     return record;
   }
 
+  #requireVector(ref) {
+    const record = this.#require(ref);
+    if (record.kind !== "vector") throw new GisMapError("UNSUPPORTED_LAYER_TYPE", `${record.title || "This layer"} is drawn by its service as an image; it has no features to query or restyle here.`);
+    return record;
+  }
+
   #sourceId(record) { return `gismap-${record.uid}`; }
 
   #visibleFeatures(record) {
@@ -298,69 +316,112 @@ export class MaplibreEngine {
   }
 
   #sourceSpec(record) {
+    if (record.kind === "raster") {
+      return { type: "raster", tiles: record.tiles.urls, tileSize: record.tiles.tileSize || 256, ...(record.tiles.maxzoom != null ? { maxzoom: record.tiles.maxzoom } : {}), ...(record.attribution ? { attribution: record.attribution } : {}) };
+    }
     return { type: "geojson", data: { type: "FeatureCollection", features: this.#visibleFeatures(record) } };
   }
 
-  /** The MapLibre layers that draw one data layer: fill and outline, lines, and points. */
+  /** The publisher's scale range as MapLibre zooms (ignored when the person chose "Show anyway"). */
+  #zoomRange(record) {
+    if (record.ignoreScaleRange) return { minzoom: 0, maxzoom: 24 };
+    return {
+      minzoom: record.minScale > 0 ? Math.max(0, toEngineZoom(zoomForScale(record.minScale))) : 0,
+      maxzoom: record.maxScale > 0 ? Math.min(24, toEngineZoom(zoomForScale(record.maxScale))) : 24,
+    };
+  }
+
+  /** The style a vector layer draws with: its GIS Map style, else its service's own, else the skin's accent. */
+  #paintFor(record) {
+    if (record.renderer) return rendererToPaint(record.renderer);
+    if (record.serviceRenderer) return rendererToPaint(record.serviceRenderer, { transparency: record.transparency });
+    return null;
+  }
+
+  /** The MapLibre layers that draw one data layer: an image, or fill and outline, lines, and points. */
   #layerSpecs(record) {
     const source = this.#sourceId(record);
     const visibility = record.visible ? "visible" : "none";
-    const color = record.style.color || this.#dataColor();
-    const outline = record.style.outline || color;
-    const size = Number(record.style.size);
     const opacity = record.opacity;
-    const featureFilter = record.featureFilter ? ["in", ["get", OBJECT_ID_FIELD], ["literal", record.featureFilter]] : null;
+    const range = this.#zoomRange(record);
+    if (record.kind === "raster") {
+      return [{ id: `${source}-raster`, type: "raster", source, ...range, layout: { visibility }, paint: { "raster-opacity": opacity * (1 - (record.transparency || 0) / 100) } }];
+    }
+    const color = this.#dataColor();
+    const halo = this.basemapTheme?.labelHalo || "#ffffff";
+    const styled = this.#paintFor(record) || {};
+    const scaled = (paint, keys) => Object.fromEntries(Object.entries(paint).map(([key, value]) => [key, keys.includes(key) ? value * opacity : value]));
+    const featureFilter = record.featureFilter ? ["in", ["id"], ["literal", record.featureFilter]] : null;
     const filtered = (types) => {
       const base = ["match", ["geometry-type"], types, true, false];
       return featureFilter ? ["all", base, featureFilter] : base;
     };
+    const fill = scaled({ "fill-color": color, "fill-opacity": styled.fill ? 1 : 0.35, ...styled.fill }, ["fill-opacity"]);
+    const outline = scaled({ "line-color": color, "line-width": 1.5, "line-opacity": 1, ...styled.outline }, ["line-opacity"]);
+    const line = scaled({ "line-color": color, "line-width": 2.5, "line-opacity": 1, ...styled.line }, ["line-opacity"]);
+    const circle = scaled({ "circle-color": color, "circle-radius": 4.5, "circle-stroke-color": halo, "circle-stroke-width": 1.5, "circle-opacity": 1, "circle-stroke-opacity": 1, ...styled.circle }, ["circle-opacity", "circle-stroke-opacity"]);
     return [
-      { id: `${source}-fill`, type: "fill", source, filter: filtered(["Polygon", "MultiPolygon"]), layout: { visibility }, paint: { "fill-color": color, "fill-opacity": 0.35 * opacity } },
-      { id: `${source}-outline`, type: "line", source, filter: filtered(["Polygon", "MultiPolygon"]), layout: { visibility }, paint: { "line-color": outline, "line-width": Number.isFinite(size) ? size : 1.5, "line-opacity": opacity } },
-      { id: `${source}-line`, type: "line", source, filter: filtered(["LineString", "MultiLineString"]), layout: { visibility, "line-cap": "round", "line-join": "round" }, paint: { "line-color": color, "line-width": Number.isFinite(size) ? size : 2.5, "line-opacity": opacity } },
-      { id: `${source}-circle`, type: "circle", source, filter: filtered(["Point", "MultiPoint"]), layout: { visibility }, paint: { "circle-color": color, "circle-radius": Number.isFinite(size) ? size / 2 : 4.5, "circle-stroke-color": record.style.outline || this.basemapTheme?.labelHalo || "#ffffff", "circle-stroke-width": 1.5, "circle-opacity": opacity, "circle-stroke-opacity": opacity } },
+      { id: `${source}-fill`, type: "fill", source, ...range, filter: filtered(["Polygon", "MultiPolygon"]), layout: { visibility }, paint: fill },
+      { id: `${source}-outline`, type: "line", source, ...range, filter: filtered(["Polygon", "MultiPolygon"]), layout: { visibility }, paint: outline },
+      { id: `${source}-line`, type: "line", source, ...range, filter: filtered(["LineString", "MultiLineString"]), layout: { visibility, "line-cap": "round", "line-join": "round" }, paint: line },
+      { id: `${source}-circle`, type: "circle", source, ...range, filter: filtered(["Point", "MultiPoint"]), layout: { visibility }, paint: circle },
     ];
   }
 
   #layerIds(record) {
-    return ["fill", "outline", "line", "circle"].map((suffix) => `${this.#sourceId(record)}-${suffix}`);
+    return record.kind === "raster" ? [`${this.#sourceId(record)}-raster`] : ["fill", "outline", "line", "circle"].map((suffix) => `${this.#sourceId(record)}-${suffix}`);
   }
 
-  /** Redraws a layer after its data, filter or style changed. */
+  /** Redraws a layer after its data, filter, range or style changed. */
   #refresh(record, { data = false } = {}) {
     if (!this.map?.getSource(this.#sourceId(record))) return;
-    if (data) this.map.getSource(this.#sourceId(record)).setData(this.#sourceSpec(record).data);
+    if (data && record.kind === "vector") this.map.getSource(this.#sourceId(record)).setData(this.#sourceSpec(record).data);
     for (const spec of this.#layerSpecs(record)) {
       if (!this.map.getLayer(spec.id)) continue;
-      this.map.setFilter(spec.id, spec.filter);
+      if (spec.filter) this.map.setFilter(spec.id, spec.filter);
+      this.map.setLayerZoomRange?.(spec.id, spec.minzoom, spec.maxzoom);
       for (const [name, value] of Object.entries(spec.layout)) this.map.setLayoutProperty(spec.id, name, value);
       for (const [name, value] of Object.entries(spec.paint)) this.map.setPaintProperty(spec.id, name, value);
     }
   }
 
-  #addCollection(json, config) {
-    const features = normalizeFeatures(json);
+  /** A new layer record, drawn and announced. */
+  #addRecord(fields) {
     this.#count += 1;
     const record = {
       uid: `maplibre-${this.#count}`,
       id: `layer-${this.#count}`,
-      title: config.title || "GeoJSON layer",
-      url: config.url ?? null,
-      features,
-      fields: inferFields(features),
-      geometryType: geometryTypeOf(features),
-      visible: config.visible !== false,
-      opacity: Number.isFinite(config.opacity) ? Math.max(0, Math.min(1, config.opacity)) : 1,
+      title: "Layer",
+      url: null,
+      kind: "vector",
+      type: "geojson",
+      layerId: null,
+      features: [],
+      fields: [],
+      objectIdField: OBJECT_ID_FIELD,
+      displayField: null,
+      geometryType: null,
+      visible: true,
+      opacity: 1,
       where: null,
       featureFilter: null,
       rendererSpec: null,
-      style: {},
-      config: { sourceType: config.sourceType || "geojson", fileName: config.fileName ?? null, projectPath: config.projectPath ?? null, local: Boolean(config.local), definitionExpression: null },
-      asset: config.asset ?? null,
+      renderer: null,
+      serviceRenderer: null,
+      transparency: 0,
+      minScale: 0,
+      maxScale: 0,
+      ignoreScaleRange: false,
+      sourceJSON: null,
+      service: null,
+      tiles: null,
+      asset: null,
+      ...fields,
     };
-    if (config.definitionExpression) {
-      compileWhere(config.definitionExpression);
-      record.where = String(config.definitionExpression).trim() || null;
+    record.config = { sourceType: "geojson", fileName: null, projectPath: null, local: false, definitionExpression: null, ...(fields.config || {}) };
+    if (fields.where) {
+      compileWhere(fields.where);
+      record.where = String(fields.where).trim() || null;
       record.config.definitionExpression = record.where;
     }
     this.#records.set(record.uid, record);
@@ -368,19 +429,110 @@ export class MaplibreEngine {
     for (const spec of this.#layerSpecs(record)) this.map.addLayer(spec);
     record.handle = layerHandle(record);
     this.events.publish("layer:added", { layer: record.handle, config: this.getLayerConfig(record) });
+    if (record.truncated) this.events.publish("app:error", { message: `${record.title}: showing the first ${record.features.length.toLocaleString()} features. Add a filter to see the rest.` });
     return record.handle;
+  }
+
+  #common(config) {
+    return {
+      visible: config.visible !== false,
+      opacity: Number.isFinite(config.opacity) ? Math.max(0, Math.min(1, config.opacity)) : 1,
+      ignoreScaleRange: config.ignoreServiceScaleRange === true,
+    };
   }
 
   async addService(config = {}) {
     const url = String(config.url || "").trim().replace(/\/$/, "");
     if (!url) throw new Error("A service URL is required.");
-    if (config.serviceType !== "geojson" && !isGeoJsonUrl(url)) {
-      throw unsupported("layers-arcgis", "The MapLibre engine (preview) adds GeoJSON layers only so far. Switch to the ArcGIS engine under Map → Map engine for ArcGIS, WMS, WFS and KML services.");
+    const type = config.serviceType || "arcgis-auto";
+    if (type === "geojson" || (type === "arcgis-auto" && isGeoJsonUrl(url))) {
+      const response = await fetch(url);
+      if (!response.ok) throw new Error(`The GeoJSON could not be read (HTTP ${response.status}).`);
+      const features = normalizeFeatures(await response.json());
+      return this.#addRecord({ ...this.#common(config), title: config.title?.trim() || titleFromUrl(url), url, features, fields: inferFields(features), geometryType: geometryTypeOf(features), where: config.definitionExpression, config: { sourceType: "geojson", url } });
     }
-    const response = await fetch(url);
-    if (!response.ok) throw new Error(`The GeoJSON could not be read (HTTP ${response.status}).`);
-    const json = await response.json();
-    return this.#addCollection(json, { ...config, url, title: config.title?.trim() || titleFromUrl(url), sourceType: "geojson" });
+    if (type === "wms") return this.#addWms(url, config);
+    if (type === "wfs" || type === "kml") {
+      throw unsupported("layers-ogc", `The MapLibre engine (preview) does not draw ${type.toUpperCase()} services yet. Switch to the ArcGIS engine under Map → Map engine.`);
+    }
+    let service = await describeArcGIS(url);
+    if (service.kind === "service-root") {
+      // A FeatureServer: its first layer (links and the add dialog list each layer separately).
+      const [first] = await featureServiceLayers(url);
+      if (!first) throw new Error("The feature service does not list any layers.");
+      service = await describeArcGIS(first.url);
+    }
+    const title = config.title?.trim() || service.title || titleFromUrl(url);
+    const common = { ...this.#common(config), title, url: service.url, sourceJSON: service.json, attribution: service.json?.copyrightText || undefined, config: { sourceType: type, url } };
+    if (service.kind !== "feature") {
+      return this.#addRecord({ ...common, kind: "raster", type: service.kind, layerId: service.layers?.[0] ?? null, tiles: service.tiles, transparency: service.json?.drawingInfo?.transparency || 0, minScale: service.json?.minScale || 0, maxScale: service.json?.maxScale || 0 });
+    }
+    const where = config.definitionExpression ?? service.where ?? null;
+    const loaded = await this.#loadFeatures(service, where);
+    return this.#addRecord({
+      ...common,
+      type: "feature",
+      layerId: service.layerId,
+      service,
+      features: loaded.features,
+      truncated: loaded.truncated,
+      serverWhere: loaded.serverWhere,
+      fields: service.fields,
+      objectIdField: service.objectIdField || OBJECT_ID_FIELD,
+      displayField: service.displayField,
+      geometryType: service.geometryType || geometryTypeOf(loaded.features),
+      serviceRenderer: service.renderer,
+      transparency: service.transparency,
+      minScale: service.minScale,
+      maxScale: service.maxScale,
+      where,
+    });
+  }
+
+  /**
+   * A feature layer's features. Layers that fit in the browser are fetched
+   * whole and filtered here; bigger ones are fetched already filtered, and
+   * fetched again when the filter changes.
+   */
+  async #loadFeatures(service, where) {
+    let total = Infinity;
+    try {
+      total = (await (await fetch(`${service.url}/query?where=1%3D1&returnCountOnly=true&f=json`)).json()).count ?? Infinity;
+    } catch { /* Count unknown: fetch filtered. */ }
+    const serverWhere = total > MAX_FEATURES ? where || null : null;
+    const { features, truncated } = await fetchFeatures(service, { where: serverWhere });
+    const repaired = features.map((feature) => (feature.geometry?.type === "Polygon" ? { ...feature, geometry: regroupPolygon(feature.geometry) } : feature));
+    return { features: normalizeFeatures({ type: "FeatureCollection", features: repaired }, { objectIdField: service.objectIdField }), truncated, serverWhere: total > MAX_FEATURES };
+  }
+
+  async #addWms(url, config) {
+    const parsed = new URL(url);
+    const standard = new Set(["service", "request", "version", "layers", "styles", "crs", "srs", "bbox", "width", "height", "format", "transparent"]);
+    const extra = [...parsed.searchParams].filter(([key]) => !standard.has(key.toLowerCase()));
+    const base = `${parsed.origin}${parsed.pathname}`;
+    const capabilities = new URL(base);
+    extra.forEach(([key, value]) => capabilities.searchParams.set(key, value));
+    capabilities.searchParams.set("SERVICE", "WMS");
+    capabilities.searchParams.set("REQUEST", "GetCapabilities");
+    const response = await fetch(capabilities.href);
+    if (!response.ok) throw new Error(`The WMS capabilities could not be read (HTTP ${response.status}).`);
+    const doc = new DOMParser().parseFromString(await response.text(), "text/xml");
+    const version = doc.documentElement.getAttribute("version") || "1.3.0";
+    // The layers the link names (LAYERS=…), else the service's own layers, up to the most it draws at once.
+    const requested = [...parsed.searchParams].find(([key]) => key.toLowerCase() === "layers")?.[1]?.split(",").map((name) => name.trim()).filter(Boolean);
+    const limit = Number(doc.getElementsByTagName("LayerLimit")[0]?.textContent) || 30;
+    const names = (requested?.length ? requested : [...doc.getElementsByTagName("Layer")]
+      .filter((layer) => !layer.getElementsByTagName("Layer").length)
+      .map((layer) => [...layer.children].find((child) => child.localName === "Name")?.textContent?.trim())
+      .filter(Boolean))
+      .slice(0, Math.max(1, Math.min(limit, 30)));
+    if (!names.length) throw new Error("The WMS service does not list any layers to draw.");
+    const getMap = new URL(base);
+    extra.forEach(([key, value]) => getMap.searchParams.set(key, value));
+    Object.entries({ SERVICE: "WMS", REQUEST: "GetMap", VERSION: version, LAYERS: names.join(","), STYLES: "", [version.startsWith("1.3") ? "CRS" : "SRS"]: "EPSG:3857", BBOX: "BBOX", WIDTH: "512", HEIGHT: "512", FORMAT: "image/png", TRANSPARENT: "true" })
+      .forEach(([key, value]) => getMap.searchParams.set(key, value));
+    const title = config.title?.trim() || [...doc.getElementsByTagName("Title")][0]?.textContent?.trim() || titleFromUrl(url);
+    return this.#addRecord({ ...this.#common(config), title, url: base, kind: "raster", type: "wms", tiles: { urls: [getMap.href.replace("BBOX=BBOX", "BBOX={bbox-epsg-3857}")], tileSize: 512 }, config: { sourceType: "wms", url } });
   }
 
   async addLocalFile(file, projectPath = null) {
@@ -388,21 +540,28 @@ export class MaplibreEngine {
     if (!["json", "geojson"].includes(extension)) {
       throw unsupported("layers-files", "The MapLibre engine (preview) opens GeoJSON files only so far. Switch to the ArcGIS engine under Map → Map engine for KML, KMZ and shapefiles.");
     }
-    const json = JSON.parse(await file.text());
-    return this.#addCollection(json, { title: file.name, sourceType: extension, fileName: file.name, projectPath: projectPath || `data/${file.name}`, local: true, asset: file });
+    const features = normalizeFeatures(JSON.parse(await file.text()));
+    return this.#addRecord({ title: file.name, features, fields: inferFields(features), geometryType: geometryTypeOf(features), asset: file, config: { sourceType: extension, fileName: file.name, projectPath: projectPath || `data/${file.name}`, local: true } });
   }
 
-  async discoverFeatureServiceLayers() {
-    throw unsupported("layers-arcgis", "The MapLibre engine (preview) cannot add ArcGIS feature services yet. Switch to the ArcGIS engine under Map → Map engine.");
+  async discoverFeatureServiceLayers(value) {
+    const rootUrl = String(value ?? "").trim().replace(/\/+$/, "");
+    if (!/\/FeatureServer$/i.test(new URL(rootUrl).pathname)) return [];
+    return featureServiceLayers(rootUrl);
   }
 
   async refreshLayer(uid) {
     const record = this.#record(uid);
-    if (!record?.url || record.config.local) return;
-    const response = await fetch(record.url);
-    if (!response.ok) return;
-    record.features = normalizeFeatures(await response.json());
-    record.fields = inferFields(record.features);
+    if (!record || record.kind !== "vector" || record.config.local) return;
+    if (record.service) {
+      const loaded = await this.#loadFeatures(record.service, record.where);
+      record.features = loaded.features;
+    } else if (record.url) {
+      const response = await fetch(record.url);
+      if (!response.ok) return;
+      record.features = normalizeFeatures(await response.json());
+      record.fields = inferFields(record.features);
+    }
     this.#refresh(record, { data: true });
     this.events.publish("layer:changed", { uid: record.uid });
   }
@@ -434,7 +593,8 @@ export class MaplibreEngine {
   }
 
   getQueryableLayer(uid) {
-    return this.getLayer(uid);
+    const record = this.#record(uid);
+    return record?.kind === "vector" ? record.handle : null;
   }
 
   async loadLayer(uid) {
@@ -445,6 +605,14 @@ export class MaplibreEngine {
     return this.#record(uid)?.asset ?? null;
   }
 
+  /** What the service says about the layer (fields, scale range, edit dates, sentinels), for ArcGIS layers. */
+  layerMetadata(ref) {
+    const record = this.#record(ref);
+    if (!record?.sourceJSON) return null;
+    const metadata = arcgisMetadata(record.sourceJSON, record.config.url || record.url || "");
+    return metadata;
+  }
+
   getLayerConfig(ref) {
     const record = this.#record(ref);
     if (!record) return null;
@@ -452,8 +620,8 @@ export class MaplibreEngine {
       uid: record.uid,
       id: record.id,
       title: record.title,
-      type: "geojson",
-      url: record.url,
+      type: record.type,
+      url: record.config.url ?? record.url,
       sourceType: record.config.sourceType,
       fileName: record.config.fileName,
       projectPath: record.config.projectPath,
@@ -465,15 +633,31 @@ export class MaplibreEngine {
       wfsName: null,
       customParameters: null,
       elevationInfo: null,
-      renderer: null,
-      styled: Boolean(record.rendererSpec),
+      renderer: record.renderer ?? record.serviceRenderer ?? null,
+      // True when the style was set in GIS Map (or arrived with a shared map), not the service's own.
+      styled: Boolean(record.renderer),
       rendererSpec: record.rendererSpec,
-      ignoreServiceScaleRange: false,
+      ignoreServiceScaleRange: record.ignoreScaleRange,
     };
   }
 
-  scaleState() {
-    return { minScale: 0, maxScale: 0, visibleAtCurrentScale: true, serviceMinScale: 0, serviceMaxScale: 0, ignored: false };
+  scaleState(ref) {
+    const record = this.#record(ref);
+    const scale = this.getScale();
+    const minScale = record?.ignoreScaleRange ? 0 : record?.minScale || 0;
+    const maxScale = record?.ignoreScaleRange ? 0 : record?.maxScale || 0;
+    const visibleAtCurrentScale = !Number.isFinite(scale) || ((!minScale || scale <= minScale) && (!maxScale || scale >= maxScale));
+    return { minScale, maxScale, visibleAtCurrentScale, serviceMinScale: record?.minScale || 0, serviceMaxScale: record?.maxScale || 0, ignored: Boolean(record?.ignoreScaleRange) };
+  }
+
+  /** "Show anyway": draws a layer at every scale, ignoring the publisher's range. */
+  ignoreScaleRange(uid, ignore = true) {
+    const record = this.#record(uid);
+    if (!record) return false;
+    record.ignoreScaleRange = Boolean(ignore);
+    this.#refresh(record);
+    this.events.publish("layer:changed", { uid: record.uid });
+    return true;
   }
 
   setVisibility(uid, visible, { silent = false } = {}) {
@@ -500,15 +684,23 @@ export class MaplibreEngine {
   }
 
   setOutFields() {
-    // Every property of a GeoJSON feature is already in the browser.
+    // Every attribute is fetched with the features.
   }
 
-  /** The layer's attribute filter, evaluated here against the features' properties. */
+  /** The layer's attribute filter: evaluated here, or by the service for layers too big to hold whole. */
   setDefinitionExpression(uid, expression, { persist = true } = {}) {
-    const record = this.#require(uid);
+    const record = this.#requireVector(uid);
     const value = String(expression || "").trim() || null;
     compileWhere(value);
     record.where = value;
+    if (record.serverWhere && record.service) {
+      void this.#loadFeatures(record.service, value).then((loaded) => {
+        if (record.where !== value) return;
+        record.features = loaded.features;
+        this.#refresh(record, { data: true });
+        this.events.publish("layer:changed", { uid: record.uid });
+      }).catch((error) => this.events.publish("app:error", { message: `${record.title}: ${error.message}` }));
+    }
     this.#refresh(record, { data: true });
     if (!persist) return expression;
     record.config.definitionExpression = value;
@@ -519,7 +711,7 @@ export class MaplibreEngine {
   /** Draws only some features without changing the layer's filter: { objectIds } or { where }, or null for all. */
   async setFeatureFilter(uid, filter) {
     const record = this.#record(uid);
-    if (!record || !this.map) return false;
+    if (!record || record.kind !== "vector" || !this.map) return false;
     if (!filter) record.featureFilter = null;
     else if (Array.isArray(filter.objectIds)) record.featureFilter = filter.objectIds.map(Number);
     else if (filter.where) {
@@ -532,23 +724,97 @@ export class MaplibreEngine {
 
   /* ---------------- Styling ---------------- */
 
-  /** Single-colour styles ({ type: "simple", color, outline, size }) and the default ({ type: "service" }). */
-  async applyRendererSpec(uid, input) {
-    const record = this.#require(uid);
-    const spec = typeof input === "string" ? { type: input } : { ...(input || {}) };
+  #sentinelCodes(sentinels, field) {
+    return sentinels.filter((item) => item.field === field && item.source !== "heuristic").map((item) => item.value);
+  }
+
+  #styleFields(record) {
+    return record.fields.filter((field) => field.name !== OBJECT_ID_FIELD).map((field) => ({ name: field.name, alias: field.alias, type: field.type }));
+  }
+
+  /** Every value of a field under the layer's filter. */
+  async fieldValues(ref, field) {
+    const record = this.#record(ref);
+    if (record?.kind !== "vector") return [];
+    return this.#visibleFeatures(record).map((feature) => feature.properties?.[field]);
+  }
+
+  /**
+   * Styles a layer from a RendererSpec (renderer-spec.js), as the ArcGIS
+   * engine does: validated against the fields, "auto" decided from the data,
+   * sentinel codes kept out of the classes. The compiled ArcGIS renderer is
+   * then drawn by MapLibre (arcgis-renderer.js). Heat maps need the ArcGIS engine.
+   */
+  async applyRendererSpec(uid, input, { sentinels = [] } = {}) {
+    const record = this.#requireVector(uid);
+    const fields = this.#styleFields(record);
+    const { valid, issues, spec: validated } = validateRendererSpec(input, { fields, geometryType: record.geometryType });
+    if (!valid) {
+      const first = issues.find((issue) => issue.level === "error");
+      throw new GisMapError(first.code === "FIELD_NOT_FOUND" ? "FIELD_NOT_FOUND" : "INVALID_SPEC", first.message, { hint: first.hint, details: { issues } });
+    }
+    let spec = validated;
+    if (spec.type === "auto" || spec.method === "auto") {
+      const field = spec.field || chooseStyleField(fields);
+      if (!field) throw new GisMapError("INVALID_SPEC", `${record.title || "This layer"} has no field to style by.`, { hint: 'Name a field, or use { "type": "simple" }.' });
+      const exclude = spec.exclude ?? this.#sentinelCodes(sentinels, field);
+      const values = await this.fieldValues(record, field);
+      spec = resolveRendererSpec({ ...spec, field, ...(exclude.length ? { exclude } : {}) }, { values, fieldType: fields.find((item) => item.name === field)?.type, geometryType: record.geometryType });
+    }
     if (spec.type === "service") {
-      record.style = {};
+      record.renderer = null;
       record.rendererSpec = null;
-    } else if (spec.type === "simple") {
-      if (spec.color && !/^#[0-9a-f]{6}$/i.test(spec.color)) throw new GisMapError("INVALID_SPEC", "color must be a #rrggbb colour.");
-      record.style = { color: spec.color || null, outline: spec.outline || null, size: spec.size };
+    } else if (spec.type === "arcgis") {
+      record.renderer = spec.json;
       record.rendererSpec = spec;
     } else {
-      throw unsupported("renderer-spec", `The MapLibre engine (preview) draws single-colour styles only so far; “${spec.type}” styles need the ArcGIS engine.`);
+      if (["choropleth", "graduated-symbols"].includes(spec.type) && spec.exclude === undefined) {
+        const codes = this.#sentinelCodes(sentinels, spec.field);
+        if (codes.length) spec = { ...spec, exclude: codes };
+      }
+      const values = ["choropleth", "graduated-symbols"].includes(spec.type) ? (await this.fieldValues(record, spec.field)).map(Number) : [];
+      const counts = new Map();
+      if (spec.type === "categories") (await this.fieldValues(record, spec.field)).forEach((value) => counts.set(value, (counts.get(value) || 0) + 1));
+      const alias = fields.find((field) => field.name === spec.field)?.alias;
+      const renderer = compileRenderer(spec, { geometryType: record.geometryType, values, categories: [...counts].map(([value, count]) => ({ value, count })), fieldAlias: alias });
+      if (!renderer || !rendererToPaint(renderer)) throw unsupported("renderer-spec", `The MapLibre engine (preview) cannot draw “${spec.type}” styles yet; switch to the ArcGIS engine under Map → Map engine.`);
+      record.renderer = renderer;
+      record.rendererSpec = spec;
     }
     this.#refresh(record);
     this.events.publish("layer:changed", { uid: record.uid });
-    return { issues: [], spec };
+    return { issues, spec };
+  }
+
+  /** Ranked style options for one field, from the values matching the layer's filter (renderer-spec.js). */
+  async suggestRenderers(uid, { field = null, sentinels = null } = {}) {
+    const record = this.#requireVector(uid);
+    const fields = this.#styleFields(record);
+    const name = field || chooseStyleField(fields);
+    const fieldInfo = fields.find((item) => item.name === name) || fields.find((item) => item.name.toLowerCase() === String(name || "").toLowerCase());
+    if (!fieldInfo) throw new GisMapError("FIELD_NOT_FOUND", name ? `Field \`${name}\` does not exist.` : `${record.title || "This layer"} has no field to style by.`);
+    const values = await this.fieldValues(record, fieldInfo.name);
+    const codes = this.#sentinelCodes(sentinels ?? this.layerMetadata(record)?.sentinels ?? [], fieldInfo.name);
+    const suggestion = suggestRenderers({ field: fieldInfo.name, fieldType: fieldInfo.type, geometryType: record.geometryType, values, exclude: codes });
+    return { ...suggestion, fieldAlias: fieldInfo.alias || fieldInfo.name, geometryType: record.geometryType, sampled: Boolean(record.truncated) };
+  }
+
+  /** Draws a layer with ArcGIS renderer JSON (from a project or link) and records it as its style. */
+  restoreRenderer(ref, rendererJson) {
+    const record = this.#record(ref);
+    if (!record || record.kind !== "vector" || !rendererJson) return;
+    record.renderer = structuredClone(rendererJson);
+    this.#refresh(record);
+  }
+
+  /** Draws a layer with a renderer for now (the Explorer's "style by this chart"). */
+  setRenderer(uid, renderer) {
+    this.restoreRenderer(uid, renderer);
+  }
+
+  recordRendererSpec(uid, rendererSpec) {
+    const record = this.#record(uid);
+    if (record) record.rendererSpec = rendererSpec;
   }
 
   /* ---------------- Queries ---------------- */
@@ -559,6 +825,7 @@ export class MaplibreEngine {
   }
 
   #matching(record, params = {}, layerDefaults = true) {
+    if (record.kind !== "vector") throw unsupported("query", `${record.title || "This layer"} is drawn by its service as an image; it has no features to query here.`);
     let features = record.features;
     const keep = (predicate) => { features = features.filter(predicate); };
     if (layerDefaults && record.where) {
@@ -578,16 +845,34 @@ export class MaplibreEngine {
       const area = params.geometry === "view" ? this.#viewBounds() : Number.isFinite(params.geometry?.xmin) ? boundsOf(params.geometry) : null;
       // Bounding-box tests only: exact spatial relationships need the ArcGIS engine for now.
       if (!area || !["intersects", "envelope-intersects", "index-intersects"].includes(relation) || params.distance) {
-        throw unsupported("spatial-query", "The MapLibre engine (preview) can only find features within the map view or a box so far.");
+        throw unsupported("spatial-query", "Spatial relationships on GeoJSON layers need the ArcGIS engine; ArcGIS layers are answered by their service.");
       }
       keep((feature) => boundsIntersect(boundsOf(feature.geometry), area));
     }
     return features;
   }
 
+  /**
+   * The features a query selects. Spatial relationships beyond "in this box"
+   * go to the layer's ArcGIS service when it has one (it answers with object
+   * IDs); everything else is evaluated here.
+   */
+  async #select(record, params = {}, layerDefaults = true) {
+    const boxOnly = params.geometry === "view" || Number.isFinite(params.geometry?.xmin);
+    const relation = params.spatialRelationship || "intersects";
+    if (!params.geometry || (boxOnly && ["intersects", "envelope-intersects", "index-intersects"].includes(relation) && !params.distance) || !record.service) {
+      return this.#matching(record, params, layerDefaults);
+    }
+    const geometry = params.geometry === "view" ? this.getViewExtent() : params.geometry;
+    const where = [layerDefaults ? record.where : null, params.where].filter(Boolean).map((part) => `(${part})`).join(" AND ") || null;
+    const ids = new Set(await queryServiceIds(record.service, { where, geometry, spatialRelationship: relation, distance: params.distance, units: params.units, relationParameter: params.relationParameter }));
+    const { geometry: _, spatialRelationship: __, distance: ___, units: ____, relationParameter: _____, ...rest } = params;
+    return this.#matching(record, rest, layerDefaults).filter((feature) => ids.has(feature.id));
+  }
+
   async queryFeatures(uid, params = {}, { layerDefaults = true } = {}) {
     const record = this.#require(uid);
-    let features = this.#matching(record, params, layerDefaults);
+    let features = await this.#select(record, params, layerDefaults);
     const fields = Array.isArray(params.outFields) && !params.outFields.includes("*") ? params.outFields : null;
     const pick = (properties) => (fields ? Object.fromEntries(fields.map((name) => [name, properties[name] ?? null])) : { ...properties });
     if (Array.isArray(params.orderByFields) && params.orderByFields.length) {
@@ -622,25 +907,25 @@ export class MaplibreEngine {
   }
 
   async queryFeatureCount(uid, params = {}, { layerDefaults = true } = {}) {
-    return this.#matching(this.#require(uid), params, layerDefaults).length;
+    return (await this.#select(this.#require(uid), params, layerDefaults)).length;
   }
 
   async queryObjectIds(uid, params = {}, { layerDefaults = true } = {}) {
-    return this.#matching(this.#require(uid), params, layerDefaults).map((feature) => feature.id);
+    return (await this.#select(this.#require(uid), params, layerDefaults)).map((feature) => feature.id);
   }
 
   /* ---------------- Identify ---------------- */
 
   async identify(click) {
     if (!this.map || !Number.isFinite(click?.x)) return [];
-    const layers = [...this.#records.values()].filter((record) => record.visible).flatMap((record) => this.#layerIds(record)).filter((id) => this.map.getLayer(id));
+    const layers = [...this.#records.values()].filter((record) => record.visible && record.kind === "vector").flatMap((record) => this.#layerIds(record)).filter((id) => this.map.getLayer(id));
     if (!layers.length) return [];
     const box = [[click.x - 5, click.y - 5], [click.x + 5, click.y + 5]];
     const seen = new Set();
     const results = [];
     for (const hit of this.map.queryRenderedFeatures(box, { layers })) {
       const record = this.#records.get(String(hit.source).slice("gismap-".length));
-      const id = Number(hit.properties?.[OBJECT_ID_FIELD] ?? hit.id);
+      const id = Number(hit.id ?? hit.properties?.[OBJECT_ID_FIELD]);
       if (!record || seen.has(`${record.uid}:${id}`)) continue;
       seen.add(`${record.uid}:${id}`);
       const feature = record.features.find((item) => item.id === id);
@@ -651,7 +936,7 @@ export class MaplibreEngine {
         layerTitle: record.title || "Layer",
         attributes: { ...feature.properties },
         geometry: feature.geometry,
-        source: { url: record.url, layerId: null, title: record.title, objectIdField: OBJECT_ID_FIELD, displayField: null },
+        source: { url: record.url, layerId: record.layerId, title: record.title, objectIdField: record.objectIdField, displayField: record.displayField },
       });
     }
     return results;
@@ -846,8 +1131,19 @@ export class MaplibreEngine {
 
   /** [west, south, east, north] of the layers' filtered data (all data layers when none are given), or null. */
   async dataBounds(layers = null) {
-    const records = (layers ? layers.map((ref) => this.#record(ref)) : [...this.#records.values()]).filter(Boolean);
-    return boundsOf(records.flatMap((record) => this.#visibleFeatures(record).map((feature) => feature.geometry)));
+    const records = (layers ? layers.map((ref) => this.#record(ref)) : [...this.#records.values()]).filter((record) => record?.kind === "vector");
+    const geometries = records.flatMap((record) => this.#visibleFeatures(record).map((feature) => feature.geometry));
+    const full = boundsOf(geometries);
+    // Data spread over half the world (U.S. counties with Alaska, Hawaii and territories) frames its
+    // dense core, as the ArcGIS engine does: feature centres between the 2nd and 98th percentiles.
+    if (!full || full[2] - full[0] <= 60) return full;
+    const points = geometries.map((geometry) => representativePoint(geometry)).filter((point) => Number.isFinite(point?.longitude));
+    if (points.length < 20) return full;
+    const pick = (values, ratio) => values[Math.min(values.length - 1, Math.max(0, Math.round(ratio * (values.length - 1))))];
+    const xs = points.map((point) => point.longitude).sort((a, b) => a - b);
+    const ys = points.map((point) => point.latitude).sort((a, b) => a - b);
+    const core = [pick(xs, 0.02), pick(ys, 0.02), pick(xs, 0.98), pick(ys, 0.98)];
+    return core[2] > core[0] && core[3] > core[1] ? core : full;
   }
 
   async layerExtent(ref) {

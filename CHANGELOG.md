@@ -6,6 +6,15 @@ All notable changes to GIS Map Online are documented here. This project follows
 
 ## [Unreleased]
 
+### ArcGIS services on the MapLibre engine, and engine switching that holds
+
+- **ArcGIS data works on MapLibre.** Feature layers (FeatureServer and MapServer layers that hold features) are fetched as GeoJSON in pages and keep their service's fields, field types, coded values, display field and **object IDs**, so tables, filters, briefings, slide features and field tasks refer to the same features as on ArcGIS. Layers bigger than 50,000 features are fetched already filtered (and fetched again when the filter changes). Map image services (cached tiles or drawn on request), image services and WMS draw as images; areas without data stay transparent, and WMS respects the server's layer limit and any `LAYERS=` in the link.
+- **Styles carry over.** A layer's own service style, and GIS Map styles (choropleth, graduated symbols, categories, single colour, and ArcGIS renderer JSON from links and projects), are translated into MapLibre expressions (`js/engines/maplibre/arcgis-renderer.js`); codes such as -1 draw as "No data". Style suggestions, automatic classes and sentinel detection work as on ArcGIS. Heat maps still need the ArcGIS engine.
+- **Spatial relationships are answered by the service** for ArcGIS layers (briefing slide layers such as "ballparks inside this state", surroundings counts), as on ArcGIS. Publisher scale ranges apply, with **Show anyway**.
+- Polygons whose islands a service packs into one ring list draw correctly (islands as parts, lakes as holes), and layers spread over half the world zoom to their dense core, as on ArcGIS.
+- **Choosing an engine switches at once** (no confirmation prompt that a browser could silence), and the reopened address names the engine, so the choice holds. MapLibre is labelled "open vector maps (preview)", not 2D. A layer that fails to draw reports once every few seconds instead of once per tile.
+- Still ArcGIS-only: WFS and KML, KMZ and shapefile files, 3D terrain, measurement and the other widgets, place search, and secured services.
+
 ### Clearer menus, and choosing an engine and its basemaps
 
 - **Workflows is now Modes** (Briefing, Tours, Field tasks, Standard map), which fits the menu bar.

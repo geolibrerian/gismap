@@ -133,7 +133,7 @@ test("GeoJSON layers draw, filter, query and identify in the browser", async () 
   let layer;
   try {
     layer = await engine.addService({ url: "https://example.org/data/ballparks.geojson", definitionExpression: "SIZE > 0" });
-    await assert.rejects(engine.addService({ url: "https://example.org/arcgis/rest/services/X/FeatureServer/0" }), (error) => error.details?.capability === "layers-arcgis");
+    await assert.rejects(engine.addService({ url: "https://example.org/wfs", serviceType: "wfs" }), (error) => error.details?.capability === "layers-ogc");
   } finally {
     globalThis.fetch = realFetch;
   }
@@ -158,15 +158,21 @@ test("GeoJSON layers draw, filter, query and identify in the browser", async () 
   assert.equal(engine.getLayerConfig(layer).definitionExpression, "KIND = 'b'");
   engine.setDefinitionExpression(layer.uid, "");
   await engine.setFeatureFilter(layer.uid, { objectIds: [2] });
-  assert.deepEqual(engine.map.layers.get(`gismap-${layer.uid}-circle`).filter[2], ["in", ["get", OBJECT_ID_FIELD], ["literal", [2]]]);
+  assert.deepEqual(engine.map.layers.get(`gismap-${layer.uid}-circle`).filter[2], ["in", ["id"], ["literal", [2]]]);
   engine.setVisibility(layer.uid, false);
   engine.setOpacity(layer.uid, 0.5);
   assert.equal(engine.map.layers.get(`gismap-${layer.uid}-circle`).layout.visibility, "none");
   assert.equal(engine.map.layers.get(`gismap-${layer.uid}-circle`).paint["circle-opacity"], 0.5);
   await engine.applyRendererSpec(layer.uid, { type: "simple", color: "#aa3300" });
   assert.equal(engine.map.layers.get(`gismap-${layer.uid}-circle`).paint["circle-color"], "#aa3300");
-  assert.deepEqual(engine.getLayerConfig(layer).rendererSpec, { type: "simple", color: "#aa3300" });
-  await assert.rejects(engine.applyRendererSpec(layer.uid, { type: "choropleth", field: "SIZE" }), (error) => error.details?.capability === "renderer-spec");
+  assert.equal(engine.getLayerConfig(layer).rendererSpec.color, "#aa3300");
+  assert.equal(engine.getLayerConfig(layer).styled, true);
+  // Classed styles compile as on ArcGIS and draw as MapLibre data expressions.
+  await engine.applyRendererSpec(layer.uid, { type: "choropleth", field: "SIZE", classes: 2, method: "equal-interval" });
+  const classed = engine.map.layers.get(`gismap-${layer.uid}-circle`).paint["circle-color"];
+  assert.equal(classed[0], "case");
+  assert.equal(engine.getLayerConfig(layer).renderer.type, "class-breaks", "projects and links keep the ArcGIS renderer");
+  await assert.rejects(engine.applyRendererSpec(layer.uid, { type: "heatmap" }), (error) => error.details?.capability === "renderer-spec");
 
   engine.setVisibility(layer.uid, true);
   engine.map.queryRenderedFeatures = () => [{ source: `gismap-${layer.uid}`, id: 1, properties: { [OBJECT_ID_FIELD]: 1 } }, { source: `gismap-${layer.uid}`, id: 1, properties: { [OBJECT_ID_FIELD]: 1 } }];

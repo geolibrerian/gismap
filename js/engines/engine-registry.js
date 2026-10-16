@@ -29,9 +29,9 @@ registerEngine({
   id: "maplibre",
   label: "MapLibre (preview)",
   // Kept in step with MAPLIBRE_CAPABILITIES in maplibre-engine.js (a test checks).
-  capabilities: ["view-2d", "basemaps", "basemap-themes", "layers-files", "query", "feature-filter", "identify", "capture", "native"],
+  capabilities: ["view-2d", "basemaps", "basemap-themes", "layers-arcgis", "layers-files", "query", "feature-filter", "renderer-spec", "renderer-native", "identify", "capture", "native"],
   load: async ({ events }) => {
-    const { MaplibreEngine } = await import("./maplibre/maplibre-engine.js?v=0.41.0");
+    const { MaplibreEngine } = await import("./maplibre/maplibre-engine.js?v=0.42.0");
     return new MaplibreEngine(events);
   },
 });

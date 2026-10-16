@@ -1588,7 +1588,7 @@ export class UIController {
 
   /** <option>s for the engines, the active one selected. */
   #engineOptionsMarkup() {
-    const labels = { arcgis: "ArcGIS — 3D globe", maplibre: "MapLibre — 2D map (preview)" };
+    const labels = { arcgis: "ArcGIS — 3D scenes", maplibre: "MapLibre — open vector maps (preview)" };
     return this.mapController.availableEngines().map((engine) => `<option value="${escapeHtml(engine.id)}"${engine.id === this.mapController.getEngineId() ? " selected" : ""}>${escapeHtml(labels[engine.id] || engine.label)}</option>`).join("");
   }
 
@@ -1613,7 +1613,7 @@ export class UIController {
     const engine = this.mapController.getEngineId();
     document.querySelectorAll("[data-engine-picker]").forEach((select) => { select.innerHTML = this.#engineOptionsMarkup(); });
     document.querySelectorAll("[data-engine-hint]").forEach((hint) => {
-      hint.textContent = engine === "maplibre" ? "Preview: open basemaps and GeoJSON layers. ArcGIS services and 3D need the ArcGIS engine." : "";
+      hint.textContent = engine === "maplibre" ? "Preview: open basemaps, GeoJSON and ArcGIS services. Terrain, widgets and KML still need the ArcGIS engine." : "";
       hint.hidden = !hint.textContent;
     });
     document.querySelectorAll("[data-basemap-picker]").forEach((select) => { select.innerHTML = this.#basemapOptionsMarkup(); });
@@ -1637,23 +1637,21 @@ export class UIController {
       const select = event.target.closest?.("[data-engine-picker]");
       if (!select || select.value === this.mapController.getEngineId()) return;
       this.#closeMenus();
-      if (!await this.#switchEngine(select.value)) select.innerHTML = this.#engineOptionsMarkup();
+      await this.#switchEngine(select.value);
     });
   }
 
   /**
-   * Switches the map engine: saves the choice and, when the person agrees,
-   * reopens this map (from its map spec link) with the other engine. The
-   * engine is chosen when the page opens. Resolves false when not reloading;
-   * `keepIfDeclined` then keeps the choice for the next visit (Display settings).
+   * Switches the map engine at once: saves the choice and reopens this map
+   * (from its map spec link, or its basemap and view) with the other engine,
+   * which is chosen when the page opens. The address names the engine too, so
+   * the switch holds even where storage is blocked. No confirmation prompt:
+   * choosing an engine is the request, and a suppressed browser dialog would
+   * otherwise cancel it silently.
    */
-  async #switchEngine(engine, { keepIfDeclined = false } = {}) {
+  async #switchEngine(engine) {
     saveEngine(globalThis.localStorage, engine);
-    const label = engine === "maplibre" ? "MapLibre (2D preview)" : "ArcGIS (3D)";
-    if (!confirm(`Reload now with the ${label} engine? This map reopens from its link; save the project first to keep anything a link cannot carry.`)) {
-      if (!keepIfDeclined) saveEngine(globalThis.localStorage, this.mapController.getEngineId());
-      return false;
-    }
+    this.toast(`Opening this map with ${engine === "maplibre" ? "MapLibre" : "ArcGIS"}…`);
     const url = new URL(location.href);
     url.searchParams.delete("engine");
     let target = url.href;
@@ -1671,9 +1669,10 @@ export class UIController {
       }
       target = plain.href;
     }
-    history.replaceState(null, "", target);
+    const reopen = new URL(target);
+    reopen.searchParams.set("engine", engine);
+    history.replaceState(null, "", reopen.href);
     location.reload();
-    return true;
   }
 
   /**
@@ -1807,7 +1806,7 @@ export class UIController {
         const engine = this.dialog.querySelector("#map-engine")?.value;
         this.dialog.close();
         if (engine && engine !== this.mapController.getEngineId()) {
-          if (!await this.#switchEngine(engine, { keepIfDeclined: true })) this.toast("Display settings saved. The map engine changes the next time GIS Map opens.");
+          await this.#switchEngine(engine);
           return;
         }
         this.toast("Display settings saved.");

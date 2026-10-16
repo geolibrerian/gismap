@@ -12,10 +12,12 @@ const GEOMETRY_TYPES = {
 
 /**
  * Features from any GeoJSON object (FeatureCollection, Feature or bare
- * geometry), each with a numeric id and the same id in __OBJECTID, as the
- * ArcGIS GeoJSON layer numbers them.
+ * geometry), each with a numeric id. With `objectIdField` (features from an
+ * ArcGIS service) the id is that field's value, so IDs match the service;
+ * otherwise features are numbered and the number is kept in __OBJECTID, as
+ * the ArcGIS GeoJSON layer numbers them.
  */
-export function normalizeFeatures(json) {
+export function normalizeFeatures(json, { objectIdField = null } = {}) {
   if (!json || typeof json !== "object") throw new Error("The file is not GeoJSON.");
   const list = json.type === "FeatureCollection" ? json.features || []
     : json.type === "Feature" ? [json]
@@ -24,6 +26,8 @@ export function normalizeFeatures(json) {
           : null;
   if (!list) throw new Error("The file is not GeoJSON (no FeatureCollection, Feature or geometry).");
   return list.filter((feature) => feature && typeof feature === "object").map((feature, index) => {
+    const own = objectIdField ? Number(feature.properties?.[objectIdField] ?? feature.id) : NaN;
+    if (Number.isFinite(own)) return { type: "Feature", id: own, geometry: feature.geometry ?? null, properties: { ...(feature.properties || {}), [objectIdField]: own } };
     const id = index + 1;
     return { type: "Feature", id, geometry: feature.geometry ?? null, properties: { ...(feature.properties || {}), [OBJECT_ID_FIELD]: id } };
   });
@@ -127,4 +131,41 @@ export function representativePoint(geometry) {
   }
   const bounds = boundsOf(geometry);
   return bounds ? { longitude: (bounds[0] + bounds[2]) / 2, latitude: (bounds[1] + bounds[3]) / 2 } : null;
+}
+
+function ringArea(ring) {
+  let area = 0;
+  for (let index = 0; index < ring.length - 1; index += 1) area += (ring[index][0] * ring[index + 1][1]) - (ring[index + 1][0] * ring[index][1]);
+  return Math.abs(area / 2);
+}
+
+function insideRing([x, y], ring) {
+  let inside = false;
+  for (let current = 0, previous = ring.length - 1; current < ring.length; previous = current++) {
+    const [x1, y1] = ring[current];
+    const [x0, y0] = ring[previous];
+    if ((y1 > y) !== (y0 > y) && x < ((x0 - x1) * (y - y1)) / (y0 - y1) + x1) inside = !inside;
+  }
+  return inside;
+}
+
+/**
+ * A polygon whose rings are grouped as they should be: a ring inside another
+ * is that ring's hole, any other ring is a part of its own. Some ArcGIS
+ * services answer f=geojson with every ring of a multipart polygon (islands
+ * included) in one Polygon, which would draw the islands as holes.
+ */
+export function regroupPolygon(geometry) {
+  if (geometry?.type !== "Polygon" || (geometry.coordinates?.length || 0) < 2) return geometry;
+  const rings = geometry.coordinates.filter((ring) => ring.length >= 4).map((ring) => ({ ring, area: ringArea(ring) })).sort((a, b) => b.area - a.area);
+  const parts = [];
+  for (const { ring, area } of rings) {
+    // The smallest part that holds this ring's first vertex takes it as a hole; holes are never nested here.
+    const container = parts.filter((part) => part.area > area && insideRing(ring[0], part.rings[0])).sort((a, b) => a.area - b.area)[0];
+    if (container) container.rings.push(ring);
+    else parts.push({ rings: [ring], area });
+  }
+  return parts.length === 1
+    ? { type: "Polygon", coordinates: parts[0].rings }
+    : { type: "MultiPolygon", coordinates: parts.map((part) => part.rings) };
 }
