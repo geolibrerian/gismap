@@ -21,7 +21,7 @@ import {
   DISTANCE_UNITS,
   SPATIAL_RELATIONSHIPS,
 } from "./briefing-document.js?v=0.35.0";
-import { briefingLayerRef } from "./briefing-api.js?v=0.40.0";
+import { briefingLayerRef } from "./briefing-api.js?v=0.41.0";
 import { renderMarkdown } from "./markdown.js?v=0.18.2";
 import { BriefingPlayer, slideHasMap } from "./briefing-player.js?v=0.37.0";
 import { briefingFileStem, briefingPdf, markdownToText } from "./briefing-pdf.js?v=0.23.0";

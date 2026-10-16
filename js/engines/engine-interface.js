@@ -87,7 +87,7 @@ export const MAP_CONTROLLER_METHODS = Object.freeze([
   "highlightFeature", "clearFeatureHighlight", "configureInteractionFeedback", "clearClickMarker", "locateUser", "geographicCoordinates",
   "search", "reverseGeocode", "captureViews", "captureTaskMap",
   "draw", "hasDrawings", "clearDrawings", "getDrawGraphicsForExport", "setTaskPin", "setTourMarkers", "setActiveTourMarker", "clearTourMarkers", "toggleWidget", "widgetOpen",
-  "setBasemapTheme",
+  "setBasemapTheme", "getBasemapOptions",
 ]);
 
 /** Capability used when an optional delegated method is absent. */
@@ -100,7 +100,7 @@ export const METHOD_CAPABILITIES = Object.freeze({
   highlightFeature: "highlight", clearFeatureHighlight: "highlight", configureInteractionFeedback: "highlight", clearClickMarker: "highlight", locateUser: "view-2d",
   search: "geocode", reverseGeocode: "geocode", captureViews: "capture", captureTaskMap: "capture",
   draw: "draw", hasDrawings: "draw", clearDrawings: "draw", getDrawGraphicsForExport: "draw", setTaskPin: "draw", setTourMarkers: "tour-markers", setActiveTourMarker: "tour-markers", clearTourMarkers: "tour-markers",
-  toggleWidget: "widgets", widgetOpen: "widgets", setBasemapTheme: "basemap-themes",
+  toggleWidget: "widgets", widgetOpen: "widgets", setBasemapTheme: "basemap-themes", getBasemapOptions: "basemaps",
 });
 
 /**

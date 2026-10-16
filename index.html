@@ -60,7 +60,7 @@
     <link rel="describedby" type="application/json" href="/api/capabilities.json" />
     <link rel="help" href="/guides/ai-agents/" />
     <link rel="preconnect" href="https://js.arcgis.com" />
-    <link rel="stylesheet" href="./css/app.css?v=0.40.0" />
+    <link rel="stylesheet" href="./css/app.css?v=0.41.0" />
     <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
     <script src="https://unpkg.com/@mapbox/shp-write@0.4.3/shpwrite.js"></script>
     <script src="./js/vendor/qrcode-1.5.4.js?v=1"></script>
@@ -115,6 +115,12 @@
               <button data-action="atlas-export">Export guided tour (.gmoatlas)</button>
               <button data-action="project-import">Import project, tour, or Smart Image</button>
               <button data-action="open-image">Open from a photo or QR code…</button>
+              <hr />
+              <button data-action="tools-display">Layout &amp; display…</button>
+              <button data-action="tools-connections">ArcGIS connections</button>
+              <button data-action="tools-ai">Configure AI</button>
+              <button data-action="tools-custom">Load custom JavaScript tool</button>
+              <button data-action="tools-about">About this build</button>
             </div>
           </div>
           <div class="menu">
@@ -132,21 +138,16 @@
           <div class="menu">
             <button class="menu__trigger" aria-expanded="false">Map <span>⌄</span></button>
             <div class="menu__content" role="menu">
-              <label class="menu__field"><span>Basemap</span><select data-basemap-picker><optgroup label="3D basemaps"><option value="topo-3d">3D Topographic</option><option value="navigation-3d">3D Navigation</option><option value="navigation-dark-3d">3D Navigation — dark</option><option value="osm-3d">3D OpenStreetMap</option><option value="gray-3d">3D Light gray</option><option value="dark-gray-3d">3D Dark gray</option><option value="streets-3d">3D Streets</option><option value="streets-dark-3d">3D Streets — dark</option></optgroup><optgroup label="2D basemaps"><option value="topo-vector">Topographic</option><option value="streets-vector">Streets</option><option value="navigation">Navigation</option><option value="gray-vector">Light gray</option><option value="dark-gray-vector">Dark gray</option><option value="osm">OpenStreetMap</option></optgroup><optgroup label="Imagery"><option value="satellite">Satellite</option><option value="hybrid">Satellite + labels</option></optgroup><optgroup label="Styled by the skin"><option value="skin">Skin — follows the look</option></optgroup></select></label>
-              <label class="menu__field"><span>Terrain surface</span><select data-ground-picker><option value="world-elevation">World elevation</option><option value="world-topobathymetry">Elevation + bathymetry</option><option value="flat">Flat ground</option></select></label>
+              <label class="menu__field"><span>Map engine</span><select data-engine-picker><option value="arcgis">ArcGIS — 3D globe</option></select><small class="menu__hint" data-engine-hint></small></label>
+              <label class="menu__field"><span>Basemap</span><select data-basemap-picker></select></label>
+              <label class="menu__field" data-requires-capability="ground"><span>Terrain surface</span><select data-ground-picker><option value="world-elevation">World elevation</option><option value="world-topobathymetry">Elevation + bathymetry</option><option value="flat">Flat ground</option></select></label>
               <hr />
-              <button data-action="tools-display">Layout &amp; display…</button>
               <button type="button" data-sidebar-panel-toggle="bookmarks-panel">Add Bookmarks panel</button>
               <button type="button" data-sidebar-panel-toggle="draw-panel">Add Draw panel</button>
-              <button data-widget="basemapGallery">3D basemap gallery</button>
-              <button data-widget="legend">Legend</button>
-              <button data-widget="compass">Compass</button>
-              <button data-widget="measurement">Measurement</button>
-              <button data-widget="elevationProfile">Elevation profile</button>
             </div>
           </div>
           <div class="menu desktop-workflows-menu" data-desktop-only>
-            <button class="menu__trigger" aria-expanded="false">Workflows <span>⌄</span></button>
+            <button class="menu__trigger" aria-expanded="false">Modes <span>⌄</span></button>
             <div class="menu__content" role="menu">
               <button data-action="map-presentation">Instant presentations…</button>
               <hr />
@@ -160,11 +161,14 @@
           <div class="menu">
             <button class="menu__trigger" aria-expanded="false">Tools <span>⌄</span></button>
             <div class="menu__content" role="menu">
-              <button data-action="tools-connections">ArcGIS connections</button>
-              <button data-action="tools-custom">Load custom JavaScript tool</button>
               <button data-action="tools-assistant">Map assistant</button>
-              <button data-action="tools-ai">Configure AI</button>
-              <button data-action="tools-about">About this build</button>
+              <hr />
+              <span class="menu__label">Map tools</span>
+              <button data-requires-capability="widgets" data-widget="legend">Legend</button>
+              <button data-requires-capability="widgets" data-widget="measurement">Measurement</button>
+              <button data-requires-capability="widgets" data-widget="elevationProfile">Elevation profile</button>
+              <button data-requires-capability="widgets" data-widget="compass">Compass</button>
+              <button data-requires-capability="widgets" data-widget="basemapGallery">3D basemap gallery</button>
             </div>
           </div>
           </div>
@@ -420,6 +424,6 @@
       </ul>
     </section>
     <noscript>GIS Map Online is an interactive 3D map viewer and needs JavaScript. Without it, a map can still be described as a link: see <a href="/llms.txt">/llms.txt</a> and the <a href="/guides/ai-agents/">guide for AI agents</a>.</noscript>
-    <script type="module" src="./js/app.js?v=0.40.0"></script>
+    <script type="module" src="./js/app.js?v=0.41.0"></script>
   </body>
 </html>

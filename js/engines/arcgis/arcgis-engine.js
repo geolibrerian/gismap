@@ -3,11 +3,12 @@
 // callers get layer handles, features with plain JSON geometry and view
 // states, never SDK objects. Only native() hands the SDK's own map and view
 // out, for custom tools and the in-page API's escape hatches.
-import { arcgisMetadata } from "../../source-inspector.js?v=0.40.0";
+import { arcgisMetadata } from "../../source-inspector.js?v=0.41.0";
 import { chooseStyleField, compileRenderer, resolveRendererSpec, suggestRenderers, validateRendererSpec } from "../../renderer-spec.js?v=0.29.0";
 import { GisMapError } from "../../gismap-errors.js?v=0.28.0";
-import { ENGINE_CAPABILITIES, unsupported } from "../engine-interface.js?v=0.40.0";
+import { ENGINE_CAPABILITIES, unsupported } from "../engine-interface.js?v=0.41.0";
 import { loadArcGISRuntime } from "./arcgis-loader.js?v=0.38.0";
+import { basemapOnEngine, basemapsForEngine } from "../../basemap-catalog.js?v=0.41.0";
 
 const ARCGIS_WORLD_GEOCODER =
   "https://geocode.arcgis.com/arcgis/rest/services/World/GeocodeServer";
@@ -1705,10 +1706,15 @@ export class ArcGISEngine {
   /**
    * The ArcGIS basemap for a GIS Map basemap id. ArcGIS cannot restyle its
    * basemaps by skin, so the "skin" basemap is the light or dark gray canvas
-   * that suits the skin.
+   * that suits the skin; OpenFreeMap ids draw their ArcGIS equivalents.
    */
   #sdkBasemap(id) {
-    return id === "skin" ? (this.basemapTheme?.dark ? "dark-gray-vector" : "gray-vector") : id;
+    return id === "skin" ? (this.basemapTheme?.dark ? "dark-gray-vector" : "gray-vector") : basemapOnEngine(id, "arcgis");
+  }
+
+  /** The basemaps this engine draws, and the one it is drawing now (an OpenFreeMap id from a link shows as its ArcGIS equivalent). */
+  getBasemapOptions() {
+    return { selected: basemapOnEngine(this.basemapId, "arcgis"), options: basemapsForEngine("arcgis") };
   }
 
   /** The active skin's basemap theme: only light or dark matters here. */

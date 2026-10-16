@@ -2,9 +2,9 @@ import { POPULAR_SERVICES } from "./catalog.js?v=0.18.2";
 import { MapAssistantPanel } from "./assistant-panel.js?v=0.36.3";
 import { createAssistantTools, summarizeMapState } from "./map-assistant.js?v=0.36.3";
 import { ENTERPRISE_CATALOGS, EnterpriseCatalog, normalizeArcGisDirectoryUrl } from "./enterprise-catalog.js?v=0.18.2";
-import { createShareUrl } from "./share.js?v=0.40.0";
-import { createShareLink, hasDataFilter } from "./map-share.js?v=0.40.0";
-import { briefingLayerRef, findBriefingLayer } from "./briefing-api.js?v=0.40.0";
+import { createShareUrl } from "./share.js?v=0.41.0";
+import { createShareLink, hasDataFilter } from "./map-share.js?v=0.41.0";
+import { briefingLayerRef, findBriefingLayer } from "./briefing-api.js?v=0.41.0";
 import { createEmbeddedTourUrl } from "./tour-share.js?v=0.18.2";
 import { markdownToPlainText, renderMarkdown } from "./markdown.js?v=0.18.2";
 import { formatAttributeValue } from "./attribute-format.js?v=0.18.2";
@@ -14,16 +14,17 @@ import { DEFAULT_SKIN, INTERFACE_SKINS, applyInterfaceSkin, normalizeSkin, skinI
 import { themeFromComputedStyle } from "./basemap-themes.js?v=0.40.0";
 import { compactMedia } from "./viewport.js?v=0.18.2";
 import { PdfDocument, brandedMapImage, brandedQrCanvas, loadBrandLogo, printPalette, qrAsset } from "./pdf-document.js?v=0.30.0";
-import { featureLayerUrl, locationUrl } from "./field-task-share.js?v=0.40.0";
+import { featureLayerUrl, locationUrl } from "./field-task-share.js?v=0.41.0";
 import { dockIcon } from "./dock-icons.js?v=0.24.0";
 import { serviceNameFromUrl } from "./service-name.js?v=0.26.0";
 import { decodeQrFromImage, describeGisMapLink, gisMapLinkFrom, openGisMapLink } from "./qr-import.js?v=0.25.1";
-import { BriefingSlides } from "./briefing-slides.js?v=0.40.0";
+import { BriefingSlides } from "./briefing-slides.js?v=0.41.0";
 import { createSlide, matchesFilter, normalizeFilter } from "./briefing-document.js?v=0.35.0";
 import { aiDescriptionPrompt, applyAiDescriptions, describeWhere, generateBriefing, readAiDescriptions, rendererTheme } from "./briefing-generator.js?v=0.36.1";
 import { briefingFileStem } from "./briefing-pdf.js?v=0.23.0";
 import { rampColors } from "./renderer-spec.js?v=0.29.0";
 import { saveEngine } from "./engine-preference.js?v=0.39.0";
+import { BASEMAPS } from "./basemap-catalog.js?v=0.41.0";
 
 const DISPLAY_SETTINGS_KEY = "gismap-online:display:v1";
 const DOCKABLE_PANELS = { places: "Places", bookmarks: "Bookmarks", draw: "Draw", intelligence: "Intelligence", layers: "Layers" };
@@ -31,17 +32,8 @@ const RECENT_PLACES_KEY = "gismap-online:recent-places:v1";
 const RECENT_PLACES_LIMIT = 6;
 const INSIGHT_POSITIONS = new Set(["upper-left", "lower-left", "bottom", "dock-left", "dock-right", "dock-top", "dock-bottom"]);
 const TABLE_POSITIONS = new Set(["overlay-bottom", "dock-left", "dock-right", "dock-top", "dock-bottom"]);
-const BASEMAP_OPTIONS = [
-  ["topo-3d", "3D Topographic"], ["navigation-3d", "3D Navigation"],
-  ["navigation-dark-3d", "3D Navigation — dark"], ["osm-3d", "3D OpenStreetMap"],
-  ["gray-3d", "3D Light gray"], ["dark-gray-3d", "3D Dark gray"],
-  ["streets-3d", "3D Streets"], ["streets-dark-3d", "3D Streets — dark"],
-  ["topo-vector", "2D Topographic"], ["streets-vector", "2D Streets"],
-  ["navigation", "2D Navigation"], ["gray-vector", "2D Light gray"],
-  ["dark-gray-vector", "2D Dark gray"], ["osm", "2D OpenStreetMap"],
-  ["satellite", "Satellite"], ["hybrid", "Satellite + labels"],
-  ["skin", "Skin — follows the look"],
-];
+// Every basemap id with its label (the menus list only the active engine's own; see #basemapOptionsMarkup).
+const BASEMAP_OPTIONS = BASEMAPS.map(({ id, label }) => [id, label]);
 const BASEMAP_IDS = new Set(BASEMAP_OPTIONS.map(([id]) => id));
 
 const escapeHtml = (value) =>
@@ -158,6 +150,7 @@ export class UIController {
     });
     this.#buildMobileMenu();
     this.#bindMenus();
+    this.#bindMapMenu();
     this.#bindStaticActions();
     this.#bindInsightResize();
     this.#bindUtilityPanel();
@@ -187,7 +180,7 @@ export class UIController {
     mobileMenu.querySelectorAll('[data-action="dashboard-builder"], [data-action="map-presentation"], [data-desktop-only]').forEach((item) => item.remove());
     const workflows = document.createElement("div");
     workflows.className = "menu mobile-workflows-menu";
-    workflows.innerHTML = `<button class="menu__trigger" aria-expanded="false">Workflows <span>⌄</span></button><div class="menu__content" role="menu"><button type="button" data-mobile-workflow="briefing">Briefing</button><button type="button" data-mobile-workflow="tours">Tours</button><button type="button" data-mobile-workflow="tasks">Field tasks</button><button type="button" data-mobile-workflow="map">Map tools</button></div>`;
+    workflows.innerHTML = `<button class="menu__trigger" aria-expanded="false">Modes <span>⌄</span></button><div class="menu__content" role="menu"><button type="button" data-mobile-workflow="briefing">Briefing</button><button type="button" data-mobile-workflow="tours">Tours</button><button type="button" data-mobile-workflow="tasks">Field tasks</button><button type="button" data-mobile-workflow="map">Map tools</button></div>`;
     mobileMenu.append(workflows);
     drawer.replaceChildren(header, mobileMenu);
   }
@@ -1593,6 +1586,96 @@ export class UIController {
     }
   }
 
+  /** <option>s for the engines, the active one selected. */
+  #engineOptionsMarkup() {
+    const labels = { arcgis: "ArcGIS — 3D globe", maplibre: "MapLibre — 2D map (preview)" };
+    return this.mapController.availableEngines().map((engine) => `<option value="${escapeHtml(engine.id)}"${engine.id === this.mapController.getEngineId() ? " selected" : ""}>${escapeHtml(labels[engine.id] || engine.label)}</option>`).join("");
+  }
+
+  /**
+   * <option>s for the active engine's own basemaps, grouped, with `id` (or the
+   * basemap the engine draws for it: an ArcGIS id on MapLibre shows as its open equivalent) selected.
+   */
+  #basemapOptionsMarkup(id = null) {
+    const { selected, options } = this.mapController.getBasemapOptions();
+    const wanted = id == null ? selected : options.some((entry) => entry.id === id) ? id : BASEMAPS.find((entry) => entry.id === id)?.[this.mapController.getEngineId()] || selected;
+    const groups = [...new Set(options.map((entry) => entry.group))];
+    return groups.map((group) => `<optgroup label="${escapeHtml(group)}">${options.filter((entry) => entry.group === group).map((entry) => `<option value="${escapeHtml(entry.id)}"${entry.id === wanted ? " selected" : ""}>${escapeHtml(entry.label)}</option>`).join("")}</optgroup>`).join("");
+  }
+
+  /**
+   * The Map menu speaks for the engine that is drawing: its engine choice, its
+   * own basemaps with the one on screen selected, terrain only where there is
+   * ground, and map tools that need another engine marked as such.
+   */
+  #syncMapMenu() {
+    const capabilities = this.mapController.getCapabilities();
+    const engine = this.mapController.getEngineId();
+    document.querySelectorAll("[data-engine-picker]").forEach((select) => { select.innerHTML = this.#engineOptionsMarkup(); });
+    document.querySelectorAll("[data-engine-hint]").forEach((hint) => {
+      hint.textContent = engine === "maplibre" ? "Preview: open basemaps and GeoJSON layers. ArcGIS services and 3D need the ArcGIS engine." : "";
+      hint.hidden = !hint.textContent;
+    });
+    document.querySelectorAll("[data-basemap-picker]").forEach((select) => { select.innerHTML = this.#basemapOptionsMarkup(); });
+    document.querySelectorAll("[data-ground-picker]").forEach((select) => { select.value = this.mapController.getGroundId() || "world-elevation"; });
+    document.querySelectorAll("[data-requires-capability]").forEach((element) => {
+      const available = capabilities.includes(element.dataset.requiresCapability);
+      if (element.matches("button")) {
+        element.disabled = !available;
+        if (available) element.removeAttribute("title");
+        else element.title = "Needs the ArcGIS engine (Map → Map engine).";
+      } else {
+        element.hidden = !available;
+      }
+    });
+  }
+
+  #bindMapMenu() {
+    this.#syncMapMenu();
+    ["map:ready", "map:basemap-changed", "map:ground-changed"].forEach((topic) => this.events.subscribe(topic, () => this.#syncMapMenu()));
+    document.addEventListener("change", async (event) => {
+      const select = event.target.closest?.("[data-engine-picker]");
+      if (!select || select.value === this.mapController.getEngineId()) return;
+      this.#closeMenus();
+      if (!await this.#switchEngine(select.value)) select.innerHTML = this.#engineOptionsMarkup();
+    });
+  }
+
+  /**
+   * Switches the map engine: saves the choice and, when the person agrees,
+   * reopens this map (from its map spec link) with the other engine. The
+   * engine is chosen when the page opens. Resolves false when not reloading;
+   * `keepIfDeclined` then keeps the choice for the next visit (Display settings).
+   */
+  async #switchEngine(engine, { keepIfDeclined = false } = {}) {
+    saveEngine(globalThis.localStorage, engine);
+    const label = engine === "maplibre" ? "MapLibre (2D preview)" : "ArcGIS (3D)";
+    if (!confirm(`Reload now with the ${label} engine? This map reopens from its link; save the project first to keep anything a link cannot carry.`)) {
+      if (!keepIfDeclined) saveEngine(globalThis.localStorage, this.mapController.getEngineId());
+      return false;
+    }
+    const url = new URL(location.href);
+    url.searchParams.delete("engine");
+    let target = url.href;
+    try {
+      target = (await this.mapSpec?.createLink(this.mapSpec.fromCurrent()))?.url || target;
+    } catch {
+      // A map without layers has no map spec; its basemap and view still travel as link parameters.
+      const plain = new URL(url.origin + url.pathname);
+      const view = this.mapController.getViewState();
+      const scale = this.mapController.getScale?.();
+      if (this.mapController.getBasemapId()) plain.searchParams.set("basemap", this.mapController.getBasemapId());
+      if (view?.center && Number.isFinite(scale)) {
+        plain.searchParams.set("center", view.center.map((value) => Number(value).toFixed(5)).join(","));
+        plain.searchParams.set("scale", String(Math.round(scale)));
+      }
+      target = plain.href;
+    }
+    history.replaceState(null, "", target);
+    location.reload();
+    return true;
+  }
+
   /**
    * Keeps the map engine's basemap theme in step with the interface: the
    * "skin" basemap and unstyled data layers take the active skin's colours,
@@ -1694,7 +1777,7 @@ export class UIController {
     const current = this.#readDisplaySettings();
     const { insightPosition, tablePosition } = current;
     const defaultBasemap = this.mapController.getDefaultBasemapId();
-    const basemapOptions = BASEMAP_OPTIONS.map(([id, label]) => `<option value="${id}" ${defaultBasemap === id ? "selected" : ""}>${label}</option>`).join("");
+    const basemapOptions = this.#basemapOptionsMarkup(defaultBasemap);
     this.openDialog({
       eyebrow: "Interface preferences",
       title: "Display settings",
@@ -1704,7 +1787,7 @@ export class UIController {
         <label class="field"><span>Map Insight position</span><select id="insight-position"><optgroup label="Floating"><option value="upper-left">Upper left</option><option value="lower-left">Lower left</option><option value="bottom">Bottom overlay</option></optgroup><optgroup label="Dashboard"><option value="dock-left">Dock left</option><option value="dock-right">Dock right</option><option value="dock-top">Dock top</option><option value="dock-bottom">Dock bottom</option></optgroup></select></label>
         <label class="field"><span>Attribute table position</span><select id="table-position"><option value="overlay-bottom">Bottom overlay</option><option value="dock-left">Dock left</option><option value="dock-right">Dock right</option><option value="dock-top">Dock top</option><option value="dock-bottom">Dock bottom</option></select></label>
         <label class="field display-basemap"><span>Default basemap</span><select id="default-basemap">${basemapOptions}</select></label>
-        <label class="field"><span>Map engine</span><select id="map-engine">${this.mapController.availableEngines().map((engine) => `<option value="${escapeHtml(engine.id)}"${engine.id === this.mapController.getEngineId() ? " selected" : ""}>${escapeHtml(engine.id === "arcgis" ? "ArcGIS 3D (default)" : engine.label)}</option>`).join("")}</select></label>
+        <label class="field"><span>Map engine</span><select id="map-engine">${this.#engineOptionsMarkup()}</select></label>
       </div>
       <label class="display-checkbox"><input id="dark-basemap-enabled" type="checkbox" ${current.darkBasemapEnabled ? "checked" : ""} /><span>Use a dark basemap when dark mode is enabled</span></label>
       <fieldset class="feedback-settings"><legend>Map click feedback</legend><label class="display-checkbox"><input id="click-marker-enabled" type="checkbox" ${current.clickMarkerEnabled ? "checked" : ""} /><span>Show a crosshair where the map is clicked</span></label><label class="display-checkbox"><input id="highlight-enabled" type="checkbox" ${current.highlightEnabled ? "checked" : ""} /><span>Highlight the feature selected in Map Insight</span></label><label class="highlight-color"><span>Feedback color</span><input id="highlight-color" type="color" value="${current.highlightColor}" /><output>${current.highlightColor.toUpperCase()}</output></label></fieldset>
@@ -1724,16 +1807,7 @@ export class UIController {
         const engine = this.dialog.querySelector("#map-engine")?.value;
         this.dialog.close();
         if (engine && engine !== this.mapController.getEngineId()) {
-          // The engine is chosen when the page opens; the map spec link carries this map across.
-          saveEngine(globalThis.localStorage, engine);
-          if (confirm("Reload now with the other map engine? This map reopens from its link; save the project first to keep anything a link cannot carry.")) {
-            const url = new URL(location.href);
-            url.searchParams.delete("engine");
-            let target = url.href;
-            try { target = (await this.mapSpec?.createLink(this.mapSpec.fromCurrent()))?.url || target; } catch { /* Reopen without the map. */ }
-            history.replaceState(null, "", target);
-            location.reload();
-          } else this.toast("Display settings saved. The map engine changes the next time GIS Map opens.");
+          if (!await this.#switchEngine(engine, { keepIfDeclined: true })) this.toast("Display settings saved. The map engine changes the next time GIS Map opens.");
           return;
         }
         this.toast("Display settings saved.");
@@ -3631,7 +3705,7 @@ export class UIController {
     this.atlasEditingViewState = structuredClone(chapter.viewState || this.mapController.getViewState());
     const position = this.atlasEditingViewState.camera?.position || {};
     const geographicPosition = this.#atlasGeographicCameraPosition(position);
-    const basemapOptions = BASEMAP_OPTIONS.map(([id, label]) => `<option value="${id}"${(chapter.basemapId || this.mapController.getBasemapId()) === id ? " selected" : ""}>${escapeHtml(label)}</option>`).join("");
+    const basemapOptions = this.#basemapOptionsMarkup(chapter.basemapId || this.mapController.getBasemapId());
     const visibility = new Map((chapter.layerVisibility || []).map((entry) => [entry.key, entry.visible !== false]));
     const layerChoices = this.mapController.getLayers().map((layer) => {
       const key = this.#atlasLayerKey(layer);

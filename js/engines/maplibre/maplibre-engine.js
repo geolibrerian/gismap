@@ -9,8 +9,9 @@
 // one lower for the same scale (512-pixel tiles). Everything that crosses the
 // boundary uses GIS Map levels, so links and projects mean the same view.
 import { GisMapError } from "../../gismap-errors.js?v=0.28.0";
-import { unsupported } from "../engine-interface.js?v=0.40.0";
-import { openBasemapFor } from "./basemaps.js?v=0.40.0";
+import { unsupported } from "../engine-interface.js?v=0.41.0";
+import { openBasemapFor } from "./basemaps.js?v=0.41.0";
+import { basemapOnEngine, basemapsForEngine } from "../../basemap-catalog.js?v=0.41.0";
 import { applyBasemapTheme } from "./basemap-theme.js?v=0.40.0";
 import { compileWhere } from "./where.js?v=0.39.0";
 import { OBJECT_ID_FIELD, boundsIntersect, boundsOf, expandBounds, geometryTypeOf, inferFields, normalizeFeatures, representativePoint } from "./geojson.js?v=0.39.0";
@@ -202,6 +203,11 @@ export class MaplibreEngine {
     return this.basemapId;
   }
 
+  /** The basemaps this engine draws, and the one it is drawing now (an ArcGIS id from a link shows as its open equivalent). */
+  getBasemapOptions() {
+    return { selected: basemapOnEngine(this.basemapId, "maplibre"), options: basemapsForEngine("maplibre") };
+  }
+
   setBasemap(id) {
     const next = id || "topo-3d";
     if (!this.map && this.initialBasemapId) return;
@@ -369,7 +375,7 @@ export class MaplibreEngine {
     const url = String(config.url || "").trim().replace(/\/$/, "");
     if (!url) throw new Error("A service URL is required.");
     if (config.serviceType !== "geojson" && !isGeoJsonUrl(url)) {
-      throw unsupported("layers-arcgis", "The MapLibre engine (preview) adds GeoJSON layers only so far. Switch to the ArcGIS engine in Display settings for ArcGIS, WMS, WFS and KML services.");
+      throw unsupported("layers-arcgis", "The MapLibre engine (preview) adds GeoJSON layers only so far. Switch to the ArcGIS engine under Map → Map engine for ArcGIS, WMS, WFS and KML services.");
     }
     const response = await fetch(url);
     if (!response.ok) throw new Error(`The GeoJSON could not be read (HTTP ${response.status}).`);
@@ -380,14 +386,14 @@ export class MaplibreEngine {
   async addLocalFile(file, projectPath = null) {
     const extension = file.name.split(".").pop()?.toLowerCase();
     if (!["json", "geojson"].includes(extension)) {
-      throw unsupported("layers-files", "The MapLibre engine (preview) opens GeoJSON files only so far. Switch to the ArcGIS engine in Display settings for KML, KMZ and shapefiles.");
+      throw unsupported("layers-files", "The MapLibre engine (preview) opens GeoJSON files only so far. Switch to the ArcGIS engine under Map → Map engine for KML, KMZ and shapefiles.");
     }
     const json = JSON.parse(await file.text());
     return this.#addCollection(json, { title: file.name, sourceType: extension, fileName: file.name, projectPath: projectPath || `data/${file.name}`, local: true, asset: file });
   }
 
   async discoverFeatureServiceLayers() {
-    throw unsupported("layers-arcgis", "The MapLibre engine (preview) cannot add ArcGIS feature services yet. Switch to the ArcGIS engine in Display settings.");
+    throw unsupported("layers-arcgis", "The MapLibre engine (preview) cannot add ArcGIS feature services yet. Switch to the ArcGIS engine under Map → Map engine.");
   }
 
   async refreshLayer(uid) {

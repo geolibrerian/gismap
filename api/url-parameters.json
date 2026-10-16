@@ -160,6 +160,10 @@
         "osm",
         "satellite",
         "hybrid",
+        "open-liberty",
+        "open-bright",
+        "open-positron",
+        "open-dark",
         "skin"
       ],
       "description": "The background map, applied before the scene starts.",

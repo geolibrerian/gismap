@@ -277,6 +277,10 @@
     "osm",
     "satellite",
     "hybrid",
+    "open-liberty",
+    "open-bright",
+    "open-positron",
+    "open-dark",
     "skin"
   ],
   "limits": {

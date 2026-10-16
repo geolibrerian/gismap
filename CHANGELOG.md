@@ -6,6 +6,15 @@ All notable changes to GIS Map Online are documented here. This project follows
 
 ## [Unreleased]
 
+### Clearer menus, and choosing an engine and its basemaps
+
+- **Workflows is now Modes** (Briefing, Tours, Field tasks, Standard map), which fits the menu bar.
+- **Every dropdown fits the side panel.** Menus open across the panel's width under the menu bar instead of under their button, so Map, Modes and Tools no longer run off the panel's edge.
+- **Map** is about the map itself: **Map engine** (ArcGIS 3D globe or MapLibre 2D preview), **Basemap**, **Terrain surface** (shown only with the ArcGIS engine) and the Bookmarks and Draw panels.
+- **Tools** holds the Map assistant and the **map tools**: Legend, Measurement, Elevation profile, Compass and the 3D basemap gallery (greyed out, with a note, when the MapLibre engine is drawing). **Project** gains the settings: Layout & display, ArcGIS connections, Configure AI, Load custom JavaScript tool and About this build.
+- **The basemap list belongs to the engine.** ArcGIS lists its 3D, 2D and imagery basemaps; MapLibre lists the OpenFreeMap styles (Liberty, Bright, Positron, Dark); both offer Skin. The list shows the basemap actually on screen: a "3D Topographic" link opened with MapLibre shows Liberty. One catalog (`js/basemap-catalog.js`) gives each basemap its engine and its nearest match on the other, used by both engines, links (`basemap=open-positron` …), the map-v1 schema and the API docs.
+- **Switching engines keeps the view and basemap**, also for a map without layers (it reopens with `basemap`, `center` and `scale`).
+
 ### Skin basemap: the map in the colours of the interface (phase 1)
 
 - **A new basemap, "Skin — follows the look"** (basemap menu, Display settings, tours, and `basemap=skin` in links and map specs). With the MapLibre engine it is the open Positron style redrawn in the active skin's own colours: land in its paper, water and parks in its muted tone, roads, boundaries and labels from its ink and line colours, points of interest and road shields hidden so the data stands out. Highway gives the white, grey-water technical map that inspired it (with uppercase labels); Midnight, Velvet Orbit and Violet Circuit give dark maps; Pacific ’94 and Copperplate their teal and sepia papers. Changing the skin, or light and dark mode, redraws it at once. The ArcGIS engine shows its light or dark gray canvas for it.
@@ -16,7 +25,7 @@ All notable changes to GIS Map Online are documented here. This project follows
 
 ### MapLibre engine preview (2D, open basemaps, GeoJSON)
 
-- **A second map engine, opt-in.** Open any link with `?engine=maplibre`, or choose **Tools → Display settings → Map engine → MapLibre (preview)**, which saves the choice and reopens the current map from its link. ArcGIS stays the default; nothing changes unless you choose it.
+- **A second map engine, opt-in.** Open any link with `?engine=maplibre`, or choose **Map → Map engine → MapLibre** (also in **Project → Layout & display**), which saves the choice and reopens the current map from its link. ArcGIS stays the default; nothing changes unless you choose it.
 - **What it does so far:** a flat map drawn with MapLibre GL JS 5.24.0 on key-free [OpenFreeMap](https://openfreemap.org) styles (GIS Map basemap ids map to Liberty, Bright, Positron or Dark, so links keep their basemap id); **GeoJSON layers** from URLs and files, with visibility, opacity, single-colour styles, attribute filters, the attribute table and search, identify, queries and briefings; the camera (centre, zoom, heading, tilt up to 60°) in the same GIS Map zoom levels as ArcGIS, so map links, projects and tours open on the same view in either engine; navigation buttons; and image capture for Smart images and PDFs.
 - **Not yet:** ArcGIS, WMS, WFS and KML services, KML/KMZ/shapefile files, class-based styles and style suggestions, exact spatial relationships (only "in view" and box queries), geocoding search, drawing, measurement and other widgets, highlights and tour or task pins. Each says it needs the ArcGIS engine instead of failing silently; address lookups are simply skipped.
 - **Optional capabilities are optional.** `MapController` gives harmless defaults when an engine lacks them (no click marker, no tour pins, no address) and reports the missing capability for the rest. With MapLibre selected the ArcGIS runtime is never downloaded; saved ArcGIS sign-ins load it only when a connection is used.

@@ -1,29 +1,30 @@
 import { events } from "./events.js?v=0.18.2";
 import { AuthController } from "./engines/arcgis/arcgis-auth.js?v=0.39.0";
-import { MapController } from "./map-controller.js?v=0.40.0";
-import { listEngines } from "./engines/engine-registry.js?v=0.40.0";
+import { MapController } from "./map-controller.js?v=0.41.0";
+import { listEngines } from "./engines/engine-registry.js?v=0.41.0";
 import { chooseEngine } from "./engine-preference.js?v=0.39.0";
-import { ProjectManager } from "./project.js?v=0.40.0";
+import { BASEMAP_IDS } from "./basemap-catalog.js?v=0.41.0";
+import { ProjectManager } from "./project.js?v=0.41.0";
 import { IdentifyController } from "./identify.js?v=0.37.0";
 import { AttributeTableController } from "./attribute-table.js?v=0.37.0";
-import { AIController } from "./ai.js?v=0.37.0";
+import { AIController } from "./ai.js?v=0.41.0";
 import { ToolManager } from "./tool-manager.js?v=0.37.0";
-import { UIController } from "./ui.js?v=0.40.0";
+import { UIController } from "./ui.js?v=0.41.0";
 import { ExportController } from "./export/export-controller.js?v=0.37.0";
-import { SHARE_BASEMAPS, parseShareParameters } from "./share.js?v=0.40.0";
-import { readShareLocation } from "./map-share.js?v=0.40.0";
+import { SHARE_BASEMAPS, parseShareParameters } from "./share.js?v=0.41.0";
+import { readShareLocation } from "./map-share.js?v=0.41.0";
 import { decodeEmbeddedTour } from "./tour-share.js?v=0.18.2";
-import { decodeFieldTask, featureLayerUrl, readFieldTaskHash, readFocus } from "./field-task-share.js?v=0.40.0";
+import { decodeFieldTask, featureLayerUrl, readFieldTaskHash, readFocus } from "./field-task-share.js?v=0.41.0";
 import { POPULAR_SERVICES } from "./catalog.js?v=0.18.2";
 import { ApplicationRuntime } from "./application-runtime.js?v=0.37.0";
 import { PanelManager } from "./panel-manager.js?v=0.18.2";
 import { MobilePanelManager } from "./mobile-panel-manager.js?v=0.18.2";
-import { MobileWorkflowRouter } from "./mobile-workflow-router.js?v=0.40.0";
-import { createClientApi } from "./briefing-api.js?v=0.40.0";
-import { createCameraApi, createLayersApi } from "./layers-api.js?v=0.40.0";
+import { MobileWorkflowRouter } from "./mobile-workflow-router.js?v=0.41.0";
+import { createClientApi } from "./briefing-api.js?v=0.41.0";
+import { createCameraApi, createLayersApi } from "./layers-api.js?v=0.41.0";
 import { registerLayerTools } from "./layer-tools.js?v=0.29.0";
-import { createMapSpecApi } from "./map-spec-api.js?v=0.40.0";
-import { mapSpecFromShareParameters } from "./map-spec.js?v=0.40.0";
+import { createMapSpecApi } from "./map-spec-api.js?v=0.41.0";
+import { mapSpecFromShareParameters } from "./map-spec.js?v=0.41.0";
 import { GisMapError, ERROR_CODES } from "./gismap-errors.js?v=0.28.0";
 
 async function loadSharedLayer(mapController, config) {
@@ -299,9 +300,7 @@ async function start() {
   const tourMatch = location.hash.match(/(?:^#|&)tour=([^&]+)/);
   if (tourMatch) {
     try {
-      const tour = decodeEmbeddedTour(tourMatch[1], new Set([
-        "topo-3d", "navigation-3d", "navigation-dark-3d", "osm-3d", "gray-3d", "dark-gray-3d", "streets-3d", "streets-dark-3d", "topo-vector", "streets-vector", "navigation", "gray-vector", "dark-gray-vector", "osm", "satellite", "hybrid", "skin",
-      ]));
+      const tour = decodeEmbeddedTour(tourMatch[1], new Set(BASEMAP_IDS));
       projectManager.setPresentation({ template: "atlas", ...tour });
       const launch = new URLSearchParams(location.search);
       const chapter = Math.max(0, Number(launch.get("chapter") || 1) - 1);

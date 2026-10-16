@@ -210,7 +210,7 @@ export class AIController {
         if (!response.ok) {
           if (response.status === 404) {
             throw new Error(
-              `Ollama could not find “${this.config.model}”. Open Tools → Configure AI, use the exact installed model tag, and test again.`,
+              `Ollama could not find “${this.config.model}”. Open Project → Configure AI, use the exact installed model tag, and test again.`,
             );
           }
           throw new Error(`Ollama returned ${response.status}.`);
@@ -320,7 +320,7 @@ export class AIController {
       if (error instanceof TypeError || /failed to fetch|network/i.test(error?.message || "")) {
         throw new Error(
           `Ollama at ${endpoint} could not be reached from ${origin}. ` +
-          `It may be offline or blocking this origin; open Tools → Configure AI for setup instructions.`,
+          `It may be offline or blocking this origin; open Project → Configure AI for setup instructions.`,
         );
       }
       throw error;
