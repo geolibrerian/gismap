@@ -10,7 +10,7 @@ import { LAYER_TOOL_DEFINITIONS, checkToolInput } from "../js/layer-tools.js";
 import { checkWhere, createLayersApi } from "../js/layers-api.js";
 import { parseShareParameters } from "../js/share.js";
 import { createClientApi } from "../js/briefing-api.js";
-import { MapController } from "../js/engines/arcgis/arcgis-engine.js";
+import { ArcGISEngine as MapController } from "../js/engines/arcgis/arcgis-engine.js";
 
 const read = async (path) => readFile(new URL(path, import.meta.url), "utf8");
 const json = async (path) => JSON.parse(await read(path));

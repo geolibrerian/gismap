@@ -6,7 +6,8 @@
 import { arcgisMetadata } from "../../source-inspector.js?v=0.29.0";
 import { chooseStyleField, compileRenderer, resolveRendererSpec, suggestRenderers, validateRendererSpec } from "../../renderer-spec.js?v=0.29.0";
 import { GisMapError } from "../../gismap-errors.js?v=0.28.0";
-import { ENGINE_CAPABILITIES, unsupported } from "../engine-interface.js?v=0.37.0";
+import { ENGINE_CAPABILITIES, unsupported } from "../engine-interface.js?v=0.38.0";
+import { loadArcGISRuntime } from "./arcgis-loader.js?v=0.38.0";
 
 const ARCGIS_WORLD_GEOCODER =
   "https://geocode.arcgis.com/arcgis/rest/services/World/GeocodeServer";
@@ -15,7 +16,6 @@ export function isNavigationAbort(error) {
   const message = String(error?.message ?? error ?? "").trim();
   return error?.name === "AbortError" || /^(?:abort(?:ed)?|cancel(?:led)?)$/i.test(message);
 }
-
 export function parseArcGISFeatureQueryUrl(value) {
   try {
     const parsed = new URL(value);
@@ -139,6 +139,7 @@ export class ArcGISEngine {
   #graphics = new WeakMap();
 
   constructor(events, authController = null) {
+    this.id = "arcgis";
     this.events = events;
     this.authController = authController;
     this.map = null;
@@ -169,6 +170,7 @@ export class ArcGISEngine {
   }
 
   async initialize(container = "viewDiv") {
+    await loadArcGISRuntime();
     if (!globalThis.$arcgis?.import) {
       throw new Error("ArcGIS Maps SDK did not load. Check the network connection and CDN URL.");
     }
@@ -1784,11 +1786,16 @@ export class ArcGISEngine {
     };
   }
 
-  async captureImage({ format = "jpg", quality = 82, width = 1200, height = null } = {}) {
+  async captureImage({ format = "jpg", quality = 82, width = 1200, height = null, aspect = null } = {}) {
     if (!this.view?.takeScreenshot) return null;
     const options = { format, width };
     if (format !== "png") options.quality = quality;
-    if (Number.isFinite(height)) options.height = height;
+    if (Number.isFinite(aspect) && aspect > 0 && this.view.width && this.view.height) {
+      const cropWidth = Math.min(this.view.width, Math.round(this.view.height * aspect));
+      const cropHeight = Math.min(this.view.height, Math.round(cropWidth / aspect));
+      options.width = Math.min(width, cropWidth * 2);
+      options.area = { x: Math.round((this.view.width - cropWidth) / 2), y: Math.round((this.view.height - cropHeight) / 2), width: cropWidth, height: cropHeight };
+    } else if (Number.isFinite(height)) options.height = height;
     const capture = await this.view.takeScreenshot(options);
     return capture?.dataUrl && capture?.data
       ? { dataUrl: capture.dataUrl, width: capture.data.width, height: capture.data.height }
@@ -2368,5 +2375,4 @@ export class ArcGISEngine {
   }
 }
 
-/** The app's name for the map engine (app.js constructs it). */
-export { ArcGISEngine as MapController };
+export default ArcGISEngine;

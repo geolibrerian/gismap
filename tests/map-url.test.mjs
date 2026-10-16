@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { MapController, isNavigationAbort, parseArcGISFeatureQueryUrl, parseWfsUrl } from "../js/engines/arcgis/arcgis-engine.js";
+import { ArcGISEngine as MapController, isNavigationAbort, parseArcGISFeatureQueryUrl, parseWfsUrl } from "../js/engines/arcgis/arcgis-engine.js";
 import { readFile } from "node:fs/promises";
 
 const mapSource = await readFile(new URL("../js/engines/arcgis/arcgis-engine.js", import.meta.url), "utf8");

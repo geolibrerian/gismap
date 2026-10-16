@@ -1,3 +1,5 @@
+import { loadArcGISRuntime } from "./arcgis-loader.js?v=0.38.0";
+
 const STORAGE_KEY = "gismap-online:arcgis-connections:v1";
 
 function makeId() {
@@ -80,6 +82,7 @@ export class AuthController {
   }
 
   async initialize() {
+    await loadArcGISRuntime();
     const [identityManager, OAuthInfo, ServerInfo] = await $arcgis.import([
       "@arcgis/core/identity/IdentityManager.js",
       "@arcgis/core/identity/OAuthInfo.js",

@@ -150,8 +150,11 @@ published builds and generated release notes.
 
 ## Modules
 
-- `js/engines/engine-interface.js` — the map engine contract: methods, capabilities, events and plain-data types (layer handles, features, view targets)
-- `js/engines/arcgis/arcgis-engine.js` — the ArcGIS engine, the only module that drives the ArcGIS Maps SDK: 3D scene/camera lifecycle, elevation ground, layer adapters, queries, identify, drawing, refresh, rendering, navigation, capture and geocoding
+- `js/map-controller.js` — the provider-neutral application facade: selects an engine and owns workflows that can be composed from common map primitives
+- `js/engines/engine-registry.js` — lazy engine registration and factory; ArcGIS is the default and additional renderers can register without changing application consumers
+- `js/engines/engine-interface.js` — the small renderer contract plus the larger application facade, capabilities, events and plain-data types (layer handles, features, view targets)
+- `js/engines/arcgis/arcgis-loader.js` — loads ArcGIS runtime CSS and JavaScript only when the ArcGIS renderer is selected
+- `js/engines/arcgis/arcgis-engine.js` — the ArcGIS renderer adapter: 3D scene/camera lifecycle, elevation ground, layer adapters, queries, identify, drawing, refresh, rendering, navigation, capture and geocoding
 - `js/identify.js` — popup-free identify results from the engine, de-duplicated across layer types
 - `js/ui.js` — sidebar, menus, tabbed workspace tools, layer controls, places, and insight rendering
 - `js/project.js` — local projects plus `.gmo` project and `.gmop` package import/export (legacy JSON/ZIP files remain supported)

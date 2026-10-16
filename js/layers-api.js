@@ -104,12 +104,17 @@ export function createLayersApi({ mapController, loadLayer, state = null, events
   events?.subscribe?.("layer:added", ({ layer }) => { if (layer) void countFeatures(layer); });
   events?.subscribe?.("layer:removed", ({ uid }) => { metadata.delete(uid); counts.delete(uid); errors.delete(uid); });
 
-  async function addLayer(url, options, before) {
+  function validateLayerInput(url, options) {
     const type = options.type || "arcgis-auto";
     if (!SHARE_LAYER_TYPES.has(type)) throw new GisMapError("UNSUPPORTED_LAYER_TYPE", `Unsupported layer type: ${type}.`, { details: { supported: [...SHARE_LAYER_TYPES] } });
     let clean;
     try { clean = sanitizeSharedResourceUrl(url, { allowHttp }); } catch (error) { throw toGisMapError(error, "INVALID_URL", { url: String(url) }); }
     const where = checkWhere(options.where);
+    return { clean, type, where };
+  }
+
+  async function addLayer(url, options, before, validated = validateLayerInput(url, options)) {
+    const { clean, type, where } = validated;
     if (options.signal?.aborted) throw new DOMException("The layer was not added.", "AbortError");
     let added;
     try {
@@ -154,11 +159,14 @@ export function createLayersApi({ mapController, loadLayer, state = null, events
      * visible, ignoreServiceScaleRange, zoomTo (default: when it is the first data layer).
      */
     async add(url, options = {}) {
+      // Input errors are more useful than a capacity error and require no map
+      // mutation, so validate before reserving a concurrent layer slot.
+      const validated = validateLayerInput(url, options);
       const before = dataLayers().length;
       if (before + pending >= SHARE_LIMITS.maxLayers) throw new GisMapError("TOO_MANY_LAYERS", `A map can include at most ${SHARE_LIMITS.maxLayers} layers.`, { details: { limit: SHARE_LIMITS.maxLayers } });
       pending += 1;
       try {
-        return await addLayer(url, options, before);
+        return await addLayer(url, options, before, validated);
       } finally {
         pending -= 1;
       }

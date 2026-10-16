@@ -1,0 +1,46 @@
+// Lazy engine discovery. The application asks for an engine by stable id and
+// does not import a renderer implementation directly. Keeping loaders here
+// lets a future MapLibre engine ship without downloading the ArcGIS runtime.
+import { ENGINE_CAPABILITIES, ENGINE_METHODS } from "./engine-interface.js?v=0.38.0";
+import { GisMapError } from "../gismap-errors.js?v=0.28.0";
+
+const definitions = new Map();
+
+export function registerEngine(definition) {
+  const id = String(definition?.id || "").trim();
+  if (!id || typeof definition?.load !== "function") throw new TypeError("An engine registration needs an id and load function.");
+  const capabilities = [...new Set(definition.capabilities || [])];
+  if (capabilities.some((name) => !ENGINE_CAPABILITIES.includes(name))) throw new TypeError(`Unknown capability registered for ${id}.`);
+  definitions.set(id, Object.freeze({ id, label: definition.label || id, capabilities: Object.freeze(capabilities), load: definition.load }));
+  return definitions.get(id);
+}
+
+registerEngine({
+  id: "arcgis",
+  label: "ArcGIS",
+  capabilities: ENGINE_CAPABILITIES.filter((name) => name !== "view-2d"),
+  load: async ({ events, authController }) => {
+    const { ArcGISEngine } = await import("./arcgis/arcgis-engine.js?v=0.38.0");
+    return new ArcGISEngine(events, authController);
+  },
+});
+
+export function listEngines() {
+  return [...definitions.values()].map(({ load: _load, ...definition }) => definition);
+}
+
+export function getEngineDefinition(id) {
+  const definition = definitions.get(String(id || ""));
+  return definition ? { id: definition.id, label: definition.label, capabilities: [...definition.capabilities] } : null;
+}
+
+export async function createEngine(id, context = {}) {
+  const definition = definitions.get(String(id || ""));
+  if (!definition) throw new GisMapError("INVALID_SPEC", `Unknown map engine “${id}”.`, { details: { engine: id, available: [...definitions.keys()] } });
+  const engine = await definition.load(context);
+  for (const name of ENGINE_METHODS) {
+    if (typeof engine?.[name] !== "function") throw new GisMapError("NOT_READY", `${definition.label} is missing the required engine method ${name}().`, { details: { engine: definition.id, method: name } });
+  }
+  return engine;
+}
+

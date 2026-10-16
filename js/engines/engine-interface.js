@@ -43,38 +43,62 @@ export function unsupported(capability, message = `This map engine does not supp
 }
 
 /**
- * The names every engine implements (a test checks the ArcGIS adapter against it).
- * Grouped as in the typedef below.
+ * The small renderer contract every engine must implement. Higher-level map
+ * workflows belong to MapController, while capability-specific operations may
+ * be implemented by an engine and are exposed through the controller only when
+ * that engine advertises the corresponding capability.
  */
 export const ENGINE_METHODS = Object.freeze([
   // lifecycle
-  "initialize", "destroy", "isReady", "whenReady", "getCapabilities", "native", "resize",
-  // basemap and ground
-  "setBasemap", "setInitialBasemap", "getBasemapId", "setDefaultBasemap", "getDefaultBasemapId", "setGround", "getGroundId", "whenBasemapLoaded",
+  "initialize", "destroy", "isReady", "whenReady", "getCapabilities", "resize",
+  // basemap
+  "setBasemap", "getBasemapId", "whenBasemapLoaded",
   // layers
-  "addService", "addLocalFile", "discoverFeatureServiceLayers", "removeLayer", "clearOperationalLayers",
-  "getLayers", "getLayer", "getQueryableLayer", "loadLayer", "getLayerConfig", "getAllLayerConfigs",
-  "setVisibility", "setOpacity", "setTitle", "setOutFields", "setRefreshInterval", "refreshLayer", "setDefinitionExpression",
-  "ignoreScaleRange", "scaleState", "layerMetadata", "getLocalAsset",
+  "addService", "removeLayer", "clearOperationalLayers", "getLayers", "getLayer", "loadLayer", "getLayerConfig",
+  "setVisibility", "setOpacity", "setDefinitionExpression",
   // styling
-  "applyRendererSpec", "suggestRenderers", "restoreRenderer", "setRenderer", "recordRendererSpec", "setLayerSymbology", "distinctValues", "fieldValues",
+  "applyRendererSpec",
   // queries
   "queryFeatures", "queryFeatureCount", "queryObjectIds", "setFeatureFilter",
   // view
-  "getViewState", "getCamera", "getScale", "getViewpoint", "getCurrentExtentDetails", "restoreView", "setView", "navigate",
-  "getViewPadding", "setViewPadding", "getContainer", "getViewExtent", "viewExtentFilter",
-  "goToLayer", "goToLayers", "goToLayerOnInitialLoad", "layerExtent", "dataBounds", "goToFeature", "goToFeatures", "goToSearchResult", "goToTaskPlaces",
+  "getViewState", "setView", "getViewPadding", "setViewPadding", "getContainer", "getViewExtent",
   // interaction
-  "identify", "highlightFeature", "clearFeatureHighlight", "configureInteractionFeedback", "clearClickMarker", "locateUser",
-  "geographicCoordinates",
-  // geocoding (a geocoder router can replace these two)
-  "search", "reverseGeocode",
+  "identify",
   // capture
-  "captureImage", "captureViews", "captureTaskMap",
-  // graphics
-  "draw", "hasDrawings", "clearDrawings", "getDrawGraphicsForExport", "setTaskPin", "setTourMarkers", "setActiveTourMarker", "clearTourMarkers",
-  "toggleWidget",
+  "captureImage",
 ]);
+
+/**
+ * The stable application-facing facade. MapController implements this surface;
+ * it supplies engine-neutral helpers itself and delegates renderer-specific
+ * operations to the active engine. A future engine therefore does not need to
+ * copy every ArcGIS workflow merely to start rendering maps.
+ */
+export const MAP_CONTROLLER_METHODS = Object.freeze([
+  ...ENGINE_METHODS,
+  "native", "setInitialBasemap", "setDefaultBasemap", "getDefaultBasemapId", "setGround", "getGroundId",
+  "addLocalFile", "discoverFeatureServiceLayers", "getQueryableLayer", "getAllLayerConfigs",
+  "setTitle", "setOutFields", "setRefreshInterval", "refreshLayer", "ignoreScaleRange", "scaleState", "layerMetadata", "getLocalAsset",
+  "suggestRenderers", "restoreRenderer", "setRenderer", "recordRendererSpec", "setLayerSymbology", "distinctValues", "fieldValues",
+  "getCamera", "getScale", "getViewpoint", "getCurrentExtentDetails", "restoreView", "navigate", "viewExtentFilter",
+  "goToLayer", "goToLayers", "goToLayerOnInitialLoad", "layerExtent", "dataBounds", "goToFeature", "goToFeatures", "goToSearchResult", "goToTaskPlaces",
+  "highlightFeature", "clearFeatureHighlight", "configureInteractionFeedback", "clearClickMarker", "locateUser", "geographicCoordinates",
+  "search", "reverseGeocode", "captureViews", "captureTaskMap",
+  "draw", "hasDrawings", "clearDrawings", "getDrawGraphicsForExport", "setTaskPin", "setTourMarkers", "setActiveTourMarker", "clearTourMarkers", "toggleWidget",
+]);
+
+/** Capability used when an optional delegated method is absent. */
+export const METHOD_CAPABILITIES = Object.freeze({
+  native: "native", setGround: "ground", getGroundId: "ground",
+  addLocalFile: "layers-files", discoverFeatureServiceLayers: "layers-arcgis", getQueryableLayer: "query",
+  suggestRenderers: "renderer-spec", restoreRenderer: "renderer-native", setRenderer: "renderer-native", setLayerSymbology: "renderer-native",
+  distinctValues: "query", fieldValues: "query", navigate: "view-2d", viewExtentFilter: "spatial-query",
+  goToLayer: "query", goToLayers: "query", goToLayerOnInitialLoad: "query", layerExtent: "query", dataBounds: "query",
+  highlightFeature: "highlight", clearFeatureHighlight: "highlight", configureInteractionFeedback: "highlight", clearClickMarker: "highlight", locateUser: "view-2d",
+  search: "geocode", reverseGeocode: "geocode", captureViews: "capture", captureTaskMap: "capture",
+  draw: "draw", hasDrawings: "draw", clearDrawings: "draw", getDrawGraphicsForExport: "draw", setTaskPin: "draw", setTourMarkers: "tour-markers", setActiveTourMarker: "tour-markers", clearTourMarkers: "tour-markers",
+  toggleWidget: "widgets",
+});
 
 /**
  * Events an engine publishes on the app's event bus (all payloads are plain data):

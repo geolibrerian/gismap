@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { MapController } from "../js/engines/arcgis/arcgis-engine.js";
+import { ArcGISEngine as MapController } from "../js/engines/arcgis/arcgis-engine.js";
 
 class TestGraphic {
   constructor(properties) { Object.assign(this, properties); }

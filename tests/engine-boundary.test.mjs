@@ -5,8 +5,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readdir, readFile } from "node:fs/promises";
-import { ENGINE_CAPABILITIES, ENGINE_EVENTS, ENGINE_METHODS, unsupported } from "../js/engines/engine-interface.js";
-import { ArcGISEngine, MapController } from "../js/engines/arcgis/arcgis-engine.js";
+import { ENGINE_CAPABILITIES, ENGINE_EVENTS, ENGINE_METHODS, MAP_CONTROLLER_METHODS, unsupported } from "../js/engines/engine-interface.js";
+import { ArcGISEngine } from "../js/engines/arcgis/arcgis-engine.js";
+import { MapController } from "../js/map-controller.js";
 
 const root = new URL("../", import.meta.url);
 
@@ -14,6 +15,7 @@ const root = new URL("../", import.meta.url);
 const SDK_ALLOWED = new Set([
   "js/engines/arcgis/arcgis-engine.js",
   "js/engines/arcgis/arcgis-auth.js",
+  "js/engines/arcgis/arcgis-loader.js",
 ]);
 
 // What only the engine may do, with what it would look like in another module.
@@ -64,6 +66,21 @@ test("the allow-list holds engine files only, and each still exists", async () =
   }
 });
 
+test("the ArcGIS runtime is selected lazily instead of loaded by the page shell", async () => {
+  const [index, app, registry, loader] = await Promise.all([
+    readFile(new URL("index.html", root), "utf8"),
+    readFile(new URL("js/app.js", root), "utf8"),
+    readFile(new URL("js/engines/engine-registry.js", root), "utf8"),
+    readFile(new URL("js/engines/arcgis/arcgis-loader.js", root), "utf8"),
+  ]);
+  assert.doesNotMatch(index, /<script[^>]+src=["']https:\/\/js\.arcgis\.com/i);
+  assert.doesNotMatch(index, /<link[^>]+rel=["']stylesheet["'][^>]+href=["']https:\/\/js\.arcgis\.com/i);
+  assert.match(app, /from ["']\.\/map-controller\.js/);
+  assert.doesNotMatch(app, /from ["']\.\/engines\/arcgis\/arcgis-engine\.js/);
+  assert.match(registry, /registerEngine\(\{[\s\S]*?id:\s*["']arcgis["']/);
+  assert.match(loader, /https:\/\/js\.arcgis\.com\/5\.0\//);
+});
+
 test("the leak patterns catch what they are for", () => {
   const caught = (code) => LEAKS.some(([pattern]) => pattern.test(code));
   for (const code of [
@@ -91,9 +108,10 @@ test("the leak patterns catch what they are for", () => {
   ]) assert.ok(!caught(code), code);
 });
 
-test("the ArcGIS engine implements the whole engine contract", () => {
+test("the ArcGIS engine implements the small renderer contract and the controller owns the app facade", () => {
   for (const name of ENGINE_METHODS) assert.equal(typeof ArcGISEngine.prototype[name], "function", `ArcGISEngine.${name}`);
-  assert.equal(MapController, ArcGISEngine, "the app's MapController is the ArcGIS engine");
+  for (const name of MAP_CONTROLLER_METHODS) assert.equal(typeof MapController.prototype[name], "function", `MapController.${name}`);
+  assert.ok(MAP_CONTROLLER_METHODS.length > ENGINE_METHODS.length, "renderer adapters implement less than the application facade");
   const engine = new ArcGISEngine({ publish() {} });
   const capabilities = engine.getCapabilities();
   assert.ok(capabilities.every((name) => ENGINE_CAPABILITIES.includes(name)));
@@ -102,6 +120,27 @@ test("the ArcGIS engine implements the whole engine contract", () => {
   const error = unsupported("feature-filter");
   assert.equal(error.code, "UNSUPPORTED_LAYER_TYPE");
   assert.deepEqual(error.details, { capability: "feature-filter" });
+});
+
+test("MapController selects an engine through its factory and exposes its capabilities", async () => {
+  const calls = [];
+  const fake = Object.fromEntries(ENGINE_METHODS.map((name) => [name, () => undefined]));
+  Object.assign(fake, {
+    id: "test", getCapabilities: () => ["view-2d", "capture"],
+    async initialize(container) { calls.push(["initialize", container]); },
+    isReady: () => true,
+    getLayers: () => [], getBasemapId: () => "test-light",
+  });
+  const controller = new MapController({ publish() {} }, null, {
+    engineId: "test",
+    engineFactory: async (id) => { calls.push(["factory", id]); return fake; },
+  });
+  assert.deepEqual(controller.getCapabilities(), [], "an unregistered test engine has no capabilities before loading");
+  await controller.initialize("map-host");
+  assert.deepEqual(calls, [["factory", "test"], ["initialize", "map-host"]]);
+  assert.equal(controller.getEngineId(), "test");
+  assert.deepEqual(controller.getCapabilities(), ["view-2d", "capture"]);
+  assert.equal(controller.isReady(), true);
 });
 
 test("layer handles are read-only plain values over the engine's layer", () => {

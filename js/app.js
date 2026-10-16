@@ -1,6 +1,6 @@
 import { events } from "./events.js?v=0.18.2";
-import { AuthController } from "./engines/arcgis/arcgis-auth.js?v=0.37.0";
-import { MapController } from "./engines/arcgis/arcgis-engine.js?v=0.37.0";
+import { AuthController } from "./engines/arcgis/arcgis-auth.js?v=0.38.0";
+import { MapController } from "./map-controller.js?v=0.38.0";
 import { ProjectManager } from "./project.js?v=0.37.0";
 import { IdentifyController } from "./identify.js?v=0.37.0";
 import { AttributeTableController } from "./attribute-table.js?v=0.37.0";
@@ -18,7 +18,7 @@ import { PanelManager } from "./panel-manager.js?v=0.18.2";
 import { MobilePanelManager } from "./mobile-panel-manager.js?v=0.18.2";
 import { MobileWorkflowRouter } from "./mobile-workflow-router.js?v=0.37.0";
 import { createClientApi } from "./briefing-api.js?v=0.37.0";
-import { createCameraApi, createLayersApi } from "./layers-api.js?v=0.37.0";
+import { createCameraApi, createLayersApi } from "./layers-api.js?v=0.38.0";
 import { registerLayerTools } from "./layer-tools.js?v=0.29.0";
 import { createMapSpecApi } from "./map-spec-api.js?v=0.35.0";
 import { mapSpecFromShareParameters } from "./map-spec.js?v=0.35.0";
@@ -55,7 +55,10 @@ async function start() {
   const allowHttp = location.hostname === "localhost" || location.hostname === "127.0.0.1";
   const authController = new AuthController(events);
   await authController.initialize();
-  const mapController = new MapController(events, authController);
+  const mapController = new MapController(events, authController, { engineId: "arcgis" });
+  // Create the selected adapter before UI/settings code configures it; drawing
+  // still starts later, after shared-link settings have been read.
+  await mapController.prepare();
   const projectManager = new ProjectManager(events, mapController, authController);
   const identifyController = new IdentifyController(events, mapController);
   const aiController = new AIController(events, mapController);

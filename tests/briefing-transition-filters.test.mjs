@@ -49,7 +49,7 @@ test("the filter dialog builds several conditions; Map Insight pins the tabs, no
 });
 
 test("filter values: coded domains by name, distinct service values sorted, a sample when distinct fails", async () => {
-  const { MapController } = await import("../js/engines/arcgis/arcgis-engine.js");
+  const { ArcGISEngine: MapController } = await import("../js/engines/arcgis/arcgis-engine.js");
   const map = new MapController({ publish() {} });
   const queries = [];
   const layer = (fields, queryFeatures) => ({ fields, createQuery: () => ({}), queryFeatures: async (query) => { queries.push(query); return queryFeatures(query); } });

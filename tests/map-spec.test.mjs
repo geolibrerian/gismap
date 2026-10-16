@@ -74,7 +74,10 @@ test("specs encode as compressed or readable #map= payloads and decode back", as
   assert.equal(at(link.url).search, "");
   assert.ok(link.qr && link.url.startsWith("https://gismap.online/#map=z"));
   const huge = { layers: Array.from({ length: 10 }, (_, index) => ({ url: `${CORN}?n=${index}`, title: "x".repeat(150), renderer: { type: "arcgis", json: { type: "simple", label: "y".repeat(900) } } })) };
-  await assert.rejects(encodeMapSpec(huge, { compress: false }), (error) => error instanceof GisMapError && error.code === "SPEC_TOO_LONG" && /\?spec=/.test(error.hint));
+  // Browser cache-busting query strings create a separate module identity in
+  // Node, so public errors are matched by their stable shape rather than
+  // `instanceof` across two URLs for gismap-errors.js.
+  await assert.rejects(encodeMapSpec(huge, { compress: false }), (error) => error?.name === "GisMapError" && error.code === "SPEC_TOO_LONG" && /\?spec=/.test(error.hint));
   await assert.rejects(decodeMapSpec(`json:${"a".repeat(MAP_SPEC_JSON_LIMIT + 1)}`), (error) => error.code === "SPEC_TOO_LONG");
   await assert.rejects(decodeMapSpec("json:{not json"), (error) => error.code === "INVALID_SPEC" && /encodeURIComponent/.test(error.hint));
 });
@@ -178,7 +181,7 @@ test("the schema, capabilities and app describe the same map spec", async () => 
 });
 
 test("renderers in the SDK's autocast form keep their symbols (catalog 3D columns)", async () => {
-  const { MapController } = await import("../js/engines/arcgis/arcgis-engine.js");
+  const { ArcGISEngine: MapController } = await import("../js/engines/arcgis/arcgis-engine.js");
   const map = new MapController({ publish() {} });
   map.modules = { rendererJsonUtils: { fromJSON: () => ({ type: "simple" }) } };
   const layer = { uid: "pm25", renderer: null };
