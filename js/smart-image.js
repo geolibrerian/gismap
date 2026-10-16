@@ -1,4 +1,4 @@
-import { sanitizeSharedResourceUrl } from "./share.js?v=0.21.0";
+import { sanitizeSharedResourceUrl } from "./share.js?v=0.27.0";
 import { brandedMapCanvas, printPalette } from "./pdf-document.js?v=0.23.0";
 
 export const SMART_IMAGE_FORMAT = "gismap-smart-image";

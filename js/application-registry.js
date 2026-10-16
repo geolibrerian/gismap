@@ -16,6 +16,8 @@ export class ToolRegistry {
       id,
       displayName: requireText(definition.displayName || id, "Tool display name"),
       description: String(definition.description || ""),
+      // JSON Schema of the input, published in capabilities.json for agents.
+      inputSchema: definition.inputSchema || null,
       validate: typeof definition.validate === "function" ? definition.validate : () => true,
       execute: definition.execute,
     });

@@ -6,6 +6,23 @@ All notable changes to GIS Map Online are documented here. This project follows
 
 ## [Unreleased]
 
+### Agent API (0.24.0)
+
+- **`gisMapOnline.layers`**: `add(url, options)` resolves with a LayerInfo once the layer has loaded (same pipeline as "Add ArcGIS REST service" and `?layer=`), plus `list`, `get`, `update`, `remove`, `zoomTo`, `extent` and `metadata`. Options: `type`, `title`, `where` (read-only filter), `outFields`, `renderer`, `opacity`, `visible`, `ignoreServiceScaleRange`, `zoomTo`. `list()` holds data layers only; lookups match the id, the service URL with or without `/0`, or the title. Adds are all-or-nothing, and the 10-layer limit holds even for concurrent calls (`TOO_MANY_LAYERS`).
+- **RendererSpec** (`schemas/renderer-v1.schema.json`): `service`, `simple`, `choropleth`, `graduated-symbols`, `categories`, `heatmap`, or raw `arcgis` JSON. Class breaks (natural breaks, quantile, equal interval) are computed from the layer's data with named ramps; `exclude` values and nulls draw grey as "No data" and stay out of the breaks. Field names are checked with a did-you-mean (`CORN_SALES` → `CORN_SALES_IN_DOLLARS`).
+- **Application tools**: `layer.add`, `layer.remove`, `layer.update`, `layer.style`, `layer.filter` and `map.zoomToLayer`, with JSON Schema inputs, for `application.runTool` and listed in capabilities.json.
+- **`briefing.load` is honest**: the `layerId` layer loads even with `activate: false`; `ready` resolves with `{ layers }` or rejects with `LAYER_LOAD_FAILED`; without the app it returns a warning instead of silently doing nothing.
+- **Readiness and self-description**: `gisMapOnline.ready`, a `gismap:ready` window event and `<html data-gismap-state="loading|ready|error">`; `describe()` returns the capabilities plus live layers, basemap, camera, skin, mode and AI status; `camera.get/set/fitTo`.
+- **`GisMapError`** with a code and an actionable hint across the public API: `INVALID_URL`, `HTTPS_REQUIRED`, `CREDENTIAL_IN_URL`, `UNSUPPORTED_LAYER_TYPE`, `TOO_MANY_LAYERS`, `LAYER_LOAD_FAILED`, `CORS_BLOCKED`, `SERVICE_ERROR`, `FIELD_NOT_FOUND`, `INVALID_SPEC`, `NOT_READY`, `NOT_FOUND`.
+- **Data caveats**: `sources.inspect` adds the scale range, WGS84 extent, edit dates, feature count, statistics support and **sentinels** (codes such as -1 = "Not Disclosed", from the publisher's renderer and domains; sample-based guesses are flagged only). Statistics leave sentinels out and report `excluded`; choropleths exclude them by default; the AI context lists them as codes, not measurements.
+- capabilities.json and gismap-core.d.ts describe the whole in-page API (`InPageApi`) with stability levels; `map`, `view` and `events` are experimental escape hatches. VERSION, capabilities.json and gismap-core share one version, checked by a test.
+
+### Fixed
+
+- Links with `?layer=` open zoomed to the data (its dense core when it spreads over half the world, such as U.S. counties with Alaska and Hawaii) instead of the whole globe. `zoom=none` keeps the starting view; `center=lon,lat` with `scale=` or `level=` sets one.
+- The basemap a link asks for (`?basemap=`, `#map=`) is the one the scene starts with, so the default is never drawn and swapped mid-draw ("Could not draw Topographic: … hasLayerViewModule"). Errors from a replaced basemap's layers are not reported, and repeated layer errors show once.
+- Layers hidden by the publisher's scale range say so in the Layers panel ("Hidden at this zoom (publisher limit 1:144,447)") with **Show anyway**, which is kept in the project and in share links. The Layers panel also shows when the source data was last edited.
+
 ### Changed
 
 - Smart images no longer carry a QR card on the map; the picture stays clean, and its hidden project data opens it as before.

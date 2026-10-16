@@ -84,6 +84,9 @@ export function buildAIMapContext(context, loadedLayers = []) {
     },
     mapExtent: context.mapExtent ?? null,
     loadedLayers,
+    ...(loadedLayers.some((layer) => layer.sentinels?.length)
+      ? { dataNotes: "Values listed under a layer's sentinels (such as -1 = Not Disclosed) are codes, not measurements: never sum, average or compare them as numbers." }
+      : {}),
   };
 }
 
@@ -289,8 +292,16 @@ export class AIController {
   }
 
   #compactContext(context) {
-    const layers = this.mapController.getAllLayerConfigs()
-      .map(({ title, type, url }) => ({ title, type, url }));
+    const layers = this.mapController.getOperationalLayers().map((layer) => {
+      const { title, type, url } = this.mapController.getLayerConfig(layer);
+      const metadata = this.mapController.layerMetadata?.(layer);
+      const sentinels = (metadata?.sentinels || []).filter((item) => item.source !== "heuristic").map(({ field, value, label }) => ({ field, value, label }));
+      return {
+        title, type, url,
+        ...(metadata?.dataLastEditDate ? { dataLastEditDate: metadata.dataLastEditDate } : {}),
+        ...(sentinels.length ? { sentinels } : {}),
+      };
+    });
     return buildAIMapContext({ ...(context ?? {}), mapExtent: this.mapController.getCurrentExtentDetails?.() ?? null }, layers);
   }
 

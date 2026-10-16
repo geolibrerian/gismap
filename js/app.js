@@ -1,23 +1,26 @@
 import { events } from "./events.js?v=0.18.2";
 import { AuthController } from "./auth.js?v=0.18.2";
-import { MapController } from "./map.js?v=0.23.1";
-import { ProjectManager } from "./project.js?v=0.26.0";
+import { MapController } from "./map.js?v=0.27.0";
+import { ProjectManager } from "./project.js?v=0.27.0";
 import { IdentifyController } from "./identify.js?v=0.18.2";
 import { AttributeTableController } from "./attribute-table.js?v=0.18.2";
-import { AIController } from "./ai.js?v=0.22.0";
+import { AIController } from "./ai.js?v=0.27.0";
 import { ToolManager } from "./tool-manager.js?v=0.18.2";
-import { UIController } from "./ui.js?v=0.26.0";
+import { UIController } from "./ui.js?v=0.27.0";
 import { ExportController } from "./export/export-controller.js?v=0.18.2";
-import { parseShareParameters } from "./share.js?v=0.21.0";
-import { readShareLocation } from "./map-share.js?v=0.23.1";
+import { parseShareParameters } from "./share.js?v=0.27.0";
+import { readShareLocation } from "./map-share.js?v=0.27.0";
 import { decodeEmbeddedTour } from "./tour-share.js?v=0.18.2";
 import { decodeFieldTask, featureLayerUrl, readFieldTaskHash, readFocus } from "./field-task-share.js?v=0.21.0";
 import { POPULAR_SERVICES } from "./catalog.js?v=0.18.2";
-import { ApplicationRuntime } from "./application-runtime.js?v=0.18.2";
+import { ApplicationRuntime } from "./application-runtime.js?v=0.27.0";
 import { PanelManager } from "./panel-manager.js?v=0.18.2";
 import { MobilePanelManager } from "./mobile-panel-manager.js?v=0.18.2";
 import { MobileWorkflowRouter } from "./mobile-workflow-router.js?v=0.25.0";
-import { createClientApi } from "./briefing-api.js?v=0.23.2";
+import { createClientApi } from "./briefing-api.js?v=0.27.0";
+import { createCameraApi, createLayersApi } from "./layers-api.js?v=0.27.0";
+import { registerLayerTools } from "./layer-tools.js?v=0.27.0";
+import { GisMapError, ERROR_CODES } from "./gismap-errors.js?v=0.27.0";
 
 async function loadSharedLayer(mapController, config) {
   const rootUrl = config.url.replace(/\/+$/, "");
@@ -38,7 +41,16 @@ async function loadSharedLayer(mapController, config) {
   return [added];
 }
 
+// Readiness for agents and scripts: gisMapOnline.ready, a `gismap:ready` event,
+// and <html data-gismap-state="loading|ready|error">.
+document.documentElement.dataset.gismapState = "loading";
+let resolveReady;
+let rejectReady;
+const ready = new Promise((resolve, reject) => { resolveReady = resolve; rejectReady = reject; });
+ready.catch(() => {});
+
 async function start() {
+  const allowHttp = location.hostname === "localhost" || location.hostname === "127.0.0.1";
   const authController = new AuthController(events);
   await authController.initialize();
   const mapController = new MapController(events, authController);
@@ -83,15 +95,101 @@ async function start() {
   uiController.fieldTasks = mobileWorkflowRouter;
   // Briefing documents can name a service URL as their layer; it loads like a shared layer.
   uiController.loadLayer = (config) => loadSharedLayer(mapController, config);
+
+  // The public, in-page API. Defined before the map starts so agents can await `ready`.
+  const layersApi = createLayersApi({ mapController, loadLayer: (config) => loadSharedLayer(mapController, config), state: applicationRuntime.state, events, allowHttp });
+  const cameraApi = createCameraApi({ mapController, layers: layersApi });
+  registerLayerTools(applicationRuntime.tools, layersApi);
+  const clientApi = createClientApi({
+    projectManager,
+    mapController,
+    host: {
+      openBriefing: (briefing, options) => uiController.openBriefingDocument(briefing, options),
+      generate: (options) => uiController.generateBriefingFromView(options),
+      createPdf: (options) => uiController.briefingPdfFile(options),
+      loadLayer: (config) => loadSharedLayer(mapController, config),
+      layerInfo: (layer) => layersApi.get(layer.uid),
+    },
+  });
+  const describeTool = (tool) => ({ id: tool.id, displayName: tool.displayName, description: tool.description, inputSchema: tool.inputSchema });
+  const issues = [];
+  const describe = () => {
+    let camera = null;
+    try { camera = cameraApi.get(); } catch { /* Not ready yet. */ }
+    const presentation = projectManager.current?.presentation || {};
+    return {
+      ...clientApi.capabilities(),
+      tools: applicationRuntime.tools.list().map(describeTool),
+      errorCodes: Object.keys(ERROR_CODES),
+      state: {
+        status: document.documentElement.dataset.gismapState,
+        layers: mapController.map ? layersApi.list() : [],
+        basemap: mapController.getBasemapId(),
+        camera,
+        skin: document.documentElement.dataset.skin || presentation.skin || null,
+        mode: presentation.template || "standard",
+        briefingSlides: presentation.briefing?.slides?.length || 0,
+        aiConfigured: aiController.isConfigured(),
+        issues: issues.slice(),
+      },
+    };
+  };
+  globalThis.gisMapOnline = Object.freeze({
+    version: clientApi.version,
+    /** Resolves once the view, basemap and the layers the address asked for have loaded. */
+    ready,
+    describe,
+    layers: layersApi,
+    camera: cameraApi,
+    GisMapError,
+    events,
+    /** Experimental escape hatches: the ArcGIS Map and SceneView. Prefer layers.* and camera.*. */
+    get map() { return mapController.map; },
+    get view() { return mapController.view; },
+    getProject: () => projectManager.snapshot(),
+    getConnections: () => authController.list(),
+    exportData: (options) => exportController.exportLayer(options),
+    capabilities: clientApi.capabilities,
+    briefing: clientApi.briefing,
+    queries: clientApi.queries,
+    sources: clientApi.sources,
+    smartImages: clientApi.smartImages,
+    application: Object.freeze({
+      getState: () => applicationRuntime.state.value,
+      getConfig: () => applicationRuntime.snapshot(),
+      listPanels: () => applicationRuntime.panels.list(),
+      listTools: () => applicationRuntime.tools.list().map(describeTool),
+      runTool: (id, input, options) => applicationRuntime.runTool(id, input, options),
+      plan: (prompt) => applicationRuntime.planRequest(prompt),
+      previewPlan: (plan) => applicationRuntime.previewPlan(plan),
+      undo: () => applicationRuntime.undo(),
+    }),
+  });
+
+  // Read the address before the scene exists, so it starts on the requested
+  // basemap instead of drawing the default and swapping it mid-draw.
+  let shared = null;
+  let sharedError = null;
+  try {
+    shared = parseShareParameters(location.search, POPULAR_SERVICES, { allowHttp });
+  } catch (error) {
+    sharedError = error;
+  }
+  let sharedState = null;
+  let sharedStateError = null;
+  try {
+    sharedState = await readShareLocation(location, { allowHttp });
+  } catch (error) {
+    sharedStateError = error;
+  }
+  mapController.setInitialBasemap(shared?.basemap || sharedState?.basemap || null);
   await mapController.initialize();
   events.publish("project:loaded", { project: projectManager.current, missingFiles: [] });
 
+  const sharedLayers = [];
   try {
-    const shared = parseShareParameters(location.search, POPULAR_SERVICES, {
-      allowHttp: location.hostname === "localhost" || location.hostname === "127.0.0.1",
-    });
+    if (sharedError) throw sharedError;
     if (shared.basemap) mapController.setBasemap(shared.basemap);
-    const sharedLayers = [];
     for (const layer of shared.layers) {
       try {
         sharedLayers.push(...await loadSharedLayer(mapController, layer));
@@ -109,9 +207,8 @@ async function start() {
   }
 
   // A styled map or briefing link (`#map=…`, `#briefing=…`, or `?briefing=<file URL>`).
-  let sharedState = null;
   try {
-    sharedState = await readShareLocation(location, { allowHttp: location.hostname === "localhost" || location.hostname === "127.0.0.1" });
+    if (sharedStateError) throw sharedStateError;
     if (sharedState) await uiController.openSharedState(sharedState, { loadLayer: (config) => loadSharedLayer(mapController, config) });
   } catch (error) {
     events.publish("app:error", { message: error.message });
@@ -175,49 +272,37 @@ async function start() {
     } catch (error) { events.publish("app:error", { message: error.message }); }
   }
 
+  // Layers from ?layer= / ?example= with no camera of their own: show the data, not the whole globe.
+  const cameraFromLink = Boolean(sharedState) || Boolean(fieldTaskPayload) || Boolean(sharedPlace) || Boolean(tourMatch);
+  const cameraParams = shared?.camera;
+  // Camera moves wait for the scene to draw, which a hidden tab never does; `ready` must not hang on them.
+  const withinSeconds = (promise, seconds) => Promise.race([promise, new Promise((resolve) => setTimeout(resolve, seconds * 1000))]);
+  try {
+    if (cameraParams?.center) {
+      await withinSeconds(mapController.view.goTo({ center: cameraParams.center, ...(cameraParams.scale ? { scale: cameraParams.scale } : { zoom: cameraParams.level ?? 10 }) }, { animate: false }), 8);
+    } else if (!cameraFromLink && cameraParams?.zoom !== "none" && sharedLayers.length) {
+      await withinSeconds(mapController.goToLayers(sharedLayers, { animate: false }), 8);
+    }
+  } catch (error) {
+    if (error?.name !== "AbortError") events.publish("app:error", { message: `Could not zoom to the shared data: ${error.message}` });
+  }
+
   // Installed as an app, double-clicking a .gmo / .gmop / .gmoatlas file opens it here.
   globalThis.launchQueue?.setConsumer?.(async ({ files = [] }) => {
     for (const handle of files) await uiController.importProjectFile(await handle.getFile());
   });
 
-  // A narrow, intentional extension surface for local tools and debugging.
-  const clientApi = createClientApi({
-    projectManager,
-    mapController,
-    host: {
-      openBriefing: (briefing, options) => uiController.openBriefingDocument(briefing, options),
-      generate: (options) => uiController.generateBriefingFromView(options),
-      createPdf: (options) => uiController.briefingPdfFile(options),
-    },
-  });
-  globalThis.gisMapOnline = Object.freeze({
-    version: clientApi.version,
-    events,
-    map: mapController.map,
-    view: mapController.view,
-    getProject: () => projectManager.snapshot(),
-    getConnections: () => authController.list(),
-    exportData: (options) => exportController.exportLayer(options),
-    capabilities: clientApi.capabilities,
-    briefing: clientApi.briefing,
-    queries: clientApi.queries,
-    sources: clientApi.sources,
-    smartImages: clientApi.smartImages,
-    application: Object.freeze({
-      getState: () => applicationRuntime.state.value,
-      getConfig: () => applicationRuntime.snapshot(),
-      listPanels: () => applicationRuntime.panels.list(),
-      listTools: () => applicationRuntime.tools.list(),
-      runTool: (id, input, options) => applicationRuntime.runTool(id, input, options),
-      plan: (prompt) => applicationRuntime.planRequest(prompt),
-      previewPlan: (plan) => applicationRuntime.previewPlan(plan),
-      undo: () => applicationRuntime.undo(),
-    }),
-  });
+  // The basemap's layers loading is part of "ready": a screenshot taken now shows the whole map.
+  await Promise.race([mapController.map.basemap?.load?.(), new Promise((resolve) => setTimeout(resolve, 15000))]).catch(() => {});
+  document.documentElement.dataset.gismapState = "ready";
+  resolveReady();
+  dispatchEvent(new CustomEvent("gismap:ready", { detail: describe() }));
 }
 
 start().catch((error) => {
   console.error(error);
+  document.documentElement.dataset.gismapState = "error";
+  rejectReady(error);
   document.querySelector("#map-status").textContent = "Map failed to start";
   events.publish("app:error", { message: error.message });
 });

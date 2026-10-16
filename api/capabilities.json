@@ -1,5 +1,5 @@
 {
-  "apiVersion": "0.23.1",
+  "apiVersion": "0.24.0",
   "execution": "client",
   "global": "globalThis.gisMapOnline",
   "module": "/js/gismap-core.js",
@@ -34,7 +34,8 @@
       "statistic"
     ],
     "sources": [
-      "inspect"
+      "inspect",
+      "detectSentinels"
     ],
     "smartImages": [
       "embed",
@@ -42,6 +43,43 @@
       "createShareLink",
       "createCurrent",
       "downloadCurrent"
+    ],
+    "layers": [
+      "add",
+      "list",
+      "get",
+      "update",
+      "remove",
+      "zoomTo",
+      "extent",
+      "metadata"
+    ],
+    "camera": [
+      "get",
+      "set",
+      "fitTo"
+    ],
+    "renderers": [
+      "validate",
+      "computeBreaks",
+      "compile",
+      "rampColors",
+      "closestField"
+    ],
+    "errors": [
+      "codes",
+      "GisMapError",
+      "from"
+    ],
+    "application": [
+      "getState",
+      "getConfig",
+      "listPanels",
+      "listTools",
+      "runTool",
+      "plan",
+      "previewPlan",
+      "undo"
     ]
   },
   "outputs": [
@@ -69,6 +107,339 @@
     "briefing.exportPdf",
     "smartImages.createShareLink",
     "smartImages.createCurrent",
-    "smartImages.downloadCurrent"
+    "smartImages.downloadCurrent",
+    "layers.*",
+    "camera.*",
+    "describe",
+    "ready"
+  ],
+  "schemas": {
+    "briefing": "/schemas/briefing-v1.schema.json",
+    "renderer": "/schemas/renderer-v1.schema.json"
+  },
+  "inPage": {
+    "ready": {
+      "stability": "stable",
+      "description": "Promise that resolves once the view, basemap and the layers the address asked for have loaded. The same moment fires a gismap:ready window event and sets <html data-gismap-state=\"ready\"> (\"loading\" and \"error\" otherwise)."
+    },
+    "describe": {
+      "stability": "stable",
+      "description": "describe() returns these capabilities plus live state: layers, basemap, camera, skin, mode, briefing slide count, whether AI is configured, and open issues."
+    },
+    "layers": {
+      "stability": "stable",
+      "description": "Add, list, update, remove and zoom to data layers. add() resolves with LayerInfo once loaded; errors are GisMapError with a code."
+    },
+    "camera": {
+      "stability": "stable",
+      "description": "get(), set({ center, zoom | scale, heading, tilt }), fitTo(layer | \"layers\" | [west, south, east, north])."
+    },
+    "briefing": {
+      "stability": "stable"
+    },
+    "queries": {
+      "stability": "stable"
+    },
+    "sources": {
+      "stability": "stable"
+    },
+    "smartImages": {
+      "stability": "stable"
+    },
+    "application": {
+      "stability": "experimental",
+      "description": "Dashboard layout runtime. runTool(id, input) runs the tools listed under tools."
+    },
+    "getProject": {
+      "stability": "stable",
+      "description": "The current project as saved in a .gmo file."
+    },
+    "events": {
+      "stability": "experimental",
+      "description": "The app's internal event bus; topics may change."
+    },
+    "exportData": {
+      "stability": "experimental"
+    },
+    "getConnections": {
+      "stability": "experimental"
+    },
+    "map": {
+      "stability": "experimental",
+      "description": "The ArcGIS Maps SDK Map. An escape hatch: prefer layers.*."
+    },
+    "view": {
+      "stability": "experimental",
+      "description": "The ArcGIS Maps SDK SceneView (always 3D). An escape hatch: prefer camera.*."
+    },
+    "GisMapError": {
+      "stability": "stable",
+      "description": "The error class thrown by the public API: { code, message, hint, details }."
+    }
+  },
+  "errorCodes": {
+    "INVALID_URL": "Pass a complete https:// URL to a service, layer or file.",
+    "HTTPS_REQUIRED": "Use the https:// form of the URL; GIS Map Online only loads remote data over HTTPS.",
+    "CREDENTIAL_IN_URL": "Remove the token, key or password from the URL. Only public services can be shared.",
+    "UNSUPPORTED_LAYER_TYPE": "Use one of the layer types listed in capabilities.json (arcgis-auto, feature, map-image, imagery, geojson, wms, wfs, kml).",
+    "TOO_MANY_LAYERS": "A map holds at most 10 data layers. Remove one with layers.remove before adding another.",
+    "LAYER_LOAD_FAILED": "Check the URL in a browser with ?f=pjson appended. The service may be down, private or not a layer URL.",
+    "CORS_BLOCKED": "The publisher does not allow browser access to this service. Use another source, or download the data and add it as a file.",
+    "SERVICE_ERROR": "The service answered with an error. Check the URL, the layer number and any filter for typos.",
+    "FIELD_NOT_FOUND": "Use a field name exactly as the service lists it; sources.inspect(url) returns the fields.",
+    "INVALID_SPEC": "Fix the listed issues; the schema in capabilities.json describes every property.",
+    "NOT_READY": "Await gisMapOnline.ready before calling this.",
+    "NOT_FOUND": "Call layers.list() to see the layers on the map and their ids."
+  },
+  "layerTypes": [
+    "arcgis-auto",
+    "feature",
+    "map-image",
+    "imagery",
+    "geojson",
+    "wms",
+    "wfs",
+    "kml"
+  ],
+  "rendererTypes": [
+    "service",
+    "simple",
+    "choropleth",
+    "graduated-symbols",
+    "categories",
+    "heatmap",
+    "arcgis"
+  ],
+  "breakMethods": [
+    "natural-breaks",
+    "quantile",
+    "equal-interval"
+  ],
+  "ramps": [
+    "greens",
+    "blues",
+    "reds",
+    "oranges",
+    "purples",
+    "viridis",
+    "magma",
+    "red-blue-diverging",
+    "brown-teal-diverging"
+  ],
+  "basemaps": [
+    "topo-3d",
+    "navigation-3d",
+    "navigation-dark-3d",
+    "osm-3d",
+    "gray-3d",
+    "dark-gray-3d",
+    "streets-3d",
+    "streets-dark-3d",
+    "topo-vector",
+    "streets-vector",
+    "navigation",
+    "gray-vector",
+    "dark-gray-vector",
+    "osm",
+    "satellite",
+    "hybrid"
+  ],
+  "limits": {
+    "maxLayers": 10,
+    "maxSlides": 60,
+    "qrSafeUrlLength": 2800
+  },
+  "urlParameters": {
+    "layer": "HTTPS layer or service URL; repeatable, index-aligned with layerType (max 10).",
+    "layerType": "One of layerTypes, index-aligned with layer.",
+    "basemap": "One of basemaps. Applied before the scene starts.",
+    "example": "A curated example slug.",
+    "zoom": "\"layers\" (default when no camera is given) fits the loaded data; \"none\" keeps the starting view.",
+    "center": "lon,lat in degrees; with scale= or level=.",
+    "scale": "Map scale denominator, with center.",
+    "level": "Zoom level 0-24, with center.",
+    "view": "Not supported: the scene is always 3D."
+  },
+  "tools": [
+    {
+      "id": "layer.add",
+      "displayName": "Add layer",
+      "description": "Add a public layer by HTTPS URL (ArcGIS REST, GeoJSON, WMS, WFS or KML) and wait until it has loaded.",
+      "inputSchema": {
+        "type": "object",
+        "required": [
+          "url"
+        ],
+        "properties": {
+          "url": {
+            "type": "string",
+            "description": "HTTPS URL of a layer, service or GeoJSON file."
+          },
+          "type": {
+            "enum": [
+              "arcgis-auto",
+              "feature",
+              "map-image",
+              "imagery",
+              "geojson",
+              "wms",
+              "wfs",
+              "kml"
+            ],
+            "description": "Layer type; arcgis-auto detects it."
+          },
+          "title": {
+            "type": "string"
+          },
+          "where": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "A read-only SQL where clause on the layer's fields, such as \"POP > 1000\". null clears it."
+          },
+          "renderer": {
+            "type": "object",
+            "description": "A RendererSpec, such as { \"type\": \"choropleth\", \"field\": \"POP\", \"ramp\": \"greens\" }. See schemas/renderer-v1.schema.json."
+          },
+          "opacity": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          },
+          "visible": {
+            "type": "boolean"
+          },
+          "ignoreServiceScaleRange": {
+            "type": "boolean",
+            "description": "Draw at every zoom level, ignoring the publisher's scale range."
+          },
+          "zoomTo": {
+            "type": "boolean",
+            "description": "Fit the view to the data; default true for the first data layer."
+          }
+        }
+      }
+    },
+    {
+      "id": "layer.remove",
+      "displayName": "Remove layer",
+      "description": "Remove a layer from the map.",
+      "inputSchema": {
+        "type": "object",
+        "required": [
+          "layer"
+        ],
+        "properties": {
+          "layer": {
+            "type": "string",
+            "description": "The layer's id (from layers.list()), service URL or title."
+          }
+        }
+      }
+    },
+    {
+      "id": "layer.update",
+      "displayName": "Update layer",
+      "description": "Change a layer's title, filter, style, opacity, visibility or scale range.",
+      "inputSchema": {
+        "type": "object",
+        "required": [
+          "layer"
+        ],
+        "properties": {
+          "layer": {
+            "type": "string",
+            "description": "The layer's id (from layers.list()), service URL or title."
+          },
+          "title": {
+            "type": "string"
+          },
+          "where": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "A read-only SQL where clause on the layer's fields, such as \"POP > 1000\". null clears it."
+          },
+          "renderer": {
+            "type": "object",
+            "description": "A RendererSpec, such as { \"type\": \"choropleth\", \"field\": \"POP\", \"ramp\": \"greens\" }. See schemas/renderer-v1.schema.json."
+          },
+          "opacity": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          },
+          "visible": {
+            "type": "boolean"
+          },
+          "ignoreServiceScaleRange": {
+            "type": "boolean"
+          }
+        }
+      }
+    },
+    {
+      "id": "layer.style",
+      "displayName": "Style layer",
+      "description": "Style a layer with a RendererSpec.",
+      "inputSchema": {
+        "type": "object",
+        "required": [
+          "layer",
+          "renderer"
+        ],
+        "properties": {
+          "layer": {
+            "type": "string",
+            "description": "The layer's id (from layers.list()), service URL or title."
+          },
+          "renderer": {
+            "type": "object",
+            "description": "A RendererSpec, such as { \"type\": \"choropleth\", \"field\": \"POP\", \"ramp\": \"greens\" }. See schemas/renderer-v1.schema.json."
+          }
+        }
+      }
+    },
+    {
+      "id": "layer.filter",
+      "displayName": "Filter layer",
+      "description": "Show only the features matching a where clause.",
+      "inputSchema": {
+        "type": "object",
+        "required": [
+          "layer",
+          "where"
+        ],
+        "properties": {
+          "layer": {
+            "type": "string",
+            "description": "The layer's id (from layers.list()), service URL or title."
+          },
+          "where": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "A read-only SQL where clause on the layer's fields, such as \"POP > 1000\". null clears it."
+          }
+        }
+      }
+    },
+    {
+      "id": "map.zoomToLayer",
+      "displayName": "Zoom to layer",
+      "description": "Fit the view to a layer's filtered data, or to every data layer when no layer is given.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "layer": {
+            "type": "string",
+            "description": "The layer's id (from layers.list()), service URL or title."
+          }
+        }
+      }
+    }
   ]
 }

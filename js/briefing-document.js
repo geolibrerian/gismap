@@ -230,18 +230,31 @@ export function matchesFilter(filter, attributes = {}, id = null) {
  * A statistic over loaded records. `total` is the source's full count when known;
  * if fewer records are loaded, the result says it is a sample of them.
  */
-export function computeStat(block, records = [], { queries = {}, idField = null, total = null } = {}) {
+/**
+ * A statistic over records. Values that are codes rather than measurements (a
+ * layer's sentinels, such as -1 for "Not Disclosed", or `exclude`) are left out
+ * of sums, averages and extremes, and of counts of the field, and reported as
+ * `excluded`. `sentinels` are [{ field, value }]; `excludeSentinels: false` keeps them.
+ */
+export function computeStat(block, records = [], { queries = {}, idField = null, total = null, exclude = [], sentinels = [], excludeSentinels = true } = {}) {
   const filter = block.queryRef ? queries[block.queryRef] : null;
   const matching = records.filter((record) => matchesFilter(filter, record.attributes || {}, idField ? record.attributes?.[idField] : null));
   const sample = Number.isFinite(total) && total > records.length;
+  const codes = new Set([
+    ...array(exclude).map(String),
+    ...(excludeSentinels ? array(sentinels).filter((item) => item?.field === block.field).map((item) => String(item.value)) : []),
+  ]);
+  const isCode = (record) => block.field && codes.size > 0 && codes.has(String(record.attributes?.[block.field]));
+  const kept = matching.filter((record) => !isCode(record));
+  const excluded = matching.length - kept.length;
   if (block.stat === "count") {
-    return { value: matching.length, sample, loaded: records.length, total, matched: matching.length };
+    return { value: kept.length, sample, loaded: records.length, total, matched: matching.length, excluded };
   }
-  const values = matching.map((record) => Number(record.attributes?.[block.field])).filter(Number.isFinite);
-  if (!block.field || !values.length) return { value: null, sample, loaded: records.length, total, matched: matching.length };
+  const values = kept.map((record) => Number(record.attributes?.[block.field])).filter(Number.isFinite);
+  if (!block.field || !values.length) return { value: null, sample, loaded: records.length, total, matched: matching.length, excluded };
   const sum = values.reduce((acc, item) => acc + item, 0);
   const value = { sum, average: sum / values.length, min: Math.min(...values), max: Math.max(...values) }[block.stat];
-  return { value, sample, loaded: records.length, total, matched: matching.length };
+  return { value, sample, loaded: records.length, total, matched: matching.length, excluded };
 }
 
 export function formatStat(value) {

@@ -2,7 +2,7 @@ import { applicationToLegacyPresentation, normalizeApplicationConfig } from "./a
 import { normalizeDataCatalog } from "./data-catalog.js?v=0.18.2";
 import { normalizeSkin } from "./skin-catalog.js?v=0.18.2";
 import { normalizeMobileWorkflow } from "./mobile-feed-store.js?v=0.18.7";
-import { normalizeBriefing } from "./briefing-document.js?v=0.19.0";
+import { normalizeBriefing } from "./briefing-document.js?v=0.27.0";
 import { composeSmartImage, embedProjectInPng, readProjectFromPng } from "./smart-image.js?v=0.26.0";
 
 const STORAGE_KEY = "gismap-online:projects:v1";
@@ -144,6 +144,7 @@ export class ProjectManager {
             definitionExpression: layer.definitionExpression,
             wfsName: layer.wfsName,
             customParameters: layer.customParameters,
+            ignoreServiceScaleRange: layer.ignoreServiceScaleRange === true,
           });
           await this.#restoreLayerPresentation(added, layer);
         }
@@ -169,7 +170,12 @@ export class ProjectManager {
   async #restoreLayerPresentation(layer, config) {
     layer.visible = config.visible !== false;
     layer.opacity = Number.isFinite(config.opacity) ? config.opacity : 1;
-    if (config.renderer) this.mapController.restoreRenderer(layer, config.renderer);
+    // A service's own style loads with the layer; only styles set in GISMap are restored.
+    if (config.renderer && config.styled !== false) this.mapController.restoreRenderer(layer, config.renderer);
+    if (config.rendererSpec) {
+      const source = this.mapController.layerConfigs.get(layer.uid);
+      if (source) source.rendererSpec = config.rendererSpec;
+    }
     if (config.definitionExpression != null) {
       this.mapController.setDefinitionExpression(layer.uid, config.definitionExpression);
     }

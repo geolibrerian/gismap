@@ -1,0 +1,103 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://gismap.online/schemas/renderer-v1.schema.json",
+  "title": "GIS Map Online RendererSpec",
+  "description": "A declarative layer style. GIS Map Online compiles it to an ArcGIS renderer, computing class breaks from the layer's data. Field names must match the service's fields exactly (sources.inspect(url).fields lists them).",
+  "oneOf": [
+    {
+      "type": "object",
+      "description": "Keep the publisher's own style (the default).",
+      "required": ["type"],
+      "properties": { "type": { "const": "service" } },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "description": "One colour for every feature.",
+      "required": ["type"],
+      "properties": {
+        "type": { "const": "simple" },
+        "color": { "$ref": "#/$defs/color", "description": "Fill or marker colour. Default #1b7f6a." },
+        "outline": { "$ref": "#/$defs/color", "description": "Outline colour." },
+        "size": { "type": "number", "minimum": 1, "maximum": 64, "description": "Marker size in points (points and lines). Default 8." }
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "description": "Colour features by a numeric field in classes (a choropleth for polygons). Values listed in exclude, and nulls, are drawn grey as \"No data\" and kept out of the classes.",
+      "required": ["type", "field"],
+      "properties": {
+        "type": { "const": "choropleth" },
+        "field": { "type": "string", "description": "A numeric field." },
+        "classes": { "type": "integer", "minimum": 2, "maximum": 9, "default": 5, "description": "Number of classes." },
+        "method": { "enum": ["natural-breaks", "quantile", "equal-interval"], "default": "natural-breaks", "description": "How class breaks are chosen." },
+        "ramp": { "$ref": "#/$defs/ramp" },
+        "normalizeBy": { "type": "string", "description": "A numeric field to divide by (for rates, such as per area or per person)." },
+        "exclude": { "$ref": "#/$defs/exclude" }
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "description": "Size point or line symbols by a numeric field. Polygon layers get a choropleth instead (with a warning).",
+      "required": ["type", "field"],
+      "properties": {
+        "type": { "const": "graduated-symbols" },
+        "field": { "type": "string", "description": "A numeric field." },
+        "classes": { "type": "integer", "minimum": 2, "maximum": 9, "default": 5 },
+        "color": { "$ref": "#/$defs/color" },
+        "minSize": { "type": "number", "minimum": 2, "maximum": 48, "default": 6 },
+        "maxSize": { "type": "number", "minimum": 4, "maximum": 96, "default": 28 },
+        "exclude": { "$ref": "#/$defs/exclude" }
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "description": "One colour per value of a field (the most common values; the rest are \"Other\").",
+      "required": ["type", "field"],
+      "properties": {
+        "type": { "const": "categories" },
+        "field": { "type": "string" },
+        "maxCategories": { "type": "integer", "minimum": 2, "maximum": 12, "default": 10 },
+        "colors": { "type": "object", "additionalProperties": { "$ref": "#/$defs/color" }, "description": "Colours for particular values, such as { \"Active\": \"#d9951e\" }." }
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "description": "A heat map of point density, optionally weighted by a numeric field. Point layers only.",
+      "required": ["type"],
+      "properties": {
+        "type": { "const": "heatmap" },
+        "field": { "type": "string", "description": "A numeric field to weight by." }
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "description": "Raw ArcGIS renderer JSON, for styles the other types cannot express.",
+      "required": ["type", "json"],
+      "properties": {
+        "type": { "const": "arcgis" },
+        "json": { "type": "object", "description": "ArcGIS renderer JSON (as layer.renderer.toJSON() writes it)." }
+      },
+      "additionalProperties": false
+    }
+  ],
+  "$defs": {
+    "color": { "type": "string", "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$" },
+    "ramp": {
+      "enum": ["greens", "blues", "reds", "oranges", "purples", "viridis", "magma", "red-blue-diverging", "brown-teal-diverging"],
+      "default": "greens",
+      "description": "A named colour ramp, light to dark (diverging ramps run low to high)."
+    },
+    "exclude": {
+      "type": "array",
+      "maxItems": 20,
+      "items": { "type": ["number", "string"] },
+      "description": "Values that are codes rather than measurements, such as -1 for \"Not Disclosed\". When omitted, the layer's detected sentinels are used."
+    }
+  }
+}

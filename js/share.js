@@ -8,6 +8,7 @@ const SUPPORTED_BASEMAPS = new Set([
   "satellite", "hybrid",
 ]);
 const MAX_LAYERS = 10;
+const CAMERA_ZOOM_MODES = new Set(["layers", "none"]);
 const MAX_URL_LENGTH = 4096;
 
 export function sanitizeSharedResourceUrl(value, { allowHttp = false } = {}) {
@@ -62,7 +63,40 @@ export function parseShareParameters(search, catalog = [], options = {}) {
   if (layers.length > MAX_LAYERS) throw new Error(`A shared map can load at most ${MAX_LAYERS} layers.`);
   const basemap = params.get("basemap")?.trim() || null;
   if (basemap && !SUPPORTED_BASEMAPS.has(basemap)) throw new Error(`Unsupported shared basemap: ${basemap}.`);
-  return { layers, basemap, example };
+  return { layers, basemap, example, camera: parseCameraParameters(params) };
+}
+
+/**
+ * Where a link's map should look. `zoom=layers` (the default when no camera is
+ * given) fits the loaded data, `zoom=none` keeps the starting view, and
+ * `center=lon,lat` with `scale=` or `level=` sets a view. The scene is always
+ * 3D, so there is no 2D/3D switch.
+ */
+export function parseCameraParameters(params) {
+  const zoom = params.get("zoom")?.trim().toLowerCase() || null;
+  if (zoom && !CAMERA_ZOOM_MODES.has(zoom)) throw new Error(`Unsupported zoom mode: ${zoom}. Use "layers" or "none".`);
+  const centerText = params.get("center")?.trim();
+  let center = null;
+  if (centerText) {
+    const parts = centerText.split(",").map((part) => Number(part.trim()));
+    if (parts.length !== 2 || !parts.every(Number.isFinite) || Math.abs(parts[0]) > 180 || Math.abs(parts[1]) > 90) {
+      throw new Error("center must be longitude,latitude in degrees, such as center=-98.5,39.5.");
+    }
+    center = parts;
+  }
+  const number = (name, min, max) => {
+    const text = params.get(name)?.trim();
+    if (!text) return null;
+    const value = Number(text);
+    if (!Number.isFinite(value) || value < min || value > max) throw new Error(`${name} must be a number from ${min} to ${max}.`);
+    return value;
+  };
+  const scale = number("scale", 1, 600000000);
+  const level = number("level", 0, 24);
+  if ((scale != null || level != null) && !center) throw new Error("scale and level need a center (center=lon,lat).");
+  if (scale != null && level != null) throw new Error("Use either scale or level, not both.");
+  const mode = zoom || (center ? "none" : "layers");
+  return { zoom: mode, center, scale, level };
 }
 
 export function createShareUrl({ baseUrl, layers = [], basemap = null }) {
@@ -86,3 +120,4 @@ export function createShareUrl({ baseUrl, layers = [], basemap = null }) {
 export const SHARE_LIMITS = Object.freeze({ maxLayers: MAX_LAYERS, maxUrlLength: MAX_URL_LENGTH });
 export const SHARE_LAYER_TYPES = SUPPORTED_TYPES;
 export const SHARE_BASEMAPS = SUPPORTED_BASEMAPS;
+export const SHARE_CAMERA_ZOOM_MODES = CAMERA_ZOOM_MODES;

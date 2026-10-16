@@ -1,5 +1,6 @@
-import core, { normalizeBriefing, updateSlide, validateBriefingDocument } from "./gismap-core.js?v=0.23.1";
-import { createShareLink } from "./map-share.js?v=0.23.1";
+import core, { normalizeBriefing, updateSlide, validateBriefingDocument } from "./gismap-core.js?v=0.27.0";
+import { createShareLink } from "./map-share.js?v=0.27.0";
+import { GisMapError, layerLoadError, toGisMapError } from "./gismap-errors.js?v=0.27.0";
 import { featureLayerUrl } from "./field-task-share.js?v=0.21.0";
 
 const clone = (value) => structuredClone(value);
@@ -43,7 +44,7 @@ export function createBriefingApi({ projectManager, mapController, host = null, 
 
   const current = () => normalizeBriefing(projectManager.current?.presentation?.briefing);
   const needHost = (name) => {
-    if (typeof host?.[name] !== "function") throw new Error(`briefing.${name === "openBriefing" ? "load" : name} needs the GISMap app; it is not available here.`);
+    if (typeof host?.[name] !== "function") throw new GisMapError("NOT_READY", `briefing.${name === "openBriefing" ? "load" : name} needs the GISMap app; it is not available here.`);
     return host[name];
   };
   const save = (document, { activate = false } = {}) => {
@@ -66,24 +67,51 @@ export function createBriefingApi({ projectManager, mapController, host = null, 
     ...core.briefing,
     capabilities: () => clone(core.capabilities),
     get: () => clone(current()),
+    /**
+     * Saves a briefing document into the project. `activate` (default true)
+     * opens Briefing mode; `present` also starts the slides. The layer named by
+     * `layerId` is loaded when it is not on the map, whether or not Briefing
+     * opens. `ready` resolves with { layers } once that is done, and rejects
+     * with a GisMapError (LAYER_LOAD_FAILED) if the layer cannot be loaded.
+     */
     load(document, options = {}) {
       const result = validateBriefingDocument(document, options);
       if (!result.valid && options.allowInvalid !== true) {
-        const error = new Error("The briefing contains validation errors.");
-        error.issues = result.issues;
-        throw error;
+        throw new GisMapError("INVALID_SPEC", "The briefing contains validation errors.", { details: { issues: result.issues } });
       }
       const activate = options.activate !== false;
-      // A layerId naming a service that is not on the map yet: the app loads it, then opens the briefing.
-      const missing = result.document.layerId && !findBriefingLayer(mapController, result.document.layerId) && /^https:\/\//i.test(result.document.layerId);
-      if (missing && activate && typeof host?.openBriefing === "function") {
-        return { ...result, document: clone(result.document), ready: host.openBriefing(result.document, { present: options.present === true, slide: options.slide || null }) };
+      const issues = [...result.issues];
+      const layerId = result.document.layerId;
+      const onMap = () => findBriefingLayer(mapController, layerId);
+      const describe = (layer) => (layer ? host?.layerInfo?.(layer) || { id: layer.uid, title: layer.title, url: briefingLayerRef(mapController, layer), loadStatus: "loaded" } : null);
+      const wantsLoad = Boolean(layerId) && !onMap();
+      const canLoad = wantsLoad && /^https:\/\//i.test(layerId) && typeof host?.loadLayer === "function";
+      if (wantsLoad && !canLoad) {
+        issues.push({ level: "warning", path: "layerId", message: /^https:\/\//i.test(layerId)
+          ? "layerId was not loaded because the GISMap app is not available here; call layers.add first, or load the briefing in the app."
+          : `layerId "${layerId}" does not match a layer on the map; use the layer's service URL so it can be loaded.` });
       }
       const saved = save(result.document, { activate });
-      const ready = activate && options.present === true && typeof host?.openBriefing === "function"
-        ? host.openBriefing(saved, { present: true, slide: options.slide || null })
-        : Promise.resolve();
-      return { ...result, document: saved, ready };
+      const ready = (async () => {
+        if (canLoad) {
+          try {
+            await host.loadLayer({ url: layerId, serviceType: "arcgis-auto" });
+          } catch (error) {
+            throw layerLoadError(error, { layerId });
+          }
+          if (!onMap()) throw new GisMapError("LAYER_LOAD_FAILED", `The layer at ${layerId} could not be added.`, { details: { layerId } });
+          // Now that the layer is there, the briefing points at it (and its selection applies).
+          save(result.document, { activate: false });
+        }
+        if (activate && typeof host?.openBriefing === "function" && (canLoad || options.present === true)) {
+          await host.openBriefing(saved, { present: options.present === true, slide: options.slide || null });
+        }
+        const layer = onMap();
+        return { layers: layer ? [describe(layer)] : [] };
+      })();
+      // A caller that never awaits `ready` should not see an unhandled rejection.
+      ready.catch(() => {});
+      return { ...result, issues, document: saved, ready };
     },
     /**
      * Builds slides from the map as it looks (the layer's style and filter, the
@@ -92,7 +120,7 @@ export function createBriefingApi({ projectManager, mapController, host = null, 
      */
     async generate(options = {}) {
       const layer = options.layerId ? findBriefingLayer(mapController, options.layerId) : null;
-      if (options.layerId && !layer) throw new Error(`No layer on the map matches ${options.layerId}.`);
+      if (options.layerId && !layer) throw new GisMapError("NOT_FOUND", `No layer on the map matches ${options.layerId}.`);
       await needHost("generate")({ uid: layer?.uid || null, share: options.share === true, useAi: options.ai === true, confirmReplace: false });
       return clone(current());
     },
@@ -102,12 +130,12 @@ export function createBriefingApi({ projectManager, mapController, host = null, 
     },
     captureCamera() {
       const state = mapController?.getViewState?.();
-      if (!state?.center) throw new Error("The map camera is not ready.");
+      if (!state?.center) throw new GisMapError("NOT_READY", "The map camera is not ready.");
       return { center: [...state.center], zoom: state.zoom, heading: state.heading ?? 0, tilt: state.tilt ?? 0 };
     },
     saveCurrentCamera(slideId) {
       const document = updateSlide(current(), slideId, { camera: api.captureCamera(), fit: null });
-      if (!document.slides.some((slide) => slide.id === slideId)) throw new Error(`Unknown slide: ${slideId}`);
+      if (!document.slides.some((slide) => slide.id === slideId)) throw new GisMapError("NOT_FOUND", `Unknown slide: ${slideId}`);
       return save(document);
     },
     /**
@@ -134,7 +162,7 @@ export function createBriefingApi({ projectManager, mapController, host = null, 
           useAll: presentation.briefingSelection?.useAll === true,
           slide: options.slide || null,
         });
-        if (options.qrSafe === true && !link.qr) throw new Error("This briefing exceeds the QR-safe link limit. Copy the link or export a .gmo file instead.");
+        if (options.qrSafe === true && !link.qr) throw new GisMapError("INVALID_SPEC", "This briefing exceeds the QR-safe link limit. Copy the link or export a .gmo file instead.");
         return link.url;
       }
       return core.briefing.createLink({ baseUrl: options.baseUrl || baseUrl(), briefing: document, qrSafe: options.qrSafe === true, compress: options.compress !== false });

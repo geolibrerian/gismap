@@ -1,3 +1,7 @@
+import { arcgisMetadata } from "./source-inspector.js?v=0.27.0";
+import { compileRenderer, validateRendererSpec } from "./renderer-spec.js?v=0.27.0";
+import { GisMapError } from "./gismap-errors.js?v=0.27.0";
+
 const ARCGIS_WORLD_GEOCODER =
   "https://geocode.arcgis.com/arcgis/rest/services/World/GeocodeServer";
 
@@ -200,9 +204,14 @@ export class MapController {
       this.events.publish("map:click", event);
     });
     this.view.on("layerview-create-error", ({ layer, error }) => {
-      this.events.publish("app:error", {
-        message: `Could not draw ${layer?.title ?? "a layer"}: ${error?.message ?? "unknown error"}`,
-      });
+      // A basemap replaced while it was still drawing reports an error for layers
+      // that are no longer on the map; only layers still shown are real failures.
+      if (error?.name === "AbortError" || layer?.destroyed || !this.map.allLayers.includes(layer)) return;
+      const message = `Could not draw ${layer?.title ?? "a layer"}: ${error?.message ?? "unknown error"}`;
+      if (this.lastLayerViewError === message) return;
+      this.lastLayerViewError = message;
+      setTimeout(() => { if (this.lastLayerViewError === message) this.lastLayerViewError = null; }, 5000);
+      this.events.publish("app:error", { message });
     });
     this.#initializeSketch();
     this.events.publish("map:ready", { view: this.view });
@@ -345,6 +354,7 @@ export class MapController {
         definitionExpression: config.definitionExpression ?? featureQuery?.definitionExpression ?? null,
         wfsName: config.wfsName?.trim() || wfs?.wfsName || null,
         customParameters: config.customParameters ?? wfs?.customParameters ?? null,
+        ignoreServiceScaleRange: config.ignoreServiceScaleRange === true,
       });
     } catch (error) {
       if (!mapSublayer || serviceType !== "arcgis-auto") throw error;
@@ -356,6 +366,7 @@ export class MapController {
         title: common.title,
         serviceLayerId: mapSublayer.id,
         refreshInterval: Number(config.refreshInterval) || 0,
+        ignoreServiceScaleRange: config.ignoreServiceScaleRange === true,
       });
     }
   }
@@ -475,9 +486,12 @@ export class MapController {
     } else if (!layer.title?.trim()) {
       layer.title = this.#titleFromUrl(config.url || layer.url);
     }
+    // The publisher's own style, so a { type: "service" } renderer can return to it.
+    const serviceRenderer = layer.renderer?.toJSON?.() ?? null;
+    if (config.ignoreServiceScaleRange) this.#overrideScaleRange(layer, config);
     // Keep internal tour and click-feedback graphics above operational data.
     this.map.add(layer, Math.max(0, this.map.layers.length - 2));
-    this.layerConfigs.set(layer.uid, { ...config });
+    this.layerConfigs.set(layer.uid, { ...config, serviceRenderer });
     this.events.publish("layer:added", { layer, config: this.getLayerConfig(layer) });
     return layer;
   }
@@ -860,7 +874,191 @@ export class MapController {
       renderer: layer.renderer?.toJSON?.() ?? null,
       // True when the style was set in GISMap (or arrived with a shared map), not the service's own.
       styled: Boolean(source.renderer),
+      rendererSpec: source.rendererSpec ?? null,
+      ignoreServiceScaleRange: Boolean(source.ignoreServiceScaleRange),
     };
+  }
+
+  /** The layer's scale range in effect, and whether it draws at the current scale. */
+  scaleState(layer) {
+    const scale = this.view?.scale;
+    const minScale = layer?.minScale || 0;
+    const maxScale = layer?.maxScale || 0;
+    const visibleAtCurrentScale = !Number.isFinite(scale) || ((!minScale || scale <= minScale) && (!maxScale || scale >= maxScale));
+    const source = this.layerConfigs.get(layer?.uid) ?? {};
+    return { minScale, maxScale, visibleAtCurrentScale, serviceMinScale: source.serviceScaleRange?.minScale ?? minScale, serviceMaxScale: source.serviceScaleRange?.maxScale ?? maxScale, ignored: Boolean(source.ignoreServiceScaleRange) };
+  }
+
+  #overrideScaleRange(layer, config) {
+    config.serviceScaleRange ??= { minScale: layer.minScale || 0, maxScale: layer.maxScale || 0 };
+    layer.minScale = 0;
+    layer.maxScale = 0;
+    config.ignoreServiceScaleRange = true;
+  }
+
+  /**
+   * "Show anyway": draws a layer at every scale, ignoring the publisher's range
+   * (kept in the project and in share links). `false` restores the publisher's range.
+   */
+  ignoreScaleRange(uid, ignore = true) {
+    const layer = this.findLayer(uid);
+    if (!layer || !("minScale" in layer)) return false;
+    const config = this.layerConfigs.get(uid) ?? {};
+    if (ignore) this.#overrideScaleRange(layer, config);
+    else {
+      layer.minScale = config.serviceScaleRange?.minScale ?? layer.minScale;
+      layer.maxScale = config.serviceScaleRange?.maxScale ?? layer.maxScale;
+      config.ignoreServiceScaleRange = false;
+    }
+    this.layerConfigs.set(uid, config);
+    this.events.publish("layer:changed", { uid });
+    return true;
+  }
+
+  /** What the layer's own service JSON says about it: fields, scale range, freshness, sentinels. */
+  layerMetadata(layer) {
+    const raw = layer?.sourceJSON;
+    if (!raw || typeof raw !== "object") return null;
+    const metadata = arcgisMetadata(raw, this.getLayerConfig(layer).url || layer.url || "");
+    const range = this.layerConfigs.get(layer.uid)?.serviceScaleRange;
+    if (range) Object.assign(metadata, range);
+    return metadata;
+  }
+
+  /** Every value of a field under the layer's filter (paged; at most `limit`), for class breaks. */
+  async fieldValues(layer, field, { limit = 20000 } = {}) {
+    if (typeof layer?.queryFeatures !== "function") return [];
+    const values = [];
+    const pageSize = Math.max(1, Math.min(layer.capabilities?.query?.maxRecordCount || 2000, 2000));
+    const paged = layer.capabilities?.query?.supportsPagination !== false;
+    for (let start = 0; start < limit; start += pageSize) {
+      const query = layer.createQuery();
+      Object.assign(query, { where: layer.definitionExpression || "1=1", outFields: [field], returnGeometry: false, num: pageSize });
+      if (paged) query.start = start;
+      const { features = [] } = await layer.queryFeatures(query);
+      features.forEach((feature) => values.push(feature.attributes?.[field]));
+      if (!paged || features.length < pageSize) break;
+    }
+    return values;
+  }
+
+  /**
+   * Styles a layer from a RendererSpec (renderer-spec.js): validates it against
+   * the layer's fields, computes class breaks from its values (sentinel codes
+   * go to "No data"), and records the spec so projects and links keep it.
+   * Returns { issues } with any warnings.
+   */
+  async applyRendererSpec(uid, input, { sentinels = [] } = {}) {
+    const layer = this.findLayer(uid);
+    if (!layer) throw new GisMapError("NOT_FOUND", "That layer is not on the map.");
+    await layer.load();
+    if (!("renderer" in layer)) throw new GisMapError("UNSUPPORTED_LAYER_TYPE", `${layer.title || "This layer"} is drawn by its service and cannot be restyled.`);
+    const fields = (layer.fields || []).map((field) => ({ name: field.name, alias: field.alias, type: field.type }));
+    const { valid, issues, spec } = validateRendererSpec(input, { fields, geometryType: layer.geometryType });
+    if (!valid) {
+      const first = issues.find((issue) => issue.level === "error");
+      throw new GisMapError(first.code === "FIELD_NOT_FOUND" ? "FIELD_NOT_FOUND" : "INVALID_SPEC", first.message, { hint: first.hint, details: { issues } });
+    }
+    const config = this.layerConfigs.get(uid) ?? {};
+    if (spec.type === "service") {
+      if (config.serviceRenderer) this.restoreRenderer(layer, config.serviceRenderer);
+      delete config.renderer;
+      config.rendererSpec = null;
+      this.layerConfigs.set(uid, config);
+      this.events.publish("layer:changed", { uid });
+      return { issues, spec };
+    }
+    if (spec.type === "arcgis") {
+      this.restoreRenderer(layer, spec.json);
+    } else {
+      // Codes such as -1 ("Not Disclosed") stay out of the classes unless the spec says otherwise.
+      if (["choropleth", "graduated-symbols"].includes(spec.type) && spec.exclude === undefined) {
+        const codes = sentinels.filter((item) => item.field === spec.field && item.source !== "heuristic").map((item) => item.value);
+        if (codes.length) spec.exclude = codes;
+      }
+      let values = [];
+      let categories = [];
+      if (["choropleth", "graduated-symbols"].includes(spec.type)) values = (await this.fieldValues(layer, spec.field)).map(Number);
+      if (spec.type === "categories") {
+        const counts = new Map();
+        (await this.fieldValues(layer, spec.field, { limit: 10000 })).forEach((value) => counts.set(value, (counts.get(value) || 0) + 1));
+        categories = [...counts].map(([value, count]) => ({ value, count }));
+      }
+      const alias = (layer.fields || []).find((field) => field.name === spec.field)?.alias;
+      layer.renderer = compileRenderer(spec, { geometryType: layer.geometryType, values, categories, fieldAlias: alias });
+    }
+    config.renderer = layer.renderer?.toJSON?.() ?? null;
+    config.rendererSpec = spec;
+    this.layerConfigs.set(uid, config);
+    this.events.publish("layer:changed", { uid });
+    return { issues, spec };
+  }
+
+  /** The extent to show a layer's (filtered) data, or null. */
+  async layerExtent(layerOrUid) {
+    const layer = typeof layerOrUid === "string" ? this.findLayer(layerOrUid) : layerOrUid;
+    return layer ? this.#zoomTarget(layer) : null;
+  }
+
+  /** Fits the view to the combined (filtered) extent of several layers; all data layers when none are given. */
+  async goToLayers(layers = this.getOperationalLayers(), { animate = true } = {}) {
+    const combined = await this.dataExtent(layers);
+    if (!combined) return false;
+    await this.view.goTo({ target: combined.expand(1.08), tilt: 0 }, { animate });
+    return true;
+  }
+
+  /** The combined extent of several layers' (filtered) data in the view's spatial reference, or null. */
+  async dataExtent(layers = this.getOperationalLayers()) {
+    const extents = (await Promise.all(layers.map(async (layer) => {
+      const full = await this.#zoomTarget(layer).catch(() => null);
+      // A layer spread over half the world (U.S. counties with Alaska, Hawaii and
+      // territories) frames its dense core instead, so the data fills the view.
+      const footprint = full ? this.#geographicFootprint(full) : null;
+      if (footprint && footprint.width > 60) return (await this.#coreExtent(layer).catch(() => null)) || full;
+      return full;
+    }))).filter(Boolean)
+      .map((extent) => this.#toViewSpatialReference(extent)).filter(Boolean);
+    if (!extents.length) return null;
+    return extents.slice(1).reduce((union, extent) => union.union(extent), extents[0].clone());
+  }
+
+  /**
+   * The extent holding most of a layer's features: feature centres between the
+   * 2nd and 98th percentiles of longitude and latitude (filter-aware), or null.
+   */
+  async #coreExtent(layer) {
+    if (typeof layer?.queryFeatures !== "function") return null;
+    // Generalized geometry in degrees is light enough to read every feature's centre (up to 6,000).
+    const pageSize = Math.max(1, Math.min(layer.capabilities?.query?.maxRecordCount || 2000, 2000));
+    const paged = layer.capabilities?.query?.supportsPagination !== false;
+    const features = [];
+    for (let start = 0; start < 6000; start += pageSize) {
+      const query = layer.createQuery();
+      Object.assign(query, { where: layer.definitionExpression || "1=1", outFields: [], returnGeometry: true, maxAllowableOffset: 0.05, geometryPrecision: 3, outSpatialReference: { wkid: 4326 }, num: pageSize });
+      if (paged) query.start = start;
+      const page = (await layer.queryFeatures(query)).features || [];
+      features.push(...page);
+      if (!paged || page.length < pageSize) break;
+    }
+    const centre = (geometry) => (geometry?.type === "point" ? geometry : geometry?.centroid || geometry?.extent?.center || null);
+    const points = features.map((feature) => centre(feature.geometry)).filter((point) => Number.isFinite(point?.x) && Number.isFinite(point?.y));
+    if (points.length < 20) return null;
+    const pick = (values, ratio) => values[Math.min(values.length - 1, Math.max(0, Math.round(ratio * (values.length - 1))))];
+    const xs = points.map((point) => point.x).sort((a, b) => a - b);
+    const ys = points.map((point) => point.y).sort((a, b) => a - b);
+    const [xmin, xmax, ymin, ymax] = [pick(xs, 0.02), pick(xs, 0.98), pick(ys, 0.02), pick(ys, 0.98)];
+    if (!(xmax > xmin && ymax > ymin)) return null;
+    return new this.modules.Extent({ xmin, ymin, xmax, ymax, spatialReference: { wkid: 4326 } });
+  }
+
+  #toViewSpatialReference(extent) {
+    const target = extent.declaredClass ? extent : this.modules.Extent.fromJSON(extent);
+    const wkid = target.spatialReference?.latestWkid ?? target.spatialReference?.wkid;
+    if ([4326, 4269].includes(wkid) && this.modules.webMercatorUtils?.canProject(target, this.view.spatialReference)) {
+      return this.modules.webMercatorUtils.geographicToWebMercator(target);
+    }
+    return target;
   }
 
   getAllLayerConfigs() {
@@ -984,6 +1182,7 @@ export class MapController {
     layer.renderer = renderer;
     const config = this.layerConfigs.get(uid) ?? {};
     config.renderer = layer.renderer.toJSON?.() ?? structuredClone(layer.renderer);
+    config.rendererSpec = null;
     this.layerConfigs.set(uid, config);
     this.events.publish("layer:changed", { uid });
   }
@@ -1096,9 +1295,25 @@ export class MapController {
   }
 
   setBasemap(id) {
-    this.basemapId = id || "topo-3d";
+    const next = id || "topo-3d";
+    // Before the map exists, a basemap requested by the link wins over settings and defaults.
+    if (!this.map && this.initialBasemapId) return;
+    // Re-assigning the same basemap would tear down and rebuild its layer views for nothing.
+    if (this.map && next === this.basemapId && this.map.basemap) return;
+    this.basemapId = next;
     if (this.map) this.map.basemap = this.basemapId;
     this.events.publish("map:basemap-changed", { id: this.basemapId });
+  }
+
+  /**
+   * The basemap the scene starts with, from the link (`?basemap=`, `#map=`),
+   * set before initialize() so the default basemap is never created and then
+   * swapped mid-draw (which raced: "Could not draw Topographic … hasLayerViewModule").
+   */
+  setInitialBasemap(id) {
+    if (this.map || !id) return;
+    this.initialBasemapId = String(id);
+    this.basemapId = this.initialBasemapId;
   }
 
   getBasemapId() {
@@ -1107,7 +1322,7 @@ export class MapController {
 
   setDefaultBasemap(id) {
     this.defaultBasemapId = String(id || "topo-3d");
-    if (!this.map) this.basemapId = this.defaultBasemapId;
+    if (!this.map && !this.initialBasemapId) this.basemapId = this.defaultBasemapId;
   }
 
   getDefaultBasemapId() {
@@ -1257,6 +1472,15 @@ export class MapController {
   async goToLayer(layerOrUid) {
     const layer = typeof layerOrUid === "string" ? this.findLayer(layerOrUid) : layerOrUid;
     if (!layer?.fullExtent) return;
+    const target = await this.#zoomTarget(layer);
+    if (!target) return false;
+    await this.view.goTo({ target, tilt: 0 });
+    return true;
+  }
+
+  /** The filter-aware extent of a layer's data (queried live, else metadata), or null. */
+  async #zoomTarget(layer) {
+    if (!layer?.fullExtent) return null;
     const candidates = [layer.initialExtent, layer.fullExtent].filter((extent) => this.#isPlausibleExtent(extent));
     if (typeof layer.queryExtent === "function") {
       try {
@@ -1293,9 +1517,7 @@ export class MapController {
         target = this.#selectZoomExtent([featureExtent]);
       }
     }
-    if (!target) return false;
-    await this.view.goTo({ target, tilt: 0 });
-    return true;
+    return target || null;
   }
 
   async goToLayerOnInitialLoad(layerOrUid) {

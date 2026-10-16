@@ -17,7 +17,7 @@ import {
   updateBlock,
   updateSlide,
   validateBriefing,
-} from "./briefing-document.js?v=0.19.0";
+} from "./briefing-document.js?v=0.27.0";
 import { renderMarkdown } from "./markdown.js?v=0.18.2";
 import { BriefingPlayer, slideHasMap } from "./briefing-player.js?v=0.21.0";
 import { briefingFileStem, briefingPdf, markdownToText } from "./briefing-pdf.js?v=0.23.0";

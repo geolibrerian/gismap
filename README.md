@@ -46,6 +46,23 @@ python3 -m http.server 8080
 
 Then open `http://localhost:8080`.
 
+## Agent API
+
+Everything an agent needs is on `globalThis.gisMapOnline` once `await gisMapOnline.ready` resolves (also a `gismap:ready` event and `<html data-gismap-state="ready">`):
+
+```js
+const api = globalThis.gisMapOnline;
+await api.ready;
+const corn = await api.layers.add("https://services.arcgis.com/P3ePLMYs2RVChkJx/ArcGIS/rest/services/Corn/FeatureServer/0", {
+  renderer: { type: "choropleth", field: "CORN_SALES_IN_DOLLARS", ramp: "greens" }, // -1 "Not Disclosed" goes to "No data"
+});
+await api.camera.fitTo(corn.id);
+api.describe(); // capabilities + live layers, basemap, camera, skin, mode
+await api.application.runTool("layer.filter", { layer: corn.id, where: "CORN_SALES_IN_DOLLARS >= 0" });
+```
+
+Errors are `GisMapError` with a `code` and a `hint` written for agents. The contracts are [`api/capabilities.json`](api/capabilities.json) (namespaces, stability, tools with input schemas, error codes, ramps, basemaps, URL parameters), [`schemas/renderer-v1.schema.json`](schemas/renderer-v1.schema.json) and [`js/gismap-core.d.ts`](js/gismap-core.d.ts) (`InPageApi`). A `?layer=` link zooms to its data unless it says `zoom=none` or gives `center=lon,lat&level=` / `&scale=`.
+
 ## Client-side Briefing API
 
 GISMap exposes the same versioned Briefing functions to in-page agents and to ES-module callers. No GISMap server or account is required.

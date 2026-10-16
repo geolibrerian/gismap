@@ -3,10 +3,10 @@
 // layers with their styles and filters, basemap, skin, camera and, for a
 // briefing, its slides. Small enough links also fit in a QR code.
 import { decodePayload, encodePayload } from "./link-codec.js?v=0.21.0";
-import { normalizeBriefing } from "./briefing-document.js?v=0.19.0";
-import { SHARE_BASEMAPS, SHARE_LAYER_TYPES, sanitizeSharedResourceUrl } from "./share.js?v=0.21.0";
+import { normalizeBriefing } from "./briefing-document.js?v=0.27.0";
+import { SHARE_BASEMAPS, SHARE_LAYER_TYPES, sanitizeSharedResourceUrl } from "./share.js?v=0.27.0";
 import { normalizeSkin } from "./skin-catalog.js?v=0.18.2";
-import { decodeBriefing } from "./briefing-share.js?v=0.23.0";
+import { decodeBriefing } from "./briefing-share.js?v=0.27.0";
 
 /**
  * Slides-only briefing links from the client API (`#briefing=b1.…` / `j1.…`,
@@ -64,6 +64,7 @@ export function packLayer(config = {}) {
     r: renderer,
     o: Number.isFinite(config.opacity) && config.opacity < 1 ? round(config.opacity, 2) : null,
     h: config.visible === false ? 1 : null,
+    s: config.ignoreServiceScaleRange ? 1 : null,
   });
 }
 
@@ -78,6 +79,7 @@ function unpackLayer(layer, options) {
     renderer,
     opacity: Number.isFinite(layer.o) ? Math.min(1, Math.max(0, layer.o)) : undefined,
     visible: layer.h !== 1,
+    ignoreServiceScaleRange: layer.s === 1,
   };
 }
 

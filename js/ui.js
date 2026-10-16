@@ -1,8 +1,8 @@
 import { POPULAR_SERVICES } from "./catalog.js?v=0.18.2";
 import { ENTERPRISE_CATALOGS, EnterpriseCatalog, normalizeArcGisDirectoryUrl } from "./enterprise-catalog.js?v=0.18.2";
-import { createShareUrl } from "./share.js?v=0.21.0";
-import { createShareLink, hasDataFilter } from "./map-share.js?v=0.23.1";
-import { briefingLayerRef, findBriefingLayer } from "./briefing-api.js?v=0.23.1";
+import { createShareUrl } from "./share.js?v=0.27.0";
+import { createShareLink, hasDataFilter } from "./map-share.js?v=0.27.0";
+import { briefingLayerRef, findBriefingLayer } from "./briefing-api.js?v=0.27.0";
 import { createEmbeddedTourUrl } from "./tour-share.js?v=0.18.2";
 import { markdownToPlainText, renderMarkdown } from "./markdown.js?v=0.18.2";
 import { formatAttributeValue } from "./attribute-format.js?v=0.18.2";
@@ -15,9 +15,9 @@ import { featureLayerUrl, locationUrl } from "./field-task-share.js?v=0.21.0";
 import { dockIcon } from "./dock-icons.js?v=0.24.0";
 import { serviceNameFromUrl } from "./service-name.js?v=0.26.0";
 import { decodeQrFromImage, describeGisMapLink, gisMapLinkFrom, openGisMapLink } from "./qr-import.js?v=0.25.1";
-import { BriefingSlides } from "./briefing-slides.js?v=0.23.0";
-import { createSlide, matchesFilter, normalizeFilter } from "./briefing-document.js?v=0.19.0";
-import { aiDescriptionPrompt, applyAiDescriptions, describeWhere, generateBriefing, readAiDescriptions, rendererTheme } from "./briefing-generator.js?v=0.22.0";
+import { BriefingSlides } from "./briefing-slides.js?v=0.27.0";
+import { createSlide, matchesFilter, normalizeFilter } from "./briefing-document.js?v=0.27.0";
+import { aiDescriptionPrompt, applyAiDescriptions, describeWhere, generateBriefing, readAiDescriptions, rendererTheme } from "./briefing-generator.js?v=0.27.0";
 import { briefingFileStem } from "./briefing-pdf.js?v=0.23.0";
 
 const DISPLAY_SETTINGS_KEY = "gismap-online:display:v1";
@@ -4982,9 +4982,12 @@ export class UIController {
       ? layers.map((layer) => {
         const config = this.mapController.getLayerConfig(layer);
         const scaleMessage = this.#layerScaleMessage(layer);
+        // How current the source is, from the service's own edit dates.
+        const edited = this.mapController.layerMetadata?.(layer)?.dataLastEditDate;
+        const dataDate = edited ? new Date(edited).toLocaleDateString(undefined, { year: "numeric", month: "short" }) : "";
         return `<article class="layer-card" data-layer-uid="${escapeHtml(layer.uid)}">
-          <div class="layer-card__head"><label class="layer-toggle"><input type="checkbox" data-layer-visible ${layer.visible ? "checked" : ""} /><span></span></label><div><strong title="${escapeHtml(layer.title)}">${escapeHtml(layer.title)}</strong><small>${escapeHtml(config.sourceType)}${config.definitionExpression ? " · Filtered" : ""}${config.refreshInterval ? ` · ${config.refreshInterval}m refresh` : ""}</small></div><button data-layer-action="remove" title="Remove layer">×</button></div>
-          <div class="layer-scale-note" data-layer-scale-note ${scaleMessage ? "" : "hidden"}>${escapeHtml(scaleMessage || "")}</div>
+          <div class="layer-card__head"><label class="layer-toggle"><input type="checkbox" data-layer-visible ${layer.visible ? "checked" : ""} /><span></span></label><div><strong title="${escapeHtml(layer.title)}">${escapeHtml(layer.title)}</strong><small>${escapeHtml(config.sourceType)}${config.definitionExpression ? " · Filtered" : ""}${config.refreshInterval ? ` · ${config.refreshInterval}m refresh` : ""}${dataDate ? ` · <span title="When the publisher last edited the data">Data ${escapeHtml(dataDate)}</span>` : ""}</small></div><button data-layer-action="remove" title="Remove layer">×</button></div>
+          <div class="layer-scale-note" data-layer-scale-note ${scaleMessage ? "" : "hidden"}><span data-scale-text>${escapeHtml(scaleMessage || "")}</span><button type="button" data-layer-action="ignore-scale" title="Draw this layer at every zoom level">Show anyway</button></div>
           <label class="opacity-row"><span>Opacity</span><input data-layer-opacity type="range" min="0" max="1" step="0.05" value="${layer.opacity}" /><output>${Math.round(layer.opacity * 100)}%</output></label>
           <div class="layer-card__actions"><button data-layer-action="zoom">Zoom</button><button data-layer-action="table">Table</button><button data-layer-action="filter">Filter</button><button data-layer-action="export" title="Share this map, make a PDF or briefing, or download data">Share</button><button data-layer-action="style">Style</button><button data-layer-action="refresh">Refresh</button></div>
         </article>`;
@@ -4999,8 +5002,8 @@ export class UIController {
     const minScale = Number(layer.minScale) || 0;
     const maxScale = Number(layer.maxScale) || 0;
     const formatScale = (value) => `1:${Math.round(value).toLocaleString()}`;
-    if (minScale && scale > minScale) return `Not visible at this scale · zoom in to ${formatScale(minScale)}`;
-    if (maxScale && scale < maxScale) return `Not visible at this scale · zoom out to ${formatScale(maxScale)}`;
+    if (minScale && scale > minScale) return `Hidden at this zoom (publisher limit ${formatScale(minScale)}). Zoom in or show anyway.`;
+    if (maxScale && scale < maxScale) return `Hidden at this zoom (publisher limit ${formatScale(maxScale)}). Zoom out or show anyway.`;
     return "";
   }
 
@@ -5009,7 +5012,7 @@ export class UIController {
       const note = card.querySelector("[data-layer-scale-note]");
       const message = this.#layerScaleMessage(this.mapController.findLayer(card.dataset.layerUid));
       if (!note) return;
-      note.textContent = message;
+      note.querySelector("[data-scale-text]").textContent = message;
       note.hidden = !message;
     });
   }
@@ -5025,6 +5028,12 @@ export class UIController {
       const layer = this.mapController.findLayer(uid);
       switch (button.dataset.layerAction) {
         case "remove": this.mapController.removeLayer(uid); break;
+        case "ignore-scale":
+          // Saved with the project and carried in share links.
+          this.mapController.ignoreScaleRange(uid, true);
+          this.#updateLayerScaleIndicators();
+          this.toast(`${layer?.title || "The layer"} now draws at every zoom level.`);
+          break;
         case "zoom": {
           const zoomed = layer ? await this.mapController.goToLayer(layer) : false;
           if (!zoomed) this.toast("This layer has a near-global or invalid extent. Use a filter or select a feature to zoom safely.");
