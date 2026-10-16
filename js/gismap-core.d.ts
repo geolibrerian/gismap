@@ -84,7 +84,7 @@ export type SourceMetadata = {
 
 export type Sentinel = { field: string; value: number | string; label: string; source: "renderer" | "domain" | "heuristic" };
 
-export type ErrorCode = "INVALID_URL" | "HTTPS_REQUIRED" | "CREDENTIAL_IN_URL" | "UNSUPPORTED_LAYER_TYPE" | "TOO_MANY_LAYERS" | "LAYER_LOAD_FAILED" | "CORS_BLOCKED" | "SERVICE_ERROR" | "FIELD_NOT_FOUND" | "INVALID_SPEC" | "NOT_READY" | "NOT_FOUND";
+export type ErrorCode = "INVALID_URL" | "HTTPS_REQUIRED" | "CREDENTIAL_IN_URL" | "UNSUPPORTED_LAYER_TYPE" | "TOO_MANY_LAYERS" | "LAYER_LOAD_FAILED" | "CORS_BLOCKED" | "SERVICE_ERROR" | "FIELD_NOT_FOUND" | "INVALID_SPEC" | "NOT_READY" | "NOT_FOUND" | "SPEC_TOO_LONG";
 
 /** Thrown by the public API. `hint` says what to do next. */
 export declare class GisMapError extends Error {
@@ -147,6 +147,33 @@ export type LayerInfo = {
 };
 
 export type CameraState = { center: [number, number]; zoom: number; scale: number; heading: number; tilt: number };
+
+/** A whole map as one JSON object (schemas/map-v1.schema.json). */
+export type MapSpecLayer = {
+  url: string;
+  type?: LayerType;
+  title?: string;
+  where?: string;
+  renderer?: RendererSpec;
+  opacity?: number;
+  visible?: boolean;
+  ignoreServiceScaleRange?: boolean;
+  refreshInterval?: number;
+  popup?: { fields: string[] };
+};
+export type MapSpec = {
+  $schema?: string;
+  version?: 1;
+  title?: string;
+  description?: string;
+  basemap?: string;
+  skin?: string;
+  camera?: { fit: "layers" | "none" } | { center: [number, number]; zoom?: number; scale?: number; heading?: number; tilt?: number };
+  layers: MapSpecLayer[];
+  legend?: boolean;
+  briefing?: BriefingDocument | null;
+};
+export type SpecIssue = { level: "error" | "warning"; code: ErrorCode; path: string; message: string; hint?: string };
 
 export type SmartImageManifest = {
   format: "gismap-smart-image";
@@ -222,6 +249,24 @@ export const utilities: Readonly<{ safeUrl(value: unknown): string | null }>;
  * The in-page API at globalThis.gisMapOnline.briefing: everything in `briefing`
  * plus calls bound to the open map and project.
  */
+export const mapSpec: Readonly<{
+  version: 1;
+  jsonLimit: number;
+  /** The usable spec keeps every layer that can load; layers with errors are dropped and reported. */
+  validate(spec: unknown, options?: { allowHttp?: boolean }): { valid: boolean; issues: SpecIssue[]; spec: MapSpec | null };
+  /** The #map= payload: compressed ("z…") or readable ("json:…", at most jsonLimit characters, else SPEC_TOO_LONG). */
+  encode(spec: MapSpec, options?: { compress?: boolean }): Promise<string>;
+  decode(payload: string): Promise<MapSpec>;
+  createLink(spec: MapSpec, options?: { baseUrl?: string; compress?: boolean }): Promise<{ url: string; payload: string; qr: boolean }>;
+}>;
+
+export type MapSpecApi = typeof mapSpec & {
+  /** Applies a spec to the live map; ready resolves when everything that can load has loaded. */
+  load(spec: unknown, options?: { replace?: boolean; showIssues?: boolean }): { valid: boolean; issues: SpecIssue[]; spec: MapSpec | null; ready: Promise<{ layers: LayerInfo[]; issues: SpecIssue[] }> };
+  fromCurrent(options?: { title?: string }): MapSpec;
+  issues(): SpecIssue[];
+};
+
 export type LayersApi = {
   add(url: string, options?: AddLayerOptions): Promise<LayerInfo>;
   /** Data layers only (no drawings or other internal graphics). */
@@ -287,6 +332,7 @@ export type InPageApi = {
   describe(): Record<string, unknown> & { state: { status: "loading" | "ready" | "error"; layers: LayerInfo[]; basemap: string; camera: CameraState | null; skin: string | null; mode: string; briefingSlides: number; aiConfigured: boolean; issues: unknown[] } };
   layers: LayersApi;
   camera: CameraApi;
+  mapSpec: MapSpecApi;
   briefing: InPageBriefingApi;
   queries: typeof queries;
   sources: typeof sources;

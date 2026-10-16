@@ -61,6 +61,16 @@ api.describe(); // capabilities + live layers, basemap, camera, skin, mode
 await api.application.runTool("layer.filter", { layer: corn.id, where: "CORN_SALES_IN_DOLLARS >= 0" });
 ```
 
+### A map from one JSON object (no code)
+
+A chat-only model can make a map by writing a [map-v1](schemas/map-v1.schema.json) spec and URI-encoding it into a link:
+
+```text
+https://gismap.online/#map=json:{"version":1,"basemap":"gray-vector","layers":[{"url":"https://services.arcgis.com/P3ePLMYs2RVChkJx/ArcGIS/rest/services/Corn/FeatureServer/0","renderer":{"type":"choropleth","field":"CORN_SALES_IN_DOLLARS","ramp":"greens","exclude":[-1]}}]}
+```
+
+URI-encode the JSON (`encodeURIComponent`) when you can; the readable form holds up to 8,192 characters. `gisMapOnline.mapSpec.createLink(spec)` (or `mapSpec.createLink` from `js/gismap-core.js`) gives the compressed `#map=` form, and `?spec=<https URL>` opens a hosted spec. For one layer and one field there is no JSON at all: `?layer=<URL>&style=choropleth&field=<FIELD>&ramp=greens&exclude=-1&basemap=gray-vector`. Invalid parts are skipped and listed in `describe().state.issues`.
+
 Errors are `GisMapError` with a `code` and a `hint` written for agents. The contracts are [`api/capabilities.json`](api/capabilities.json) (namespaces, stability, tools with input schemas, error codes, ramps, basemaps, URL parameters), [`schemas/renderer-v1.schema.json`](schemas/renderer-v1.schema.json) and [`js/gismap-core.d.ts`](js/gismap-core.d.ts) (`InPageApi`). A `?layer=` link zooms to its data unless it says `zoom=none` or gives `center=lon,lat&level=` / `&scale=`.
 
 ## Client-side Briefing API

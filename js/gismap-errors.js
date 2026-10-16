@@ -16,6 +16,7 @@ export const ERROR_CODES = Object.freeze({
   INVALID_SPEC: "Fix the listed issues; the schema in capabilities.json describes every property.",
   NOT_READY: "Await gisMapOnline.ready before calling this.",
   NOT_FOUND: "Call layers.list() to see the layers on the map and their ids.",
+  SPEC_TOO_LONG: "Shorten the spec (fewer layers, no raw ArcGIS renderers) or use the compressed #map= form from mapSpec.createLink, or host the JSON and link to it with ?spec=.",
 });
 
 export class GisMapError extends Error {

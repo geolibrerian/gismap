@@ -221,7 +221,9 @@ test("the app signals readiness, zooms links to their data, and explains hidden 
   assert.match(app, /dataset\.gismapState = "ready"/);
   assert.match(app, /new CustomEvent\("gismap:ready"/);
   assert.match(app, /mapController\.setInitialBasemap\(/);
-  assert.match(app, /goToLayers\(sharedLayers/);
+  // ?layer= links load as a map spec, whose loader fits the data unless the link gives a view.
+  assert.match(app, /mapSpecFromShareParameters\(shared\)/);
+  assert.match(await read("../js/map-spec-api.js"), /layers\.zoomTo\(null, \{ animate: false \}\)/);
   assert.match(map, /!this\.map\.allLayers\.includes\(layer\)/, "errors from a replaced basemap's layers are not reported");
   assert.match(ui, /Hidden at this zoom \(publisher limit/);
   assert.match(ui, /data-layer-action="ignore-scale"/);

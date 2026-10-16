@@ -773,6 +773,12 @@ body.briefing-slides-tab #briefing-context-host { display:none; }
 .briefing-slides__add button, .briefing-slides__included, .briefing-slides__present, .briefing-camera button { min-height:34px; padding:6px 12px; border:1px solid var(--green); border-radius:var(--ui-radius-small,7px); color:var(--green); background:var(--surface); font-weight:700; }
 .briefing-slides__present, .briefing-slides__add button { color:var(--on-accent,#fff); background:var(--green); }
 .briefing-slides__actions { display:flex; gap:8px; }
+.spec-issues { display:grid; gap:8px; margin:0; padding:0; list-style:none; }
+.spec-issue { padding:9px 11px; border-left:3px solid var(--danger,#a73c2e); border-radius:6px; background:var(--surface-2); }
+.spec-issue--warning { border-left-color:var(--amber); }
+.spec-issue p { margin:4px 0 0; }
+.spec-issue small { display:block; margin-top:4px; color:var(--muted); }
+.spec-issue code { color:var(--muted); font-size:11px; }
 .layer-scale-note:not([hidden]) { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
 .layer-scale-note [data-scale-text] { flex:1 1 160px; }
 .layer-scale-note button { padding:3px 9px; border:1px solid currentColor; border-radius:999px; background:transparent; color:inherit; font-size:11px; font-weight:700; cursor:pointer; }

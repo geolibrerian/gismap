@@ -1,0 +1,72 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://gismap.online/schemas/map-v1.schema.json",
+  "title": "GIS Map Online map spec (map-v1)",
+  "description": "A whole map as one JSON object: layers with styles and filters, basemap, look and camera. Open it at https://gismap.online/#map=json:<URI-encoded JSON> (written by hand, up to 8 KB), as the compressed #map= form from mapSpec.createLink, or host the file and open https://gismap.online/?spec=<https URL>. Invalid parts are skipped and reported; the rest of the map still opens.",
+  "type": "object",
+  "required": ["layers"],
+  "properties": {
+    "$schema": { "type": "string", "description": "Optional: https://gismap.online/schemas/map-v1.schema.json." },
+    "version": { "const": 1, "default": 1, "description": "The spec version. Always 1." },
+    "title": { "type": "string", "maxLength": 160, "description": "The map's name, shown as the project title." },
+    "description": { "type": "string", "maxLength": 2000, "description": "What the map shows, for people reading the spec." },
+    "basemap": {
+      "enum": ["topo-3d", "navigation-3d", "navigation-dark-3d", "osm-3d", "gray-3d", "dark-gray-3d", "streets-3d", "streets-dark-3d", "topo-vector", "streets-vector", "navigation", "gray-vector", "dark-gray-vector", "osm", "satellite", "hybrid"],
+      "description": "The background map. gray-vector and dark-gray-vector keep attention on the data."
+    },
+    "skin": {
+      "enum": ["gismap", "clean-light", "dark-analytical", "tidal-95", "portolan", "velvet-orbit", "violet-circuit", "highway", "steeler"],
+      "description": "The interface look. It never changes data colours."
+    },
+    "camera": {
+      "description": "Where the map looks. Default { \"fit\": \"layers\" }: fit the loaded data (its dense core when it spreads over half the world).",
+      "oneOf": [
+        { "type": "object", "required": ["fit"], "properties": { "fit": { "enum": ["layers", "none"], "description": "\"layers\" fits the data; \"none\" keeps the starting view." } }, "additionalProperties": false },
+        {
+          "type": "object",
+          "required": ["center"],
+          "properties": {
+            "center": { "type": "array", "prefixItems": [{ "type": "number", "minimum": -180, "maximum": 180 }, { "type": "number", "minimum": -90, "maximum": 90 }], "minItems": 2, "maxItems": 2, "description": "[longitude, latitude] in degrees." },
+            "zoom": { "type": "number", "minimum": 0, "maximum": 24, "description": "Zoom level (about 4 = a country, 10 = a city)." },
+            "scale": { "type": "number", "minimum": 1, "description": "Map scale denominator, instead of zoom." },
+            "heading": { "type": "number", "minimum": -360, "maximum": 360, "default": 0, "description": "Compass direction the camera faces, in degrees." },
+            "tilt": { "type": "number", "minimum": 0, "maximum": 90, "default": 0, "description": "0 looks straight down; higher values look toward the horizon." }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
+    "layers": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 10,
+      "description": "The data, drawn in order (the last is on top). At most 10.",
+      "items": { "$ref": "#/$defs/layer" }
+    },
+    "legend": { "type": "boolean", "default": false, "description": "Open the legend." },
+    "briefing": {
+      "description": "Optional slides that present the map, as a briefing-v1 document (https://gismap.online/schemas/briefing-v1.schema.json). Its layerId may be one of the layer URLs.",
+      "oneOf": [{ "$ref": "https://gismap.online/schemas/briefing-v1.schema.json" }, { "type": "null" }]
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "layer": {
+      "type": "object",
+      "required": ["url"],
+      "properties": {
+        "url": { "type": "string", "format": "uri", "pattern": "^https://", "description": "HTTPS URL of an ArcGIS REST layer or service (FeatureServer/0, MapServer, ImageServer), a GeoJSON file, or a WMS/WFS/KML service. Public only: no tokens or keys. The service must allow browser (CORS) access. Append ?f=pjson to an ArcGIS URL to see its fields." },
+        "type": { "enum": ["arcgis-auto", "feature", "map-image", "imagery", "geojson", "wms", "wfs", "kml"], "default": "arcgis-auto", "description": "The layer type; arcgis-auto detects it from the service." },
+        "title": { "type": "string", "maxLength": 160, "description": "The name shown in the Layers panel and legend." },
+        "where": { "type": "string", "maxLength": 2000, "description": "A read-only SQL filter on the layer's fields, such as \"CORN_SALES_IN_DOLLARS >= 0\" or \"STATE = 'Iowa'\". No statements, comments or semicolons." },
+        "renderer": { "$ref": "https://gismap.online/schemas/renderer-v1.schema.json", "description": "The style. Field names must match the service exactly; a misspelled field keeps the service's own style and is reported." },
+        "opacity": { "type": "number", "minimum": 0, "maximum": 1, "default": 1, "description": "0 is transparent, 1 is opaque." },
+        "visible": { "type": "boolean", "default": true, "description": "Whether the layer starts switched on." },
+        "ignoreServiceScaleRange": { "type": "boolean", "default": false, "description": "Draw at every zoom level, even where the publisher hides the layer (its minScale/maxScale)." },
+        "refreshInterval": { "type": "number", "minimum": 0, "maximum": 1440, "description": "Reload the layer every this many minutes (for live feeds)." },
+        "popup": { "type": "object", "properties": { "fields": { "type": "array", "items": { "type": "string" }, "maxItems": 50, "description": "Fields to feature when a feature is inspected." } }, "additionalProperties": false, "description": "Fields of interest for inspecting features." }
+      },
+      "additionalProperties": false
+    }
+  }
+}

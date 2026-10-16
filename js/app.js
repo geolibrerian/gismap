@@ -1,26 +1,28 @@
 import { events } from "./events.js?v=0.18.2";
 import { AuthController } from "./auth.js?v=0.18.2";
-import { MapController } from "./map.js?v=0.27.0";
-import { ProjectManager } from "./project.js?v=0.27.0";
+import { MapController } from "./map.js?v=0.28.1";
+import { ProjectManager } from "./project.js?v=0.28.0";
 import { IdentifyController } from "./identify.js?v=0.18.2";
 import { AttributeTableController } from "./attribute-table.js?v=0.18.2";
 import { AIController } from "./ai.js?v=0.27.0";
 import { ToolManager } from "./tool-manager.js?v=0.18.2";
-import { UIController } from "./ui.js?v=0.27.0";
+import { UIController } from "./ui.js?v=0.28.0";
 import { ExportController } from "./export/export-controller.js?v=0.18.2";
-import { parseShareParameters } from "./share.js?v=0.27.0";
-import { readShareLocation } from "./map-share.js?v=0.27.0";
+import { SHARE_BASEMAPS, parseShareParameters } from "./share.js?v=0.28.0";
+import { readShareLocation } from "./map-share.js?v=0.28.0";
 import { decodeEmbeddedTour } from "./tour-share.js?v=0.18.2";
-import { decodeFieldTask, featureLayerUrl, readFieldTaskHash, readFocus } from "./field-task-share.js?v=0.21.0";
+import { decodeFieldTask, featureLayerUrl, readFieldTaskHash, readFocus } from "./field-task-share.js?v=0.28.0";
 import { POPULAR_SERVICES } from "./catalog.js?v=0.18.2";
 import { ApplicationRuntime } from "./application-runtime.js?v=0.27.0";
 import { PanelManager } from "./panel-manager.js?v=0.18.2";
 import { MobilePanelManager } from "./mobile-panel-manager.js?v=0.18.2";
-import { MobileWorkflowRouter } from "./mobile-workflow-router.js?v=0.25.0";
-import { createClientApi } from "./briefing-api.js?v=0.27.0";
-import { createCameraApi, createLayersApi } from "./layers-api.js?v=0.27.0";
+import { MobileWorkflowRouter } from "./mobile-workflow-router.js?v=0.28.0";
+import { createClientApi } from "./briefing-api.js?v=0.28.0";
+import { createCameraApi, createLayersApi } from "./layers-api.js?v=0.28.0";
 import { registerLayerTools } from "./layer-tools.js?v=0.27.0";
-import { GisMapError, ERROR_CODES } from "./gismap-errors.js?v=0.27.0";
+import { createMapSpecApi } from "./map-spec-api.js?v=0.28.0";
+import { mapSpecFromShareParameters } from "./map-spec.js?v=0.28.0";
+import { GisMapError, ERROR_CODES } from "./gismap-errors.js?v=0.28.0";
 
 async function loadSharedLayer(mapController, config) {
   const rootUrl = config.url.replace(/\/+$/, "");
@@ -111,8 +113,26 @@ async function start() {
       layerInfo: (layer) => layersApi.get(layer.uid),
     },
   });
-  const describeTool = (tool) => ({ id: tool.id, displayName: tool.displayName, description: tool.description, inputSchema: tool.inputSchema });
   const issues = [];
+  const mapSpecApi = createMapSpecApi({
+    layers: layersApi,
+    camera: cameraApi,
+    mapController,
+    issues,
+    allowHttp,
+    host: {
+      setBasemap: (id) => mapController.setBasemap(id),
+      applySkin: (skin) => uiController.applySkinChoice(skin),
+      setTitle: (title) => uiController.setProjectTitle(title),
+      getTitle: () => projectManager.current?.name || "",
+      getSkin: () => document.documentElement.dataset.skin || null,
+      showLegend: () => uiController.showLegendWidget(),
+      showIssues: (list) => uiController.showSpecIssues(list),
+      loadBriefing: (briefing) => clientApi.briefing.load(briefing, { activate: false }).ready,
+      getBriefing: () => projectManager.current?.presentation?.briefing || null,
+    },
+  });
+  const describeTool = (tool) => ({ id: tool.id, displayName: tool.displayName, description: tool.description, inputSchema: tool.inputSchema });
   const describe = () => {
     let camera = null;
     try { camera = cameraApi.get(); } catch { /* Not ready yet. */ }
@@ -134,6 +154,7 @@ async function start() {
       },
     };
   };
+  uiController.mapSpec = mapSpecApi;
   globalThis.gisMapOnline = Object.freeze({
     version: clientApi.version,
     /** Resolves once the view, basemap and the layers the address asked for have loaded. */
@@ -141,6 +162,8 @@ async function start() {
     describe,
     layers: layersApi,
     camera: cameraApi,
+    /** Whole maps as one JSON object (schemas/map-v1.schema.json): validate, encode, decode, createLink, load, fromCurrent. */
+    mapSpec: mapSpecApi,
     GisMapError,
     events,
     /** Experimental escape hatches: the ArcGIS Map and SceneView. Prefer layers.* and camera.*. */
@@ -182,20 +205,24 @@ async function start() {
   } catch (error) {
     sharedStateError = error;
   }
-  mapController.setInitialBasemap(shared?.basemap || sharedState?.basemap || null);
+  const linkBasemap = shared?.basemap || (sharedState?.kind === "map-spec" ? sharedState.spec?.basemap : sharedState?.basemap) || null;
+  mapController.setInitialBasemap(SHARE_BASEMAPS.has(linkBasemap) ? linkBasemap : null);
   await mapController.initialize();
   events.publish("project:loaded", { project: projectManager.current, missingFiles: [] });
 
+  // Waits that depend on drawing (camera moves) never finish in a hidden tab.
+  const within = (promise, seconds) => Promise.race([promise, new Promise((resolve) => setTimeout(resolve, seconds * 1000))]);
   const sharedLayers = [];
   try {
     if (sharedError) throw sharedError;
     if (shared.basemap) mapController.setBasemap(shared.basemap);
-    for (const layer of shared.layers) {
-      try {
-        sharedLayers.push(...await loadSharedLayer(mapController, layer));
-      } catch (error) {
-        events.publish("app:error", { message: `Shared layer failed to load: ${error.message}` });
-      }
+    // ?layer= links (with their title=, where=, style=… parameters) load as a map spec, the one path for links.
+    if (shared.layers.length) {
+      const spec = mapSpecFromShareParameters(shared);
+      // Another part of the link (#map, #briefing, a tour, a task, #at=) decides the view.
+      if (sharedState || /(?:^#|&)(?:tour|fieldTask|at)=/.test(location.hash)) spec.camera = { fit: "none" };
+      await within(mapSpecApi.load(spec, { replace: false }).ready, 120).catch((error) => events.publish("app:error", { message: error.message }));
+      sharedLayers.push(...mapController.getOperationalLayers());
     }
     const example = POPULAR_SERVICES.find((item) => (item.slug || item.id) === shared.example);
     if (example?.presentation && sharedLayers.length) {
@@ -209,7 +236,8 @@ async function start() {
   // A styled map or briefing link (`#map=…`, `#briefing=…`, or `?briefing=<file URL>`).
   try {
     if (sharedStateError) throw sharedStateError;
-    if (sharedState) await uiController.openSharedState(sharedState, { loadLayer: (config) => loadSharedLayer(mapController, config) });
+    if (sharedState?.kind === "map-spec") await within(mapSpecApi.load(sharedState.spec, { replace: false }).ready, 120);
+    else if (sharedState) await uiController.openSharedState(sharedState, { loadLayer: (config) => loadSharedLayer(mapController, config) });
   } catch (error) {
     events.publish("app:error", { message: error.message });
   }
@@ -270,21 +298,6 @@ async function start() {
       });
       if (tour.chapters.some((item) => item.sharedBasemapFallback)) events.publish("app:error", { message: "One or more shared basemaps are unavailable; a supported map was used instead." });
     } catch (error) { events.publish("app:error", { message: error.message }); }
-  }
-
-  // Layers from ?layer= / ?example= with no camera of their own: show the data, not the whole globe.
-  const cameraFromLink = Boolean(sharedState) || Boolean(fieldTaskPayload) || Boolean(sharedPlace) || Boolean(tourMatch);
-  const cameraParams = shared?.camera;
-  // Camera moves wait for the scene to draw, which a hidden tab never does; `ready` must not hang on them.
-  const withinSeconds = (promise, seconds) => Promise.race([promise, new Promise((resolve) => setTimeout(resolve, seconds * 1000))]);
-  try {
-    if (cameraParams?.center) {
-      await withinSeconds(mapController.view.goTo({ center: cameraParams.center, ...(cameraParams.scale ? { scale: cameraParams.scale } : { zoom: cameraParams.level ?? 10 }) }, { animate: false }), 8);
-    } else if (!cameraFromLink && cameraParams?.zoom !== "none" && sharedLayers.length) {
-      await withinSeconds(mapController.goToLayers(sharedLayers, { animate: false }), 8);
-    }
-  } catch (error) {
-    if (error?.name !== "AbortError") events.publish("app:error", { message: `Could not zoom to the shared data: ${error.message}` });
   }
 
   // Installed as an app, double-clicking a .gmo / .gmop / .gmoatlas file opens it here.

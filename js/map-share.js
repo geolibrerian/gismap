@@ -4,7 +4,7 @@
 // briefing, its slides. Small enough links also fit in a QR code.
 import { decodePayload, encodePayload } from "./link-codec.js?v=0.21.0";
 import { normalizeBriefing } from "./briefing-document.js?v=0.27.0";
-import { SHARE_BASEMAPS, SHARE_LAYER_TYPES, sanitizeSharedResourceUrl } from "./share.js?v=0.27.0";
+import { SHARE_BASEMAPS, SHARE_LAYER_TYPES, sanitizeSharedResourceUrl } from "./share.js?v=0.28.0";
 import { normalizeSkin } from "./skin-catalog.js?v=0.18.2";
 import { decodeBriefing } from "./briefing-share.js?v=0.27.0";
 
@@ -14,6 +14,8 @@ import { decodeBriefing } from "./briefing-share.js?v=0.27.0";
  */
 const DOCUMENT_ONLY = /^[bj]\d+\./;
 
+/** The longest readable `#map=json:` payload (after "json:"), so links survive chat apps. */
+export const MAP_SPEC_JSON_LIMIT = 8192;
 /** Version-40 QR codes hold a little under 3 KB, so only links this short get a QR. */
 export const QR_SAFE_LENGTH = 2800;
 const MAX_LAYERS = 10;
@@ -162,9 +164,35 @@ export async function createShareLink({ baseUrl, slide = null, ...state }) {
  * fragments, or `?briefing=https://…/file.json` (the app's briefing file or a
  * schema briefing document, which may name its layer by URL in `layerId`).
  */
-export async function readShareLocation(location, { fetchJson = (url) => fetch(url).then((response) => { if (!response.ok) throw new Error(`The shared briefing file could not be downloaded (${response.status}).`); return response.json(); }), ...options } = {}) {
+export async function readShareLocation(location, { fetchJson = (url) => fetch(url).then((response) => { if (!response.ok) throw new Error(`The shared file could not be downloaded (${response.status}).`); return response.json(); }), ...options } = {}) {
   const hash = new URLSearchParams(String(location.hash || "").replace(/^#/, ""));
   const slide = hash.get("slide");
+  // A map spec (map-v1, js/map-spec.js): `#map=json:<URI-encoded JSON>`, the same
+  // JSON compressed in `#map=z…`, or a hosted file in `?spec=<https URL>`.
+  const mapValue = hash.get("map");
+  if (mapValue && /^json:/i.test(mapValue)) {
+    // Read the raw fragment rather than the parsed parameter: hand-written JSON may
+    // hold "&" or "+" that query-string parsing would split or turn into spaces.
+    const raw = String(location.hash || "").replace(/^#/, "");
+    let body = raw.slice(raw.search(/(?:^|&)map=json:/i)).replace(/^&?map=json:/i, "").replace(/&slide=[^&]*$/, "");
+    if (body.length > MAP_SPEC_JSON_LIMIT) throw new Error(`This json: map link is longer than ${MAP_SPEC_JSON_LIMIT.toLocaleString("en-US")} characters; use the compressed #map= form or ?spec=.`);
+    try { body = decodeURIComponent(body); } catch { /* Partly encoded: parse as it is. */ }
+    try {
+      return { kind: "map-spec", spec: JSON.parse(body), slide };
+    } catch (error) {
+      throw new Error(`The json: map link is not valid JSON (${error.message}). URI-encode the JSON (encodeURIComponent) and check its quotes and brackets.`);
+    }
+  }
+  if (mapValue) {
+    const decoded = await decodePayload(mapValue);
+    if (decoded && decoded.k === undefined) return { kind: "map-spec", spec: decoded, slide };
+    return { ...readShare(decoded, options), slide };
+  }
+  const specFile = new URLSearchParams(String(location.search || "")).get("spec");
+  if (specFile) {
+    if (!/^https?:\/\//i.test(specFile)) throw new Error("?spec= must be the https:// address of a map spec JSON file.");
+    return { kind: "map-spec", spec: await fetchJson(sanitizeSharedResourceUrl(specFile, options)), slide, specUrl: specFile };
+  }
   if (DOCUMENT_ONLY.test(hash.get("briefing") || "")) {
     // The slides apply to whatever layers the link loads (for example with ?layer=).
     return { kind: "briefing-document", briefing: await decodeBriefing(hash.get("briefing")), layers: [], slide };

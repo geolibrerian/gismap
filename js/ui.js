@@ -1,8 +1,8 @@
 import { POPULAR_SERVICES } from "./catalog.js?v=0.18.2";
 import { ENTERPRISE_CATALOGS, EnterpriseCatalog, normalizeArcGisDirectoryUrl } from "./enterprise-catalog.js?v=0.18.2";
-import { createShareUrl } from "./share.js?v=0.27.0";
-import { createShareLink, hasDataFilter } from "./map-share.js?v=0.27.0";
-import { briefingLayerRef, findBriefingLayer } from "./briefing-api.js?v=0.27.0";
+import { createShareUrl } from "./share.js?v=0.28.0";
+import { createShareLink, hasDataFilter } from "./map-share.js?v=0.28.0";
+import { briefingLayerRef, findBriefingLayer } from "./briefing-api.js?v=0.28.0";
 import { createEmbeddedTourUrl } from "./tour-share.js?v=0.18.2";
 import { markdownToPlainText, renderMarkdown } from "./markdown.js?v=0.18.2";
 import { formatAttributeValue } from "./attribute-format.js?v=0.18.2";
@@ -11,7 +11,7 @@ import { featureFilterFor, featureId, fieldKind, filterRecords, histogram, reque
 import { DEFAULT_SKIN, INTERFACE_SKINS, applyInterfaceSkin, normalizeSkin, skinOptionsMarkup } from "./skin-catalog.js?v=0.18.2";
 import { compactMedia } from "./viewport.js?v=0.18.2";
 import { PdfDocument, brandedMapImage, loadBrandLogo, printPalette, qrAsset } from "./pdf-document.js?v=0.23.0";
-import { featureLayerUrl, locationUrl } from "./field-task-share.js?v=0.21.0";
+import { featureLayerUrl, locationUrl } from "./field-task-share.js?v=0.28.0";
 import { dockIcon } from "./dock-icons.js?v=0.24.0";
 import { serviceNameFromUrl } from "./service-name.js?v=0.26.0";
 import { decodeQrFromImage, describeGisMapLink, gisMapLinkFrom, openGisMapLink } from "./qr-import.js?v=0.25.1";
@@ -1179,6 +1179,8 @@ export class UIController {
       downloads: [
         { label: "Map PDF", create: () => this.#mapPdfFile(link) },
         { label: "Smart map image", create: async () => (await this.projectManager.exportSmartImage({ download: false })).file },
+        // The same map as readable JSON (schemas/map-v1.schema.json), to edit or host and open with ?spec=.
+        ...(this.mapSpec ? [{ label: "Map spec (JSON)", create: () => new File([JSON.stringify({ $schema: "https://gismap.online/schemas/map-v1.schema.json", ...this.mapSpec.fromCurrent({ title }) }, null, 2)], `${title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "map"}.map.json`, { type: "application/json" }) }] : []),
       ],
     });
   }
@@ -5515,6 +5517,35 @@ export class UIController {
     download.click();
     setTimeout(() => URL.revokeObjectURL(download.href), 1000);
     this.toast(hasAIResponse ? "Location Intelligence Report downloaded." : "Location report downloaded.");
+  }
+
+  /** Applies a skin as the spec or link asks, and keeps it with the project. */
+  applySkinChoice(skin) {
+    const applied = applyInterfaceSkin(skin);
+    this.projectManager.patchPresentation({ skin: applied });
+  }
+
+  setProjectTitle(title) {
+    this.projectManager.current.name = String(title).slice(0, 160);
+    document.querySelector("#project-name").textContent = this.projectManager.current.name;
+  }
+
+  async showLegendWidget() {
+    if (!this.mapController.widgets.has("legend")) await this.mapController.toggleWidget("legend").catch(() => {});
+  }
+
+  /** Lists what a map spec or link could not do, so a person (or an agent reading describe()) can fix it. */
+  showSpecIssues(issues = []) {
+    const rows = issues.map((issue) => `<li class="spec-issue spec-issue--${issue.level}"><strong>${escapeHtml(issue.code || issue.level)}</strong> <code>${escapeHtml(issue.path || "")}</code><p>${escapeHtml(issue.message)}</p>${issue.hint ? `<small>${escapeHtml(issue.hint)}</small>` : ""}</li>`).join("");
+    this.openDialog({
+      eyebrow: "Map link",
+      title: "Some of this map could not be shown",
+      content: `<p class="form-note">Everything else on the map loaded. ${issues.length} issue${issues.length === 1 ? "" : "s"}:</p><ul class="spec-issues">${rows}</ul>`,
+      actions: [
+        { label: "Copy as JSON", handler: async () => { await navigator.clipboard.writeText(JSON.stringify(issues, null, 2)); this.toast("Issues copied."); } },
+        { label: "Close", primary: true, handler: () => this.dialog.close() },
+      ],
+    });
   }
 
   #showProject(project, state = "Local") {

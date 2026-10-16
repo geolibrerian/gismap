@@ -2,9 +2,9 @@
 // They use the same loading path as "Add ArcGIS REST service" and `?layer=`
 // links (loadLayer), and change layers only through the map controller, so the
 // project, share links and Smart images all see the result.
-import { SHARE_LAYER_TYPES, SHARE_LIMITS, sanitizeSharedResourceUrl } from "./share.js?v=0.27.0";
-import { GisMapError, layerLoadError, toGisMapError } from "./gismap-errors.js?v=0.27.0";
-import { featureLayerUrl } from "./field-task-share.js?v=0.21.0";
+import { SHARE_LAYER_TYPES, SHARE_LIMITS, sanitizeSharedResourceUrl } from "./share.js?v=0.28.0";
+import { GisMapError, layerLoadError, toGisMapError } from "./gismap-errors.js?v=0.28.0";
+import { featureLayerUrl } from "./field-task-share.js?v=0.28.0";
 
 const trimUrl = (value) => String(value || "").trim().replace(/\/+$/, "").replace(/\/query$/i, "").toLowerCase();
 const READ_ONLY_WHERE = /;|--|\/\*|\b(drop|delete|insert|update|alter|exec|execute|merge|truncate|create)\b/i;
@@ -122,6 +122,7 @@ export function createLayersApi({ mapController, loadLayer, state = null, events
         opacity: Number.isFinite(options.opacity) ? options.opacity : undefined,
         visible: options.visible,
         ignoreServiceScaleRange: options.ignoreServiceScaleRange === true,
+        refreshInterval: Number(options.refreshInterval) || 0,
       });
     } catch (error) {
       throw layerLoadError(error, { url: clean });

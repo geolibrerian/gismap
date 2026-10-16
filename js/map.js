@@ -1,6 +1,6 @@
-import { arcgisMetadata } from "./source-inspector.js?v=0.27.0";
+import { arcgisMetadata } from "./source-inspector.js?v=0.28.0";
 import { compileRenderer, validateRendererSpec } from "./renderer-spec.js?v=0.27.0";
-import { GisMapError } from "./gismap-errors.js?v=0.27.0";
+import { GisMapError } from "./gismap-errors.js?v=0.28.0";
 
 const ARCGIS_WORLD_GEOCODER =
   "https://geocode.arcgis.com/arcgis/rest/services/World/GeocodeServer";
@@ -1109,6 +1109,15 @@ export class MapController {
     // `PolygonSymbol3D`, `Extrude`, and `sizeInfo`. Convert that serialized
     // form back into live SDK objects before assigning it. Direct autocasting
     // expects API-style names and may silently retain the service renderer.
+    // Renderers written in the SDK's autocast form (catalog examples, RendererSpec output:
+    // "class-breaks", "simple-fill", "point-3d", …) go straight in; the WebMap JSON
+    // parser would accept them but silently drop their symbols.
+    const autocast = /"type":"(class-breaks|unique-value|simple-(marker|fill|line)|picture-(marker|fill)|(point|line|polygon|mesh|label)-3d|web-style|text)"/.test(JSON.stringify(rendererJson));
+    if (autocast) {
+      layer.renderer = structuredClone(rendererJson);
+      this.layerConfigs.set(layer.uid, { ...(this.layerConfigs.get(layer.uid) ?? {}), renderer: layer.renderer.toJSON?.() ?? structuredClone(rendererJson) });
+      return layer.renderer;
+    }
     try {
       const renderer = this.modules.rendererJsonUtils?.fromJSON?.(structuredClone(rendererJson));
       if (renderer) {

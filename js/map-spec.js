@@ -1,0 +1,242 @@
+// map-v1: a whole map as one readable JSON object (schemas/map-v1.schema.json).
+// It is the readable form of a `#map=` link:
+//   #map=json:<URI-encoded map-v1 JSON>   written by hand, even by a chat-only model
+//   #map=z…                                the same JSON, compressed (link-codec.js)
+//   ?spec=<https URL of a map-v1 file>     for maps too large for a link
+// Older app links (`#map=z…` holding the compact share payload) still open; they
+// decode to map-v1 too. Pure functions only, so headless callers can build links.
+import { decodePayload, encodePayload } from "./link-codec.js?v=0.21.0";
+import { MAP_SPEC_JSON_LIMIT, QR_SAFE_LENGTH, readShare } from "./map-share.js?v=0.28.0";
+import { SHARE_BASEMAPS, SHARE_LAYER_TYPES, SHARE_LIMITS, sanitizeSharedResourceUrl } from "./share.js?v=0.28.0";
+import { validateRendererSpec } from "./renderer-spec.js?v=0.27.0";
+import { normalizeBriefing, validateBriefing } from "./briefing-document.js?v=0.27.0";
+import { INTERFACE_SKINS } from "./skin-catalog.js?v=0.18.2";
+import { GisMapError } from "./gismap-errors.js?v=0.28.0";
+
+export const MAP_SPEC_VERSION = 1;
+export const MAP_SPEC_SCHEMA = "https://gismap.online/schemas/map-v1.schema.json";
+export { MAP_SPEC_JSON_LIMIT };
+
+const TOP_LEVEL = new Set(["$schema", "version", "title", "description", "basemap", "skin", "camera", "layers", "legend", "briefing"]);
+const LAYER_KEYS = new Set(["url", "type", "title", "where", "renderer", "opacity", "visible", "ignoreServiceScaleRange", "popup", "outFields", "refreshInterval"]);
+const SKINS = new Set(INTERFACE_SKINS.map(({ id }) => id));
+const READ_ONLY_WHERE = /;|--|\/\*|\b(drop|delete|insert|update|alter|exec|execute|merge|truncate|create)\b/i;
+const text = (value, max) => String(value ?? "").trim().slice(0, max);
+
+/**
+ * Checks a map spec and returns { valid, issues, spec }: the normalized spec
+ * keeps every layer that can load. Issues are { level, code, path, message, hint }.
+ * A layer with an error is dropped (the rest of the map still opens); `valid`
+ * is false when anything was dropped or the spec cannot be used at all.
+ */
+export function validateMapSpec(input, { allowHttp = false } = {}) {
+  const issues = [];
+  const issue = (level, code, path, message, hint) => issues.push({ level, code, path, message, ...(hint ? { hint } : {}) });
+  if (!input || typeof input !== "object" || Array.isArray(input)) {
+    issue("error", "INVALID_SPEC", "", "A map spec must be a JSON object.", 'Start from { "version": 1, "layers": [{ "url": "https://…" }] }.');
+    return { valid: false, issues, spec: null };
+  }
+  if (input.version !== undefined && input.version !== MAP_SPEC_VERSION) {
+    issue("error", "INVALID_SPEC", "version", `Unsupported map spec version ${input.version}.`, `Use "version": ${MAP_SPEC_VERSION}.`);
+    return { valid: false, issues, spec: null };
+  }
+  for (const key of Object.keys(input)) {
+    if (!TOP_LEVEL.has(key)) issue("warning", "INVALID_SPEC", key, `Unknown property "${key}" was ignored.`, key === "layer" ? 'Use "layers": [ … ].' : `Known properties: ${[...TOP_LEVEL].join(", ")}.`);
+  }
+  const spec = { version: MAP_SPEC_VERSION };
+  if (input.title !== undefined) spec.title = text(input.title, 160);
+  if (input.description !== undefined) spec.description = text(input.description, 2000);
+  if (input.basemap !== undefined) {
+    if (SHARE_BASEMAPS.has(input.basemap)) spec.basemap = input.basemap;
+    else issue("warning", "INVALID_SPEC", "basemap", `Unknown basemap "${input.basemap}"; the default is used.`, `Use one of: ${[...SHARE_BASEMAPS].join(", ")}.`);
+  }
+  if (input.skin !== undefined) {
+    if (SKINS.has(input.skin)) spec.skin = input.skin;
+    else issue("warning", "INVALID_SPEC", "skin", `Unknown skin "${input.skin}"; the current look is kept.`, `Use one of: ${[...SKINS].join(", ")}.`);
+  }
+  // Camera: fit the layers (the default), or an exact view.
+  const camera = input.camera;
+  if (camera === undefined || camera === null || camera?.fit === "layers") {
+    spec.camera = { fit: "layers" };
+  } else if (camera?.fit === "none") {
+    spec.camera = { fit: "none" };
+  } else if (camera && typeof camera === "object") {
+    const center = Array.isArray(camera.center) ? camera.center.map(Number) : null;
+    if (!center || center.length !== 2 || !center.every(Number.isFinite) || Math.abs(center[0]) > 180 || Math.abs(center[1]) > 90) {
+      issue("warning", "INVALID_SPEC", "camera.center", "camera.center must be [longitude, latitude] in degrees; the map fits its layers instead.", 'Use { "center": [-98.5, 39.5], "zoom": 4 } or { "fit": "layers" }.');
+      spec.camera = { fit: "layers" };
+    } else {
+      const clamp = (value, min, max, fallback) => (Number.isFinite(Number(value)) ? Math.min(max, Math.max(min, Number(value))) : fallback);
+      spec.camera = {
+        center,
+        ...(camera.zoom === undefined && Number.isFinite(Number(camera.scale)) ? { scale: clamp(camera.scale, 1, 600000000, 1000000) } : { zoom: clamp(camera.zoom, 0, 24, 10) }),
+        heading: clamp(camera.heading, -360, 360, 0),
+        tilt: clamp(camera.tilt, 0, 90, 0),
+      };
+    }
+  } else {
+    issue("warning", "INVALID_SPEC", "camera", 'camera must be { "fit": "layers" } or { "center": [lon, lat], "zoom": n }.');
+    spec.camera = { fit: "layers" };
+  }
+  if (input.legend !== undefined) spec.legend = input.legend === true;
+  // Layers: each checked on its own, so one bad layer does not lose the map.
+  const layers = Array.isArray(input.layers) ? input.layers : [];
+  if (!Array.isArray(input.layers)) issue("error", "INVALID_SPEC", "layers", "layers must be a list of { url } objects.", 'Use "layers": [{ "url": "https://…/FeatureServer/0" }].');
+  if (layers.length > SHARE_LIMITS.maxLayers) issue("error", "TOO_MANY_LAYERS", "layers", `A map holds at most ${SHARE_LIMITS.maxLayers} layers; the rest were left out.`);
+  spec.layers = [];
+  layers.slice(0, SHARE_LIMITS.maxLayers).forEach((raw, index) => {
+    const path = `layers[${index}]`;
+    if (!raw || typeof raw !== "object") return issue("error", "INVALID_SPEC", path, "Each layer must be an object with a url.");
+    let url;
+    try {
+      url = sanitizeSharedResourceUrl(raw.url, { allowHttp });
+    } catch (error) {
+      const code = /HTTPS/.test(error.message) ? "HTTPS_REQUIRED" : /credential|password/i.test(error.message) ? "CREDENTIAL_IN_URL" : "INVALID_URL";
+      return issue("error", code, `${path}.url`, `${error.message}${raw.url ? ` (${String(raw.url).slice(0, 120)})` : ""}`);
+    }
+    const layer = { url };
+    for (const key of Object.keys(raw)) if (!LAYER_KEYS.has(key)) issue("warning", "INVALID_SPEC", `${path}.${key}`, `Unknown layer property "${key}" was ignored.`);
+    const type = raw.type === undefined ? "arcgis-auto" : raw.type;
+    if (!SHARE_LAYER_TYPES.has(type)) return issue("error", "UNSUPPORTED_LAYER_TYPE", `${path}.type`, `Unsupported layer type "${raw.type}".`, `Use one of: ${[...SHARE_LAYER_TYPES].join(", ")}.`);
+    layer.type = type;
+    if (raw.title !== undefined) layer.title = text(raw.title, 160);
+    if (raw.where !== undefined && raw.where !== null && raw.where !== "") {
+      const where = String(raw.where).trim();
+      if (where.length > 2000 || READ_ONLY_WHERE.test(where)) issue("error", "INVALID_SPEC", `${path}.where`, "where must be a plain attribute filter (no statements, comments or semicolons); the layer is shown unfiltered.");
+      else layer.where = where;
+    }
+    if (raw.renderer !== undefined) {
+      // Field names are checked when the layer loads and its fields are known.
+      const { valid, issues: styleIssues, spec: renderer } = validateRendererSpec(raw.renderer);
+      styleIssues.forEach((item) => issue(item.level === "error" ? "warning" : item.level, item.code, `${path}.${item.path}`, `${item.message}${item.level === "error" ? " The service's own style is used." : ""}`, item.hint));
+      if (valid) layer.renderer = renderer;
+    }
+    if (raw.opacity !== undefined) {
+      const opacity = Number(raw.opacity);
+      if (Number.isFinite(opacity) && opacity >= 0 && opacity <= 1) layer.opacity = opacity;
+      else issue("warning", "INVALID_SPEC", `${path}.opacity`, "opacity must be a number from 0 to 1.");
+    }
+    if (raw.visible !== undefined) layer.visible = raw.visible !== false;
+    if (raw.ignoreServiceScaleRange !== undefined) layer.ignoreServiceScaleRange = raw.ignoreServiceScaleRange === true;
+    if (Number.isFinite(Number(raw.refreshInterval)) && Number(raw.refreshInterval) > 0) layer.refreshInterval = Math.min(1440, Number(raw.refreshInterval));
+    const popupFields = raw.popup?.fields ?? raw.outFields;
+    if (popupFields !== undefined) {
+      if (Array.isArray(popupFields) && popupFields.every((field) => typeof field === "string")) layer.popup = { fields: popupFields.slice(0, 50) };
+      else issue("warning", "INVALID_SPEC", `${path}.popup.fields`, "popup.fields must be a list of field names.");
+    }
+    spec.layers.push(layer);
+  });
+  if (layers.length && !spec.layers.length) issue("error", "INVALID_SPEC", "layers", "None of the layers can be loaded.");
+  if (input.briefing !== undefined && input.briefing !== null) {
+    if (typeof input.briefing !== "object") issue("warning", "INVALID_SPEC", "briefing", "briefing must be a briefing-v1 document; it was ignored.");
+    else {
+      const briefing = normalizeBriefing(input.briefing);
+      validateBriefing(briefing).filter((item) => item.level === "error").forEach((item) => issue("warning", "INVALID_SPEC", `briefing.slides[${item.slideId}]`, item.message));
+      spec.briefing = briefing;
+    }
+  }
+  return { valid: !issues.some((item) => item.level === "error"), issues, spec };
+}
+
+/** The `#map=` payload for a spec: compressed (`z…`) by default, or readable (`json:…`). */
+export async function encodeMapSpec(input, { compress = true } = {}) {
+  const { spec, issues } = validateMapSpec(input, { allowHttp: true });
+  if (!spec || !spec.layers.length) throw new GisMapError("INVALID_SPEC", issues.find((item) => item.level === "error")?.message || "The map spec has no layers.", { details: { issues } });
+  if (compress) return encodePayload(spec);
+  const json = encodeURIComponent(JSON.stringify(spec));
+  if (json.length > MAP_SPEC_JSON_LIMIT) throw new GisMapError("SPEC_TOO_LONG", `The readable spec is ${json.length.toLocaleString("en-US")} characters; json: links hold at most ${MAP_SPEC_JSON_LIMIT.toLocaleString("en-US")}.`, { details: { length: json.length, limit: MAP_SPEC_JSON_LIMIT } });
+  return `json:${json}`;
+}
+
+/** Converts the app's older compact `#map=` payload ({ v, k, L, … }) into map-v1. */
+export function mapSpecFromSharePayload(payload, options = {}) {
+  const shared = readShare(payload, options);
+  const spec = {
+    version: MAP_SPEC_VERSION,
+    ...(shared.title ? { title: shared.title } : {}),
+    ...(shared.basemap ? { basemap: shared.basemap } : {}),
+    ...(shared.skin ? { skin: shared.skin } : {}),
+    camera: shared.camera ? { center: shared.camera.center, zoom: shared.camera.zoom, heading: shared.camera.heading, tilt: shared.camera.tilt } : { fit: "layers" },
+    layers: shared.layers.map((layer) => ({
+      url: layer.url,
+      type: layer.serviceType,
+      ...(layer.title ? { title: layer.title } : {}),
+      ...(layer.definitionExpression ? { where: layer.definitionExpression } : {}),
+      ...(layer.renderer ? { renderer: { type: "arcgis", json: layer.renderer } } : {}),
+      ...(Number.isFinite(layer.opacity) ? { opacity: layer.opacity } : {}),
+      ...(layer.visible === false ? { visible: false } : {}),
+      ...(layer.ignoreServiceScaleRange ? { ignoreServiceScaleRange: true } : {}),
+    })),
+  };
+  if (shared.kind === "briefing") spec.briefing = shared.briefing;
+  return spec;
+}
+
+/**
+ * The map spec in a `#map=` payload: `json:` readable JSON, a compressed map-v1
+ * spec, or an older compact share payload.
+ */
+export async function decodeMapSpec(value, options = {}) {
+  const payload = String(value || "").trim();
+  if (/^json:/i.test(payload)) {
+    const body = payload.slice(5);
+    if (body.length > MAP_SPEC_JSON_LIMIT) throw new GisMapError("SPEC_TOO_LONG", `This json: map link is longer than ${MAP_SPEC_JSON_LIMIT.toLocaleString("en-US")} characters.`, { details: { length: body.length } });
+    let decoded = body;
+    try { decoded = decodeURIComponent(body); } catch { /* Already plain JSON. */ }
+    try {
+      return JSON.parse(decoded);
+    } catch (error) {
+      throw new GisMapError("INVALID_SPEC", `The json: map link is not valid JSON (${error.message}).`, { hint: "URI-encode the JSON with encodeURIComponent, or check for a missing quote or bracket." });
+    }
+  }
+  const raw = await decodePayload(payload);
+  if (raw && raw.k !== undefined) return mapSpecFromSharePayload(raw, options);
+  return raw;
+}
+
+/** A complete link that opens the spec: { url, payload, qr } (qr: short enough for a QR code). */
+export async function createMapSpecLink(input, { baseUrl = "https://gismap.online/", compress = true } = {}) {
+  const payload = await encodeMapSpec(input, { compress });
+  const url = new URL(baseUrl);
+  url.search = "";
+  url.hash = `map=${payload}`;
+  return { url: url.href, payload, qr: url.href.length <= QR_SAFE_LENGTH };
+}
+
+/**
+ * One map spec from `?layer=` parameters and their index-aligned styling:
+ * title, where, style (service | simple | choropleth | graduated | categories |
+ * heatmap), field, classes, ramp, exclude (comma-separated), opacity.
+ */
+export function mapSpecFromShareParameters(shared) {
+  const spec = { version: MAP_SPEC_VERSION, layers: [] };
+  if (shared.basemap) spec.basemap = shared.basemap;
+  const camera = shared.camera || {};
+  spec.camera = camera.center
+    ? { center: camera.center, ...(camera.scale ? { scale: camera.scale } : { zoom: camera.level ?? 10 }), heading: 0, tilt: 0 }
+    : camera.zoom === "none" ? { fit: "none" } : { fit: "layers" };
+  for (const layer of shared.layers) {
+    const entry = { url: layer.url, type: layer.serviceType || "arcgis-auto" };
+    if (layer.title) entry.title = layer.title;
+    if (layer.where) entry.where = layer.where;
+    if (Number.isFinite(layer.opacity)) entry.opacity = layer.opacity;
+    if (layer.refreshInterval) entry.refreshInterval = layer.refreshInterval;
+    if (layer.style) entry.renderer = rendererSpecFromParameters(layer.style);
+    else if (layer.renderer) entry.renderer = { type: "arcgis", json: layer.renderer };
+    spec.layers.push(entry);
+  }
+  return spec;
+}
+
+/** Turns `style=choropleth&field=POP&ramp=greens&exclude=-1` (one layer's values) into a RendererSpec. */
+export function rendererSpecFromParameters({ style, field, classes, ramp, exclude, color } = {}) {
+  if (!style) return null;
+  const type = style === "graduated" ? "graduated-symbols" : style;
+  const spec = { type };
+  if (field) spec.field = field;
+  if (classes !== undefined && classes !== "") spec.classes = Number(classes);
+  if (ramp) spec.ramp = ramp;
+  if (color) spec.color = color.startsWith("#") ? color : `#${color}`;
+  if (exclude !== undefined && exclude !== "") spec.exclude = String(exclude).split(",").map((item) => item.trim()).filter(Boolean).map((item) => (/^-?\d+(\.\d+)?$/.test(item) ? Number(item) : item));
+  return spec;
+}

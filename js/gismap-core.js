@@ -25,11 +25,12 @@ import {
   encodeBriefing,
   readBriefingHash,
 } from "./briefing-share.js?v=0.27.0";
-import { SENTINEL_LABEL, detectSentinels, inspectSource } from "./source-inspector.js?v=0.27.0";
+import { SENTINEL_LABEL, detectSentinels, inspectSource } from "./source-inspector.js?v=0.28.0";
 import { BREAK_METHODS, RAMPS, RENDERER_TYPES, closestField, compileRenderer, computeBreaks, rampColors, validateRendererSpec } from "./renderer-spec.js?v=0.27.0";
-import { ERROR_CODES, GisMapError, toGisMapError } from "./gismap-errors.js?v=0.27.0";
+import { ERROR_CODES, GisMapError, toGisMapError } from "./gismap-errors.js?v=0.28.0";
 import { LAYER_TOOL_DEFINITIONS, checkToolInput } from "./layer-tools.js?v=0.27.0";
-import { SHARE_BASEMAPS, SHARE_LAYER_TYPES, SHARE_LIMITS } from "./share.js?v=0.27.0";
+import { MAP_SPEC_JSON_LIMIT, MAP_SPEC_VERSION, createMapSpecLink, decodeMapSpec, encodeMapSpec, mapSpecFromShareParameters, rendererSpecFromParameters, validateMapSpec } from "./map-spec.js?v=0.28.0";
+import { SHARE_BASEMAPS, SHARE_LAYER_TYPES, SHARE_LIMITS } from "./share.js?v=0.28.0";
 import {
   SMART_IMAGE_CHUNK,
   SMART_IMAGE_FORMAT,
@@ -37,9 +38,9 @@ import {
   SMART_IMAGE_VERSION,
   embedProjectInPng,
   readProjectFromPng,
-} from "./smart-image.js?v=0.26.0";
+} from "./smart-image.js?v=0.28.0";
 
-export const GISMAP_CORE_VERSION = "0.24.0";
+export const GISMAP_CORE_VERSION = "0.25.0";
 
 export const capabilities = Object.freeze({
   apiVersion: GISMAP_CORE_VERSION,
@@ -106,6 +107,21 @@ export const renderers = Object.freeze({
   closestField,
 });
 
+/**
+ * Whole maps as one JSON object (schemas/map-v1.schema.json). createLink returns
+ * { url, payload, qr }; { compress: false } gives a readable #map=json: link.
+ */
+export const mapSpec = Object.freeze({
+  version: MAP_SPEC_VERSION,
+  jsonLimit: MAP_SPEC_JSON_LIMIT,
+  validate: validateMapSpec,
+  encode: encodeMapSpec,
+  decode: decodeMapSpec,
+  createLink: createMapSpecLink,
+  fromShareParameters: mapSpecFromShareParameters,
+  rendererFromParameters: rendererSpecFromParameters,
+});
+
 export const errors = Object.freeze({ codes: ERROR_CODES, GisMapError, from: toGisMapError });
 
 /** The application tools for layers, with their input schemas (registered by the app). */
@@ -122,9 +138,13 @@ export const smartImages = Object.freeze({
 
 export const utilities = Object.freeze({ safeUrl });
 
-export default Object.freeze({ version: GISMAP_CORE_VERSION, capabilities, briefing, queries, sources, renderers, errors, tools, smartImages, utilities });
+export default Object.freeze({ version: GISMAP_CORE_VERSION, capabilities, briefing, mapSpec, queries, sources, renderers, errors, tools, smartImages, utilities });
 
 export {
+  validateMapSpec,
+  encodeMapSpec,
+  decodeMapSpec,
+  createMapSpecLink,
   ERROR_CODES,
   GisMapError,
   validateRendererSpec,

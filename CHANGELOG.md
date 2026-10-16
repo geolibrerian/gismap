@@ -6,6 +6,17 @@ All notable changes to GIS Map Online are documented here. This project follows
 
 ## [Unreleased]
 
+### Map spec (0.25.0)
+
+- **map-v1** (`schemas/map-v1.schema.json`): a whole map as one JSON object (title, basemap, skin, camera, up to 10 layers with filters and RendererSpec styles, legend, optional briefing), with a description on every property. It is the readable form of a `#map=` link: `#map=json:<URI-encoded JSON>` can be written by hand, even by a chat-only model (up to 8,192 characters, else `SPEC_TOO_LONG`); `#map=z…` is the same JSON compressed; `?spec=<https URL>` opens a hosted file. Older app `#map=` links still open and decode to map-v1.
+- **`mapSpec`** in gismap-core (`validate`, `encode`, `decode`, `createLink`) for headless callers, and in the page (`load`, `fromCurrent`, `issues`). A spec opens with whatever is valid: a bad layer is skipped, a misspelled field keeps the service's own style with a did-you-mean, and every problem is listed in an issues panel and in `describe().state.issues`.
+- **Simple styling in `?layer=` links**, index-aligned with each layer: `title`, `where`, `style` (service, simple, choropleth, graduated, categories, heatmap), `field`, `classes`, `ramp`, `exclude`, `color`, `opacity`. `?layer=` and `?example=` links now load through the map spec, the one path for links.
+- Share map offers the map as a **Map spec (JSON)** file.
+
+### Fixed
+
+- Catalog examples whose renderers use the SDK's autocast form (such as the PM2.5 3D columns) lost their symbols when loaded from a link; they are now applied as written.
+
 ### Agent API (0.24.0)
 
 - **`gisMapOnline.layers`**: `add(url, options)` resolves with a LayerInfo once the layer has loaded (same pipeline as "Add ArcGIS REST service" and `?layer=`), plus `list`, `get`, `update`, `remove`, `zoomTo`, `extent` and `metadata`. Options: `type`, `title`, `where` (read-only filter), `outFields`, `renderer`, `opacity`, `visible`, `ignoreServiceScaleRange`, `zoomTo`. `list()` holds data layers only; lookups match the id, the service URL with or without `/0`, or the title. Adds are all-or-nothing, and the 10-layer limit holds even for concurrent calls (`TOO_MANY_LAYERS`).

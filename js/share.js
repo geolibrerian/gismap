@@ -9,6 +9,7 @@ const SUPPORTED_BASEMAPS = new Set([
 ]);
 const MAX_LAYERS = 10;
 const CAMERA_ZOOM_MODES = new Set(["layers", "none"]);
+const STYLE_NAMES = new Set(["service", "simple", "choropleth", "graduated", "categories", "heatmap"]);
 const MAX_URL_LENGTH = 4096;
 
 export function sanitizeSharedResourceUrl(value, { allowHttp = false } = {}) {
@@ -39,10 +40,30 @@ export function parseShareParameters(search, catalog = [], options = {}) {
   const rawTypes = params.getAll("layerType");
   if (rawLayers.length > MAX_LAYERS) throw new Error(`A shared map can load at most ${MAX_LAYERS} layers.`);
 
+  // Simple styling without JSON, index-aligned with layer=: title, where, style,
+  // field, classes, ramp, exclude, color, opacity (js/map-spec.js turns it into a RendererSpec).
+  const aligned = (name) => params.getAll(name);
+  const STYLE_KEYS = ["style", "field", "classes", "ramp", "exclude", "color"];
   const layers = rawLayers.map((url, index) => {
     const serviceType = rawTypes[index] || "arcgis-auto";
     if (!SUPPORTED_TYPES.has(serviceType)) throw new Error(`Unsupported shared layer type: ${serviceType}.`);
-    return { url: sanitizeSharedResourceUrl(url, options), serviceType };
+    const layer = { url: sanitizeSharedResourceUrl(url, options), serviceType };
+    const title = aligned("title")[index]?.trim();
+    const where = aligned("where")[index]?.trim();
+    const opacity = aligned("opacity")[index];
+    if (title) layer.title = title.slice(0, 160);
+    if (where) layer.where = where.slice(0, 2000);
+    if (opacity !== undefined && opacity !== "") {
+      const value = Number(opacity);
+      if (!Number.isFinite(value) || value < 0 || value > 1) throw new Error("opacity must be a number from 0 to 1.");
+      layer.opacity = value;
+    }
+    const style = Object.fromEntries(STYLE_KEYS.map((key) => [key, aligned(key)[index]?.trim()]).filter(([, value]) => value));
+    if (style.style) {
+      if (!STYLE_NAMES.has(style.style)) throw new Error(`Unsupported style: ${style.style}. Use ${[...STYLE_NAMES].join(", ")}.`);
+      layer.style = style;
+    }
+    return layer;
   });
   const example = params.get("example")?.trim() || null;
   if (example) {
@@ -121,3 +142,4 @@ export const SHARE_LIMITS = Object.freeze({ maxLayers: MAX_LAYERS, maxUrlLength:
 export const SHARE_LAYER_TYPES = SUPPORTED_TYPES;
 export const SHARE_BASEMAPS = SUPPORTED_BASEMAPS;
 export const SHARE_CAMERA_ZOOM_MODES = CAMERA_ZOOM_MODES;
+export const SHARE_STYLE_NAMES = STYLE_NAMES;

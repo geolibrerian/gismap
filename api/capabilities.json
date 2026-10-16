@@ -1,5 +1,5 @@
 {
-  "apiVersion": "0.24.0",
+  "apiVersion": "0.25.0",
   "execution": "client",
   "global": "globalThis.gisMapOnline",
   "module": "/js/gismap-core.js",
@@ -80,6 +80,15 @@
       "plan",
       "previewPlan",
       "undo"
+    ],
+    "mapSpec": [
+      "validate",
+      "encode",
+      "decode",
+      "createLink",
+      "load",
+      "fromCurrent",
+      "issues"
     ]
   },
   "outputs": [
@@ -115,7 +124,8 @@
   ],
   "schemas": {
     "briefing": "/schemas/briefing-v1.schema.json",
-    "renderer": "/schemas/renderer-v1.schema.json"
+    "renderer": "/schemas/renderer-v1.schema.json",
+    "map": "/schemas/map-v1.schema.json"
   },
   "inPage": {
     "ready": {
@@ -175,6 +185,10 @@
     "GisMapError": {
       "stability": "stable",
       "description": "The error class thrown by the public API: { code, message, hint, details }."
+    },
+    "mapSpec": {
+      "stability": "stable",
+      "description": "load(spec) applies a map-v1 spec (returns { valid, issues, spec, ready }); fromCurrent() exports the map as one. Issues also appear in describe().state.issues."
     }
   },
   "errorCodes": {
@@ -189,7 +203,8 @@
     "FIELD_NOT_FOUND": "Use a field name exactly as the service lists it; sources.inspect(url) returns the fields.",
     "INVALID_SPEC": "Fix the listed issues; the schema in capabilities.json describes every property.",
     "NOT_READY": "Await gisMapOnline.ready before calling this.",
-    "NOT_FOUND": "Call layers.list() to see the layers on the map and their ids."
+    "NOT_FOUND": "Call layers.list() to see the layers on the map and their ids.",
+    "SPEC_TOO_LONG": "Shorten the spec (fewer layers, no raw ArcGIS renderers) or use the compressed #map= form from mapSpec.createLink, or host the JSON and link to it with ?spec=."
   },
   "layerTypes": [
     "arcgis-auto",
@@ -258,7 +273,17 @@
     "center": "lon,lat in degrees; with scale= or level=.",
     "scale": "Map scale denominator, with center.",
     "level": "Zoom level 0-24, with center.",
-    "view": "Not supported: the scene is always 3D."
+    "view": "Not supported: the scene is always 3D.",
+    "title": "Layer title; index-aligned with layer.",
+    "where": "Read-only SQL filter, such as CORN_SALES_IN_DOLLARS >= 0; index-aligned with layer.",
+    "style": "service | simple | choropleth | graduated | categories | heatmap; index-aligned with layer.",
+    "field": "The field a style uses; index-aligned with layer.",
+    "classes": "Number of classes (2-9) for choropleth and graduated; index-aligned with layer.",
+    "ramp": "A named ramp (see ramps); index-aligned with layer.",
+    "exclude": "Comma-separated codes to show as \"No data\", such as -1; index-aligned with layer.",
+    "color": "Hex colour for simple and graduated styles (with or without #); index-aligned with layer.",
+    "opacity": "0 to 1; index-aligned with layer.",
+    "spec": "?spec=<https URL of a CORS-enabled map-v1 JSON file>."
   },
   "tools": [
     {
@@ -441,5 +466,14 @@
         }
       }
     }
-  ]
+  ],
+  "urlFragments": {
+    "map": "#map=json:<URI-encoded map-v1 JSON> (readable, at most 8,192 characters), or #map=z… (compressed map-v1 from mapSpec.createLink, or an app share link).",
+    "briefing": "#briefing=… briefing links; see inputs.briefingLink.",
+    "slide": "&slide=<slide id> opens a briefing at that slide."
+  },
+  "examples": {
+    "readableMapLink": "https://gismap.online/#map=json:%7B%22version%22%3A1%2C%22basemap%22%3A%22gray-vector%22%2C%22layers%22%3A%5B%7B%22url%22%3A%22https%3A%2F%2Fservices.arcgis.com%2FP3ePLMYs2RVChkJx%2FArcGIS%2Frest%2Fservices%2FCorn%2FFeatureServer%2F0%22%2C%22renderer%22%3A%7B%22type%22%3A%22choropleth%22%2C%22field%22%3A%22CORN_SALES_IN_DOLLARS%22%2C%22ramp%22%3A%22greens%22%2C%22exclude%22%3A%5B-1%5D%7D%7D%5D%7D",
+    "styledLayerLink": "https://gismap.online/?layer=https%3A%2F%2Fservices.arcgis.com%2FP3ePLMYs2RVChkJx%2FArcGIS%2Frest%2Fservices%2FCorn%2FFeatureServer%2F0&layerType=feature&style=choropleth&field=CORN_SALES_IN_DOLLARS&ramp=greens&exclude=-1&basemap=gray-vector"
+  }
 }

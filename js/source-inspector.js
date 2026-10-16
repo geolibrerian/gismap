@@ -1,5 +1,5 @@
-import { sanitizeSharedResourceUrl } from "./share.js?v=0.27.0";
-import { GisMapError, toGisMapError } from "./gismap-errors.js?v=0.27.0";
+import { sanitizeSharedResourceUrl } from "./share.js?v=0.28.0";
+import { GisMapError, toGisMapError } from "./gismap-errors.js?v=0.28.0";
 
 const MAX_FIELDS = 500;
 const MAX_SAMPLE_FEATURES = 25;

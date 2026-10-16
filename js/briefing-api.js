@@ -1,7 +1,7 @@
-import core, { normalizeBriefing, updateSlide, validateBriefingDocument } from "./gismap-core.js?v=0.27.0";
-import { createShareLink } from "./map-share.js?v=0.27.0";
-import { GisMapError, layerLoadError, toGisMapError } from "./gismap-errors.js?v=0.27.0";
-import { featureLayerUrl } from "./field-task-share.js?v=0.21.0";
+import core, { normalizeBriefing, updateSlide, validateBriefingDocument } from "./gismap-core.js?v=0.28.0";
+import { createShareLink } from "./map-share.js?v=0.28.0";
+import { GisMapError, layerLoadError, toGisMapError } from "./gismap-errors.js?v=0.28.0";
+import { featureLayerUrl } from "./field-task-share.js?v=0.28.0";
 
 const clone = (value) => structuredClone(value);
 const trimUrl = (value) => String(value || "").replace(/\/+$/, "").toLowerCase();
