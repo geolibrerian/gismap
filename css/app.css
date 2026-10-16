@@ -458,7 +458,6 @@ body.mobile-workflow-open .field-task-banner { left:auto; right:calc(min(440px,1
 .workflow-share-downloads > div { display:grid; grid-template-columns:repeat(auto-fit,minmax(120px,1fr)); gap:8px; }
 .workflow-share-downloads button { min-height:40px; padding:8px 12px; border:1px solid var(--green); border-radius:var(--ui-radius-small,7px); color:var(--green); background:var(--surface); font-weight:700; cursor:pointer; }
 .workflow-share-downloads button:disabled { opacity:.55; cursor:progress; }
-.briefing-share { align-self:center; padding:7px 10px; border:1px solid var(--green); border-radius:7px; color:var(--green); background:var(--surface); font-weight:700; cursor:pointer; }
 .welcome-brand { display: flex; align-items: center; gap: 12px; margin-bottom: 18px; padding-right: 28px; }
 .welcome-brand img { width: 44px; height: 52px; object-fit: contain; }
 .welcome-brand strong { color: var(--green-2); font-size: 19px; letter-spacing: .04em; }
@@ -734,8 +733,7 @@ body.mobile-workflow-open .field-task-banner { left:auto; right:calc(min(440px,1
 .mode-dashboard--briefing,.mode-dashboard--briefing * { min-width:0; max-width:100%; box-sizing:border-box; }
 .mode-dashboard--briefing { overflow-x:hidden; }
 .mode-dashboard--briefing h2,.mode-dashboard--briefing :is(strong,small,p,dt,dd) { overflow-wrap:anywhere; }
-.mode-dashboard--briefing .presentation-compact-header { position:relative; grid-template-columns:minmax(0,1fr); padding-right:86px; }
-.mode-dashboard--briefing .briefing-share { position:absolute; top:17px; right:38px; }
+.mode-dashboard--briefing .presentation-compact-header { position:relative; grid-template-columns:minmax(0,1fr); padding-right:38px; }
 .mode-dashboard--briefing .compact-dataset,.mode-dashboard--briefing .compact-dataset select { width:100%; max-width:100%; }
 .briefing-search { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1.35fr) 34px; gap:7px; align-items:end; }.briefing-search > .field { margin-bottom:0; }.briefing-search > button { align-self:stretch; margin-top:22px; height:auto; min-height:34px; border:1px solid var(--line); border-radius:var(--ui-radius-small,7px); background:var(--surface); color:var(--muted); font-size:18px; line-height:1; }.briefing-records { max-height:38vh; overflow-x:hidden; }
 /* Desktop: the feature list folds like a door and fills the panel down to the footer (height set in JS). */
@@ -759,11 +757,12 @@ body.mobile-workflow-open .field-task-banner { left:auto; right:calc(min(440px,1
 .briefing-tabs { display:grid; grid-template-columns:1fr 1fr; gap:4px; margin:10px 0 4px; padding:3px; border:1px solid var(--line); border-radius:var(--ui-radius-small,8px); background:var(--surface-2); }
 .briefing-tabs button { min-height:34px; border:0; border-radius:calc(var(--ui-radius-small,8px) - 2px); color:var(--muted); background:transparent; font-weight:700; cursor:pointer; }
 .briefing-tabs button[aria-selected="true"] { color:var(--ink); background:var(--surface); box-shadow:0 1px 3px rgb(17 39 33 / 14%); }
-.briefing-slides-host { display:none; }
+.briefing-slides-host { display:none; min-height:0; }
 .mode-dashboard--briefing.is-slides .briefing-slides-host { display:block; }
 .mode-dashboard--briefing.is-slides > :not(header):not(.briefing-tabs):not(.briefing-slides-host) { display:none!important; }
 body.briefing-slides-tab #briefing-context-host { display:none; }
-.briefing-slides { display:grid; gap:10px; padding-top:6px; }
+.briefing-slides { display:grid; gap:10px; min-height:0; padding-top:6px; }
+.briefing-slides__authoring { display:grid; gap:10px; min-height:0; }
 .briefing-slides button { cursor:pointer; }
 .briefing-slides__add { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:8px; align-items:end; }
 .briefing-slides__add label, .briefing-field { display:grid; gap:4px; font-size:12px; font-weight:700; color:var(--ink); }
@@ -821,7 +820,7 @@ body.briefing-map-select #view-div, body.briefing-map-select .esri-view-surface 
 .briefing-slides__actions [data-slides-share] { min-height:34px; padding:6px 12px; border:1px solid var(--green); border-radius:var(--ui-radius-small,7px); color:var(--green); background:var(--surface); font-weight:700; }
 .briefing-slides__included:disabled { opacity:.5; cursor:default; }
 .briefing-slides__empty { margin:0; padding:12px; border:1px dashed var(--line); border-radius:var(--ui-radius-small,8px); color:var(--muted); font-size:12px; line-height:1.45; }
-.briefing-slide-list { display:grid; gap:4px; margin:0; padding:0; list-style:none; counter-reset:none; }
+.briefing-slide-list { display:grid; gap:4px; min-height:0; max-height:min(42vh,520px); margin:0; padding:0 4px 0 0; overflow-y:auto; overscroll-behavior:contain; list-style:none; counter-reset:none; scrollbar-gutter:stable; }
 .briefing-slide-item { display:grid; grid-template-columns:minmax(0,1fr) auto; align-items:center; gap:4px; padding:4px; border:1px solid var(--line); border-radius:var(--ui-radius-small,8px); background:var(--surface); }
 .briefing-slide-item.is-selected { border-color:var(--green); box-shadow:inset 3px 0 0 var(--green); }
 .briefing-slide-item.is-hidden { opacity:.6; }
@@ -834,12 +833,13 @@ body.briefing-map-select #view-div, body.briefing-map-select .esri-view-surface 
 .briefing-slide-item__actions button { display:grid; place-items:center; width:26px; height:26px; padding:0; border:1px solid transparent; border-radius:6px; color:var(--muted); background:transparent; font-size:13px; }
 .briefing-slide-item__actions button:hover:not(:disabled) { border-color:var(--line); color:var(--ink); background:var(--surface-2); }
 .briefing-slide-item__actions button:disabled { opacity:.3; cursor:default; }
+.briefing-slide-item__actions .briefing-slide-item__delete:hover { border-color:color-mix(in srgb, var(--danger,#a33b2f) 55%, var(--line)); color:var(--danger,#a33b2f); background:color-mix(in srgb, var(--danger,#a33b2f) 9%, var(--surface)); }
 .briefing-slides__issues { padding:8px 10px; border:1px solid color-mix(in srgb, var(--amber) 55%, var(--line)); border-radius:var(--ui-radius-small,8px); background:color-mix(in srgb, var(--amber) 9%, var(--surface)); font-size:12px; }
 .briefing-slides__issues summary { font-weight:700; cursor:pointer; }
 .briefing-slides__issues ul { margin:6px 0 0; padding-left:16px; }
 .briefing-slides__issues button { padding:2px 0; border:0; color:var(--ink); background:none; text-align:left; text-decoration:underline; }
 .briefing-slides__issues .is-error button { color:#a33b2f; }
-.briefing-slide-editor { display:grid; gap:10px; padding:12px; border:1px solid var(--line); border-radius:var(--ui-radius-small,8px); background:var(--surface-2); }
+.briefing-slide-editor { display:grid; align-content:start; gap:10px; min-height:0; padding:12px; overflow:auto; overscroll-behavior:contain; border:1px solid var(--line); border-radius:var(--ui-radius-small,8px); background:var(--surface-2); }
 .briefing-slide-editor:empty { display:none; }
 .briefing-slide-editor__header { display:flex; align-items:center; justify-content:space-between; }
 .briefing-link-button { padding:0; border:0; color:var(--green-2); background:none; font-size:12px; font-weight:700; text-decoration:underline; }
@@ -855,8 +855,24 @@ body.briefing-map-select #view-div, body.briefing-map-select .esri-view-surface 
 .briefing-stat__preview { margin:0; font-size:12px; }
 .briefing-stat__preview strong { font-size:20px; }
 .briefing-stat__preview small { color:var(--muted); }
-.briefing-slide-editor__delete { justify-self:start; padding:6px 10px; border:1px solid color-mix(in srgb, #a33b2f 50%, var(--line)); border-radius:var(--ui-radius-small,7px); color:#a33b2f; background:var(--surface); font-weight:700; }
 .detail-actions .detail-actions__slide { width:auto!important; min-width:0!important; padding:0 10px!important; font-size:12px!important; font-weight:800; }
+
+/* Desktop authoring is a two-pane dock: the briefing outline stays visible on
+   the left while the selected slide's settings scroll independently beside it. */
+@media (min-width:881px) {
+  body.briefing-slides-tab:not(.presentation-workspace-panels-open) #app[data-presentation="briefing"] { --sidebar:clamp(720px,58vw,980px); }
+  body.briefing-slides-tab #presentation-dashboard { flex:1 1 auto; min-height:0; overflow:hidden; }
+  body.briefing-slides-tab .mode-dashboard--briefing { grid-template-rows:max-content max-content minmax(0,1fr); height:100%; overflow:hidden; }
+  body.briefing-slides-tab .briefing-slides-host { height:100%; overflow:hidden; }
+  body.briefing-slides-tab .briefing-slides { grid-template-columns:minmax(340px,.9fr) minmax(360px,1.1fr); height:100%; overflow:hidden; }
+  body.briefing-slides-tab .briefing-slides__authoring { display:flex; flex-direction:column; overflow:hidden; }
+  body.briefing-slides-tab .briefing-slide-list { flex:1 1 220px; max-height:none; }
+  body.briefing-slides-tab .briefing-slide-editor { height:100%; }
+  body.presentation-workspace-panels-open .presentation-utility .briefing-slides { grid-template-columns:1fr; height:auto; overflow:visible; }
+  body.presentation-workspace-panels-open .presentation-utility .briefing-slides__authoring { display:grid; overflow:visible; }
+  body.presentation-workspace-panels-open .presentation-utility .briefing-slide-list { max-height:38vh; }
+  body.presentation-workspace-panels-open .presentation-utility .briefing-slide-editor { height:auto; overflow:visible; }
+}
 /* Briefing player. While presenting, the map fills the window and the app's panels step aside. */
 body.briefing-presenting .app-shell { grid-template-columns:minmax(0,1fr)!important; }
 body.briefing-presenting .map-workspace { grid-column:1/-1; }

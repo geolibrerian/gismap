@@ -31,6 +31,16 @@ test("briefing PDF maps match the live slide focus and use the branded QR card",
   assert.match(pdf, /brandedQrImage\(link/, "the cover uses the same branded QR card as sharing");
 });
 
+test("briefing slide authoring keeps the outline and selected settings visible together", () => {
+  assert.doesNotMatch(ui, /briefingShare\.textContent = "Share QR"/, "the header does not duplicate the Share & PDF action");
+  assert.match(slides, /briefing-slides__authoring/, "the slide outline has its own pane");
+  assert.match(slides, /briefing-slide-item__delete[^>]*data-slide-delete/, "each outline row has a delete button beside its other actions");
+  assert.match(slides, /Delete .*This cannot be undone/, "deleting from the outline requires confirmation");
+  assert.match(css, /briefing-slides-tab \.briefing-slides \{ grid-template-columns:/, "desktop authoring docks settings beside the outline");
+  assert.match(css, /\.briefing-slide-list \{[^}]*overflow-y:auto/, "long slide lists scroll independently");
+  assert.match(css, /\.briefing-slide-editor \{[^}]*overflow:auto/, "selected slide settings scroll independently");
+});
+
 test("desktop and globe map controls can collapse and reopen", () => {
   assert.match(html, /id="map-navigation-toggle"/);
   assert.match(html, /id="globe-navigation-close"/);

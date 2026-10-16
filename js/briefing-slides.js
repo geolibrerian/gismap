@@ -174,19 +174,22 @@ export class BriefingSlides {
         <button type="button" data-slide-move="1" data-slide-id="${slide.id}" aria-label="Move down" title="Move down"${index === briefing.slides.length - 1 ? " disabled" : ""}>↓</button>
         <button type="button" data-slide-duplicate="${slide.id}" aria-label="Duplicate" title="Duplicate">⧉</button>
         <button type="button" data-slide-hide="${slide.id}" aria-label="${slide.hidden ? "Show" : "Hide"} slide" title="${slide.hidden ? "Show" : "Hide"} slide">${slide.hidden ? "◌" : "●"}</button>
+        <button type="button" class="briefing-slide-item__delete" data-slide-delete="${slide.id}" aria-label="Delete ${escapeHtml(slide.title || "untitled slide")}" title="Delete slide">×</button>
       </span>
     </li>`).join("");
     container.innerHTML = `<div class="briefing-slides">
-      ${this.api.generate ? `<div class="briefing-slides__auto"><button type="button" data-slides-generate title="Slides from the layer's style, filter and the features you included">✦ ${briefing.slides.length ? "Remake" : "Make"} from the map</button>${this.api.aiReady?.() && briefing.slides.length ? `<button type="button" data-slides-ai title="Let the configured AI describe the opening and each feature">✦ Describe with AI</button>` : ""}</div>` : ""}
-      <div class="briefing-slides__add">
-        <label><span>Add a slide</span><select data-slide-template>${SLIDE_TEMPLATES.filter((template) => template.id !== "feature").map((template) => `<option value="${template.id}">${escapeHtml(template.label)}</option>`).join("")}</select></label>
-        <button type="button" data-slide-add>Add</button>
+      <div class="briefing-slides__authoring">
+        ${this.api.generate ? `<div class="briefing-slides__auto"><button type="button" data-slides-generate title="Slides from the layer's style, filter and the features you included">✦ ${briefing.slides.length ? "Remake" : "Make"} from the map</button>${this.api.aiReady?.() && briefing.slides.length ? `<button type="button" data-slides-ai title="Let the configured AI describe the opening and each feature">✦ Describe with AI</button>` : ""}</div>` : ""}
+        <div class="briefing-slides__add">
+          <label><span>Add a slide</span><select data-slide-template>${SLIDE_TEMPLATES.filter((template) => template.id !== "feature").map((template) => `<option value="${template.id}">${escapeHtml(template.label)}</option>`).join("")}</select></label>
+          <button type="button" data-slide-add>Add</button>
+        </div>
+        <button type="button" class="briefing-slides__included" data-slides-add-included${includedCount ? "" : " disabled"}>${includedCount ? `Add ${includedCount} included feature${includedCount === 1 ? "" : "s"} as slides` : included.length ? "Every included feature has a slide" : "Include features to add them as slides"}</button>
+        ${briefing.slides.length ? `<ol class="briefing-slide-list" aria-label="Briefing slides">${list}</ol>` : `<p class="briefing-slides__empty">No slides yet. Make them from the map in one step, add a title slide, or turn the features you included into slides. A briefing without slides works exactly as before.</p>`}
+        ${issues.length ? `<details class="briefing-slides__issues"><summary>${issues.length} thing${issues.length === 1 ? "" : "s"} to check</summary><ul>${issues.map((issue) => `<li class="is-${issue.level}"><button type="button" data-slide-select="${issue.slideId}">${escapeHtml(issue.message)}</button></li>`).join("")}</ul></details>` : ""}
+        ${briefing.slides.length ? `<div class="briefing-slides__actions"><button type="button" class="briefing-slides__present" data-slides-preview data-mobile-bar="primary" data-bar-label="Preview slides">Preview slides</button><button type="button" data-slides-share data-mobile-bar data-bar-label="Share">Share &amp; PDF</button></div>${this.api.createTour ? `<button type="button" class="briefing-link-button" data-slides-tour>Make a guided tour from these slides →</button>` : ""}` : ""}
       </div>
-      <button type="button" class="briefing-slides__included" data-slides-add-included${includedCount ? "" : " disabled"}>${includedCount ? `Add ${includedCount} included feature${includedCount === 1 ? "" : "s"} as slides` : included.length ? "Every included feature has a slide" : "Include features to add them as slides"}</button>
-      ${briefing.slides.length ? `<ol class="briefing-slide-list">${list}</ol>` : `<p class="briefing-slides__empty">No slides yet. Make them from the map in one step, add a title slide, or turn the features you included into slides. A briefing without slides works exactly as before.</p>`}
-      ${issues.length ? `<details class="briefing-slides__issues"><summary>${issues.length} thing${issues.length === 1 ? "" : "s"} to check</summary><ul>${issues.map((issue) => `<li class="is-${issue.level}"><button type="button" data-slide-select="${issue.slideId}">${escapeHtml(issue.message)}</button></li>`).join("")}</ul></details>` : ""}
-      ${briefing.slides.length ? `<div class="briefing-slides__actions"><button type="button" class="briefing-slides__present" data-slides-preview data-mobile-bar="primary" data-bar-label="Preview slides">Preview slides</button><button type="button" data-slides-share data-mobile-bar data-bar-label="Share">Share &amp; PDF</button></div>${this.api.createTour ? `<button type="button" class="briefing-link-button" data-slides-tour>Make a guided tour from these slides →</button>` : ""}` : ""}
-      <section class="briefing-slide-editor" data-slide-editor></section>
+      <section class="briefing-slide-editor" data-slide-editor aria-label="Selected slide settings"></section>
     </div>`;
     const slide = briefing.slides.find((item) => item.id === this.selectedSlideId);
     if (slide) this.#renderEditor(container.querySelector("[data-slide-editor]"), slide, briefing);
@@ -241,8 +244,7 @@ export class BriefingSlides {
       ${slide.template !== "key-numbers" && slide.template !== "actions" ? `<div class="briefing-field briefing-camera"><span>Map view</span><p>${escapeHtml(cameraStatus)}</p><div><button type="button" data-slide-camera>Use current map view</button>${slide.featureId ? `<button type="button" data-slide-fit>Frame the feature</button>` : ""}${slide.camera || slide.fit ? `<button type="button" data-slide-show-map>Show</button>` : ""}</div></div>` : ""}
       ${blocks}
       ${slide.template === "key-numbers" && statCount < 4 ? `<button type="button" class="briefing-link-button" data-stat-add>+ Add a number</button>` : ""}
-      <label class="briefing-field"><span>Presenter notes <small>not shown on the slide</small></span><textarea rows="3" data-slide-notes>${escapeHtml(slide.notes)}</textarea></label>
-      <button type="button" class="briefing-slide-editor__delete" data-slide-delete="${slide.id}">Delete slide</button>`;
+      <label class="briefing-field"><span>Presenter notes <small>not shown on the slide</small></span><textarea rows="3" data-slide-notes>${escapeHtml(slide.notes)}</textarea></label>`;
   }
 
   #bind(container) {
@@ -263,8 +265,12 @@ export class BriefingSlides {
       if (slide) this.#save(updateSlide(this.briefing, slide.id, { hidden: !slide.hidden }));
     });
     on("[data-slide-delete]", "click", (button) => {
-      if (!globalThis.confirm?.("Delete this slide?")) return;
-      this.#save(removeSlide(this.briefing, button.dataset.slideDelete));
+      const briefing = this.briefing;
+      const index = briefing.slides.findIndex((slide) => slide.id === button.dataset.slideDelete);
+      const slide = briefing.slides[index];
+      if (!slide || !globalThis.confirm?.(`Delete “${slide.title || "Untitled slide"}”? This cannot be undone.`)) return;
+      if (this.selectedSlideId === slide.id) this.selectedSlideId = briefing.slides[index + 1]?.id || briefing.slides[index - 1]?.id || null;
+      this.#save(removeSlide(briefing, slide.id));
     });
     on("[data-slides-preview]", "click", () => this.openPlayer(this.briefing.slides.find((slide) => !slide.hidden)?.id));
     on("[data-slides-share]", "click", () => this.api.share?.());

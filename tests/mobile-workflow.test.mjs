@@ -77,12 +77,14 @@ test("free workflows provide QR sharing while account workflows remain gated", a
   const router = await readFile(new URL("../js/mobile-workflow-router.js", import.meta.url), "utf8");
   const ui = await readFile(new URL("../js/ui.js", import.meta.url), "utf8");
   const pdf = await readFile(new URL("../js/pdf-document.js", import.meta.url), "utf8");
+  const slides = await readFile(new URL("../js/briefing-slides.js", import.meta.url), "utf8");
   assert.match(router, /share by QR/);
   assert.match(router, /With an account · coming soon/);
   assert.match(ui, /#drawBrandedQrCard\(canvas, url, \{ title, \.\.\.card/, "workflow shares draw the branded QR card for the complete link");
   assert.match(ui, /brandedQrCanvas\(url, \{ canvas/);
   assert.match(pdf, /QRCode\.toCanvas\(qrCanvas, url/);
-  assert.match(ui, /shareMobileWorkflow\("briefing"\)/);
+  assert.doesNotMatch(ui, /briefingShare\.textContent = "Share QR"/, "Briefing has one share entry point");
+  assert.match(slides, /data-slides-share[^>]*data-mobile-bar/, "Share & PDF remains available in the mobile action bar");
 });
 
 test("mobile Atlas authoring uses a content-sized bottom workspace above its controls", async () => {
