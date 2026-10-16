@@ -6,6 +6,16 @@ All notable changes to GIS Map Online are documented here. This project follows
 
 ## [Unreleased]
 
+### AI examples
+
+- **[/examples/ai/](https://gismap.online/examples/ai/)**: worked examples of chatbots and AI agents making GIS Map Online maps and briefings, each with the prompt, the agent's code, the finished link, a QR code, the source files and what to check before sharing:
+  - *A seven-slide briefing from one chatbot prompt*: Philadelphia police divisions, from a tested chatbot run (link, QR code and briefing JSON), plus the gismap-core recipe that rebuilds the same link.
+  - *A two-layer briefing with spatial queries, built by an agent*: U.S. states with only the Major League ballparks each state contains, using slide layers, a 1-mile grow where the Ohio River is the state line, `method: "auto"` and cut transitions; the agent's check of each spatial answer is part of the example.
+  - *A styled map in one link, written by a chatbot*: the readable corn-sales link with `exclude: [-1]` and `method: "auto"`.
+- The examples page, `llms.txt`, `llms-full.txt`, the sitemap and `capabilities.json` link them. Generated from `scripts/ai-examples.mjs`; `tests/ai-examples.test.mjs` decodes every link against its committed files and runs the core recipes.
+- **`#map=` links that carry briefing slides open presenting them**, as `#briefing=` links do (`mapSpec.load` from the API still stays quiet).
+- **Fixed:** a slide's other layers now change alongside the camera move, so an interrupted or slow move no longer leaves the previous slide's layers showing.
+
 ### Briefing Features tab
 
 - **Add included features as slides** right from the Features tab, as soon as features are included (or "Use all matching features" is on); the new slides open in the Slides tab. Features that already have a slide are not added twice.

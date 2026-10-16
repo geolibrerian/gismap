@@ -9,7 +9,8 @@
     "llmsFull": "/llms-full.txt",
     "agentGuide": "/guides/ai-agents/",
     "urlParameters": "/api/url-parameters.json",
-    "catalog": "/api/catalog.json"
+    "catalog": "/api/catalog.json",
+    "aiExamples": "/examples/ai/"
   },
   "briefingSchema": "/schemas/briefing-v1.schema.json",
   "namespaces": {

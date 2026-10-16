@@ -105,7 +105,7 @@ test("the slide editor offers every relationship and the player restores layers 
   assert.match(source, /Other layers <small>/);
   assert.match(source, /SPATIAL_RELATIONSHIPS\.map\(\(type\) => `<option value="\$\{type\}"/);
   assert.match(source, /onClose: \(\) => void this\.restoreLayers\(\)/);
-  assert.match(source, /await this\.applySlideLayers\(slide, record\);/);
+  assert.match(source, /const layers = this\.applySlideLayers\(slide, record\)\.catch/, "layers change alongside the camera move, not after it");
   assert.match(source, /: \[\];\n    await this\.restoreLayers\(\);/, "the PDF puts the layers back after capturing the maps");
 });
 

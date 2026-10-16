@@ -1,0 +1,200 @@
+{
+  "schemaVersion": 1,
+  "layerId": "https://services.arcgis.com/P3ePLMYs2RVChkJx/ArcGIS/rest/services/Philadelphia_Crime_Map_WFL1/FeatureServer/1",
+  "queries": {},
+  "selection": {
+    "useAll": true
+  },
+  "slides": [
+    {
+      "id": "slide-1",
+      "template": "title",
+      "title": "Philadelphia Police Divisions",
+      "subtitle": "Historic boundary dataset | GISMap briefing",
+      "blocks": [
+        {
+          "id": "b1a",
+          "type": "text",
+          "markdown": "**Police divisions**, not crime incident points. Select a polygon to inspect its `DIV_NAME`."
+        }
+      ],
+      "camera": {
+        "center": [
+          -75.155,
+          40.0
+        ],
+        "zoom": 10.35,
+        "heading": 0,
+        "tilt": 18
+      },
+      "hidden": false,
+      "notes": ""
+    },
+    {
+      "id": "slide-2",
+      "template": "map-narrative",
+      "title": "Citywide division boundaries",
+      "subtitle": "Philadelphia overview",
+      "blocks": [
+        {
+          "id": "b2a",
+          "type": "text",
+          "markdown": "Explore administrative division boundaries across Philadelphia. Polygon color does **not** indicate crime levels."
+        }
+      ],
+      "camera": {
+        "center": [
+          -75.152,
+          40.0
+        ],
+        "zoom": 10.7,
+        "heading": 0,
+        "tilt": 18
+      },
+      "hidden": false,
+      "notes": ""
+    },
+    {
+      "id": "slide-3",
+      "template": "map-narrative",
+      "title": "North and Northeast",
+      "subtitle": "Inspect the northern divisions",
+      "blocks": [
+        {
+          "id": "b3a",
+          "type": "text",
+          "markdown": "Pan and select polygons to compare northern and northeastern division boundaries and names."
+        }
+      ],
+      "camera": {
+        "center": [
+          -75.084,
+          40.065
+        ],
+        "zoom": 11.15,
+        "heading": 0,
+        "tilt": 18
+      },
+      "hidden": false,
+      "notes": ""
+    },
+    {
+      "id": "slide-4",
+      "template": "map-narrative",
+      "title": "Center City",
+      "subtitle": "Division boundaries near the rivers",
+      "blocks": [
+        {
+          "id": "b4a",
+          "type": "text",
+          "markdown": "Inspect the boundaries surrounding Center City, the Delaware River, and the Schuylkill River."
+        }
+      ],
+      "camera": {
+        "center": [
+          -75.159,
+          39.968
+        ],
+        "zoom": 11.65,
+        "heading": 0,
+        "tilt": 18
+      },
+      "hidden": false,
+      "notes": ""
+    },
+    {
+      "id": "slide-5",
+      "template": "map-narrative",
+      "title": "West and Southwest",
+      "subtitle": "Compare western division footprints",
+      "blocks": [
+        {
+          "id": "b5a",
+          "type": "text",
+          "markdown": "Explore mapped extents in West and Southwest Philadelphia using the same Police_Divisions layer."
+        }
+      ],
+      "camera": {
+        "center": [
+          -75.226,
+          39.948
+        ],
+        "zoom": 11.35,
+        "heading": 0,
+        "tilt": 18
+      },
+      "hidden": false,
+      "notes": ""
+    },
+    {
+      "id": "slide-6",
+      "template": "key-numbers",
+      "title": "Division attributes",
+      "subtitle": "What the layer actually contains",
+      "blocks": [
+        {
+          "id": "b6a",
+          "type": "stat",
+          "stat": "count",
+          "field": null,
+          "queryRef": null,
+          "label": "Division polygons loaded"
+        },
+        {
+          "id": "b6b",
+          "type": "text",
+          "markdown": "`DIV_NAME` identifies a division. `PERIMETER`, `SHAPE_Leng`, `Shape__Area`, and `Shape__Length` describe geometry—not crime statistics."
+        }
+      ],
+      "camera": {
+        "center": [
+          -75.152,
+          39.99
+        ],
+        "zoom": 10.75,
+        "heading": 0,
+        "tilt": 18
+      },
+      "hidden": false,
+      "notes": ""
+    },
+    {
+      "id": "slide-7",
+      "template": "actions",
+      "title": "Source and interpretation",
+      "subtitle": "Boundary data, not an assessment of crime",
+      "blocks": [
+        {
+          "id": "b7a",
+          "type": "list",
+          "items": [
+            "This briefing loads Police_Divisions (layer 1) only—no incident points.",
+            "Source layer last edited September 22, 2021; check for later boundary revisions.",
+            "Division crime comparisons require separate incident data and defensible rates."
+          ]
+        },
+        {
+          "id": "b7b",
+          "type": "links",
+          "links": [
+            {
+              "label": "Police Divisions—ArcGIS layer 1",
+              "url": "https://services.arcgis.com/P3ePLMYs2RVChkJx/ArcGIS/rest/services/Philadelphia_Crime_Map_WFL1/FeatureServer/1"
+            }
+          ]
+        }
+      ],
+      "camera": {
+        "center": [
+          -75.155,
+          40.0
+        ],
+        "zoom": 10.35,
+        "heading": 0,
+        "tilt": 18
+      },
+      "hidden": false,
+      "notes": ""
+    }
+  ]
+}

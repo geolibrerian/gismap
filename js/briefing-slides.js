@@ -246,6 +246,9 @@ export class BriefingSlides {
     const record = this.#recordFor(slide);
     // A "cut" briefing jumps between views; slides far apart would otherwise fly out and back in.
     const animate = this.briefing.transition !== "cut";
+    // Other layers change alongside the camera move, not after it: an interrupted or slow
+    // move (advancing quickly, a hidden map) must not leave the previous slide's layers.
+    const layers = this.applySlideLayers(slide, record).catch((error) => this.api.notify?.(error.message));
     try {
       if (slide.camera) {
         await mapController.view?.goTo({ center: slide.camera.center, zoom: slide.camera.zoom, heading: slide.camera.heading, tilt: slide.camera.tilt }, { animate });
@@ -254,10 +257,10 @@ export class BriefingSlides {
       }
       if (record) await mapController.highlightFeature?.(record, { pulse: false });
       else mapController.clearFeatureHighlight?.();
-      await this.applySlideLayers(slide, record);
     } catch (error) {
       if (error?.name !== "AbortError") this.api.notify?.(error.message);
     }
+    await layers;
   }
 
   render(container = this.container) {

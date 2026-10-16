@@ -183,7 +183,11 @@ export function renderGuideMarkdown(guide) {
   ].filter(Boolean).join("\n\n")).join("\n\n");
 }
 
-export function buildLlmsTxt({ capabilities }) {
+/**
+ * `examples` (optional): the worked examples for chatbots and agents,
+ * { items: [{ title, url, summary }], markdown } (scripts/ai-examples.mjs).
+ */
+export function buildLlmsTxt({ capabilities, examples = null }) {
   return `# GIS Map Online
 
 > Free, browser-only 3D GIS viewer (gismap.online). A language model can make a map for someone by producing a URL: no API key, account or server call is needed. It opens public ArcGIS REST (FeatureServer, MapServer, ImageServer), GeoJSON, WMS, WFS and KML sources over HTTPS.
@@ -209,7 +213,7 @@ The map in a link is one JSON object (map-v1): layers with filters and styles, b
 ## Guides
 - [Making maps with an AI agent](${SITE}/guides/ai-agents/): chat-only, code-running and browser-driving recipes
 - [ArcGIS FeatureServer viewer](${SITE}/arcgis-feature-service-viewer/)
-
+${examples?.items?.length ? `\n## Worked examples for chatbots and agents\n${examples.items.map((item) => `- [${item.title}](${item.url}): ${item.summary}`).join("\n")}\n` : ""}
 ## Data
 - [Curated public datasets (JSON)](${SITE}/api/catalog.json): ${POPULAR_SERVICES.length} services with ready links
 
@@ -240,12 +244,12 @@ function schemaProperties(schema, prefix = "") {
   }).join("\n");
 }
 
-export function buildLlmsFull({ capabilities, readme, mapSchema, rendererSchema }) {
+export function buildLlmsFull({ capabilities, readme, mapSchema, rendererSchema, examples = null }) {
   const parameters = buildUrlParameters();
   const parameterLines = (group) => Object.entries(parameters[group]).map(([name, item]) => `- \`${name}\`${item.indexAligned ? " (index-aligned with layer)" : ""}: ${item.description}${item.values ? ` Values: ${item.values.join(", ")}.` : ""}${item.example ? ` Example: \`${item.example}\`.` : ""}`).join("\n");
   const guide = agentGuide({ errorCodes: capabilities.errorCodes || {} });
   const renderers = (rendererSchema.oneOf || []).map((variant) => `- \`${variant.properties.type.const}\`: ${variant.description}${Object.keys(variant.properties).length > 1 ? ` Properties: ${Object.keys(variant.properties).filter((key) => key !== "type").join(", ")}.` : ""}`).join("\n");
-  return `${buildLlmsTxt({ capabilities }).trim()}
+  return `${buildLlmsTxt({ capabilities, examples }).trim()}
 
 ---
 
@@ -299,14 +303,14 @@ ${readmeSection(readme, "## Agent API")}
 
 ${readmeSection(readme, "## Client-side Briefing API")}
 
-## Curated datasets
+${examples?.markdown ? `## Worked examples\n\n${examples.markdown}\n\n` : ""}## Curated datasets
 
 ${buildCatalog().datasets.map((item) => `- ${item.title} (${item.type}${item.provider ? `, ${item.provider}` : ""}): ${item.link}`).join("\n")}
 `;
 }
 
 /** Every agent-facing generated file, as { path: contents }. */
-export async function buildAgentOutputs({ readText }) {
+export async function buildAgentOutputs({ readText, examples = null }) {
   const json = async (path) => JSON.parse(await readText(path));
   const [capabilities, readme, mapSchema, rendererSchema] = await Promise.all([
     json("api/capabilities.json"),
@@ -315,8 +319,8 @@ export async function buildAgentOutputs({ readText }) {
     json("schemas/renderer-v1.schema.json"),
   ]);
   return {
-    "llms.txt": buildLlmsTxt({ capabilities }),
-    "llms-full.txt": buildLlmsFull({ capabilities, readme, mapSchema, rendererSchema }),
+    "llms.txt": buildLlmsTxt({ capabilities, examples }),
+    "llms-full.txt": buildLlmsFull({ capabilities, readme, mapSchema, rendererSchema, examples }),
     "api/url-parameters.json": `${JSON.stringify(buildUrlParameters(), null, 2)}\n`,
     "api/catalog.json": `${JSON.stringify(buildCatalog(), null, 2)}\n`,
   };

@@ -6,7 +6,7 @@ import { IdentifyController } from "./identify.js?v=0.18.2";
 import { AttributeTableController } from "./attribute-table.js?v=0.18.2";
 import { AIController } from "./ai.js?v=0.27.0";
 import { ToolManager } from "./tool-manager.js?v=0.18.2";
-import { UIController } from "./ui.js?v=0.33.0";
+import { UIController } from "./ui.js?v=0.34.0";
 import { ExportController } from "./export/export-controller.js?v=0.18.2";
 import { SHARE_BASEMAPS, parseShareParameters } from "./share.js?v=0.29.0";
 import { readShareLocation } from "./map-share.js?v=0.32.0";
@@ -236,8 +236,13 @@ async function start() {
   // A styled map or briefing link (`#map=…`, `#briefing=…`, or `?briefing=<file URL>`).
   try {
     if (sharedStateError) throw sharedStateError;
-    if (sharedState?.kind === "map-spec") await within(mapSpecApi.load(sharedState.spec, { replace: false }).ready, 120);
-    else if (sharedState) await uiController.openSharedState(sharedState, { loadLayer: (config) => loadSharedLayer(mapController, config) });
+    if (sharedState?.kind === "map-spec") {
+      await within(mapSpecApi.load(sharedState.spec, { replace: false }).ready, 120);
+      // A link whose spec carries slides opens presenting them, as a briefing link does.
+      // (mapSpec.load from the API stays quiet: an agent decides when to present.)
+      const briefing = projectManager.current?.presentation?.briefing;
+      if (sharedState.spec?.briefing && briefing?.slides?.some((slide) => !slide.hidden)) await uiController.openBriefingDocument(briefing, { present: true });
+    } else if (sharedState) await uiController.openSharedState(sharedState, { loadLayer: (config) => loadSharedLayer(mapController, config) });
   } catch (error) {
     events.publish("app:error", { message: error.message });
   }

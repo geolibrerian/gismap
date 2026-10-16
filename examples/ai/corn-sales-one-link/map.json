@@ -1,0 +1,18 @@
+{
+  "version": 1,
+  "basemap": "gray-vector",
+  "layers": [
+    {
+      "url": "https://services.arcgis.com/P3ePLMYs2RVChkJx/ArcGIS/rest/services/Corn/FeatureServer/0",
+      "renderer": {
+        "type": "choropleth",
+        "field": "CORN_SALES_IN_DOLLARS",
+        "method": "auto",
+        "ramp": "greens",
+        "exclude": [
+          -1
+        ]
+      }
+    }
+  ]
+}
