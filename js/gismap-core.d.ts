@@ -34,7 +34,20 @@ export type BriefingSlide = {
   blocks: BriefingBlock[];
   notes?: string;
   hidden: boolean;
+  /** The briefing's other layers on this slide; without it the slide changes no other layer. */
+  layers?: BriefingSlideLayer[];
   [key: string]: unknown;
+};
+
+/** As an ArcGIS REST query's spatialRel: contains = features inside the slide's feature, within = features containing it. */
+export type SpatialRelationship = "intersects" | "contains" | "crosses" | "envelope-intersects" | "index-intersects" | "overlaps" | "touches" | "within" | "disjoint" | "relation";
+
+export type BriefingSlideLayer = {
+  /** The layer's service URL (or ID or title). */
+  layer: string;
+  visible: boolean;
+  /** Show only features with this relationship to the slide's feature. */
+  relation?: { type: SpatialRelationship; distance?: number; units?: "meters" | "kilometers" | "feet" | "miles" | "nautical-miles" | "us-nautical-miles"; relationParameter?: string };
 };
 
 export type BriefingDocument = {

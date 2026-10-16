@@ -325,6 +325,74 @@
         },
         "hidden": {
           "type": "boolean"
+        },
+        "layers": {
+          "type": "array",
+          "maxItems": 10,
+          "description": "The briefing's other layers on this slide. Each is shown or hidden, and can show only the features with a spatial relationship to the slide's feature (as an ArcGIS REST query's spatialRel). Layers not listed stay as the map has them; without this property the slide changes no other layer.",
+          "items": {
+            "type": "object",
+            "required": [
+              "layer"
+            ],
+            "properties": {
+              "layer": {
+                "type": "string",
+                "maxLength": 2048,
+                "description": "The layer's service URL (or layer ID or title)."
+              },
+              "visible": {
+                "type": "boolean",
+                "default": true
+              },
+              "relation": {
+                "type": "object",
+                "required": [
+                  "type"
+                ],
+                "properties": {
+                  "type": {
+                    "enum": [
+                      "intersects",
+                      "contains",
+                      "crosses",
+                      "envelope-intersects",
+                      "index-intersects",
+                      "overlaps",
+                      "touches",
+                      "within",
+                      "disjoint",
+                      "relation"
+                    ],
+                    "description": "How the layer's features relate to the slide's feature. contains: features inside it; within: features that contain it; envelope-intersects: features touching its bounding box; relation: the DE-9IM pattern in relationParameter."
+                  },
+                  "distance": {
+                    "type": "number",
+                    "minimum": 0,
+                    "description": "Grow the slide's feature by this distance first (for example, wells within 500 meters)."
+                  },
+                  "units": {
+                    "enum": [
+                      "meters",
+                      "kilometers",
+                      "feet",
+                      "miles",
+                      "nautical-miles",
+                      "us-nautical-miles"
+                    ],
+                    "default": "meters"
+                  },
+                  "relationParameter": {
+                    "type": "string",
+                    "pattern": "^[TFtf*012]{9}$",
+                    "description": "A DE-9IM pattern such as T******** (for type relation)."
+                  }
+                },
+                "additionalProperties": false
+              }
+            },
+            "additionalProperties": false
+          }
         }
       },
       "additionalProperties": true

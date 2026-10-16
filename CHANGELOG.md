@@ -6,6 +6,13 @@ All notable changes to GIS Map Online are documented here. This project follows
 
 ## [Unreleased]
 
+### Briefings: other layers on each slide (0.28.0)
+
+- A briefing keeps one **main layer**, and every other loaded layer can now be part of its slides. Each map slide's details have an **Other layers** section: tick the layers to show with the main layer on that slide (unticked ones are hidden while it shows).
+- **Show only related features.** On a slide about one feature, each other layer can be limited to the features with a spatial relationship to it, as the ArcGIS REST query defines them: intersects, contains (inside the feature), within (containing it), crosses, overlaps, touches, envelope intersects, index intersects, disjoint, or a DE-9IM relation; optionally after growing the feature by a distance (for example, everything within 2 miles). The layer's own service answers the query, so the result matches the REST API exactly.
+- Slides store this as `layers: [{ layer, visible, relation }]` (service URLs, so it travels in briefing links, QR codes and Smart images); schema and types updated. Slides without it change no other layer, and the layers return to how they were when the presentation or PDF ends.
+- Saved map views show their zoom and tilt rounded.
+
 ### Filter values
 
 - The filter dialog's **Value** box lists the field's values as you type (a coded-value domain shows its names), so a filter can be built without knowing the data beforehand. Values come from the service's distinct values (up to 200, sorted), or a sample when the service cannot list them; a hint says how many there are.

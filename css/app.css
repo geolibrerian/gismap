@@ -2128,3 +2128,14 @@ body.sidebar-collapsed .table-dialog { left: 14px; }
   .filter-condition .filter-remove { grid-column: 2; grid-row: 1; }
 }
 .filter-value-hint { min-height: 1em; color: var(--muted); font-size: 11px; font-weight: 500; }
+
+/* Briefing slide details: the other layers shown with the main layer. */
+.briefing-layers { display: grid; gap: 8px; margin: 0; padding: 10px; border: 1px solid var(--line); border-radius: var(--ui-radius-small, 7px); }
+.briefing-layers legend { padding: 0 4px; }
+.briefing-layers [hidden] { display: none !important; }
+.briefing-layer { display: grid; gap: 6px; padding: 8px; border-radius: var(--ui-radius-small, 7px); background: var(--surface); }
+.briefing-layer__show { display: flex; align-items: center; gap: 8px; font-weight: 700; }
+.briefing-layer__relation { display: grid; gap: 6px; padding-left: 24px; }
+.briefing-layer__relation label { display: grid; gap: 3px; font-size: 11px; font-weight: 600; color: var(--muted); }
+.briefing-layer__distance { display: grid; grid-template-columns: minmax(0, 1fr) 90px; gap: 6px; }
+.briefing-layers .form-note { margin: 0; font-size: 11px; font-weight: 500; color: var(--muted); }

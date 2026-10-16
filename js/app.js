@@ -1,15 +1,15 @@
 import { events } from "./events.js?v=0.18.2";
 import { AuthController } from "./auth.js?v=0.18.2";
 import { MapController } from "./map.js?v=0.31.0";
-import { ProjectManager } from "./project.js?v=0.30.0";
+import { ProjectManager } from "./project.js?v=0.32.0";
 import { IdentifyController } from "./identify.js?v=0.18.2";
 import { AttributeTableController } from "./attribute-table.js?v=0.18.2";
 import { AIController } from "./ai.js?v=0.27.0";
 import { ToolManager } from "./tool-manager.js?v=0.18.2";
-import { UIController } from "./ui.js?v=0.31.0";
+import { UIController } from "./ui.js?v=0.32.0";
 import { ExportController } from "./export/export-controller.js?v=0.18.2";
 import { SHARE_BASEMAPS, parseShareParameters } from "./share.js?v=0.29.0";
-import { readShareLocation } from "./map-share.js?v=0.30.0";
+import { readShareLocation } from "./map-share.js?v=0.32.0";
 import { decodeEmbeddedTour } from "./tour-share.js?v=0.18.2";
 import { decodeFieldTask, featureLayerUrl, readFieldTaskHash, readFocus } from "./field-task-share.js?v=0.29.0";
 import { POPULAR_SERVICES } from "./catalog.js?v=0.18.2";
@@ -17,11 +17,11 @@ import { ApplicationRuntime } from "./application-runtime.js?v=0.27.0";
 import { PanelManager } from "./panel-manager.js?v=0.18.2";
 import { MobilePanelManager } from "./mobile-panel-manager.js?v=0.18.2";
 import { MobileWorkflowRouter } from "./mobile-workflow-router.js?v=0.29.0";
-import { createClientApi } from "./briefing-api.js?v=0.30.0";
+import { createClientApi } from "./briefing-api.js?v=0.32.0";
 import { createCameraApi, createLayersApi } from "./layers-api.js?v=0.29.0";
 import { registerLayerTools } from "./layer-tools.js?v=0.29.0";
-import { createMapSpecApi } from "./map-spec-api.js?v=0.30.0";
-import { mapSpecFromShareParameters } from "./map-spec.js?v=0.30.0";
+import { createMapSpecApi } from "./map-spec-api.js?v=0.32.0";
+import { mapSpecFromShareParameters } from "./map-spec.js?v=0.32.0";
 import { GisMapError, ERROR_CODES } from "./gismap-errors.js?v=0.28.0";
 
 async function loadSharedLayer(mapController, config) {

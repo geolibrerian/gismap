@@ -1,8 +1,8 @@
 import { POPULAR_SERVICES } from "./catalog.js?v=0.18.2";
 import { ENTERPRISE_CATALOGS, EnterpriseCatalog, normalizeArcGisDirectoryUrl } from "./enterprise-catalog.js?v=0.18.2";
 import { createShareUrl } from "./share.js?v=0.29.0";
-import { createShareLink, hasDataFilter } from "./map-share.js?v=0.30.0";
-import { briefingLayerRef, findBriefingLayer } from "./briefing-api.js?v=0.30.0";
+import { createShareLink, hasDataFilter } from "./map-share.js?v=0.32.0";
+import { briefingLayerRef, findBriefingLayer } from "./briefing-api.js?v=0.32.0";
 import { createEmbeddedTourUrl } from "./tour-share.js?v=0.18.2";
 import { markdownToPlainText, renderMarkdown } from "./markdown.js?v=0.18.2";
 import { formatAttributeValue } from "./attribute-format.js?v=0.18.2";
@@ -15,9 +15,9 @@ import { featureLayerUrl, locationUrl } from "./field-task-share.js?v=0.29.0";
 import { dockIcon } from "./dock-icons.js?v=0.24.0";
 import { serviceNameFromUrl } from "./service-name.js?v=0.26.0";
 import { decodeQrFromImage, describeGisMapLink, gisMapLinkFrom, openGisMapLink } from "./qr-import.js?v=0.25.1";
-import { BriefingSlides } from "./briefing-slides.js?v=0.30.0";
-import { createSlide, matchesFilter, normalizeFilter } from "./briefing-document.js?v=0.30.0";
-import { aiDescriptionPrompt, applyAiDescriptions, describeWhere, generateBriefing, readAiDescriptions, rendererTheme } from "./briefing-generator.js?v=0.30.0";
+import { BriefingSlides } from "./briefing-slides.js?v=0.32.0";
+import { createSlide, matchesFilter, normalizeFilter } from "./briefing-document.js?v=0.32.0";
+import { aiDescriptionPrompt, applyAiDescriptions, describeWhere, generateBriefing, readAiDescriptions, rendererTheme } from "./briefing-generator.js?v=0.32.0";
 import { briefingFileStem } from "./briefing-pdf.js?v=0.23.0";
 import { rampColors } from "./renderer-spec.js?v=0.29.0";
 

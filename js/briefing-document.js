@@ -21,6 +21,14 @@ const TEMPLATE_IDS = new Set(SLIDE_TEMPLATES.map((template) => template.id));
 export const STAT_TYPES = Object.freeze(["count", "sum", "average", "min", "max"]);
 /** How the map moves between slides: "pan" flies there (the default), "cut" jumps straight there. */
 export const SLIDE_TRANSITIONS = Object.freeze(["pan", "cut"]);
+/**
+ * How another layer's features relate to a slide's feature, as the ArcGIS REST
+ * query names them (spatialRel). "contains": features inside the slide's
+ * feature; "within": features that contain it; "relation": a DE-9IM pattern.
+ */
+export const SPATIAL_RELATIONSHIPS = Object.freeze(["intersects", "contains", "crosses", "envelope-intersects", "index-intersects", "overlaps", "touches", "within", "disjoint", "relation"]);
+export const DISTANCE_UNITS = Object.freeze(["meters", "kilometers", "feet", "miles", "nautical-miles", "us-nautical-miles"]);
+const MAX_SLIDE_LAYERS = 10;
 const FILTER_OPERATORS = new Set(["eq", "neq", "gt", "gte", "lt", "lte", "in", "not_in", "contains", "starts_with", "is_null", "is_not_null", "and", "or", "not", "feature_ids"]);
 
 const text = (value, max) => String(value ?? "").slice(0, max);
@@ -97,10 +105,45 @@ export function safeUrl(value) {
   }
 }
 
+/**
+ * One other layer on a slide: { layer, visible, relation }. `layer` is the
+ * layer's service URL (or ID or title); `relation`, when set, shows only the
+ * features with that spatial relationship to the slide's feature, optionally
+ * within `distance` `units` of it.
+ */
+function normalizeSlideLayer(entry) {
+  if (!entry || typeof entry !== "object") return null;
+  const layer = text(entry.layer, 2048).trim();
+  if (!layer) return null;
+  const result = { layer, visible: entry.visible !== false };
+  const relation = entry.relation;
+  if (relation && typeof relation === "object" && SPATIAL_RELATIONSHIPS.includes(relation.type)) {
+    const normalized = { type: relation.type };
+    const distance = finite(relation.distance);
+    if (distance > 0) {
+      normalized.distance = Math.min(distance, 1000000);
+      normalized.units = DISTANCE_UNITS.includes(relation.units) ? relation.units : "meters";
+    }
+    const pattern = String(relation.relationParameter || "").toUpperCase();
+    if (relation.type !== "relation" || /^[TF*012]{9}$/.test(pattern)) {
+      if (relation.type === "relation") normalized.relationParameter = pattern;
+      result.relation = normalized;
+    }
+  }
+  return result;
+}
+
 function normalizeSlide(slide) {
   if (!slide || typeof slide !== "object") return null;
+  // `layers` is left out until a slide sets it: such slides show the other layers as the map has them.
+  const { layers, ...rest } = slide;
+  const seen = new Set();
+  const slideLayers = Array.isArray(layers)
+    ? layers.map(normalizeSlideLayer).filter((entry) => entry && !seen.has(entry.layer) && seen.add(entry.layer)).slice(0, MAX_SLIDE_LAYERS)
+    : null;
   return {
-    ...slide,
+    ...rest,
+    ...(slideLayers ? { layers: slideLayers } : {}),
     id: typeof slide.id === "string" && slide.id ? slide.id : newId("s"),
     template: TEMPLATE_IDS.has(slide.template) ? slide.template : "map-narrative",
     title: text(slide.title, MAX_TITLE),
