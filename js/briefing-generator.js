@@ -2,7 +2,7 @@
 // themed field, categories or classes), its filter, the loaded features and any
 // chosen ones. Pure functions, so the result is plain briefing JSON
 // (briefing-document.js) that the author can edit before sharing.
-import { createSlide, newId, normalizeBriefing } from "./briefing-document.js?v=0.32.0";
+import { createSlide, isRoutineField, newId, normalizeBriefing } from "./briefing-document.js?v=0.35.0";
 
 const MAX_FEATURE_SLIDES = 12;
 const TOP_FEATURES = 5;
@@ -125,7 +125,7 @@ export function generateBriefing({ layerTitle = "Features", title = "", where = 
   if (themeIsNumber) ranked = records.filter((record) => Number.isFinite(finite(record.attributes?.[theme.field]))).sort((a, b) => finite(b.attributes[theme.field]) - finite(a.attributes[theme.field]));
   if (!featured.length) featured = ranked.slice(0, TOP_FEATURES);
   const sum = ranked.reduce((total, record) => total + finite(record.attributes[theme.field]), 0);
-  const otherFacts = fields.filter((item) => item.name !== idField && item.name !== theme.field && !/^(shape|objectid|fid|globalid)/i.test(item.name)).map((item) => item.name);
+  const otherFacts = fields.filter((item) => item.name !== theme.field && !isRoutineField(item, { idField })).map((item) => item.name);
   for (const record of featured.slice(0, MAX_FEATURE_SLIDES)) {
     const id = idOf(record);
     if (!id) continue;

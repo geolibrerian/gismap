@@ -132,3 +132,31 @@ test("Features offers to add the included features as slides, in the same double
   assert.match(css, /body\.briefing-features-tab:not\(\.presentation-workspace-panels-open\) #app\[data-presentation="briefing"\] \{ --sidebar:clamp\(720px,58vw,980px\); \}/);
   assert.match(css, /\.mode-dashboard--briefing > \.briefing-records-fold \{ grid-column:2;/);
 });
+
+test("slides leave IDs and geometry measurements out of their facts by default", async () => {
+  const { isRoutineField } = await import("../js/briefing-document.js");
+  const { generateBriefing } = await import("../js/briefing-generator.js");
+  const { BriefingSlides } = await import("../js/briefing-slides.js");
+  for (const name of ["OBJECTID", "OBJECTID_1", "FID", "GlobalID", "Shape", "Shape__Area", "Shape__Length", "SHAPE_Leng", "Shape_Area", "st_area(shape)", "PERIMETER"]) assert.equal(isRoutineField(name), true, name);
+  for (const name of ["DIV_NAME", "AREA_SQMI", "POPULATION", "LENGTH_MI", "STATE"]) assert.equal(isRoutineField(name), false, name);
+  assert.equal(isRoutineField({ name: "ROW_KEY", type: "esriFieldTypeOID" }), true, "by type");
+  assert.equal(isRoutineField({ name: "PARCEL_GUID", type: "esriFieldTypeGUID" }), true);
+  assert.equal(isRoutineField("CASE_NO", { idField: "CASE_NO" }), true);
+
+  // A Philadelphia division, as the service returns it.
+  const record = { attributes: { OBJECTID: 1, PERIMETER: 61234.5, DIV_NAME: "CPD", SHAPE_Leng: 61234.5, Shape__Area: 0.0011, Shape__Length: 0.21 } };
+  const fields = Object.keys(record.attributes).map((name) => ({ name, type: name === "OBJECTID" ? "esriFieldTypeOID" : name === "DIV_NAME" ? "esriFieldTypeString" : "esriFieldTypeDouble" }));
+  let saved = { slides: [] };
+  const slides = new BriefingSlides({
+    getBriefing: () => saved,
+    saveBriefing: (briefing) => { saved = briefing; },
+    notify() {},
+    data: () => ({ layer: { objectIdField: "OBJECTID" }, records: [record], visibleRecords: [record], selectedIds: new Set(["1"]), useAll: false, fields: { fields }, label: (item) => item.attributes.DIV_NAME }),
+    mapController: { getOperationalLayers: () => [] },
+  });
+  slides.addIncluded();
+  assert.deepEqual(saved.slides[0].blocks.find((block) => block.type === "facts").fields, ["DIV_NAME"]);
+  const generated = generateBriefing({ layerTitle: "Police Divisions", records: [record], fields, idField: "OBJECTID", selectedIds: ["1"], label: (item) => item.attributes.DIV_NAME });
+  const facts = generated.slides.find((slide) => slide.template === "feature").blocks.find((block) => block.type === "facts").fields;
+  assert.deepEqual(facts, ["DIV_NAME"]);
+});

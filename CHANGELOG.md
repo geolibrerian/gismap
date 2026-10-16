@@ -6,6 +6,10 @@ All notable changes to GIS Map Online are documented here. This project follows
 
 ## [Unreleased]
 
+### Slide facts skip IDs and geometry measurements
+
+- Feature slides no longer list a layer's IDs and geometry measurements by default (OBJECTID, GlobalID, Shape__Area, Shape__Length, SHAPE_Leng, PERIMETER and fields typed as IDs or geometry), whether the slides come from Make a briefing from this view or from adding included features. They stay in the "Facts to show" list to tick by hand. One rule, `isRoutineField` in `briefing-document.js`, decides for both.
+
 ### Philadelphia example
 
 - The Philadelphia AI example now uses a nine-slide, two-layer briefing (police divisions with the districts drawn over them, dark 3D basemap), drafted in GIS Map Online with Make a briefing from this view. Its prompt asks a chatbot for the same briefing, and its agent recipe is one map-v1 spec with both layers and the slides (`map.json`). New link, QR code and files.

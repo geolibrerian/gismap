@@ -17,10 +17,11 @@ import {
   updateBlock,
   updateSlide,
   validateBriefing,
+  isRoutineField,
   DISTANCE_UNITS,
   SPATIAL_RELATIONSHIPS,
-} from "./briefing-document.js?v=0.32.0";
-import { briefingLayerRef } from "./briefing-api.js?v=0.32.0";
+} from "./briefing-document.js?v=0.35.0";
+import { briefingLayerRef } from "./briefing-api.js?v=0.35.0";
 import { renderMarkdown } from "./markdown.js?v=0.18.2";
 import { BriefingPlayer, slideHasMap } from "./briefing-player.js?v=0.30.1";
 import { briefingFileStem, briefingPdf, markdownToText } from "./briefing-pdf.js?v=0.23.0";
@@ -164,10 +165,12 @@ export class BriefingSlides {
     return this.api.data().records.find((record) => this.#idOf(record) === slide.featureId) || null;
   }
 
+  /** The first five filled-in fields, leaving out IDs and geometry measurements (they can still be ticked). */
   #defaultFacts(record) {
-    const { layer } = this.api.data();
+    const { layer, fields } = this.api.data();
+    const typed = new Map((fields?.fields || layer?.fields || []).map((field) => [field.name, field]));
     return Object.entries(record?.attributes || {})
-      .filter(([key, value]) => value != null && value !== "" && key !== layer?.objectIdField)
+      .filter(([key, value]) => value != null && value !== "" && !isRoutineField(typed.get(key) || key, { idField: layer?.objectIdField }))
       .slice(0, 5)
       .map(([key]) => key);
   }

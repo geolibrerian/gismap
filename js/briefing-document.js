@@ -32,6 +32,21 @@ const MAX_SLIDE_LAYERS = 10;
 const FILTER_OPERATORS = new Set(["eq", "neq", "gt", "gte", "lt", "lte", "in", "not_in", "contains", "starts_with", "is_null", "is_not_null", "and", "or", "not", "feature_ids"]);
 
 const text = (value, max) => String(value ?? "").slice(0, max);
+
+// Fields a GIS keeps for itself: record IDs and the geometry's own measurements.
+const ROUTINE_FIELD = /^(?:objectid(?:_\d+)?|fid(?:_\d+)?|oid|globalid|gdb_geomattr_data|shape(?:_?_?(?:leng|length|len|area))?|st_area(?:\(shape\))?|st_length(?:\(shape\))?|perimeter)$/i;
+
+/**
+ * Whether a field is an ID or a geometry measurement (OBJECTID, GlobalID,
+ * Shape__Area, Shape__Length, SHAPE_Leng, PERIMETER…), which slides leave out
+ * by default: such values are rarely what a briefing is about. `field` is a
+ * name or { name, type }.
+ */
+export function isRoutineField(field, { idField = null } = {}) {
+  const name = String(field?.name ?? field ?? "");
+  const type = String(field?.type || "");
+  return Boolean(name) && (name === idField || /oid|global-?id|guid|geometry|blob|raster/i.test(type) || ROUTINE_FIELD.test(name));
+}
 const array = (value) => (Array.isArray(value) ? value : []);
 const finite = (value) => (Number.isFinite(Number(value)) && value !== null && value !== "" ? Number(value) : null);
 
