@@ -1,5 +1,5 @@
 {
-  "apiVersion": "0.25.0",
+  "apiVersion": "0.26.0",
   "execution": "client",
   "global": "globalThis.gisMapOnline",
   "module": "/js/gismap-core.js",
@@ -59,7 +59,8 @@
       "remove",
       "zoomTo",
       "extent",
-      "metadata"
+      "metadata",
+      "suggestStyles"
     ],
     "camera": [
       "get",
@@ -71,7 +72,12 @@
       "computeBreaks",
       "compile",
       "rampColors",
-      "closestField"
+      "closestField",
+      "suggest",
+      "resolve",
+      "describeValues",
+      "chooseMethod",
+      "chooseField"
     ],
     "errors": [
       "codes",
@@ -145,7 +151,7 @@
     },
     "layers": {
       "stability": "stable",
-      "description": "Add, list, update, remove and zoom to data layers. add() resolves with LayerInfo once loaded; errors are GisMapError with a code."
+      "description": "Add, list, update, remove and zoom to data layers, and suggestStyles(id, { field }) for ranked styles computed from a field's values. add() resolves with LayerInfo once loaded; errors are GisMapError with a code."
     },
     "camera": {
       "stability": "stable",
@@ -230,12 +236,14 @@
     "graduated-symbols",
     "categories",
     "heatmap",
-    "arcgis"
+    "arcgis",
+    "auto"
   ],
   "breakMethods": [
     "natural-breaks",
     "quantile",
-    "equal-interval"
+    "equal-interval",
+    "auto"
   ],
   "ramps": [
     "greens",
@@ -284,9 +292,11 @@
     "view": "Not supported: the scene is always 3D.",
     "title": "Layer title; index-aligned with layer.",
     "where": "Read-only SQL filter, such as CORN_SALES_IN_DOLLARS >= 0; index-aligned with layer.",
-    "style": "service | simple | choropleth | graduated | categories | heatmap; index-aligned with layer.",
+    "style": "service | simple | choropleth | graduated | categories | heatmap | auto; index-aligned with layer.",
     "field": "The field a style uses; index-aligned with layer.",
     "classes": "Number of classes (2-9) for choropleth and graduated; index-aligned with layer.",
+    "method": "natural-breaks | quantile | equal-interval | auto (chosen from the values); index-aligned with layer.",
+    "breaks": "Comma-separated class upper bounds, such as 1000,50000,250000 (fixed classes); index-aligned with layer.",
     "ramp": "A named ramp (see ramps); index-aligned with layer.",
     "exclude": "Comma-separated codes to show as \"No data\", such as -1; index-aligned with layer.",
     "color": "Hex colour for simple and graduated styles (with or without #); index-aligned with layer.",
@@ -333,7 +343,7 @@
           },
           "renderer": {
             "type": "object",
-            "description": "A RendererSpec, such as { \"type\": \"choropleth\", \"field\": \"POP\", \"ramp\": \"greens\" }. See schemas/renderer-v1.schema.json."
+            "description": "A RendererSpec, such as { \"type\": \"choropleth\", \"field\": \"POP\", \"method\": \"auto\" }, or { \"type\": \"auto\", \"field\": \"POP\" } to let the app choose. See schemas/renderer-v1.schema.json."
           },
           "opacity": {
             "type": "number",
@@ -397,7 +407,7 @@
           },
           "renderer": {
             "type": "object",
-            "description": "A RendererSpec, such as { \"type\": \"choropleth\", \"field\": \"POP\", \"ramp\": \"greens\" }. See schemas/renderer-v1.schema.json."
+            "description": "A RendererSpec, such as { \"type\": \"choropleth\", \"field\": \"POP\", \"method\": \"auto\" }, or { \"type\": \"auto\", \"field\": \"POP\" } to let the app choose. See schemas/renderer-v1.schema.json."
           },
           "opacity": {
             "type": "number",
@@ -430,7 +440,7 @@
           },
           "renderer": {
             "type": "object",
-            "description": "A RendererSpec, such as { \"type\": \"choropleth\", \"field\": \"POP\", \"ramp\": \"greens\" }. See schemas/renderer-v1.schema.json."
+            "description": "A RendererSpec, such as { \"type\": \"choropleth\", \"field\": \"POP\", \"method\": \"auto\" }, or { \"type\": \"auto\", \"field\": \"POP\" } to let the app choose. See schemas/renderer-v1.schema.json."
           }
         }
       }
@@ -461,6 +471,27 @@
       }
     },
     {
+      "id": "layer.suggestStyles",
+      "displayName": "Suggest styles",
+      "description": "Rank the styles that suit a field, from its values: each option has a label, a reason, its class breaks and a pinnedSpec to pass to layer.style.",
+      "inputSchema": {
+        "type": "object",
+        "required": [
+          "layer"
+        ],
+        "properties": {
+          "layer": {
+            "type": "string",
+            "description": "The layer's id (from layers.list()), service URL or title."
+          },
+          "field": {
+            "type": "string",
+            "description": "The field to style by; the most measurement-like field when omitted."
+          }
+        }
+      }
+    },
+    {
       "id": "map.zoomToLayer",
       "displayName": "Zoom to layer",
       "description": "Fit the view to a layer's filtered data, or to every data layer when no layer is given.",
@@ -481,7 +512,7 @@
     "slide": "&slide=<slide id> opens a briefing at that slide."
   },
   "examples": {
-    "readableMapLink": "https://gismap.online/#map=json:%7B%22version%22%3A1%2C%22basemap%22%3A%22gray-vector%22%2C%22layers%22%3A%5B%7B%22url%22%3A%22https%3A%2F%2Fservices.arcgis.com%2FP3ePLMYs2RVChkJx%2FArcGIS%2Frest%2Fservices%2FCorn%2FFeatureServer%2F0%22%2C%22renderer%22%3A%7B%22type%22%3A%22choropleth%22%2C%22field%22%3A%22CORN_SALES_IN_DOLLARS%22%2C%22ramp%22%3A%22greens%22%2C%22exclude%22%3A%5B-1%5D%7D%7D%5D%7D",
-    "styledLayerLink": "https://gismap.online/?layer=https%3A%2F%2Fservices.arcgis.com%2FP3ePLMYs2RVChkJx%2FArcGIS%2Frest%2Fservices%2FCorn%2FFeatureServer%2F0&layerType=feature&style=choropleth&field=CORN_SALES_IN_DOLLARS&ramp=greens&exclude=-1&basemap=gray-vector"
+    "readableMapLink": "https://gismap.online/#map=json:%7B%22version%22%3A1%2C%22basemap%22%3A%22gray-vector%22%2C%22layers%22%3A%5B%7B%22url%22%3A%22https%3A%2F%2Fservices.arcgis.com%2FP3ePLMYs2RVChkJx%2FArcGIS%2Frest%2Fservices%2FCorn%2FFeatureServer%2F0%22%2C%22renderer%22%3A%7B%22type%22%3A%22choropleth%22%2C%22field%22%3A%22CORN_SALES_IN_DOLLARS%22%2C%22method%22%3A%22auto%22%2C%22ramp%22%3A%22greens%22%2C%22exclude%22%3A%5B-1%5D%7D%7D%5D%7D",
+    "styledLayerLink": "https://gismap.online/?layer=https%3A%2F%2Fservices.arcgis.com%2FP3ePLMYs2RVChkJx%2FArcGIS%2Frest%2Fservices%2FCorn%2FFeatureServer%2F0&layerType=feature&style=choropleth&field=CORN_SALES_IN_DOLLARS&method=auto&ramp=greens&exclude=-1&basemap=gray-vector"
   }
 }

@@ -6,10 +6,11 @@ The map in a link is one JSON object (map-v1): layers with filters and styles, b
 
 ## Make a map from a URL (no code)
 - One layer: `https://gismap.online/?layer=<HTTPS service URL>&layerType=feature`
-- Styled: add `&style=choropleth&field=<FIELD>&ramp=greens&exclude=-1&basemap=gray-vector`
+- Styled: add `&style=choropleth&field=<FIELD>&method=auto&ramp=greens&exclude=-1&basemap=gray-vector` (`method=auto` picks the class breaks from the data)
+- Not sure which style suits the field: `&style=auto&field=<FIELD>` lets the app choose
 - Full control: `https://gismap.online/#map=json:<URI-encoded map-v1 JSON>` (at most 8192 characters) or `?spec=<URL of a hosted map-v1 JSON file>`
 - Inspect a service's fields first: append `?f=pjson` to the layer URL.
-- Worked example: https://gismap.online/#map=json:%7B%22version%22%3A1%2C%22basemap%22%3A%22gray-vector%22%2C%22layers%22%3A%5B%7B%22url%22%3A%22https%3A%2F%2Fservices.arcgis.com%2FP3ePLMYs2RVChkJx%2FArcGIS%2Frest%2Fservices%2FCorn%2FFeatureServer%2F0%22%2C%22renderer%22%3A%7B%22type%22%3A%22choropleth%22%2C%22field%22%3A%22CORN_SALES_IN_DOLLARS%22%2C%22ramp%22%3A%22greens%22%2C%22exclude%22%3A%5B-1%5D%7D%7D%5D%7D
+- Worked example: https://gismap.online/#map=json:%7B%22version%22%3A1%2C%22basemap%22%3A%22gray-vector%22%2C%22layers%22%3A%5B%7B%22url%22%3A%22https%3A%2F%2Fservices.arcgis.com%2FP3ePLMYs2RVChkJx%2FArcGIS%2Frest%2Fservices%2FCorn%2FFeatureServer%2F0%22%2C%22renderer%22%3A%7B%22type%22%3A%22choropleth%22%2C%22field%22%3A%22CORN_SALES_IN_DOLLARS%22%2C%22method%22%3A%22auto%22%2C%22ramp%22%3A%22greens%22%2C%22exclude%22%3A%5B-1%5D%7D%7D%5D%7D
 
 ## Contracts
 - [Map spec schema](https://gismap.online/schemas/map-v1.schema.json): layers, renderers, filters, camera, basemap
@@ -48,6 +49,8 @@ Look at the service's fields first by opening the layer URL with ?f=pjson append
 
 Worked example: U.S. county corn sales. The publisher's own style labels -1 as "Not Disclosed" (546 of 3,074 counties), so -1 is listed in exclude: those counties are drawn grey as "No data" instead of pulling the colour classes down. sources.inspect reports codes like this as sentinels.
 
+"method": "auto" lets the app choose the class breaks from the data (corn sales are skewed, so it picks quantile classes). Not sure which style suits a field at all? Write { "type": "auto", "field": "CORN_SALES_IN_DOLLARS" } and the app chooses. Saving or sharing from the app records the chosen classes, so the map then looks the same for everyone.
+
 ```json
 {
   "version": 1,
@@ -58,6 +61,7 @@ Worked example: U.S. county corn sales. The publisher's own style labels -1 as "
       "renderer": {
         "type": "choropleth",
         "field": "CORN_SALES_IN_DOLLARS",
+        "method": "auto",
         "ramp": "greens",
         "exclude": [
           -1
@@ -68,9 +72,9 @@ Worked example: U.S. county corn sales. The publisher's own style labels -1 as "
 }
 ```
 
-Link: https://gismap.online/#map=json:%7B%22version%22%3A1%2C%22basemap%22%3A%22gray-vector%22%2C%22layers%22%3A%5B%7B%22url%22%3A%22https%3A%2F%2Fservices.arcgis.com%2FP3ePLMYs2RVChkJx%2FArcGIS%2Frest%2Fservices%2FCorn%2FFeatureServer%2F0%22%2C%22renderer%22%3A%7B%22type%22%3A%22choropleth%22%2C%22field%22%3A%22CORN_SALES_IN_DOLLARS%22%2C%22ramp%22%3A%22greens%22%2C%22exclude%22%3A%5B-1%5D%7D%7D%5D%7D
+Link: https://gismap.online/#map=json:%7B%22version%22%3A1%2C%22basemap%22%3A%22gray-vector%22%2C%22layers%22%3A%5B%7B%22url%22%3A%22https%3A%2F%2Fservices.arcgis.com%2FP3ePLMYs2RVChkJx%2FArcGIS%2Frest%2Fservices%2FCorn%2FFeatureServer%2F0%22%2C%22renderer%22%3A%7B%22type%22%3A%22choropleth%22%2C%22field%22%3A%22CORN_SALES_IN_DOLLARS%22%2C%22method%22%3A%22auto%22%2C%22ramp%22%3A%22greens%22%2C%22exclude%22%3A%5B-1%5D%7D%7D%5D%7D
 
-For one layer and one field there is a shorter form with no JSON: https://gismap.online/?layer=https%3A%2F%2Fservices.arcgis.com%2FP3ePLMYs2RVChkJx%2FArcGIS%2Frest%2Fservices%2FCorn%2FFeatureServer%2F0&layerType=feature&style=choropleth&field=CORN_SALES_IN_DOLLARS&ramp=greens&exclude=-1&basemap=gray-vector
+For one layer and one field there is a shorter form with no JSON: https://gismap.online/?layer=https%3A%2F%2Fservices.arcgis.com%2FP3ePLMYs2RVChkJx%2FArcGIS%2Frest%2Fservices%2FCorn%2FFeatureServer%2F0&layerType=feature&style=choropleth&field=CORN_SALES_IN_DOLLARS&method=auto&ramp=greens&exclude=-1&basemap=gray-vector
 
 ### 2. Code-running agent: inspect, validate, link
 
@@ -99,7 +103,7 @@ link = "https://gismap.online/#map=json:" + urllib.parse.quote(json.dumps(spec, 
 
 ### 3. Browser-automation agent: drive the page
 
-Wait for gisMapOnline.ready (or the gismap:ready event, or <html data-gismap-state="ready">), add layers, fit the camera, and read describe() to check the result.
+Wait for gisMapOnline.ready (or the gismap:ready event, or <html data-gismap-state="ready">), add layers, fit the camera, and read describe() to check the result. layers.suggestStyles ranks the styles that suit a field, each with a reason and its class breaks; apply one with its pinnedSpec.
 
 ```js
 await gisMapOnline.ready;
@@ -107,6 +111,8 @@ const layer = await gisMapOnline.layers.add("https://services.arcgis.com/P3ePLMY
   renderer: { type: "choropleth", field: "CORN_SALES_IN_DOLLARS", ramp: "greens" }, // sentinels excluded by default
 });
 await gisMapOnline.camera.fitTo(layer.id);
+const { options } = await gisMapOnline.layers.suggestStyles(layer.id, { field: "CORN_SALES_IN_DOLLARS" });
+await gisMapOnline.layers.update(layer.id, { renderer: options[0].pinnedSpec }); // the recommended style
 console.log(gisMapOnline.describe().state); // layers, basemap, camera, issues
 const { url } = await gisMapOnline.mapSpec.createLink(gisMapOnline.mapSpec.fromCurrent());
 ```
@@ -170,15 +176,16 @@ Layer properties:
 
 ## RendererSpec (styles)
 
-A declarative layer style. GIS Map Online compiles it to an ArcGIS renderer, computing class breaks from the layer's data. Field names must match the service's fields exactly (sources.inspect(url).fields lists them).
+A declarative layer style. GIS Map Online compiles it to an ArcGIS renderer, computing class breaks from the layer's data. Not sure which style suits a field? Use { "type": "auto", "field": ... } or "method": "auto" and the app decides from the data. Field names must match the service's fields exactly (sources.inspect(url).fields lists them).
 
 - `service`: Keep the publisher's own style (the default).
 - `simple`: One colour for every feature. Properties: color, outline, size.
-- `choropleth`: Colour features by a numeric field in classes (a choropleth for polygons). Values listed in exclude, and nulls, are drawn grey as "No data" and kept out of the classes. Properties: field, classes, method, ramp, normalizeBy, exclude.
-- `graduated-symbols`: Size point or line symbols by a numeric field. Polygon layers get a choropleth instead (with a warning). Properties: field, classes, color, minSize, maxSize, exclude.
+- `choropleth`: Colour features by a numeric field in classes (a choropleth for polygons). Values listed in exclude, and nulls, are drawn grey as "No data" and kept out of the classes. Properties: field, classes, method, breaks, ramp, normalizeBy, exclude.
+- `graduated-symbols`: Size point or line symbols by a numeric field. Polygon layers get a choropleth instead (with a warning). Properties: field, classes, method, breaks, color, minSize, maxSize, exclude.
 - `categories`: One colour per value of a field (the most common values; the rest are "Other"). Properties: field, maxCategories, colors.
 - `heatmap`: A heat map of point density, optionally weighted by a numeric field. Point layers only. Properties: field.
 - `arcgis`: Raw ArcGIS renderer JSON, for styles the other types cannot express. Properties: json.
+- `auto`: Let the app choose the style from the data when the map opens: colours or sized symbols with the break method that suits the values (quantile for skewed values, natural breaks for clusters, equal interval for even spreads), or categories for a text field. Without a field, the most measurement-like field is used. Saving or sharing from the app records the chosen style with its breaks. Properties: field, classes, ramp, exclude.
 
 Named ramps: greens, blues, reds, oranges, purples, viridis, magma, red-blue-diverging, brown-teal-diverging.
 
@@ -190,9 +197,11 @@ Query (after ?):
 - `layerType` (index-aligned with layer): Layer type; arcgis-auto detects it. Values: arcgis-auto, feature, map-image, imagery, geojson, wms, wfs, kml. Example: `feature`.
 - `title` (index-aligned with layer): Layer title. Example: `Corn sales`.
 - `where` (index-aligned with layer): Read-only SQL filter on the layer's fields. Example: `CORN_SALES_IN_DOLLARS >= 0`.
-- `style` (index-aligned with layer): A style without JSON. Values: service, simple, choropleth, graduated, categories, heatmap. Example: `choropleth`.
+- `style` (index-aligned with layer): A style without JSON. Values: service, simple, choropleth, graduated, categories, heatmap, auto. Example: `choropleth`.
 - `field` (index-aligned with layer): The field a style uses (exactly as the service names it). Example: `CORN_SALES_IN_DOLLARS`.
 - `classes` (index-aligned with layer): Number of classes for choropleth and graduated styles. Example: `5`.
+- `method` (index-aligned with layer): How class breaks are chosen; auto picks from the values (quantile when skewed, natural breaks when clustered, equal interval when even). Values: natural-breaks, quantile, equal-interval, auto. Example: `auto`.
+- `breaks` (index-aligned with layer): Comma-separated class upper bounds, for fixed classes that look the same whenever the map opens. Example: `1000000,10000000,50000000`.
 - `ramp` (index-aligned with layer): A named colour ramp. Values: greens, blues, reds, oranges, purples, viridis, magma, red-blue-diverging, brown-teal-diverging. Example: `greens`.
 - `exclude` (index-aligned with layer): Comma-separated codes drawn as "No data" and kept out of the classes. Example: `-1`.
 - `color` (index-aligned with layer): Hex colour for simple and graduated styles. Example: `d9951e`.
@@ -208,7 +217,7 @@ Query (after ?):
 
 Fragment (after #):
 
-- `map`: json:<URI-encoded map-v1 JSON> (readable, at most 8192 characters) or the compressed z… form from mapSpec.createLink. Example: `json:%7B%22version%22%3A1%2C%22basemap%22%3A%22gray-vector%22%2C%22layers%22%3A%5B%7B%22url%22%3A%22https%3A%2F%2Fservices.arcgis.com%2FP3ePLMYs2RVChkJx%2FArcGIS%2Frest%2Fservices%2FCorn%2FFeatureServer%2F0%22%2C%22renderer%22%3A%7B%22type%22%3A%22choropleth%22%2C%22field%22%3A%22CORN_SALES_IN_DOLLARS%22%2C%22ramp%22%3A%22greens%22%2C%22exclude%22%3A%5B-1%5D%7D%7D%5D%7D`.
+- `map`: json:<URI-encoded map-v1 JSON> (readable, at most 8192 characters) or the compressed z… form from mapSpec.createLink. Example: `json:%7B%22version%22%3A1%2C%22basemap%22%3A%22gray-vector%22%2C%22layers%22%3A%5B%7B%22url%22%3A%22https%3A%2F%2Fservices.arcgis.com%2FP3ePLMYs2RVChkJx%2FArcGIS%2Frest%2Fservices%2FCorn%2FFeatureServer%2F0%22%2C%22renderer%22%3A%7B%22type%22%3A%22choropleth%22%2C%22field%22%3A%22CORN_SALES_IN_DOLLARS%22%2C%22method%22%3A%22auto%22%2C%22ramp%22%3A%22greens%22%2C%22exclude%22%3A%5B-1%5D%7D%7D%5D%7D`.
 - `briefing`: A briefing link payload (from the app or briefing.createLink).
 - `slide`: Open a briefing at this slide id.
 
@@ -250,10 +259,12 @@ await api.application.runTool("layer.filter", { layer: corn.id, where: "CORN_SAL
 A chat-only model can make a map by writing a [map-v1](schemas/map-v1.schema.json) spec and URI-encoding it into a link:
 
 ```text
-https://gismap.online/#map=json:{"version":1,"basemap":"gray-vector","layers":[{"url":"https://services.arcgis.com/P3ePLMYs2RVChkJx/ArcGIS/rest/services/Corn/FeatureServer/0","renderer":{"type":"choropleth","field":"CORN_SALES_IN_DOLLARS","ramp":"greens","exclude":[-1]}}]}
+https://gismap.online/#map=json:{"version":1,"basemap":"gray-vector","layers":[{"url":"https://services.arcgis.com/P3ePLMYs2RVChkJx/ArcGIS/rest/services/Corn/FeatureServer/0","renderer":{"type":"choropleth","field":"CORN_SALES_IN_DOLLARS","method":"auto","ramp":"greens","exclude":[-1]}}]}
 ```
 
-URI-encode the JSON (`encodeURIComponent`) when you can; the readable form holds up to 8,192 characters. `gisMapOnline.mapSpec.createLink(spec)` (or `mapSpec.createLink` from `js/gismap-core.js`) gives the compressed `#map=` form, and `?spec=<https URL>` opens a hosted spec. For one layer and one field there is no JSON at all: `?layer=<URL>&style=choropleth&field=<FIELD>&ramp=greens&exclude=-1&basemap=gray-vector`. Invalid parts are skipped and listed in `describe().state.issues`.
+URI-encode the JSON (`encodeURIComponent`) when you can; the readable form holds up to 8,192 characters. `gisMapOnline.mapSpec.createLink(spec)` (or `mapSpec.createLink` from `js/gismap-core.js`) gives the compressed `#map=` form, and `?spec=<https URL>` opens a hosted spec. For one layer and one field there is no JSON at all: `?layer=<URL>&style=choropleth&field=<FIELD>&method=auto&ramp=greens&exclude=-1&basemap=gray-vector`. Invalid parts are skipped and listed in `describe().state.issues`.
+
+`"method": "auto"` lets the app choose the class breaks from the data (quantile for skewed values, natural breaks for clusters, equal interval for even spreads), and `{ "type": "auto", "field": "…" }` (`style=auto`) lets it choose the whole style. `breaks: [1000, 50000, …]` fixes the classes. When the app resolves an `auto` style it records the result with its breaks, so saved projects and shared links look the same for everyone. `gisMapOnline.layers.suggestStyles(id, { field })` (and the Style options list in the style panel) ranks the styles that suit a field, each with a reason, its breaks and a `pinnedSpec` to apply; `renderers.suggest` in `js/gismap-core.js` does the same from values you pass in.
 
 Errors are `GisMapError` with a `code` and a `hint` written for agents. The contracts are [`api/capabilities.json`](api/capabilities.json) (namespaces, stability, tools with input schemas, error codes, ramps, basemaps, URL parameters), [`schemas/renderer-v1.schema.json`](schemas/renderer-v1.schema.json) and [`js/gismap-core.d.ts`](js/gismap-core.d.ts) (`InPageApi`). A `?layer=` link zooms to its data unless it says `zoom=none` or gives `center=lon,lat&level=` / `&scale=`.
 

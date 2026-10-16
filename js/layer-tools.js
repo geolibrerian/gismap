@@ -4,7 +4,7 @@
 // api/capabilities.json.
 
 const layerRef = { type: "string", description: "The layer's id (from layers.list()), service URL or title." };
-const rendererRef = { type: "object", description: "A RendererSpec, such as { \"type\": \"choropleth\", \"field\": \"POP\", \"ramp\": \"greens\" }. See schemas/renderer-v1.schema.json." };
+const rendererRef = { type: "object", description: "A RendererSpec, such as { \"type\": \"choropleth\", \"field\": \"POP\", \"method\": \"auto\" }, or { \"type\": \"auto\", \"field\": \"POP\" } to let the app choose. See schemas/renderer-v1.schema.json." };
 const whereRef = { type: ["string", "null"], description: "A read-only SQL where clause on the layer's fields, such as \"POP > 1000\". null clears it." };
 
 export const LAYER_TOOL_DEFINITIONS = Object.freeze([
@@ -37,6 +37,12 @@ export const LAYER_TOOL_DEFINITIONS = Object.freeze([
   },
   { id: "layer.style", displayName: "Style layer", description: "Style a layer with a RendererSpec.", inputSchema: { type: "object", required: ["layer", "renderer"], properties: { layer: layerRef, renderer: rendererRef } } },
   { id: "layer.filter", displayName: "Filter layer", description: "Show only the features matching a where clause.", inputSchema: { type: "object", required: ["layer", "where"], properties: { layer: layerRef, where: whereRef } } },
+  {
+    id: "layer.suggestStyles",
+    displayName: "Suggest styles",
+    description: "Rank the styles that suit a field, from its values: each option has a label, a reason, its class breaks and a pinnedSpec to pass to layer.style.",
+    inputSchema: { type: "object", required: ["layer"], properties: { layer: layerRef, field: { type: "string", description: "The field to style by; the most measurement-like field when omitted." } } },
+  },
   { id: "map.zoomToLayer", displayName: "Zoom to layer", description: "Fit the view to a layer's filtered data, or to every data layer when no layer is given.", inputSchema: { type: "object", properties: { layer: layerRef } } },
 ]);
 
@@ -46,6 +52,7 @@ const runners = {
   "layer.update": (layers, { layer, ...patch }) => layers.update(layer, patch),
   "layer.style": (layers, { layer, renderer }) => layers.update(layer, { renderer }),
   "layer.filter": (layers, { layer, where }) => layers.update(layer, { where }),
+  "layer.suggestStyles": (layers, { layer, field }) => layers.suggestStyles(layer, { field }),
   "map.zoomToLayer": (layers, { layer } = {}) => layers.zoomTo(layer ?? null),
 };
 

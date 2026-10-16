@@ -59,7 +59,8 @@
         "choropleth",
         "graduated",
         "categories",
-        "heatmap"
+        "heatmap",
+        "auto"
       ]
     },
     "field": {
@@ -77,6 +78,27 @@
       "example": "5",
       "minimum": 2,
       "maximum": 9
+    },
+    "method": {
+      "type": "string",
+      "repeatable": true,
+      "indexAligned": "layer",
+      "description": "How class breaks are chosen; auto picks from the values (quantile when skewed, natural breaks when clustered, equal interval when even).",
+      "example": "auto",
+      "values": [
+        "natural-breaks",
+        "quantile",
+        "equal-interval",
+        "auto"
+      ],
+      "default": "natural-breaks"
+    },
+    "breaks": {
+      "type": "string",
+      "repeatable": true,
+      "indexAligned": "layer",
+      "description": "Comma-separated class upper bounds, for fixed classes that look the same whenever the map opens.",
+      "example": "1000000,10000000,50000000"
     },
     "ramp": {
       "type": "string",
@@ -210,7 +232,7 @@
     "map": {
       "type": "string",
       "description": "json:<URI-encoded map-v1 JSON> (readable, at most 8192 characters) or the compressed z… form from mapSpec.createLink.",
-      "example": "json:%7B%22version%22%3A1%2C%22basemap%22%3A%22gray-vector%22%2C%22layers%22%3A%5B%7B%22url%22%3A%22https%3A%2F%2Fservices.arcgis.com%2FP3ePLMYs2RVChkJx%2FArcGIS%2Frest%2Fservices%2FCorn%2FFeatureServer%2F0%22%2C%22renderer%22%3A%7B%22type%22%3A%22choropleth%22%2C%22field%22%3A%22CORN_SALES_IN_DOLLARS%22%2C%22ramp%22%3A%22greens%22%2C%22exclude%22%3A%5B-1%5D%7D%7D%5D%7D"
+      "example": "json:%7B%22version%22%3A1%2C%22basemap%22%3A%22gray-vector%22%2C%22layers%22%3A%5B%7B%22url%22%3A%22https%3A%2F%2Fservices.arcgis.com%2FP3ePLMYs2RVChkJx%2FArcGIS%2Frest%2Fservices%2FCorn%2FFeatureServer%2F0%22%2C%22renderer%22%3A%7B%22type%22%3A%22choropleth%22%2C%22field%22%3A%22CORN_SALES_IN_DOLLARS%22%2C%22method%22%3A%22auto%22%2C%22ramp%22%3A%22greens%22%2C%22exclude%22%3A%5B-1%5D%7D%7D%5D%7D"
     },
     "briefing": {
       "type": "string",

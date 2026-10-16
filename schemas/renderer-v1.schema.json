@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://gismap.online/schemas/renderer-v1.schema.json",
   "title": "GIS Map Online RendererSpec",
-  "description": "A declarative layer style. GIS Map Online compiles it to an ArcGIS renderer, computing class breaks from the layer's data. Field names must match the service's fields exactly (sources.inspect(url).fields lists them).",
+  "description": "A declarative layer style. GIS Map Online compiles it to an ArcGIS renderer, computing class breaks from the layer's data. Not sure which style suits a field? Use { \"type\": \"auto\", \"field\": ... } or \"method\": \"auto\" and the app decides from the data. Field names must match the service's fields exactly (sources.inspect(url).fields lists them).",
   "oneOf": [
     {
       "type": "object",
@@ -31,7 +31,8 @@
         "type": { "const": "choropleth" },
         "field": { "type": "string", "description": "A numeric field." },
         "classes": { "type": "integer", "minimum": 2, "maximum": 9, "default": 5, "description": "Number of classes." },
-        "method": { "enum": ["natural-breaks", "quantile", "equal-interval"], "default": "natural-breaks", "description": "How class breaks are chosen." },
+        "method": { "$ref": "#/$defs/method" },
+        "breaks": { "$ref": "#/$defs/breaks" },
         "ramp": { "$ref": "#/$defs/ramp" },
         "normalizeBy": { "type": "string", "description": "A numeric field to divide by (for rates, such as per area or per person)." },
         "exclude": { "$ref": "#/$defs/exclude" }
@@ -46,6 +47,8 @@
         "type": { "const": "graduated-symbols" },
         "field": { "type": "string", "description": "A numeric field." },
         "classes": { "type": "integer", "minimum": 2, "maximum": 9, "default": 5 },
+        "method": { "$ref": "#/$defs/method" },
+        "breaks": { "$ref": "#/$defs/breaks" },
         "color": { "$ref": "#/$defs/color" },
         "minSize": { "type": "number", "minimum": 2, "maximum": 48, "default": 6 },
         "maxSize": { "type": "number", "minimum": 4, "maximum": 96, "default": 28 },
@@ -84,10 +87,35 @@
         "json": { "type": "object", "description": "ArcGIS renderer JSON (as layer.renderer.toJSON() writes it)." }
       },
       "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "description": "Let the app choose the style from the data when the map opens: colours or sized symbols with the break method that suits the values (quantile for skewed values, natural breaks for clusters, equal interval for even spreads), or categories for a text field. Without a field, the most measurement-like field is used. Saving or sharing from the app records the chosen style with its breaks.",
+      "required": ["type"],
+      "properties": {
+        "type": { "const": "auto" },
+        "field": { "type": "string", "description": "The field to style by." },
+        "classes": { "type": "integer", "minimum": 2, "maximum": 9, "description": "Number of classes (default: 3 to 5, by feature count)." },
+        "ramp": { "$ref": "#/$defs/ramp" },
+        "exclude": { "$ref": "#/$defs/exclude" }
+      },
+      "additionalProperties": false
     }
   ],
   "$defs": {
     "color": { "type": "string", "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$" },
+    "method": {
+      "enum": ["natural-breaks", "quantile", "equal-interval", "auto"],
+      "default": "natural-breaks",
+      "description": "How class breaks are chosen. \"auto\" picks from the values: quantile when they are skewed, natural breaks when they cluster, equal interval when they are spread evenly."
+    },
+    "breaks": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 9,
+      "items": { "type": "number" },
+      "description": "Fixed classes: the upper bound of each, in increasing order, such as [1000, 50000, 250000]. They replace classes and method, so the map looks the same whenever it opens. Values below the first bound join the first class; values above the last join the last."
+    },
     "ramp": {
       "enum": ["greens", "blues", "reds", "oranges", "purples", "viridis", "magma", "red-blue-diverging", "brown-teal-diverging"],
       "default": "greens",

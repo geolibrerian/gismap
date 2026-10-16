@@ -6,9 +6,9 @@
 // Older app links (`#map=z…` holding the compact share payload) still open; they
 // decode to map-v1 too. Pure functions only, so headless callers can build links.
 import { decodePayload, encodePayload } from "./link-codec.js?v=0.21.0";
-import { MAP_SPEC_JSON_LIMIT, QR_SAFE_LENGTH, readShare } from "./map-share.js?v=0.28.0";
-import { SHARE_BASEMAPS, SHARE_LAYER_TYPES, SHARE_LIMITS, sanitizeSharedResourceUrl } from "./share.js?v=0.28.0";
-import { validateRendererSpec } from "./renderer-spec.js?v=0.27.0";
+import { MAP_SPEC_JSON_LIMIT, QR_SAFE_LENGTH, readShare } from "./map-share.js?v=0.29.0";
+import { SHARE_BASEMAPS, SHARE_LAYER_TYPES, SHARE_LIMITS, sanitizeSharedResourceUrl } from "./share.js?v=0.29.0";
+import { validateRendererSpec } from "./renderer-spec.js?v=0.29.0";
 import { normalizeBriefing, validateBriefing } from "./briefing-document.js?v=0.27.0";
 import { INTERFACE_SKINS } from "./skin-catalog.js?v=0.18.2";
 import { GisMapError } from "./gismap-errors.js?v=0.28.0";
@@ -206,7 +206,7 @@ export async function createMapSpecLink(input, { baseUrl = "https://gismap.onlin
 /**
  * One map spec from `?layer=` parameters and their index-aligned styling:
  * title, where, style (service | simple | choropleth | graduated | categories |
- * heatmap), field, classes, ramp, exclude (comma-separated), opacity.
+ * heatmap | auto), field, classes, method, breaks and exclude (comma-separated), ramp, opacity.
  */
 export function mapSpecFromShareParameters(shared) {
   const spec = { version: MAP_SPEC_VERSION, layers: [] };
@@ -228,13 +228,15 @@ export function mapSpecFromShareParameters(shared) {
   return spec;
 }
 
-/** Turns `style=choropleth&field=POP&ramp=greens&exclude=-1` (one layer's values) into a RendererSpec. */
-export function rendererSpecFromParameters({ style, field, classes, ramp, exclude, color } = {}) {
+/** Turns `style=choropleth&field=POP&method=auto&ramp=greens&exclude=-1` (one layer's values) into a RendererSpec. */
+export function rendererSpecFromParameters({ style, field, classes, method, breaks, ramp, exclude, color } = {}) {
   if (!style) return null;
   const type = style === "graduated" ? "graduated-symbols" : style;
   const spec = { type };
   if (field) spec.field = field;
   if (classes !== undefined && classes !== "") spec.classes = Number(classes);
+  if (method) spec.method = method;
+  if (breaks) spec.breaks = String(breaks).split(",").map((item) => Number(item.trim()));
   if (ramp) spec.ramp = ramp;
   if (color) spec.color = color.startsWith("#") ? color : `#${color}`;
   if (exclude !== undefined && exclude !== "") spec.exclude = String(exclude).split(",").map((item) => item.trim()).filter(Boolean).map((item) => (/^-?\d+(\.\d+)?$/.test(item) ? Number(item) : item));

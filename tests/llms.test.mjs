@@ -68,14 +68,18 @@ test("recipe 3 uses only the in-page API that capabilities.json publishes", asyn
   const calls = [];
   const gisMapOnline = {
     ready: Promise.resolve(),
-    layers: { add: async (url, options) => { calls.push(["add", url, options.renderer.type]); return { id: "layer-1" }; } },
+    layers: {
+      add: async (url, options) => { calls.push(["add", url, options.renderer.type]); return { id: "layer-1" }; },
+      suggestStyles: async (id, { field }) => { calls.push(["suggestStyles", id, field]); return { options: [{ pinnedSpec: { type: "choropleth", field, breaks: [1, 2] } }] }; },
+      update: async (id, { renderer }) => { calls.push(["update", id, renderer.breaks.length]); return { id }; },
+    },
     camera: { fitTo: async (id) => calls.push(["fitTo", id]) },
     describe: () => ({ state: { layers: [] } }),
     mapSpec: { fromCurrent: () => CORN_SPEC, createLink: async (spec) => mapSpec.createLink(spec) },
   };
   const console = { log: () => {} };
   await new AsyncFunction("gisMapOnline", "console", recipe)(gisMapOnline, console);
-  assert.deepEqual(calls, [["add", CORN_SPEC.layers[0].url, "choropleth"], ["fitTo", "layer-1"]]);
+  assert.deepEqual(calls, [["add", CORN_SPEC.layers[0].url, "choropleth"], ["fitTo", "layer-1"], ["suggestStyles", "layer-1", "CORN_SALES_IN_DOLLARS"], ["update", "layer-1", 2]]);
 });
 
 test("the error table lists every published error code", async () => {

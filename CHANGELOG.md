@@ -6,6 +6,15 @@ All notable changes to GIS Map Online are documented here. This project follows
 
 ## [Unreleased]
 
+### Style options (0.26.0)
+
+- **Suggested styles**, computed in the browser from a field's values: `renderers.suggest` in gismap-core (pure, so any wrapper can use it) and `layers.suggestStyles(id, { field })` in the page rank the styles that suit a field. Each option has a label, a plain-language reason, its class breaks, a `spec` that re-decides from the data and a `pinnedSpec` with fixed breaks. Skewed values (such as corn sales) get quantile classes, clustered values natural breaks, even spreads equal intervals; points get sized symbols, a coloured-point and a heat-map option; few whole-number values also get a categories option; values running from negative to positive get a diverging ramp. Sentinel codes stay out of the statistics. Also the `layer.suggestStyles` application tool.
+- **Style panel: Style options.** "Suggest styles for this field" lists the options with their classes and colours; "Use this style" applies one.
+- **`"method": "auto"`** and **`{ "type": "auto", "field": … }`** in RendererSpec, map-v1 and `?layer=` links (`method=auto`, `style=auto`): the app chooses when it draws the layer, so a chat-only model only has to name the field. The documented Corn example now uses `method: "auto"`.
+- **Explicit `breaks`** (class upper bounds) on choropleth and graduated symbols, in specs and as `breaks=` in links: fixed classes that look the same whenever the map opens. Values beyond the first or last bound join the end classes.
+- **Pinning:** when the app resolves an `auto` style it records the result with its breaks, so saved projects, map specs from `fromCurrent` and shared links show the same classes to everyone. Hand-written `auto` links re-decide each time they open.
+- No server: everything runs in the browser.
+
 ### LLM discoverability
 
 - **`/llms.txt`** ([llmstxt.org](https://llmstxt.org/) format) and **`/llms-full.txt`** (the agent guide, map-v1 and RendererSpec properties, URL parameters, error codes, the in-page and briefing API, and the catalog in one file), generated from `capabilities.json`, the schemas, `share.js` and `catalog.js`.

@@ -1,8 +1,8 @@
 import { POPULAR_SERVICES } from "./catalog.js?v=0.18.2";
 import { ENTERPRISE_CATALOGS, EnterpriseCatalog, normalizeArcGisDirectoryUrl } from "./enterprise-catalog.js?v=0.18.2";
-import { createShareUrl } from "./share.js?v=0.28.0";
-import { createShareLink, hasDataFilter } from "./map-share.js?v=0.28.0";
-import { briefingLayerRef, findBriefingLayer } from "./briefing-api.js?v=0.28.0";
+import { createShareUrl } from "./share.js?v=0.29.0";
+import { createShareLink, hasDataFilter } from "./map-share.js?v=0.29.0";
+import { briefingLayerRef, findBriefingLayer } from "./briefing-api.js?v=0.29.0";
 import { createEmbeddedTourUrl } from "./tour-share.js?v=0.18.2";
 import { markdownToPlainText, renderMarkdown } from "./markdown.js?v=0.18.2";
 import { formatAttributeValue } from "./attribute-format.js?v=0.18.2";
@@ -11,7 +11,7 @@ import { featureFilterFor, featureId, fieldKind, filterRecords, histogram, reque
 import { DEFAULT_SKIN, INTERFACE_SKINS, applyInterfaceSkin, normalizeSkin, skinOptionsMarkup } from "./skin-catalog.js?v=0.18.2";
 import { compactMedia } from "./viewport.js?v=0.18.2";
 import { PdfDocument, brandedMapImage, loadBrandLogo, printPalette, qrAsset } from "./pdf-document.js?v=0.23.0";
-import { featureLayerUrl, locationUrl } from "./field-task-share.js?v=0.28.0";
+import { featureLayerUrl, locationUrl } from "./field-task-share.js?v=0.29.0";
 import { dockIcon } from "./dock-icons.js?v=0.24.0";
 import { serviceNameFromUrl } from "./service-name.js?v=0.26.0";
 import { decodeQrFromImage, describeGisMapLink, gisMapLinkFrom, openGisMapLink } from "./qr-import.js?v=0.25.1";
@@ -19,6 +19,7 @@ import { BriefingSlides } from "./briefing-slides.js?v=0.27.0";
 import { createSlide, matchesFilter, normalizeFilter } from "./briefing-document.js?v=0.27.0";
 import { aiDescriptionPrompt, applyAiDescriptions, describeWhere, generateBriefing, readAiDescriptions, rendererTheme } from "./briefing-generator.js?v=0.27.0";
 import { briefingFileStem } from "./briefing-pdf.js?v=0.23.0";
+import { rampColors } from "./renderer-spec.js?v=0.29.0";
 
 const DISPLAY_SETTINGS_KEY = "gismap-online:display:v1";
 const DOCKABLE_PANELS = { places: "Places", bookmarks: "Bookmarks", draw: "Draw", intelligence: "Intelligence", layers: "Layers" };
@@ -5143,6 +5144,8 @@ export class UIController {
       ?? numericFields.find((field) => !/(?:^|_)id$/i.test(field.name))
       ?? numericFields[0];
     const renderer = layer.renderer?.toJSON?.() ?? layer.renderer ?? {};
+    // Styles with excluded codes draw from an expression, so the recorded RendererSpec names the field.
+    const currentField = renderer.field || this.mapController.getLayerConfig(layer)?.rendererSpec?.field;
     const rendererMode = renderer.type === "unique-value" ? "categorized" : renderer.type === "class-breaks" ? "graduated" : "simple";
     const representativeSymbol = renderer.symbol ?? renderer.classBreakInfos?.[0]?.symbol ?? renderer.uniqueValueInfos?.[0]?.symbol;
     const objectSymbol = representativeSymbol?.symbolLayers?.find((symbolLayer) => symbolLayer.type === "object" || symbolLayer.type === "extrude");
@@ -5156,7 +5159,7 @@ export class UIController {
       ? items.map((field) => `<option value="${escapeHtml(field.name)}"${field.name === selected ? " selected" : ""}>${escapeHtml(field.alias || field.name)} (${escapeHtml(field.name)})</option>`).join("")
       : `<option value="">${emptyLabel}</option>`;
     const rendererControls = fields.length
-      ? `<label class="field"><span>Style type</span><select data-style-mode><option value="simple"${rendererMode === "simple" ? " selected" : ""}>Simple</option><option value="categorized"${rendererMode === "categorized" ? " selected" : ""}>Categorized by field</option><option value="graduated"${rendererMode === "graduated" ? " selected" : ""}>Graduated by numeric field</option></select></label><label class="field" data-style-field-control hidden><span>Style field</span><select data-style-field>${fieldOptions(fields, "No fields available", renderer.field || preferredNumericField?.name)}</select></label>`
+      ? `<label class="field"><span>Style type</span><select data-style-mode><option value="simple"${rendererMode === "simple" ? " selected" : ""}>Simple</option><option value="categorized"${rendererMode === "categorized" ? " selected" : ""}>Categorized by field</option><option value="graduated"${rendererMode === "graduated" ? " selected" : ""}>Graduated by numeric field</option></select></label><label class="field" data-style-field-control hidden><span>Style field</span><select data-style-field>${fieldOptions(fields, "No fields available", currentField || preferredNumericField?.name)}</select></label>`
       : "";
     const polygonControls = layer.geometryType === "polygon"
       ? '<label class="opacity-row"><span>Fill opacity</span><input data-symbol-fill-opacity type="range" min="0" max="1" step="0.05" value="0.35" /><output>35%</output></label><label class="display-checkbox"><input data-symbol-no-fill type="checkbox" /><span>No fill — outline only</span></label>'
@@ -5165,7 +5168,12 @@ export class UIController {
     const extrusionControls = extrudable
       ? `<fieldset class="feedback-settings"><legend>3D extrusion</legend><label class="display-checkbox"><input data-extrusion-enabled type="checkbox"${extrusionEnabledByRenderer ? " checked" : ""} /><span>Extrude in 3D</span></label><div data-extrusion-options hidden><div class="field-grid"><label class="field"><span>Height source</span><select data-extrusion-source><option value="fixed"${initialExtrusionSource === "fixed" ? " selected" : ""}>Fixed height</option><option value="field"${initialExtrusionSource === "field" ? " selected" : ""}>Numeric field</option></select></label><label class="field" data-extrusion-value-control><span>Height <small>meters</small></span><input data-extrusion-value type="number" min="0" step="1" value="${Number(objectSymbol?.height ?? objectSymbol?.size) || 250}" /></label><label class="field" data-extrusion-field-control hidden><span>Height field</span><select data-extrusion-field>${fieldOptions(numericFields, "No numeric fields available", extrusionField)}</select></label><label class="field" data-extrusion-multiplier-control hidden><span>Height multiplier</span><input data-extrusion-multiplier type="number" min="0" step="0.01" value="${Number.isFinite(expressionMultiplier) ? expressionMultiplier : 1}" /></label>${layer.geometryType === "polygon" ? "" : `<label class="field"><span>Column width <small>meters</small></span><input data-extrusion-width type="number" min="1" step="50" value="${Number(objectSymbol?.width) || 650}" /></label>`}</div></div></fieldset>`
       : "";
-    pane.innerHTML = `<div class="workspace-tool"><p class="eyebrow">Layer presentation</p><h3>Style ${escapeHtml(layer.title || "layer")}</h3><div class="field-grid">${rendererControls}<label class="field"><span>Fill / marker / line</span><input data-symbol-color type="color" value="#1b7f6a" /></label><label class="field"><span>Outline</span><input data-symbol-outline type="color" value="#ffffff" /></label><label class="field"><span>Size / width</span><input data-symbol-size type="number" min="0.5" max="40" step="0.5" value="9" /></label></div>${polygonControls}${extrusionControls}<p class="form-note">Field styles sample up to 1,000 records matching the active layer filter. Renderer JSON is stored with the project.</p><div class="workspace-tool__actions"><button type="button" class="button--primary" data-apply-symbology>Apply symbology</button></div></div>`;
+    // Ranked styles computed from the field's values (renderer-spec.js suggestRenderers).
+    const canSuggest = fields.length && typeof layer.queryFeatures === "function";
+    const styleOptions = canSuggest
+      ? '<section class="style-options" aria-label="Style options"><div class="style-options__head"><strong>Style options</strong><button type="button" class="link-button" data-suggest-styles>Suggest styles for this field</button></div><div class="style-options__list" data-style-options-list aria-live="polite"></div></section>'
+      : "";
+    pane.innerHTML = `<div class="workspace-tool"><p class="eyebrow">Layer presentation</p><h3>Style ${escapeHtml(layer.title || "layer")}</h3>${styleOptions}<div class="field-grid">${rendererControls}<label class="field"><span>Fill / marker / line</span><input data-symbol-color type="color" value="#1b7f6a" /></label><label class="field"><span>Outline</span><input data-symbol-outline type="color" value="#ffffff" /></label><label class="field"><span>Size / width</span><input data-symbol-size type="number" min="0.5" max="40" step="0.5" value="9" /></label></div>${polygonControls}${extrusionControls}<p class="form-note">Field styles sample up to 1,000 records matching the active layer filter. Renderer JSON is stored with the project.</p><div class="workspace-tool__actions"><button type="button" class="button--primary" data-apply-symbology>Apply symbology</button></div></div>`;
     const fillOpacity = pane.querySelector("[data-symbol-fill-opacity]");
     fillOpacity?.addEventListener("input", () => {
       fillOpacity.nextElementSibling.value = `${Math.round(Number(fillOpacity.value) * 100)}%`;
@@ -5179,11 +5187,16 @@ export class UIController {
       styleFieldControl.hidden = !needsField;
       if (!needsField) return;
       const available = styleMode.value === "graduated" ? numericFields : fields;
-      styleField.innerHTML = fieldOptions(available, styleMode.value === "graduated" ? "No numeric fields available" : "No fields available", renderer.field || preferredNumericField?.name);
+      styleField.innerHTML = fieldOptions(available, styleMode.value === "graduated" ? "No numeric fields available" : "No fields available", currentField || preferredNumericField?.name);
       styleField.disabled = !available.length;
     };
     styleMode?.addEventListener("change", syncStyleField);
     syncStyleField();
+    pane.querySelector("[data-suggest-styles]")?.addEventListener("click", () => {
+      // With no field chosen, the most measurement-like field is used (renderer-spec.js chooseStyleField).
+      const field = styleMode?.value && styleMode.value !== "simple" ? styleField?.value : currentField;
+      void this.#showStyleOptions(uid, pane.querySelector("[data-style-options-list]"), field || null);
+    });
     const extrusionEnabled = pane.querySelector("[data-extrusion-enabled]");
     const extrusionOptions = pane.querySelector("[data-extrusion-options]");
     const extrusionSource = pane.querySelector("[data-extrusion-source]");
@@ -5223,6 +5236,50 @@ export class UIController {
       } catch (error) { this.error(error.message); }
     });
     this.#syncUtilityPanel("style");
+  }
+
+  async #showStyleOptions(uid, list, field) {
+    if (!list) return;
+    list.innerHTML = '<p class="form-note">Reading the field’s values…</p>';
+    let suggestion;
+    try {
+      suggestion = await this.mapController.suggestRenderers(uid, { field });
+    } catch (error) {
+      list.innerHTML = `<p class="form-note">${escapeHtml(error.message)}</p>`;
+      return;
+    }
+    const { stats, options, fieldAlias } = suggestion;
+    const number = (value) => (value == null ? "" : Number(value).toLocaleString("en-US", { maximumFractionDigits: 2 }));
+    const summary = stats.min !== undefined && stats.min !== null
+      ? `${number(stats.count)} values from ${number(stats.min)} to ${number(stats.max)}${stats.excluded ? ` · ${number(stats.excluded)} shown as “No data”` : ""}${suggestion.sampled ? " · first 20,000 features" : ""}`
+      : `${number(stats.distinct ?? 0)} distinct values`;
+    if (!options.length) {
+      list.innerHTML = `<p class="form-note">${escapeHtml(fieldAlias)} has no values to style by.</p>`;
+      return;
+    }
+    const preview = (option) => {
+      const { spec, breaks } = option;
+      if (!breaks?.length) return "";
+      const colors = spec.type === "choropleth" ? rampColors(spec.ramp || "greens", breaks.length) : breaks.map(() => spec.color || "#d9951e");
+      let lower = stats.min;
+      return `<ol class="style-option__classes">${breaks.map((upper, index) => {
+        const label = `${number(lower)} – ${number(upper)}`;
+        lower = upper;
+        const size = spec.type === "graduated-symbols" ? 6 + (10 * index) / Math.max(1, breaks.length - 1) : 12;
+        return `<li title="${escapeHtml(label)}"><span class="style-option__swatch${spec.type === "graduated-symbols" ? " is-symbol" : ""}" style="background:${colors[index]};width:${size}px;height:${size}px"></span>${escapeHtml(label)}</li>`;
+      }).join("")}</ol>`;
+    };
+    list.innerHTML = `<p class="form-note">${escapeHtml(fieldAlias)}: ${escapeHtml(summary)}</p>${options.map((option, index) => `<article class="style-option${option.recommended ? " is-recommended" : ""}"><div class="style-option__title"><strong>${escapeHtml(option.label)}</strong>${option.recommended ? '<span class="style-option__badge">Recommended</span>' : ""}</div><p>${escapeHtml(option.reason)}</p>${preview(option)}<button type="button" class="button--secondary" data-use-style-option="${index}">Use this style</button></article>`).join("")}`;
+    list.querySelectorAll("[data-use-style-option]").forEach((button) => button.addEventListener("click", async () => {
+      const option = options[Number(button.dataset.useStyleOption)];
+      try {
+        // The pinned spec keeps these exact classes in saved projects and shared links.
+        await this.mapController.applyRendererSpec(uid, option.pinnedSpec);
+        list.querySelectorAll(".style-option").forEach((card, cardIndex) => card.classList.toggle("is-applied", cardIndex === Number(button.dataset.useStyleOption)));
+        const persisted = this.projectManager.persistCurrentIfSaved();
+        this.toast(`Styled by ${fieldAlias}: ${option.label.toLowerCase()}${persisted ? ", and saved" : ""}.`);
+      } catch (error) { this.error(error.message); }
+    }));
   }
 
   #refreshDialog(uid) {

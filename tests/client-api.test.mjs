@@ -5,7 +5,7 @@ import core, { briefing, capabilities, inspectSource, queries } from "../js/gism
 import { createClientApi } from "../js/briefing-api.js";
 
 test("gismap-core exposes a versioned, declarative briefing contract", () => {
-  assert.equal(core.version, "0.25.0");
+  assert.equal(core.version, "0.26.0");
   assert.equal(capabilities.briefingSchemaVersion, 1);
   assert.ok(capabilities.filters.includes("feature_ids"));
   const document = briefing.create({
@@ -101,7 +101,7 @@ test("a briefing document names its layer and selection, and the in-page API gen
   const headless = createClientApi({ projectManager, mapController });
   await assert.rejects(() => headless.briefing.exportPdf(), /needs the GISMap app/);
   const published = JSON.parse(await readFile(new URL("../api/capabilities.json", import.meta.url), "utf8"));
-  assert.equal(published.apiVersion, "0.25.0");
+  assert.equal(published.apiVersion, "0.26.0");
   assert.ok(published.namespaces.briefing.includes("generate") && published.namespaces.briefing.includes("exportPdf"));
   assert.deepEqual(published.namespaces.smartImages, ["embed", "read", "createShareLink", "createCurrent", "downloadCurrent"]);
   assert.ok(published.outputs.includes("briefing-pdf"));

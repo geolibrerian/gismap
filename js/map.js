@@ -1,5 +1,5 @@
-import { arcgisMetadata } from "./source-inspector.js?v=0.28.0";
-import { compileRenderer, validateRendererSpec } from "./renderer-spec.js?v=0.27.0";
+import { arcgisMetadata } from "./source-inspector.js?v=0.29.0";
+import { chooseStyleField, compileRenderer, resolveRendererSpec, suggestRenderers, validateRendererSpec } from "./renderer-spec.js?v=0.29.0";
 import { GisMapError } from "./gismap-errors.js?v=0.28.0";
 
 const ARCGIS_WORLD_GEOCODER =
@@ -954,12 +954,24 @@ export class MapController {
     await layer.load();
     if (!("renderer" in layer)) throw new GisMapError("UNSUPPORTED_LAYER_TYPE", `${layer.title || "This layer"} is drawn by its service and cannot be restyled.`);
     const fields = (layer.fields || []).map((field) => ({ name: field.name, alias: field.alias, type: field.type }));
-    const { valid, issues, spec } = validateRendererSpec(input, { fields, geometryType: layer.geometryType });
+    const { valid, issues, spec: validated } = validateRendererSpec(input, { fields, geometryType: layer.geometryType });
     if (!valid) {
       const first = issues.find((issue) => issue.level === "error");
       throw new GisMapError(first.code === "FIELD_NOT_FOUND" ? "FIELD_NOT_FOUND" : "INVALID_SPEC", first.message, { hint: first.hint, details: { issues } });
     }
     const config = this.layerConfigs.get(uid) ?? {};
+    // "auto" styles are decided from the data now, and recorded with their breaks.
+    let spec = validated;
+    let fetched = null;
+    if (spec.type === "auto" || spec.method === "auto") {
+      const field = spec.field || chooseStyleField(fields);
+      if (!field) throw new GisMapError("INVALID_SPEC", `${layer.title || "This layer"} has no field to style by.`, { hint: 'Name a field, or use { "type": "simple" }.' });
+      const fieldInfo = fields.find((item) => item.name === field);
+      const exclude = spec.exclude ?? this.#sentinelCodes(sentinels, field);
+      const values = await this.fieldValues(layer, field);
+      fetched = { field, values };
+      spec = resolveRendererSpec({ ...spec, field, ...(exclude.length ? { exclude } : {}) }, { values, fieldType: fieldInfo?.type, geometryType: layer.geometryType });
+    }
     if (spec.type === "service") {
       if (config.serviceRenderer) this.restoreRenderer(layer, config.serviceRenderer);
       delete config.renderer;
@@ -973,15 +985,16 @@ export class MapController {
     } else {
       // Codes such as -1 ("Not Disclosed") stay out of the classes unless the spec says otherwise.
       if (["choropleth", "graduated-symbols"].includes(spec.type) && spec.exclude === undefined) {
-        const codes = sentinels.filter((item) => item.field === spec.field && item.source !== "heuristic").map((item) => item.value);
-        if (codes.length) spec.exclude = codes;
+        const codes = this.#sentinelCodes(sentinels, spec.field);
+        if (codes.length) spec = { ...spec, exclude: codes };
       }
       let values = [];
       let categories = [];
-      if (["choropleth", "graduated-symbols"].includes(spec.type)) values = (await this.fieldValues(layer, spec.field)).map(Number);
+      const valuesOf = (field, options) => (fetched?.field === field ? fetched.values : this.fieldValues(layer, field, options));
+      if (["choropleth", "graduated-symbols"].includes(spec.type)) values = (await valuesOf(spec.field)).map(Number);
       if (spec.type === "categories") {
         const counts = new Map();
-        (await this.fieldValues(layer, spec.field, { limit: 10000 })).forEach((value) => counts.set(value, (counts.get(value) || 0) + 1));
+        (await valuesOf(spec.field, { limit: 10000 })).forEach((value) => counts.set(value, (counts.get(value) || 0) + 1));
         categories = [...counts].map(([value, count]) => ({ value, count }));
       }
       const alias = (layer.fields || []).find((field) => field.name === spec.field)?.alias;
@@ -992,6 +1005,30 @@ export class MapController {
     this.layerConfigs.set(uid, config);
     this.events.publish("layer:changed", { uid });
     return { issues, spec };
+  }
+
+  #sentinelCodes(sentinels, field) {
+    return sentinels.filter((item) => item.field === field && item.source !== "heuristic").map((item) => item.value);
+  }
+
+  /**
+   * Ranked style options for one field of a layer (renderer-spec.js
+   * suggestRenderers), from the values matching its current filter. Without a
+   * field, the most measurement-like field is used.
+   */
+  async suggestRenderers(uid, { field = null, sentinels = null } = {}) {
+    const layer = this.findLayer(uid);
+    if (!layer) throw new GisMapError("NOT_FOUND", "That layer is not on the map.");
+    await layer.load();
+    if (!("renderer" in layer) || typeof layer.queryFeatures !== "function") throw new GisMapError("UNSUPPORTED_LAYER_TYPE", `${layer.title || "This layer"} is drawn by its service and cannot be restyled.`);
+    const fields = (layer.fields || []).map((item) => ({ name: item.name, alias: item.alias, type: item.type }));
+    const name = field || chooseStyleField(fields);
+    const fieldInfo = fields.find((item) => item.name === name) || fields.find((item) => item.name.toLowerCase() === String(name || "").toLowerCase());
+    if (!fieldInfo) throw new GisMapError("FIELD_NOT_FOUND", name ? `Field \`${name}\` does not exist.` : `${layer.title || "This layer"} has no field to style by.`);
+    const values = await this.fieldValues(layer, fieldInfo.name);
+    const codes = this.#sentinelCodes(sentinels ?? this.layerMetadata(layer)?.sentinels ?? [], fieldInfo.name);
+    const suggestion = suggestRenderers({ field: fieldInfo.name, fieldType: fieldInfo.type, geometryType: layer.geometryType, values, exclude: codes });
+    return { ...suggestion, fieldAlias: fieldInfo.alias || fieldInfo.name, geometryType: layer.geometryType, sampled: values.length >= 20000 };
   }
 
   /** The extent to show a layer's (filtered) data, or null. */

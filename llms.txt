@@ -6,10 +6,11 @@ The map in a link is one JSON object (map-v1): layers with filters and styles, b
 
 ## Make a map from a URL (no code)
 - One layer: `https://gismap.online/?layer=<HTTPS service URL>&layerType=feature`
-- Styled: add `&style=choropleth&field=<FIELD>&ramp=greens&exclude=-1&basemap=gray-vector`
+- Styled: add `&style=choropleth&field=<FIELD>&method=auto&ramp=greens&exclude=-1&basemap=gray-vector` (`method=auto` picks the class breaks from the data)
+- Not sure which style suits the field: `&style=auto&field=<FIELD>` lets the app choose
 - Full control: `https://gismap.online/#map=json:<URI-encoded map-v1 JSON>` (at most 8192 characters) or `?spec=<URL of a hosted map-v1 JSON file>`
 - Inspect a service's fields first: append `?f=pjson` to the layer URL.
-- Worked example: https://gismap.online/#map=json:%7B%22version%22%3A1%2C%22basemap%22%3A%22gray-vector%22%2C%22layers%22%3A%5B%7B%22url%22%3A%22https%3A%2F%2Fservices.arcgis.com%2FP3ePLMYs2RVChkJx%2FArcGIS%2Frest%2Fservices%2FCorn%2FFeatureServer%2F0%22%2C%22renderer%22%3A%7B%22type%22%3A%22choropleth%22%2C%22field%22%3A%22CORN_SALES_IN_DOLLARS%22%2C%22ramp%22%3A%22greens%22%2C%22exclude%22%3A%5B-1%5D%7D%7D%5D%7D
+- Worked example: https://gismap.online/#map=json:%7B%22version%22%3A1%2C%22basemap%22%3A%22gray-vector%22%2C%22layers%22%3A%5B%7B%22url%22%3A%22https%3A%2F%2Fservices.arcgis.com%2FP3ePLMYs2RVChkJx%2FArcGIS%2Frest%2Fservices%2FCorn%2FFeatureServer%2F0%22%2C%22renderer%22%3A%7B%22type%22%3A%22choropleth%22%2C%22field%22%3A%22CORN_SALES_IN_DOLLARS%22%2C%22method%22%3A%22auto%22%2C%22ramp%22%3A%22greens%22%2C%22exclude%22%3A%5B-1%5D%7D%7D%5D%7D
 
 ## Contracts
 - [Map spec schema](https://gismap.online/schemas/map-v1.schema.json): layers, renderers, filters, camera, basemap

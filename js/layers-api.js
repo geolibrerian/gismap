@@ -2,9 +2,9 @@
 // They use the same loading path as "Add ArcGIS REST service" and `?layer=`
 // links (loadLayer), and change layers only through the map controller, so the
 // project, share links and Smart images all see the result.
-import { SHARE_LAYER_TYPES, SHARE_LIMITS, sanitizeSharedResourceUrl } from "./share.js?v=0.28.0";
+import { SHARE_LAYER_TYPES, SHARE_LIMITS, sanitizeSharedResourceUrl } from "./share.js?v=0.29.0";
 import { GisMapError, layerLoadError, toGisMapError } from "./gismap-errors.js?v=0.28.0";
-import { featureLayerUrl } from "./field-task-share.js?v=0.28.0";
+import { featureLayerUrl } from "./field-task-share.js?v=0.29.0";
 
 const trimUrl = (value) => String(value || "").trim().replace(/\/+$/, "").replace(/\/query$/i, "").toLowerCase();
 const READ_ONLY_WHERE = /;|--|\/\*|\b(drop|delete|insert|update|alter|exec|execute|merge|truncate|create)\b/i;
@@ -96,8 +96,9 @@ export function createLayersApi({ mapController, loadLayer, state = null, events
     if (options.visible !== undefined) mapController.setVisibility(uid, options.visible !== false);
     if (options.ignoreServiceScaleRange !== undefined && !adding) mapController.ignoreScaleRange(uid, options.ignoreServiceScaleRange === true);
     if (options.renderer !== undefined) {
-      await mapController.applyRendererSpec(uid, options.renderer, { sentinels: metadataFor(layer)?.sentinels || [] });
-      state?.dispatch?.("layer:style", { layerId: uid, style: options.renderer }, { undoable: false });
+      // "auto" comes back decided, with its breaks: that is what projects and links record.
+      const { spec } = await mapController.applyRendererSpec(uid, options.renderer, { sentinels: metadataFor(layer)?.sentinels || [] });
+      state?.dispatch?.("layer:style", { layerId: uid, style: spec }, { undoable: false });
     }
   }
 
@@ -163,6 +164,18 @@ export function createLayersApi({ mapController, loadLayer, state = null, events
       } finally {
         pending -= 1;
       }
+    },
+
+    /**
+     * Ranked style options for a field (all of the layer's values that match its
+     * filter): { field, stats, options: [{ id, label, reason, recommended, spec, pinnedSpec, breaks }] }.
+     * Apply one with update(key, { renderer: option.pinnedSpec }).
+     */
+    async suggestStyles(key, { field = null } = {}) {
+      const layer = require(key);
+      try {
+        return await mapController.suggestRenderers(layer.uid, { field, sentinels: metadataFor(layer)?.sentinels || [] });
+      } catch (error) { throw toGisMapError(error, "INVALID_SPEC"); }
     },
 
     async update(key, patch = {}) {

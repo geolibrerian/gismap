@@ -25,12 +25,12 @@ import {
   encodeBriefing,
   readBriefingHash,
 } from "./briefing-share.js?v=0.27.0";
-import { SENTINEL_LABEL, detectSentinels, inspectSource } from "./source-inspector.js?v=0.28.0";
-import { BREAK_METHODS, RAMPS, RENDERER_TYPES, closestField, compileRenderer, computeBreaks, rampColors, validateRendererSpec } from "./renderer-spec.js?v=0.27.0";
+import { SENTINEL_LABEL, detectSentinels, inspectSource } from "./source-inspector.js?v=0.29.0";
+import { BREAK_METHODS, RAMPS, RENDERER_TYPES, chooseBreakMethod, chooseStyleField, closestField, compileRenderer, computeBreaks, describeValues, rampColors, resolveRendererSpec, suggestRenderers, validateRendererSpec } from "./renderer-spec.js?v=0.29.0";
 import { ERROR_CODES, GisMapError, toGisMapError } from "./gismap-errors.js?v=0.28.0";
-import { LAYER_TOOL_DEFINITIONS, checkToolInput } from "./layer-tools.js?v=0.27.0";
-import { MAP_SPEC_JSON_LIMIT, MAP_SPEC_VERSION, createMapSpecLink, decodeMapSpec, encodeMapSpec, mapSpecFromShareParameters, rendererSpecFromParameters, validateMapSpec } from "./map-spec.js?v=0.28.0";
-import { SHARE_BASEMAPS, SHARE_LAYER_TYPES, SHARE_LIMITS } from "./share.js?v=0.28.0";
+import { LAYER_TOOL_DEFINITIONS, checkToolInput } from "./layer-tools.js?v=0.29.0";
+import { MAP_SPEC_JSON_LIMIT, MAP_SPEC_VERSION, createMapSpecLink, decodeMapSpec, encodeMapSpec, mapSpecFromShareParameters, rendererSpecFromParameters, validateMapSpec } from "./map-spec.js?v=0.29.0";
+import { SHARE_BASEMAPS, SHARE_LAYER_TYPES, SHARE_LIMITS } from "./share.js?v=0.29.0";
 import {
   SMART_IMAGE_CHUNK,
   SMART_IMAGE_FORMAT,
@@ -38,9 +38,9 @@ import {
   SMART_IMAGE_VERSION,
   embedProjectInPng,
   readProjectFromPng,
-} from "./smart-image.js?v=0.28.0";
+} from "./smart-image.js?v=0.29.0";
 
-export const GISMAP_CORE_VERSION = "0.25.0";
+export const GISMAP_CORE_VERSION = "0.26.0";
 
 export const capabilities = Object.freeze({
   apiVersion: GISMAP_CORE_VERSION,
@@ -105,6 +105,11 @@ export const renderers = Object.freeze({
   compile: compileRenderer,
   rampColors,
   closestField,
+  suggest: suggestRenderers,
+  resolve: resolveRendererSpec,
+  describeValues,
+  chooseMethod: chooseBreakMethod,
+  chooseField: chooseStyleField,
 });
 
 /**
@@ -150,6 +155,8 @@ export {
   validateRendererSpec,
   compileRenderer,
   computeBreaks,
+  suggestRenderers,
+  resolveRendererSpec,
   detectSentinels,
   BRIEFING_SCHEMA_VERSION,
   BRIEFING_SHARE_LIMITS,

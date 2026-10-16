@@ -101,11 +101,33 @@ export type RampName = "greens" | "blues" | "reds" | "oranges" | "purples" | "vi
 export type RendererSpec =
   | { type: "service" }
   | { type: "simple"; color?: string; outline?: string; size?: number }
-  | { type: "choropleth"; field: string; classes?: number; method?: "natural-breaks" | "quantile" | "equal-interval"; ramp?: RampName; normalizeBy?: string; exclude?: Array<number | string> }
-  | { type: "graduated-symbols"; field: string; classes?: number; color?: string; minSize?: number; maxSize?: number; exclude?: Array<number | string> }
+  | { type: "choropleth"; field: string; classes?: number; method?: BreakMethod; breaks?: number[]; ramp?: RampName; normalizeBy?: string; exclude?: Array<number | string> }
+  | { type: "graduated-symbols"; field: string; classes?: number; method?: BreakMethod; breaks?: number[]; color?: string; minSize?: number; maxSize?: number; exclude?: Array<number | string> }
   | { type: "categories"; field: string; maxCategories?: number; colors?: Record<string, string> }
   | { type: "heatmap"; field?: string }
-  | { type: "arcgis"; json: Record<string, unknown> };
+  | { type: "arcgis"; json: Record<string, unknown> }
+  /** Chosen from the data when the map opens; saving or sharing records the result with its breaks. */
+  | { type: "auto"; field?: string; classes?: number; ramp?: RampName; exclude?: Array<number | string> };
+
+/** "auto" picks quantile for skewed values, natural breaks for clusters, equal interval for even spreads. */
+export type BreakMethod = "natural-breaks" | "quantile" | "equal-interval" | "auto";
+
+export type ValueStats = { count: number; excluded: number; missing: number; distinct: number; min: number | null; max: number | null; mean: number | null; median: number | null; skew: number | null; integers: boolean };
+
+export type StyleOption = {
+  id: string;
+  label: string;
+  /** Why this style suits the field, in plain words. */
+  reason: string;
+  recommended: boolean;
+  /** Re-decides its classes from the data each time the map opens. */
+  spec: RendererSpec;
+  /** spec plus the computed breaks: the same classes for everyone. */
+  pinnedSpec: RendererSpec;
+  breaks: number[] | null;
+};
+
+export type StyleSuggestion = { field: string; stats: ValueStats | { count: number; distinct: number; missing: number }; options: StyleOption[] };
 
 export type RendererIssue = { level: "error" | "warning"; code: ErrorCode; path: string; message: string; hint?: string };
 
@@ -230,10 +252,18 @@ export const sources: Readonly<{
 }>;
 export const renderers: Readonly<{
   validate(spec: unknown, options?: { fields?: Array<{ name: string; type?: string }>; geometryType?: string }): { valid: boolean; issues: RendererIssue[]; spec: RendererSpec };
-  computeBreaks(values: number[], options?: { classes?: number; method?: "natural-breaks" | "quantile" | "equal-interval" }): { min: number | null; breaks: number[] };
+  computeBreaks(values: number[], options?: { classes?: number; method?: Exclude<BreakMethod, "auto"> }): { min: number | null; breaks: number[] };
   compile(spec: RendererSpec, options?: { geometryType?: string; values?: number[]; categories?: Array<{ value: unknown; count: number }>; fieldAlias?: string }): Record<string, unknown> | null;
   rampColors(name: RampName, count: number): string[];
   closestField(name: string, fields: Array<{ name: string } | string>): string | null;
+  /** Ranked styles for one field, from its values (pure; pass the values you fetched). */
+  suggest(input: { field: string; fieldType?: string; geometryType?: string; values: unknown[]; exclude?: Array<number | string>; ramp?: RampName | null; classes?: number | null }): StyleSuggestion;
+  /** A validated spec with "auto" decided and breaks pinned. */
+  resolve(spec: RendererSpec, options: { values: unknown[]; fieldType?: string; geometryType?: string }): RendererSpec;
+  describeValues(values: unknown[], options?: { exclude?: Array<number | string> }): ValueStats;
+  chooseMethod(stats: ValueStats): { method: Exclude<BreakMethod, "auto">; reason: string };
+  /** The most measurement-like field (never an ID, code or shape field), or null. */
+  chooseField(fields: Array<{ name: string; alias?: string; type?: string }>): string | null;
 }>;
 export const smartImages: Readonly<{
   format: "gismap-smart-image";
@@ -279,6 +309,8 @@ export type LayersApi = {
   /** [west, south, east, north] that zoomTo frames (the dense core of data spread over half the world). */
   extent(idOrUrlOrTitle?: string | null): Promise<[number, number, number, number] | null>;
   metadata(idOrUrlOrTitle: string): SourceMetadata | null;
+  /** Ranked styles for a field (the most measurement-like when omitted), from all values matching the layer's filter. Apply one with update(id, { renderer: option.pinnedSpec }). */
+  suggestStyles(idOrUrlOrTitle: string, options?: { field?: string }): Promise<StyleSuggestion & { fieldAlias: string; geometryType: string; sampled: boolean }>;
 };
 
 export type CameraApi = {

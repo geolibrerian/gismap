@@ -15,12 +15,12 @@ export const CORN_SPEC = Object.freeze({
   basemap: "gray-vector",
   layers: [{
     url: CORN_URL,
-    renderer: { type: "choropleth", field: "CORN_SALES_IN_DOLLARS", ramp: "greens", exclude: [-1] },
+    renderer: { type: "choropleth", field: "CORN_SALES_IN_DOLLARS", method: "auto", ramp: "greens", exclude: [-1] },
   }],
 });
 export const readableLink = (spec) => `${SITE}/#map=json:${encodeURIComponent(JSON.stringify(spec))}`;
 export const CORN_LINK = readableLink(CORN_SPEC);
-export const CORN_STYLED_LAYER_LINK = `${SITE}/?layer=${encodeURIComponent(CORN_URL)}&layerType=feature&style=choropleth&field=CORN_SALES_IN_DOLLARS&ramp=greens&exclude=-1&basemap=gray-vector`;
+export const CORN_STYLED_LAYER_LINK = `${SITE}/?layer=${encodeURIComponent(CORN_URL)}&layerType=feature&style=choropleth&field=CORN_SALES_IN_DOLLARS&method=auto&ramp=greens&exclude=-1&basemap=gray-vector`;
 
 /** Every link parameter, from share.js's own constants. */
 export function buildUrlParameters() {
@@ -37,6 +37,8 @@ export function buildUrlParameters() {
       style: aligned("A style without JSON.", "choropleth", { values: [...SHARE_STYLE_NAMES] }),
       field: aligned("The field a style uses (exactly as the service names it).", "CORN_SALES_IN_DOLLARS"),
       classes: aligned("Number of classes for choropleth and graduated styles.", "5", { type: "integer", minimum: 2, maximum: 9 }),
+      method: aligned("How class breaks are chosen; auto picks from the values (quantile when skewed, natural breaks when clustered, equal interval when even).", "auto", { values: ["natural-breaks", "quantile", "equal-interval", "auto"], default: "natural-breaks" }),
+      breaks: aligned("Comma-separated class upper bounds, for fixed classes that look the same whenever the map opens.", "1000000,10000000,50000000"),
       ramp: aligned("A named colour ramp.", "greens", { values: ["greens", "blues", "reds", "oranges", "purples", "viridis", "magma", "red-blue-diverging", "brown-teal-diverging"] }),
       exclude: aligned("Comma-separated codes drawn as \"No data\" and kept out of the classes.", "-1"),
       color: aligned("Hex colour for simple and graduated styles.", "d9951e"),
@@ -96,6 +98,7 @@ export function agentGuide({ errorCodes = {} } = {}) {
         paragraphs: [
           "Look at the service's fields first by opening the layer URL with ?f=pjson appended, and pick a numeric field. Then write a map-v1 spec and put it after #map=json: in the address (URI-encode it when you can).",
           "Worked example: U.S. county corn sales. The publisher's own style labels -1 as \"Not Disclosed\" (546 of 3,074 counties), so -1 is listed in exclude: those counties are drawn grey as \"No data\" instead of pulling the colour classes down. sources.inspect reports codes like this as sentinels.",
+          "\"method\": \"auto\" lets the app choose the class breaks from the data (corn sales are skewed, so it picks quantile classes). Not sure which style suits a field at all? Write { \"type\": \"auto\", \"field\": \"CORN_SALES_IN_DOLLARS\" } and the app chooses. Saving or sharing from the app records the chosen classes, so the map then looks the same for everyone.",
         ],
         ...code("json", JSON.stringify(CORN_SPEC, null, 2)),
         after: [`Link: ${CORN_LINK}`, `For one layer and one field there is a shorter form with no JSON: ${CORN_STYLED_LAYER_LINK}`],
@@ -122,12 +125,14 @@ link = "https://gismap.online/#map=json:" + urllib.parse.quote(json.dumps(spec, 
       },
       {
         heading: "3. Browser-automation agent: drive the page",
-        paragraphs: ["Wait for gisMapOnline.ready (or the gismap:ready event, or <html data-gismap-state=\"ready\">), add layers, fit the camera, and read describe() to check the result."],
+        paragraphs: ["Wait for gisMapOnline.ready (or the gismap:ready event, or <html data-gismap-state=\"ready\">), add layers, fit the camera, and read describe() to check the result. layers.suggestStyles ranks the styles that suit a field, each with a reason and its class breaks; apply one with its pinnedSpec."],
         ...code("js", `await gisMapOnline.ready;
 const layer = await gisMapOnline.layers.add("${CORN_URL}", {
   renderer: { type: "choropleth", field: "CORN_SALES_IN_DOLLARS", ramp: "greens" }, // sentinels excluded by default
 });
 await gisMapOnline.camera.fitTo(layer.id);
+const { options } = await gisMapOnline.layers.suggestStyles(layer.id, { field: "CORN_SALES_IN_DOLLARS" });
+await gisMapOnline.layers.update(layer.id, { renderer: options[0].pinnedSpec }); // the recommended style
 console.log(gisMapOnline.describe().state); // layers, basemap, camera, issues
 const { url } = await gisMapOnline.mapSpec.createLink(gisMapOnline.mapSpec.fromCurrent());`),
         after: [],
@@ -187,7 +192,8 @@ The map in a link is one JSON object (map-v1): layers with filters and styles, b
 
 ## Make a map from a URL (no code)
 - One layer: \`${SITE}/?layer=<HTTPS service URL>&layerType=feature\`
-- Styled: add \`&style=choropleth&field=<FIELD>&ramp=greens&exclude=-1&basemap=gray-vector\`
+- Styled: add \`&style=choropleth&field=<FIELD>&method=auto&ramp=greens&exclude=-1&basemap=gray-vector\` (\`method=auto\` picks the class breaks from the data)
+- Not sure which style suits the field: \`&style=auto&field=<FIELD>\` lets the app choose
 - Full control: \`${SITE}/#map=json:<URI-encoded map-v1 JSON>\` (at most ${MAP_SPEC_JSON_LIMIT} characters) or \`?spec=<URL of a hosted map-v1 JSON file>\`
 - Inspect a service's fields first: append \`?f=pjson\` to the layer URL.
 - Worked example: ${CORN_LINK}

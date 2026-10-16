@@ -9,7 +9,7 @@ const SUPPORTED_BASEMAPS = new Set([
 ]);
 const MAX_LAYERS = 10;
 const CAMERA_ZOOM_MODES = new Set(["layers", "none"]);
-const STYLE_NAMES = new Set(["service", "simple", "choropleth", "graduated", "categories", "heatmap"]);
+const STYLE_NAMES = new Set(["service", "simple", "choropleth", "graduated", "categories", "heatmap", "auto"]);
 const MAX_URL_LENGTH = 4096;
 
 export function sanitizeSharedResourceUrl(value, { allowHttp = false } = {}) {
@@ -41,9 +41,9 @@ export function parseShareParameters(search, catalog = [], options = {}) {
   if (rawLayers.length > MAX_LAYERS) throw new Error(`A shared map can load at most ${MAX_LAYERS} layers.`);
 
   // Simple styling without JSON, index-aligned with layer=: title, where, style,
-  // field, classes, ramp, exclude, color, opacity (js/map-spec.js turns it into a RendererSpec).
+  // field, classes, method, breaks, ramp, exclude, color, opacity (js/map-spec.js turns it into a RendererSpec).
   const aligned = (name) => params.getAll(name);
-  const STYLE_KEYS = ["style", "field", "classes", "ramp", "exclude", "color"];
+  const STYLE_KEYS = ["style", "field", "classes", "method", "breaks", "ramp", "exclude", "color"];
   const layers = rawLayers.map((url, index) => {
     const serviceType = rawTypes[index] || "arcgis-auto";
     if (!SUPPORTED_TYPES.has(serviceType)) throw new Error(`Unsupported shared layer type: ${serviceType}.`);
