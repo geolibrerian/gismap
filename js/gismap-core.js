@@ -50,7 +50,7 @@ export const capabilities = Object.freeze({
   sourceTypes: ["arcgis-rest", "geojson", "loaded-records"],
   outputs: ["briefing-json", "briefing-link", "briefing-pdf", "gmo-project", "smart-image-png"],
   filters: ["eq", "neq", "gt", "gte", "lt", "lte", "in", "not_in", "contains", "starts_with", "is_null", "is_not_null", "and", "or", "not", "feature_ids"],
-  limits: { maxSlides: MAX_SLIDES, maxLayers: SHARE_LIMITS.maxLayers, ...BRIEFING_SHARE_LIMITS },
+  limits: { maxSlides: MAX_SLIDES, maxLayers: SHARE_LIMITS.maxLayers, readableMapSpecCharacters: MAP_SPEC_JSON_LIMIT, ...BRIEFING_SHARE_LIMITS },
   layerTypes: [...SHARE_LAYER_TYPES],
   basemaps: [...SHARE_BASEMAPS],
   rendererTypes: [...RENDERER_TYPES],

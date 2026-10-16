@@ -1,0 +1,35 @@
+# GIS Map Online
+
+> Free, browser-only 3D GIS viewer (gismap.online). A language model can make a map for someone by producing a URL: no API key, account or server call is needed. It opens public ArcGIS REST (FeatureServer, MapServer, ImageServer), GeoJSON, WMS, WFS and KML sources over HTTPS.
+
+The map in a link is one JSON object (map-v1): layers with filters and styles, basemap, camera. Write it after #map=json: in the URL. Invalid parts are skipped and reported; the rest of the map still opens.
+
+## Make a map from a URL (no code)
+- One layer: `https://gismap.online/?layer=<HTTPS service URL>&layerType=feature`
+- Styled: add `&style=choropleth&field=<FIELD>&ramp=greens&exclude=-1&basemap=gray-vector`
+- Full control: `https://gismap.online/#map=json:<URI-encoded map-v1 JSON>` (at most 8192 characters) or `?spec=<URL of a hosted map-v1 JSON file>`
+- Inspect a service's fields first: append `?f=pjson` to the layer URL.
+- Worked example: https://gismap.online/#map=json:%7B%22version%22%3A1%2C%22basemap%22%3A%22gray-vector%22%2C%22layers%22%3A%5B%7B%22url%22%3A%22https%3A%2F%2Fservices.arcgis.com%2FP3ePLMYs2RVChkJx%2FArcGIS%2Frest%2Fservices%2FCorn%2FFeatureServer%2F0%22%2C%22renderer%22%3A%7B%22type%22%3A%22choropleth%22%2C%22field%22%3A%22CORN_SALES_IN_DOLLARS%22%2C%22ramp%22%3A%22greens%22%2C%22exclude%22%3A%5B-1%5D%7D%7D%5D%7D
+
+## Contracts
+- [Map spec schema](https://gismap.online/schemas/map-v1.schema.json): layers, renderers, filters, camera, basemap
+- [Renderer schema](https://gismap.online/schemas/renderer-v1.schema.json): choropleth, graduated symbols, categories, heat map, simple
+- [Briefing schema](https://gismap.online/schemas/briefing-v1.schema.json): slides that present a map
+- [URL parameters](https://gismap.online/api/url-parameters.json): every query and fragment parameter
+- [Capabilities](https://gismap.online/api/capabilities.json): in-page API, tools, error codes, limits
+- [TypeScript types](https://gismap.online/js/gismap-core.d.ts)
+
+## Guides
+- [Making maps with an AI agent](https://gismap.online/guides/ai-agents/): chat-only, code-running and browser-driving recipes
+- [ArcGIS FeatureServer viewer](https://gismap.online/arcgis-feature-service-viewer/)
+
+## Data
+- [Curated public datasets (JSON)](https://gismap.online/api/catalog.json): 15 services with ready links
+
+## Limits
+- At most 10 layers per map; HTTPS only; URLs containing tokens or keys are refused; sources must allow browser (CORS) access.
+- Basemaps: topo-3d, navigation-3d, navigation-dark-3d, osm-3d, gray-3d, dark-gray-3d, streets-3d, streets-dark-3d, topo-vector, streets-vector, navigation, gray-vector, dark-gray-vector, osm, satellite, hybrid.
+- Colour ramps: greens, blues, reds, oranges, purples, viridis, magma, red-blue-diverging, brown-teal-diverging.
+
+## Optional
+- [Full documentation in one file](https://gismap.online/llms-full.txt)

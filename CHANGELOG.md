@@ -6,6 +6,14 @@ All notable changes to GIS Map Online are documented here. This project follows
 
 ## [Unreleased]
 
+### LLM discoverability
+
+- **`/llms.txt`** ([llmstxt.org](https://llmstxt.org/) format) and **`/llms-full.txt`** (the agent guide, map-v1 and RendererSpec properties, URL parameters, error codes, the in-page and briefing API, and the catalog in one file), generated from `capabilities.json`, the schemas, `share.js` and `catalog.js`.
+- **`/api/url-parameters.json`** and **`/api/catalog.json`**: every link parameter with types, values and examples, and the curated datasets with `?example=` and `?layer=` links. `capabilities.json` links all of them under `documentation`.
+- **[Making maps with an AI agent](https://gismap.online/guides/ai-agents/)**: recipes for a chat-only model (a `#map=json:` link, with why Corn's `-1` is excluded), a code-running agent (`sources.inspect`, `mapSpec.validate`, `createLink`, and Python), a browser-automation agent, the error codes, and data caveats. The recipes run in the test suite.
+- The app page links `/llms.txt`, `capabilities.json` and the guide from its head, and has a visually hidden "For AI agents and developers" section and a useful `noscript`. Example pages show a `?layer=` link and a minimal map spec. The sitemap lists the new files, and a Cloudflare `_headers` file serves them (and `/schemas/*`, `/js/*`) with `Access-Control-Allow-Origin: *`.
+- `scripts/build-examples.mjs` now writes every generated file from `scripts/site-outputs.mjs` and `scripts/agent-docs.mjs`; CI runs it with `--check`.
+
 ### Map spec (0.25.0)
 
 - **map-v1** (`schemas/map-v1.schema.json`): a whole map as one JSON object (title, basemap, skin, camera, up to 10 layers with filters and RendererSpec styles, legend, optional briefing), with a description on every property. It is the readable form of a `#map=` link: `#map=json:<URI-encoded JSON>` can be written by hand, even by a chat-only model (up to 8,192 characters, else `SPEC_TOO_LONG`); `#map=z…` is the same JSON compressed; `?spec=<https URL>` opens a hosted file. Older app `#map=` links still open and decode to map-v1.

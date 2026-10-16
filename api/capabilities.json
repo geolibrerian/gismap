@@ -4,6 +4,13 @@
   "global": "globalThis.gisMapOnline",
   "module": "/js/gismap-core.js",
   "types": "/js/gismap-core.d.ts",
+  "documentation": {
+    "llms": "/llms.txt",
+    "llmsFull": "/llms-full.txt",
+    "agentGuide": "/guides/ai-agents/",
+    "urlParameters": "/api/url-parameters.json",
+    "catalog": "/api/catalog.json"
+  },
   "briefingSchema": "/schemas/briefing-v1.schema.json",
   "namespaces": {
     "briefing": [
@@ -262,7 +269,8 @@
   "limits": {
     "maxLayers": 10,
     "maxSlides": 60,
-    "qrSafeUrlLength": 2800
+    "qrSafeUrlLength": 2800,
+    "readableMapSpecCharacters": 8192
   },
   "urlParameters": {
     "layer": "HTTPS layer or service URL; repeatable, index-aligned with layerType (max 10).",

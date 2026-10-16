@@ -1,0 +1,334 @@
+# GIS Map Online
+
+> Free, browser-only 3D GIS viewer (gismap.online). A language model can make a map for someone by producing a URL: no API key, account or server call is needed. It opens public ArcGIS REST (FeatureServer, MapServer, ImageServer), GeoJSON, WMS, WFS and KML sources over HTTPS.
+
+The map in a link is one JSON object (map-v1): layers with filters and styles, basemap, camera. Write it after #map=json: in the URL. Invalid parts are skipped and reported; the rest of the map still opens.
+
+## Make a map from a URL (no code)
+- One layer: `https://gismap.online/?layer=<HTTPS service URL>&layerType=feature`
+- Styled: add `&style=choropleth&field=<FIELD>&ramp=greens&exclude=-1&basemap=gray-vector`
+- Full control: `https://gismap.online/#map=json:<URI-encoded map-v1 JSON>` (at most 8192 characters) or `?spec=<URL of a hosted map-v1 JSON file>`
+- Inspect a service's fields first: append `?f=pjson` to the layer URL.
+- Worked example: https://gismap.online/#map=json:%7B%22version%22%3A1%2C%22basemap%22%3A%22gray-vector%22%2C%22layers%22%3A%5B%7B%22url%22%3A%22https%3A%2F%2Fservices.arcgis.com%2FP3ePLMYs2RVChkJx%2FArcGIS%2Frest%2Fservices%2FCorn%2FFeatureServer%2F0%22%2C%22renderer%22%3A%7B%22type%22%3A%22choropleth%22%2C%22field%22%3A%22CORN_SALES_IN_DOLLARS%22%2C%22ramp%22%3A%22greens%22%2C%22exclude%22%3A%5B-1%5D%7D%7D%5D%7D
+
+## Contracts
+- [Map spec schema](https://gismap.online/schemas/map-v1.schema.json): layers, renderers, filters, camera, basemap
+- [Renderer schema](https://gismap.online/schemas/renderer-v1.schema.json): choropleth, graduated symbols, categories, heat map, simple
+- [Briefing schema](https://gismap.online/schemas/briefing-v1.schema.json): slides that present a map
+- [URL parameters](https://gismap.online/api/url-parameters.json): every query and fragment parameter
+- [Capabilities](https://gismap.online/api/capabilities.json): in-page API, tools, error codes, limits
+- [TypeScript types](https://gismap.online/js/gismap-core.d.ts)
+
+## Guides
+- [Making maps with an AI agent](https://gismap.online/guides/ai-agents/): chat-only, code-running and browser-driving recipes
+- [ArcGIS FeatureServer viewer](https://gismap.online/arcgis-feature-service-viewer/)
+
+## Data
+- [Curated public datasets (JSON)](https://gismap.online/api/catalog.json): 15 services with ready links
+
+## Limits
+- At most 10 layers per map; HTTPS only; URLs containing tokens or keys are refused; sources must allow browser (CORS) access.
+- Basemaps: topo-3d, navigation-3d, navigation-dark-3d, osm-3d, gray-3d, dark-gray-3d, streets-3d, streets-dark-3d, topo-vector, streets-vector, navigation, gray-vector, dark-gray-vector, osm, satellite, hybrid.
+- Colour ramps: greens, blues, reds, oranges, purples, viridis, magma, red-blue-diverging, brown-teal-diverging.
+
+## Optional
+- [Full documentation in one file](https://gismap.online/llms-full.txt)
+
+---
+
+# Full reference
+
+## Agent guide: Making maps with an AI agent
+
+GIS Map Online opens a map from a link. An agent that can only write text can make a map by writing one JSON object into a URL; agents that run code or drive a browser get validation, statistics and live control. No API key, account or server call is needed.
+
+### 1. Chat-only model: write a link
+
+Look at the service's fields first by opening the layer URL with ?f=pjson appended, and pick a numeric field. Then write a map-v1 spec and put it after #map=json: in the address (URI-encode it when you can).
+
+Worked example: U.S. county corn sales. The publisher's own style labels -1 as "Not Disclosed" (546 of 3,074 counties), so -1 is listed in exclude: those counties are drawn grey as "No data" instead of pulling the colour classes down. sources.inspect reports codes like this as sentinels.
+
+```json
+{
+  "version": 1,
+  "basemap": "gray-vector",
+  "layers": [
+    {
+      "url": "https://services.arcgis.com/P3ePLMYs2RVChkJx/ArcGIS/rest/services/Corn/FeatureServer/0",
+      "renderer": {
+        "type": "choropleth",
+        "field": "CORN_SALES_IN_DOLLARS",
+        "ramp": "greens",
+        "exclude": [
+          -1
+        ]
+      }
+    }
+  ]
+}
+```
+
+Link: https://gismap.online/#map=json:%7B%22version%22%3A1%2C%22basemap%22%3A%22gray-vector%22%2C%22layers%22%3A%5B%7B%22url%22%3A%22https%3A%2F%2Fservices.arcgis.com%2FP3ePLMYs2RVChkJx%2FArcGIS%2Frest%2Fservices%2FCorn%2FFeatureServer%2F0%22%2C%22renderer%22%3A%7B%22type%22%3A%22choropleth%22%2C%22field%22%3A%22CORN_SALES_IN_DOLLARS%22%2C%22ramp%22%3A%22greens%22%2C%22exclude%22%3A%5B-1%5D%7D%7D%5D%7D
+
+For one layer and one field there is a shorter form with no JSON: https://gismap.online/?layer=https%3A%2F%2Fservices.arcgis.com%2FP3ePLMYs2RVChkJx%2FArcGIS%2Frest%2Fservices%2FCorn%2FFeatureServer%2F0&layerType=feature&style=choropleth&field=CORN_SALES_IN_DOLLARS&ramp=greens&exclude=-1&basemap=gray-vector
+
+### 2. Code-running agent: inspect, validate, link
+
+Import the pure core (a browser, Deno, or Node with a clone of the repository: import ./js/gismap-core.js), inspect the source, validate the spec, and create a link. Python can build the readable link by hand.
+
+```js
+import { sources, mapSpec } from "https://gismap.online/js/gismap-core.js";
+
+const url = "https://services.arcgis.com/P3ePLMYs2RVChkJx/ArcGIS/rest/services/Corn/FeatureServer/0";
+const meta = await sources.inspect(url); // fields, scale range, freshness, sentinels
+const exclude = meta.sentinels
+  .filter((code) => code.field === "CORN_SALES_IN_DOLLARS" && code.source !== "heuristic")
+  .map((code) => code.value); // [-1]
+const spec = { version: 1, basemap: "gray-vector", layers: [{ url, renderer: { type: "choropleth", field: "CORN_SALES_IN_DOLLARS", exclude } }] };
+const { valid, issues } = mapSpec.validate(spec);
+const { url: link, qr } = await mapSpec.createLink(spec); // compressed; { compress: false } gives #map=json:
+```
+
+```python
+import json, urllib.parse
+
+spec = {"version": 1, "basemap": "gray-vector", "layers": [{"url": "https://services.arcgis.com/P3ePLMYs2RVChkJx/ArcGIS/rest/services/Corn/FeatureServer/0",
+        "renderer": {"type": "choropleth", "field": "CORN_SALES_IN_DOLLARS", "exclude": [-1]}}]}
+link = "https://gismap.online/#map=json:" + urllib.parse.quote(json.dumps(spec, separators=(",", ":")), safe="")
+```
+
+### 3. Browser-automation agent: drive the page
+
+Wait for gisMapOnline.ready (or the gismap:ready event, or <html data-gismap-state="ready">), add layers, fit the camera, and read describe() to check the result.
+
+```js
+await gisMapOnline.ready;
+const layer = await gisMapOnline.layers.add("https://services.arcgis.com/P3ePLMYs2RVChkJx/ArcGIS/rest/services/Corn/FeatureServer/0", {
+  renderer: { type: "choropleth", field: "CORN_SALES_IN_DOLLARS", ramp: "greens" }, // sentinels excluded by default
+});
+await gisMapOnline.camera.fitTo(layer.id);
+console.log(gisMapOnline.describe().state); // layers, basemap, camera, issues
+const { url } = await gisMapOnline.mapSpec.createLink(gisMapOnline.mapSpec.fromCurrent());
+```
+
+### 4. Handling errors
+
+Every error from the API is a GisMapError with a code and a hint written for agents. When a map spec opens, problems are listed in describe().state.issues instead of stopping the map.
+
+| Code | What to do |
+| --- | --- |
+| `INVALID_URL` | Pass a complete https:// URL to a service, layer or file. |
+| `HTTPS_REQUIRED` | Use the https:// form of the URL; GIS Map Online only loads remote data over HTTPS. |
+| `CREDENTIAL_IN_URL` | Remove the token, key or password from the URL. Only public services can be shared. |
+| `UNSUPPORTED_LAYER_TYPE` | Use one of the layer types listed in capabilities.json (arcgis-auto, feature, map-image, imagery, geojson, wms, wfs, kml). |
+| `TOO_MANY_LAYERS` | A map holds at most 10 data layers. Remove one with layers.remove before adding another. |
+| `LAYER_LOAD_FAILED` | Check the URL in a browser with ?f=pjson appended. The service may be down, private or not a layer URL. |
+| `CORS_BLOCKED` | The publisher does not allow browser access to this service. Use another source, or download the data and add it as a file. |
+| `SERVICE_ERROR` | The service answered with an error. Check the URL, the layer number and any filter for typos. |
+| `FIELD_NOT_FOUND` | Use a field name exactly as the service lists it; sources.inspect(url) returns the fields. |
+| `INVALID_SPEC` | Fix the listed issues; the schema in capabilities.json describes every property. |
+| `NOT_READY` | Await gisMapOnline.ready before calling this. |
+| `NOT_FOUND` | Call layers.list() to see the layers on the map and their ids. |
+| `SPEC_TOO_LONG` | Shorten the spec (fewer layers, no raw ArcGIS renderers) or use the compressed #map= form from mapSpec.createLink, or host the JSON and link to it with ?spec=. |
+
+### 5. Data caveats
+
+- Sentinels: some services store codes such as -1 or -9999 for "not disclosed" or "no data". sources.inspect and layers.list() report them; statistics leave them out and choropleths draw them as "No data". Sample-based guesses (source: heuristic) are reported but never applied.
+- Scale ranges: a publisher can hide a layer above or below a scale (Corn hides itself zoomed in past 1:144,447). Set ignoreServiceScaleRange: true to draw it at every zoom.
+- Record limits: services return at most maxRecordCount features per request. Statistics computed from loaded features are labelled as a sample when the layer has more.
+- Freshness: sources.inspect and layers.list() give dataLastEditDate; say how current the data is when you describe it.
+- Access: services must be public, HTTPS and allow browser (CORS) access. URLs with tokens or keys are refused.
+
+## Map spec (map-v1)
+
+A whole map as one JSON object: layers with styles and filters, basemap, look and camera. Open it at https://gismap.online/#map=json:<URI-encoded JSON> (written by hand, up to 8 KB), as the compressed #map= form from mapSpec.createLink, or host the file and open https://gismap.online/?spec=<https URL>. Invalid parts are skipped and reported; the rest of the map still opens.
+
+Top-level properties:
+
+- `version`: The spec version. Always 1.
+- `title`: The map's name, shown as the project title.
+- `description`: What the map shows, for people reading the spec.
+- `basemap`: The background map. gray-vector and dark-gray-vector keep attention on the data. One of: topo-3d, navigation-3d, navigation-dark-3d, osm-3d, gray-3d, dark-gray-3d, streets-3d, streets-dark-3d, topo-vector, streets-vector, navigation, gray-vector, dark-gray-vector, osm, satellite, hybrid.
+- `skin`: The interface look. It never changes data colours. One of: gismap, clean-light, dark-analytical, tidal-95, portolan, velvet-orbit, violet-circuit, highway, steeler.
+- `camera`: Where the map looks. Default { "fit": "layers" }: fit the loaded data (its dense core when it spreads over half the world).
+- `layers`: The data, drawn in order (the last is on top). At most 10.
+- `legend`: Open the legend.
+- `briefing`: Optional slides that present the map, as a briefing-v1 document (https://gismap.online/schemas/briefing-v1.schema.json). Its layerId may be one of the layer URLs.
+
+Layer properties:
+
+- `layers[].url`: HTTPS URL of an ArcGIS REST layer or service (FeatureServer/0, MapServer, ImageServer), a GeoJSON file, or a WMS/WFS/KML service. Public only: no tokens or keys. The service must allow browser (CORS) access. Append ?f=pjson to an ArcGIS URL to see its fields.
+- `layers[].type`: The layer type; arcgis-auto detects it from the service. One of: arcgis-auto, feature, map-image, imagery, geojson, wms, wfs, kml.
+- `layers[].title`: The name shown in the Layers panel and legend.
+- `layers[].where`: A read-only SQL filter on the layer's fields, such as "CORN_SALES_IN_DOLLARS >= 0" or "STATE = 'Iowa'". No statements, comments or semicolons.
+- `layers[].renderer`: The style. Field names must match the service exactly; a misspelled field keeps the service's own style and is reported.
+- `layers[].opacity`: 0 is transparent, 1 is opaque.
+- `layers[].visible`: Whether the layer starts switched on.
+- `layers[].ignoreServiceScaleRange`: Draw at every zoom level, even where the publisher hides the layer (its minScale/maxScale).
+- `layers[].refreshInterval`: Reload the layer every this many minutes (for live feeds).
+- `layers[].popup`: Fields of interest for inspecting features.
+
+## RendererSpec (styles)
+
+A declarative layer style. GIS Map Online compiles it to an ArcGIS renderer, computing class breaks from the layer's data. Field names must match the service's fields exactly (sources.inspect(url).fields lists them).
+
+- `service`: Keep the publisher's own style (the default).
+- `simple`: One colour for every feature. Properties: color, outline, size.
+- `choropleth`: Colour features by a numeric field in classes (a choropleth for polygons). Values listed in exclude, and nulls, are drawn grey as "No data" and kept out of the classes. Properties: field, classes, method, ramp, normalizeBy, exclude.
+- `graduated-symbols`: Size point or line symbols by a numeric field. Polygon layers get a choropleth instead (with a warning). Properties: field, classes, color, minSize, maxSize, exclude.
+- `categories`: One colour per value of a field (the most common values; the rest are "Other"). Properties: field, maxCategories, colors.
+- `heatmap`: A heat map of point density, optionally weighted by a numeric field. Point layers only. Properties: field.
+- `arcgis`: Raw ArcGIS renderer JSON, for styles the other types cannot express. Properties: json.
+
+Named ramps: greens, blues, reds, oranges, purples, viridis, magma, red-blue-diverging, brown-teal-diverging.
+
+## URL parameters
+
+Query (after ?):
+
+- `layer`: HTTPS URL of a public layer, service or GeoJSON file. No tokens or keys. Example: `https://services.arcgis.com/P3ePLMYs2RVChkJx/ArcGIS/rest/services/Corn/FeatureServer/0`.
+- `layerType` (index-aligned with layer): Layer type; arcgis-auto detects it. Values: arcgis-auto, feature, map-image, imagery, geojson, wms, wfs, kml. Example: `feature`.
+- `title` (index-aligned with layer): Layer title. Example: `Corn sales`.
+- `where` (index-aligned with layer): Read-only SQL filter on the layer's fields. Example: `CORN_SALES_IN_DOLLARS >= 0`.
+- `style` (index-aligned with layer): A style without JSON. Values: service, simple, choropleth, graduated, categories, heatmap. Example: `choropleth`.
+- `field` (index-aligned with layer): The field a style uses (exactly as the service names it). Example: `CORN_SALES_IN_DOLLARS`.
+- `classes` (index-aligned with layer): Number of classes for choropleth and graduated styles. Example: `5`.
+- `ramp` (index-aligned with layer): A named colour ramp. Values: greens, blues, reds, oranges, purples, viridis, magma, red-blue-diverging, brown-teal-diverging. Example: `greens`.
+- `exclude` (index-aligned with layer): Comma-separated codes drawn as "No data" and kept out of the classes. Example: `-1`.
+- `color` (index-aligned with layer): Hex colour for simple and graduated styles. Example: `d9951e`.
+- `opacity` (index-aligned with layer): 0 (transparent) to 1 (opaque). Example: `0.8`.
+- `basemap`: The background map, applied before the scene starts. Values: topo-3d, navigation-3d, navigation-dark-3d, osm-3d, gray-3d, dark-gray-3d, streets-3d, streets-dark-3d, topo-vector, streets-vector, navigation, gray-vector, dark-gray-vector, osm, satellite, hybrid. Example: `gray-vector`.
+- `zoom`: layers fits the loaded data; none keeps the starting view. Values: layers, none. Example: `none`.
+- `center`: View centre in degrees; use with scale or level. Example: `-93.6,42`.
+- `scale`: Map scale denominator, with center. Example: `500000`.
+- `level`: Zoom level, with center. Example: `7`.
+- `example`: A curated dataset (see /api/catalog.json). Values: usa-wildfires, modis-active-fires, active-hurricanes, recent-hurricanes, air-quality-pm25, air-quality-pm25-3d-columns, air-quality-pm25-3d-graduated, usgs-seismic-activity, usgs-recent-earthquakes-map-service, ndfd-wind-gusts, ndfd-precipitation, ndfd-daily-temperature, historical-quakes, usgs-earthquakes, world-countries-generalized. Example: `usa-wildfires`.
+- `spec`: HTTPS URL of a CORS-enabled map-v1 JSON file. Example: `https://example.org/corn.map.json`.
+- `briefing`: HTTPS URL of a briefing file (briefing-v1 document, project or the app's briefing file). Example: `https://example.org/corn.briefing.json`.
+
+Fragment (after #):
+
+- `map`: json:<URI-encoded map-v1 JSON> (readable, at most 8192 characters) or the compressed z… form from mapSpec.createLink. Example: `json:%7B%22version%22%3A1%2C%22basemap%22%3A%22gray-vector%22%2C%22layers%22%3A%5B%7B%22url%22%3A%22https%3A%2F%2Fservices.arcgis.com%2FP3ePLMYs2RVChkJx%2FArcGIS%2Frest%2Fservices%2FCorn%2FFeatureServer%2F0%22%2C%22renderer%22%3A%7B%22type%22%3A%22choropleth%22%2C%22field%22%3A%22CORN_SALES_IN_DOLLARS%22%2C%22ramp%22%3A%22greens%22%2C%22exclude%22%3A%5B-1%5D%7D%7D%5D%7D`.
+- `briefing`: A briefing link payload (from the app or briefing.createLink).
+- `slide`: Open a briefing at this slide id.
+
+## Error codes
+
+- `INVALID_URL`: Pass a complete https:// URL to a service, layer or file.
+- `HTTPS_REQUIRED`: Use the https:// form of the URL; GIS Map Online only loads remote data over HTTPS.
+- `CREDENTIAL_IN_URL`: Remove the token, key or password from the URL. Only public services can be shared.
+- `UNSUPPORTED_LAYER_TYPE`: Use one of the layer types listed in capabilities.json (arcgis-auto, feature, map-image, imagery, geojson, wms, wfs, kml).
+- `TOO_MANY_LAYERS`: A map holds at most 10 data layers. Remove one with layers.remove before adding another.
+- `LAYER_LOAD_FAILED`: Check the URL in a browser with ?f=pjson appended. The service may be down, private or not a layer URL.
+- `CORS_BLOCKED`: The publisher does not allow browser access to this service. Use another source, or download the data and add it as a file.
+- `SERVICE_ERROR`: The service answered with an error. Check the URL, the layer number and any filter for typos.
+- `FIELD_NOT_FOUND`: Use a field name exactly as the service lists it; sources.inspect(url) returns the fields.
+- `INVALID_SPEC`: Fix the listed issues; the schema in capabilities.json describes every property.
+- `NOT_READY`: Await gisMapOnline.ready before calling this.
+- `NOT_FOUND`: Call layers.list() to see the layers on the map and their ids.
+- `SPEC_TOO_LONG`: Shorten the spec (fewer layers, no raw ArcGIS renderers) or use the compressed #map= form from mapSpec.createLink, or host the JSON and link to it with ?spec=.
+
+## In-page API (globalThis.gisMapOnline)
+
+Language models and agents start at [`/llms.txt`](https://gismap.online/llms.txt) (the whole reference is in [`/llms-full.txt`](https://gismap.online/llms-full.txt)) and the guide [Making maps with an AI agent](https://gismap.online/guides/ai-agents/), with recipes for a chat-only model, a code-running agent and a browser-driving agent. [`/api/url-parameters.json`](api/url-parameters.json) and [`/api/catalog.json`](api/catalog.json) list every link parameter and the curated datasets. These files are generated by `node scripts/build-examples.mjs` and readable from any origin.
+
+Everything an agent needs is on `globalThis.gisMapOnline` once `await gisMapOnline.ready` resolves (also a `gismap:ready` event and `<html data-gismap-state="ready">`):
+
+```js
+const api = globalThis.gisMapOnline;
+await api.ready;
+const corn = await api.layers.add("https://services.arcgis.com/P3ePLMYs2RVChkJx/ArcGIS/rest/services/Corn/FeatureServer/0", {
+  renderer: { type: "choropleth", field: "CORN_SALES_IN_DOLLARS", ramp: "greens" }, // -1 "Not Disclosed" goes to "No data"
+});
+await api.camera.fitTo(corn.id);
+api.describe(); // capabilities + live layers, basemap, camera, skin, mode
+await api.application.runTool("layer.filter", { layer: corn.id, where: "CORN_SALES_IN_DOLLARS >= 0" });
+```
+
+### A map from one JSON object (no code)
+
+A chat-only model can make a map by writing a [map-v1](schemas/map-v1.schema.json) spec and URI-encoding it into a link:
+
+```text
+https://gismap.online/#map=json:{"version":1,"basemap":"gray-vector","layers":[{"url":"https://services.arcgis.com/P3ePLMYs2RVChkJx/ArcGIS/rest/services/Corn/FeatureServer/0","renderer":{"type":"choropleth","field":"CORN_SALES_IN_DOLLARS","ramp":"greens","exclude":[-1]}}]}
+```
+
+URI-encode the JSON (`encodeURIComponent`) when you can; the readable form holds up to 8,192 characters. `gisMapOnline.mapSpec.createLink(spec)` (or `mapSpec.createLink` from `js/gismap-core.js`) gives the compressed `#map=` form, and `?spec=<https URL>` opens a hosted spec. For one layer and one field there is no JSON at all: `?layer=<URL>&style=choropleth&field=<FIELD>&ramp=greens&exclude=-1&basemap=gray-vector`. Invalid parts are skipped and listed in `describe().state.issues`.
+
+Errors are `GisMapError` with a `code` and a `hint` written for agents. The contracts are [`api/capabilities.json`](api/capabilities.json) (namespaces, stability, tools with input schemas, error codes, ramps, basemaps, URL parameters), [`schemas/renderer-v1.schema.json`](schemas/renderer-v1.schema.json) and [`js/gismap-core.d.ts`](js/gismap-core.d.ts) (`InPageApi`). A `?layer=` link zooms to its data unless it says `zoom=none` or gives `center=lon,lat&level=` / `&scale=`.
+
+## Briefing API
+
+GISMap exposes the same versioned Briefing functions to in-page agents and to ES-module callers. No GISMap server or account is required.
+
+```js
+const api = globalThis.gisMapOnline;
+const slide = api.briefing.createSlide("map-narrative", {
+  title: "Where improvements are planned",
+});
+const document = api.briefing.addSlide(api.briefing.create(), slide);
+
+api.briefing.load(document); // opens the document in Briefing
+// The same link the app shares: it opens the slides with the map's layers,
+// styles, filters, skin and view. { documentOnly: true } gives a slides-only
+// link (#briefing=b1.…) that applies to whatever layers the URL loads (?layer=…).
+const link = await api.briefing.createLink(document, { qrSafe: true });
+const project = api.briefing.exportGmo(document); // { fileName, mimeType, text, blob }
+
+// Build slides from the map as it looks (style, filter, chosen features), and render the PDF handout.
+await api.briefing.generate({ layerId: "https://…/FeatureServer/0", ai: true });
+const pdf = await api.briefing.exportPdf(); // File
+```
+
+A briefing document can say which data it is about: `layerId` is best given as the layer's service URL, which GISMap loads if it is not already on the map, and `selection.ids` lists the chosen features. Host a document as JSON (CORS-enabled) and link to it as `https://gismap.online/?briefing=<file URL>`; GISMap opens it on that layer and starts presenting. The file may be a briefing document, a project that contains one, or the briefing file the share dialog downloads.
+
+Headless agents can import the pure core without opening the app:
+
+```js
+import { briefing, sources } from "./js/gismap-core.js";
+
+const metadata = await sources.inspect("https://example.org/arcgis/rest/services/Projects/FeatureServer/0");
+const result = briefing.validate(document);
+```
+
+The machine-readable contracts are [`api/capabilities.json`](api/capabilities.json), [`schemas/briefing-v1.schema.json`](schemas/briefing-v1.schema.json), and the [`gismap-core` TypeScript declarations](js/gismap-core.d.ts). Filters, slides, blocks, cameras and styles are declarative data; credentials and temporary viewer state do not belong in a briefing. Browser source inspection remains subject to CORS. The library does not provide hosted links, access control, or background jobs.
+
+### Smart map images
+
+Project → Download project can create a **Smart map image**: a polished, standards-compliant PNG containing the complete editable project configuration in GISMap's private `giMp` ancillary chunk. The visible image opens normally anywhere; importing the original PNG through Project → Import restores its camera, basemap, public layer references, styling, bookmarks, workflows, and Briefing slides.
+
+```js
+const output = await gisMapOnline.smartImages.createCurrent();
+const manifest = await gisMapOnline.smartImages.read(output.blob);
+console.log(output.file.name, output.share?.url, output.share?.qr);
+
+await gisMapOnline.smartImages.downloadCurrent();
+```
+
+`createCurrent()` gives an agent the PNG without forcing a browser download and also returns `share`, the equivalent live-map link with public layers, styles, filters, camera, basemap, and skin. `createShareLink()` returns that link directly. Its `qr` flag says whether it fits safely in GISMap's separate branded QR image. Keeping the QR as a separate artifact leaves the Smart Image clean while providing a reliable route back to the live map; GISMap can also reopen QR screenshots and photos.
+
+The embedded payload is versioned, deflate-compressed when supported, protected by PNG CRC and SHA-256 integrity checks, and bounded by explicit input limits. Remote URLs containing credentials are rejected. Smart Images reference public services and do not make those services offline; use `.gmop` when local datasets must travel with the project. Keep the original PNG—social networks and image editors may resize it or remove ancillary metadata. When another service strips the private PNG chunk, share the companion live link or QR image alongside it.
+
+### Composable application preview
+
+Feature branches under `codex/**` run `.github/workflows/development-preview.yml`. Every run produces a 14-day static preview artifact after the complete test suite and JavaScript syntax checks pass. An isolated Cloudflare Pages development deployment is enabled only when the `development` GitHub environment defines `CLOUDFLARE_PAGES_PROJECT_DEV`, `CLOUDFLARE_API_TOKEN_DEV`, and `CLOUDFLARE_ACCOUNT_ID_DEV`. These names deliberately do not reuse production credentials or destinations, and the workflow has no production trigger.
+
+The production site remains unchanged until its separate release process is explicitly invoked.
+
+## Curated datasets
+
+- USA Wildfires (feature, Esri Disaster Response): https://gismap.online/?example=usa-wildfires
+- Recent MODIS Hotspot Data (feature, Esri Disaster Response): https://gismap.online/?example=modis-active-fires
+- Active Hurricanes (feature, Esri Disaster Response): https://gismap.online/?example=active-hurricanes
+- Recent Hurricanes (feature, Esri Disaster Response): https://gismap.online/?example=recent-hurricanes
+- PM2.5 Data (feature, Esri Disaster Response): https://gismap.online/?example=air-quality-pm25
+- PM2.5 3D columns (feature, Esri Disaster Response): https://gismap.online/?example=air-quality-pm25-3d-columns
+- PM2.5 3D graduated columns (feature, Esri Disaster Response): https://gismap.online/?example=air-quality-pm25-3d-graduated
+- USGS Seismic Activity (feature, USGS / Esri): https://gismap.online/?example=usgs-seismic-activity
+- USGS Recent Earthquakes Map Service (map-image, USGS): https://gismap.online/?example=usgs-recent-earthquakes-map-service
+- NDFD Wind Gusts (feature, NWS / Esri): https://gismap.online/?example=ndfd-wind-gusts
+- NDFD Precipitation (feature, NWS / Esri): https://gismap.online/?example=ndfd-precipitation
+- NDFD Daily Temperature (feature, NWS / Esri): https://gismap.online/?example=ndfd-daily-temperature
+- Historical Quakes (feature, Esri Disaster Response): https://gismap.online/?example=historical-quakes
+- Earthquakes — past 30 days (geojson, USGS): https://gismap.online/?example=usgs-earthquakes
+- World countries — generalized (feature, Esri): https://gismap.online/?example=world-countries-generalized

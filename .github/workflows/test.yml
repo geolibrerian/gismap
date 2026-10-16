@@ -57,6 +57,8 @@ jobs:
           node --check js/markdown.js
           node --check js/catalog.js
           node --check scripts/build-examples.mjs
+          node --check scripts/site-outputs.mjs
+          node --check scripts/agent-docs.mjs
 
       - name: Verify generated examples and guides
         run: node scripts/build-examples.mjs --check

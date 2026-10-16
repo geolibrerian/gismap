@@ -55,6 +55,10 @@
     <link rel="manifest" href="./manifest.webmanifest" />
     <link rel="apple-touch-icon" href="./assets/icons/apple-touch-icon.png" />
     <meta name="theme-color" content="#0f2921" />
+    <!-- For language models and agents: a Markdown summary, the machine-readable API, and the agent guide. -->
+    <link rel="alternate" type="text/markdown" href="/llms.txt" title="GIS Map Online for language models" />
+    <link rel="describedby" type="application/json" href="/api/capabilities.json" />
+    <link rel="help" href="/guides/ai-agents/" />
     <link rel="preconnect" href="https://js.arcgis.com" />
     <link rel="stylesheet" href="https://js.arcgis.com/5.0/esri/themes/light/main.css" />
     <link rel="stylesheet" href="./css/app.css?v=0.28.0" />
@@ -404,7 +408,18 @@
     <input id="data-file-input" type="file" accept=".json,.geojson,.kml,.kmz,.zip" multiple hidden />
     <input id="tool-file-input" type="file" accept=".js,.mjs" hidden />
 
-    <noscript>GIS Map Online requires JavaScript.</noscript>
+    <section class="sr-only" aria-labelledby="agent-docs-title">
+      <h2 id="agent-docs-title">For AI agents and developers</h2>
+      <p>A map opens from a link: write one map-v1 JSON object after <code>#map=json:</code> in this page's address, or use <code>?layer=&lt;HTTPS service URL&gt;</code>. No key or account is needed.</p>
+      <ul>
+        <li><a href="/llms.txt">llms.txt: a summary for language models</a></li>
+        <li><a href="/guides/ai-agents/">Making maps with an AI agent</a></li>
+        <li><a href="/schemas/map-v1.schema.json">Map spec schema (map-v1)</a></li>
+        <li><a href="/api/capabilities.json">API capabilities</a> and <a href="/api/url-parameters.json">URL parameters</a></li>
+        <li><a href="/api/catalog.json">Curated public datasets</a></li>
+      </ul>
+    </section>
+    <noscript>GIS Map Online is an interactive 3D map viewer and needs JavaScript. Without it, a map can still be described as a link: see <a href="/llms.txt">/llms.txt</a> and the <a href="/guides/ai-agents/">guide for AI agents</a>.</noscript>
     <script type="module" src="./js/app.js?v=0.28.0"></script>
   </body>
 </html>
