@@ -2,6 +2,7 @@ import core, { normalizeBriefing, updateSlide, validateBriefingDocument } from "
 import { createShareLink } from "./map-share.js?v=0.29.0";
 import { GisMapError, layerLoadError, toGisMapError } from "./gismap-errors.js?v=0.28.0";
 import { featureLayerUrl } from "./field-task-share.js?v=0.29.0";
+import { brandedQrFile, printPalette } from "./pdf-document.js?v=0.30.0";
 
 const clone = (value) => structuredClone(value);
 const trimUrl = (value) => String(value || "").replace(/\/+$/, "").toLowerCase();
@@ -127,6 +128,24 @@ export function createBriefingApi({ projectManager, mapController, host = null, 
     /** The briefing's PDF handout (landscape, one page per slide, QR back to the live briefing) as a File. */
     async exportPdf(options = {}) {
       return needHost("createPdf")(options);
+    },
+    /** A branded PNG card whose QR opens the live briefing. */
+    async exportQrCard(document = current(), options = {}) {
+      if (!globalThis.document) throw new GisMapError("NOT_READY", "briefing.exportQrCard needs the GISMap browser app.");
+      const presentation = projectManager.current?.presentation || {};
+      const title = options.title || presentation.modeTitles?.briefing || presentation.title || projectManager.current?.name || "Briefing";
+      const link = await api.createLink(document, { ...options, qrSafe: options.qrSafe !== false });
+      const slideCount = normalizeBriefing(document).slides.filter((slide) => !slide.hidden).length;
+      const palette = printPalette(globalThis.document?.documentElement?.dataset.skin || presentation.skin);
+      const file = await brandedQrFile(link, {
+        fileName: `${cleanName(options.fileName || title)}-qr.png`,
+        title,
+        lines: [`Scan to present ${slideCount} slide${slideCount === 1 ? "" : "s"}, or long-click the QR code`, "to open it in a browser."],
+        footer: "Complete briefing encoded in this QR",
+        palette,
+      });
+      if (!file) throw new GisMapError("NOT_READY", "The branded QR card could not be rendered in this environment.");
+      return file;
     },
     captureCamera() {
       const state = mapController?.getViewState?.();

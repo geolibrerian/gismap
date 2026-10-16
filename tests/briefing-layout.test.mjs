@@ -5,6 +5,8 @@ import test from "node:test";
 const html = readFileSync(new URL("../index.html", import.meta.url), "utf8");
 const ui = readFileSync(new URL("../js/ui.js", import.meta.url), "utf8");
 const map = readFileSync(new URL("../js/map.js", import.meta.url), "utf8");
+const slides = readFileSync(new URL("../js/briefing-slides.js", import.meta.url), "utf8");
+const pdf = readFileSync(new URL("../js/briefing-pdf.js", import.meta.url), "utf8");
 const css = readFileSync(new URL("../css/app.css", import.meta.url), "utf8");
 
 test("briefing context has a map-owned host independent of the sidebar", () => {
@@ -20,6 +22,13 @@ test("briefing supports scoped feature selection and copyable representative coo
   assert.match(ui, /data-copy-briefing-coordinates/);
   assert.match(map, /representativePoint\(geometry\)/);
   assert.match(map, /geographicCoordinates\(geometry\)/);
+});
+
+test("briefing PDF maps match the live slide focus and use the branded QR card", () => {
+  assert.match(map, /if \(prepare\) await prepare\(index, target\)/, "capture supports slide-specific map preparation");
+  assert.match(slides, /prepare: \(index\) => this\.showSlideMap\(mapSlides\[index\]\)/, "the selected feature is highlighted before each snapshot");
+  assert.match(slides, /await mapController\.highlightFeature/, "capture waits until the layer highlight exists");
+  assert.match(pdf, /brandedQrImage\(link/, "the cover uses the same branded QR card as sharing");
 });
 
 test("desktop and globe map controls can collapse and reopen", () => {

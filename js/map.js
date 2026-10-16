@@ -738,7 +738,7 @@ export class MapController {
    * target or null for the current view; images are cropped to `aspect` around
    * the centre. The camera returns to where it was afterwards.
    */
-  async captureViews(targets = [], { aspect = 4 / 3, width = 1400, onProgress = () => {} } = {}) {
+  async captureViews(targets = [], { aspect = 4 / 3, width = 1400, onProgress = () => {}, prepare = null } = {}) {
     if (!this.view?.takeScreenshot) return targets.map(() => null);
     const camera = this.view.camera?.clone?.();
     const images = [];
@@ -747,6 +747,7 @@ export class MapController {
         onProgress(index, targets.length);
         try {
           if (target) await this.view.goTo(target, { animate: false });
+          if (prepare) await prepare(index, target);
           const started = Date.now();
           await new Promise((resolve) => setTimeout(resolve, 120));
           while (this.view.updating && Date.now() - started < 8000) await new Promise((resolve) => setTimeout(resolve, 150));

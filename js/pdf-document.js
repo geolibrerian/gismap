@@ -34,7 +34,7 @@ export function imageToJpeg(source, { width, height, maxSide, quality = 0.92, ba
   });
 }
 
-export const BRAND_LOGO = "./assets/gis-map-online-mark-v2.png";
+export const BRAND_LOGO = new URL("../assets/gis-map-online-mark-v2.png", import.meta.url).href;
 
 /**
  * Print colours for each interface skin, so reports and briefings look like the
@@ -80,6 +80,80 @@ const loadImage = (source) => new Promise((resolve) => {
   image.onerror = () => resolve(null);
   image.src = source;
 });
+
+/**
+ * The branded QR card used by workflow sharing, API exports and PDF covers.
+ * Keeping this in the document/export layer prevents each surface from drifting
+ * into a different visual treatment.
+ */
+export async function brandedQrCanvas(url, {
+  canvas = null,
+  title = "GIS Map Online",
+  lines = [],
+  footer = "Complete GISMap link encoded in this QR",
+  palette = PRINT_PALETTES.gismap,
+} = {}) {
+  if (!url || !globalThis.QRCode?.toCanvas) return null;
+  const target = canvas || document.createElement("canvas");
+  target.width = 760;
+  target.height = 960;
+  const qrCanvas = document.createElement("canvas");
+  await globalThis.QRCode.toCanvas(qrCanvas, url, { width: 520, margin: 2, errorCorrectionLevel: "L", color: { dark: palette.band, light: "#ffffff" } });
+  const context = target.getContext("2d");
+  context.setTransform(1, 0, 0, 1, 0, 0);
+  context.clearRect(0, 0, target.width, target.height);
+  context.textAlign = "left";
+  context.textBaseline = "alphabetic";
+  const gradient = context.createLinearGradient(0, 0, target.width, target.height);
+  gradient.addColorStop(0, palette.band);
+  gradient.addColorStop(1, palette.frame);
+  context.fillStyle = gradient;
+  context.fillRect(0, 0, target.width, target.height);
+  context.fillStyle = palette.edge;
+  context.fillRect(0, 0, 12, target.height);
+  const logo = await loadImage(BRAND_LOGO);
+  if (logo) context.drawImage(logo, 48, 42, 118, 118);
+  context.fillStyle = palette.brand;
+  context.font = "700 34px system-ui, sans-serif";
+  context.fillText("GIS MAP", 188, 87);
+  context.fillStyle = palette.edge;
+  context.font = "700 20px system-ui, sans-serif";
+  context.letterSpacing = "6px";
+  context.fillText("ONLINE", 190, 122);
+  context.letterSpacing = "0px";
+  context.fillStyle = "#ffffff";
+  context.font = "700 38px Georgia, serif";
+  context.fillText(String(title || "GIS Map Online").slice(0, 54), 58, 218, 644);
+  context.fillStyle = "rgb(255 255 255 / 72%)";
+  context.font = "20px system-ui, sans-serif";
+  lines.slice(0, 2).forEach((line, index) => context.fillText(String(line), 58, 250 + index * 28, 644));
+  context.fillStyle = "#ffffff";
+  context.fillRect(96, 300, 568, 568);
+  context.drawImage(qrCanvas, 120, 324, 520, 520);
+  context.fillStyle = "rgb(255 255 255 / 82%)";
+  context.font = "16px system-ui, sans-serif";
+  context.textAlign = "center";
+  if (footer) context.fillText(String(footer), 380, 900, 680);
+  context.fillStyle = palette.edge;
+  context.font = "700 18px system-ui, sans-serif";
+  context.fillText("gismap.online", 380, 930);
+  context.textAlign = "left";
+  return target;
+}
+
+export async function brandedQrImage(url, options = {}) {
+  const canvas = await brandedQrCanvas(url, options);
+  if (!canvas) return null;
+  const dataUrl = canvas.toDataURL("image/jpeg", 0.94);
+  return { bytes: dataUrlBytes(dataUrl), width: canvas.width, height: canvas.height };
+}
+
+export async function brandedQrFile(url, { fileName = "gismap-qr.png", ...options } = {}) {
+  const canvas = await brandedQrCanvas(url, options);
+  if (!canvas) return null;
+  const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/png"));
+  return blob ? new File([blob], fileName, { type: "image/png" }) : null;
+}
 
 /**
  * Frames a map snapshot like the QR cards, for every PDF the app makes: a border

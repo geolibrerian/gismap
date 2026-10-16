@@ -329,6 +329,8 @@ export type InPageBriefingApi = typeof briefing & {
   generate(options?: { layerId?: string; ai?: boolean; share?: boolean }): Promise<BriefingDocument>;
   /** The landscape PDF handout, with a QR code back to the live briefing. */
   exportPdf(options?: { withLink?: boolean }): Promise<File>;
+  /** A branded PNG card whose QR opens the complete live briefing. */
+  exportQrCard(document?: unknown, options?: { title?: string; fileName?: string; qrSafe?: boolean; documentOnly?: boolean; slide?: string; baseUrl?: string; compress?: boolean }): Promise<File>;
   /** The full share link (layers, styles, filters, skin, view), or a slides-only link with documentOnly. */
   createLink(document?: unknown, options?: { qrSafe?: boolean; documentOnly?: boolean; slide?: string; baseUrl?: string; compress?: boolean }): Promise<string>;
   exportGmo(document?: unknown, options?: { fileName?: string }): { fileName: string; mimeType: string; text: string; blob: Blob };

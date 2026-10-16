@@ -33,4 +33,5 @@ test("pictures open from a drop, the photo library or the menu; Smart images sta
   assert.doesNotMatch(smart, /Scan to open this map|drawQrCard/, "no QR card is drawn on the map");
   assert.match(reader, /BarcodeDetector/);
   assert.match(reader, /"define", source\)\(module, module\.exports, undefined\)/, "jsQR loads despite the page's AMD loader");
+  assert.match(await readFile(new URL("../js/pdf-document.js", import.meta.url), "utf8"), /export async function brandedQrCanvas/, "PDFs, UI shares and API exports use one branded QR renderer");
 });

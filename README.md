@@ -98,6 +98,7 @@ const project = api.briefing.exportGmo(document); // { fileName, mimeType, text,
 // Build slides from the map as it looks (style, filter, chosen features), and render the PDF handout.
 await api.briefing.generate({ layerId: "https://…/FeatureServer/0", ai: true });
 const pdf = await api.briefing.exportPdf(); // File
+const qrCard = await api.briefing.exportQrCard(); // branded PNG File
 ```
 
 A briefing document can say which data it is about: `layerId` is best given as the layer's service URL, which GISMap loads if it is not already on the map, and `selection.ids` lists the chosen features. Host a document as JSON (CORS-enabled) and link to it as `https://gismap.online/?briefing=<file URL>`; GISMap opens it on that layer and starts presenting. The file may be a briefing document, a project that contains one, or the briefing file the share dialog downloads.

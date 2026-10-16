@@ -146,7 +146,7 @@ export class BriefingSlides {
       } else if (slide.fit === "feature" && record?.geometry) {
         await mapController.goToFeature(record);
       }
-      if (record) mapController.highlightFeature?.(record, { pulse: false });
+      if (record) await mapController.highlightFeature?.(record, { pulse: false });
       else mapController.clearFeatureHighlight?.();
     } catch (error) {
       if (error?.name !== "AbortError") this.api.notify?.(error.message);
@@ -460,8 +460,13 @@ export class BriefingSlides {
     const { mapController } = this.api;
     const targets = slides.map((slide) => this.slideTarget(slide));
     const withMaps = targets.filter(Boolean);
+    const mapSlides = slides.filter((slide, index) => targets[index]);
     const captured = withMaps.length
-      ? await mapController.captureViews(withMaps, { aspect: 1.02, onProgress: (index, total) => onProgress(`Capturing map ${index + 1} of ${total}…`) })
+      ? await mapController.captureViews(withMaps, {
+        aspect: 1.02,
+        prepare: (index) => this.showSlideMap(mapSlides[index]),
+        onProgress: (index, total) => onProgress(`Capturing map ${index + 1} of ${total}…`),
+      })
       : [];
     let next = 0;
     const images = targets.map((target) => (target ? captured[next++] : null));

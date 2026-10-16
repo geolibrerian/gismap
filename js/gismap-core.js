@@ -40,7 +40,7 @@ import {
   readProjectFromPng,
 } from "./smart-image.js?v=0.29.0";
 
-export const GISMAP_CORE_VERSION = "0.26.0";
+export const GISMAP_CORE_VERSION = "0.27.0";
 
 export const capabilities = Object.freeze({
   apiVersion: GISMAP_CORE_VERSION,
@@ -48,7 +48,7 @@ export const capabilities = Object.freeze({
   briefingSchema: "https://gismap.online/schemas/briefing-v1.schema.json",
   execution: "client",
   sourceTypes: ["arcgis-rest", "geojson", "loaded-records"],
-  outputs: ["briefing-json", "briefing-link", "briefing-pdf", "gmo-project", "smart-image-png"],
+  outputs: ["briefing-json", "briefing-link", "briefing-pdf", "briefing-qr-png", "gmo-project", "smart-image-png"],
   filters: ["eq", "neq", "gt", "gte", "lt", "lte", "in", "not_in", "contains", "starts_with", "is_null", "is_not_null", "and", "or", "not", "feature_ids"],
   limits: { maxSlides: MAX_SLIDES, maxLayers: SHARE_LIMITS.maxLayers, readableMapSpecCharacters: MAP_SPEC_JSON_LIMIT, ...BRIEFING_SHARE_LIMITS },
   layerTypes: [...SHARE_LAYER_TYPES],

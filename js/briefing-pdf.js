@@ -1,7 +1,7 @@
 // A briefing as a landscape PDF handout: a cover with the QR code back to the
 // live briefing, then one page per slide laid out like the 16:9 stage (content
 // column beside a map snapshot), in the colours of the briefing's skin.
-import { PDF_COLORS, PdfDocument, imageToJpeg, loadBrandLogo, pdfColor, printPalette, qrAsset } from "./pdf-document.js?v=0.23.0";
+import { PDF_COLORS, PdfDocument, brandedQrImage, imageToJpeg, loadBrandLogo, pdfColor, printPalette } from "./pdf-document.js?v=0.30.0";
 
 const PAGE = { width: 792, height: 612, margin: 48 };
 
@@ -48,15 +48,19 @@ export async function briefingPdf({ title = "Briefing", skin = null, slides = []
   y = pdf.addTextAt(outline, { x: PAGE.margin, y, width: 430, size: 11, leading: 17 });
   if (slides.length > 14) pdf.addTextAt(`and ${slides.length - 14} more`, { x: PAGE.margin, y, width: 430, size: 10, color: muted });
   if (link) {
-    const code = qr ? await qrAsset(link, { dark: palette.band }).catch(() => null) : null;
-    const boxX = 530;
+    const code = qr ? await brandedQrImage(link, {
+      title,
+      lines: [`Scan to present ${slides.length} slide${slides.length === 1 ? "" : "s"}, or long-click the QR code`, "to open it in a browser."],
+      footer: "Complete briefing encoded in this QR",
+      palette,
+    }).catch(() => null) : null;
+    const boxX = 536;
     if (code) {
-      pdf.addImageAt(code, { x: boxX, y: pdf.top - 20, width: 200, height: 200, link });
-      pdf.addTextAt("Scan or click to open the live briefing, with its interactive map.", { x: boxX, y: pdf.top - 236, width: 200, size: 9, leading: 13, color: muted });
+      pdf.addImageAt(code, { x: boxX, y: pdf.top + 4, width: 190, height: 240, link });
     } else {
       pdf.addTextAt("This briefing is too detailed for a QR code. Click to open the live briefing:", { x: boxX, y: pdf.top - 20, width: 200, size: 9, leading: 13, color: muted });
     }
-    pdf.addTextAt("Open the live briefing", { x: boxX, y: pdf.top - (code ? 274 : 60), width: 200, size: 11, bold: true, link });
+    pdf.addTextAt("Open the live briefing", { x: boxX, y: pdf.top - (code ? 252 : 60), width: 190, size: 11, bold: true, link });
   }
   footer(title);
 

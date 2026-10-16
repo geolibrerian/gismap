@@ -1,5 +1,5 @@
 {
-  "apiVersion": "0.26.0",
+  "apiVersion": "0.27.0",
   "execution": "client",
   "global": "globalThis.gisMapOnline",
   "module": "/js/gismap-core.js",
@@ -30,6 +30,7 @@
       "saveCurrentCamera",
       "generate",
       "exportPdf",
+      "exportQrCard",
       "encode",
       "decode",
       "createLink",
@@ -108,6 +109,7 @@
     "briefing-json",
     "briefing-link",
     "briefing-pdf",
+    "briefing-qr-png",
     "gmo-project",
     "smart-image-png"
   ],
@@ -127,6 +129,7 @@
     "briefing.load (layer loading and presenting)",
     "briefing.generate",
     "briefing.exportPdf",
+    "briefing.exportQrCard",
     "smartImages.createShareLink",
     "smartImages.createCurrent",
     "smartImages.downloadCurrent",

@@ -6,6 +6,12 @@ All notable changes to GIS Map Online are documented here. This project follows
 
 ## [Unreleased]
 
+### Briefing export fidelity (0.27.0)
+
+- Briefing PDF captures now apply the same selected-feature highlight as the live slide before taking each map snapshot.
+- PDF covers, workflow shares and client-API exports use one branded QR card renderer.
+- Agents can call `briefing.exportQrCard()` to receive the green-band briefing QR as a PNG instead of rebuilding a bare QR code.
+
 ### Style options (0.26.0)
 
 - **Suggested styles**, computed in the browser from a field's values: `renderers.suggest` in gismap-core (pure, so any wrapper can use it) and `layers.suggestStyles(id, { field })` in the page rank the styles that suit a field. Each option has a label, a plain-language reason, its class breaks, a `spec` that re-decides from the data and a `pinnedSpec` with fixed breaks. Skewed values (such as corn sales) get quantile classes, clustered values natural breaks, even spreads equal intervals; points get sized symbols, a coloured-point and a heat-map option; few whole-number values also get a categories option; values running from negative to positive get a diverging ramp. Sentinel codes stay out of the statistics. Also the `layer.suggestStyles` application tool.

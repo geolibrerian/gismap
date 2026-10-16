@@ -21,6 +21,7 @@ const invalid = btoa(JSON.stringify({ v: 1, chapters: [{ name: "Nope", lat: 91, 
 assert.throws(() => decodeEmbeddedTour(invalid, basemaps), /invalid camera/);
 
 const ui = readFileSync(new URL("../js/ui.js", import.meta.url), "utf8");
+const pdf = readFileSync(new URL("../js/pdf-document.js", import.meta.url), "utf8");
 assert.match(ui, /data-atlas-title/);
 assert.match(ui, /Tour name/);
 assert.match(ui, /data-atlas-settings/);
@@ -30,5 +31,5 @@ assert.match(ui, /Download \.gmoatlas/);
 assert.match(ui, /#renderTourShareCard\(regularUrl, title\)/);
 assert.match(ui, /title: title \|\| "Guided places",/, "Tour cards fall back to the default tour name.");
 assert.match(ui, /const safeTitle = String\(title \|\| "GIS Map Online"\)\.slice\(0, 54\)/);
-assert.match(ui, /context\.textAlign = "left"/);
+assert.match(pdf, /context\.textAlign = "left"/);
 assert.match(ui, /long-click the QR code/);
