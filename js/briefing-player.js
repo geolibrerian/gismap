@@ -212,7 +212,7 @@ export class BriefingPlayer {
     root.setAttribute("role", "dialog");
     root.setAttribute("aria-label", `${this.api.title()} slides`);
     root.innerHTML = `<div class="briefing-cards__deck">${slides.map((slide, index) => `<article class="briefing-card${hasMap(slide) ? "" : " is-full"}" data-card="${index}">
-        ${hasMap(slide) ? `<button type="button" class="briefing-card__map" data-card-explore aria-label="Explore the map for this slide"><span>Tap to explore the map</span></button>` : ""}
+        ${hasMap(slide) ? `<button type="button" class="briefing-card__map" data-card-explore aria-label="Explore the map for this slide"><span>Tap the map to explore</span></button>` : ""}
         <div class="briefing-card__body"><div class="briefing-card__content">${this.api.slideHtml(slide, { index, count: slides.length })}</div><button type="button" class="briefing-card__more" data-card-more hidden>More</button></div>
       </article>`).join("")}</div>
       <header class="briefing-cards__top"><span class="briefing-cards__progress" data-cards-progress></span><button type="button" data-cards-exit aria-label="Close slides">×</button></header>

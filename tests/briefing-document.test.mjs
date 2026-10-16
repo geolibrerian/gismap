@@ -101,4 +101,5 @@ test("the player has a 16:9 desktop stage and swipeable phone cards that never p
   assert.match(player, /requestFullscreen/);
   assert.match(player, /view\.padding = /, "the camera centres in the visible part of the map");
   assert.match(player, /Reset slide/);
+  assert.match(player, /Tap the map to explore/, "mobile briefing cards use direct map-first guidance");
 });

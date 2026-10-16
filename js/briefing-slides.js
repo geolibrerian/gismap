@@ -19,7 +19,7 @@ import {
   validateBriefing,
 } from "./briefing-document.js?v=0.27.0";
 import { renderMarkdown } from "./markdown.js?v=0.18.2";
-import { BriefingPlayer, slideHasMap } from "./briefing-player.js?v=0.21.0";
+import { BriefingPlayer, slideHasMap } from "./briefing-player.js?v=0.30.1";
 import { briefingFileStem, briefingPdf, markdownToText } from "./briefing-pdf.js?v=0.23.0";
 import { featureId } from "./presentation-query.js?v=0.18.2";
 

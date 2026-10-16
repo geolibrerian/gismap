@@ -9,6 +9,7 @@ All notable changes to GIS Map Online are documented here. This project follows
 ### Briefing authoring layout
 
 - Briefing authoring now uses a desktop two-pane layout with an independently scrollable slide outline and selected-slide settings, adds confirmed delete controls to every slide row, and removes the duplicate header QR action in favor of the existing Share & PDF workflow.
+- Mobile Briefing cards now prompt people to “Tap the map to explore” for clearer map-first guidance.
 
 ### Briefing export fidelity (0.27.0)
 
