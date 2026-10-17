@@ -6,6 +6,8 @@
 // with the provider. Pure functions apart from the tool handlers, which call the
 // in-page API (globalThis.gisMapOnline) and a few app hooks passed in as `host`.
 
+import { DISPLAY_SETTINGS, guideOutline, searchGuide, validateDisplaySetting } from "./app-guide.js?v=0.48.0";
+
 const MAX_RESULT = 6000;
 const STEP_LIMIT = 10;
 const BASEMAPS = ["topo-3d", "navigation-3d", "navigation-dark-3d", "osm-3d", "gray-3d", "dark-gray-3d", "streets-3d", "streets-dark-3d", "topo-vector", "streets-vector", "navigation", "gray-vector", "dark-gray-vector", "osm", "satellite", "hybrid"];
@@ -51,6 +53,9 @@ export const ASSISTANT_TOOLS = Object.freeze([
     description: "Draft a field task (a checklist that sends someone to places on the map). It opens for the user to check, then save and share as a link or QR code.",
     parameters: { type: "object", required: ["title", "steps"], properties: { title: { type: "string" }, notes: { type: "string", description: "Instructions, at most 500 characters." }, steps: { type: "array", maxItems: 10, items: { type: "string" } }, location: { type: "string" }, longitude: { type: "number" }, latitude: { type: "number" }, features: { type: "array", maxItems: 5, items: { type: "object", required: ["layer", "objectId"], properties: { layer: layerRef, objectId: { type: ["number", "string"] }, label: { type: "string" } } } } } },
   },
+  { name: "app_help", description: "Where a menu, setting or feature of GIS Map Online is and what it does. Call it for any question about the app itself (how do I…, where is…, can I change…) before answering; never guess menu names.", parameters: { type: "object", required: ["question"], properties: { question: { type: "string" } } } },
+  { name: "get_display_settings", description: "The current display settings (Project → Layout & display…): appearance, navigation, panel positions, and map click feedback such as the selection style.", parameters: { type: "object", properties: {} } },
+  { name: "change_display_setting", description: "Change one display setting for the user, such as the selection style (highlightStyle: fill or outline), the feedback colour or dark mode.", parameters: { type: "object", required: ["setting", "value"], properties: { setting: { enum: Object.keys(DISPLAY_SETTINGS) }, value: { type: ["string", "boolean"], description: Object.entries(DISPLAY_SETTINGS).map(([key, definition]) => `${key}: ${Array.isArray(definition.values) ? definition.values.join("|") : definition.values}`).join("; ") } } } },
   { name: "get_share_link", description: "A link (and whether it fits a QR code) that opens the map as it is now, with its briefing.", parameters: { type: "object", properties: {} } },
 ]);
 
@@ -71,7 +76,11 @@ export function buildAssistantInstructions({ state = null, textTools = false } =
     "- Field tasks: draft_field_task. The user reviews it before it is shared.",
     "- When a tool returns an error, read its hint and fix the call; do not repeat the same call.",
     "- After acting, reply in two or three sentences: what you did, and anything the user should check (data caveats, missing fields, sample-based numbers). Offer get_share_link when the user wants to share.",
+    "- Questions about the app itself (menus, settings, where something is): call app_help and answer with the exact menu path it gives. Display settings (selection style, highlight colour, appearance, panel positions) can be changed for the user with change_display_setting; say where the setting lives too.",
     "- Keep the conversation in the user's language. Do not claim to have done something a tool did not do.",
+    "",
+    "The app's menus:",
+    ...guideOutline(),
   ];
   if (textTools) {
     lines.push(
@@ -345,6 +354,19 @@ export function createAssistantTools(host) {
       for (const feature of features.slice(0, 5)) placed.push(await host.featurePlace(feature.layer, feature.objectId, feature.label));
       host.draftFieldTask({ ...draft, features: placed });
       return { drafted: draft.title, features: placed.map((feature) => feature.label), next: "The user checks the draft, then saves and shares it." };
+    },
+    app_help({ question }) {
+      const matches = searchGuide(question);
+      return matches.length ? { matches } : { matches: [], hint: "Nothing in the guide matches; say so rather than guessing a menu." };
+    },
+    get_display_settings() {
+      return Object.fromEntries(Object.keys(DISPLAY_SETTINGS).map((key) => [key, host.getDisplaySettings?.()[key]]));
+    },
+    change_display_setting({ setting, value }) {
+      const checked = validateDisplaySetting(setting, value);
+      if (checked instanceof Error) throw checked;
+      host.setDisplaySetting(checked.key, checked.value);
+      return { [checked.key]: checked.value, where: "Project → Layout & display…" };
     },
     async get_share_link() {
       const { url, qr } = await api.mapSpec.createLink(api.mapSpec.fromCurrent());

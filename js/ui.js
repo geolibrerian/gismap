@@ -1,6 +1,6 @@
 import { POPULAR_SERVICES } from "./catalog.js?v=0.18.2";
-import { MapAssistantPanel } from "./assistant-panel.js?v=0.36.3";
-import { createAssistantTools, summarizeMapState } from "./map-assistant.js?v=0.36.3";
+import { MapAssistantPanel } from "./assistant-panel.js?v=0.48.0";
+import { createAssistantTools, summarizeMapState } from "./map-assistant.js?v=0.48.0";
 import { ENTERPRISE_CATALOGS, EnterpriseCatalog, normalizeArcGisDirectoryUrl } from "./enterprise-catalog.js?v=0.18.2";
 import { createShareUrl } from "./share.js?v=0.41.0";
 import { createShareLink, hasDataFilter } from "./map-share.js?v=0.41.0";
@@ -1409,6 +1409,12 @@ export class UIController {
       api: globalThis.gisMapOnline,
       catalog: POPULAR_SERVICES,
       setBasemap: (id) => this.mapController.setBasemap(id),
+      getDisplaySettings: () => this.#readDisplaySettings(),
+      setDisplaySetting: (key, value) => {
+        const settings = { ...this.#readDisplaySettings(), [key]: value };
+        localStorage.setItem(DISPLAY_SETTINGS_KEY, JSON.stringify(settings));
+        this.#applyDisplaySettings(settings);
+      },
       createTour: (places, options) => this.createTourFromPlaces(places, { ...options, open: true }),
       draftFieldTask: (draft) => this.fieldTasks?.newTaskFrom(draft),
       presentBriefing: async () => {
