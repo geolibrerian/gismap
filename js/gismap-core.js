@@ -25,7 +25,7 @@ import {
   encodeBriefing,
   readBriefingHash,
 } from "./briefing-share.js?v=0.35.0";
-import { SENTINEL_LABEL, detectSentinels, inspectSource } from "./source-inspector.js?v=0.41.0";
+import { SENTINEL_LABEL, detectSentinels, inspectSource } from "./source-inspector.js?v=0.53.0";
 import { BREAK_METHODS, RAMPS, RENDERER_TYPES, chooseBreakMethod, chooseStyleField, closestField, compileRenderer, computeBreaks, describeValues, rampColors, resolveRendererSpec, suggestRenderers, validateRendererSpec } from "./renderer-spec.js?v=0.29.0";
 import { ERROR_CODES, GisMapError, toGisMapError } from "./gismap-errors.js?v=0.28.0";
 import { LAYER_TOOL_DEFINITIONS, checkToolInput } from "./layer-tools.js?v=0.29.0";
@@ -40,7 +40,8 @@ import {
   readProjectFromPng,
 } from "./smart-image.js?v=0.44.2";
 
-import { APP_VERSION } from "./version.js?v=0.52.9";
+import { AUTHORING_TOOL_DEFINITIONS } from "./agent-authoring-tools.js?v=0.53.0";
+import { APP_VERSION } from "./version.js?v=0.53.0";
 export const GISMAP_CORE_VERSION = APP_VERSION;
 
 export const capabilities = Object.freeze({
@@ -48,6 +49,8 @@ export const capabilities = Object.freeze({
   briefingSchemaVersion: BRIEFING_SCHEMA_VERSION,
   briefingSchema: "https://gismap.online/schemas/briefing-v1.schema.json",
   execution: "client",
+  authoringCommands: AUTHORING_TOOL_DEFINITIONS,
+  authoringCommandSchema: "https://gismap.online/schemas/agent-command-v1.schema.json",
   sourceTypes: ["arcgis-rest", "geojson", "loaded-records"],
   outputs: ["briefing-json", "briefing-link", "briefing-pdf", "briefing-qr-png", "gmo-project", "smart-image-png"],
   filters: ["eq", "neq", "gt", "gte", "lt", "lte", "in", "not_in", "contains", "starts_with", "is_null", "is_not_null", "and", "or", "not", "feature_ids"],

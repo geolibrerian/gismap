@@ -1,50 +1,34 @@
 import { events } from "./events.js?v=0.18.2";
 import { AuthController } from "./engines/arcgis/arcgis-auth.js?v=0.39.0";
-import { MapController } from "./map-controller.js?v=0.52.5";
-import { listEngines } from "./engines/engine-registry.js?v=0.52.5";
+import { MapController } from "./map-controller.js?v=0.53.0";
+import { listEngines } from "./engines/engine-registry.js?v=0.53.0";
 import { chooseEngine } from "./engine-preference.js?v=0.52.5";
 import { BASEMAP_IDS } from "./basemap-catalog.js?v=0.41.0";
 import { ProjectManager } from "./project.js?v=0.52.5";
 import { IdentifyController } from "./identify.js?v=0.37.0";
 import { AttributeTableController } from "./attribute-table.js?v=0.37.0";
-import { AIController } from "./ai.js?v=0.50.0";
+import { AIController } from "./ai.js?v=0.53.0";
 import { ToolManager } from "./tool-manager.js?v=0.37.0";
-import { UIController } from "./ui.js?v=0.52.9";
+import { UIController } from "./ui.js?v=0.53.0";
 import { ExportController } from "./export/export-controller.js?v=0.37.0";
 import { SHARE_BASEMAPS, parseShareParameters } from "./share.js?v=0.41.0";
-import { readShareLocation } from "./map-share.js?v=0.41.0";
+import { readShareLocation } from "./map-share.js?v=0.53.0";
 import { decodeEmbeddedTour } from "./tour-share.js?v=0.18.2";
 import { decodeFieldTask, featureLayerUrl, readFieldTaskHash, readFocus } from "./field-task-share.js?v=0.41.0";
 import { POPULAR_SERVICES } from "./catalog.js?v=0.18.2";
 import { ApplicationRuntime } from "./application-runtime.js?v=0.52.5";
 import { PanelManager } from "./panel-manager.js?v=0.18.2";
 import { MobilePanelManager } from "./mobile-panel-manager.js?v=0.18.2";
-import { MobileWorkflowRouter } from "./mobile-workflow-router.js?v=0.52.9";
-import { createClientApi } from "./briefing-api.js?v=0.52.9";
+import { MobileWorkflowRouter } from "./mobile-workflow-router.js?v=0.53.0";
+import { createClientApi } from "./briefing-api.js?v=0.53.0";
+import { registerAuthoringTools } from "./agent-authoring-tools.js?v=0.53.0";
 import { createCameraApi, createLayersApi } from "./layers-api.js?v=0.41.0";
 import { registerLayerTools } from "./layer-tools.js?v=0.29.0";
 import { createMapSpecApi } from "./map-spec-api.js?v=0.41.0";
 import { mapSpecFromShareParameters } from "./map-spec.js?v=0.41.0";
 import { GisMapError, ERROR_CODES } from "./gismap-errors.js?v=0.28.0";
 
-async function loadSharedLayer(mapController, config) {
-  const rootUrl = config.url.replace(/\/+$/, "");
-  if (/\/FeatureServer$/i.test(new URL(rootUrl).pathname)) {
-    const layers = await mapController.discoverFeatureServiceLayers(rootUrl);
-    if (!layers.length) throw new Error("The shared FeatureServer does not advertise any feature layers.");
-    const added = await Promise.all(layers.map((layer) => mapController.addService({
-      ...config,
-      url: layer.url,
-      title: layers.length === 1 ? config.title : layer.name,
-      serviceType: "feature",
-    })));
-    if (config.renderer && added.length === 1) mapController.restoreRenderer(added[0], config.renderer);
-    return added;
-  }
-  const added = await mapController.addService(config);
-  if (config.renderer) mapController.restoreRenderer(added, config.renderer);
-  return [added];
-}
+import { loadSharedLayer } from "./shared-layer-loader.js?v=0.53.0";
 
 // Readiness for agents and scripts: gisMapOnline.ready, a `gismap:ready` event,
 // and <html data-gismap-state="loading|ready|error">.
@@ -57,7 +41,10 @@ ready.catch(() => {});
 async function start() {
   const allowHttp = location.hostname === "localhost" || location.hostname === "127.0.0.1";
   // MapLibre by default; ?engine=arcgis (or the Display settings choice) selects the ArcGIS engine.
-  const engineId = chooseEngine({ search: location.search, storage: globalThis.localStorage, available: listEngines().map((engine) => engine.id) });
+  let sharedState = null;
+  let sharedStateError = null;
+  try { sharedState = await readShareLocation(location, { allowHttp }); } catch (error) { sharedStateError = error; }
+  const engineId = sharedState?.engine || chooseEngine({ search: location.search, storage: globalThis.localStorage, available: listEngines().map((engine) => engine.id) });
   document.documentElement.dataset.mapEngine = engineId;
   const authController = new AuthController(events);
   // Saved ArcGIS sign-ins load the ArcGIS identity runtime only when ArcGIS draws the map (or a connection is used).
@@ -123,6 +110,7 @@ async function start() {
       layerInfo: (layer) => layersApi.get(layer.uid),
     },
   });
+  registerAuthoringTools(applicationRuntime.tools, { sources: clientApi.sources, briefing: clientApi.briefing, layers: layersApi, camera: cameraApi });
   const issues = [];
   const mapSpecApi = createMapSpecApi({
     layers: layersApi,
@@ -208,13 +196,6 @@ async function start() {
     shared = parseShareParameters(location.search, POPULAR_SERVICES, { allowHttp });
   } catch (error) {
     sharedError = error;
-  }
-  let sharedState = null;
-  let sharedStateError = null;
-  try {
-    sharedState = await readShareLocation(location, { allowHttp });
-  } catch (error) {
-    sharedStateError = error;
   }
   const linkBasemap = shared?.basemap || (sharedState?.kind === "map-spec" ? sharedState.spec?.basemap : sharedState?.basemap) || null;
   mapController.setInitialBasemap(SHARE_BASEMAPS.has(linkBasemap) ? linkBasemap : null);

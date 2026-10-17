@@ -57,6 +57,7 @@ export function packLayer(config = {}) {
   // GISMap (or when it is small), since service styles often embed symbol images.
   const json = config.renderer ? JSON.stringify(config.renderer) : "";
   const wanted = config.styled === true || !json.includes('"imageData"');
+  if (config.styled === true && json.length > MAX_RENDERER) throw new Error("A custom renderer is too large to share without losing its style. Export a project instead.");
   const renderer = config.renderer && wanted && json.length <= MAX_RENDERER ? config.renderer : null;
   return prune({
     u: config.url,
@@ -103,9 +104,16 @@ function unpackCamera(camera) {
  * are kept; local files cannot travel in a link). For a briefing, `primary` is
  * the index of the briefing's layer within `layers`.
  */
-export function serializeShare({ kind = "map", title = "", skin, basemap, camera, layers = [], primary = 0, briefing = null, selection = null, useAll = false }) {
+export function serializeShare({ kind = "map", title = "", skin, basemap, camera, layers = [], primary = 0, briefing = null, selection = null, useAll = false, engine = null, ground = null }) {
   if (!KINDS.has(kind)) throw new Error(`Unknown link type: ${kind}.`);
   const remote = layers.filter((layer) => layer?.url && !layer.local);
+  if (kind === "briefing" && remote.length !== layers.length) throw new Error("This briefing contains local or non-shareable layers. Export a project instead of an incomplete link.");
+  if (kind === "briefing" && layers.length && !remote.includes(layers[primary])) throw new Error("The briefing's primary layer is not shareable.");
+  if (kind === "briefing" && !useAll && selection?.length > MAX_SELECTION) throw new Error(`This selection exceeds the ${MAX_SELECTION}-feature share limit. Export a project instead.`);
+  for (const layer of remote) {
+    sanitizeSharedResourceUrl(layer.url, { allowHttp: true });
+    if (String(layer.definitionExpression || "").length > 2000) throw new Error("A layer filter is too long to share without truncation. Export a project instead.");
+  }
   if (!remote.length) throw new Error("Add a public web layer before sharing; files from this device cannot travel in a link.");
   if (remote.length > MAX_LAYERS) throw new Error(`A shared map can include at most ${MAX_LAYERS} layers.`);
   const payload = {
@@ -115,11 +123,13 @@ export function serializeShare({ kind = "map", title = "", skin, basemap, camera
     s: normalizeSkin(skin),
     m: SHARE_BASEMAPS.has(basemap) ? basemap : null,
     c: packCamera(camera),
+    e: ["arcgis", "maplibre"].includes(engine) ? engine : null,
+    g: ["flat", "world-elevation", "world-topobathymetry"].includes(ground) ? ground : null,
     L: remote.map(packLayer),
   };
   if (kind === "briefing") {
     payload.p = Math.max(0, remote.indexOf(layers[primary]));
-    payload.b = compactBriefing(briefing);
+    payload.b = normalizeBriefing(briefing);
     if (!useAll && selection?.length) payload.i = selection.slice(0, MAX_SELECTION).map(String);
     if (useAll) payload.a = 1;
   }
@@ -137,6 +147,8 @@ export function readShare(payload, options = {}) {
     skin: normalizeSkin(payload.s),
     basemap: SHARE_BASEMAPS.has(payload.m) ? payload.m : null,
     camera: unpackCamera(payload.c),
+    engine: ["arcgis", "maplibre"].includes(payload.e) ? payload.e : null,
+    ground: ["flat", "world-elevation", "world-topobathymetry"].includes(payload.g) ? payload.g : null,
     layers,
   };
   if (payload.k === "briefing") {

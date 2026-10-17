@@ -25,7 +25,7 @@ test("a briefing link carries layers with styles and filters, skin, basemap, vie
     skin: "velvet-orbit",
     basemap: "dark-gray-3d",
     camera: { center: [-120.123456789, 38.5], zoom: 7, heading: 10, tilt: 20 },
-    layers: [{ uid: "a", url: LAYER, sourceType: "feature", title: "Fires", definitionExpression: "acres > 10", renderer, opacity: 0.8, visible: true }, { uid: "b", url: "blob:local", local: true }],
+    layers: [{ uid: "a", url: LAYER, sourceType: "feature", title: "Fires", definitionExpression: "acres > 10", renderer, opacity: 0.8, visible: true }, { uid: "b", url: "https://example.org/second.geojson", sourceType: "geojson" }],
     primary: 0,
     briefing: { slides: [{ id: "s-1", template: "title", title: "Fires" }, { id: "s-2", template: "feature", featureId: 4, title: "One", blocks: [{ id: "b-1", type: "facts", fields: [] }] }, { id: "s-3", template: "actions", hidden: true }] },
     selection: [4, 5],
@@ -40,11 +40,11 @@ test("a briefing link carries layers with styles and filters, skin, basemap, vie
   assert.equal(shared.skin, "velvet-orbit");
   assert.equal(shared.basemap, "dark-gray-3d");
   assert.deepEqual(shared.camera.center, [-120.12346, 38.5]);
-  assert.equal(shared.layers.length, 1, "files from this device cannot travel");
+  assert.equal(shared.layers.length, 2);
   assert.deepEqual(shared.layers[0].renderer, renderer, "the renderer arrives exactly as serialized, false values included");
   assert.equal(shared.layers[0].definitionExpression, "acres > 10");
   assert.equal(shared.layers[0].opacity, 0.8);
-  assert.deepEqual(shared.briefing.slides.map((slide) => slide.id), ["s-1", "s-2"], "hidden slides are not shared");
+  assert.deepEqual(shared.briefing.slides.map((slide) => slide.id), ["s-1", "s-2", "s-3"], "hidden slides remain in the complete briefing");
   assert.equal(shared.briefing.slides[1].featureId, "4");
   assert.deepEqual(shared.selection, ["4", "5"]);
 });

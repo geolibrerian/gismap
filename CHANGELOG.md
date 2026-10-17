@@ -6,6 +6,10 @@ All notable changes to GIS Map Online are documented here. This project follows
 
 ## [Unreleased]
 
+### Briefing v2 (in development)
+
+- Preserve more briefing state in full links, await shared layer readiness, and report unsupported styles instead of silently using a fallback. See `docs/briefing-v2-status.md` for known gaps.
+
 ### Tour and field-task navigation
 
 - Link tour chapters and field-task locations to Google Maps using their existing coordinates.

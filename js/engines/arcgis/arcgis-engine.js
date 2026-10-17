@@ -3,7 +3,7 @@
 // callers get layer handles, features with plain JSON geometry and view
 // states, never SDK objects. Only native() hands the SDK's own map and view
 // out, for custom tools and the in-page API's escape hatches.
-import { arcgisMetadata } from "../../source-inspector.js?v=0.41.0";
+import { arcgisMetadata } from "../../source-inspector.js?v=0.53.0";
 import { chooseStyleField, compileRenderer, resolveRendererSpec, suggestRenderers, validateRendererSpec } from "../../renderer-spec.js?v=0.29.0";
 import { GisMapError } from "../../gismap-errors.js?v=0.28.0";
 import { ENGINE_CAPABILITIES, unsupported } from "../engine-interface.js?v=0.52.0";

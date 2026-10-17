@@ -135,7 +135,7 @@ const { options } = await gisMapOnline.layers.suggestStyles(layer.id, { field: "
 await gisMapOnline.layers.update(layer.id, { renderer: options[0].pinnedSpec }); // the recommended style
 console.log(gisMapOnline.describe().state); // layers, basemap, camera, issues
 const { url } = await gisMapOnline.mapSpec.createLink(gisMapOnline.mapSpec.fromCurrent());`),
-        after: [],
+        after: ["The in-browser shared command registry provides source.inspect, layer.list, map.camera.inspect, briefing.inspect, and briefing.validate through gisMapOnline.application.runTool(id, input). The initial command schema is https://gismap.online/schemas/agent-command-v1.schema.json. This does not provide REST or MCP endpoints."],
       },
       {
         heading: "4. Handling errors",

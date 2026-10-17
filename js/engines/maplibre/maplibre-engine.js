@@ -18,7 +18,7 @@ import { openBasemapFor } from "./basemaps.js?v=0.41.0";
 import { basemapOnEngine, basemapsForEngine } from "../../basemap-catalog.js?v=0.41.0";
 import { applyBasemapTheme, withBuildings3d } from "./basemap-theme.js?v=0.52.0";
 import { compileWhere } from "./where.js?v=0.39.0";
-import { arcgisMetadata } from "../../source-inspector.js?v=0.41.0";
+import { arcgisMetadata } from "../../source-inspector.js?v=0.53.0";
 import { OpenGeocoder } from "./geocoder.js?v=0.47.0";
 import { chooseStyleField, compileRenderer, resolveRendererSpec, suggestRenderers, validateRendererSpec } from "../../renderer-spec.js?v=0.29.0";
 import { rendererToPaint } from "./arcgis-renderer.js?v=0.42.0";
@@ -476,10 +476,10 @@ export class MaplibreEngine {
     const line = scaled({ "line-color": color, "line-width": 2.5, "line-opacity": 1, ...styled.line }, ["line-opacity"]);
     const circle = scaled({ "circle-color": color, "circle-radius": 4.5, "circle-stroke-color": halo, "circle-stroke-width": 1.5, "circle-opacity": 1, "circle-stroke-opacity": 1, ...styled.circle }, ["circle-opacity", "circle-stroke-opacity"]);
     const symbol = record.renderer?.symbol || record.renderer?.classBreakInfos?.[0]?.symbol || record.renderer?.uniqueValueInfos?.[0]?.symbol;
-    const extrusion = symbol?.symbolLayers?.find((item) => item.type === "extrude");
-    const variable = record.renderer?.visualVariables?.find((item) => item.type === "size");
+    const extrusion = symbol?.symbolLayers?.find((item) => String(item.type).toLowerCase() === "extrude");
+    const variable = record.renderer?.visualVariables?.find((item) => /^(size|sizeinfo)$/i.test(item.type));
     const expression = String(variable?.valueExpression || "");
-    const match = expression.match(/^\$feature\[("(?:[^"\\]|\\.)*")\]\s*\*\s*([0-9.]+)$/);
+    const match = expression.match(/^\$feature\[("(?:[^"\\]|\\.)*")\]\s*\*\s*((?:\d+\.?\d*|\.\d+)(?:e[+-]?\d+)?)$/i);
     const field = variable?.field || (match ? JSON.parse(match[1]) : null);
     const height = field ? ["max", 0, ["*", ["to-number", ["get", field], 0], match ? Number(match[2]) : 1]] : Math.max(0, Number(extrusion?.size) || 0);
     const fillVisibility = extrusion ? "none" : visibility;
@@ -804,7 +804,11 @@ export class MaplibreEngine {
   }
 
   async loadLayer(uid) {
-    await this.#record(uid)?.loaded;
+    const record = this.#record(uid);
+    if (!record) throw new Error("The layer is no longer available.");
+    await record.loaded;
+    if (record.loadFailed) throw record.loadFailed;
+    if (record.truncated) throw new Error(`${record.title}: the layer exceeds the feature limit; apply a narrower filter before sharing.`);
     return this.getLayer(uid);
   }
 
@@ -1035,7 +1039,14 @@ export class MaplibreEngine {
   /** Draws a layer with ArcGIS renderer JSON (from a project or link) and records it as its style. */
   restoreRenderer(ref, rendererJson) {
     const record = this.#record(ref);
-    if (!record || record.kind !== "vector" || !rendererJson) return;
+    if (!record || record.kind !== "vector" || !rendererJson) throw new Error("The requested style cannot be applied to this layer.");
+    if (!rendererToPaint(rendererJson)) throw unsupported("renderer-native", "MapLibre cannot draw this renderer; use a supported style or switch engines.");
+    const symbol = rendererJson.symbol || rendererJson.classBreakInfos?.[0]?.symbol || rendererJson.uniqueValueInfos?.[0]?.symbol;
+    const isExtrusion = symbol?.symbolLayers?.some((item) => String(item.type).toLowerCase() === "extrude");
+    const size = rendererJson.visualVariables?.find((item) => /^(size|sizeinfo)$/i.test(item.type));
+    if (isExtrusion && size?.valueExpression && !/^\$feature\[("(?:[^"\\]|\\.)*")\]\s*\*\s*((?:\d+\.?\d*|\.\d+)(?:e[+-]?\d+)?)$/i.test(size.valueExpression)) {
+      throw unsupported("renderer-native", "MapLibre cannot restore this extrusion height expression. Use a field multiplied by a nonnegative constant.");
+    }
     record.renderer = structuredClone(rendererJson);
     this.#refresh(record);
   }

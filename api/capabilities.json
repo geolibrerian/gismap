@@ -1,5 +1,5 @@
 {
-  "apiVersion": "0.52.9",
+  "apiVersion": "0.53.0",
   "execution": "client",
   "global": "globalThis.gisMapOnline",
   "module": "/js/gismap-core.js",
@@ -523,5 +523,77 @@
   "examples": {
     "readableMapLink": "https://gismap.online/#map=json:%7B%22version%22%3A1%2C%22basemap%22%3A%22gray-vector%22%2C%22layers%22%3A%5B%7B%22url%22%3A%22https%3A%2F%2Fservices.arcgis.com%2FP3ePLMYs2RVChkJx%2FArcGIS%2Frest%2Fservices%2FCorn%2FFeatureServer%2F0%22%2C%22renderer%22%3A%7B%22type%22%3A%22choropleth%22%2C%22field%22%3A%22CORN_SALES_IN_DOLLARS%22%2C%22method%22%3A%22auto%22%2C%22ramp%22%3A%22greens%22%2C%22exclude%22%3A%5B-1%5D%7D%7D%5D%7D",
     "styledLayerLink": "https://gismap.online/?layer=https%3A%2F%2Fservices.arcgis.com%2FP3ePLMYs2RVChkJx%2FArcGIS%2Frest%2Fservices%2FCorn%2FFeatureServer%2F0&layerType=feature&style=choropleth&field=CORN_SALES_IN_DOLLARS&method=auto&ramp=greens&exclude=-1&basemap=gray-vector"
-  }
+  },
+  "authoringCommands": [
+    {
+      "id": "source.inspect",
+      "displayName": "Inspect source",
+      "description": "Read a public ArcGIS or GeoJSON source's metadata without adding it to the map.",
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "url"
+        ],
+        "properties": {
+          "url": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "\\S"
+          },
+          "sample": {
+            "type": "boolean"
+          }
+        }
+      }
+    },
+    {
+      "id": "layer.list",
+      "displayName": "List map layers",
+      "description": "Read the layers in the current map.",
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {}
+      }
+    },
+    {
+      "id": "map.camera.inspect",
+      "displayName": "Inspect map camera",
+      "description": "Read the current map camera.",
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {}
+      }
+    },
+    {
+      "id": "briefing.inspect",
+      "displayName": "Inspect briefing",
+      "description": "Read the current briefing document without changing it.",
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {}
+      }
+    },
+    {
+      "id": "briefing.validate",
+      "displayName": "Validate briefing",
+      "description": "Statically validate a briefing document; this does not verify the rendered map.",
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "document"
+        ],
+        "properties": {
+          "document": {
+            "type": "object"
+          }
+        }
+      }
+    }
+  ],
+  "authoringCommandSchema": "/schemas/agent-command-v1.schema.json"
 }

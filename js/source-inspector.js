@@ -107,7 +107,11 @@ export function arcgisMetadata(raw, url) {
     dataLastEditDate: isoDate(editing.dataLastEditDate),
     schemaLastEditDate: isoDate(editing.schemaLastEditDate),
     featureCount: null,
+    // Unknown is distinct from false: service metadata is often incomplete.
+    supportsPagination: raw.advancedQueryCapabilities?.supportsPagination ?? raw.supportsPagination ?? null,
     supportsStatistics: Boolean(raw.supportsStatistics ?? raw.advancedQueryCapabilities?.supportsStatistics),
+    attribution: String(raw.copyrightText || ""),
+    access: { metadataReadable: true, authentication: "unknown", cors: "not-verified" },
     supportsGenerateRenderer: capabilities.some((item) => /^(query|map)$/i.test(item)),
     sentinels: detectSentinels(raw),
   };
@@ -142,7 +146,10 @@ function geoJsonMetadata(raw, url) {
     dataLastEditDate: null,
     schemaLastEditDate: null,
     featureCount: Array.isArray(raw.features) ? raw.features.length : null,
+    supportsPagination: false,
     supportsStatistics: false,
+    attribution: String(raw.copyright || ""),
+    access: { metadataReadable: true, authentication: "unknown", cors: "not-verified" },
     supportsGenerateRenderer: false,
     sentinels: detectSentinels({ fields: fields.map((field) => ({ name: field.name, type: field.role === "numeric" ? "esriFieldTypeDouble" : "esriFieldTypeString" })) }, sample),
   };

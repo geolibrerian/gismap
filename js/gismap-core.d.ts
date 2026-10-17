@@ -91,7 +91,12 @@ export type SourceMetadata = {
   dataLastEditDate: string | null;
   schemaLastEditDate: string | null;
   featureCount: number | null;
+  /** null means the source did not advertise whether result pagination is supported. */
+  supportsPagination: boolean | null;
   supportsStatistics: boolean;
+  attribution: string;
+  /** Accessibility observed in this runtime; CORS and authentication requirements are not inferred. */
+  access: { metadataReadable: boolean; authentication: "unknown"; cors: "not-verified" };
   supportsGenerateRenderer: boolean;
   /** Codes that are not measurements, such as -1 = "Not Disclosed". Heuristic ones are reported, never applied by default. */
   sentinels: Sentinel[];

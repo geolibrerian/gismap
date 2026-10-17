@@ -1,0 +1,117 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://gismap.online/schemas/agent-command-v1.schema.json",
+  "title": "GISMap initial read-only authoring command",
+  "description": "The input envelope for the initial in-browser shared tool registry. Execution is currently via gisMapOnline.application.runTool(id, input); this schema does not imply a REST, MCP, batch, or persistence endpoint.",
+  "oneOf": [
+    {
+      "type": "object",
+      "required": [
+        "id",
+        "input"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "const": "source.inspect"
+        },
+        "input": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "url"
+          ],
+          "properties": {
+            "url": {
+              "type": "string",
+              "minLength": 1,
+              "pattern": "\\S"
+            },
+            "sample": {
+              "type": "boolean"
+            }
+          }
+        }
+      }
+    },
+    {
+      "type": "object",
+      "required": [
+        "id",
+        "input"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "const": "layer.list"
+        },
+        "input": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {}
+        }
+      }
+    },
+    {
+      "type": "object",
+      "required": [
+        "id",
+        "input"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "const": "map.camera.inspect"
+        },
+        "input": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {}
+        }
+      }
+    },
+    {
+      "type": "object",
+      "required": [
+        "id",
+        "input"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "const": "briefing.inspect"
+        },
+        "input": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {}
+        }
+      }
+    },
+    {
+      "type": "object",
+      "required": [
+        "id",
+        "input"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "const": "briefing.validate"
+        },
+        "input": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "document"
+          ],
+          "properties": {
+            "document": {
+              "type": "object"
+            }
+          }
+        }
+      }
+    }
+  ]
+}

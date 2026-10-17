@@ -124,6 +124,8 @@ console.log(gisMapOnline.describe().state); // layers, basemap, camera, issues
 const { url } = await gisMapOnline.mapSpec.createLink(gisMapOnline.mapSpec.fromCurrent());
 ```
 
+The in-browser shared command registry provides source.inspect, layer.list, map.camera.inspect, briefing.inspect, and briefing.validate through gisMapOnline.application.runTool(id, input). The initial command schema is https://gismap.online/schemas/agent-command-v1.schema.json. This does not provide REST or MCP endpoints.
+
 ### 4. Handling errors
 
 Every error from the API is a GisMapError with a code and a hint written for agents. When a map spec opens, problems are listed in describe().state.issues instead of stopping the map.

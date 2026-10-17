@@ -412,6 +412,11 @@ test("MapLibre polygon extrusion supports fixed and field heights and survives r
   await engine.setLayerSymbology(layer.uid, { mode: "graduated", extrusionEnabled: true, extrusionSource: "fixed", extrusionValue: 250, color: "#bb3366" });
   assert.equal(engine.getLayerConfig(layer).renderer.type, "class-breaks");
   assert.equal(extrusion.paint["fill-extrusion-color"][0], "case");
+  engine.restoreRenderer(layer.uid, { type: "classBreaks", field: "HEIGHT", classBreakInfos: [{ minValue: 0, maxValue: 20, symbol: { type: "PolygonSymbol3D", symbolLayers: [{ type: "Extrude", material: { color: "#663399" } }] } }], visualVariables: [{ type: "sizeInfo", valueExpression: '$feature["HEIGHT"] * 0.01' }] });
+  assert.throws(() => engine.restoreRenderer(layer.uid, { type: "heatmap" }), /cannot draw this renderer/);
+  assert.throws(() => engine.restoreRenderer(layer.uid, { type: "simple", symbol: { type: "polygon-3d", symbolLayers: [{ type: "extrude", material: { color: "#663399" } }] }, visualVariables: [{ type: "size", valueExpression: "Unsupported($feature.HEIGHT)" }] }), /cannot restore this extrusion/);
+  assert.equal(extrusion.layout.visibility, "visible", "WebMap JSON extrusion survives cross-engine restore");
+  assert.deepEqual(extrusion.paint["fill-extrusion-height"], ["max", 0, ["*", ["to-number", ["get", "HEIGHT"], 0], 0.01]]);
 });
 
 test("views persist in GIS Map zoom levels (one above MapLibre's)", async () => {

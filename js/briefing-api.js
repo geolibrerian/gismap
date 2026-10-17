@@ -1,5 +1,5 @@
-import core, { normalizeBriefing, updateSlide, validateBriefingDocument } from "./gismap-core.js?v=0.52.9";
-import { createShareLink } from "./map-share.js?v=0.41.0";
+import core, { normalizeBriefing, updateSlide, validateBriefingDocument } from "./gismap-core.js?v=0.53.0";
+import { createShareLink } from "./map-share.js?v=0.53.0";
 import { GisMapError, layerLoadError, toGisMapError } from "./gismap-errors.js?v=0.28.0";
 import { featureLayerUrl } from "./field-task-share.js?v=0.41.0";
 import { brandedQrFile, printPalette } from "./pdf-document.js?v=0.44.2";
@@ -174,6 +174,8 @@ export function createBriefingApi({ projectManager, mapController, host = null, 
           skin: globalThis.document?.documentElement?.dataset.skin || presentation.skin,
           basemap: mapController.getBasemapId?.(),
           camera: mapController.getViewState?.(),
+          engine: mapController.getEngineId?.(),
+          ground: mapController.getGroundId?.(),
           layers,
           primary: Math.max(0, layers.findIndex((layer) => layer.uid === presentation.primaryLayerId)),
           briefing: document,
@@ -184,6 +186,7 @@ export function createBriefingApi({ projectManager, mapController, host = null, 
         if (options.qrSafe === true && !link.qr) throw new GisMapError("INVALID_SPEC", "This briefing exceeds the QR-safe link limit. Copy the link or export a .gmo file instead.");
         return link.url;
       }
+      if (options.documentOnly !== true) throw new GisMapError("INVALID_SPEC", "A complete briefing link needs public web layers. Export a project, or explicitly request a slides-only link with documentOnly: true.");
       return core.briefing.createLink({ baseUrl: options.baseUrl || baseUrl(), briefing: document, qrSafe: options.qrSafe === true, compress: options.compress !== false });
     },
     exportGmo(document = current(), options = {}) {

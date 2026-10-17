@@ -1,11 +1,11 @@
-import { googleMapsLinkForChapter } from "./google-maps-link.js?v=0.52.9";
+import { googleMapsLinkForChapter } from "./google-maps-link.js?v=0.53.0";
 import { POPULAR_SERVICES } from "./catalog.js?v=0.18.2";
-import { MapAssistantPanel } from "./assistant-panel.js?v=0.50.0";
-import { createAssistantTools, summarizeMapState } from "./map-assistant.js?v=0.52.0";
+import { MapAssistantPanel } from "./assistant-panel.js?v=0.53.0";
+import { createAssistantTools, summarizeMapState } from "./map-assistant.js?v=0.53.0";
 import { ENTERPRISE_CATALOGS, EnterpriseCatalog, normalizeArcGisDirectoryUrl } from "./enterprise-catalog.js?v=0.18.2";
 import { createShareUrl } from "./share.js?v=0.41.0";
-import { createShareLink, hasDataFilter } from "./map-share.js?v=0.41.0";
-import { briefingLayerRef, findBriefingLayer } from "./briefing-api.js?v=0.52.9";
+import { createShareLink, hasDataFilter } from "./map-share.js?v=0.53.0";
+import { briefingLayerRef, findBriefingLayer } from "./briefing-api.js?v=0.53.0";
 import { createEmbeddedTourUrl } from "./tour-share.js?v=0.18.2";
 import { markdownToPlainText, renderMarkdown } from "./markdown.js?v=0.18.2";
 import { formatAttributeValue } from "./attribute-format.js?v=0.18.2";
@@ -14,14 +14,14 @@ import { combineConditions, featureFilterFor, featureId, fieldKind, filterRecord
 import { DEFAULT_SKIN, INTERFACE_SKINS, applyInterfaceSkin, normalizeSkin, skinIsDark, skinOptionsMarkup } from "./skin-catalog.js?v=0.52.3";
 import { themeFromComputedStyle } from "./basemap-themes.js?v=0.40.0";
 import { compactMedia } from "./viewport.js?v=0.18.2";
-import { APP_VERSION } from "./version.js?v=0.52.9";
+import { APP_VERSION } from "./version.js?v=0.53.0";
 import { bindMobileSheetResize } from "./mobile-sheet-resize.js?v=0.52.7";
 import { PdfDocument, brandedMapImage, brandedQrCanvas, loadBrandLogo, printPalette, qrAsset } from "./pdf-document.js?v=0.44.2";
 import { featureLayerUrl, locationUrl } from "./field-task-share.js?v=0.41.0";
 import { dockIcon } from "./dock-icons.js?v=0.24.0";
 import { serviceNameFromUrl } from "./service-name.js?v=0.26.0";
 import { decodeQrFromImage, describeGisMapLink, gisMapLinkFrom, openGisMapLink } from "./qr-import.js?v=0.25.1";
-import { BriefingSlides } from "./briefing-slides.js?v=0.52.9";
+import { BriefingSlides } from "./briefing-slides.js?v=0.53.0";
 import { createSlide, matchesFilter, normalizeFilter } from "./briefing-document.js?v=0.35.0";
 import { aiDescriptionPrompt, applyAiDescriptions, describeWhere, generateBriefing, readAiDescriptions, rendererTheme } from "./briefing-generator.js?v=0.36.1";
 import { briefingFileStem } from "./briefing-pdf.js?v=0.44.2";
@@ -4764,6 +4764,8 @@ export class UIController {
       skin,
       basemap: this.mapController.getBasemapId(),
       camera: this.mapController.getViewState(),
+      engine: this.mapController.getEngineId(),
+      ground: this.mapController.getGroundId(),
       layers,
       primary: layers.findIndex((config) => config.uid === layer.uid),
       briefing: presentation.briefing,
@@ -4855,19 +4857,19 @@ export class UIController {
   async openSharedState(shared, { loadLayer }) {
     if (shared.kind === "briefing-document") return this.#openSharedBriefingDocument(shared);
     if (shared.basemap) this.mapController.setBasemap(shared.basemap);
+    if (shared.ground) this.mapController.setGround(shared.ground);
     const added = [];
     for (const config of shared.layers) {
       try {
         added.push((await loadLayer(config))[0] || null);
       } catch (error) {
-        added.push(null);
-        this.error(`A shared layer failed to load: ${error.message}`);
+        throw new Error(`Shared layer ${config.title || config.url} failed to restore: ${error.message}`);
       }
     }
     const filtered = shared.layers.filter((layer) => hasDataFilter(layer.definitionExpression)).length;
     const filterNote = filtered ? ` ${filtered === 1 ? "One layer has" : `${filtered} layers have`} a data filter, so not every feature is shown.` : "";
     const current = this.projectManager.current.presentation || {};
-    const goToCamera = () => (shared.camera ? this.mapController.setView({ ...shared.camera }, { animate: false }).catch(() => {}) : null);
+    const goToCamera = () => (shared.camera ? this.mapController.setView({ ...shared.camera }, { animate: false }) : null);
     if (shared.kind === "map") {
       this.projectManager.setPresentation({ ...current, template: "standard", skin: shared.skin, title: shared.title || current.title });
       await goToCamera();
@@ -4895,6 +4897,7 @@ export class UIController {
       this.toast(`${shared.title || "Briefing"} opened.${filterNote}`);
       return;
     }
+    await goToCamera();
     this.briefingSlides.openPlayer(visible.some((slide) => slide.id === shared.slide) ? shared.slide : visible[0].id);
     if (filterNote) this.toast(filterNote.trim());
   }

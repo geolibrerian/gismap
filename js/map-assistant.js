@@ -297,7 +297,7 @@ export function createAssistantTools(host) {
   return {
     get_map_state: () => summarizeMapState(api),
     async inspect_source({ url }) {
-      const meta = await api.sources.inspect(url);
+      const meta = await api.application.runTool("source.inspect", { url });
       return {
         ...pick(meta, ["kind", "title", "geometryType", "featureCount", "maxRecordCount", "dataLastEditDate", "minScale", "maxScale"]),
         fields: fieldList(meta.fields),
