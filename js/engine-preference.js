@@ -1,7 +1,6 @@
-// Which map engine draws the map. ArcGIS is the default; MapLibre is an
-// opt-in preview, chosen for one visit with ?engine=maplibre or saved in
-// Display settings. Pure apart from the storage it is handed.
-export const DEFAULT_ENGINE = "arcgis";
+// Which map engine draws the map. MapLibre is the default; ArcGIS remains
+// available for services and workflows that need its native SDK.
+export const DEFAULT_ENGINE = "maplibre";
 export const ENGINE_PREFERENCE_KEY = "gismap-online:map-engine:v1";
 
 function read(storage) {

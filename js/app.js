@@ -56,7 +56,7 @@ ready.catch(() => {});
 
 async function start() {
   const allowHttp = location.hostname === "localhost" || location.hostname === "127.0.0.1";
-  // ArcGIS by default; ?engine=maplibre (or the Display settings choice) opts in to the MapLibre preview.
+  // MapLibre by default; ?engine=arcgis (or the Display settings choice) selects the ArcGIS engine.
   const engineId = chooseEngine({ search: location.search, storage: globalThis.localStorage, available: listEngines().map((engine) => engine.id) });
   document.documentElement.dataset.mapEngine = engineId;
   const authController = new AuthController(events);
