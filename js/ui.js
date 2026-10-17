@@ -22,7 +22,7 @@ import { BriefingSlides } from "./briefing-slides.js?v=0.44.2";
 import { createSlide, matchesFilter, normalizeFilter } from "./briefing-document.js?v=0.35.0";
 import { aiDescriptionPrompt, applyAiDescriptions, describeWhere, generateBriefing, readAiDescriptions, rendererTheme } from "./briefing-generator.js?v=0.36.1";
 import { briefingFileStem } from "./briefing-pdf.js?v=0.44.2";
-import { rampColors } from "./renderer-spec.js?v=0.29.0";
+import { RAMPS, rampColors } from "./renderer-spec.js?v=0.29.0";
 import { saveEngine } from "./engine-preference.js?v=0.39.0";
 import { BASEMAPS } from "./basemap-catalog.js?v=0.41.0";
 
@@ -5354,7 +5354,9 @@ export class UIController {
     const renderer = layer.renderer ?? {};
     // Styles with excluded codes draw from an expression, so the recorded RendererSpec names the field.
     const currentField = renderer.field || this.mapController.getLayerConfig(layer)?.rendererSpec?.field;
-    const rendererMode = renderer.type === "unique-value" ? "categorized" : renderer.type === "class-breaks" ? "graduated" : "simple";
+    const savedSpec = this.mapController.getLayerConfig(layer)?.rendererSpec;
+    let selectedSpec = savedSpec && ["simple", "categories", "choropleth", "graduated-symbols", "heatmap"].includes(savedSpec.type) ? structuredClone(savedSpec) : null;
+    const rendererMode = selectedSpec?.type === "heatmap" ? "heatmap" : selectedSpec?.type === "categories" || renderer.type === "unique-value" ? "categorized" : ["choropleth", "graduated-symbols"].includes(selectedSpec?.type) || renderer.type === "class-breaks" ? "graduated" : "simple";
     const representativeSymbol = renderer.symbol ?? renderer.classBreakInfos?.[0]?.symbol ?? renderer.uniqueValueInfos?.[0]?.symbol;
     const objectSymbol = representativeSymbol?.symbolLayers?.find((symbolLayer) => symbolLayer.type === "object" || symbolLayer.type === "extrude");
     const heightVariable = renderer.visualVariables?.find((variable) => variable.type === "size" && (variable.axis === "height" || layer.geometryType === "polygon"));
@@ -5367,7 +5369,7 @@ export class UIController {
       ? items.map((field) => `<option value="${escapeHtml(field.name)}"${field.name === selected ? " selected" : ""}>${escapeHtml(field.alias || field.name)} (${escapeHtml(field.name)})</option>`).join("")
       : `<option value="">${emptyLabel}</option>`;
     const rendererControls = fields.length
-      ? `<label class="field"><span>Style type</span><select data-style-mode><option value="simple"${rendererMode === "simple" ? " selected" : ""}>Simple</option><option value="categorized"${rendererMode === "categorized" ? " selected" : ""}>Categorized by field</option><option value="graduated"${rendererMode === "graduated" ? " selected" : ""}>Graduated by numeric field</option></select></label><label class="field" data-style-field-control hidden><span>Style field</span><select data-style-field>${fieldOptions(fields, "No fields available", currentField || preferredNumericField?.name)}</select></label>`
+      ? `<label class="field"><span>Style type</span><select data-style-mode><option value="simple"${rendererMode === "simple" ? " selected" : ""}>Simple</option><option value="categorized"${rendererMode === "categorized" ? " selected" : ""}>Categorized by field</option><option value="graduated"${rendererMode === "graduated" ? " selected" : ""}>Graduated by numeric field</option><option value="heatmap"${rendererMode === "heatmap" ? " selected" : ""}>Heat map</option></select></label><label class="field" data-style-field-control hidden><span>Style field</span><select data-style-field>${fieldOptions(fields, "No fields available", currentField || preferredNumericField?.name)}</select></label>`
       : "";
     const polygonControls = layer.geometryType === "polygon"
       ? '<label class="opacity-row"><span>Fill opacity</span><input data-symbol-fill-opacity type="range" min="0" max="1" step="0.05" value="0.35" /><output>35%</output></label><label class="display-checkbox"><input data-symbol-no-fill type="checkbox" /><span>No fill — outline only</span></label>'
@@ -5379,9 +5381,9 @@ export class UIController {
     // Ranked styles computed from the field's values (renderer-spec.js suggestRenderers).
     const canSuggest = fields.length && layer.queryable;
     const styleOptions = canSuggest
-      ? '<section class="style-options" aria-label="Style options"><div class="style-options__head"><strong>Style options</strong><button type="button" class="link-button" data-suggest-styles>Suggest styles for this field</button></div><div class="style-options__list" data-style-options-list aria-live="polite"></div></section>'
+      ? `<section class="style-options" aria-label="Style options"><div class="style-options__head"><strong>Style options</strong><button type="button" class="link-button" data-suggest-styles>Suggest styles for this field</button></div><label class="field"><span>Suggestion field</span><select data-suggestion-field>${fieldOptions(fields, "No fields available", currentField || preferredNumericField?.name)}</select></label><div class="style-options__list" data-style-options-list aria-live="polite"></div></section>`
       : "";
-    pane.innerHTML = `<div class="workspace-tool"><p class="eyebrow">Layer presentation</p><h3>Style ${escapeHtml(layer.title || "layer")}</h3>${styleOptions}<div class="field-grid">${rendererControls}<label class="field"><span>Fill / marker / line</span><input data-symbol-color type="color" value="#1b7f6a" /></label><label class="field"><span>Outline</span><input data-symbol-outline type="color" value="#ffffff" /></label><label class="field"><span>Size / width</span><input data-symbol-size type="number" min="0.5" max="40" step="0.5" value="9" /></label></div>${polygonControls}${extrusionControls}<p class="form-note">Field styles sample up to 1,000 records matching the active layer filter. Renderer JSON is stored with the project.</p><div class="workspace-tool__actions"><button type="button" class="button--primary" data-apply-symbology>Apply symbology</button></div></div>`;
+    pane.innerHTML = `<div class="workspace-tool"><p class="eyebrow">Layer presentation</p><h3>Style ${escapeHtml(layer.title || "layer")}</h3>${styleOptions}<div class="field-grid">${rendererControls}<label class="field" data-ramp-control hidden><span>Colour range</span><select data-style-ramp>${Object.keys(RAMPS).map((name) => `<option value="${name}">${escapeHtml(name.replaceAll("-", " "))}</option>`).join("")}</select></label><label class="field"><span>Fill / marker / line</span><input data-symbol-color type="color" value="#1b7f6a" /></label><label class="field"><span>Outline</span><input data-symbol-outline type="color" value="#ffffff" /></label><label class="field"><span>Size / width</span><input data-symbol-size type="number" min="0.5" max="40" step="0.5" value="9" /></label></div>${polygonControls}${extrusionControls}<p class="form-note">Field styles sample up to 1,000 records matching the active layer filter. Renderer JSON is stored with the project.</p><div class="workspace-tool__actions"><button type="button" class="button--primary" data-apply-symbology>Apply symbology</button></div></div>`;
     const fillOpacity = pane.querySelector("[data-symbol-fill-opacity]");
     fillOpacity?.addEventListener("input", () => {
       fillOpacity.nextElementSibling.value = `${Math.round(Number(fillOpacity.value) * 100)}%`;
@@ -5395,16 +5397,29 @@ export class UIController {
       styleFieldControl.hidden = !needsField;
       if (!needsField) return;
       const available = styleMode.value === "graduated" ? numericFields : fields;
-      styleField.innerHTML = fieldOptions(available, styleMode.value === "graduated" ? "No numeric fields available" : "No fields available", currentField || preferredNumericField?.name);
+      const previous = styleField.value;
+      styleField.innerHTML = fieldOptions(available, styleMode.value === "graduated" ? "No numeric fields available" : "No fields available", available.some((item) => item.name === previous) ? previous : currentField || preferredNumericField?.name);
       styleField.disabled = !available.length;
     };
-    styleMode?.addEventListener("change", syncStyleField);
+    styleMode?.addEventListener("change", () => {
+      syncStyleField();
+      const type = styleMode.value === "categorized" ? "categories" : styleMode.value === "graduated" ? (layer.geometryType === "point" || layer.geometryType === "multipoint" ? "graduated-symbols" : "choropleth") : styleMode.value;
+      selectedSpec = { type, ...(styleMode.value !== "simple" && styleField?.value ? { field: styleField.value } : {}) };
+      pane.querySelector("[data-ramp-control]").hidden = type !== "choropleth";
+    });
+    styleField?.addEventListener("change", () => {
+      if (selectedSpec && selectedSpec.field !== styleField.value) {
+        selectedSpec.field = styleField.value;
+        delete selectedSpec.breaks;
+      }
+    });
     syncStyleField();
     pane.querySelector("[data-suggest-styles]")?.addEventListener("click", () => {
       // With no field chosen, the most measurement-like field is used (renderer-spec.js chooseStyleField).
-      const field = styleMode?.value && styleMode.value !== "simple" ? styleField?.value : currentField;
-      void this.#showStyleOptions(uid, pane.querySelector("[data-style-options-list]"), field || null);
+      const field = pane.querySelector("[data-suggestion-field]")?.value;
+      void this.#showStyleOptions(uid, pane.querySelector("[data-style-options-list]"), field || null, applySuggestion, layer);
     });
+    pane.querySelector("[data-suggestion-field]")?.addEventListener("change", () => pane.querySelector("[data-suggest-styles]").click());
     const extrusionEnabled = pane.querySelector("[data-extrusion-enabled]");
     const extrusionOptions = pane.querySelector("[data-extrusion-options]");
     const extrusionSource = pane.querySelector("[data-extrusion-source]");
@@ -5422,9 +5437,45 @@ export class UIController {
     extrusionEnabled?.addEventListener("change", syncExtrusion);
     extrusionSource?.addEventListener("change", syncExtrusion);
     syncExtrusion();
+    const populateSpec = (spec) => {
+      selectedSpec = structuredClone(spec);
+      if (styleMode) styleMode.value = spec.type === "categories" ? "categorized" : ["choropleth", "graduated-symbols"].includes(spec.type) ? "graduated" : spec.type === "heatmap" ? "heatmap" : "simple";
+      syncStyleField();
+      if (styleField && spec.field) styleField.value = spec.field;
+      pane.querySelector("[data-ramp-control]").hidden = spec.type !== "choropleth";
+      pane.querySelector("[data-style-ramp]").value = spec.ramp || "greens";
+      pane.querySelector("[data-symbol-color]").value = spec.color || (spec.type === "graduated-symbols" ? "#d9951e" : "#1b7f6a");
+      if (spec.outline) pane.querySelector("[data-symbol-outline]").value = spec.outline;
+      if (spec.size) pane.querySelector("[data-symbol-size]").value = spec.size;
+      if (extrusionEnabled) { extrusionEnabled.checked = false; syncExtrusion(); }
+    };
+    if (selectedSpec) populateSpec(selectedSpec);
+    const applySuggestion = async (option) => {
+      if (option.is3d) {
+        selectedSpec = null;
+        if (styleMode) styleMode.value = "simple";
+        syncStyleField();
+        pane.querySelector("[data-ramp-control]").hidden = true;
+        extrusionEnabled.checked = true;
+        extrusionSource.value = option.heightField ? "field" : "fixed";
+        if (option.heightField) pane.querySelector("[data-extrusion-field]").value = option.heightField;
+        syncExtrusion();
+        await this.mapController.setLayerSymbology(uid, { mode: "simple", color: pane.querySelector("[data-symbol-color]").value, outline: pane.querySelector("[data-symbol-outline]").value, size: pane.querySelector("[data-symbol-size]").value, extrusionEnabled: true, extrusionSource: extrusionSource.value, extrusionField: option.heightField, extrusionValue: pane.querySelector("[data-extrusion-value]").value, extrusionMultiplier: pane.querySelector("[data-extrusion-multiplier]").value, extrusionWidth: pane.querySelector("[data-extrusion-width]")?.value });
+      } else {
+        await this.mapController.applyRendererSpec(uid, option.pinnedSpec);
+        populateSpec(option.pinnedSpec);
+      }
+    };
     pane.querySelector("[data-apply-symbology]").addEventListener("click", async () => {
       try {
-        await this.mapController.setLayerSymbology(uid, {
+        if (selectedSpec && !extrusionEnabled?.checked) {
+          const spec = structuredClone(selectedSpec);
+          if (spec.type === "choropleth") spec.ramp = pane.querySelector("[data-style-ramp]").value;
+          if (["simple", "graduated-symbols"].includes(spec.type)) spec.color = pane.querySelector("[data-symbol-color]").value;
+          if (spec.type === "simple") { spec.outline = pane.querySelector("[data-symbol-outline]").value; spec.size = Number(pane.querySelector("[data-symbol-size]").value); }
+          await this.mapController.applyRendererSpec(uid, spec);
+          selectedSpec = spec;
+        } else await this.mapController.setLayerSymbology(uid, {
           mode: styleMode?.value || "simple",
           field: styleField?.value,
           color: pane.querySelector("[data-symbol-color]").value,
@@ -5446,7 +5497,7 @@ export class UIController {
     this.#syncUtilityPanel("style");
   }
 
-  async #showStyleOptions(uid, list, field) {
+  async #showStyleOptions(uid, list, field, applySuggestion, layer) {
     if (!list) return;
     list.innerHTML = '<p class="form-note">Reading the field’s values…</p>';
     let suggestion;
@@ -5456,7 +5507,13 @@ export class UIController {
       list.innerHTML = `<p class="form-note">${escapeHtml(error.message)}</p>`;
       return;
     }
-    const { stats, options, fieldAlias } = suggestion;
+    if (list.closest(".workspace-tool")?.querySelector("[data-suggestion-field]")?.value !== field) return;
+    const { stats, fieldAlias } = suggestion;
+    const options = [...suggestion.options];
+    if (this.mapController.getEngineId() === "arcgis" && ["polygon", "point", "multipoint"].includes(layer.geometryType)) {
+      const heightField = stats.min != null && stats.min >= 0 && stats.max > 0 ? field : null;
+      options.push({ label: layer.geometryType === "polygon" ? "3D extruded areas" : "3D columns", reason: heightField ? `Height is based on ${fieldAlias}; adjust its multiplier below.` : "A fixed height gives features depth; adjust it below.", is3d: true, heightField, spec: {} });
+    }
     const number = (value) => (value == null ? "" : Number(value).toLocaleString("en-US", { maximumFractionDigits: 2 }));
     const summary = stats.min !== undefined && stats.min !== null
       ? `${number(stats.count)} values from ${number(stats.min)} to ${number(stats.max)}${stats.excluded ? ` · ${number(stats.excluded)} shown as “No data”` : ""}${suggestion.sampled ? " · first 20,000 features" : ""}`
@@ -5482,7 +5539,7 @@ export class UIController {
       const option = options[Number(button.dataset.useStyleOption)];
       try {
         // The pinned spec keeps these exact classes in saved projects and shared links.
-        await this.mapController.applyRendererSpec(uid, option.pinnedSpec);
+        await applySuggestion(option);
         list.querySelectorAll(".style-option").forEach((card, cardIndex) => card.classList.toggle("is-applied", cardIndex === Number(button.dataset.useStyleOption)));
         const persisted = this.projectManager.persistCurrentIfSaved();
         this.toast(`Styled by ${fieldAlias}: ${option.label.toLowerCase()}${persisted ? ", and saved" : ""}.`);
