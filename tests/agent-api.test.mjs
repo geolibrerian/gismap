@@ -10,7 +10,7 @@ import { LAYER_TOOL_DEFINITIONS, checkToolInput } from "../js/layer-tools.js";
 import { checkWhere, createLayersApi } from "../js/layers-api.js";
 import { parseShareParameters } from "../js/share.js";
 import { createClientApi } from "../js/briefing-api.js";
-import { MapController } from "../js/map.js";
+import { ArcGISEngine as MapController } from "../js/engines/arcgis/arcgis-engine.js";
 
 const read = async (path) => readFile(new URL(path, import.meta.url), "utf8");
 const json = async (path) => JSON.parse(await read(path));
@@ -142,7 +142,7 @@ function fakeMap() {
   const controller = {
     layers,
     modules: {},
-    getOperationalLayers: () => layers.slice(),
+    getLayers: () => layers.slice(),
     getLayerConfig: (layer) => ({ url: layer.configUrl, sourceType: "arcgis-auto", definitionExpression: layer.definitionExpression || null, styled: false }),
     scaleState: () => ({ visibleAtCurrentScale: true, serviceMinScale: 0, serviceMaxScale: 144447, ignored: false }),
     layerMetadata: () => ({ dataLastEditDate: "2022-08-20T02:01:54.133Z", sentinels: [] }),
@@ -154,7 +154,7 @@ function fakeMap() {
     await new Promise((resolve) => setTimeout(resolve, 5));
     if (/missing/.test(url)) throw new Error("Invalid URL");
     // ArcGIS reports the service URL without the /0 sublayer; the config keeps it.
-    const layer = { uid: `layer-${next += 1}`, title: "Corn", type: "feature", loadStatus: "loaded", url: url.replace(/\/\d+$/, ""), layerId: 0, configUrl: url, visible: true, opacity: 1, queryFeatures() {} };
+    const layer = { uid: `layer-${next += 1}`, title: "Corn", type: "feature", loadStatus: "loaded", url: url.replace(/\/\d+$/, ""), layerId: 0, configUrl: url, visible: true, opacity: 1, queryable: true };
     layers.push(layer);
     return [layer];
   };
@@ -217,7 +217,7 @@ test("the app signals readiness, zooms links to their data, and explains hidden 
   const app = await read("../js/app.js");
   const ui = await read("../js/ui.js");
   const ai = await read("../js/ai.js");
-  const map = await read("../js/map.js");
+  const map = await read("../js/engines/arcgis/arcgis-engine.js");
   assert.match(app, /dataset\.gismapState = "ready"/);
   assert.match(app, /new CustomEvent\("gismap:ready"/);
   assert.match(app, /mapController\.setInitialBasemap\(/);

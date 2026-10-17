@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
-import { MapController, isNavigationAbort, parseArcGISFeatureQueryUrl, parseWfsUrl } from "../js/map.js";
+import { ArcGISEngine as MapController, isNavigationAbort, parseArcGISFeatureQueryUrl, parseWfsUrl } from "../js/engines/arcgis/arcgis-engine.js";
 import { readFile } from "node:fs/promises";
 
-const mapSource = await readFile(new URL("../js/map.js", import.meta.url), "utf8");
+const mapSource = await readFile(new URL("../js/engines/arcgis/arcgis-engine.js", import.meta.url), "utf8");
 assert.match(mapSource, /elevationProfile: \["@arcgis\/core\/widgets\/ElevationProfile\.js", \{\}, "utility"\]/);
 assert.match(mapSource, /legend: \["@arcgis\/core\/widgets\/Legend\.js", \{\}, "utility"\]/);
 assert.match(mapSource, /legend: "#utility-legend-content"/);
@@ -64,12 +64,16 @@ const layer = await controller.addService({
   url: "https://example.com/arcgis/rest/services/Fires/FeatureServer/2/query?where=STATE%3D%27CA%27&outFields=NAME%2CACRES&outSR=4326&f=json",
   serviceType: "arcgis-auto",
 });
+// addService returns the engine's plain handle; the SDK layer stays inside the engine.
+const sdkLayer = controller.map.added;
+assert.equal(layer.uid, sdkLayer.uid);
 assert.equal(layer.url, "https://example.com/arcgis/rest/services/Fires/FeatureServer/2");
-assert.equal(layer.definitionExpression, "STATE='CA'");
-assert.deepEqual(layer.outFields, ["NAME", "ACRES"]);
+assert.equal(layer.where, "STATE='CA'");
+assert.deepEqual(sdkLayer.outFields, ["NAME", "ACRES"]);
+assert.throws(() => { layer.where = "1=1"; }, TypeError, "handles are read-only");
 assert.match(controller.getLayerConfig(layer).url, /\/query\?/);
 controller.setDefinitionExpression(layer.uid, "ACRES >= 1000");
-assert.equal(layer.definitionExpression, "ACRES >= 1000");
+assert.equal(layer.where, "ACRES >= 1000");
 assert.equal(controller.getLayerConfig(layer).definitionExpression, "ACRES >= 1000");
 const cartographicRenderer = {
   type: "class-breaks",
@@ -77,10 +81,11 @@ const cartographicRenderer = {
   classBreakInfos: [{ minValue: 0, maxValue: 1000, symbol: { type: "polygon-3d", symbolLayers: [{ type: "extrude", material: { color: "#176756" } }] } }],
   visualVariables: [{ type: "size", valueExpression: "$feature['ACRES'] * 0.3", axis: "height", valueUnit: "meters" }],
 };
-layer.renderer = { toJSON: () => structuredClone(cartographicRenderer) };
-layer.opacity = 0.65;
-layer.visible = false;
-layer.elevationInfo = { toJSON: () => ({ mode: "on-the-ground" }) };
+sdkLayer.renderer = { toJSON: () => structuredClone(cartographicRenderer) };
+sdkLayer.opacity = 0.65;
+sdkLayer.visible = false;
+sdkLayer.elevationInfo = { toJSON: () => ({ mode: "on-the-ground" }) };
+assert.deepEqual(layer.renderer, cartographicRenderer, "the handle reports the renderer as JSON");
 const savedCartography = controller.getLayerConfig(layer);
 assert.deepEqual(savedCartography.renderer, cartographicRenderer);
 assert.equal(savedCartography.opacity, 0.65);
@@ -117,14 +122,16 @@ const directLayer = await controller.addService({
   url: "https://example.com/arcgis/rest/services/Hotspots/FeatureServer/0",
   serviceType: "feature",
 });
-assert.deepEqual(directLayer.outFields, ["*"]);
+assert.deepEqual(controller.map.added.outFields, ["*"]);
+assert.equal(directLayer.uid, controller.map.added.uid);
 const wfsLayer = await controller.addService({
   url: "https://example.com/wfs?SERVICE=WFS&REQUEST=GetFeature&TYPENAME=demo%3Afires&token=public-key",
   serviceType: "wfs",
 });
 assert.equal(wfsLayer.url, "https://example.com/wfs");
-assert.equal(wfsLayer.name, "demo:fires");
-assert.deepEqual(wfsLayer.customParameters, { token: "public-key" });
+assert.equal(controller.map.added.name, "demo:fires");
+assert.deepEqual(controller.map.added.customParameters, { token: "public-key" });
+assert.equal(controller.getLayerConfig(wfsLayer).wfsName, "demo:fires");
 
 let navigation;
 controller.view = { goTo(value) { navigation = value; } };
@@ -180,6 +187,7 @@ assert.equal(navigation.target.ymax, 36.22);
 let highlightedTarget;
 let removedHighlights = 0;
 const highlightedLayer = { uid: "earthquakes", objectIdField: "OBJECTID" };
+controller.map = { allLayers: [highlightedLayer] };
 controller.view = {
   whenLayerView: async (candidate) => {
     assert.equal(candidate, highlightedLayer);
@@ -195,7 +203,6 @@ assert.equal(await controller.highlightFeature({
   kind: "feature",
   layerUid: "earthquakes",
   attributes: { OBJECTID: 42 },
-  graphic: { layer: highlightedLayer, attributes: { OBJECTID: 42 } },
 }, { pulse: false }), true);
 assert.equal(highlightedTarget, 42);
 controller.clearFeatureHighlight();

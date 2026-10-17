@@ -1,8 +1,8 @@
 // Field task reports: a branded PDF (framed map, location details, check-in,
 // steps, features, report, photos and a data table) and a CSV of the same
 // record, built on the device that holds the task.
-import { PDF_COLORS, PdfDocument, brandedMapImage, dataUrlBytes, imageToJpeg, loadBrandLogo, printPalette, qrAsset } from "./pdf-document.js?v=0.23.0";
-import { addressPlace, taskSteps, withFocus } from "./field-task-share.js?v=0.29.0";
+import { PDF_COLORS, PdfDocument, brandedMapImage, dataUrlBytes, imageToJpeg, loadBrandLogo, printPalette, qrAsset } from "./pdf-document.js?v=0.44.2";
+import { addressPlace, taskSteps, withFocus } from "./field-task-share.js?v=0.41.0";
 
 const STATUS = { draft: "Draft", sent: "Sent", assigned: "To complete", "in-progress": "In progress", completed: "Completed", returned: "Report received", shared: "Shared" };
 const MAX_PHOTO_SIDE = 1280;

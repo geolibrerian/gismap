@@ -276,7 +276,12 @@
     "dark-gray-vector",
     "osm",
     "satellite",
-    "hybrid"
+    "hybrid",
+    "open-liberty",
+    "open-bright",
+    "open-positron",
+    "open-dark",
+    "skin"
   ],
   "limits": {
     "maxLayers": 10,

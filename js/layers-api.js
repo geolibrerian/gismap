@@ -2,9 +2,9 @@
 // They use the same loading path as "Add ArcGIS REST service" and `?layer=`
 // links (loadLayer), and change layers only through the map controller, so the
 // project, share links and Smart images all see the result.
-import { SHARE_LAYER_TYPES, SHARE_LIMITS, sanitizeSharedResourceUrl } from "./share.js?v=0.29.0";
+import { SHARE_LAYER_TYPES, SHARE_LIMITS, sanitizeSharedResourceUrl } from "./share.js?v=0.41.0";
 import { GisMapError, layerLoadError, toGisMapError } from "./gismap-errors.js?v=0.28.0";
-import { featureLayerUrl } from "./field-task-share.js?v=0.29.0";
+import { featureLayerUrl } from "./field-task-share.js?v=0.41.0";
 
 const trimUrl = (value) => String(value || "").trim().replace(/\/+$/, "").replace(/\/query$/i, "").toLowerCase();
 const READ_ONLY_WHERE = /;|--|\/\*|\b(drop|delete|insert|update|alter|exec|execute|merge|truncate|create)\b/i;
@@ -25,7 +25,7 @@ export function createLayersApi({ mapController, loadLayer, state = null, events
   // Adds still loading hold a place, so concurrent calls cannot pass the layer limit together.
   let pending = 0;
 
-  const dataLayers = () => mapController.getOperationalLayers();
+  const dataLayers = () => mapController.getLayers();
   const urlsOf = (layer) => {
     const config = mapController.getLayerConfig(layer);
     return [config.url, featureLayerUrl(layer), layer.url].filter(Boolean).map(trimUrl);
@@ -71,27 +71,25 @@ export function createLayersApi({ mapController, loadLayer, state = null, events
       featureCount: counts.get(layer.uid) ?? null,
       dataLastEditDate: meta?.dataLastEditDate ?? null,
       sentinels: meta?.sentinels ?? [],
-      error: errors.get(layer.uid) || (status === "failed" ? toGisMapError(layer.loadError || "The layer failed to load.", "LAYER_LOAD_FAILED").toJSON() : null),
+      error: errors.get(layer.uid) || (status === "failed" ? toGisMapError(layer.loadError?.message || "The layer failed to load.", "LAYER_LOAD_FAILED").toJSON() : null),
     };
   };
   const countFeatures = async (layer) => {
-    if (typeof layer.queryFeatureCount !== "function") return;
+    if (!layer.countable) return;
     try {
-      const query = layer.createQuery();
-      query.where = layer.definitionExpression || "1=1";
-      counts.set(layer.uid, await layer.queryFeatureCount(query));
+      counts.set(layer.uid, await mapController.queryFeatureCount(layer.uid, { where: layer.where || "1=1" }));
     } catch { /* Counts are optional. */ }
   };
 
   async function applyOptions(layer, options, { adding = false } = {}) {
     const uid = layer.uid;
-    if (options.title !== undefined) layer.title = String(options.title).slice(0, 160);
+    if (options.title !== undefined) mapController.setTitle(uid, String(options.title).slice(0, 160));
     if (options.where !== undefined) {
-      if (!("definitionExpression" in layer)) throw new GisMapError("UNSUPPORTED_LAYER_TYPE", `${layer.title} cannot be filtered.`);
+      if (!layer.filterable) throw new GisMapError("UNSUPPORTED_LAYER_TYPE", `${layer.title} cannot be filtered.`);
       mapController.setDefinitionExpression(uid, checkWhere(options.where));
       counts.delete(uid);
     }
-    if (Array.isArray(options.outFields) && "outFields" in layer) layer.outFields = options.outFields.map(String);
+    if (Array.isArray(options.outFields)) mapController.setOutFields(uid, options.outFields.map(String));
     if (options.opacity !== undefined) mapController.setOpacity(uid, Number(options.opacity));
     if (options.visible !== undefined) mapController.setVisibility(uid, options.visible !== false);
     if (options.ignoreServiceScaleRange !== undefined && !adding) mapController.ignoreScaleRange(uid, options.ignoreServiceScaleRange === true);
@@ -106,12 +104,17 @@ export function createLayersApi({ mapController, loadLayer, state = null, events
   events?.subscribe?.("layer:added", ({ layer }) => { if (layer) void countFeatures(layer); });
   events?.subscribe?.("layer:removed", ({ uid }) => { metadata.delete(uid); counts.delete(uid); errors.delete(uid); });
 
-  async function addLayer(url, options, before) {
+  function validateLayerInput(url, options) {
     const type = options.type || "arcgis-auto";
     if (!SHARE_LAYER_TYPES.has(type)) throw new GisMapError("UNSUPPORTED_LAYER_TYPE", `Unsupported layer type: ${type}.`, { details: { supported: [...SHARE_LAYER_TYPES] } });
     let clean;
     try { clean = sanitizeSharedResourceUrl(url, { allowHttp }); } catch (error) { throw toGisMapError(error, "INVALID_URL", { url: String(url) }); }
     const where = checkWhere(options.where);
+    return { clean, type, where };
+  }
+
+  async function addLayer(url, options, before, validated = validateLayerInput(url, options)) {
+    const { clean, type, where } = validated;
     if (options.signal?.aborted) throw new DOMException("The layer was not added.", "AbortError");
     let added;
     try {
@@ -156,11 +159,14 @@ export function createLayersApi({ mapController, loadLayer, state = null, events
      * visible, ignoreServiceScaleRange, zoomTo (default: when it is the first data layer).
      */
     async add(url, options = {}) {
+      // Input errors are more useful than a capacity error and require no map
+      // mutation, so validate before reserving a concurrent layer slot.
+      const validated = validateLayerInput(url, options);
       const before = dataLayers().length;
       if (before + pending >= SHARE_LIMITS.maxLayers) throw new GisMapError("TOO_MANY_LAYERS", `A map can include at most ${SHARE_LIMITS.maxLayers} layers.`, { details: { limit: SHARE_LIMITS.maxLayers } });
       pending += 1;
       try {
-        return await addLayer(url, options, before);
+        return await addLayer(url, options, before, validated);
       } finally {
         pending -= 1;
       }
@@ -207,12 +213,8 @@ export function createLayersApi({ mapController, loadLayer, state = null, events
      */
     async extent(key = null) {
       const layers = key == null ? dataLayers() : [require(key)];
-      const extent = await mapController.dataExtent(layers);
-      if (!extent) return null;
-      const geographic = mapController.modules.webMercatorUtils?.canProject(extent, { wkid: 4326 }) && extent.spatialReference?.isWebMercator
-        ? mapController.modules.webMercatorUtils.webMercatorToGeographic(extent)
-        : extent;
-      return [geographic.xmin, geographic.ymin, geographic.xmax, geographic.ymax].map((value) => Number(value.toFixed(4)));
+      const bounds = await mapController.dataBounds(layers);
+      return bounds ? bounds.map((value) => Number(value.toFixed(4))) : null;
     },
 
     /** The layer's metadata from its service: fields, scale range, freshness, sentinels. */
@@ -223,21 +225,13 @@ export function createLayersApi({ mapController, loadLayer, state = null, events
 
 /** Camera: where the scene looks, as { center: [lon, lat], zoom, scale, heading, tilt }. */
 export function createCameraApi({ mapController, layers }) {
-  const view = () => {
-    if (!mapController.view) throw new GisMapError("NOT_READY", "The map is not ready yet.");
-    return mapController.view;
+  const ready = () => {
+    if (!mapController.isReady()) throw new GisMapError("NOT_READY", "The map is not ready yet.");
   };
   return Object.freeze({
     get() {
-      const current = view();
-      const center = current.center;
-      return {
-        center: [Number(center.longitude.toFixed(6)), Number(center.latitude.toFixed(6))],
-        zoom: Number(current.zoom.toFixed(2)),
-        scale: Math.round(current.scale),
-        heading: Number((current.camera?.heading ?? 0).toFixed(1)),
-        tilt: Number((current.camera?.tilt ?? 0).toFixed(1)),
-      };
+      ready();
+      return mapController.getCamera();
     },
     async set(camera = {}, { animate = true } = {}) {
       const target = {};
@@ -250,7 +244,8 @@ export function createCameraApi({ mapController, layers }) {
       else if (camera.scale !== undefined) target.scale = Math.max(1, Number(camera.scale));
       if (camera.heading !== undefined) target.heading = Number(camera.heading) || 0;
       if (camera.tilt !== undefined) target.tilt = Math.min(90, Math.max(0, Number(camera.tilt) || 0));
-      await view().goTo(target, { animate });
+      ready();
+      await mapController.setView(target, { animate });
       return this.get();
     },
     /** Fits a layer (id, URL or title), every data layer ("layers"), or a [west, south, east, north] box. */
@@ -258,7 +253,8 @@ export function createCameraApi({ mapController, layers }) {
       if (Array.isArray(target)) {
         const [xmin, ymin, xmax, ymax] = target.map(Number);
         if (![xmin, ymin, xmax, ymax].every(Number.isFinite) || xmin >= xmax || ymin >= ymax) throw new GisMapError("INVALID_SPEC", "An extent must be [west, south, east, north] in degrees.");
-        await view().goTo({ target: new mapController.modules.Extent({ xmin, ymin, xmax, ymax, spatialReference: { wkid: 4326 } }), tilt: 0 }, { animate });
+        ready();
+        await mapController.setView({ bounds: [xmin, ymin, xmax, ymax], tilt: 0 }, { animate });
       } else {
         await layers.zoomTo(target === "layers" ? null : target, { animate });
       }

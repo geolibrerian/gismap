@@ -100,6 +100,7 @@ test("Atlas chapter settings normalize safely without activating configurable pa
   const presentation = manager.setPresentation({
     template: "atlas",
     playbackMode: "manual",
+    tourDefaults: { transitionMode: "instant", lingerSeconds: 999, heading: 999, tilt: -1 },
     chapters: [{
       title: "One",
       mediaUrl: "javascript:alert(1)",
@@ -109,6 +110,7 @@ test("Atlas chapter settings normalize safely without activating configurable pa
     }],
   });
   assert.equal(presentation.playbackMode, "manual");
+  assert.deepEqual(presentation.tourDefaults, { transitionMode: "instant", lingerSeconds: 120, heading: 360, tilt: 0 });
   assert.equal(presentation.chapters[0].mediaUrl, "");
   assert.equal(presentation.chapters[0].lingerSeconds, 120);
   assert.equal(presentation.chapters[0].transitionMode, "instant");

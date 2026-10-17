@@ -1,27 +1,30 @@
 import { events } from "./events.js?v=0.18.2";
-import { AuthController } from "./auth.js?v=0.18.2";
-import { MapController } from "./map.js?v=0.31.0";
-import { ProjectManager } from "./project.js?v=0.35.0";
-import { IdentifyController } from "./identify.js?v=0.18.2";
-import { AttributeTableController } from "./attribute-table.js?v=0.18.2";
-import { AIController } from "./ai.js?v=0.36.3";
-import { ToolManager } from "./tool-manager.js?v=0.18.2";
-import { UIController } from "./ui.js?v=0.36.3";
-import { ExportController } from "./export/export-controller.js?v=0.18.2";
-import { SHARE_BASEMAPS, parseShareParameters } from "./share.js?v=0.29.0";
-import { readShareLocation } from "./map-share.js?v=0.35.0";
+import { AuthController } from "./engines/arcgis/arcgis-auth.js?v=0.39.0";
+import { MapController } from "./map-controller.js?v=0.52.0";
+import { listEngines } from "./engines/engine-registry.js?v=0.52.0";
+import { chooseEngine } from "./engine-preference.js?v=0.39.0";
+import { BASEMAP_IDS } from "./basemap-catalog.js?v=0.41.0";
+import { ProjectManager } from "./project.js?v=0.44.2";
+import { IdentifyController } from "./identify.js?v=0.37.0";
+import { AttributeTableController } from "./attribute-table.js?v=0.37.0";
+import { AIController } from "./ai.js?v=0.50.0";
+import { ToolManager } from "./tool-manager.js?v=0.37.0";
+import { UIController } from "./ui.js?v=0.52.0";
+import { ExportController } from "./export/export-controller.js?v=0.37.0";
+import { SHARE_BASEMAPS, parseShareParameters } from "./share.js?v=0.41.0";
+import { readShareLocation } from "./map-share.js?v=0.41.0";
 import { decodeEmbeddedTour } from "./tour-share.js?v=0.18.2";
-import { decodeFieldTask, featureLayerUrl, readFieldTaskHash, readFocus } from "./field-task-share.js?v=0.29.0";
+import { decodeFieldTask, featureLayerUrl, readFieldTaskHash, readFocus } from "./field-task-share.js?v=0.41.0";
 import { POPULAR_SERVICES } from "./catalog.js?v=0.18.2";
-import { ApplicationRuntime } from "./application-runtime.js?v=0.36.0";
+import { ApplicationRuntime } from "./application-runtime.js?v=0.37.0";
 import { PanelManager } from "./panel-manager.js?v=0.18.2";
 import { MobilePanelManager } from "./mobile-panel-manager.js?v=0.18.2";
-import { MobileWorkflowRouter } from "./mobile-workflow-router.js?v=0.29.0";
-import { createClientApi } from "./briefing-api.js?v=0.35.0";
-import { createCameraApi, createLayersApi } from "./layers-api.js?v=0.29.0";
+import { MobileWorkflowRouter } from "./mobile-workflow-router.js?v=0.44.2";
+import { createClientApi } from "./briefing-api.js?v=0.44.2";
+import { createCameraApi, createLayersApi } from "./layers-api.js?v=0.41.0";
 import { registerLayerTools } from "./layer-tools.js?v=0.29.0";
-import { createMapSpecApi } from "./map-spec-api.js?v=0.35.0";
-import { mapSpecFromShareParameters } from "./map-spec.js?v=0.35.0";
+import { createMapSpecApi } from "./map-spec-api.js?v=0.41.0";
+import { mapSpecFromShareParameters } from "./map-spec.js?v=0.41.0";
 import { GisMapError, ERROR_CODES } from "./gismap-errors.js?v=0.28.0";
 
 async function loadSharedLayer(mapController, config) {
@@ -53,9 +56,16 @@ ready.catch(() => {});
 
 async function start() {
   const allowHttp = location.hostname === "localhost" || location.hostname === "127.0.0.1";
+  // ArcGIS by default; ?engine=maplibre (or the Display settings choice) opts in to the MapLibre preview.
+  const engineId = chooseEngine({ search: location.search, storage: globalThis.localStorage, available: listEngines().map((engine) => engine.id) });
+  document.documentElement.dataset.mapEngine = engineId;
   const authController = new AuthController(events);
-  await authController.initialize();
-  const mapController = new MapController(events, authController);
+  // Saved ArcGIS sign-ins load the ArcGIS identity runtime only when ArcGIS draws the map (or a connection is used).
+  await authController.initialize({ runtime: engineId === "arcgis" });
+  const mapController = new MapController(events, authController, { engineId });
+  // Create the selected adapter before UI/settings code configures it; drawing
+  // still starts later, after shared-link settings have been read.
+  await mapController.prepare();
   const projectManager = new ProjectManager(events, mapController, authController);
   const identifyController = new IdentifyController(events, mapController);
   const aiController = new AIController(events, mapController);
@@ -143,7 +153,8 @@ async function start() {
       errorCodes: Object.keys(ERROR_CODES),
       state: {
         status: document.documentElement.dataset.gismapState,
-        layers: mapController.map ? layersApi.list() : [],
+        layers: mapController.isReady() ? layersApi.list() : [],
+        engine: mapController.getEngineId(),
         basemap: mapController.getBasemapId(),
         camera,
         skin: document.documentElement.dataset.skin || presentation.skin || null,
@@ -167,8 +178,8 @@ async function start() {
     GisMapError,
     events,
     /** Experimental escape hatches: the ArcGIS Map and SceneView. Prefer layers.* and camera.*. */
-    get map() { return mapController.map; },
-    get view() { return mapController.view; },
+    get map() { return mapController.native().map; },
+    get view() { return mapController.native().view; },
     getProject: () => projectManager.snapshot(),
     getConnections: () => authController.list(),
     exportData: (options) => exportController.exportLayer(options),
@@ -222,7 +233,7 @@ async function start() {
       // Another part of the link (#map, #briefing, a tour, a task, #at=) decides the view.
       if (sharedState || /(?:^#|&)(?:tour|fieldTask|at)=/.test(location.hash)) spec.camera = { fit: "none" };
       await within(mapSpecApi.load(spec, { replace: false }).ready, 120).catch((error) => events.publish("app:error", { message: error.message }));
-      sharedLayers.push(...mapController.getOperationalLayers());
+      sharedLayers.push(...mapController.getLayers());
     }
     const example = POPULAR_SERVICES.find((item) => (item.slug || item.id) === shared.example);
     if (example?.presentation && sharedLayers.length) {
@@ -251,7 +262,7 @@ async function start() {
   const requestedWorkflow = sharedState ? null : launchParams.get("workflow");
   const sharedBriefingIds = launchParams.get("briefing");
   if (requestedWorkflow === "briefing" && sharedBriefingIds && !/^https?:/i.test(sharedBriefingIds)) {
-    const layer = mapController.getOperationalLayers().find((item) => typeof item.queryFeatures === "function");
+    const layer = mapController.getLayers().find((item) => item.queryable);
     if (layer) projectManager.patchPresentation({ primaryLayerId: layer.uid, briefingSelection: { layerId: layer.uid, ids: sharedBriefingIds.split(",").filter(Boolean), useAll: false } });
   }
   const fieldTaskPayload = readFieldTaskHash(location.hash);
@@ -261,7 +272,7 @@ async function start() {
       {
         // Bring in the feature layers the task points at (to work on them, or to inspect them in a
         // report), unless they are already on the map.
-        const loaded = new Set(mapController.getOperationalLayers().flatMap((layer) => [featureLayerUrl(layer), mapController.getLayerConfig(layer).url]).filter(Boolean));
+        const loaded = new Set(mapController.getLayers().flatMap((layer) => [featureLayerUrl(layer), mapController.getLayerConfig(layer).url]).filter(Boolean));
         for (const url of new Set(shared.task.features.map((feature) => feature.layerUrl).filter(Boolean))) {
           if (loaded.has(url)) continue;
           try {
@@ -289,9 +300,7 @@ async function start() {
   const tourMatch = location.hash.match(/(?:^#|&)tour=([^&]+)/);
   if (tourMatch) {
     try {
-      const tour = decodeEmbeddedTour(tourMatch[1], new Set([
-        "topo-3d", "navigation-3d", "navigation-dark-3d", "osm-3d", "gray-3d", "dark-gray-3d", "streets-3d", "streets-dark-3d", "topo-vector", "streets-vector", "navigation", "gray-vector", "dark-gray-vector", "osm", "satellite", "hybrid",
-      ]));
+      const tour = decodeEmbeddedTour(tourMatch[1], new Set(BASEMAP_IDS));
       projectManager.setPresentation({ template: "atlas", ...tour });
       const launch = new URLSearchParams(location.search);
       const chapter = Math.max(0, Number(launch.get("chapter") || 1) - 1);
@@ -311,7 +320,7 @@ async function start() {
   });
 
   // The basemap's layers loading is part of "ready": a screenshot taken now shows the whole map.
-  await Promise.race([mapController.map.basemap?.load?.(), new Promise((resolve) => setTimeout(resolve, 15000))]).catch(() => {});
+  await mapController.whenBasemapLoaded(15000);
   document.documentElement.dataset.gismapState = "ready";
   resolveReady();
   dispatchEvent(new CustomEvent("gismap:ready", { detail: describe() }));

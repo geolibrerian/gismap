@@ -1,44 +1,40 @@
 import { POPULAR_SERVICES } from "./catalog.js?v=0.18.2";
-import { MapAssistantPanel } from "./assistant-panel.js?v=0.36.3";
-import { createAssistantTools, summarizeMapState } from "./map-assistant.js?v=0.36.3";
+import { MapAssistantPanel } from "./assistant-panel.js?v=0.50.0";
+import { createAssistantTools, summarizeMapState } from "./map-assistant.js?v=0.52.0";
 import { ENTERPRISE_CATALOGS, EnterpriseCatalog, normalizeArcGisDirectoryUrl } from "./enterprise-catalog.js?v=0.18.2";
-import { createShareUrl } from "./share.js?v=0.29.0";
-import { createShareLink, hasDataFilter } from "./map-share.js?v=0.35.0";
-import { briefingLayerRef, findBriefingLayer } from "./briefing-api.js?v=0.35.0";
+import { createShareUrl } from "./share.js?v=0.41.0";
+import { createShareLink, hasDataFilter } from "./map-share.js?v=0.41.0";
+import { briefingLayerRef, findBriefingLayer } from "./briefing-api.js?v=0.44.2";
 import { createEmbeddedTourUrl } from "./tour-share.js?v=0.18.2";
 import { markdownToPlainText, renderMarkdown } from "./markdown.js?v=0.18.2";
 import { formatAttributeValue } from "./attribute-format.js?v=0.18.2";
 import { normalizeApplicationConfig, presetApplication } from "./application-config.js?v=0.18.2";
 import { combineConditions, featureFilterFor, featureId, fieldKind, filterRecords, histogram, requestGuard, sortRecords } from "./presentation-query.js?v=0.30.0";
-import { DEFAULT_SKIN, INTERFACE_SKINS, applyInterfaceSkin, normalizeSkin, skinOptionsMarkup } from "./skin-catalog.js?v=0.18.2";
+import { DEFAULT_SKIN, INTERFACE_SKINS, applyInterfaceSkin, normalizeSkin, skinIsDark, skinOptionsMarkup } from "./skin-catalog.js?v=0.44.2";
+import { themeFromComputedStyle } from "./basemap-themes.js?v=0.40.0";
 import { compactMedia } from "./viewport.js?v=0.18.2";
-import { PdfDocument, brandedMapImage, brandedQrCanvas, loadBrandLogo, printPalette, qrAsset } from "./pdf-document.js?v=0.30.0";
-import { featureLayerUrl, locationUrl } from "./field-task-share.js?v=0.29.0";
+import { PdfDocument, brandedMapImage, brandedQrCanvas, loadBrandLogo, printPalette, qrAsset } from "./pdf-document.js?v=0.44.2";
+import { featureLayerUrl, locationUrl } from "./field-task-share.js?v=0.41.0";
 import { dockIcon } from "./dock-icons.js?v=0.24.0";
 import { serviceNameFromUrl } from "./service-name.js?v=0.26.0";
 import { decodeQrFromImage, describeGisMapLink, gisMapLinkFrom, openGisMapLink } from "./qr-import.js?v=0.25.1";
-import { BriefingSlides } from "./briefing-slides.js?v=0.35.0";
+import { BriefingSlides } from "./briefing-slides.js?v=0.44.2";
 import { createSlide, matchesFilter, normalizeFilter } from "./briefing-document.js?v=0.35.0";
 import { aiDescriptionPrompt, applyAiDescriptions, describeWhere, generateBriefing, readAiDescriptions, rendererTheme } from "./briefing-generator.js?v=0.36.1";
-import { briefingFileStem } from "./briefing-pdf.js?v=0.23.0";
-import { rampColors } from "./renderer-spec.js?v=0.29.0";
+import { briefingFileStem } from "./briefing-pdf.js?v=0.44.2";
+import { RAMPS, rampColors } from "./renderer-spec.js?v=0.29.0";
+import { saveEngine } from "./engine-preference.js?v=0.39.0";
+import { BASEMAPS } from "./basemap-catalog.js?v=0.41.0";
 
+const BUILDINGS_3D_KEY = "gismap-online:buildings-3d:v1";
 const DISPLAY_SETTINGS_KEY = "gismap-online:display:v1";
 const DOCKABLE_PANELS = { places: "Places", bookmarks: "Bookmarks", draw: "Draw", intelligence: "Intelligence", layers: "Layers" };
 const RECENT_PLACES_KEY = "gismap-online:recent-places:v1";
 const RECENT_PLACES_LIMIT = 6;
 const INSIGHT_POSITIONS = new Set(["upper-left", "lower-left", "bottom", "dock-left", "dock-right", "dock-top", "dock-bottom"]);
 const TABLE_POSITIONS = new Set(["overlay-bottom", "dock-left", "dock-right", "dock-top", "dock-bottom"]);
-const BASEMAP_OPTIONS = [
-  ["topo-3d", "3D Topographic"], ["navigation-3d", "3D Navigation"],
-  ["navigation-dark-3d", "3D Navigation — dark"], ["osm-3d", "3D OpenStreetMap"],
-  ["gray-3d", "3D Light gray"], ["dark-gray-3d", "3D Dark gray"],
-  ["streets-3d", "3D Streets"], ["streets-dark-3d", "3D Streets — dark"],
-  ["topo-vector", "2D Topographic"], ["streets-vector", "2D Streets"],
-  ["navigation", "2D Navigation"], ["gray-vector", "2D Light gray"],
-  ["dark-gray-vector", "2D Dark gray"], ["osm", "2D OpenStreetMap"],
-  ["satellite", "Satellite"], ["hybrid", "Satellite + labels"],
-];
+// Every basemap id with its label (the menus list only the active engine's own; see #basemapOptionsMarkup).
+const BASEMAP_OPTIONS = BASEMAPS.map(({ id, label }) => [id, label]);
 const BASEMAP_IDS = new Set(BASEMAP_OPTIONS.map(([id]) => id));
 
 const escapeHtml = (value) =>
@@ -126,6 +122,7 @@ export class UIController {
     this.panelManager?.register("content:draw", document.querySelector(".draw-tools"), { shell: document.querySelector("#draw-panel") });
     this.#initDockablePanels();
     this.#applyDisplaySettings(this.#readDisplaySettings());
+    this.#followSkinOnMap();
     this.systemThemeMedia.addEventListener?.("change", () => {
       const settings = this.#readDisplaySettings();
       if (settings.appearance === "system") this.#applyDisplaySettings(settings);
@@ -154,6 +151,7 @@ export class UIController {
     });
     this.#buildMobileMenu();
     this.#bindMenus();
+    this.#bindMapMenu();
     this.#bindStaticActions();
     this.#bindInsightResize();
     this.#bindUtilityPanel();
@@ -266,6 +264,13 @@ export class UIController {
         this.mapController.setBasemap(select.value);
         this.toast(`Basemap changed to ${select.selectedOptions[0]?.textContent.trim()}.`);
         this.#closeMenus();
+      }),
+    );
+    document.querySelectorAll("[data-buildings-toggle]").forEach((input) =>
+      input.addEventListener("change", () => {
+        try { localStorage.setItem(BUILDINGS_3D_KEY, input.checked ? "on" : "off"); } catch { /* Not kept. */ }
+        this.mapController.setBuildings3d(input.checked);
+        this.toast(input.checked ? "3D buildings on." : "3D buildings off.");
       }),
     );
     document.querySelectorAll("[data-ground-picker]").forEach((select) =>
@@ -491,25 +496,23 @@ export class UIController {
     ["gesturestart", "gesturechange", "gestureend"].forEach((type) => {
       mapWorkspace.addEventListener(type, (event) => event.preventDefault(), { passive: false });
     });
-    this.events.subscribe("map:ready", ({ view }) => {
-      document.querySelector("#map-status").textContent = `Ready · zoom ${view.zoom.toFixed(1)}`;
-      view.watch?.("scale", () => this.#updateLayerScaleIndicators());
-      view.watch?.("stationary", (stationary) => {
-        if (stationary && ["explorer", "briefing"].includes(this.presentationState.template) && this.presentationState.scope === "extent") {
-          clearTimeout(this.presentationExtentTimer);
-          // A briefing also fetches features in view that were not among the first records loaded.
-          this.presentationExtentTimer = setTimeout(async () => {
-            if (this.presentationState.template === "briefing") await this.#loadExtentRecords();
-            this.#filterPresentationRecords();
-          }, 250);
-        }
-      });
-      view.on("pointer-move", (event) => {
-        const point = view.toMap(event);
-        if (!point) return;
-        document.querySelector("#map-status").textContent =
-          `${point.longitude.toFixed(5)}, ${point.latitude.toFixed(5)} · zoom ${view.zoom.toFixed(1)}`;
-      });
+    this.events.subscribe("map:ready", ({ zoom }) => {
+      document.querySelector("#map-status").textContent = `Ready · zoom ${zoom.toFixed(1)}`;
+    });
+    this.events.subscribe("view:scale-change", () => this.#updateLayerScaleIndicators());
+    this.events.subscribe("view:stationary", () => {
+      if (["explorer", "briefing"].includes(this.presentationState.template) && this.presentationState.scope === "extent") {
+        clearTimeout(this.presentationExtentTimer);
+        // A briefing also fetches features in view that were not among the first records loaded.
+        this.presentationExtentTimer = setTimeout(async () => {
+          if (this.presentationState.template === "briefing") await this.#loadExtentRecords();
+          this.#filterPresentationRecords();
+        }, 250);
+      }
+    });
+    this.events.subscribe("view:pointer-move", ({ longitude, latitude, zoom }) => {
+      document.querySelector("#map-status").textContent =
+        `${longitude.toFixed(5)}, ${latitude.toFixed(5)} · zoom ${zoom.toFixed(1)}`;
     });
     ["layer:added", "layer:removed", "layer:changed", "layers:reset"].forEach((topic) =>
       this.events.subscribe(topic, () => this.#renderLayers()),
@@ -571,7 +574,7 @@ export class UIController {
     // Data added from an empty Briefing becomes its dataset straight away.
     this.events.subscribe("layer:added", ({ layer }) => {
       const current = this.projectManager.current.presentation || {};
-      if (current.template !== "briefing" || current.primaryLayerId || typeof layer?.queryFeatures !== "function") return;
+      if (current.template !== "briefing" || current.primaryLayerId || !layer?.queryable) return;
       this.#applyPresentation(this.projectManager.setPresentation({ ...current, primaryLayerId: layer.uid, title: current.title || `${layer.title || "Feature"} briefing` }));
     });
     this.events.subscribe("identify:start", () => {
@@ -639,7 +642,7 @@ export class UIController {
       legend: "Legend",
     };
     return Object.entries(labels)
-      .filter(([name]) => this.mapController.widgets.has(name))
+      .filter(([name]) => this.mapController.widgetOpen(name))
       .map(([id, label]) => ({ id, label }));
   }
 
@@ -731,7 +734,7 @@ export class UIController {
       ...(this.utilityDialogOpen ? [{ id: "dialog", label: document.querySelector("#dialog-title")?.textContent || "Dialog" }] : []),
       ...[...this.utilityPanelsOpen].map((id) => ({ id, label: DOCKABLE_PANELS[id] })),
       ...(this.utilityDrawOpen ? [{ id: "draw", label: "Draw" }] : []),
-      ...(this.utilityStyleLayerUid ? [{ id: "style", label: `Style: ${this.mapController.findLayer(this.utilityStyleLayerUid)?.title || "Layer"}` }] : []),
+      ...(this.utilityStyleLayerUid ? [{ id: "style", label: `Style: ${this.mapController.getLayer(this.utilityStyleLayerUid)?.title || "Layer"}` }] : []),
       ...(this.utilityIntelligenceOpen ? [{ id: "intelligence", label: "Intelligence" }] : []),
       ...(this.utilityAssistantOpen ? [{ id: "assistant", label: "Map assistant" }] : []),
       ...(this.utilityPresentationOpen ? [{ id: "presentation", label: this.projectManager.current.presentation?.template === "briefing" ? "Context briefing" : this.projectManager.current.presentation?.template === "explorer" ? "Dataset explorer" : this.projectManager.current.presentation?.title || "Guided places" }] : []),
@@ -1127,12 +1130,12 @@ export class UIController {
    */
   #shareExportDialog(uid = null) {
     const layers = this.mapController.getAllLayerConfigs();
-    const layer = layers.find((config) => config.uid === uid) || layers.find((config) => this.mapController.findLayer(config.uid)?.queryFeatures) || layers[0] || null;
+    const layer = layers.find((config) => config.uid === uid) || layers.find((config) => this.mapController.getLayer(config.uid)?.queryable) || layers[0] || null;
     const exportable = this.exportController.listExportableLayers();
     const filtered = layers.filter((config) => hasDataFilter(config.definitionExpression));
     const local = layers.filter((config) => config.local || !config.url);
     const styled = layer?.renderer && layer.renderer.type !== "simple";
-    const queryable = layer && typeof this.mapController.findLayer(layer.uid)?.queryFeatures === "function";
+    const queryable = layer && Boolean(this.mapController.getLayer(layer.uid)?.queryable);
     const card = (action, title, description, { disabled = "", icon }) => `<button type="button" class="share-export__card" data-share-export="${action}"${disabled ? ` disabled title="${escapeHtml(disabled)}"` : ""}><span class="share-export__icon" aria-hidden="true">${icon}</span><strong>${title}</strong><small>${disabled ? escapeHtml(disabled) : description}</small></button>`;
     const notices = [
       filtered.length && `Data filters are on: ${filtered.map((config) => escapeHtml(config.title || "Layer")).join(", ")} ${filtered.length === 1 ? "shows" : "show"} only part of the data. Links, PDFs and briefings keep the filter.`,
@@ -1247,8 +1250,9 @@ export class UIController {
       const details = [styleLabel(config.renderer), hasDataFilter(config.definitionExpression) && `Filter: ${config.definitionExpression}`, config.local && "From a local file"].filter(Boolean).join(" · ");
       if (details) y = pdf.addTextAt(details, { x: column.x, y: y + 2, width: column.width, size: 7.5, leading: 10, color: "0.36 0.44 0.41" });
     }
-    const center = this.mapController.view?.center;
-    if (center && Number.isFinite(center.latitude)) {
+    const [longitude, latitude] = this.mapController.getViewState().center || [];
+    const center = Number.isFinite(latitude) ? { longitude, latitude } : null;
+    if (center) {
       y = pdf.addTextAt("Centre", { x: column.x, y: y - 8, width: column.width, size: 9.5, bold: true });
       y = pdf.addTextAt(`${center.latitude.toFixed(5)}, ${center.longitude.toFixed(5)}`, { x: column.x, y: y + 2, width: column.width, size: 8.5, link: locationUrl(location.href, { latitude: center.latitude, longitude: center.longitude }) });
     }
@@ -1268,7 +1272,7 @@ export class UIController {
    * current view plus a key-numbers slide, ready to edit and share.
    */
   createBriefingFromLayer(uid, { featureIds = [], title: givenTitle = "", features = [], actions = [] } = {}) {
-    const layer = this.mapController.findLayer(uid);
+    const layer = this.mapController.getLayer(uid);
     if (!layer) throw new Error("That layer is no longer on the map.");
     const current = this.projectManager.current.presentation || {};
     const title = givenTitle || `${layer.title || "Feature"} briefing`;
@@ -1309,8 +1313,8 @@ export class UIController {
   async generateBriefingFromView({ uid = null, share = false, useAi = this.aiController.isConfigured(), confirmReplace = true } = {}) {
     try {
       const current = this.projectManager.current.presentation || {};
-      const queryable = (item) => item && typeof item.queryFeatures === "function";
-      const layer = [this.mapController.findLayer(uid), this.mapController.findLayer(this.presentationState.layerUid), this.mapController.findLayer(current.primaryLayerId), ...this.mapController.getOperationalLayers()].find(queryable);
+      const queryable = (item) => item && item.queryable;
+      const layer = [this.mapController.getLayer(uid), this.mapController.getLayer(this.presentationState.layerUid), this.mapController.getLayer(current.primaryLayerId), ...this.mapController.getLayers()].find(queryable);
       if (!layer) throw new Error("Add a feature layer to make a briefing from.");
       const existing = current.briefing?.slides?.length && current.primaryLayerId === layer.uid ? current.briefing.slides.length : 0;
       if (existing && confirmReplace && !confirm(`Replace the ${existing} slide${existing === 1 ? "" : "s"} in this briefing with new ones made from the map?`)) return;
@@ -1373,7 +1377,7 @@ export class UIController {
   async #describeBriefingWithAi({ quietFailure = false } = {}) {
     if (!this.aiController.isConfigured()) return this.error("Configure an AI provider from Tools first.");
     const presentation = this.projectManager.current.presentation || {};
-    const layer = this.mapController.findLayer(this.presentationState.layerUid);
+    const layer = this.mapController.getLayer(this.presentationState.layerUid);
     if (!layer || !presentation.briefing?.slides?.length) return;
     const fields = this.#presentationFields(layer);
     const byId = new Map(this.presentationState.records.map((record) => [featureId(record, layer.objectIdField), record]));
@@ -1422,6 +1426,22 @@ export class UIController {
       api: globalThis.gisMapOnline,
       catalog: POPULAR_SERVICES,
       setBasemap: (id) => this.mapController.setBasemap(id),
+      getDisplaySettings: () => this.#readDisplaySettings(),
+      setDisplaySetting: (key, value) => {
+        const settings = { ...this.#readDisplaySettings(), [key]: value };
+        localStorage.setItem(DISPLAY_SETTINGS_KEY, JSON.stringify(settings));
+        this.#applyDisplaySettings(settings);
+      },
+      setMode: (mode) => document.querySelector(`[data-mobile-workflow="${mode}"]`)?.click(),
+      setSkin: (skin) => this.applySkinChoice(skin),
+      saveProject: (name) => { this.projectManager.save(name); return this.projectManager.current.name; },
+      openShareMenu: () => this.#shareExportDialog(),
+      download: async (format) => {
+        if (format === "pdf") return this.#downloadMapPdf();
+        if (format === "smart-image") return this.projectManager.exportSmartImage();
+        if (format === "gmop") return this.projectManager.exportPackage();
+        return this.projectManager.exportJson();
+      },
       createTour: (places, options) => this.createTourFromPlaces(places, { ...options, open: true }),
       draftFieldTask: (draft) => this.fieldTasks?.newTaskFrom(draft),
       presentBriefing: async () => {
@@ -1431,16 +1451,14 @@ export class UIController {
       // Features read for the model: object ID, a point, and the asked-for fields (plus the display field).
       queryFeatures: async (ref, { where, fields = [], orderBy, limit = 10 } = {}) => {
         const info = globalThis.gisMapOnline.layers.get(String(ref));
-        const layer = info && this.mapController.findLayer(info.id);
-        if (!layer?.queryFeatures) throw Object.assign(new Error(`No queryable layer on the map matches "${ref}".`), { hint: "Add the layer first, or use a layer id from get_map_state." });
-        await layer.load();
+        let layer = info && this.mapController.getLayer(info.id);
+        if (!layer?.queryable) throw Object.assign(new Error(`No queryable layer on the map matches "${ref}".`), { hint: "Add the layer first, or use a layer id from get_map_state." });
+        layer = await this.mapController.loadLayer(layer.uid);
         const known = new Set((layer.fields || []).map((field) => field.name));
         const missing = fields.filter((name) => !known.has(name));
         if (missing.length) throw Object.assign(new Error(`Unknown field${missing.length === 1 ? "" : "s"}: ${missing.join(", ")}.`), { code: "FIELD_NOT_FOUND", hint: `Fields: ${[...known].slice(0, 60).join(", ")}` });
         const outFields = [...new Set([layer.objectIdField, layer.displayField, ...fields].filter(Boolean))];
-        const query = layer.createQuery();
-        Object.assign(query, { where: [layer.definitionExpression, where].filter(Boolean).map((part) => `(${part})`).join(" AND ") || "1=1", outFields, returnGeometry: true, num: limit, ...(orderBy ? { orderByFields: [orderBy] } : {}) });
-        const { features = [] } = await layer.queryFeatures(query);
+        const { features = [] } = await this.mapController.queryFeatures(layer.uid, { where: [layer.where, where].filter(Boolean).map((part) => `(${part})`).join(" AND ") || "1=1", outFields, returnGeometry: true, num: limit, ...(orderBy ? { orderByFields: [orderBy] } : {}) });
         return features.map((feature) => {
           const point = this.mapController.geographicCoordinates(feature.geometry);
           return { objectId: feature.attributes?.[layer.objectIdField], ...(point ? { longitude: Number(point.longitude.toFixed(5)), latitude: Number(point.latitude.toFixed(5)) } : {}), attributes: Object.fromEntries(outFields.map((name) => [name, feature.attributes?.[name]])) };
@@ -1449,11 +1467,9 @@ export class UIController {
       // A feature by object ID, as a field task's place: its layer URL and a point on it.
       featurePlace: async (ref, objectId, label = "") => {
         const info = globalThis.gisMapOnline.layers.get(String(ref));
-        const layer = info && this.mapController.findLayer(info.id);
-        if (!layer?.queryFeatures) throw Object.assign(new Error(`No queryable layer on the map matches "${ref}".`), { hint: "Use a layer id from get_map_state." });
-        const query = layer.createQuery();
-        Object.assign(query, { objectIds: [Number.isFinite(Number(objectId)) ? Number(objectId) : objectId], outFields: ["*"], returnGeometry: true });
-        const [feature] = (await layer.queryFeatures(query)).features;
+        const layer = info && this.mapController.getLayer(info.id);
+        if (!layer?.queryable) throw Object.assign(new Error(`No queryable layer on the map matches "${ref}".`), { hint: "Use a layer id from get_map_state." });
+        const [feature] = (await this.mapController.queryFeatures(layer.uid, { objectIds: [Number.isFinite(Number(objectId)) ? Number(objectId) : objectId], outFields: ["*"], returnGeometry: true })).features;
         if (!feature) throw Object.assign(new Error(`Feature ${objectId} was not found in ${info.title}.`), { hint: "Use an object ID from the layer." });
         const point = this.mapController.geographicCoordinates(feature.geometry);
         const name = label || feature.attributes?.[layer.displayField] || `${info.title} ${objectId}`;
@@ -1466,18 +1482,21 @@ export class UIController {
     const usable = places.filter((place) => Number.isFinite(place?.latitude) && Number.isFinite(place?.longitude));
     if (!usable.length) return this.error("There are no places with coordinates to tour.");
     if (open) this.#openGuidedTours();
-    const chapters = this.projectManager.current.presentation?.chapters || [];
-    const layers = this.mapController.getOperationalLayers();
+    const presentation = this.projectManager.current.presentation || {};
+    const chapters = presentation.chapters || [];
+    const defaults = this.#atlasDefaults(presentation);
+    const layers = this.mapController.getLayers();
     const added = usable.slice(0, Math.max(0, 50 - chapters.length)).map((place, index) => ({
       id: crypto.randomUUID?.() || `chapter-${Date.now()}-${index}`,
       title: String(place.title || `Chapter ${chapters.length + index + 1}`).slice(0, 120),
       body: String(place.body || "").slice(0, 600),
       mediaUrl: "",
       reverseAddress: place.address || "",
-      viewState: { type: "scene", center: [place.longitude, place.latitude], zoom: place.zoom ?? 15, heading: place.heading ?? 0, tilt: place.tilt ?? 0 },
+      viewState: { type: "scene", center: [place.longitude, place.latitude], zoom: place.zoom ?? 15, heading: place.heading ?? defaults.heading, tilt: place.tilt ?? defaults.tilt },
       viewpoint: null,
       basemapId: this.mapController.getBasemapId(),
-      lingerSeconds: 5,
+      lingerSeconds: defaults.lingerSeconds,
+      transitionMode: defaults.transitionMode,
       visibleLayerIds: layers.filter((layer) => layer.visible).map((layer) => layer.uid),
       layerVisibility: layers.map((layer) => ({ key: this.#atlasLayerKey(layer), visible: layer.visible })),
     }));
@@ -1492,7 +1511,7 @@ export class UIController {
   /** A briefing on the layer a field task's features come from, loading it if needed. */
   async createBriefingForLayerUrl({ layerUrl, ids = [], title = "", steps = [], labels = {} }) {
     try {
-      let layer = this.mapController.getOperationalLayers().find((item) => featureLayerUrl(item) === layerUrl || this.mapController.getLayerConfig(item).url === layerUrl);
+      let layer = this.mapController.getLayers().find((item) => featureLayerUrl(item) === layerUrl || this.mapController.getLayerConfig(item).url === layerUrl);
       if (!layer) layer = await this.mapController.addService({ url: layerUrl, serviceType: "arcgis-auto" });
       this.createBriefingFromLayer(layer.uid, { featureIds: ids, title: title ? `${title} briefing` : "", features: ids.map((id) => ({ id, label: labels[id] })), actions: steps });
     } catch (error) {
@@ -1603,6 +1622,125 @@ export class UIController {
     }
   }
 
+  /** <option>s for the engines, the active one selected. */
+  #engineOptionsMarkup() {
+    const labels = { arcgis: "ArcGIS — 3D scenes", maplibre: "MapLibre — open 3D maps (preview)" };
+    return this.mapController.availableEngines().map((engine) => `<option value="${escapeHtml(engine.id)}"${engine.id === this.mapController.getEngineId() ? " selected" : ""}>${escapeHtml(labels[engine.id] || engine.label)}</option>`).join("");
+  }
+
+  /**
+   * <option>s for the active engine's own basemaps, grouped, with `id` (or the
+   * basemap the engine draws for it: an ArcGIS id on MapLibre shows as its open equivalent) selected.
+   */
+  #basemapOptionsMarkup(id = null) {
+    const { selected, options } = this.mapController.getBasemapOptions();
+    const wanted = id == null ? selected : options.some((entry) => entry.id === id) ? id : BASEMAPS.find((entry) => entry.id === id)?.[this.mapController.getEngineId()] || selected;
+    const groups = [...new Set(options.map((entry) => entry.group))];
+    return groups.map((group) => `<optgroup label="${escapeHtml(group)}">${options.filter((entry) => entry.group === group).map((entry) => `<option value="${escapeHtml(entry.id)}"${entry.id === wanted ? " selected" : ""}>${escapeHtml(entry.label)}</option>`).join("")}</optgroup>`).join("");
+  }
+
+  #groundOptionsMarkup() {
+    const { selected, options } = this.mapController.getGroundOptions();
+    return options.map((option) => `<option value="${escapeHtml(option.id)}"${option.id === selected ? " selected" : ""}>${escapeHtml(option.label)}</option>`).join("");
+  }
+
+  /**
+   * The Map menu speaks for the engine that is drawing: its engine choice, its
+   * own basemaps with the one on screen selected, terrain only where there is
+   * ground, and map tools that need another engine marked as such.
+   */
+  #syncMapMenu() {
+    const capabilities = this.mapController.getCapabilities();
+    const engine = this.mapController.getEngineId();
+    document.querySelectorAll("[data-engine-picker]").forEach((select) => { select.innerHTML = this.#engineOptionsMarkup(); });
+    document.querySelectorAll("[data-engine-hint]").forEach((hint) => {
+      hint.textContent = engine === "maplibre" ? "Preview: open 3D terrain, basemaps, GeoJSON and ArcGIS services. Widgets and KML still need the ArcGIS engine." : "";
+      hint.hidden = !hint.textContent;
+    });
+    document.querySelectorAll("[data-basemap-picker]").forEach((select) => { select.innerHTML = this.#basemapOptionsMarkup(); });
+    document.querySelectorAll("[data-ground-picker]").forEach((select) => { select.innerHTML = this.#groundOptionsMarkup(); });
+    // 3D buildings are on unless turned off.
+    let buildings = true;
+    try { buildings = localStorage.getItem(BUILDINGS_3D_KEY) !== "off"; } catch { /* On. */ }
+    document.querySelectorAll("[data-buildings-toggle]").forEach((input) => { input.checked = buildings; });
+    if (capabilities.includes("buildings-3d")) this.mapController.setBuildings3d(buildings);
+    document.querySelectorAll("[data-requires-capability]").forEach((element) => {
+      const available = capabilities.includes(element.dataset.requiresCapability);
+      if (element.matches("button")) {
+        element.disabled = !available;
+        if (available) element.removeAttribute("title");
+        else element.title = "Needs the ArcGIS engine (Map → Map engine).";
+      } else {
+        element.hidden = !available;
+      }
+    });
+  }
+
+  #bindMapMenu() {
+    this.#syncMapMenu();
+    ["map:ready", "map:basemap-changed", "map:ground-changed"].forEach((topic) => this.events.subscribe(topic, () => this.#syncMapMenu()));
+    document.addEventListener("change", async (event) => {
+      const select = event.target.closest?.("[data-engine-picker]");
+      if (!select || select.value === this.mapController.getEngineId()) return;
+      this.#closeMenus();
+      await this.#switchEngine(select.value);
+    });
+  }
+
+  /**
+   * Switches the map engine at once: saves the choice and reopens this map
+   * (from its map spec link, or its basemap and view) with the other engine,
+   * which is chosen when the page opens. The address names the engine too, so
+   * the switch holds even where storage is blocked. No confirmation prompt:
+   * choosing an engine is the request, and a suppressed browser dialog would
+   * otherwise cancel it silently.
+   */
+  async #switchEngine(engine) {
+    saveEngine(globalThis.localStorage, engine);
+    this.toast(`Opening this map with ${engine === "maplibre" ? "MapLibre" : "ArcGIS"}…`);
+    const url = new URL(location.href);
+    url.searchParams.delete("engine");
+    let target = url.href;
+    try {
+      target = (await this.mapSpec?.createLink(this.mapSpec.fromCurrent()))?.url || target;
+    } catch {
+      // A map without layers has no map spec; its basemap and view still travel as link parameters.
+      const plain = new URL(url.origin + url.pathname);
+      const view = this.mapController.getViewState();
+      const scale = this.mapController.getScale?.();
+      if (this.mapController.getBasemapId()) plain.searchParams.set("basemap", this.mapController.getBasemapId());
+      if (view?.center && Number.isFinite(scale)) {
+        plain.searchParams.set("center", view.center.map((value) => Number(value).toFixed(5)).join(","));
+        plain.searchParams.set("scale", String(Math.round(scale)));
+      }
+      target = plain.href;
+    }
+    const reopen = new URL(target);
+    reopen.searchParams.set("engine", engine);
+    history.replaceState(null, "", reopen.href);
+    location.reload();
+  }
+
+  /**
+   * Keeps the map engine's basemap theme in step with the interface: the
+   * "skin" basemap and unstyled data layers take the active skin's colours,
+   * whichever part of the app changes the skin or the light/dark appearance.
+   */
+  #followSkinOnMap() {
+    const root = document.documentElement;
+    let applied = null;
+    const sync = () => {
+      const skin = normalizeSkin(root.dataset.skin);
+      const theme = themeFromComputedStyle(getComputedStyle(root), { skin, dark: skinIsDark(skin, root.dataset.theme) });
+      const key = JSON.stringify(theme);
+      if (key === applied) return;
+      applied = key;
+      this.mapController.setBasemapTheme(theme);
+    };
+    sync();
+    new MutationObserver(sync).observe(root, { attributes: true, attributeFilter: ["data-skin", "data-theme"] });
+  }
+
   #readDisplaySettings() {
     try {
       const saved = JSON.parse(localStorage.getItem(DISPLAY_SETTINGS_KEY)) ?? {};
@@ -1617,6 +1755,7 @@ export class UIController {
         highlightEnabled: saved.highlightEnabled !== false,
         clickMarkerEnabled: saved.clickMarkerEnabled !== false,
         highlightColor: /^#[0-9a-f]{6}$/i.test(saved.highlightColor) ? saved.highlightColor : "#00b8d9",
+        highlightStyle: saved.highlightStyle === "outline" ? "outline" : "fill",
         navigationLayout: saved.navigationLayout === "top" ? "top" : "side",
         utilityPanelWidth: Number.isFinite(saved.utilityPanelWidth) ? Math.min(620, Math.max(280, saved.utilityPanelWidth)) : 360,
         appearance: ["system", "light", "dark"].includes(saved.appearance) ? saved.appearance : "system",
@@ -1625,7 +1764,7 @@ export class UIController {
         drawPanelVisible: saved.drawPanelVisible === true,
       };
     } catch {
-      return { insightPosition: "upper-left", defaultBasemap: "topo-3d", insightDockWidth: 420, insightDockHeight: 360, tablePosition: "overlay-bottom", tableDockWidth: 520, tableDockHeight: 420, highlightEnabled: true, clickMarkerEnabled: true, highlightColor: "#00b8d9", navigationLayout: "side", utilityPanelWidth: 360, appearance: "system", darkBasemapEnabled: false, bookmarksPanelVisible: false, drawPanelVisible: false };
+      return { insightPosition: "upper-left", defaultBasemap: "topo-3d", insightDockWidth: 420, insightDockHeight: 360, tablePosition: "overlay-bottom", tableDockWidth: 520, tableDockHeight: 420, highlightEnabled: true, clickMarkerEnabled: true, highlightColor: "#00b8d9", highlightStyle: "fill", navigationLayout: "side", utilityPanelWidth: 360, appearance: "system", darkBasemapEnabled: false, bookmarksPanelVisible: false, drawPanelVisible: false };
     }
   }
 
@@ -1684,7 +1823,7 @@ export class UIController {
     const current = this.#readDisplaySettings();
     const { insightPosition, tablePosition } = current;
     const defaultBasemap = this.mapController.getDefaultBasemapId();
-    const basemapOptions = BASEMAP_OPTIONS.map(([id, label]) => `<option value="${id}" ${defaultBasemap === id ? "selected" : ""}>${label}</option>`).join("");
+    const basemapOptions = this.#basemapOptionsMarkup(defaultBasemap);
     this.openDialog({
       eyebrow: "Interface preferences",
       title: "Display settings",
@@ -1694,23 +1833,29 @@ export class UIController {
         <label class="field"><span>Map Insight position</span><select id="insight-position"><optgroup label="Floating"><option value="upper-left">Upper left</option><option value="lower-left">Lower left</option><option value="bottom">Bottom overlay</option></optgroup><optgroup label="Dashboard"><option value="dock-left">Dock left</option><option value="dock-right">Dock right</option><option value="dock-top">Dock top</option><option value="dock-bottom">Dock bottom</option></optgroup></select></label>
         <label class="field"><span>Attribute table position</span><select id="table-position"><option value="overlay-bottom">Bottom overlay</option><option value="dock-left">Dock left</option><option value="dock-right">Dock right</option><option value="dock-top">Dock top</option><option value="dock-bottom">Dock bottom</option></select></label>
         <label class="field display-basemap"><span>Default basemap</span><select id="default-basemap">${basemapOptions}</select></label>
+        <label class="field"><span>Map engine</span><select id="map-engine">${this.#engineOptionsMarkup()}</select></label>
       </div>
       <label class="display-checkbox"><input id="dark-basemap-enabled" type="checkbox" ${current.darkBasemapEnabled ? "checked" : ""} /><span>Use a dark basemap when dark mode is enabled</span></label>
-      <fieldset class="feedback-settings"><legend>Map click feedback</legend><label class="display-checkbox"><input id="click-marker-enabled" type="checkbox" ${current.clickMarkerEnabled ? "checked" : ""} /><span>Show a crosshair where the map is clicked</span></label><label class="display-checkbox"><input id="highlight-enabled" type="checkbox" ${current.highlightEnabled ? "checked" : ""} /><span>Highlight the feature selected in Map Insight</span></label><label class="highlight-color"><span>Feedback color</span><input id="highlight-color" type="color" value="${current.highlightColor}" /><output>${current.highlightColor.toUpperCase()}</output></label></fieldset>
+      <fieldset class="feedback-settings"><legend>Map click feedback</legend><label class="display-checkbox"><input id="click-marker-enabled" type="checkbox" ${current.clickMarkerEnabled ? "checked" : ""} /><span>Show a crosshair where the map is clicked</span></label><label class="display-checkbox"><input id="highlight-enabled" type="checkbox" ${current.highlightEnabled ? "checked" : ""} /><span>Highlight the feature selected in Map Insight</span></label><label class="field"><span>Selection style</span><select id="highlight-style"><option value="fill"${current.highlightStyle === "outline" ? "" : " selected"}>Filled polygon with outline</option><option value="outline"${current.highlightStyle === "outline" ? " selected" : ""}>Outline only</option></select></label><label class="highlight-color"><span>Feedback color</span><input id="highlight-color" type="color" value="${current.highlightColor}" /><output>${current.highlightColor.toUpperCase()}</output></label></fieldset>
       <label class="display-checkbox"><input id="apply-default-basemap" type="checkbox" /><span>Apply the default basemap to the current map</span></label><p class="form-note">Docked panels resize the map instead of covering it. Sizes, navigation, appearance, and feedback preferences are saved in this browser.</p>`,
-      actions: [{ label: "Save settings", primary: true, handler: () => {
+      actions: [{ label: "Save settings", primary: true, handler: async () => {
         const insightPosition = this.dialog.querySelector("#insight-position").value;
         const tablePosition = this.dialog.querySelector("#table-position").value;
         const navigationLayout = this.dialog.querySelector("#navigation-layout").value;
         const appearance = this.dialog.querySelector("#appearance").value;
         const defaultBasemap = this.dialog.querySelector("#default-basemap").value;
-        const settings = { ...this.#readDisplaySettings(), insightPosition, tablePosition, navigationLayout, appearance, defaultBasemap, darkBasemapEnabled: this.dialog.querySelector("#dark-basemap-enabled").checked, highlightEnabled: this.dialog.querySelector("#highlight-enabled").checked, clickMarkerEnabled: this.dialog.querySelector("#click-marker-enabled").checked, highlightColor: this.dialog.querySelector("#highlight-color").value };
+        const settings = { ...this.#readDisplaySettings(), insightPosition, tablePosition, navigationLayout, appearance, defaultBasemap, darkBasemapEnabled: this.dialog.querySelector("#dark-basemap-enabled").checked, highlightEnabled: this.dialog.querySelector("#highlight-enabled").checked, clickMarkerEnabled: this.dialog.querySelector("#click-marker-enabled").checked, highlightColor: this.dialog.querySelector("#highlight-color").value, highlightStyle: this.dialog.querySelector("#highlight-style").value === "outline" ? "outline" : "fill" };
         localStorage.setItem(DISPLAY_SETTINGS_KEY, JSON.stringify(settings));
         this.#applyDisplaySettings(settings);
         if (this.dialog.querySelector("#apply-default-basemap").checked) {
           this.mapController.setBasemap(defaultBasemap);
         }
+        const engine = this.dialog.querySelector("#map-engine")?.value;
         this.dialog.close();
+        if (engine && engine !== this.mapController.getEngineId()) {
+          await this.#switchEngine(engine);
+          return;
+        }
         this.toast("Display settings saved.");
       }}],
     });
@@ -2553,9 +2698,9 @@ export class UIController {
   }
 
   #presentationLayer(presentation) {
-    const layers = this.mapController.getOperationalLayers();
-    return layers.find((layer) => layer.uid === presentation.primaryLayerId && typeof layer.queryFeatures === "function")
-      || layers.find((layer) => typeof layer.queryFeatures === "function")
+    const layers = this.mapController.getLayers();
+    return layers.find((layer) => layer.uid === presentation.primaryLayerId && layer.queryable)
+      || layers.find((layer) => layer.queryable)
       || null;
   }
 
@@ -2593,18 +2738,15 @@ export class UIController {
     this.presentationState = { ...prior, conditions: sameLayer ? prior.conditions || [] : [], groupField: sameLayer ? prior.groupField || null : null, mapSelect: false, template: presentation.template, layerUid: layer?.uid || null, records: [], visibleRecords: [], selected: null, selectedIds: new Set(), search: "", searchField: "*", searchOperator: "contains", chartField: null, scope: "all", rangeMin: null, rangeMax: null, totalCount: null, sortField: null, sortDirection: "asc", page: 1, pageSize: 25, binCount: 12, fetchedAt: new Date().toISOString() };
     if (!layer) return this.#renderPresentationDashboard(presentation);
     try {
-      const query = layer.createQuery?.() || {};
-      Object.assign(query, { where: layer.definitionExpression || "1=1", outFields: ["*"], returnGeometry: true, num: 500 });
-      const response = await layer.queryFeatures(query);
+      const query = { where: layer.where || "1=1", outFields: ["*"], returnGeometry: true, num: 500 };
+      const response = await this.mapController.queryFeatures(layer.uid, query);
       let totalCount = null;
-      try { totalCount = await layer.queryFeatureCount(query); } catch { /* Count metadata is optional. */ }
+      try { totalCount = await this.mapController.queryFeatureCount(layer.uid, query); } catch { /* Count metadata is optional. */ }
       if (this.presentationState.layerUid !== layer.uid) return;
       const features = response.features || [];
       if (presentation.template === "briefing") features.push(...await this.#missingSlideFeatures(layer, features));
       if (this.presentationState.layerUid !== layer.uid) return;
-      this.presentationState.records = features.map((graphic) => ({
-        kind: "feature", layerUid: layer.uid, layerTitle: layer.title || "Layer", attributes: graphic.attributes || {}, geometry: graphic.geometry || null, graphic,
-      }));
+      this.presentationState.records = features.map((feature) => this.#toRecord(feature, layer));
       this.presentationState.totalCount = Number.isFinite(totalCount) ? totalCount : null;
       const fields = this.#presentationFields(layer);
       const roles = this.#presentationRoles(presentation, layer, fields);
@@ -2629,13 +2771,11 @@ export class UIController {
     const idField = layer.objectIdField;
     const slides = this.projectManager.current.presentation?.briefing?.slides || [];
     if (!idField || !slides.length) return [];
-    const loaded = new Set(features.map((graphic) => String(graphic.attributes?.[idField])));
+    const loaded = new Set(features.map((feature) => String(feature.attributes?.[idField])));
     const missing = [...new Set(slides.map((slide) => slide.featureId).filter((id) => id && !loaded.has(id)))].map(Number).filter(Number.isInteger).slice(0, 200);
     if (!missing.length) return [];
     try {
-      const query = layer.createQuery?.() || {};
-      Object.assign(query, { objectIds: missing, where: "1=1", outFields: ["*"], returnGeometry: true });
-      return (await layer.queryFeatures(query)).features || [];
+      return (await this.mapController.queryFeatures(layer.uid, { objectIds: missing, where: "1=1", outFields: ["*"], returnGeometry: true })).features || [];
     } catch {
       return [];
     }
@@ -2653,7 +2793,7 @@ export class UIController {
   #saveBriefingSelection() {
     const state = this.presentationState;
     if (state.template !== "briefing" || !state.layerUid) return;
-    const layer = this.mapController.findLayer(state.layerUid);
+    const layer = this.mapController.getLayer(state.layerUid);
     const briefing = this.projectManager.current.presentation?.briefing || {};
     this.projectManager.patchPresentation({
       briefingSelection: { layerId: state.layerUid, ids: [...state.selectedIds], useAll: state.briefingUseAll === true, conditions: state.conditions || [] },
@@ -2668,23 +2808,21 @@ export class UIController {
     return conditions.length ? normalizeFilter({ op: "and", args: conditions.map(({ field, op, value }) => ({ field, op, value })) }) : null;
   }
 
-  #toRecord(graphic, layer) {
-    return { kind: "feature", layerUid: layer.uid, layerTitle: layer.title || "Layer", attributes: graphic.attributes || {}, geometry: graphic.geometry || null, graphic };
+  #toRecord(feature, layer) {
+    return { kind: "feature", layerUid: layer.uid, layerTitle: layer.title || "Layer", attributes: feature.attributes || {}, geometry: feature.geometry || null };
   }
 
   /** Adds features in the current view that were not among the first records loaded. */
   async #loadExtentRecords() {
     const state = this.presentationState;
-    const layer = this.mapController.findLayer(state.layerUid);
-    const extent = this.mapController.view?.extent;
-    if (!layer?.queryFeatures || !extent) return;
+    const layer = this.mapController.getLayer(state.layerUid);
+    const extent = this.mapController.getViewExtent();
+    if (!layer?.queryable || !extent) return;
     try {
-      const query = layer.createQuery?.() || {};
-      Object.assign(query, { geometry: extent, spatialRelationship: "intersects", where: layer.definitionExpression || "1=1", outFields: ["*"], returnGeometry: true, num: 500 });
-      const response = await layer.queryFeatures(query);
+      const response = await this.mapController.queryFeatures(layer.uid, { geometry: extent, spatialRelationship: "intersects", where: layer.where || "1=1", outFields: ["*"], returnGeometry: true, num: 500 });
       if (state !== this.presentationState) return;
       const known = new Set(state.records.map((record) => featureId(record, layer.objectIdField)));
-      const added = (response.features || []).filter((graphic) => !known.has(String(graphic.attributes?.[layer.objectIdField]))).map((graphic) => this.#toRecord(graphic, layer));
+      const added = (response.features || []).filter((feature) => !known.has(String(feature.attributes?.[layer.objectIdField]))).map((feature) => this.#toRecord(feature, layer));
       state.records.push(...added);
     } catch { /* The loaded records still filter by extent. */ }
   }
@@ -2692,7 +2830,7 @@ export class UIController {
   /** Pick on map: a click includes the feature in the briefing, or takes it out again. */
   #toggleBriefingInclude(result) {
     const state = this.presentationState;
-    const layer = this.mapController.findLayer(state.layerUid);
+    const layer = this.mapController.getLayer(state.layerUid);
     const id = featureId(result, layer?.objectIdField);
     if (!id) return;
     if (!state.records.some((record) => featureId(record, layer.objectIdField) === id)) state.records.push({ ...result, kind: "feature" });
@@ -2718,7 +2856,7 @@ export class UIController {
     const value = attributes[preferred?.name];
     if (value != null && String(value).trim()) return String(value);
     // No field names the records: use the ID, with the date when there is one ("#4521 · 14 Oct 2026").
-    const id = attributes[this.mapController.findLayer(this.presentationState.layerUid)?.objectIdField];
+    const id = attributes[this.mapController.getLayer(this.presentationState.layerUid)?.objectIdField];
     const dateField = fields.dates?.[0]?.name;
     const date = dateField && attributes[dateField] != null ? new Date(attributes[dateField]) : null;
     const when = date && !Number.isNaN(date.getTime()) ? date.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" }) : "";
@@ -2753,11 +2891,11 @@ export class UIController {
     const active = document.activeElement?.matches?.("[data-mode-search]")
       ? { selector: "[data-mode-search]", start: document.activeElement.selectionStart, end: document.activeElement.selectionEnd }
       : null;
-    const layer = this.mapController.findLayer(this.presentationState.layerUid);
+    const layer = this.mapController.getLayer(this.presentationState.layerUid);
     const fields = this.#presentationFields(layer);
-    const extent = this.mapController.view?.extent;
+    const inView = this.mapController.viewExtentFilter();
     const conditions = this.#briefingConditionFilter();
-    const filtered = filterRecords(this.presentationState.records, this.presentationState, fields.fields, (result) => !extent || extent.intersects?.(result.geometry?.extent || result.geometry))
+    const filtered = filterRecords(this.presentationState.records, this.presentationState, fields.fields, (result) => !inView || inView(result.geometry))
       .filter((record) => !conditions || matchesFilter(conditions, record.attributes || {}));
     this.presentationState.visibleRecords = sortRecords(filtered, this.presentationState.sortField, this.presentationState.sortDirection);
     if (this.presentationState.selected && !this.presentationState.visibleRecords.includes(this.presentationState.selected)) {
@@ -2776,7 +2914,7 @@ export class UIController {
 
   #selectPresentationResult(result) {
     if (!result || this.presentationState.template === "standard") return;
-    const layer = this.mapController.findLayer(this.presentationState.layerUid);
+    const layer = this.mapController.getLayer(this.presentationState.layerUid);
     const idField = layer?.objectIdField;
     const selected = idField ? this.presentationState.records.find((record) => featureId(record, idField) === featureId(result, idField)) || result : result;
     this.presentationState.selected = selected;
@@ -2793,17 +2931,15 @@ export class UIController {
   }
 
   async #syncExplorerMapFilter(layer, records) {
-    if (!layer || !this.mapController.view?.whenLayerView) return;
-    try {
-      const layerView = await this.mapController.view.whenLayerView(layer);
-      layerView.filter = featureFilterFor(records, this.presentationState.records.length, layer.objectIdField);
-    } catch { /* Not every layer view supports a client-side object ID filter. */ }
+    if (!layer) return;
+    // Not every layer supports a client-side object ID filter; those keep drawing everything.
+    await this.mapController.setFeatureFilter(layer.uid, featureFilterFor(records, this.presentationState.records.length, layer.objectIdField));
   }
 
   #applyExplorerMetricRenderer(layer, roles, presentation) {
     if (!roles.metric || layer?.geometryType !== "point") return;
     const unit = this.presentationState.records.map((record) => record.attributes?.[roles.unit]).find(Boolean) || "";
-    layer.renderer = {
+    this.mapController.setRenderer(layer.uid, {
       type: "simple",
       symbol: { type: "simple-marker", size: 7, color: "#9ca3a0", outline: { color: "#ffffff", width: 0.7 } },
       visualVariables: [{
@@ -2815,7 +2951,7 @@ export class UIController {
           { value: this.presentationState.metricMax ?? 1, color: "#b23f62", label: "Higher" },
         ],
       }],
-    };
+    });
   }
 
   #formatExplorerTime(value) {
@@ -2854,7 +2990,7 @@ export class UIController {
     this.#syncPresentationMobileControls(presentation);
     if (template === "standard") { root.replaceChildren(); root.hidden = true; return; }
     root.hidden = false;
-    const layer = this.mapController.findLayer(this.presentationState.layerUid);
+    const layer = this.mapController.getLayer(this.presentationState.layerUid);
     if (!layer && template !== "atlas") {
       root.innerHTML = `<section class="presentation-empty"><span class="eyebrow">${escapeHtml(template)}</span><h2>Start with a dataset</h2><p>This mode becomes interactive after you add a feature layer. Your project and map remain unchanged.</p><div><button type="button" data-presentation-setup="data-arcgis">Connect a service</button><button type="button" data-presentation-setup="data-file">Add a file</button><button type="button" data-presentation-setup="data-popular">Open an example</button></div></section>`;
       root.querySelectorAll("[data-presentation-setup]").forEach((button) => button.addEventListener("click", () => this.#handleAction(button.dataset.presentationSetup)));
@@ -2980,12 +3116,12 @@ export class UIController {
       this.#filterPresentationRecords();
     }));
     root.querySelector("[data-mode-zoom]")?.addEventListener("click", async () => {
-      const graphics = this.presentationState.visibleRecords.map((record) => record.graphic).filter(Boolean);
-      if (graphics.length) await this.mapController.view?.goTo?.(graphics, { animate: !matchMedia("(prefers-reduced-motion: reduce)").matches });
+      const features = this.presentationState.visibleRecords.filter((record) => record.geometry);
+      if (features.length) await this.mapController.goToFeatures(features, { animate: !matchMedia("(prefers-reduced-motion: reduce)").matches });
     });
     root.querySelector("[data-mode-clear]")?.addEventListener("click", () => { this.presentationState.search = ""; this.presentationState.category = ""; this.presentationState.scope = "all"; this.presentationState.rangeMin = null; this.presentationState.rangeMax = null; this.#filterPresentationRecords(); });
     root.querySelectorAll("[data-mode-category-value]").forEach((button) => button.addEventListener("click", () => { this.presentationState.category = button.dataset.modeCategoryValue; this.#filterPresentationRecords(); }));
-    root.querySelectorAll("[data-mode-record]").forEach((button) => button.addEventListener("click", async () => { const result = records[Number(button.dataset.modeRecord)]; this.#selectPresentationResult(result); if (result?.geometry) await this.mapController.view?.goTo?.(result.geometry); }));
+    root.querySelectorAll("[data-mode-record]").forEach((button) => button.addEventListener("click", async () => { const result = records[Number(button.dataset.modeRecord)]; this.#selectPresentationResult(result); if (result?.geometry) await this.mapController.setView({ geometry: result.geometry }); }));
   }
 
   #syncPresentationMobileControls(presentation = this.projectManager.current.presentation || {}) {
@@ -3122,7 +3258,7 @@ export class UIController {
     const chartLabel = fields.fields.find((field) => field.name === state.chartField)?.alias || state.chartField || "Numeric field";
     const activeRange = state.rangeMin != null || state.rangeMax != null;
     root.innerHTML = `<section class="mode-dashboard mode-dashboard--explorer presentation-workspace">
-      <header class="presentation-compact-header"><span class="eyebrow">Dataset explorer</span><h2>${escapeHtml(presentation.title || layer.title || "Explore records")}</h2><label class="compact-dataset"><span>Dataset</span><select data-mode-dataset>${this.mapController.getOperationalLayers().filter((item) => typeof item.queryFeatures === "function").map((item) => `<option value="${escapeHtml(item.uid)}"${item.uid === layer.uid ? " selected" : ""}>${escapeHtml(item.title || "Untitled layer")}</option>`).join("")}</select></label></header>
+      <header class="presentation-compact-header"><span class="eyebrow">Dataset explorer</span><h2>${escapeHtml(presentation.title || layer.title || "Explore records")}</h2><label class="compact-dataset"><span>Dataset</span><select data-mode-dataset>${this.mapController.getLayers().filter((item) => item.queryable).map((item) => `<option value="${escapeHtml(item.uid)}"${item.uid === layer.uid ? " selected" : ""}>${escapeHtml(item.title || "Untitled layer")}</option>`).join("")}</select></label></header>
       <div class="explorer-counts"><button data-coverage-open><b>${Number.isFinite(total) ? total.toLocaleString() : "—"}</b><span>Total${Number.isFinite(total) ? "" : " unknown"}</span></button><button data-coverage-open><b>${loaded.toLocaleString()}</b><span>Available locally</span></button><button data-mode-zoom><b>${state.visibleRecords.length.toLocaleString()}</b><span>Match filters</span></button><button data-selection-zoom><b>${state.selectedIds.size}</b><span>Selected</span></button></div>
       <p class="explorer-coverage ${incomplete ? "is-partial" : ""}">${incomplete ? `Working with ${loaded.toLocaleString()} locally available records out of ${total.toLocaleString()} reported by the service.` : `Working with ${loaded.toLocaleString()} records available to this browser.`}</p>
       <section class="explorer-toolbar"><div class="explorer-search-grid"><label class="field"><span>Search field</span><select data-search-field><option value="*"${state.searchField === "*" ? " selected" : ""}>All searchable text fields</option>${this.#fieldOptions(fields.fields, state.searchField)}</select></label><label class="field"><span>Match</span><select data-search-operator>${this.#searchOperatorOptions(searchField)}</select></label><label class="field explorer-search-input"><span>Search records</span><input data-mode-search list="presentation-search-values" value="${escapeHtml(state.search)}" placeholder="Search ${escapeHtml(searchField?.alias || "text fields")}" /><datalist id="presentation-search-values">${state.searchField && state.searchField !== "*" ? [...new Set(state.records.map((record) => record.attributes?.[state.searchField]).filter((value) => value != null && value !== "").map(String))].slice(0, 60).map((value) => `<option value="${escapeHtml(value)}"></option>`).join("") : ""}</datalist></label></div>
@@ -3155,15 +3291,15 @@ export class UIController {
     root.querySelector("[data-clear-range]")?.addEventListener("click", () => { state.rangeMin = null; state.rangeMax = null; refresh(); });
     root.querySelector("[data-clear-extent]")?.addEventListener("click", () => { state.scope = "all"; refresh(); });
     root.querySelector("[data-mode-clear]")?.addEventListener("click", () => { Object.assign(state, { search: "", searchOperator: "contains", scope: "all", rangeMin: null, rangeMax: null, page: 1 }); refresh(); });
-    root.querySelectorAll("[data-mode-zoom]").forEach((button) => button.addEventListener("click", async () => { const graphics = state.visibleRecords.map((record) => record.graphic).filter(Boolean); if (graphics.length) await this.mapController.view?.goTo?.(graphics, { padding: { left: 36, right: 360, bottom: 230 } }); }));
-    root.querySelectorAll("[data-selection-zoom]").forEach((button) => button.addEventListener("click", async () => { if (state.selected?.geometry) await this.mapController.view?.goTo?.(state.selected.geometry, { padding: 100 }); }));
+    root.querySelectorAll("[data-mode-zoom]").forEach((button) => button.addEventListener("click", async () => { const features = state.visibleRecords.filter((record) => record.geometry); if (features.length) await this.mapController.goToFeatures(features, { padding: { left: 36, right: 360, bottom: 230 } }); }));
+    root.querySelectorAll("[data-selection-zoom]").forEach((button) => button.addEventListener("click", async () => { if (state.selected?.geometry) await this.mapController.setView({ geometry: state.selected.geometry }, { padding: 100 }); }));
     root.querySelector("[data-selection-clear]")?.addEventListener("click", () => { state.selected = null; state.selectedIds.clear(); this.mapController.clearFeatureHighlight(); this.#renderExplorerWorkspace(root, presentation, layer, fields); });
     root.querySelector("[data-filter-selected]")?.addEventListener("click", () => { if (!state.selected) return; state.searchField = layer.objectIdField; state.searchOperator = "equals"; state.search = String(state.selected.attributes?.[layer.objectIdField] ?? ""); refresh(); });
     root.querySelector("[data-style-chart]")?.addEventListener("click", () => { const roles = { ...state.roles, metric: state.chartField }; const values = state.records.map((record) => Number(record.attributes?.[state.chartField])).filter(Number.isFinite); state.metricMin = values.length ? Math.min(...values) : null; state.metricMax = values.length ? Math.max(...values) : null; this.#applyExplorerMetricRenderer(layer, roles, presentation); this.toast(`Map styled by ${fields.fields.find((field) => field.name === state.chartField)?.alias || state.chartField}.`); });
-    root.querySelector("[data-coverage-open]")?.addEventListener("click", () => this.openDialog({ eyebrow: "Dataset coverage", title: layer.title || "Coverage details", content: `<dl class="coverage-details"><div><dt>Service total</dt><dd>${Number.isFinite(state.totalCount) ? state.totalCount.toLocaleString() : "Not reported"}</dd></div><div><dt>Available locally</dt><dd>${state.records.length.toLocaleString()}</dd></div><div><dt>Completeness</dt><dd>${Number.isFinite(state.totalCount) ? `${Math.min(100, state.records.length / state.totalCount * 100).toFixed(1)}%` : "Unknown"}</dd></div><div><dt>Fetched</dt><dd>${escapeHtml(this.#formatExplorerTime(state.fetchedAt))}</dd></div><div><dt>Source</dt><dd>${escapeHtml(layer.url || "Local/project layer")}</dd></div></dl><p class="form-note">Search, charts, statistics, and the results table operate on records available locally. Refresh requests the source again; load-more support depends on the service.</p>`, actions: [{ label: "Close", handler: () => this.dialog.close() }, { label: "Refresh", primary: true, handler: () => { layer.refresh?.(); this.dialog.close(); this.#loadPresentationRecords(presentation); } }] }));
+    root.querySelector("[data-coverage-open]")?.addEventListener("click", () => this.openDialog({ eyebrow: "Dataset coverage", title: layer.title || "Coverage details", content: `<dl class="coverage-details"><div><dt>Service total</dt><dd>${Number.isFinite(state.totalCount) ? state.totalCount.toLocaleString() : "Not reported"}</dd></div><div><dt>Available locally</dt><dd>${state.records.length.toLocaleString()}</dd></div><div><dt>Completeness</dt><dd>${Number.isFinite(state.totalCount) ? `${Math.min(100, state.records.length / state.totalCount * 100).toFixed(1)}%` : "Unknown"}</dd></div><div><dt>Fetched</dt><dd>${escapeHtml(this.#formatExplorerTime(state.fetchedAt))}</dd></div><div><dt>Source</dt><dd>${escapeHtml(layer.url || "Local/project layer")}</dd></div></dl><p class="form-note">Search, charts, statistics, and the results table operate on records available locally. Refresh requests the source again; load-more support depends on the service.</p>`, actions: [{ label: "Close", handler: () => this.dialog.close() }, { label: "Refresh", primary: true, handler: () => { this.mapController.refreshLayer(layer.uid); this.dialog.close(); this.#loadPresentationRecords(presentation); } }] }));
     root.querySelector("[data-page-prev]")?.addEventListener("click", () => { state.page -= 1; this.#renderExplorerWorkspace(root, presentation, layer, fields); });
     root.querySelector("[data-page-next]")?.addEventListener("click", () => { state.page += 1; this.#renderExplorerWorkspace(root, presentation, layer, fields); });
-    root.querySelectorAll("[data-mode-record-id]").forEach((button) => button.addEventListener("click", async (event) => { const record = state.visibleRecords.find((item) => featureId(item, layer.objectIdField) === button.dataset.modeRecordId); if (!record) return; const id = featureId(record, layer.objectIdField); if (event.metaKey || event.ctrlKey || event.shiftKey) { state.selectedIds.has(id) ? state.selectedIds.delete(id) : state.selectedIds.add(id); state.selected = record; this.mapController.highlightFeature(record); this.#renderExplorerWorkspace(root, presentation, layer, fields); } else { this.#selectPresentationResult(record); if (record.geometry) await this.mapController.view?.goTo?.(record.geometry, { padding: { left: 36, right: 360, bottom: 140 } }); } }));
+    root.querySelectorAll("[data-mode-record-id]").forEach((button) => button.addEventListener("click", async (event) => { const record = state.visibleRecords.find((item) => featureId(item, layer.objectIdField) === button.dataset.modeRecordId); if (!record) return; const id = featureId(record, layer.objectIdField); if (event.metaKey || event.ctrlKey || event.shiftKey) { state.selectedIds.has(id) ? state.selectedIds.delete(id) : state.selectedIds.add(id); state.selected = record; this.mapController.highlightFeature(record); this.#renderExplorerWorkspace(root, presentation, layer, fields); } else { this.#selectPresentationResult(record); if (record.geometry) await this.mapController.setView({ geometry: record.geometry }, { padding: { left: 36, right: 360, bottom: 140 } }); } }));
   }
 
   /**
@@ -3191,8 +3327,8 @@ export class UIController {
     if (state.groupField && !groupable.some((field) => field.name === state.groupField)) state.groupField = null;
     // Groups are counted against every other condition, so choosing one group keeps the others in view.
     const others = normalizeFilter({ op: "and", args: state.conditions.filter((item) => !(item.field === state.groupField && item.op === "eq") && item.field && (item.op === "is_not_null" || String(item.value ?? "") !== "")) });
-    const groupExtent = state.scope === "extent" ? this.mapController.view?.extent : null;
-    const groupBase = state.groupField ? state.records.filter((record) => (!others || matchesFilter(others, record.attributes || {})) && (!groupExtent || groupExtent.intersects?.(record.geometry?.extent || record.geometry))) : [];
+    const inView = state.scope === "extent" ? this.mapController.viewExtentFilter() : null;
+    const groupBase = state.groupField ? state.records.filter((record) => (!others || matchesFilter(others, record.attributes || {})) && (!inView || inView(record.geometry))) : [];
     const groups = state.groupField ? (() => {
       const counts = new Map();
       groupBase.forEach((record) => { const value = record.attributes?.[state.groupField]; const key = value == null || value === "" ? "" : String(value); counts.set(key, (counts.get(key) || 0) + 1); });
@@ -3290,14 +3426,14 @@ export class UIController {
     document.querySelector("#briefing-context-host")?.replaceChildren();
     const selected = state.selected;
     const contextSettings = this.#briefingContextSettings(presentation);
-    const contextSources = [layer, ...this.mapController.getOperationalLayers().filter((item) => item !== layer)]
+    const contextSources = [layer, ...this.mapController.getLayers().filter((item) => item !== layer)]
       .filter((item) => !contextSettings.sourceIds.length || contextSettings.sourceIds.includes(item.uid));
     const nameField = state.roles?.title || fields.text[0]?.name;
     const idField = layer.objectIdField;
     const overview = selected ? Object.entries(selected.attributes || {}).filter(([key, value]) => value != null && value !== "" && key !== idField).slice(0, 5) : [];
     const useAll = state.briefingUseAll === true;
     const section = (key, title, content) => contextSettings.sections[key] ? `<section><h4>${title}</h4>${content}</section>` : "";
-    root.innerHTML = `<section class="mode-dashboard mode-dashboard--briefing presentation-workspace"><header class="presentation-compact-header"><span class="eyebrow">Context briefing</span><h2>${escapeHtml(presentation.title || layer.title || "Feature briefing")}</h2><label class="compact-dataset"><span>Dataset</span><select data-mode-dataset>${this.mapController.getOperationalLayers().filter((item) => typeof item.queryFeatures === "function").map((item) => `<option value="${escapeHtml(item.uid)}"${item.uid === layer.uid ? " selected" : ""}>${escapeHtml(item.title || "Untitled layer")}</option>`).join("")}</select></label></header><div class="briefing-search"><label class="field"><span>Search field</span><select data-search-field>${this.#fieldOptions(fields.fields, state.searchField)}</select></label><label class="field"><span>Find a feature</span><input data-mode-search value="${escapeHtml(state.search)}" placeholder="Search ${escapeHtml(fields.fields.find((field) => field.name === state.searchField)?.alias || nameField || "features")}"/></label><button data-mode-clear aria-label="Clear the search" title="Clear the search">×</button></div><div class="mode-records briefing-records">${state.visibleRecords.slice(0, 400).map((record) => `<button class="mode-record${record === selected ? " is-selected" : ""}" data-mode-record-id="${escapeHtml(featureId(record, idField))}"><strong>${escapeHtml(this.#recordLabel(record, fields))}</strong><small>${escapeHtml(featureId(record, idField) || "")}</small></button>`).join("") || "<p class=\"form-note\">No locally available features match.</p>"}</div><aside class="mode-details briefing-context"><button class="context-settings-button" data-briefing-settings aria-label="Context settings" title="Context settings">⚙</button><span class="eyebrow">${selected ? "Feature context" : "Select a feature"}</span>${selected ? `<h3>${escapeHtml(this.#recordLabel(selected, fields))}</h3><div class="detail-actions"><button data-selection-zoom aria-label="Zoom to feature" title="Zoom to feature">⌕</button><button data-selection-clear aria-label="Clear selected feature" title="Clear selected feature">×</button><button type="button" class="detail-actions__slide" data-briefing-add-slide title="Add this feature to the briefing's slides">+ Slide</button><button type="button" class="detail-actions__slide" data-briefing-add-tour title="Add this feature to the guided tour">+ Tour</button><button type="button" class="detail-actions__slide" data-briefing-add-task title="Make a field task at this feature">Task</button></div>${section("overview", "Overview", `<dl>${overview.map(([key,value]) => `<div><dt>${escapeHtml(fields.fields.find((field) => field.name === key)?.alias || key)}</dt><dd>${escapeHtml(formatAttributeValue(value, fields.fields.find((field) => field.name === key), key))}</dd></div>`).join("")}</dl>`)}${section("surroundings", "Surroundings", `<p data-briefing-surroundings>Checking visible contextual datasets…</p>`)}${section("ai", "AI context", `<p data-briefing-ai>${this.aiController.isConfigured() ? "Deterministic context appears first. Generate a concise explanation after reviewing it." : "AI is not configured. Spatial context and source details remain available."}</p>${this.aiController.isConfigured() ? "<button data-briefing-ai-run>Generate sourced context</button>" : ""}`)}${section("sources", "Sources", contextSources.map((source) => `<p>${escapeHtml(source.title || "Dataset")} ${source === layer ? `· retrieved ${escapeHtml(this.#formatExplorerTime(state.fetchedAt))}` : ""}</p>${source.url ? `<a href="${escapeHtml(source.url)}" target="_blank" rel="noopener">Open dataset source ↗</a>` : ""}`).join("") || "<p>No sources selected.</p>")}<details><summary>All attributes</summary><dl>${Object.entries(selected.attributes || {}).map(([key,value]) => `<div><dt>${escapeHtml(key)}</dt><dd>${escapeHtml(value)}</dd></div>`).join("")}</dl></details>` : "<p>Choose a named feature or click it on the map. The right context panel keeps selection, map highlight, and details synchronized.</p>"}</aside></section>`;
+    root.innerHTML = `<section class="mode-dashboard mode-dashboard--briefing presentation-workspace"><header class="presentation-compact-header"><span class="eyebrow">Context briefing</span><h2>${escapeHtml(presentation.title || layer.title || "Feature briefing")}</h2><label class="compact-dataset"><span>Dataset</span><select data-mode-dataset>${this.mapController.getLayers().filter((item) => item.queryable).map((item) => `<option value="${escapeHtml(item.uid)}"${item.uid === layer.uid ? " selected" : ""}>${escapeHtml(item.title || "Untitled layer")}</option>`).join("")}</select></label></header><div class="briefing-search"><label class="field"><span>Search field</span><select data-search-field>${this.#fieldOptions(fields.fields, state.searchField)}</select></label><label class="field"><span>Find a feature</span><input data-mode-search value="${escapeHtml(state.search)}" placeholder="Search ${escapeHtml(fields.fields.find((field) => field.name === state.searchField)?.alias || nameField || "features")}"/></label><button data-mode-clear aria-label="Clear the search" title="Clear the search">×</button></div><div class="mode-records briefing-records">${state.visibleRecords.slice(0, 400).map((record) => `<button class="mode-record${record === selected ? " is-selected" : ""}" data-mode-record-id="${escapeHtml(featureId(record, idField))}"><strong>${escapeHtml(this.#recordLabel(record, fields))}</strong><small>${escapeHtml(featureId(record, idField) || "")}</small></button>`).join("") || "<p class=\"form-note\">No locally available features match.</p>"}</div><aside class="mode-details briefing-context"><button class="context-settings-button" data-briefing-settings aria-label="Context settings" title="Context settings">⚙</button><span class="eyebrow">${selected ? "Feature context" : "Select a feature"}</span>${selected ? `<h3>${escapeHtml(this.#recordLabel(selected, fields))}</h3><div class="detail-actions"><button data-selection-zoom aria-label="Zoom to feature" title="Zoom to feature">⌕</button><button data-selection-clear aria-label="Clear selected feature" title="Clear selected feature">×</button><button type="button" class="detail-actions__slide" data-briefing-add-slide title="Add this feature to the briefing's slides">+ Slide</button><button type="button" class="detail-actions__slide" data-briefing-add-tour title="Add this feature to the guided tour">+ Tour</button><button type="button" class="detail-actions__slide" data-briefing-add-task title="Make a field task at this feature">Task</button></div>${section("overview", "Overview", `<dl>${overview.map(([key,value]) => `<div><dt>${escapeHtml(fields.fields.find((field) => field.name === key)?.alias || key)}</dt><dd>${escapeHtml(formatAttributeValue(value, fields.fields.find((field) => field.name === key), key))}</dd></div>`).join("")}</dl>`)}${section("surroundings", "Surroundings", `<p data-briefing-surroundings>Checking visible contextual datasets…</p>`)}${section("ai", "AI context", `<p data-briefing-ai>${this.aiController.isConfigured() ? "Deterministic context appears first. Generate a concise explanation after reviewing it." : "AI is not configured. Spatial context and source details remain available."}</p>${this.aiController.isConfigured() ? "<button data-briefing-ai-run>Generate sourced context</button>" : ""}`)}${section("sources", "Sources", contextSources.map((source) => `<p>${escapeHtml(source.title || "Dataset")} ${source === layer ? `· retrieved ${escapeHtml(this.#formatExplorerTime(state.fetchedAt))}` : ""}</p>${source.url ? `<a href="${escapeHtml(source.url)}" target="_blank" rel="noopener">Open dataset source ↗</a>` : ""}`).join("") || "<p>No sources selected.</p>")}<details><summary>All attributes</summary><dl>${Object.entries(selected.attributes || {}).map(([key,value]) => `<div><dt>${escapeHtml(key)}</dt><dd>${escapeHtml(value)}</dd></div>`).join("")}</dl></details>` : "<p>Choose a named feature or click it on the map. The right context panel keeps selection, map highlight, and details synchronized.</p>"}</aside></section>`;
     const records = root.querySelector(".briefing-records");
     if (records) {
       const scope = document.createElement("div");
@@ -3391,8 +3527,8 @@ export class UIController {
     root.querySelectorAll("[data-briefing-include]").forEach((input) => input.addEventListener("change", () => { input.checked ? state.selectedIds.add(input.dataset.briefingInclude) : state.selectedIds.delete(input.dataset.briefingInclude); this.#saveBriefingSelection(); this.#renderBriefingWorkspace(root, presentation, layer, fields); }));
     root.querySelectorAll("[data-mode-record-id]").forEach((button) => button.addEventListener("click", () => { const record = state.visibleRecords.find((item) => featureId(item, layer.objectIdField) === button.dataset.modeRecordId); this.#selectPresentationResult(record); }));
     root.querySelector("[data-selection-clear]")?.addEventListener("click", () => { this.briefingRequest.cancel(); state.selected = null; this.mapController.clearFeatureHighlight(); this.#renderBriefingWorkspace(root, presentation, layer, fields); });
-    root.querySelectorAll("[data-mode-record-id]").forEach((button) => button.addEventListener("click", async () => { const record = state.visibleRecords.find((item) => featureId(item, layer.objectIdField) === button.dataset.modeRecordId); if (record?.geometry) await this.mapController.view?.goTo?.({ target: record.geometry, zoom: this.mapController.view?.zoom }, { animate: false }); }));
-    root.querySelector("[data-selection-zoom]")?.addEventListener("click", async () => { if (state.selected?.geometry) await this.mapController.view?.goTo?.({ target: state.selected.geometry, zoom: Math.min(18, (this.mapController.view?.zoom || 10) + 2) }, { padding: { left: 80, right: 420 } }); });
+    root.querySelectorAll("[data-mode-record-id]").forEach((button) => button.addEventListener("click", async () => { const record = state.visibleRecords.find((item) => featureId(item, layer.objectIdField) === button.dataset.modeRecordId); if (record?.geometry) await this.mapController.setView({ geometry: record.geometry, zoom: this.mapController.getViewState().zoom }, { animate: false }); }));
+    root.querySelector("[data-selection-zoom]")?.addEventListener("click", async () => { if (state.selected?.geometry) await this.mapController.setView({ geometry: state.selected.geometry, zoom: Math.min(18, (this.mapController.getViewState().zoom || 10) + 2) }, { padding: { left: 80, right: 420 } }); });
     root.querySelector("[data-briefing-settings]")?.addEventListener("click", () => this.#briefingSettingsDialog(presentation, layer));
     root.querySelector("[data-briefing-add-slide]")?.addEventListener("click", () => {
       if (!state.selected) return;
@@ -3442,7 +3578,7 @@ export class UIController {
 
   #briefingSettingsDialog(presentation, primaryLayer) {
     const settings = this.#briefingContextSettings(presentation);
-    const layers = this.mapController.getOperationalLayers().filter((layer) => layer !== primaryLayer);
+    const layers = this.mapController.getLayers().filter((layer) => layer !== primaryLayer);
     const check = (value) => value ? " checked" : "";
     this.openDialog({
       eyebrow: "Context briefing",
@@ -3475,7 +3611,6 @@ export class UIController {
     const output = contextRoot?.querySelector("[data-briefing-surroundings]");
     const addressOutput = root.querySelector("[data-briefing-address]");
     const location = this.mapController.geographicCoordinates(selected.geometry);
-    const representativePoint = location?.point || this.mapController.representativePoint(selected.geometry);
     const coordinatesOutput = root.querySelector("[data-briefing-coordinates]");
     const coordinatesText = location ? `${location.longitude.toFixed(6)}, ${location.latitude.toFixed(6)}` : "Coordinates unavailable";
     if (coordinatesOutput) coordinatesOutput.textContent = coordinatesText;
@@ -3483,8 +3618,8 @@ export class UIController {
       await navigator.clipboard?.writeText(coordinatesText);
       this.toast("Coordinates copied.");
     });
-    if (representativePoint) {
-      void this.mapController.reverseGeocode(representativePoint).then((result) => {
+    if (location) {
+      void this.mapController.reverseGeocode(location).then((result) => {
         if (this.briefingRequest.valid(token) && this.presentationState.selected === selected && addressOutput?.isConnected) {
           addressOutput.textContent = result?.address ? `Nearest address: ${result.address}` : "Nearest address: not available for this feature.";
         }
@@ -3493,14 +3628,13 @@ export class UIController {
       addressOutput.textContent = "Nearest address: not available for this feature.";
     }
     const settings = this.#briefingContextSettings(this.projectManager.current.presentation);
-    const contextual = this.mapController.getOperationalLayers().filter((layer) => layer !== primaryLayer && layer.visible && typeof layer.queryFeatureCount === "function" && (!settings.layerIds.length || settings.layerIds.includes(layer.uid)));
+    const contextual = this.mapController.getLayers().filter((layer) => layer !== primaryLayer && layer.visible && layer.countable && (!settings.layerIds.length || settings.layerIds.includes(layer.uid)));
     if (!output) return;
     if (!contextual.length) { output.textContent = "No other visible queryable datasets are available. Add or show a contextual layer to inspect surroundings."; return; }
     const results = await Promise.all(contextual.map(async (layer) => {
       try {
-        const query = layer.createQuery?.() || {};
-        Object.assign(query, { geometry: selected.geometry, spatialRelationship: "intersects", distance: settings.perimeter, units: settings.units, where: layer.definitionExpression || "1=1" });
-        return { title: layer.title || "Untitled layer", count: await layer.queryFeatureCount(query), status: "intersecting" };
+        const query = { geometry: selected.geometry, spatialRelationship: "intersects", distance: settings.perimeter, units: settings.units, where: layer.where || "1=1" };
+        return { title: layer.title || "Untitled layer", count: await this.mapController.queryFeatureCount(layer.uid, query), status: "intersecting" };
       } catch { return { title: layer.title || "Untitled layer", count: null, status: "unavailable" }; }
     }));
     if (!this.briefingRequest.valid(token) || this.presentationState.selected !== selected || !output.isConnected) return;
@@ -3512,23 +3646,47 @@ export class UIController {
     this.#renderPresentationDashboard(presentation);
   }
 
+  /** The tour-wide values used when a new chapter is captured or generated. */
+  #atlasDefaults(presentation = this.projectManager.current.presentation || {}) {
+    const defaults = presentation.tourDefaults || {};
+    return {
+      transitionMode: defaults.transitionMode === "instant" ? "instant" : "smooth",
+      lingerSeconds: Math.min(120, Math.max(1, Number(defaults.lingerSeconds) || 4)),
+      heading: Math.min(360, Math.max(-360, Number(defaults.heading) || 0)),
+      tilt: Math.min(179, Math.max(0, Number(defaults.tilt) || 0)),
+    };
+  }
+
+  #atlasViewWithDefaults(view, defaults) {
+    const state = structuredClone(view);
+    state.heading = defaults.heading;
+    state.tilt = defaults.tilt;
+    if (state.camera) {
+      state.camera.heading = defaults.heading;
+      state.camera.tilt = defaults.tilt;
+    }
+    return state;
+  }
+
   async #captureAtlasChapter() {
-    const view = this.mapController.view;
-    if (!view) return;
+    if (!this.mapController.isReady()) return;
     const chapters = this.projectManager.current.presentation?.chapters || [];
-    const address = await this.mapController.reverseGeocode(view.center);
+    const defaults = this.#atlasDefaults();
+    const [longitude, latitude] = this.mapController.getViewState().center || [];
+    const address = await this.mapController.reverseGeocode({ longitude, latitude });
     const next = [...chapters, {
       id: crypto.randomUUID?.() || `chapter-${Date.now()}`,
       title: `Chapter ${chapters.length + 1}`,
       body: "",
       mediaUrl: "",
       reverseAddress: address?.address || "",
-      viewState: this.mapController.getViewState(),
-      viewpoint: view.viewpoint?.toJSON?.() || null,
+      viewState: this.#atlasViewWithDefaults(this.mapController.getViewState(), defaults),
+      viewpoint: this.mapController.getViewpoint(),
       basemapId: this.mapController.getBasemapId(),
-      lingerSeconds: 4,
-      visibleLayerIds: this.mapController.getOperationalLayers().filter((layer) => layer.visible).map((layer) => layer.uid),
-      layerVisibility: this.mapController.getOperationalLayers().map((layer) => ({ key: this.#atlasLayerKey(layer), visible: layer.visible })),
+      lingerSeconds: defaults.lingerSeconds,
+      transitionMode: defaults.transitionMode,
+      visibleLayerIds: this.mapController.getLayers().filter((layer) => layer.visible).map((layer) => layer.uid),
+      layerVisibility: this.mapController.getLayers().map((layer) => ({ key: this.#atlasLayerKey(layer), visible: layer.visible })),
     }];
     this.#saveAtlasChapters(next);
     this.#editAtlasChapter(next, next.length - 1);
@@ -3576,11 +3734,12 @@ export class UIController {
     return state;
   }
 
-  async #syncAtlasEditorToCurrentView(addressLabel = "", useAddressAsTitle = false) {
+  async #syncAtlasEditorToCurrentView(addressLabel = "", useAddressAsTitle = false, syncCamera = true) {
     if (!this.dialog.open) return;
     const state = this.mapController.getViewState();
-    this.atlasEditingViewState = structuredClone(state);
-    const position = state.camera?.position || {};
+    if (syncCamera) this.atlasEditingViewState = structuredClone(state);
+    const editingState = this.atlasEditingViewState || state;
+    const position = editingState.camera?.position || {};
     const geographic = this.#atlasGeographicCameraPosition(position);
     const setValue = (selector, value, digits = 5) => {
       const input = this.dialog.querySelector(selector);
@@ -3589,12 +3748,15 @@ export class UIController {
     setValue("#atlas-camera-longitude", geographic.longitude, 6);
     setValue("#atlas-camera-latitude", geographic.latitude, 6);
     setValue("#atlas-camera-altitude", geographic.altitude, 1);
-    setValue("#atlas-camera-heading", state.camera?.heading ?? state.heading, 1);
-    setValue("#atlas-camera-tilt", state.camera?.tilt ?? state.tilt, 1);
+    if (syncCamera) {
+      setValue("#atlas-camera-heading", editingState.camera?.heading ?? editingState.heading, 1);
+      setValue("#atlas-camera-tilt", editingState.camera?.tilt ?? editingState.tilt, 1);
+    }
     const addressOutput = this.dialog.querySelector("#atlas-reverse-address");
     if (!addressOutput) return;
     addressOutput.textContent = addressLabel || "Finding the place at the center of this view…";
-    const address = addressLabel ? { address: addressLabel } : await this.mapController.reverseGeocode(this.mapController.view?.center);
+    const [longitude, latitude] = editingState.center || this.mapController.getViewState().center || [];
+    const address = addressLabel ? { address: addressLabel } : await this.mapController.reverseGeocode({ longitude, latitude });
     if (!this.dialog.open || !this.dialog.querySelector("#atlas-reverse-address")) return;
     const locationDetails = address?.address || "";
     addressOutput.textContent = locationDetails || "No street address was found for this view.";
@@ -3616,9 +3778,9 @@ export class UIController {
     this.atlasEditingViewState = structuredClone(chapter.viewState || this.mapController.getViewState());
     const position = this.atlasEditingViewState.camera?.position || {};
     const geographicPosition = this.#atlasGeographicCameraPosition(position);
-    const basemapOptions = BASEMAP_OPTIONS.map(([id, label]) => `<option value="${id}"${(chapter.basemapId || this.mapController.getBasemapId()) === id ? " selected" : ""}>${escapeHtml(label)}</option>`).join("");
+    const basemapOptions = this.#basemapOptionsMarkup(chapter.basemapId || this.mapController.getBasemapId());
     const visibility = new Map((chapter.layerVisibility || []).map((entry) => [entry.key, entry.visible !== false]));
-    const layerChoices = this.mapController.getOperationalLayers().map((layer) => {
+    const layerChoices = this.mapController.getLayers().map((layer) => {
       const key = this.#atlasLayerKey(layer);
       const checked = visibility.has(key) ? visibility.get(key) : chapter.visibleLayerIds ? chapter.visibleLayerIds.includes(layer.uid) : layer.visible;
       return `<label class="atlas-layer-choice"><input type="checkbox" data-atlas-layer-key="${escapeHtml(key)}"${checked ? " checked" : ""} /><span>${escapeHtml(layer.title || "Untitled layer")}</span></label>`;
@@ -3675,7 +3837,7 @@ export class UIController {
       queryInput.setAttribute("aria-expanded", "true");
       if (fromSubmit) resultsElement.innerHTML = `<div class="loading-row"><span></span> Searching…</div>`;
       try {
-        const results = await this.mapController.searchPlaces(query);
+        const results = await this.mapController.search(query);
         if (requestId !== searchRequestId || queryInput.value.trim() !== query) return;
         searchResults = results;
         searchSelection = fromSubmit && results.length === 1 ? 0 : -1;
@@ -3691,7 +3853,7 @@ export class UIController {
     queryInput.addEventListener("input", () => {
       clearTimeout(searchTimer);
       searchRequestId += 1;
-      if (queryInput.value.trim().length < 2) {
+      if (queryInput.value.trim().length < 2 || !this.mapController.getCapabilities().includes("geocode-suggest")) {
         this.dialog.querySelector("#atlas-place-results").hidden = true;
         queryInput.setAttribute("aria-expanded", "false");
         return;
@@ -3715,7 +3877,9 @@ export class UIController {
         queryInput.setAttribute("aria-expanded", "false");
       }
     });
-    if (!chapter.reverseAddress) void this.#syncAtlasEditorToCurrentView();
+    // Resolve an empty address without replacing a newly captured chapter's
+    // default camera orientation with the map's current orientation.
+    if (!chapter.reverseAddress) void this.#syncAtlasEditorToCurrentView("", false, false);
   }
 
   async #goToAtlasChapter(chapter, index = null, chapters = this.projectManager.current.presentation?.chapters || []) {
@@ -3728,15 +3892,15 @@ export class UIController {
     this.#showAtlasChapterOverlay(chapter, chapterIndex, chapters);
     if (chapter.basemapId && BASEMAP_IDS.has(chapter.basemapId)) this.mapController.setBasemap(chapter.basemapId);
     const visibility = new Map((chapter.layerVisibility || []).map((entry) => [entry.key, entry.visible !== false]));
-    this.mapController.getOperationalLayers().forEach((layer) => {
-      if (visibility.size) layer.visible = visibility.get(this.#atlasLayerKey(layer)) ?? layer.visible;
-      else if (chapter.visibleLayerIds) layer.visible = chapter.visibleLayerIds.includes(layer.uid);
+    this.mapController.getLayers().forEach((layer) => {
+      if (visibility.size) this.mapController.setVisibility(layer.uid, visibility.get(this.#atlasLayerKey(layer)) ?? layer.visible, { silent: true });
+      else if (chapter.visibleLayerIds) this.mapController.setVisibility(layer.uid, chapter.visibleLayerIds.includes(layer.uid), { silent: true });
     });
     const animate = chapter.transitionMode !== "instant" && !matchMedia("(prefers-reduced-motion: reduce)").matches;
     const state = chapter.viewState;
-    if (state?.camera) await this.mapController.view?.goTo?.(state.camera, { animate });
-    else if (state?.center) await this.mapController.view?.goTo?.({ center: state.center, zoom: state.zoom, heading: state.heading ?? 0, tilt: state.tilt ?? 0 }, { animate });
-    else if (chapter.viewpoint) await this.mapController.view?.goTo?.(chapter.viewpoint, { animate });
+    if (state?.camera) await this.mapController.setView({ camera: state.camera }, { animate });
+    else if (state?.center) await this.mapController.setView({ center: state.center, zoom: state.zoom, heading: state.heading ?? 0, tilt: state.tilt ?? 0 }, { animate });
+    else if (chapter.viewpoint) await this.mapController.setView({ viewpoint: chapter.viewpoint }, { animate });
   }
 
   #showAtlasChapterOverlay(chapter, index, chapters) {
@@ -3837,11 +4001,12 @@ export class UIController {
   #atlasSettingsDialog() {
     const presentation = this.projectManager.current.presentation || {};
     const playbackMode = presentation.playbackMode === "manual" ? "manual" : "auto";
+    const defaults = this.#atlasDefaults(presentation);
     const skins = INTERFACE_SKINS.map(({ id, label }) => [id, label]);
     this.openDialog({
       eyebrow: "Guided places",
       title: "Tour settings",
-      content: `<div class="atlas-settings"><label class="field"><span>Look &amp; feel</span><select data-atlas-settings-skin>${skins.map(([value, label]) => `<option value="${value}"${presentation.skin === value ? " selected" : ""}>${label}</option>`).join("")}</select></label><label class="field"><span>Playback</span><select data-atlas-settings-playback><option value="auto"${playbackMode === "auto" ? " selected" : ""}>Auto · advance after each linger time</option><option value="manual"${playbackMode === "manual" ? " selected" : ""}>Manual · use Back and Next</option></select></label><p class="form-note">Chapter camera movement, linger time, basemap, descriptions, images, and visible layers are edited on each chapter.</p></div>`,
+      content: `<div class="atlas-settings"><label class="field"><span>Look &amp; feel</span><select data-atlas-settings-skin>${skins.map(([value, label]) => `<option value="${value}"${presentation.skin === value ? " selected" : ""}>${label}</option>`).join("")}</select></label><label class="field"><span>Playback</span><select data-atlas-settings-playback><option value="auto"${playbackMode === "auto" ? " selected" : ""}>Auto · advance after each linger time</option><option value="manual"${playbackMode === "manual" ? " selected" : ""}>Manual · use Back and Next</option></select></label><fieldset class="atlas-settings__defaults"><legend>Defaults for new chapters</legend><label class="field"><span>Between chapters</span><select data-atlas-settings-transition><option value="smooth"${defaults.transitionMode === "smooth" ? " selected" : ""}>Pan and zoom</option><option value="instant"${defaults.transitionMode === "instant" ? " selected" : ""}>Cut (jump straight there)</option></select></label><div class="field-grid"><label class="field"><span>Linger (seconds)</span><input data-atlas-settings-linger type="number" min="1" max="120" step="1" value="${defaults.lingerSeconds}" /></label><label class="field"><span>Heading</span><input data-atlas-settings-heading type="number" min="-360" max="360" step="0.1" value="${defaults.heading}" /></label><label class="field"><span>Camera tilt</span><input data-atlas-settings-tilt type="number" min="0" max="179" step="0.1" value="${defaults.tilt}" /></label></div></fieldset><p class="form-note">These values start each new chapter. Edit a chapter to override its transition, linger, or camera angle; saved chapters are never overwritten.</p></div>`,
       actions: [
         { label: "Cancel", handler: () => this.dialog.close() },
         { label: "Save settings", primary: true, handler: () => {
@@ -3850,6 +4015,12 @@ export class UIController {
             ...this.projectManager.current.presentation,
             skin: this.dialog.querySelector("[data-atlas-settings-skin]").value,
             playbackMode: this.dialog.querySelector("[data-atlas-settings-playback]").value,
+            tourDefaults: {
+              transitionMode: this.dialog.querySelector("[data-atlas-settings-transition]").value,
+              lingerSeconds: this.dialog.querySelector("[data-atlas-settings-linger]").value,
+              heading: this.dialog.querySelector("[data-atlas-settings-heading]").value,
+              tilt: this.dialog.querySelector("[data-atlas-settings-tilt]").value,
+            },
           });
           this.dialog.close();
           this.#renderPresentationDashboard(updated);
@@ -4056,10 +4227,8 @@ export class UIController {
     document.querySelector("#briefing-context-host")?.replaceChildren();
     document.body.classList.remove("mobile-briefing-context-open");
     delete document.body.dataset.briefingContextDock;
-    const layer = this.mapController.findLayer(this.presentationState.layerUid);
-    if (layer && this.mapController.view?.whenLayerView) {
-      this.mapController.view.whenLayerView(layer).then((layerView) => { layerView.filter = null; }).catch(() => {});
-    }
+    const layer = this.mapController.getLayer(this.presentationState.layerUid);
+    if (layer) void this.mapController.setFeatureFilter(layer.uid, null);
     this.mapController.clearFeatureHighlight();
   }
 
@@ -4124,7 +4293,7 @@ export class UIController {
     let previewing = false;
     let builderFinished = false;
     const panelTypes = this.applicationRuntime.panels.list();
-    const layers = this.mapController.getOperationalLayers();
+    const layers = this.mapController.getLayers();
     const dashboardViews = [
       { id: "standard", label: "Classic workspace", description: "All core tools in a familiar left workspace.", preview: "left" },
       { id: "explorer", label: "Data explorer", description: "Browse at left, inspect at right, chart below.", preview: "three" },
@@ -4151,7 +4320,7 @@ export class UIController {
       };
       const panelRows = draft.panels.map((panel) => {
         const panelIndex = draft.panels.indexOf(panel);
-        const boundLayer = this.mapController.findLayer(panel.binding?.layerId) || layers[0];
+        const boundLayer = this.mapController.getLayer(panel.binding?.layerId) || layers[0];
         const fields = boundLayer?.fields || [];
         const fieldControl = ["charts", "attributes"].includes(panel.type) && fields.length
           ? `<select data-builder-field aria-label="Field configuration"><option value="">Automatic field</option>${fields.map((field) => `<option value="${escapeHtml(field.name)}"${panel.settings?.field === field.name ? " selected" : ""}>${escapeHtml(field.alias || field.name)}</option>`).join("")}</select>`
@@ -4311,70 +4480,49 @@ export class UIController {
     this.openDialog({
       eyebrow: "Account feature · coming soon",
       title: "Dashboard Builder",
-      content: `<div class="dashboard-builder-gate"><p>Dashboard Builder is the signed-in authoring workspace for custom panel layouts, data bindings, and reusable applications.</p><p>The free viewer keeps instant presentations simple: choose Briefing, Explorer, or Atlas from <strong>Map → Instant presentations</strong>.</p><ul><li>Free now: Map tools, Briefing, Tours, and Field Tasks</li><li>With an account: custom dashboards and advanced operational workflows</li></ul></div>`,
+      content: `<div class="dashboard-builder-gate"><p>Dashboard Builder is the signed-in authoring workspace for custom panel layouts, data bindings, and reusable applications.</p><p>Choose Briefing or Tours from <strong>Modes</strong>, and use Instant presentations to choose a look.</p><ul><li>Free now: Map tools, Briefing, Tours, and Field Tasks</li><li>With an account: custom dashboards and advanced operational workflows</li></ul></div>`,
       actions: [{ label: "Close", primary: true, handler: () => this.dialog.close() }],
     });
   }
 
   #presentationDialog() {
     const previous = structuredClone(this.projectManager.current.presentation || {});
-    const current = { template: "standard", skin: DEFAULT_SKIN, title: "", primaryLayerId: null, ...previous };
-    const layers = this.mapController.getOperationalLayers();
-    // The skin is independent of the mode: choosing a mode never changes the look.
-    const cards = [
-      ["briefing", "Briefing", "Understand events, changes, and their sources"],
-      ["explorer", "Explorer", "Search, filter, and compare mapped records"],
-      ["atlas", "Tour", "Present places through guided chapters and stories"],
-    ];
+    const current = { template: "standard", skin: DEFAULT_SKIN, ...previous };
     let applied = false;
     this.openDialog({
       eyebrow: "Presentation",
       title: "Instant presentations",
-      content: `<div class="presentation-picker"><p class="form-note">Choose a ready-made presentation, then choose its look. These quick modes do not change layer data, map symbology, or classifications.</p><div class="presentation-cards"><button type="button" class="presentation-card" data-presentation-template="standard"><span class="presentation-preview presentation-preview--standard"></span><strong>Standard map</strong><small>Return to the free map workspace.</small></button>${cards.map(([id, title, description]) => `<button type="button" class="presentation-card" data-presentation-template="${id}"><span class="presentation-preview presentation-preview--${id}"><i></i><i></i><i></i></span><strong>${title}</strong><small>${description}</small></button>`).join("")}</div><p class="form-note" data-presentation-preview-status></p><fieldset class="skin-picker"><legend>Interface skin</legend>${INTERFACE_SKINS.map(({ id,label,description }) => `<button type="button" class="skin-card skin-card--${id}" data-skin-choice="${id}"><span class="skin-mini"><i></i><b></b><em></em><small></small></span><strong>${label}</strong><small>${description}</small></button>`).join("")}<select id="presentation-skin" hidden>${skinOptionsMarkup(current.skin)}</select></fieldset><label class="field"><span>Presentation title</span><input id="presentation-title" value="${escapeHtml(current.title)}" placeholder="Optional title" /></label><label class="field"><span>Primary layer</span><select id="presentation-primary"><option value="">Choose later</option>${layers.map((layer) => `<option value="${escapeHtml(layer.uid)}">${escapeHtml(layer.title || "Untitled layer")}</option>`).join("")}</select></label><p class="form-note" data-presentation-note>Dataset roles remain configurable inside Explorer and Briefing after applying.</p></div>`,
+      content: `<div class="presentation-picker"><p class="form-note">Choose a look for your map and presentation. Your mode, layers, map symbols, and camera stay as they are.</p><fieldset class="skin-picker"><legend>Interface skin</legend>${INTERFACE_SKINS.map(({ id,label,description }) => `<button type="button" class="skin-card skin-card--${id}" data-skin-choice="${id}" aria-pressed="false"><span class="skin-mini"><i></i><b></b><em></em><small></small></span><strong>${label}</strong><small>${description}</small></button>`).join("")}<select id="presentation-skin" hidden>${skinOptionsMarkup(current.skin)}</select></fieldset></div>`,
       actions: [
         { label: "Cancel", handler: () => this.dialog.close() },
-        { label: "Preview", handler: () => {
-          const template = this.dialog.querySelector(".presentation-card.is-selected")?.dataset.presentationTemplate || current.template;
-          this.#applyPresentation({ template, skin: this.dialog.querySelector("#presentation-skin").value });
-        } },
         { label: "Apply", primary: true, handler: () => {
-          const template = this.dialog.querySelector(".presentation-card.is-selected")?.dataset.presentationTemplate || current.template;
-          const presentation = this.projectManager.setPresentation({ ...current, template, skin: this.dialog.querySelector("#presentation-skin").value, title: this.dialog.querySelector("#presentation-title").value.trim(), primaryLayerId: this.dialog.querySelector("#presentation-primary").value || null });
+          const skin = this.dialog.querySelector("#presentation-skin").value;
+          this.projectManager.patchPresentation({ skin });
           applied = true;
-          this.#applyPresentation(presentation);
+          applyInterfaceSkin(skin);
           this.dialog.close();
-          this.toast(`${template === "standard" ? "Standard workspace" : `${template === "atlas" ? "Tour" : `${template[0].toUpperCase()}${template.slice(1)}`} presentation`} applied.`);
+          this.toast("Interface skin applied.");
         } },
       ],
     });
     // Closing by any route (Cancel, ×, Escape) restores the previous appearance.
     const session = this.dialogSession;
     this.dialog.addEventListener("close", () => {
-      if (!applied && session === this.dialogSession) this.#applyPresentation(previous);
+      if (!applied && session === this.dialogSession) applyInterfaceSkin(previous.skin);
     }, { once: true });
     const skin = this.dialog.querySelector("#presentation-skin");
     skin.value = current.skin;
-    this.dialog.querySelector("#presentation-primary").value = current.primaryLayerId || "";
-    const select = (button) => {
-      this.dialog.querySelectorAll("[data-presentation-template]").forEach((card) => card.classList.toggle("is-selected", card === button));
-      const template = button.dataset.presentationTemplate;
-      const titleInput = this.dialog.querySelector("#presentation-title");
-      if (titleInput) titleInput.value = current.modeTitles?.[template] || (template === current.template ? current.title : "");
-      this.#applyPresentation({ template, skin: skin.value });
-      this.dialog.querySelector("[data-presentation-preview-status]").textContent = template === "standard"
-        ? "Previewing the standard authoring workspace."
-        : `Previewing ${template[0].toUpperCase()}${template.slice(1)}. Choose Apply to save this presentation to the project.`;
-    };
-    this.dialog.querySelectorAll("[data-presentation-template]").forEach((button) => button.addEventListener("click", () => select(button)));
     const chooseSkin = (value) => {
       skin.value = value;
-      this.dialog.querySelectorAll("[data-skin-choice]").forEach((card) => card.classList.toggle("is-selected", card.dataset.skinChoice === value));
-      const template = this.dialog.querySelector(".presentation-card.is-selected")?.dataset.presentationTemplate || current.template;
-      this.#applyPresentation({ template, skin: skin.value });
+      this.dialog.querySelectorAll("[data-skin-choice]").forEach((card) => {
+        const selected = card.dataset.skinChoice === value;
+        card.classList.toggle("is-selected", selected);
+        card.setAttribute("aria-pressed", String(selected));
+      });
+      applyInterfaceSkin(skin.value);
     };
     this.dialog.querySelectorAll("[data-skin-choice]").forEach((card) => card.addEventListener("click", () => chooseSkin(card.dataset.skinChoice)));
     chooseSkin(normalizeSkin(current.skin));
-    select(this.dialog.querySelector(`[data-presentation-template="${current.template}"]`) || this.dialog.querySelector("[data-presentation-template=standard]"));
   }
 
   #openGuidedTours() {
@@ -4430,9 +4578,9 @@ export class UIController {
     }
     if (route === "briefing") {
       const current = this.projectManager.current.presentation || {};
-      const primaryLayerId = current.primaryLayerId || this.mapController.getOperationalLayers().find((layer) => typeof layer.queryFeatures === "function")?.uid || null;
+      const primaryLayerId = current.primaryLayerId || this.mapController.getLayers().find((layer) => layer.queryable)?.uid || null;
       const returningToBriefing = current.template === "briefing";
-      const primaryLayer = this.mapController.findLayer(primaryLayerId);
+      const primaryLayer = this.mapController.getLayer(primaryLayerId);
       const presentation = this.projectManager.setPresentation({
         ...current,
         template: "briefing",
@@ -4552,7 +4700,7 @@ export class UIController {
     const presentation = this.projectManager.current.presentation || {};
     const state = this.presentationState;
     const inBriefing = state.template === "briefing";
-    const layer = this.mapController.findLayer(inBriefing ? state.layerUid : presentation.primaryLayerId) || this.briefingWorkspace?.layer;
+    const layer = this.mapController.getLayer(inBriefing ? state.layerUid : presentation.primaryLayerId) || this.briefingWorkspace?.layer;
     if (!layer) throw new Error("Choose the briefing's layer before sharing.");
     const layers = this.mapController.getAllLayerConfigs();
     const title = presentation.modeTitles?.briefing || presentation.title || `${layer.title || "Feature"} briefing`;
@@ -4667,7 +4815,7 @@ export class UIController {
     const filtered = shared.layers.filter((layer) => hasDataFilter(layer.definitionExpression)).length;
     const filterNote = filtered ? ` ${filtered === 1 ? "One layer has" : `${filtered} layers have`} a data filter, so not every feature is shown.` : "";
     const current = this.projectManager.current.presentation || {};
-    const goToCamera = () => (shared.camera ? this.mapController.view?.goTo({ ...shared.camera }, { animate: false }).catch(() => {}) : null);
+    const goToCamera = () => (shared.camera ? this.mapController.setView({ ...shared.camera }, { animate: false }).catch(() => {}) : null);
     if (shared.kind === "map") {
       this.projectManager.setPresentation({ ...current, template: "standard", skin: shared.skin, title: shared.title || current.title });
       await goToCamera();
@@ -4788,7 +4936,8 @@ export class UIController {
     clearTimeout(this.searchTimer);
     this.searchRequestId += 1;
     const query = value.trim();
-    if (query.length < 2) {
+    // Engines whose geocoder forbids search-as-you-type search on Enter only.
+    if (query.length < 2 || !this.mapController.getCapabilities().includes("geocode-suggest")) {
       this.searchRequestId += 1;
       this.#clearSearchResults();
       return;
@@ -4809,7 +4958,7 @@ export class UIController {
     input.setAttribute("aria-expanded", "true");
     container.innerHTML = '<div class="loading-row"><span></span> Searching…</div>';
     try {
-      const results = await this.mapController.searchPlaces(query);
+      const results = await this.mapController.search(query);
       if (requestId !== this.searchRequestId || input.value.trim() !== query) return;
       this.searchResults = results;
       this.searchSelection = fromSubmit && results.length === 1 ? 0 : -1;
@@ -4915,19 +5064,19 @@ export class UIController {
   }
 
   async #addBookmark() {
-    const view = this.mapController.view;
-    const name = document.querySelector("#place-query").value.trim() || this.lastPlaceLabel || `View at ${view.center.latitude.toFixed(3)}, ${view.center.longitude.toFixed(3)}`;
-    const address = await this.mapController.reverseGeocode(view.center).catch(() => null);
+    const [longitude, latitude] = this.mapController.getViewState().center;
+    const name = document.querySelector("#place-query").value.trim() || this.lastPlaceLabel || `View at ${latitude.toFixed(3)}, ${longitude.toFixed(3)}`;
+    const address = await this.mapController.reverseGeocode({ longitude, latitude }).catch(() => null);
     this.projectManager.addBookmark({
       name,
       description: "",
-      longitude: view.center.longitude,
-      latitude: view.center.latitude,
+      longitude,
+      latitude,
       reverseAddress: address?.address || "",
       viewpoint: this.mapController.getViewState(),
       basemapId: this.mapController.getBasemapId(),
       lingerSeconds: 4,
-      layerVisibility: this.mapController.getOperationalLayers().map((layer) => ({ key: this.#atlasLayerKey(layer), visible: layer.visible })),
+      layerVisibility: this.mapController.getLayers().map((layer) => ({ key: this.#atlasLayerKey(layer), visible: layer.visible })),
     });
   }
 
@@ -4967,6 +5116,7 @@ export class UIController {
   }
 
   #createAtlasFromBookmarks() {
+    const defaults = this.#atlasDefaults();
     const chapters = (this.projectManager.current.bookmarks ?? []).map((bookmark, index) => ({
       id: bookmark.id || `bookmark-${index + 1}`,
       title: bookmark.name || `Place ${index + 1}`,
@@ -4974,7 +5124,8 @@ export class UIController {
       reverseAddress: bookmark.reverseAddress || "",
       viewState: bookmark.viewpoint,
       basemapId: bookmark.basemapId || null,
-      lingerSeconds: Math.min(120, Math.max(1, Number(bookmark.lingerSeconds) || 4)),
+      lingerSeconds: Math.min(120, Math.max(1, Number(bookmark.lingerSeconds) || defaults.lingerSeconds)),
+      transitionMode: bookmark.transitionMode === "instant" ? "instant" : defaults.transitionMode,
       layerVisibility: bookmark.layerVisibility || null,
     }));
     if (!chapters.length) return this.error("Add at least one bookmark before creating an atlas.");
@@ -5003,8 +5154,8 @@ export class UIController {
   }
 
   #renderLayers() {
-    const layers = this.mapController.getOperationalLayers().slice().reverse();
-    if (this.utilityStyleLayerUid && !this.mapController.findLayer(this.utilityStyleLayerUid)) {
+    const layers = this.mapController.getLayers().slice().reverse();
+    if (this.utilityStyleLayerUid && !this.mapController.getLayer(this.utilityStyleLayerUid)) {
       this.utilityStyleLayerUid = null;
       document.querySelector("#utility-style-content").replaceChildren();
       this.#syncUtilityPanel();
@@ -5036,8 +5187,8 @@ export class UIController {
   }
 
   #layerScaleMessage(layer) {
-    if (!layer?.visible || !this.mapController.view) return "";
-    const scale = Number(this.mapController.view.scale);
+    if (!layer?.visible || !this.mapController.isReady()) return "";
+    const scale = Number(this.mapController.getScale());
     const minScale = Number(layer.minScale) || 0;
     const maxScale = Number(layer.maxScale) || 0;
     const formatScale = (value) => `1:${Math.round(value).toLocaleString()}`;
@@ -5049,7 +5200,7 @@ export class UIController {
   #updateLayerScaleIndicators() {
     document.querySelectorAll(".layer-card[data-layer-uid]").forEach((card) => {
       const note = card.querySelector("[data-layer-scale-note]");
-      const message = this.#layerScaleMessage(this.mapController.findLayer(card.dataset.layerUid));
+      const message = this.#layerScaleMessage(this.mapController.getLayer(card.dataset.layerUid));
       if (!note) return;
       note.querySelector("[data-scale-text]").textContent = message;
       note.hidden = !message;
@@ -5064,7 +5215,7 @@ export class UIController {
       event.target.nextElementSibling.value = `${Math.round(event.target.value * 100)}%`;
     });
     card.querySelectorAll("[data-layer-action]").forEach((button) => button.addEventListener("click", async () => {
-      const layer = this.mapController.findLayer(uid);
+      const layer = this.mapController.getLayer(uid);
       switch (button.dataset.layerAction) {
         case "remove": this.mapController.removeLayer(uid); break;
         case "ignore-scale":
@@ -5088,11 +5239,11 @@ export class UIController {
   }
 
   async #filterDialog(uid) {
-    const layer = this.mapController.findLayer(uid);
-    if (!layer || !("definitionExpression" in layer)) {
+    let layer = this.mapController.getLayer(uid);
+    if (!layer?.filterable) {
       throw new Error("This layer does not support attribute filters.");
     }
-    await layer.load?.();
+    layer = await this.mapController.loadLayer(uid);
     const fields = (layer.fields ?? []).filter((field) => field.name);
     if (!fields.length) throw new Error("This layer does not expose fields that can be filtered.");
     const fieldOptions = (selected) => fields.map((field) =>
@@ -5101,12 +5252,12 @@ export class UIController {
     // Conditions are remembered per layer, so reopening the dialog shows the filter as built.
     this.filterConditions ??= new Map();
     const saved = this.filterConditions.get(uid);
-    const savedMatches = saved && saved.expression === (layer.definitionExpression || null);
+    const savedMatches = saved && saved.expression === (layer.where || null);
     const MAX_CONDITIONS = 10;
     this.openDialog({
       eyebrow: "Attribute query",
       title: `Filter ${layer.title || "layer"}`,
-      content: `<div class="filter-builder"><label class="field filter-logic" data-filter-logic hidden><span>Show features that match</span><select id="filter-logic"><option value="AND">all of these conditions (AND)</option><option value="OR">any of these conditions (OR)</option></select></label><ol class="filter-conditions" data-filter-conditions></ol><button type="button" class="link-button filter-add" data-filter-add>+ Add a condition</button></div>${layer.definitionExpression ? `<p class="form-note"><strong>Current filter:</strong> <code>${escapeHtml(layer.definitionExpression)}</code></p>` : '<p class="form-note">Only matching features will draw, appear in identify results, and be returned by the attribute table.</p>'}`,
+      content: `<div class="filter-builder"><label class="field filter-logic" data-filter-logic hidden><span>Show features that match</span><select id="filter-logic"><option value="AND">all of these conditions (AND)</option><option value="OR">any of these conditions (OR)</option></select></label><ol class="filter-conditions" data-filter-conditions></ol><button type="button" class="link-button filter-add" data-filter-add>+ Add a condition</button></div>${layer.where ? `<p class="form-note"><strong>Current filter:</strong> <code>${escapeHtml(layer.where)}</code></p>` : '<p class="form-note">Only matching features will draw, appear in identify results, and be returned by the attribute table.</p>'}`,
       actions: [
         { label: "Clear filter", handler: () => {
           this.mapController.setDefinitionExpression(uid, null);
@@ -5229,7 +5380,7 @@ export class UIController {
   }
 
   #openSymbologyUtility(uid) {
-    const layer = this.mapController.findLayer(uid);
+    const layer = this.mapController.getLayer(uid);
     if (!layer) return;
     this.utilityStyleLayerUid = uid;
     const pane = document.querySelector("#utility-style-content");
@@ -5240,10 +5391,12 @@ export class UIController {
     const preferredNumericField = numericFields.find((field) => /(?:^|\b)(?:value|concentration|amount|measurement|pm2?\.5)(?:\b|$)/i.test(`${field.name} ${field.alias || ""}`))
       ?? numericFields.find((field) => !/(?:^|_)id$/i.test(field.name))
       ?? numericFields[0];
-    const renderer = layer.renderer?.toJSON?.() ?? layer.renderer ?? {};
+    const renderer = layer.renderer ?? {};
     // Styles with excluded codes draw from an expression, so the recorded RendererSpec names the field.
     const currentField = renderer.field || this.mapController.getLayerConfig(layer)?.rendererSpec?.field;
-    const rendererMode = renderer.type === "unique-value" ? "categorized" : renderer.type === "class-breaks" ? "graduated" : "simple";
+    const savedSpec = this.mapController.getLayerConfig(layer)?.rendererSpec;
+    let selectedSpec = savedSpec && ["simple", "categories", "choropleth", "graduated-symbols", "heatmap"].includes(savedSpec.type) ? structuredClone(savedSpec) : null;
+    const rendererMode = selectedSpec?.type === "heatmap" ? "heatmap" : selectedSpec?.type === "categories" || renderer.type === "unique-value" ? "categorized" : ["choropleth", "graduated-symbols"].includes(selectedSpec?.type) || renderer.type === "class-breaks" ? "graduated" : "simple";
     const representativeSymbol = renderer.symbol ?? renderer.classBreakInfos?.[0]?.symbol ?? renderer.uniqueValueInfos?.[0]?.symbol;
     const objectSymbol = representativeSymbol?.symbolLayers?.find((symbolLayer) => symbolLayer.type === "object" || symbolLayer.type === "extrude");
     const heightVariable = renderer.visualVariables?.find((variable) => variable.type === "size" && (variable.axis === "height" || layer.geometryType === "polygon"));
@@ -5256,19 +5409,19 @@ export class UIController {
       ? items.map((field) => `<option value="${escapeHtml(field.name)}"${field.name === selected ? " selected" : ""}>${escapeHtml(field.alias || field.name)} (${escapeHtml(field.name)})</option>`).join("")
       : `<option value="">${emptyLabel}</option>`;
     const rendererControls = fields.length
-      ? `<label class="field"><span>Style type</span><select data-style-mode><option value="simple"${rendererMode === "simple" ? " selected" : ""}>Simple</option><option value="categorized"${rendererMode === "categorized" ? " selected" : ""}>Categorized by field</option><option value="graduated"${rendererMode === "graduated" ? " selected" : ""}>Graduated by numeric field</option></select></label><label class="field" data-style-field-control hidden><span>Style field</span><select data-style-field>${fieldOptions(fields, "No fields available", currentField || preferredNumericField?.name)}</select></label>`
+      ? `<label class="field"><span>Style type</span><select data-style-mode><option value="simple"${rendererMode === "simple" ? " selected" : ""}>Simple</option><option value="categorized"${rendererMode === "categorized" ? " selected" : ""}>Categorized by field</option><option value="graduated"${rendererMode === "graduated" ? " selected" : ""}>Graduated by numeric field</option><option value="heatmap"${rendererMode === "heatmap" ? " selected" : ""}>Heat map</option></select></label><label class="field" data-style-field-control hidden><span>Style field</span><select data-style-field>${fieldOptions(fields, "No fields available", currentField || preferredNumericField?.name)}</select></label>`
       : "";
     const polygonControls = layer.geometryType === "polygon"
       ? '<label class="opacity-row"><span>Fill opacity</span><input data-symbol-fill-opacity type="range" min="0" max="1" step="0.05" value="0.35" /><output>35%</output></label><label class="display-checkbox"><input data-symbol-no-fill type="checkbox" /><span>No fill — outline only</span></label>'
       : "";
-    const extrudable = ["polygon", "point", "multipoint"].includes(layer.geometryType);
+    const extrudable = this.mapController.getEngineId() === "maplibre" ? layer.geometryType === "polygon" : ["polygon", "point", "multipoint"].includes(layer.geometryType);
     const extrusionControls = extrudable
       ? `<fieldset class="feedback-settings"><legend>3D extrusion</legend><label class="display-checkbox"><input data-extrusion-enabled type="checkbox"${extrusionEnabledByRenderer ? " checked" : ""} /><span>Extrude in 3D</span></label><div data-extrusion-options hidden><div class="field-grid"><label class="field"><span>Height source</span><select data-extrusion-source><option value="fixed"${initialExtrusionSource === "fixed" ? " selected" : ""}>Fixed height</option><option value="field"${initialExtrusionSource === "field" ? " selected" : ""}>Numeric field</option></select></label><label class="field" data-extrusion-value-control><span>Height <small>meters</small></span><input data-extrusion-value type="number" min="0" step="1" value="${Number(objectSymbol?.height ?? objectSymbol?.size) || 250}" /></label><label class="field" data-extrusion-field-control hidden><span>Height field</span><select data-extrusion-field>${fieldOptions(numericFields, "No numeric fields available", extrusionField)}</select></label><label class="field" data-extrusion-multiplier-control hidden><span>Height multiplier</span><input data-extrusion-multiplier type="number" min="0" step="0.01" value="${Number.isFinite(expressionMultiplier) ? expressionMultiplier : 1}" /></label>${layer.geometryType === "polygon" ? "" : `<label class="field"><span>Column width <small>meters</small></span><input data-extrusion-width type="number" min="1" step="50" value="${Number(objectSymbol?.width) || 650}" /></label>`}</div></div></fieldset>`
       : "";
     // Ranked styles computed from the field's values (renderer-spec.js suggestRenderers).
-    const canSuggest = fields.length && typeof layer.queryFeatures === "function";
+    const canSuggest = fields.length && layer.queryable;
     const styleOptions = canSuggest
-      ? '<section class="style-options" aria-label="Style options"><div class="style-options__head"><strong>Style options</strong><button type="button" class="link-button" data-suggest-styles>Suggest styles for this field</button></div><div class="style-options__list" data-style-options-list aria-live="polite"></div></section>'
+      ? `<section class="style-options" aria-label="Style options"><div class="style-options__head"><strong>Style options</strong><button type="button" class="link-button" data-suggest-styles>Suggest styles for this field</button></div><div class="field-grid"><label class="field"><span>Suggestion field</span><select data-suggestion-field>${fieldOptions(fields, "No fields available", currentField || preferredNumericField?.name)}</select></label><label class="field"><span>Colour range</span><select data-style-ramp>${Object.keys(RAMPS).map((name) => `<option value="${name}">${escapeHtml(name.replaceAll("-", " "))}</option>`).join("")}</select></label></div><div class="style-options__list" data-style-options-list aria-live="polite"></div></section>`
       : "";
     pane.innerHTML = `<div class="workspace-tool"><p class="eyebrow">Layer presentation</p><h3>Style ${escapeHtml(layer.title || "layer")}</h3>${styleOptions}<div class="field-grid">${rendererControls}<label class="field"><span>Fill / marker / line</span><input data-symbol-color type="color" value="#1b7f6a" /></label><label class="field"><span>Outline</span><input data-symbol-outline type="color" value="#ffffff" /></label><label class="field"><span>Size / width</span><input data-symbol-size type="number" min="0.5" max="40" step="0.5" value="9" /></label></div>${polygonControls}${extrusionControls}<p class="form-note">Field styles sample up to 1,000 records matching the active layer filter. Renderer JSON is stored with the project.</p><div class="workspace-tool__actions"><button type="button" class="button--primary" data-apply-symbology>Apply symbology</button></div></div>`;
     const fillOpacity = pane.querySelector("[data-symbol-fill-opacity]");
@@ -5284,15 +5437,31 @@ export class UIController {
       styleFieldControl.hidden = !needsField;
       if (!needsField) return;
       const available = styleMode.value === "graduated" ? numericFields : fields;
-      styleField.innerHTML = fieldOptions(available, styleMode.value === "graduated" ? "No numeric fields available" : "No fields available", currentField || preferredNumericField?.name);
+      const previous = styleField.value;
+      styleField.innerHTML = fieldOptions(available, styleMode.value === "graduated" ? "No numeric fields available" : "No fields available", available.some((item) => item.name === previous) ? previous : currentField || preferredNumericField?.name);
       styleField.disabled = !available.length;
     };
-    styleMode?.addEventListener("change", syncStyleField);
+    styleMode?.addEventListener("change", () => {
+      syncStyleField();
+      const type = styleMode.value === "categorized" ? "categories" : styleMode.value === "graduated" ? (layer.geometryType === "point" || layer.geometryType === "multipoint" ? "graduated-symbols" : "choropleth") : styleMode.value;
+      selectedSpec = { type, ...(styleMode.value !== "simple" && styleField?.value ? { field: styleField.value } : {}) };
+    });
+    styleField?.addEventListener("change", () => {
+      if (selectedSpec && selectedSpec.field !== styleField.value) {
+        selectedSpec.field = styleField.value;
+        delete selectedSpec.breaks;
+      }
+    });
     syncStyleField();
     pane.querySelector("[data-suggest-styles]")?.addEventListener("click", () => {
       // With no field chosen, the most measurement-like field is used (renderer-spec.js chooseStyleField).
-      const field = styleMode?.value && styleMode.value !== "simple" ? styleField?.value : currentField;
-      void this.#showStyleOptions(uid, pane.querySelector("[data-style-options-list]"), field || null);
+      const field = pane.querySelector("[data-suggestion-field]")?.value;
+      void this.#showStyleOptions(uid, pane.querySelector("[data-style-options-list]"), field || null, applySuggestion, layer);
+    });
+    pane.querySelector("[data-suggestion-field]")?.addEventListener("change", () => pane.querySelector("[data-suggest-styles]").click());
+    pane.querySelector("[data-style-ramp]")?.addEventListener("change", (event) => {
+      event.target.dataset.userSelected = "true";
+      pane.querySelector("[data-symbol-color]").value = rampColors(event.target.value, 5)[2];
     });
     const extrusionEnabled = pane.querySelector("[data-extrusion-enabled]");
     const extrusionOptions = pane.querySelector("[data-extrusion-options]");
@@ -5311,9 +5480,49 @@ export class UIController {
     extrusionEnabled?.addEventListener("change", syncExtrusion);
     extrusionSource?.addEventListener("change", syncExtrusion);
     syncExtrusion();
+    const populateSpec = (spec) => {
+      selectedSpec = structuredClone(spec);
+      if (styleMode) styleMode.value = spec.type === "categories" ? "categorized" : ["choropleth", "graduated-symbols"].includes(spec.type) ? "graduated" : spec.type === "heatmap" ? "heatmap" : "simple";
+      syncStyleField();
+      if (styleField && spec.field) styleField.value = spec.field;
+      if (pane.querySelector("[data-style-ramp]")) pane.querySelector("[data-style-ramp]").value = spec.ramp || "greens";
+      pane.querySelector("[data-symbol-color]").value = spec.type === "choropleth" ? rampColors(spec.ramp || "greens", 5)[2] : spec.color || (spec.type === "graduated-symbols" ? "#d9951e" : "#1b7f6a");
+      if (spec.outline) pane.querySelector("[data-symbol-outline]").value = spec.outline;
+      if (spec.size) pane.querySelector("[data-symbol-size]").value = spec.size;
+      if (extrusionEnabled) { extrusionEnabled.checked = false; syncExtrusion(); }
+    };
+    if (selectedSpec) populateSpec(selectedSpec);
+    const applySuggestion = async (option) => {
+      if (option.is3d) {
+        selectedSpec = null;
+        if (styleMode) styleMode.value = "simple";
+        syncStyleField();
+        extrusionEnabled.checked = true;
+        extrusionSource.value = option.heightField ? "field" : "fixed";
+        if (option.heightField) pane.querySelector("[data-extrusion-field]").value = option.heightField;
+        syncExtrusion();
+        await this.mapController.setLayerSymbology(uid, { mode: "simple", color: pane.querySelector("[data-symbol-color]").value, outline: pane.querySelector("[data-symbol-outline]").value, size: pane.querySelector("[data-symbol-size]").value, extrusionEnabled: true, extrusionSource: extrusionSource.value, extrusionField: option.heightField, extrusionValue: pane.querySelector("[data-extrusion-value]").value, extrusionMultiplier: pane.querySelector("[data-extrusion-multiplier]").value, extrusionWidth: pane.querySelector("[data-extrusion-width]")?.value });
+      } else {
+        await this.mapController.applyRendererSpec(uid, option.pinnedSpec);
+        populateSpec(option.pinnedSpec);
+      }
+    };
     pane.querySelector("[data-apply-symbology]").addEventListener("click", async () => {
       try {
-        await this.mapController.setLayerSymbology(uid, {
+        if (selectedSpec && !extrusionEnabled?.checked) {
+          const spec = structuredClone(selectedSpec);
+          if (spec.type === "choropleth") spec.ramp = pane.querySelector("[data-style-ramp]")?.value || spec.ramp || "greens";
+          if (["simple", "graduated-symbols"].includes(spec.type)) spec.color = pane.querySelector("[data-symbol-color]").value;
+          if (spec.type === "simple") { spec.outline = pane.querySelector("[data-symbol-outline]").value; spec.size = Number(pane.querySelector("[data-symbol-size]").value); }
+          await this.mapController.applyRendererSpec(uid, spec);
+          selectedSpec = spec;
+        } else {
+          if (selectedSpec && extrusionEnabled?.checked && this.mapController.getEngineId() === "maplibre" && ["choropleth", "categories"].includes(selectedSpec.type)) {
+            const spec = structuredClone(selectedSpec);
+            if (spec.type === "choropleth") spec.ramp = pane.querySelector("[data-style-ramp]")?.value || spec.ramp || "greens";
+            await this.mapController.applyRendererSpec(uid, spec);
+          }
+          await this.mapController.setLayerSymbology(uid, {
           mode: styleMode?.value || "simple",
           field: styleField?.value,
           color: pane.querySelector("[data-symbol-color]").value,
@@ -5327,7 +5536,8 @@ export class UIController {
           extrusionField: pane.querySelector("[data-extrusion-field]")?.value,
           extrusionMultiplier: pane.querySelector("[data-extrusion-multiplier]")?.value,
           extrusionWidth: pane.querySelector("[data-extrusion-width]")?.value,
-        });
+          });
+        }
         const persisted = this.projectManager.persistCurrentIfSaved();
         this.toast(`Updated ${layer.title || "layer"} symbology${persisted ? " and saved it" : ""}.`);
       } catch (error) { this.error(error.message); }
@@ -5335,7 +5545,7 @@ export class UIController {
     this.#syncUtilityPanel("style");
   }
 
-  async #showStyleOptions(uid, list, field) {
+  async #showStyleOptions(uid, list, field, applySuggestion, layer) {
     if (!list) return;
     list.innerHTML = '<p class="form-note">Reading the field’s values…</p>';
     let suggestion;
@@ -5345,7 +5555,18 @@ export class UIController {
       list.innerHTML = `<p class="form-note">${escapeHtml(error.message)}</p>`;
       return;
     }
-    const { stats, options, fieldAlias } = suggestion;
+    if (list.closest(".workspace-tool")?.querySelector("[data-suggestion-field]")?.value !== field) return;
+    const { stats, fieldAlias } = suggestion;
+    const options = [...suggestion.options];
+    const rampControl = list.closest(".workspace-tool").querySelector("[data-style-ramp]");
+    if (rampControl && !rampControl.dataset.userSelected) {
+      rampControl.value = options.find((option) => option.spec?.type === "choropleth")?.spec.ramp || rampControl.value;
+      list.closest(".workspace-tool").querySelector("[data-symbol-color]").value = rampColors(rampControl.value, 5)[2];
+    }
+    if ((this.mapController.getEngineId() === "arcgis" && ["polygon", "point", "multipoint"].includes(layer.geometryType)) || (this.mapController.getEngineId() === "maplibre" && layer.geometryType === "polygon")) {
+      const heightField = stats.min != null && stats.min >= 0 && stats.max > 0 ? field : null;
+      options.push({ label: layer.geometryType === "polygon" ? "3D extruded areas" : "3D columns", reason: heightField ? `Height is based on ${fieldAlias}; adjust its multiplier below.` : "A fixed height gives features depth; adjust it below.", is3d: true, heightField, spec: {} });
+    }
     const number = (value) => (value == null ? "" : Number(value).toLocaleString("en-US", { maximumFractionDigits: 2 }));
     const summary = stats.min !== undefined && stats.min !== null
       ? `${number(stats.count)} values from ${number(stats.min)} to ${number(stats.max)}${stats.excluded ? ` · ${number(stats.excluded)} shown as “No data”` : ""}${suggestion.sampled ? " · first 20,000 features" : ""}`
@@ -5357,7 +5578,7 @@ export class UIController {
     const preview = (option) => {
       const { spec, breaks } = option;
       if (!breaks?.length) return "";
-      const colors = spec.type === "choropleth" ? rampColors(spec.ramp || "greens", breaks.length) : breaks.map(() => spec.color || "#d9951e");
+      const colors = spec.type === "choropleth" ? rampColors(list.closest(".workspace-tool").querySelector("[data-style-ramp]")?.value || spec.ramp || "greens", breaks.length) : breaks.map(() => spec.color || "#d9951e");
       let lower = stats.min;
       return `<ol class="style-option__classes">${breaks.map((upper, index) => {
         const label = `${number(lower)} – ${number(upper)}`;
@@ -5366,12 +5587,23 @@ export class UIController {
         return `<li title="${escapeHtml(label)}"><span class="style-option__swatch${spec.type === "graduated-symbols" ? " is-symbol" : ""}" style="background:${colors[index]};width:${size}px;height:${size}px"></span>${escapeHtml(label)}</li>`;
       }).join("")}</ol>`;
     };
-    list.innerHTML = `<p class="form-note">${escapeHtml(fieldAlias)}: ${escapeHtml(summary)}</p>${options.map((option, index) => `<article class="style-option${option.recommended ? " is-recommended" : ""}"><div class="style-option__title"><strong>${escapeHtml(option.label)}</strong>${option.recommended ? '<span class="style-option__badge">Recommended</span>' : ""}</div><p>${escapeHtml(option.reason)}</p>${preview(option)}<button type="button" class="button--secondary" data-use-style-option="${index}">Use this style</button></article>`).join("")}`;
+    list.innerHTML = `<p class="form-note">${escapeHtml(fieldAlias)}: ${escapeHtml(summary)}</p>${options.map((option, index) => `<article class="style-option${option.recommended ? " is-recommended" : ""}" data-option-type="${escapeHtml(option.spec?.type || "3d")}"><div class="style-option__title"><strong>${escapeHtml(option.label)}</strong>${option.recommended ? '<span class="style-option__badge">Recommended</span>' : ""}</div><p>${escapeHtml(option.reason)}</p>${preview(option)}<button type="button" class="button--secondary" data-use-style-option="${index}">Use this style</button></article>`).join("")}`;
+    if (rampControl) rampControl.onchange = () => {
+      rampControl.dataset.userSelected = "true";
+      list.querySelectorAll('[data-option-type="choropleth"]').forEach((card) => {
+        const swatches = card.querySelectorAll(".style-option__swatch");
+        const colors = rampColors(rampControl.value, swatches.length);
+        swatches.forEach((swatch, index) => { swatch.style.background = colors[index]; });
+      });
+      list.closest(".workspace-tool").querySelector("[data-symbol-color]").value = rampColors(rampControl.value, 5)[2];
+    };
     list.querySelectorAll("[data-use-style-option]").forEach((button) => button.addEventListener("click", async () => {
       const option = options[Number(button.dataset.useStyleOption)];
       try {
         // The pinned spec keeps these exact classes in saved projects and shared links.
-        await this.mapController.applyRendererSpec(uid, option.pinnedSpec);
+        const ramp = list.closest(".workspace-tool").querySelector("[data-style-ramp]")?.value;
+        const adjusted = option.pinnedSpec?.type === "choropleth" && ramp ? { ...option, pinnedSpec: { ...option.pinnedSpec, ramp } } : option;
+        await applySuggestion(adjusted);
         list.querySelectorAll(".style-option").forEach((card, cardIndex) => card.classList.toggle("is-applied", cardIndex === Number(button.dataset.useStyleOption)));
         const persisted = this.projectManager.persistCurrentIfSaved();
         this.toast(`Styled by ${fieldAlias}: ${option.label.toLowerCase()}${persisted ? ", and saved" : ""}.`);
@@ -5380,14 +5612,14 @@ export class UIController {
   }
 
   #refreshDialog(uid) {
-    const layer = this.mapController.findLayer(uid);
-    const current = "refreshInterval" in layer ? layer.refreshInterval ?? 0 : 0;
+    const layer = this.mapController.getLayer(uid);
+    const current = layer.refreshInterval;
     this.openDialog({
       eyebrow: "Live data",
       title: `Refresh ${layer?.title || "layer"}`,
       content: `<label class="field"><span>Refresh interval <small>minutes; 0 disables</small></span><input id="layer-refresh" type="number" min="0" step="0.5" value="${current}" /></label>`,
       actions: [
-        { label: "Refresh now", handler: () => { layer.refresh?.(); this.toast("Refresh requested."); } },
+        { label: "Refresh now", handler: () => { this.mapController.refreshLayer(uid); this.toast("Refresh requested."); } },
         { label: "Save interval", primary: true, handler: () => {
           try {
             this.mapController.setRefreshInterval(uid, this.dialog.querySelector("#layer-refresh").value);
@@ -5414,7 +5646,7 @@ export class UIController {
     const aiEnabled = this.aiController.isConfigured();
     document.querySelector("#insights-ai").hidden = !aiEnabled;
     const resultHtml = visibleResults.map((result, index) => {
-        const layer = this.mapController.findLayer(result.layerUid);
+        const layer = this.mapController.getLayer(result.layerUid);
         const fieldsByName = new Map((layer?.fields ?? []).map((field) => [field.name, field]));
         const entries = Object.entries(result.attributes ?? {}).filter(([, value]) => value !== null && value !== "");
         const selection = aiEnabled
@@ -5530,10 +5762,10 @@ export class UIController {
   #isolateInsightResult(index) {
     const visibleResults = this.lastInsight?.results?.slice(0, 12) ?? [];
     const result = visibleResults[index];
-    const layer = result ? this.mapController.findLayer(result.layerUid) : null;
+    const layer = result ? this.mapController.getLayer(result.layerUid) : null;
     const objectIdField = layer?.objectIdField;
     const objectId = objectIdField ? result?.attributes?.[objectIdField] : null;
-    if (!result || !layer || !("definitionExpression" in layer) || objectId == null) {
+    if (!result || !layer || !layer.filterable || objectId == null) {
       this.error("This feature cannot be isolated because it has no usable object ID.");
       return;
     }
@@ -5541,10 +5773,10 @@ export class UIController {
     const literal = typeof objectId === "number" && Number.isFinite(objectId)
       ? String(objectId)
       : `'${String(objectId).replaceAll("'", "''")}'`;
-    const previousExpression = layer.definitionExpression || null;
+    const previousExpression = layer.where || null;
     const clause = `${objectIdField} = ${literal}`;
     const appliedExpression = previousExpression ? `(${previousExpression}) AND (${clause})` : clause;
-    layer.definitionExpression = appliedExpression;
+    this.mapController.setDefinitionExpression(layer.uid, appliedExpression, { persist: false });
     this.insightIsolation = { index, layerUid: result.layerUid, previousExpression, appliedExpression };
     this.#syncInsightIsolationUI();
     void this.mapController.highlightFeature(result, { pulse: false });
@@ -5553,11 +5785,11 @@ export class UIController {
   #clearInsightIsolation() {
     const isolation = this.insightIsolation;
     if (!isolation) return false;
-    const layer = this.mapController.findLayer(isolation.layerUid);
+    const layer = this.mapController.getLayer(isolation.layerUid);
     // Do not overwrite a deliberate filter change made while the temporary
     // isolate mode was active.
-    if (layer?.definitionExpression === isolation.appliedExpression) {
-      layer.definitionExpression = isolation.previousExpression;
+    if (layer?.where === isolation.appliedExpression) {
+      this.mapController.setDefinitionExpression(layer.uid, isolation.previousExpression, { persist: false });
     }
     this.insightIsolation = null;
     this.#syncInsightIsolationUI();
@@ -5612,7 +5844,7 @@ export class UIController {
     }
     const hasAIResponse = Boolean(this.lastAIResponseText);
     const logo = await loadBrandLogo();
-    const mapCapture = await this.mapController.takeMapScreenshot().catch(() => null);
+    const mapCapture = await this.mapController.captureImage().catch(() => null);
     const point = payload?.point;
     const coordinates = point ? `${point.latitude.toFixed(6)}, ${point.longitude.toFixed(6)}` : "Unknown location";
     const location = payload?.address?.address || coordinates;
@@ -5685,7 +5917,7 @@ export class UIController {
   }
 
   async showLegendWidget() {
-    if (!this.mapController.widgets.has("legend")) await this.mapController.toggleWidget("legend").catch(() => {});
+    if (!this.mapController.widgetOpen("legend")) await this.mapController.toggleWidget("legend").catch(() => {});
   }
 
   /** Lists what a map spec or link could not do, so a person (or an agent reading describe()) can fix it. */

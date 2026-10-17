@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { AuthController } from "../js/auth.js";
+import { AuthController } from "../js/engines/arcgis/arcgis-auth.js";
 
 const settings = new Map();
 globalThis.localStorage = {

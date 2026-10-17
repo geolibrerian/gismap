@@ -107,7 +107,7 @@ test("leaving a mode clears its map filter and context overlay", () => {
   const ui = read("../js/ui.js");
   const leave = ui.match(/#leavePresentationMode\(\) \{[\s\S]*?\n  \}/)[0];
   assert.match(leave, /#briefing-context-host"\)\?\.replaceChildren\(\)/);
-  assert.match(leave, /layerView\.filter = null/);
+  assert.match(leave, /setFeatureFilter\(layer\.uid, null\)/);
   assert.match(ui, /if \(template === "standard" \|\| template !== this\.presentationState\.template\) this\.#leavePresentationMode\(\);/);
 });
 

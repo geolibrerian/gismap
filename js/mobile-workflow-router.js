@@ -1,8 +1,8 @@
 import { MobileFeedStore } from "./mobile-feed-store.js?v=0.18.7";
 import { compactMedia } from "./viewport.js?v=0.18.2";
-import { INTERFACE_SKINS, applyInterfaceSkin, normalizeSkin } from "./skin-catalog.js?v=0.18.2";
-import { FIELD_TASK_LIMITS, addressDetails, createFieldTaskUrl, featureLayerUrl, taskSteps } from "./field-task-share.js?v=0.29.0";
-import { fieldTaskCsv, fieldTaskFileStem, fieldTaskPdf, fieldTaskPoints, photoDataUrl } from "./field-task-report.js?v=0.29.0";
+import { INTERFACE_SKINS, applyInterfaceSkin, normalizeSkin } from "./skin-catalog.js?v=0.44.2";
+import { FIELD_TASK_LIMITS, addressDetails, createFieldTaskUrl, featureLayerUrl, taskSteps } from "./field-task-share.js?v=0.41.0";
+import { fieldTaskCsv, fieldTaskFileStem, fieldTaskPdf, fieldTaskPoints, photoDataUrl } from "./field-task-report.js?v=0.44.2";
 
 const escapeHtml = (value) => String(value ?? "").replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char]);
 const STATUS_LABELS = { draft: "Draft", sent: "Sent", assigned: "To complete", "in-progress": "In progress", completed: "Completed", returned: "Report received", shared: "Shared" };
@@ -127,7 +127,7 @@ export class MobileWorkflowRouter {
     this.root.innerHTML = `<header class="mobile-workflow__header"><div><span class="mobile-workflow__brand">GISMap Online</span><h1>${escapeHtml(this.#title())}</h1></div><button type="button" data-workflow-close aria-label="Return to map">×</button></header><div class="mobile-workflow__body">${renderer()}</div>`;
   }
 
-  #title() { return ({ tasks: "Field tasks", more: "Workflows" })[this.route] || "Workflows"; }
+  #title() { return ({ tasks: "Field tasks", more: "Modes" })[this.route] || "Modes"; }
 
   #skinPicker() {
     const active = normalizeSkin(this.projectManager.current.presentation?.skin);
@@ -342,16 +342,16 @@ export class MobileWorkflowRouter {
   }
 
   async #captureTaskLocation(form) {
-    if (!form || !this.mapController.view?.center) return;
-    const point = this.mapController.view.center;
-    const location = this.mapController.geographicCoordinates(point);
+    const center = this.mapController.getViewState?.()?.center;
+    if (!form || !center) return;
+    const location = { longitude: center[0], latitude: center[1] };
     const capturedAt = new Date().toISOString();
     const round = (value) => (Number.isFinite(Number(value)) && value !== "" ? Number(Number(value).toFixed(6)) : "");
-    form.elements.longitude.value = round(location?.longitude ?? point.longitude ?? point.x ?? "");
-    form.elements.latitude.value = round(location?.latitude ?? point.latitude ?? point.y ?? "");
+    form.elements.longitude.value = round(location.longitude ?? "");
+    form.elements.latitude.value = round(location.latitude ?? "");
     form.elements.capturedAt.value = capturedAt;
     let result = null;
-    try { result = await this.mapController.reverseGeocode(location?.point || point); } catch { /* coordinates remain useful offline */ }
+    try { result = await this.mapController.reverseGeocode(location); } catch { /* coordinates remain useful offline */ }
     if (result?.address) form.elements.location.value = result.address;
     // Keep the full address details so saving does not need a second lookup.
     const details = addressDetails(result, { latitude: Number(form.elements.latitude.value), longitude: Number(form.elements.longitude.value) });
@@ -438,15 +438,16 @@ export class MobileWorkflowRouter {
   }
 
   #attachPickedFeature({ results = [] }) {
-    const hit = results.find((result) => result.kind === "feature" && result.graphic && featureLayerUrl(result.graphic.layer || result.graphic.sourceLayer));
+    const hit = results.find((result) => result.kind === "feature" && result.source && featureLayerUrl(result.source));
     if (!hit) {
       this.notify?.("No feature service feature there. Click directly on a feature.");
       return;
     }
-    const layer = hit.graphic.layer || hit.graphic.sourceLayer;
+    // The (sub)layer that drew the feature: { url, layerId, title, objectIdField, displayField }.
+    const layer = hit.source;
     const attributes = hit.attributes || {};
-    const objectId = attributes[layer.objectIdField] ?? hit.graphic.getObjectId?.() ?? null;
-    const point = this.mapController.geographicCoordinates(hit.geometry || hit.graphic.geometry);
+    const objectId = attributes[layer.objectIdField] ?? null;
+    const point = this.mapController.geographicCoordinates(hit.geometry);
     if (!point) {
       this.notify?.("That feature has no location to share.");
       return;
@@ -483,7 +484,7 @@ export class MobileWorkflowRouter {
       const feature = Number.isInteger(featureIndex) ? task.features?.[featureIndex] : null;
       if (feature) {
         const graphic = await this.#queryTaskFeature(feature);
-        await this.mapController.view?.when?.();
+        await this.mapController.whenReady();
         if (graphic) await this.mapController.goToFeature(graphic);
         else await this.mapController.goToTaskPlaces?.([feature], { animate: false });
         return;
@@ -499,9 +500,9 @@ export class MobileWorkflowRouter {
    * in WGS84: some services use custom coordinate systems the camera cannot go to.
    */
   async #queryTaskFeature(feature) {
-    const layer = this.mapController.getOperationalLayers().find((item) => featureLayerUrl(item) === feature.layerUrl && typeof item.queryFeatures === "function");
+    const layer = this.mapController.getLayers().find((item) => featureLayerUrl(item) === feature.layerUrl && item.queryable);
     if (!layer || feature.objectId == null) return null;
-    const { features = [] } = await layer.queryFeatures({ objectIds: [feature.objectId], returnGeometry: true, outFields: [], outSpatialReference: { wkid: 4326 } });
+    const { features = [] } = await this.mapController.queryFeatures(layer.uid, { objectIds: [feature.objectId], returnGeometry: true, outFields: [], outSpatialReference: { wkid: 4326 } }, { layerDefaults: false });
     return features[0]?.geometry ? features[0] : null;
   }
 
@@ -632,9 +633,9 @@ export class MobileWorkflowRouter {
     const urls = new Set((task.features || []).map((feature) => feature.layerUrl).filter(Boolean));
     if (!urls.size) return task;
     const layerStyles = { ...(task.layerStyles || {}) };
-    for (const layer of this.mapController.getOperationalLayers?.() || []) {
+    for (const layer of this.mapController.getLayers?.() || []) {
       const url = featureLayerUrl(layer);
-      const renderer = layer.renderer?.toJSON?.();
+      const renderer = layer.renderer;
       if (url && urls.has(url) && renderer) layerStyles[url] = renderer;
     }
     return Object.keys(layerStyles).length ? { ...task, layerStyles } : task;
@@ -705,7 +706,7 @@ export class MobileWorkflowRouter {
 
   /** Reverse-geocodes a place (with a time limit, so a slow or offline lookup never blocks saving). */
   async #addressAt(latitude, longitude) {
-    const lookup = this.mapController.reverseGeocode?.({ type: "point", longitude, latitude, spatialReference: { wkid: 4326 } });
+    const lookup = this.mapController.reverseGeocode?.({ longitude, latitude });
     const result = await Promise.race([Promise.resolve(lookup).catch(() => null), new Promise((resolve) => setTimeout(() => resolve(null), 8000))]);
     return addressDetails(result, { latitude, longitude });
   }

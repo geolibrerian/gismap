@@ -1,12 +1,9 @@
+import { BASEMAP_IDS } from "./basemap-catalog.js?v=0.41.0";
+
 const ALLOWED_PROTOCOLS = new Set(["https:", "http:"]);
 const SENSITIVE_PARAMETER = /^(?:token|oauth[_-]?token|access[_-]?token|api[_-]?key|apikey|key|client[_-]?secret|password|passwd|pwd|authorization|auth|signature|sig)$/i;
 const SUPPORTED_TYPES = new Set(["arcgis-auto", "feature", "map-image", "imagery", "geojson", "wms", "wfs", "kml"]);
-const SUPPORTED_BASEMAPS = new Set([
-  "topo-3d", "navigation-3d", "navigation-dark-3d", "osm-3d", "gray-3d",
-  "dark-gray-3d", "streets-3d", "streets-dark-3d", "topo-vector",
-  "streets-vector", "navigation", "gray-vector", "dark-gray-vector", "osm",
-  "satellite", "hybrid",
-]);
+const SUPPORTED_BASEMAPS = new Set(BASEMAP_IDS);
 const MAX_LAYERS = 10;
 const CAMERA_ZOOM_MODES = new Set(["layers", "none"]);
 const STYLE_NAMES = new Set(["service", "simple", "choropleth", "graduated", "categories", "heatmap", "auto"]);

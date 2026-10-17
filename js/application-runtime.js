@@ -5,7 +5,7 @@ import { normalizeApplicationConfig, presetApplication } from "./application-con
 import { DuckDBBrowserClient } from "./duckdb-client.js?v=0.18.2";
 import { normalizeDataCatalog, planNaturalLanguageQuery, validateReadOnlySQL } from "./data-catalog.js?v=0.18.2";
 import { PanelManager } from "./panel-manager.js?v=0.18.2";
-import { applyInterfaceSkin } from "./skin-catalog.js?v=0.18.2";
+import { applyInterfaceSkin } from "./skin-catalog.js?v=0.44.2";
 
 const STATIC_PANELS = {
   places: "places-panel",
@@ -158,8 +158,8 @@ export class ApplicationRuntime {
       config = presetApplication(preset);
       operations.push({ tool: "application.preset.apply", input: { preset } });
     }
-    const layer = this.mapController.getOperationalLayers().find((item) => request.toLowerCase().includes(String(item.title || "").toLowerCase()))
-      || (/incident/i.test(request) ? this.mapController.getOperationalLayers().find((item) => /incident/i.test(item.title || "")) : null);
+    const layer = this.mapController.getLayers().find((item) => request.toLowerCase().includes(String(item.title || "").toLowerCase()))
+      || (/incident/i.test(request) ? this.mapController.getLayers().find((item) => /incident/i.test(item.title || "")) : null);
     if (/\bchart\b/i.test(request) && !config.panels.some((panel) => panel.type === "charts")) {
       config.panels.push({ instanceId: `charts-${Date.now()}`, type: "charts", title: /category/i.test(request) ? "Category chart" : "Chart", placement: { region: "bottom", order: config.panels.length }, binding: layer ? { layerId: layer.uid, followActiveLayer: false } : { followActiveLayer: true }, settings: { chartType: /category/i.test(request) ? "category" : "histogram" }, audienceVisible: true });
       operations.push({ tool: "application.chart.create", input: { layerId: layer?.uid || null } });
@@ -181,7 +181,7 @@ export class ApplicationRuntime {
   #bridgeState() {
     this.events.subscribe("layer:added", ({ layer }) => this.state.dispatch("layer:activate", { layerId: layer?.uid }, { undoable: false }));
     this.events.subscribe("layer:removed", ({ uid }) => {
-      if (this.state.value.activeLayerId === uid) this.state.dispatch("layer:activate", { layerId: this.mapController.getOperationalLayers()[0]?.uid || null }, { undoable: false });
+      if (this.state.value.activeLayerId === uid) this.state.dispatch("layer:activate", { layerId: this.mapController.getLayers()[0]?.uid || null }, { undoable: false });
     });
     this.events.subscribe("identify:complete", ({ results = [] }) => {
       const feature = results[0];
@@ -193,7 +193,7 @@ export class ApplicationRuntime {
     });
     this.events.subscribe("bookmarks:changed", ({ bookmarks }) => this.state.replace({ bookmarks: bookmarks || [] }, { undoable: false }));
     this.state.subscribe((filters) => {
-      const layers = this.mapController.getOperationalLayers();
+      const layers = this.mapController.getLayers();
       for (const layer of layers) {
         const expressions = Object.values(filters)
           .filter((filter) => filter.layerId === layer.uid && typeof filter.expression?.where === "string")
@@ -302,18 +302,18 @@ export class ApplicationRuntime {
         };
         host.innerHTML = `<div class="panel-empty"><strong>Computing chart…</strong><p>Reading numeric values from the bound dataset.</p></div>`;
         void (async () => {
-          layer = this.mapController.findLayer(context.config.binding?.layerId) || this.mapController.findLayer(context.state.value.activeLayerId) || this.mapController.getOperationalLayers()[0];
-          if (!layer?.queryFeatures) {
+          layer = this.mapController.getLayer(context.config.binding?.layerId) || this.mapController.getLayer(context.state.value.activeLayerId) || this.mapController.getLayers()[0];
+          if (!layer?.queryable) {
             host.innerHTML = `<div class="panel-empty"><strong>Choose a feature layer</strong><p>This chart needs a queryable dataset binding.</p></div>`;
             return;
           }
-          await layer.load?.();
+          layer = await this.mapController.loadLayer(layer.uid);
           field = layer.fields?.find((item) => item.name === context.config.settings?.field) || layer.fields?.find((item) => /(?:double|integer|small-integer|single|long|short)/i.test(item.type || "") && item.name !== layer.objectIdField);
           if (!field) {
             host.innerHTML = `<div class="panel-empty"><strong>Choose a numeric field</strong><p>${escapeHtml(layer.title || "This layer")} has no automatically detected numeric measure.</p></div>`;
             return;
           }
-          const result = await layer.queryFeatures({ where: layer.definitionExpression || "1=1", outFields: [field.name], returnGeometry: false, num: 1000 });
+          const result = await this.mapController.queryFeatures(layer.uid, { where: layer.where || "1=1", outFields: [field.name], returnGeometry: false, num: 1000 }, { layerDefaults: false });
           const values = result.features.map((feature) => Number(feature.attributes?.[field.name])).filter(Number.isFinite);
           if (!values.length) {
             host.innerHTML = `<div class="panel-empty"><strong>No numeric values</strong><p>The selected field has no values in the loaded query.</p></div>`;
@@ -353,7 +353,7 @@ export class ApplicationRuntime {
   #catalogWithActiveLayer() {
     const stored = normalizeDataCatalog(this.projectManager.current.dataCatalog);
     if (stored.relations.length) return stored;
-    const layer = this.mapController.findLayer(this.state.value.activeLayerId) || this.mapController.getOperationalLayers()[0];
+    const layer = this.mapController.getLayer(this.state.value.activeLayerId) || this.mapController.getLayers()[0];
     if (!layer) return stored;
     return normalizeDataCatalog({
       ...stored,
@@ -373,9 +373,9 @@ export class ApplicationRuntime {
   }
 
   async #layerRows(layerId) {
-    const layer = this.mapController.findLayer(layerId);
-    if (!layer?.queryFeatures) throw new Error("The catalog relation is not bound to a queryable feature layer.");
-    const result = await layer.queryFeatures({ where: layer.definitionExpression || "1=1", outFields: ["*"], returnGeometry: false, num: 5000 });
+    const layer = this.mapController.getLayer(layerId);
+    if (!layer?.queryable) throw new Error("The catalog relation is not bound to a queryable feature layer.");
+    const result = await this.mapController.queryFeatures(layer.uid, { where: layer.where || "1=1", outFields: ["*"], returnGeometry: false, num: 5000 }, { layerDefaults: false });
     return result.features.map((feature) => feature.attributes || {});
   }
 

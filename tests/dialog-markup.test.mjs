@@ -18,6 +18,11 @@ assert.match(html, /data-utility-pane="dialog"/, "Docked dialogs need a real wor
 assert.match(ui, /#utility-dialog-content/, "The dialog dock action must target the workspace panel host.");
 assert.ok(ui.indexOf('class="atlas-geocoder"') < ui.indexOf('id="atlas-editor-title"'), "The chapter geocoder must appear before the title field.");
 assert.match(ui, /id="atlas-chapter-transition"/, "Chapter authoring must expose camera transition speed.");
+assert.match(ui, /data-atlas-settings-transition/, "Tour settings must establish whether new chapters pan or cut.");
+assert.match(ui, /data-atlas-settings-linger/, "Tour settings must establish a default linger time.");
+assert.match(ui, /data-atlas-settings-heading/, "Tour settings must establish a default heading.");
+assert.match(ui, /data-atlas-settings-tilt/, "Tour settings must establish a default tilt.");
+assert.match(ui, /Edit a chapter to override/, "Tour settings must preserve per-chapter overrides.");
 assert.match(ui, /#atlas-use-current-view[^\n]*#syncAtlasEditorToCurrentView\("", true\)/, "Using the current map view must also offer its location details as the default chapter title.");
 assert.match(ui, /titleInput\.value = locationDetails/, "The reverse-geocoded location must populate a generic chapter title.");
 assert.match(ui, /brandedQrCanvas\(url, \{ canvas/, "Tour and workflow shares must use the shared branded QR renderer.");

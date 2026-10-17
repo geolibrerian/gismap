@@ -4,8 +4,8 @@
 // briefing, its slides. Small enough links also fit in a QR code.
 import { decodePayload, encodePayload } from "./link-codec.js?v=0.21.0";
 import { normalizeBriefing } from "./briefing-document.js?v=0.35.0";
-import { SHARE_BASEMAPS, SHARE_LAYER_TYPES, sanitizeSharedResourceUrl } from "./share.js?v=0.29.0";
-import { normalizeSkin } from "./skin-catalog.js?v=0.18.2";
+import { SHARE_BASEMAPS, SHARE_LAYER_TYPES, sanitizeSharedResourceUrl } from "./share.js?v=0.41.0";
+import { normalizeSkin } from "./skin-catalog.js?v=0.44.2";
 import { decodeBriefing } from "./briefing-share.js?v=0.35.0";
 
 /**

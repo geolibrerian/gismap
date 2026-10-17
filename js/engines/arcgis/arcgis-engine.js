@@ -1,6 +1,14 @@
-import { arcgisMetadata } from "./source-inspector.js?v=0.29.0";
-import { chooseStyleField, compileRenderer, resolveRendererSpec, suggestRenderers, validateRendererSpec } from "./renderer-spec.js?v=0.29.0";
-import { GisMapError } from "./gismap-errors.js?v=0.28.0";
+// The ArcGIS engine: the one module that drives the ArcGIS Maps SDK (a
+// SceneView). It implements the engine contract in ../engine-interface.js:
+// callers get layer handles, features with plain JSON geometry and view
+// states, never SDK objects. Only native() hands the SDK's own map and view
+// out, for custom tools and the in-page API's escape hatches.
+import { arcgisMetadata } from "../../source-inspector.js?v=0.41.0";
+import { chooseStyleField, compileRenderer, resolveRendererSpec, suggestRenderers, validateRendererSpec } from "../../renderer-spec.js?v=0.29.0";
+import { GisMapError } from "../../gismap-errors.js?v=0.28.0";
+import { ENGINE_CAPABILITIES, unsupported } from "../engine-interface.js?v=0.52.0";
+import { loadArcGISRuntime } from "./arcgis-loader.js?v=0.38.0";
+import { basemapOnEngine, basemapsForEngine } from "../../basemap-catalog.js?v=0.41.0";
 
 const ARCGIS_WORLD_GEOCODER =
   "https://geocode.arcgis.com/arcgis/rest/services/World/GeocodeServer";
@@ -9,7 +17,6 @@ export function isNavigationAbort(error) {
   const message = String(error?.message ?? error ?? "").trim();
   return error?.name === "AbortError" || /^(?:abort(?:ed)?|cancel(?:led)?)$/i.test(message);
 }
-
 export function parseArcGISFeatureQueryUrl(value) {
   try {
     const parsed = new URL(value);
@@ -58,8 +65,82 @@ export function parseWfsUrl(value) {
   };
 }
 
-export class MapController {
+/** A field as plain data (the SDK's Field and Domain objects stay inside the engine). */
+function plainField(field) {
+  const domain = field.domain;
+  return {
+    name: field.name,
+    alias: field.alias,
+    type: field.type,
+    ...(field.length != null ? { length: field.length } : {}),
+    ...(field.nullable != null ? { nullable: field.nullable } : {}),
+    ...(field.editable != null ? { editable: field.editable } : {}),
+    domain: !domain ? null : domain.type === "coded-value"
+      ? { type: "coded-value", name: domain.name ?? null, codedValues: (domain.codedValues ?? []).map((item) => ({ code: item.code, name: item.name })) }
+      : domain.type === "range"
+        ? { type: "range", name: domain.name ?? null, minValue: domain.minValue, maxValue: domain.maxValue }
+        : { type: domain.type, name: domain.name ?? null },
+  };
+}
+
+/**
+ * The read-only handle callers get for an SDK layer (engine-interface.js
+ * LayerHandle): getters over the live layer that return plain values.
+ */
+function layerHandle(engine, layer) {
+  let fieldsSource;
+  let fields = [];
+  const config = () => engine.layerConfigs.get(layer.uid) ?? {};
+  return Object.freeze({
+    get uid() { return layer.uid; },
+    get id() { return layer.id; },
+    get title() { return layer.title; },
+    get url() { return layer.url ?? null; },
+    get layerId() { return Number.isInteger(layer.layerId) ? layer.layerId : null; },
+    get type() { return layer.type; },
+    get fields() {
+      if (layer.fields !== fieldsSource) {
+        fieldsSource = layer.fields;
+        fields = (layer.fields ?? []).map(plainField);
+      }
+      return fields;
+    },
+    get geometryType() { return layer.geometryType ?? null; },
+    get objectIdField() { return layer.objectIdField ?? null; },
+    get displayField() { return layer.displayField ?? null; },
+    get visible() { return layer.visible; },
+    get opacity() { return layer.opacity; },
+    get where() { return layer.definitionExpression || null; },
+    get rendererSpec() { return config().rendererSpec ?? null; },
+    get renderer() { return layer.renderer?.toJSON?.() ?? null; },
+    get minScale() { return layer.minScale || 0; },
+    get maxScale() { return layer.maxScale || 0; },
+    get refreshInterval() { return "refreshInterval" in layer ? layer.refreshInterval ?? 0 : 0; },
+    get loadStatus() { return layer.loadStatus; },
+    get loadError() { return layer.loadError ? { name: layer.loadError.name, message: layer.loadError.message } : null; },
+    get queryable() { return typeof layer.queryFeatures === "function"; },
+    get countable() { return typeof layer.queryFeatureCount === "function"; },
+    get objectIdQueryable() { return typeof layer.queryObjectIds === "function"; },
+    get filterable() { return "definitionExpression" in layer; },
+    get stylable() { return "renderer" in layer; },
+    get refreshable() { return "refreshInterval" in layer; },
+    get maxRecordCount() { return layer.capabilities?.query?.maxRecordCount || 0; },
+    get paginated() { return layer.capabilities?.query?.supportsPagination !== false; },
+    get parentTitle() { return layer.parent?.title ?? null; },
+  });
+}
+
+export class ArcGISEngine {
+  #handles = new WeakMap();
+  #handleLayers = new WeakMap();
+  // Queryable sublayers handed out by getQueryableLayer, by uid (they are not in map.allLayers).
+  #sublayers = new Map();
+  // Plain geometry JSON handed out -> the SDK geometry and graphic it came from.
+  #geometries = new WeakMap();
+  #graphics = new WeakMap();
+
   constructor(events, authController = null) {
+    this.id = "arcgis";
     this.events = events;
     this.authController = authController;
     this.map = null;
@@ -82,14 +163,17 @@ export class MapController {
     this.highlightEnabled = true;
     this.clickMarkerEnabled = true;
     this.highlightColor = "#00b8d9";
+    this.highlightStyle = "fill";
     this.clickMarkerAnimation = null;
     this.defaultViewpoint = { center: [-98.5, 39.5], zoom: 4, tilt: 35, heading: 0 };
     this.defaultBasemapId = "topo-3d";
     this.basemapId = "topo-3d";
     this.groundId = "world-elevation";
+    this.basemapTheme = null;
   }
 
   async initialize(container = "viewDiv") {
+    await loadArcGISRuntime();
     if (!globalThis.$arcgis?.import) {
       throw new Error("ArcGIS Maps SDK did not load. Check the network connection and CDN URL.");
     }
@@ -114,6 +198,7 @@ export class MapController {
       "@arcgis/core/widgets/Sketch/SketchViewModel.js",
       "@arcgis/core/geometry/support/webMercatorUtils.js",
       "@arcgis/core/geometry/Extent.js",
+      "@arcgis/core/geometry/support/jsonUtils.js",
     ];
     const [
       ArcGISMap,
@@ -135,6 +220,7 @@ export class MapController {
       SketchViewModel,
       webMercatorUtils,
       Extent,
+      geometryJsonUtils,
     ] = await $arcgis.import(moduleIds);
 
     Object.assign(this.modules, {
@@ -157,6 +243,7 @@ export class MapController {
       SketchViewModel,
       webMercatorUtils,
       Extent,
+      geometryJsonUtils,
     });
 
     this.drawLayer = new GraphicsLayer({ title: "Drawings", listMode: "hide" });
@@ -168,7 +255,7 @@ export class MapController {
     this.clickFeedbackLayer = new GraphicsLayer({ title: "Click feedback", listMode: "hide" });
     this.locationLayer = new GraphicsLayer({ title: "Your location", listMode: "hide" });
     this.map = new ArcGISMap({
-      basemap: this.basemapId,
+      basemap: this.#sdkBasemap(this.basemapId),
       ground: this.groundId,
       layers: [this.drawLayer, this.tourLayer, this.clickFeedbackLayer, this.locationLayer],
     });
@@ -180,7 +267,7 @@ export class MapController {
       qualityProfile: "high",
       popupEnabled: false,
       ui: { components: [] },
-      highlightOptions: { color: this.highlightColor, haloOpacity: 1, fillOpacity: 0.25 },
+      highlightOptions: this.#highlightOptions(),
       environment: {
         atmosphereEnabled: true,
         starsEnabled: true,
@@ -201,7 +288,13 @@ export class MapController {
         // A marker hit test must never prevent ordinary map interaction.
       }
       this.showClickMarker(event.mapPoint);
-      this.events.publish("map:click", event);
+      this.events.publish("map:click", { x: event.x, y: event.y, mapPoint: this.#plainPoint(event.mapPoint) });
+    });
+    this.view.watch("scale", (scale) => this.events.publish("view:scale-change", { scale }));
+    this.view.watch("stationary", (stationary) => { if (stationary) this.events.publish("view:stationary", {}); });
+    this.view.on("pointer-move", (event) => {
+      const point = this.view.toMap(event);
+      if (point) this.events.publish("view:pointer-move", { longitude: point.longitude, latitude: point.latitude, zoom: this.view.zoom });
     });
     this.view.on("layerview-create-error", ({ layer, error }) => {
       // A basemap replaced while it was still drawing reports an error for layers
@@ -214,8 +307,111 @@ export class MapController {
       this.events.publish("app:error", { message });
     });
     this.#initializeSketch();
-    this.events.publish("map:ready", { view: this.view });
-    return this.view;
+    this.events.publish("map:ready", { engine: "arcgis", zoom: this.view.zoom });
+  }
+
+  destroy() {
+    if (this.locationWatchId != null) navigator.geolocation?.clearWatch?.(this.locationWatchId);
+    this.locationWatchId = null;
+    this.clearFeatureHighlight();
+    this.clearClickMarker();
+    this.sketch?.destroy?.();
+    this.view?.destroy?.();
+    this.map = null;
+    this.view = null;
+  }
+
+  isReady() {
+    return Boolean(this.view && this.map);
+  }
+
+  /** Resolves once the view has drawn its first frame (immediately when it already has). */
+  async whenReady() {
+    await this.view?.when?.();
+  }
+
+  /** The basemap's own layers have loaded (a screenshot now shows the whole map), or the timeout passed. */
+  async whenBasemapLoaded(timeout = 15000) {
+    await Promise.race([this.map?.basemap?.load?.(), new Promise((resolve) => setTimeout(resolve, timeout))]).catch(() => {});
+  }
+
+  getCapabilities() {
+    return ENGINE_CAPABILITIES.filter((name) => name !== "view-2d" && name !== "basemap-themes" && name !== "buildings-3d");
+  }
+
+  /**
+   * The SDK's own Map and SceneView, for custom tools and the in-page API's
+   * experimental escape hatches (gisMapOnline.map / .view). Nothing in the app uses it.
+   */
+  native() {
+    return { engine: "arcgis", map: this.map, view: this.view, layers: () => this.#operationalLayers() };
+  }
+
+  /* ---------------- Handles and plain data ---------------- */
+
+  /** The SDK layer behind a uid, a handle, or (inside the engine) the layer itself. */
+  #layer(ref) {
+    if (ref == null) return null;
+    if (typeof ref === "object") return this.#handleLayers.get(ref) ?? ref;
+    const uid = String(ref);
+    return this.#sublayers.get(uid) ?? this.map?.allLayers?.find((layer) => layer.uid === uid) ?? null;
+  }
+
+  #handle(layer) {
+    if (!layer) return null;
+    let handle = this.#handles.get(layer);
+    if (!handle) {
+      handle = layerHandle(this, layer);
+      this.#handles.set(layer, handle);
+      this.#handleLayers.set(handle, layer);
+    }
+    return handle;
+  }
+
+  #plainGeometry(geometry) {
+    if (!geometry) return null;
+    if (typeof geometry.toJSON !== "function") return geometry;
+    const json = geometry.toJSON();
+    this.#geometries.set(json, geometry);
+    return json;
+  }
+
+  #plainPoint(point) {
+    if (!point) return null;
+    const json = this.#plainGeometry(point);
+    const geographic = this.geographicCoordinates(json);
+    const plain = { ...json, longitude: geographic?.longitude ?? point.longitude, latitude: geographic?.latitude ?? point.latitude };
+    this.#geometries.set(plain, point);
+    return plain;
+  }
+
+  /** A graphic as a plain feature; the engine remembers the graphic for highlighting. */
+  #feature(graphic) {
+    const geometry = this.#plainGeometry(graphic.geometry);
+    if (geometry) this.#graphics.set(geometry, graphic);
+    return { attributes: graphic.attributes ?? {}, geometry };
+  }
+
+  /** Plain geometry JSON (or a { longitude, latitude } point) as an SDK geometry. */
+  #sdkGeometry(value) {
+    if (!value || typeof value !== "object") return null;
+    if (value.declaredClass) return value;
+    const known = this.#geometries.get(value);
+    if (known) return known;
+    let geometry = null;
+    try {
+      const json = Number.isFinite(value.x) || value.rings || value.paths || value.points || Number.isFinite(value.xmin)
+        ? value
+        : Number.isFinite(value.longitude) && Number.isFinite(value.latitude)
+          ? { x: value.longitude, y: value.latitude, spatialReference: { wkid: 4326 } }
+          : null;
+      // Before the SDK has loaded (and in tests) the JSON goes to the SDK as is, to autocast.
+      geometry = !json ? null : this.modules.geometryJsonUtils ? this.modules.geometryJsonUtils.fromJSON(structuredClone(json)) : json;
+    } catch {
+      geometry = null;
+    }
+    if (geometry) this.#geometries.set(value, geometry);
+    return geometry;
   }
 
   #initializeSketch() {
@@ -236,7 +432,7 @@ export class MapController {
       },
     });
     this.sketch.on("create", ({ state, graphic }) => {
-      if (state === "complete") this.events.publish("draw:complete", { graphic });
+      if (state === "complete") this.events.publish("draw:complete", { feature: this.#feature(graphic) });
     });
   }
 
@@ -246,6 +442,14 @@ export class MapController {
       return;
     }
     this.sketch?.create(type);
+  }
+
+  hasDrawings() {
+    return Boolean(this.drawLayer?.graphics?.length);
+  }
+
+  clearDrawings() {
+    this.drawLayer?.removeAll();
   }
 
   getDrawGraphicsForExport(scope = "all") {
@@ -262,7 +466,7 @@ export class MapController {
           geometry = this.modules.webMercatorUtils.project(geometry, { wkid: 4326 });
         }
         return {
-          geometry,
+          geometry: this.#plainGeometry(geometry),
           attributes: {
             drawing_id: index + 1,
             geometry_type: graphic.geometry?.type || "unknown",
@@ -492,8 +696,9 @@ export class MapController {
     // Keep internal tour and click-feedback graphics above operational data.
     this.map.add(layer, Math.max(0, this.map.layers.length - 2));
     this.layerConfigs.set(layer.uid, { ...config, serviceRenderer });
-    this.events.publish("layer:added", { layer, config: this.getLayerConfig(layer) });
-    return layer;
+    const handle = this.#handle(layer);
+    this.events.publish("layer:added", { layer: handle, config: this.getLayerConfig(layer) });
+    return handle;
   }
 
   #titleFromUrl(url = "") {
@@ -508,17 +713,69 @@ export class MapController {
   }
 
   removeLayer(uid) {
-    const layer = this.findLayer(uid);
-    if (!layer || layer === this.drawLayer || layer === this.tourLayer || layer === this.clickFeedbackLayer || layer === this.locationLayer) return;
+    const layer = this.#layer(uid);
+    if (!layer || this.#internal(layer)) return;
     this.clearFeatureHighlight();
     this.map.remove(layer);
     this.layerConfigs.delete(uid);
     this.localAssets.delete(uid);
+    this.#forgetSublayers();
     this.events.publish("layer:removed", { uid });
   }
 
-  findLayer(uid) {
-    return this.map?.allLayers?.find((layer) => layer.uid === uid) ?? null;
+  #internal(layer) {
+    return layer === this.drawLayer || layer === this.tourLayer || layer === this.clickFeedbackLayer || layer === this.locationLayer;
+  }
+
+  #forgetSublayers() {
+    for (const [uid, sublayer] of this.#sublayers) {
+      let root = sublayer;
+      while (root?.parent && root.parent !== this.map) root = root.parent;
+      if (!this.map?.layers?.includes?.(root)) this.#sublayers.delete(uid);
+    }
+  }
+
+  /** The data layers, bottom to top (drawings, tour markers and other internal graphics are left out). */
+  getLayers() {
+    return this.#operationalLayers().map((layer) => this.#handle(layer));
+  }
+
+  /** A data layer (or a sublayer from getQueryableLayer) by uid, or null. */
+  getLayer(uid) {
+    const layer = this.#layer(uid);
+    return layer && !this.#internal(layer) ? this.#handle(layer) : null;
+  }
+
+  /**
+   * The layer itself when it can be queried, otherwise its first queryable
+   * sublayer (map image services), or null.
+   */
+  getQueryableLayer(uid) {
+    const visit = (layer) => {
+      if (!layer) return null;
+      if (typeof layer.queryFeatures === "function") return layer;
+      for (const child of layer.sublayers?.toArray?.() ?? []) {
+        const found = visit(child);
+        if (found) return found;
+      }
+      return null;
+    };
+    const root = this.#layer(uid);
+    const found = root && !this.#internal(root) ? visit(root) : null;
+    if (found && found !== root) this.#sublayers.set(found.uid, found);
+    return this.#handle(found);
+  }
+
+  /** Waits for a layer's service description (fields, geometry type) and returns its handle. */
+  async loadLayer(uid) {
+    const layer = this.#layer(uid);
+    if (!layer) return null;
+    await layer.load?.();
+    return this.#handle(layer);
+  }
+
+  getLocalAsset(uid) {
+    return this.localAssets.get(uid) ?? null;
   }
 
   clearFeatureHighlight() {
@@ -534,8 +791,8 @@ export class MapController {
     if (!this.highlightEnabled || !result || result.kind !== "feature" || !this.view?.whenLayerView) return false;
 
     const requestId = this.featureHighlightRequestId;
-    const graphic = result.graphic ?? null;
-    const layer = graphic?.layer || graphic?.sourceLayer || this.findLayer(result.layerUid);
+    const graphic = (result.geometry && this.#graphics.get(result.geometry)) ?? null;
+    const layer = graphic?.layer || graphic?.sourceLayer || this.#layer(result.layerUid);
     if (!layer) return false;
 
     try {
@@ -570,11 +827,17 @@ export class MapController {
     }
   }
 
-  configureInteractionFeedback({ highlightEnabled, clickMarkerEnabled, highlightColor } = {}) {
+  /** The view's highlight look: the feedback colour, filled or as an outline only. */
+  #highlightOptions() {
+    return { color: this.highlightColor, haloOpacity: 1, fillOpacity: this.highlightStyle === "outline" ? 0 : 0.25 };
+  }
+
+  configureInteractionFeedback({ highlightEnabled, clickMarkerEnabled, highlightColor, highlightStyle } = {}) {
+    this.highlightStyle = highlightStyle === "outline" ? "outline" : "fill";
     this.highlightEnabled = highlightEnabled !== false;
     this.clickMarkerEnabled = clickMarkerEnabled !== false;
     if (/^#[0-9a-f]{6}$/i.test(String(highlightColor || ""))) this.highlightColor = highlightColor;
-    if (this.view) this.view.highlightOptions = { color: this.highlightColor, haloOpacity: 1, fillOpacity: 0.25 };
+    if (this.view) this.view.highlightOptions = this.#highlightOptions();
     if (!this.highlightEnabled) this.clearFeatureHighlight();
     if (!this.clickMarkerEnabled) this.clearClickMarker();
   }
@@ -746,7 +1009,7 @@ export class MapController {
       for (const [index, target] of targets.entries()) {
         onProgress(index, targets.length);
         try {
-          if (target) await this.view.goTo(target, { animate: false });
+          if (target) await this.view.goTo(this.#goToTarget(target), { animate: false });
           if (prepare) await prepare(index, target);
           const started = Date.now();
           await new Promise((resolve) => setTimeout(resolve, 120));
@@ -767,9 +1030,9 @@ export class MapController {
     return images;
   }
 
-  getOperationalLayers() {
+  #operationalLayers() {
     return this.map?.layers?.toArray()
-      .filter((layer) => layer !== this.drawLayer && layer !== this.tourLayer && layer !== this.clickFeedbackLayer && layer !== this.locationLayer) ?? [];
+      .filter((layer) => !this.#internal(layer)) ?? [];
   }
 
   setTourMarkers(chapters = [], activeIndex = null) {
@@ -853,7 +1116,9 @@ export class MapController {
       : null;
   }
 
-  getLayerConfig(layer) {
+  getLayerConfig(ref) {
+    const layer = this.#layer(ref);
+    if (!layer) return null;
     const source = this.layerConfigs.get(layer.uid) ?? {};
     return {
       uid: layer.uid,
@@ -881,7 +1146,8 @@ export class MapController {
   }
 
   /** The layer's scale range in effect, and whether it draws at the current scale. */
-  scaleState(layer) {
+  scaleState(ref) {
+    const layer = this.#layer(ref);
     const scale = this.view?.scale;
     const minScale = layer?.minScale || 0;
     const maxScale = layer?.maxScale || 0;
@@ -902,7 +1168,7 @@ export class MapController {
    * (kept in the project and in share links). `false` restores the publisher's range.
    */
   ignoreScaleRange(uid, ignore = true) {
-    const layer = this.findLayer(uid);
+    const layer = this.#layer(uid);
     if (!layer || !("minScale" in layer)) return false;
     const config = this.layerConfigs.get(uid) ?? {};
     if (ignore) this.#overrideScaleRange(layer, config);
@@ -917,7 +1183,8 @@ export class MapController {
   }
 
   /** What the layer's own service JSON says about it: fields, scale range, freshness, sentinels. */
-  layerMetadata(layer) {
+  layerMetadata(ref) {
+    const layer = this.#layer(ref);
     const raw = layer?.sourceJSON;
     if (!raw || typeof raw !== "object") return null;
     const metadata = arcgisMetadata(raw, this.getLayerConfig(layer).url || layer.url || "");
@@ -927,7 +1194,8 @@ export class MapController {
   }
 
   /** Every value of a field under the layer's filter (paged; at most `limit`), for class breaks. */
-  async fieldValues(layer, field, { limit = 20000 } = {}) {
+  async fieldValues(ref, field, { limit = 20000 } = {}) {
+    const layer = this.#layer(ref);
     if (typeof layer?.queryFeatures !== "function") return [];
     const values = [];
     const pageSize = Math.max(1, Math.min(layer.capabilities?.query?.maxRecordCount || 2000, 2000));
@@ -950,7 +1218,8 @@ export class MapController {
    * { values: [{ value, label }], complete } where complete is false when
    * there may be more values than were listed.
    */
-  async distinctValues(layer, fieldName, { limit = 200 } = {}) {
+  async distinctValues(ref, fieldName, { limit = 200 } = {}) {
+    const layer = this.#layer(ref);
     const field = (layer?.fields || []).find((item) => item.name === fieldName);
     if (!field) return { values: [], complete: true };
     const coded = field.domain?.type === "coded-value" ? field.domain.codedValues || [] : [];
@@ -983,7 +1252,7 @@ export class MapController {
    * Returns { issues } with any warnings.
    */
   async applyRendererSpec(uid, input, { sentinels = [] } = {}) {
-    const layer = this.findLayer(uid);
+    const layer = this.#layer(uid);
     if (!layer) throw new GisMapError("NOT_FOUND", "That layer is not on the map.");
     await layer.load();
     if (!("renderer" in layer)) throw new GisMapError("UNSUPPORTED_LAYER_TYPE", `${layer.title || "This layer"} is drawn by its service and cannot be restyled.`);
@@ -1051,7 +1320,7 @@ export class MapController {
    * field, the most measurement-like field is used.
    */
   async suggestRenderers(uid, { field = null, sentinels = null } = {}) {
-    const layer = this.findLayer(uid);
+    const layer = this.#layer(uid);
     if (!layer) throw new GisMapError("NOT_FOUND", "That layer is not on the map.");
     await layer.load();
     if (!("renderer" in layer) || typeof layer.queryFeatures !== "function") throw new GisMapError("UNSUPPORTED_LAYER_TYPE", `${layer.title || "This layer"} is drawn by its service and cannot be restyled.`);
@@ -1067,20 +1336,34 @@ export class MapController {
 
   /** The extent to show a layer's (filtered) data, or null. */
   async layerExtent(layerOrUid) {
-    const layer = typeof layerOrUid === "string" ? this.findLayer(layerOrUid) : layerOrUid;
-    return layer ? this.#zoomTarget(layer) : null;
+    const layer = this.#layer(layerOrUid);
+    return layer ? this.#plainGeometry(await this.#zoomTarget(layer)) : null;
   }
 
-  /** Fits the view to the combined (filtered) extent of several layers; all data layers when none are given. */
-  async goToLayers(layers = this.getOperationalLayers(), { animate = true } = {}) {
-    const combined = await this.dataExtent(layers);
+  /** Fits the view to the combined (filtered) extent of several layers (uids or handles); all data layers when none are given. */
+  async goToLayers(layers = null, { animate = true } = {}) {
+    const combined = await this.#dataExtent(layers);
     if (!combined) return false;
     await this.view.goTo({ target: combined.expand(1.08), tilt: 0 }, { animate });
     return true;
   }
 
+  /**
+   * The [west, south, east, north] box in degrees that goToLayers frames: the
+   * layers' filtered data, or its dense core when it spreads over half the world. Null without data.
+   */
+  async dataBounds(layers = null) {
+    const extent = await this.#dataExtent(layers);
+    if (!extent) return null;
+    const geographic = this.modules.webMercatorUtils?.canProject(extent, { wkid: 4326 }) && extent.spatialReference?.isWebMercator
+      ? this.modules.webMercatorUtils.webMercatorToGeographic(extent)
+      : extent;
+    return [geographic.xmin, geographic.ymin, geographic.xmax, geographic.ymax];
+  }
+
   /** The combined extent of several layers' (filtered) data in the view's spatial reference, or null. */
-  async dataExtent(layers = this.getOperationalLayers()) {
+  async #dataExtent(refs = null) {
+    const layers = refs ? refs.map((ref) => this.#layer(ref)).filter(Boolean) : this.#operationalLayers();
     const extents = (await Promise.all(layers.map(async (layer) => {
       const full = await this.#zoomTarget(layer).catch(() => null);
       // A layer spread over half the world (U.S. counties with Alaska, Hawaii and
@@ -1133,23 +1416,41 @@ export class MapController {
   }
 
   getAllLayerConfigs() {
-    return this.getOperationalLayers().map((layer) => this.getLayerConfig(layer));
+    return this.#operationalLayers().map((layer) => this.getLayerConfig(layer));
   }
 
-  setVisibility(uid, visible) {
-    const layer = this.findLayer(uid);
+  /** `silent` changes the layer without announcing it (slides, tours and project restores set many at once). */
+  setVisibility(uid, visible, { silent = false } = {}) {
+    const layer = this.#layer(uid);
     if (layer) layer.visible = visible;
-    this.events.publish("layer:changed", { uid });
+    if (!silent) this.events.publish("layer:changed", { uid });
   }
 
-  setOpacity(uid, opacity) {
-    const layer = this.findLayer(uid);
-    if (layer) layer.opacity = Math.max(0, Math.min(1, Number(opacity)));
-    this.events.publish("layer:changed", { uid });
+  setOpacity(uid, opacity, { silent = false } = {}) {
+    const layer = this.#layer(uid);
+    if (layer) layer.opacity = silent ? opacity : Math.max(0, Math.min(1, Number(opacity)));
+    if (!silent) this.events.publish("layer:changed", { uid });
+  }
+
+  /** Renames a layer (no event: the caller re-renders). */
+  setTitle(uid, title) {
+    const layer = this.#layer(uid);
+    if (layer) layer.title = title;
+  }
+
+  /** The fields a feature layer fetches with its features. */
+  setOutFields(uid, fields) {
+    const layer = this.#layer(uid);
+    if (layer && "outFields" in layer) layer.outFields = fields;
+  }
+
+  /** Asks the layer's service for fresh data now. */
+  refreshLayer(uid) {
+    this.#layer(uid)?.refresh?.();
   }
 
   setRefreshInterval(uid, minutes) {
-    const layer = this.findLayer(uid);
+    const layer = this.#layer(uid);
     if (!layer || !("refreshInterval" in layer)) {
       throw new Error("This layer type does not expose an automatic refresh interval.");
     }
@@ -1160,10 +1461,18 @@ export class MapController {
     this.events.publish("layer:changed", { uid });
   }
 
-  setDefinitionExpression(uid, expression) {
-    const layer = this.findLayer(uid);
+  /**
+   * The layer's attribute filter. `persist: false` applies it for the moment
+   * only (Isolate in Map Insight): no event, and projects and links keep the saved filter.
+   */
+  setDefinitionExpression(uid, expression, { persist = true } = {}) {
+    const layer = this.#layer(uid);
     if (!layer || !("definitionExpression" in layer)) {
       throw new Error("This layer type does not support attribute filters.");
+    }
+    if (!persist) {
+      layer.definitionExpression = expression;
+      return expression;
     }
     const value = String(expression || "").trim() || null;
     layer.definitionExpression = value;
@@ -1174,7 +1483,8 @@ export class MapController {
     return value;
   }
 
-  restoreRenderer(layer, rendererJson) {
+  restoreRenderer(ref, rendererJson) {
+    const layer = this.#layer(ref);
     if (!layer || !("renderer" in layer) || !rendererJson) return;
     // renderer.toJSON() produces WebMap JSON names such as `classBreaks`,
     // `PolygonSymbol3D`, `Extrude`, and `sizeInfo`. Convert that serialized
@@ -1187,23 +1497,37 @@ export class MapController {
     if (autocast) {
       layer.renderer = structuredClone(rendererJson);
       this.layerConfigs.set(layer.uid, { ...(this.layerConfigs.get(layer.uid) ?? {}), renderer: layer.renderer.toJSON?.() ?? structuredClone(rendererJson) });
-      return layer.renderer;
+      return;
     }
     try {
       const renderer = this.modules.rendererJsonUtils?.fromJSON?.(structuredClone(rendererJson));
       if (renderer) {
         layer.renderer = renderer;
         this.layerConfigs.set(layer.uid, { ...(this.layerConfigs.get(layer.uid) ?? {}), renderer: structuredClone(rendererJson) });
-        return renderer;
+        return;
       }
     } catch { /* Some catalog renderers already use API autocast JSON. */ }
     layer.renderer = structuredClone(rendererJson);
     this.layerConfigs.set(layer.uid, { ...(this.layerConfigs.get(layer.uid) ?? {}), renderer: structuredClone(rendererJson) });
-    return layer.renderer;
+  }
+
+  /**
+   * Draws the layer with a renderer (SDK autocast JSON) for now, without recording
+   * it as the layer's GIS Map style (the Explorer's "style by this chart").
+   */
+  setRenderer(uid, renderer) {
+    const layer = this.#layer(uid);
+    if (layer && "renderer" in layer) layer.renderer = renderer;
+  }
+
+  /** Records the RendererSpec a restored style was made from, so projects and links keep it. */
+  recordRendererSpec(uid, rendererSpec) {
+    const source = this.layerConfigs.get(uid);
+    if (source) source.rendererSpec = rendererSpec;
   }
 
   async setLayerSymbology(uid, options = {}) {
-    const layer = this.findLayer(uid);
+    const layer = this.#layer(uid);
     if (!layer || !("renderer" in layer)) throw new Error("This layer does not support client-side renderers.");
     await layer.load();
     const color = options.color || "#1b7f6a";
@@ -1368,7 +1692,8 @@ export class MapController {
   }
 
   async clearOperationalLayers() {
-    this.getOperationalLayers().forEach((layer) => this.map.remove(layer));
+    this.#operationalLayers().forEach((layer) => this.map.remove(layer));
+    this.#sublayers.clear();
     this.layerConfigs.clear();
     this.localAssets.clear();
     this.events.publish("layers:reset");
@@ -1381,8 +1706,29 @@ export class MapController {
     // Re-assigning the same basemap would tear down and rebuild its layer views for nothing.
     if (this.map && next === this.basemapId && this.map.basemap) return;
     this.basemapId = next;
-    if (this.map) this.map.basemap = this.basemapId;
+    if (this.map) this.map.basemap = this.#sdkBasemap(this.basemapId);
     this.events.publish("map:basemap-changed", { id: this.basemapId });
+  }
+
+  /**
+   * The ArcGIS basemap for a GIS Map basemap id. ArcGIS cannot restyle its
+   * basemaps by skin, so the "skin" basemap is the light or dark gray canvas
+   * that suits the skin; OpenFreeMap ids draw their ArcGIS equivalents.
+   */
+  #sdkBasemap(id) {
+    return id === "skin" ? (this.basemapTheme?.dark ? "dark-gray-vector" : "gray-vector") : basemapOnEngine(id, "arcgis");
+  }
+
+  /** The basemaps this engine draws, and the one it is drawing now (an OpenFreeMap id from a link shows as its ArcGIS equivalent). */
+  getBasemapOptions() {
+    return { selected: basemapOnEngine(this.basemapId, "arcgis"), options: basemapsForEngine("arcgis") };
+  }
+
+  /** The active skin's basemap theme: only light or dark matters here. */
+  setBasemapTheme(theme) {
+    const wasDark = Boolean(this.basemapTheme?.dark);
+    this.basemapTheme = theme || null;
+    if (this.map && this.basemapId === "skin" && wasDark !== Boolean(this.basemapTheme?.dark)) this.map.basemap = this.#sdkBasemap("skin");
   }
 
   /**
@@ -1470,11 +1816,16 @@ export class MapController {
     };
   }
 
-  async takeMapScreenshot({ format = "jpg", quality = 82, width = 1200, height = null } = {}) {
+  async captureImage({ format = "jpg", quality = 82, width = 1200, height = null, aspect = null } = {}) {
     if (!this.view?.takeScreenshot) return null;
     const options = { format, width };
     if (format !== "png") options.quality = quality;
-    if (Number.isFinite(height)) options.height = height;
+    if (Number.isFinite(aspect) && aspect > 0 && this.view.width && this.view.height) {
+      const cropWidth = Math.min(this.view.width, Math.round(this.view.height * aspect));
+      const cropHeight = Math.min(this.view.height, Math.round(cropWidth / aspect));
+      options.width = Math.min(width, cropWidth * 2);
+      options.area = { x: Math.round((this.view.width - cropWidth) / 2), y: Math.round((this.view.height - cropHeight) / 2), width: cropWidth, height: cropHeight };
+    } else if (Number.isFinite(height)) options.height = height;
     const capture = await this.view.takeScreenshot(options);
     return capture?.dataUrl && capture?.data
       ? { dataUrl: capture.dataUrl, width: capture.data.width, height: capture.data.height }
@@ -1493,6 +1844,94 @@ export class MapController {
       heading: state.heading ?? state.rotation ?? 0,
       tilt: state.tilt ?? 35,
     });
+  }
+
+  /** The camera as the in-page API reports it: { center, zoom, scale, heading, tilt }, rounded. */
+  getCamera() {
+    if (!this.view) throw new GisMapError("NOT_READY", "The map is not ready yet.");
+    const center = this.view.center;
+    return {
+      center: [Number(center.longitude.toFixed(6)), Number(center.latitude.toFixed(6))],
+      zoom: Number(this.view.zoom.toFixed(2)),
+      scale: Math.round(this.view.scale),
+      heading: Number((this.view.camera?.heading ?? 0).toFixed(1)),
+      tilt: Number((this.view.camera?.tilt ?? 0).toFixed(1)),
+    };
+  }
+
+  /** The map scale at the view's centre (1:scale), or null before the view exists. */
+  getScale() {
+    return this.view?.scale ?? null;
+  }
+
+  /** The view's viewpoint as JSON (saved with tour chapters), or null. */
+  getViewpoint() {
+    return this.view?.viewpoint?.toJSON?.() || null;
+  }
+
+  /**
+   * Moves the camera (engine-interface.js ViewTarget). Resolves once it arrives;
+   * does nothing before the view exists.
+   */
+  async setView(target, options = undefined) {
+    if (!this.view || !target) return;
+    await this.view.goTo(this.#goToTarget(target), options);
+  }
+
+  /** A ViewTarget as an SDK goTo target. */
+  #goToTarget(target) {
+    if (target.camera) return target.camera;
+    if (target.viewpoint) return target.viewpoint;
+    if (Array.isArray(target.features)) {
+      return target.features.map((feature) => this.#sdkGeometry(feature?.geometry)).filter(Boolean);
+    }
+    if (Array.isArray(target.bounds)) {
+      const [xmin, ymin, xmax, ymax] = target.bounds;
+      const { bounds, ...rest } = target;
+      return { ...rest, target: new this.modules.Extent({ xmin, ymin, xmax, ymax, spatialReference: { wkid: 4326 } }) };
+    }
+    if (target.geometry) {
+      const geometry = this.#sdkGeometry(target.geometry);
+      const { geometry: _, fit, ...rest } = target;
+      if (fit === "feature") {
+        if (geometry?.type === "point") return { target: geometry, zoom: 15, tilt: 0 };
+        return { target: geometry?.extent?.clone?.().expand?.(1.25) ?? geometry, tilt: 0 };
+      }
+      return { ...rest, target: geometry };
+    }
+    return target;
+  }
+
+  /** The padding (pixels) the view centres within, or null. */
+  getViewPadding() {
+    return this.view?.padding ? { ...this.view.padding } : null;
+  }
+
+  setViewPadding(padding) {
+    if (this.view) this.view.padding = padding || { top: 0, right: 0, bottom: 0, left: 0 };
+  }
+
+  /** The element the map draws into. */
+  getContainer() {
+    return this.view?.container ?? null;
+  }
+
+  /** The view's current extent as plain geometry JSON (usable as a query geometry), or null. */
+  getViewExtent() {
+    return this.#plainGeometry(this.view?.extent ?? null);
+  }
+
+  /**
+   * A test for "is this geometry in the current view?", or null before the view
+   * has an extent (callers then keep everything).
+   */
+  viewExtentFilter() {
+    const extent = this.view?.extent;
+    if (!extent) return null;
+    return (geometry) => {
+      const value = this.#sdkGeometry(geometry);
+      return Boolean(extent.intersects?.(value?.extent || value));
+    };
   }
 
   async navigate(action) {
@@ -1516,7 +1955,8 @@ export class MapController {
     }
   }
 
-  async searchPlaces(query) {
+  /** Places matching a text, or a "longitude, latitude" pair, as { label, location: [lon, lat], extent }. */
+  async search(query) {
     const text = query.trim();
     const coordinates = text.match(/^\s*(-?\d+(?:\.\d+)?)\s*[, ]\s*(-?\d+(?:\.\d+)?)\s*$/);
     if (coordinates) {
@@ -1531,7 +1971,7 @@ export class MapController {
     return response.map((candidate) => ({
       label: candidate.address,
       location: [candidate.location.longitude, candidate.location.latitude],
-      extent: candidate.extent,
+      extent: candidate.extent?.toJSON?.() ?? candidate.extent ?? undefined,
     }));
   }
 
@@ -1550,7 +1990,7 @@ export class MapController {
   }
 
   async goToLayer(layerOrUid) {
-    const layer = typeof layerOrUid === "string" ? this.findLayer(layerOrUid) : layerOrUid;
+    const layer = this.#layer(layerOrUid);
     if (!layer?.fullExtent) return;
     const target = await this.#zoomTarget(layer);
     if (!target) return false;
@@ -1650,7 +2090,7 @@ export class MapController {
   }
 
   async goToFeature(feature, { animate = true } = {}) {
-    const geometry = feature?.geometry;
+    const geometry = this.#sdkGeometry(feature?.geometry);
     if (!geometry) throw new Error("This record does not have a geometry to zoom to.");
     if (geometry.type === "point") {
       return this.view.goTo({ center: geometry, zoom: 15, tilt: 0 }, { animate });
@@ -1659,10 +2099,18 @@ export class MapController {
     return this.view.goTo({ target, tilt: 0 }, { animate });
   }
 
+  /** Frames several features (presentation records, identify results). */
+  async goToFeatures(features = [], options = undefined) {
+    const geometries = features.map((feature) => this.#sdkGeometry(feature?.geometry)).filter(Boolean);
+    if (geometries.length) await this.view?.goTo(geometries, options);
+  }
+
+  /** The address nearest a point in degrees: { address, attributes }, or null. */
   async reverseGeocode(point) {
+    if (!Number.isFinite(Number(point?.longitude)) || !Number.isFinite(Number(point?.latitude))) return null;
     try {
       const result = await this.modules.locator.locationToAddress(ARCGIS_WORLD_GEOCODER, {
-        location: point,
+        location: { type: "point", longitude: Number(point.longitude), latitude: Number(point.latitude), spatialReference: { wkid: 4326 } },
       });
       return { address: result.address, attributes: result.attributes ?? {} };
     } catch {
@@ -1670,13 +2118,14 @@ export class MapController {
     }
   }
 
-  representativePoint(geometry) {
+  #representativePoint(geometry) {
     if (!geometry) return null;
     return geometry.type === "point" ? geometry : geometry.centroid ?? geometry.extent?.center ?? null;
   }
 
+  /** A geometry's representative point (its centroid for shapes) in degrees: { longitude, latitude }, or null. */
   geographicCoordinates(geometry) {
-    let point = this.representativePoint(geometry);
+    let point = this.#representativePoint(this.#sdkGeometry(geometry));
     if (!point) return null;
     const wkid = point.spatialReference?.wkid;
     if (![4326, 4269].includes(wkid) && this.modules.webMercatorUtils?.canProject(point, { wkid: 4326 })) {
@@ -1684,7 +2133,219 @@ export class MapController {
     }
     const longitude = Number(point.longitude ?? point.x);
     const latitude = Number(point.latitude ?? point.y);
-    return Number.isFinite(longitude) && Number.isFinite(latitude) ? { longitude, latitude, point } : null;
+    return Number.isFinite(longitude) && Number.isFinite(latitude) ? { longitude, latitude } : null;
+  }
+
+  /* ---------------- Queries ---------------- */
+
+  /** The SDK query for engine-interface.js QueryParams, starting from the layer's own (filter included) unless `layerDefaults` is false. */
+  #query(layer, params = {}, layerDefaults = true) {
+    const query = layerDefaults ? layer.createQuery?.() ?? {} : {};
+    const { geometry, outSpatialReference, ...rest } = params;
+    Object.assign(query, rest);
+    if (geometry === "view") query.geometry = this.view?.extent;
+    else if (geometry) query.geometry = this.#sdkGeometry(geometry) ?? geometry;
+    if (outSpatialReference === "view") {
+      if (this.view?.spatialReference) query.outSpatialReference = this.view.spatialReference;
+    } else if (outSpatialReference) {
+      query.outSpatialReference = outSpatialReference;
+    }
+    return query;
+  }
+
+  #queryLayer(uid, method) {
+    const layer = this.#layer(uid);
+    if (typeof layer?.[method] !== "function") throw unsupported("query", `${layer?.title || "This layer"} cannot be queried.`);
+    return layer;
+  }
+
+  /** Features matching a query: { features: [{ attributes, geometry }], exceededTransferLimit }. */
+  async queryFeatures(uid, params = {}, { signal = undefined, layerDefaults = true } = {}) {
+    const layer = this.#queryLayer(uid, "queryFeatures");
+    const result = await layer.queryFeatures(this.#query(layer, params, layerDefaults), signal ? { signal } : undefined);
+    return { features: (result?.features ?? []).map((graphic) => this.#feature(graphic)), exceededTransferLimit: Boolean(result?.exceededTransferLimit) };
+  }
+
+  async queryFeatureCount(uid, params = {}, { signal = undefined, layerDefaults = true } = {}) {
+    const layer = this.#queryLayer(uid, "queryFeatureCount");
+    return layer.queryFeatureCount(this.#query(layer, params, layerDefaults), signal ? { signal } : undefined);
+  }
+
+  async queryObjectIds(uid, params = {}, { signal = undefined, layerDefaults = true } = {}) {
+    const layer = this.#queryLayer(uid, "queryObjectIds");
+    return layer.queryObjectIds(this.#query(layer, params, layerDefaults), signal ? { signal } : undefined);
+  }
+
+  /**
+   * Draws only some of a layer's features, without fetching again:
+   * { where } or { objectIds }, or null for all of them. False when the layer cannot.
+   */
+  async setFeatureFilter(uid, filter) {
+    const layer = this.#layer(uid);
+    if (!layer || !this.view?.whenLayerView) return false;
+    try {
+      const layerView = await this.view.whenLayerView(layer);
+      layerView.filter = filter ?? null;
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  /* ---------------- Identify ---------------- */
+
+  /**
+   * What is at a clicked point (engine-interface.js ClickEvent): features the
+   * scene draws there, and features of queryable layers within a few pixels.
+   * Results are FeatureResults, not yet de-duplicated.
+   */
+  async identify(click) {
+    const mapPoint = click?.mapPoint ? this.#sdkGeometry(click.mapPoint) ?? this.view?.toMap?.({ x: click.x, y: click.y }) : null;
+    if (!mapPoint || !this.view) return [];
+    const operationalLayers = this.#operationalLayers();
+    const response = operationalLayers.length
+      ? await this.view.hitTest({ x: click.x, y: click.y }, { include: operationalLayers })
+      : { results: [] };
+    const hits = (response.results ?? []).map((hit) => this.#normalizeHit(hit)).filter(Boolean);
+    const fallback = await this.#queryQueryableLayers(click, mapPoint);
+    return [...fallback, ...hits];
+  }
+
+  #source(layer) {
+    return layer
+      ? { url: layer.url ?? null, layerId: Number.isInteger(layer.layerId) ? layer.layerId : null, title: layer.title ?? "", objectIdField: layer.objectIdField ?? null, displayField: layer.displayField ?? null }
+      : null;
+  }
+
+  #featureResult(graphic, root, layer, layerTitle) {
+    const feature = this.#feature(graphic);
+    return {
+      kind: "feature",
+      layerUid: root?.uid ?? layer?.uid ?? null,
+      layerTitle,
+      attributes: feature.attributes,
+      geometry: feature.geometry,
+      source: this.#source(layer),
+    };
+  }
+
+  #normalizeHit(hit) {
+    if (hit.type === "graphic" || hit.graphic) {
+      const graphic = hit.graphic;
+      const layer = graphic?.layer || graphic?.sourceLayer || graphic?.origin?.layer;
+      const root = this.#operationalRoot(layer);
+      if (!root) return null;
+      return this.#featureResult(graphic, root, layer, graphic?.sourceLayer?.title ?? layer?.title ?? root.title ?? "Map feature");
+    }
+    if (hit.type === "media" || hit.element) {
+      return { kind: "media", layerTitle: hit.layer?.title ?? "Media", attributes: {} };
+    }
+    if (hit.type === "raster-pixel" || hit.pixelData) {
+      return {
+        kind: "raster",
+        layerUid: hit.layer?.uid ?? null,
+        layerTitle: hit.layer?.title ?? "Imagery",
+        attributes: { "Pixel value": hit.pixelData?.pixelValue ?? hit.value ?? "No data" },
+      };
+    }
+    return null;
+  }
+
+  #operationalRoot(layer) {
+    if (!layer) return null;
+    const roots = this.#operationalLayers();
+    let current = layer;
+    while (current) {
+      if (roots.includes(current)) return current;
+      current = current.parent;
+    }
+    return roots.find((root) => root.allSublayers?.includes?.(layer)) ?? null;
+  }
+
+  async #queryQueryableLayers(click, mapPoint) {
+    const layers = [];
+    const visit = (layer) => {
+      if (layer.sublayers?.length) layer.sublayers.forEach(visit);
+      else layers.push(layer);
+    };
+    this.#operationalLayers().forEach(visit);
+    const extent = this.#clickExtent(click, mapPoint);
+    const jobs = layers
+      .filter((layer) => {
+        const root = this.#operationalRoot(layer);
+        return layer.visible !== false && root?.visible !== false;
+      })
+      .map(async (layer) => {
+        try {
+          if (typeof layer.queryFeatures === "function") {
+            const query = layer.createQuery?.() ?? {};
+            Object.assign(query, {
+              geometry: extent,
+              spatialRelationship: "intersects",
+              outFields: ["*"],
+              returnGeometry: true,
+              num: 10,
+            });
+            const set = await layer.queryFeatures(query);
+            const root = this.#operationalRoot(layer);
+            return (set.features ?? []).map((graphic) => this.#featureResult(graphic, root, layer, layer.title ?? layer.parent?.title ?? "Layer"));
+          }
+          if (typeof layer.identify === "function") {
+            const identified = await layer.identify(mapPoint);
+            return [{
+              kind: "raster",
+              layerUid: layer.uid,
+              layerTitle: layer.title ?? "Imagery",
+              attributes: identified?.value ? { Value: identified.value } : {},
+            }];
+          }
+        } catch (error) {
+          console.debug(`Identify fallback skipped for ${layer.title}`, error);
+        }
+        return [];
+      });
+    return (await Promise.all(jobs)).flat();
+  }
+
+  #clickExtent(click, mapPoint) {
+    const view = this.view;
+    const samples = [
+      mapPoint,
+      view.toMap({ x: click.x - 8, y: click.y }),
+      view.toMap({ x: click.x + 8, y: click.y }),
+      view.toMap({ x: click.x, y: click.y - 8 }),
+      view.toMap({ x: click.x, y: click.y + 8 }),
+    ].filter(Boolean);
+    if (samples.length > 1) {
+      return {
+        type: "extent",
+        xmin: Math.min(...samples.map((point) => point.x)),
+        ymin: Math.min(...samples.map((point) => point.y)),
+        xmax: Math.max(...samples.map((point) => point.x)),
+        ymax: Math.max(...samples.map((point) => point.y)),
+        spatialReference: mapPoint.spatialReference,
+      };
+    }
+    const groundMeters = Math.max(5, Number(view.scale || 10000) * 0.000264583 * 8);
+    const geographic = Boolean(mapPoint.spatialReference?.isGeographic);
+    const latitude = mapPoint.latitude ?? mapPoint.y;
+    const dx = geographic
+      ? groundMeters / Math.max(111320 * Math.cos((latitude * Math.PI) / 180), 1000)
+      : groundMeters;
+    const dy = geographic ? groundMeters / 110540 : groundMeters;
+    return {
+      type: "extent",
+      xmin: mapPoint.x - dx,
+      ymin: mapPoint.y - dy,
+      xmax: mapPoint.x + dx,
+      ymax: mapPoint.y + dy,
+      spatialReference: mapPoint.spatialReference,
+    };
+  }
+
+  /** Whether a widget (legend, measurement, …) is open. */
+  widgetOpen(name) {
+    return this.widgets.has(name);
   }
 
   async toggleWidget(name) {
@@ -1748,3 +2409,5 @@ export class MapController {
     return true;
   }
 }
+
+export default ArcGISEngine;

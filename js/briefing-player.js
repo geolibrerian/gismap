@@ -29,12 +29,11 @@ export class BriefingPlayer {
     const slides = this.api.getSlides();
     if (!slides.length) return false;
     this.close();
-    const view = this.api.mapController.view;
     this.state = {
       slides,
       index: Math.max(0, slides.findIndex((slide) => slide.id === startId)),
       compact: this.api.compact(),
-      padding: view?.padding ? { ...view.padding } : null,
+      padding: this.api.mapController.getViewPadding(),
       cleanups: [],
       exploring: false,
     };
@@ -57,8 +56,7 @@ export class BriefingPlayer {
     root?.remove();
     document.body.classList.remove("briefing-presenting", "briefing-presenting--stage", "briefing-presenting--cards", "briefing-exploring");
     if (document.fullscreenElement) void document.exitFullscreen?.().catch(() => {});
-    const view = this.api.mapController.view;
-    if (view) view.padding = padding || { top: 0, right: 0, bottom: 0, left: 0 };
+    this.api.mapController.setViewPadding(padding);
     this.#writeHash(null);
     this.state = null;
     requestAnimationFrame(() => this.api.mapController.resize());
@@ -96,24 +94,24 @@ export class BriefingPlayer {
   /** Re-centres the camera within the part of the map that is visible for this slide. */
   #applyPadding() {
     const state = this.state;
-    const view = this.api.mapController.view;
-    if (!state || !view) return;
+    const { mapController } = this.api;
+    if (!state || !mapController.isReady()) return;
     if (state.compact) {
       const body = state.root.querySelectorAll(".briefing-card")[state.index]?.querySelector(".briefing-card__body");
-      view.padding = state.exploring || !body ? { top: 0, right: 0, bottom: 0, left: 0 } : { top: 0, right: 0, bottom: Math.round(body.getBoundingClientRect().height), left: 0 };
+      mapController.setViewPadding(state.exploring || !body ? { top: 0, right: 0, bottom: 0, left: 0 } : { top: 0, right: 0, bottom: Math.round(body.getBoundingClientRect().height), left: 0 });
       return;
     }
     const mapWindow = state.root.querySelector(".briefing-stage__window");
     const frame = state.root.querySelector(".briefing-stage__frame");
     const area = (mapWindow && !mapWindow.hidden ? mapWindow : frame)?.getBoundingClientRect();
-    const container = view.container?.getBoundingClientRect?.();
+    const container = mapController.getContainer()?.getBoundingClientRect?.();
     if (!area || !container) return;
-    view.padding = {
+    mapController.setViewPadding({
       top: Math.max(0, Math.round(area.top - container.top)),
       left: Math.max(0, Math.round(area.left - container.left)),
       right: Math.max(0, Math.round(container.right - area.right)),
       bottom: Math.max(0, Math.round(container.bottom - area.bottom)),
-    };
+    });
   }
 
   /* ---------------- Desktop stage ---------------- */

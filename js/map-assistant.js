@@ -6,6 +6,10 @@
 // with the provider. Pure functions apart from the tool handlers, which call the
 // in-page API (globalThis.gisMapOnline) and a few app hooks passed in as `host`.
 
+import { describeArcgisLayer, describeFields, isArcgisLayerUrl, summarizeArcgisField } from "./layer-insight.js?v=0.50.0";
+import { INTERFACE_SKINS } from "./skin-catalog.js?v=0.44.2";
+import { DISPLAY_SETTINGS, guideOutline, searchGuide, validateDisplaySetting } from "./app-guide.js?v=0.52.0";
+
 const MAX_RESULT = 6000;
 const STEP_LIMIT = 10;
 const BASEMAPS = ["topo-3d", "navigation-3d", "navigation-dark-3d", "osm-3d", "gray-3d", "dark-gray-3d", "streets-3d", "streets-dark-3d", "topo-vector", "streets-vector", "navigation", "gray-vector", "dark-gray-vector", "osm", "satellite", "hybrid"];
@@ -21,6 +25,8 @@ const renderer = {
 export const ASSISTANT_TOOLS = Object.freeze([
   { name: "get_map_state", description: "What is on the map now: layers (with their id, URL, style, filter and fields), basemap, camera, briefing and tour. Call it before changing existing layers.", parameters: { type: "object", properties: {} } },
   { name: "inspect_source", description: "Read a public data source's metadata before using it: fields (exact names and types), geometry type, feature count, codes that mean no data (sentinels), scale range and last edit date. For a service root it lists its layers.", parameters: { type: "object", required: ["url"], properties: { url: { type: "string", description: "HTTPS URL of an ArcGIS REST layer or service, GeoJSON, WMS, WFS or KML." } } } },
+  { name: "describe_layer", description: "Everything known about a layer on the map: its service's description, summary, credits, licence, tags, last edit date, feature count, time field, and its schema (every field with type, alias, description and coded values). Use it to answer questions about the data.", parameters: { type: "object", required: ["layer"], properties: { layer: layerRef } } },
+  { name: "summarize_field", description: "Summarize one field's values in a layer, computed by the service over all features: for numbers and dates min, max, mean and spread; for text and codes the most common values with counts. Use it to interpret what a field holds.", parameters: { type: "object", required: ["layer", "field"], properties: { layer: layerRef, field: { type: "string" }, where: { type: "string", description: "Optional SQL filter." } } } },
   { name: "search_datasets", description: "Search GIS Map Online's curated public datasets by topic (wildfires, earthquakes, hurricanes, air quality, census…). Returns titles and layer URLs.", parameters: { type: "object", required: ["query"], properties: { query: { type: "string" } } } },
   { name: "add_layer", description: "Add a public layer to the map, optionally filtered and styled, and zoom to it.", parameters: { type: "object", required: ["url"], properties: { url: { type: "string" }, title: { type: "string" }, where: { type: "string", description: "Read-only SQL filter on the layer's fields, such as \"POP > 1000\"." }, renderer, opacity: { type: "number", minimum: 0, maximum: 1 } } } },
   { name: "update_layer", description: "Change a layer on the map: title, filter, style, opacity or visibility.", parameters: { type: "object", required: ["layer"], properties: { layer: layerRef, title: { type: "string" }, where: { type: ["string", "null"], description: "SQL filter; null clears it." }, renderer, opacity: { type: "number", minimum: 0, maximum: 1 }, visible: { type: "boolean" } } } },
@@ -51,6 +57,14 @@ export const ASSISTANT_TOOLS = Object.freeze([
     description: "Draft a field task (a checklist that sends someone to places on the map). It opens for the user to check, then save and share as a link or QR code.",
     parameters: { type: "object", required: ["title", "steps"], properties: { title: { type: "string" }, notes: { type: "string", description: "Instructions, at most 500 characters." }, steps: { type: "array", maxItems: 10, items: { type: "string" } }, location: { type: "string" }, longitude: { type: "number" }, latitude: { type: "number" }, features: { type: "array", maxItems: 5, items: { type: "object", required: ["layer", "objectId"], properties: { layer: layerRef, objectId: { type: ["number", "string"] }, label: { type: "string" } } } } } },
   },
+  { name: "app_help", description: "Where a menu, setting or feature of GIS Map Online is and what it does. Call it for any question about the app itself (how do I…, where is…, can I change…) before answering; never guess menu names.", parameters: { type: "object", required: ["question"], properties: { question: { type: "string" } } } },
+  { name: "get_display_settings", description: "The current display settings (Project → Layout & display…): appearance, navigation, panel positions, and map click feedback such as the selection style.", parameters: { type: "object", properties: {} } },
+  { name: "change_display_setting", description: "Change one display setting for the user, such as the selection style (highlightStyle: fill or outline), the feedback colour or dark mode.", parameters: { type: "object", required: ["setting", "value"], properties: { setting: { enum: Object.keys(DISPLAY_SETTINGS) }, value: { type: ["string", "boolean"], description: Object.entries(DISPLAY_SETTINGS).map(([key, definition]) => `${key}: ${Array.isArray(definition.values) ? definition.values.join("|") : definition.values}`).join("; ") } } } },
+  { name: "set_mode", description: "Switch the app's mode: briefing (slides), tours (guided tours), tasks (field tasks) or map (the standard map).", parameters: { type: "object", required: ["mode"], properties: { mode: { enum: ["briefing", "tours", "tasks", "map"] } } } },
+  { name: "set_skin", description: "Change the interface skin (the app's look, also used by the Skin basemap on MapLibre). Kept with the project.", parameters: { type: "object", required: ["skin"], properties: { skin: { enum: INTERFACE_SKINS.map(({ id }) => id), description: INTERFACE_SKINS.map(({ id, label, description }) => `${id} = ${label} (${description})`).join("; ") } } } },
+  { name: "save_project", description: "Save the current map as a project in this browser, optionally under a new name.", parameters: { type: "object", properties: { name: { type: "string" } } } },
+  { name: "open_share_menu", description: "Open the Share & export dialog for the user (links, QR code, exports).", parameters: { type: "object", properties: {} } },
+  { name: "download", description: "Download the map for the user: pdf (Map PDF), smart-image (a PNG that opens as the project), gmo (project file) or gmop (project package with local files).", parameters: { type: "object", required: ["format"], properties: { format: { enum: ["pdf", "smart-image", "gmo", "gmop"] } } } },
   { name: "get_share_link", description: "A link (and whether it fits a QR code) that opens the map as it is now, with its briefing.", parameters: { type: "object", properties: {} } },
 ]);
 
@@ -60,6 +74,8 @@ export function buildAssistantInstructions({ state = null, textTools = false } =
     "You are the Map assistant inside GIS Map Online, a free browser GIS. You build and change the user's map with tools: interactive maps from public data, briefings (slides that present the map), guided tours, and field tasks.",
     "",
     "How to work:",
+    "- A question is answered by reading, not by changing the map: for questions about the loaded data use get_map_state, describe_layer and summarize_field. Add, change or remove layers only when the user asks for it.",
+    "- When explaining a layer: say what it is and who publishes it (description, credits), how current it is (last edited), how many features, and what its main fields mean (aliases, descriptions, coded values, value ranges). Quote the service's own words; do not invent meanings for fields the metadata does not explain, say they are undocumented.",
     "- Use real, public data only: HTTPS ArcGIS REST layers (FeatureServer/0, MapServer, ImageServer), GeoJSON, WMS, WFS or KML. If the user names a topic but no URL, call search_datasets; if nothing fits, ask for a URL. Never invent URLs.",
     "- Before styling or filtering a layer, learn its fields with inspect_source or get_map_state, and use field names exactly as listed. Never invent fields or numbers.",
     "- Sentinel codes (such as -1 for \"Not Disclosed\") are not measurements: add them to the style's exclude list.",
@@ -71,7 +87,12 @@ export function buildAssistantInstructions({ state = null, textTools = false } =
     "- Field tasks: draft_field_task. The user reviews it before it is shared.",
     "- When a tool returns an error, read its hint and fix the call; do not repeat the same call.",
     "- After acting, reply in two or three sentences: what you did, and anything the user should check (data caveats, missing fields, sample-based numbers). Offer get_share_link when the user wants to share.",
+    "- Questions about the app itself (menus, settings, where something is): call app_help and answer with the exact menu path it gives. Display settings (selection style, highlight colour, appearance, panel positions) can be changed for the user with change_display_setting; say where the setting lives too.",
+    "- The app itself: set_mode switches modes, set_skin changes the look, save_project saves, open_share_menu opens Share & export, and download gives a Map PDF, Smart map image, .gmo project file or .gmop package. Do these only when the user asks.",
     "- Keep the conversation in the user's language. Do not claim to have done something a tool did not do.",
+    "",
+    "The app's menus:",
+    ...guideOutline(),
   ];
   if (textTools) {
     lines.push(
@@ -250,6 +271,17 @@ export function summarizeMapState(api) {
   };
 }
 
+/** A layer on the map by id, URL or title (case-insensitive). */
+function findLayer(api, ref) {
+  const layers = api.describe().state?.layers || [];
+  const text = String(ref || "").trim().toLowerCase();
+  const found = layers.find((layer) => String(layer.id).toLowerCase() === text || String(layer.url || "").toLowerCase().replace(/\/+$/, "") === text.replace(/\/+$/, ""))
+    || layers.find((layer) => String(layer.title || "").toLowerCase() === text)
+    || layers.find((layer) => text && String(layer.title || "").toLowerCase().includes(text));
+  if (!found) throw Object.assign(new Error(`No layer "${ref}" on the map.`), { hint: `Layers: ${layers.map((layer) => `${layer.id} (${layer.title})`).join(", ") || "none"}.` });
+  return found;
+}
+
 const words = (text) => String(text || "").toLowerCase().split(/[^a-z0-9.]+/).filter((word) => word.length > 2);
 
 /**
@@ -272,6 +304,19 @@ export function createAssistantTools(host) {
         ...(meta.sentinels?.length ? { sentinels: meta.sentinels.map(({ field, value, label, source }) => ({ field, value, label, source })) } : {}),
         ...(meta.layers?.length ? { layers: meta.layers.slice(0, 40).map((layer) => ({ ...layer, url: `${String(url).replace(/\/+$/, "")}/${layer.id}` })) } : {}),
       };
+    },
+    async describe_layer({ layer }) {
+      const found = findLayer(api, layer);
+      if (found.url && isArcgisLayerUrl(found.url)) return { id: found.id, ...(await describeArcgisLayer(found.url, { fetch: host.fetch })) };
+      let fields = [];
+      try { fields = api.layers.metadata(found.id)?.fields || []; } catch { /* No metadata. */ }
+      return { ...pick(found, ["id", "title", "url", "type", "featureCount", "where", "dataLastEditDate"]), fields: describeFields(fields), note: "Not an ArcGIS REST layer: only its fields are known." };
+    },
+    async summarize_field({ layer, field, where }) {
+      const found = findLayer(api, layer);
+      if (found.url && isArcgisLayerUrl(found.url)) return summarizeArcgisField(found.url, field, { where, fetch: host.fetch });
+      const suggestion = await api.layers.suggestStyles(found.id, { field });
+      return { field: suggestion.field, stats: suggestion.stats, note: "Computed from the features loaded in the map." };
     },
     search_datasets({ query }) {
       const wanted = words(query);
@@ -345,6 +390,42 @@ export function createAssistantTools(host) {
       for (const feature of features.slice(0, 5)) placed.push(await host.featurePlace(feature.layer, feature.objectId, feature.label));
       host.draftFieldTask({ ...draft, features: placed });
       return { drafted: draft.title, features: placed.map((feature) => feature.label), next: "The user checks the draft, then saves and shares it." };
+    },
+    app_help({ question }) {
+      const matches = searchGuide(question);
+      return matches.length ? { matches } : { matches: [], hint: "Nothing in the guide matches; say so rather than guessing a menu." };
+    },
+    get_display_settings() {
+      return Object.fromEntries(Object.keys(DISPLAY_SETTINGS).map((key) => [key, host.getDisplaySettings?.()[key]]));
+    },
+    change_display_setting({ setting, value }) {
+      const checked = validateDisplaySetting(setting, value);
+      if (checked instanceof Error) throw checked;
+      host.setDisplaySetting(checked.key, checked.value);
+      return { [checked.key]: checked.value, where: "Project → Layout & display…" };
+    },
+    set_mode({ mode }) {
+      if (!["briefing", "tours", "tasks", "map"].includes(mode)) throw Object.assign(new Error(`Unknown mode "${mode}".`), { hint: "Use briefing, tours, tasks or map." });
+      host.setMode(mode);
+      return { mode };
+    },
+    set_skin({ skin }) {
+      const choice = INTERFACE_SKINS.find(({ id, label }) => id === skin || label.toLowerCase() === String(skin).toLowerCase());
+      if (!choice) throw Object.assign(new Error(`Unknown skin "${skin}".`), { hint: `Use one of: ${INTERFACE_SKINS.map(({ id }) => id).join(", ")}.` });
+      host.setSkin(choice.id);
+      return { skin: choice.id, label: choice.label };
+    },
+    save_project({ name } = {}) {
+      return { saved: host.saveProject(name || null) };
+    },
+    open_share_menu() {
+      host.openShareMenu();
+      return { opened: "Share & export" };
+    },
+    async download({ format }) {
+      if (!["pdf", "smart-image", "gmo", "gmop"].includes(format)) throw Object.assign(new Error(`Unknown format "${format}".`), { hint: "Use pdf, smart-image, gmo or gmop." });
+      await host.download(format);
+      return { downloaded: format };
     },
     async get_share_link() {
       const { url, qr } = await api.mapSpec.createLink(api.mapSpec.fromCurrent());

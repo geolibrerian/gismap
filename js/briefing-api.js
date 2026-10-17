@@ -1,8 +1,8 @@
-import core, { normalizeBriefing, updateSlide, validateBriefingDocument } from "./gismap-core.js?v=0.35.0";
-import { createShareLink } from "./map-share.js?v=0.35.0";
+import core, { normalizeBriefing, updateSlide, validateBriefingDocument } from "./gismap-core.js?v=0.41.0";
+import { createShareLink } from "./map-share.js?v=0.41.0";
 import { GisMapError, layerLoadError, toGisMapError } from "./gismap-errors.js?v=0.28.0";
-import { featureLayerUrl } from "./field-task-share.js?v=0.29.0";
-import { brandedQrFile, printPalette } from "./pdf-document.js?v=0.30.0";
+import { featureLayerUrl } from "./field-task-share.js?v=0.41.0";
+import { brandedQrFile, printPalette } from "./pdf-document.js?v=0.44.2";
 
 const clone = (value) => structuredClone(value);
 const trimUrl = (value) => String(value || "").replace(/\/+$/, "").toLowerCase();
@@ -23,7 +23,7 @@ export function briefingLayerRef(mapController, layer) {
  * session UID or title. Without a `layerId`, the first feature layer.
  */
 export function findBriefingLayer(mapController, layerId) {
-  const layers = (mapController?.getOperationalLayers?.() || []).filter((layer) => typeof layer.queryFeatures === "function");
+  const layers = (mapController?.getLayers?.() || []).filter((layer) => layer.queryable);
   if (!layerId) return layers[0] || null;
   const wanted = String(layerId);
   return layers.find((layer) => layer.uid === wanted || layer.id === wanted)

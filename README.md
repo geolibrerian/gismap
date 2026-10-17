@@ -48,7 +48,7 @@ Then open `http://localhost:8080`.
 
 ## Map assistant (chat with your map)
 
-**Tools → Map assistant** is a chat with the AI model the user connects in **Tools → Configure AI** (local Ollama, OpenAI, Anthropic or any OpenAI-compatible endpoint). It builds interactive maps, briefings, guided tours and field-task drafts through 17 tools (`js/map-assistant.js`): `get_map_state`, `inspect_source`, `search_datasets`, `query_features`, `add_layer`, `update_layer`, `remove_layer`, `suggest_styles`, `set_view`, `set_basemap`, `load_map`, `create_briefing`, `generate_briefing`, `present_briefing`, `create_tour`, `draft_field_task` and `get_share_link`. The app writes the model's instructions (how to work from data, the formats, the live map state) and sends them as the system message with every turn; nothing is registered with the provider. Models with tool calling use it natively (Ollama `/api/chat`, Chat Completions, Anthropic Messages); others fall back to fenced JSON tool calls. Everything runs in the browser.
+**Tools → Map assistant** is a chat with the AI model the user connects in **Project → Configure AI** (local Ollama, OpenAI, Anthropic or any OpenAI-compatible endpoint). It builds interactive maps, briefings, guided tours and field-task drafts through 17 tools (`js/map-assistant.js`): `get_map_state`, `inspect_source`, `search_datasets`, `query_features`, `add_layer`, `update_layer`, `remove_layer`, `suggest_styles`, `set_view`, `set_basemap`, `load_map`, `create_briefing`, `generate_briefing`, `present_briefing`, `create_tour`, `draft_field_task` and `get_share_link`. The app writes the model's instructions (how to work from data, the formats, the live map state) and sends them as the system message with every turn; nothing is registered with the provider. Models with tool calling use it natively (Ollama `/api/chat`, Chat Completions, Anthropic Messages); others fall back to fenced JSON tool calls. Everything runs in the browser.
 
 ## Agent API
 
@@ -150,8 +150,15 @@ published builds and generated release notes.
 
 ## Modules
 
-- `js/map.js` — 3D scene/camera lifecycle, elevation ground, layer adapters, drawing, refresh, rendering, navigation
-- `js/identify.js` — popup-free hit testing and query fallback normalized across layer types
+- `js/map-controller.js` — the provider-neutral application facade: selects an engine and owns workflows that can be composed from common map primitives
+- `js/engines/engine-registry.js` — lazy engine registration and factory; ArcGIS is the default and additional renderers can register without changing application consumers
+- `js/engines/engine-interface.js` — the small renderer contract plus the larger application facade, capabilities, events and plain-data types (layer handles, features, view targets)
+- `js/engines/maplibre/maplibre-engine.js` — the MapLibre preview renderer (`?engine=maplibre` or Map → Map engine): OpenFreeMap basemaps and open raster-DEM 3D terrain; GeoJSON and ArcGIS feature layers held in the browser (filtered, queried and identified here, spatial relationships asked of the service); ArcGIS map image and imagery services and WMS as images; camera and capture. Beside it: `terrain.js`, `arcgis-service.js` (describing and paging ArcGIS services), `arcgis-renderer.js` (ArcGIS renderers as MapLibre paint), `where.js`, `geojson.js` and `basemaps.js`
+- `js/basemap-themes.js` — basemap themes derived from a skin's design tokens (the "skin" basemap); `js/engines/maplibre/basemap-theme.js` applies one to an OpenMapTiles style by layer role
+- `js/engine-preference.js` — which engine draws the map: the link's `?engine=`, then the saved Display settings choice, else ArcGIS
+- `js/engines/arcgis/arcgis-loader.js` — loads ArcGIS runtime CSS and JavaScript only when the ArcGIS renderer is selected
+- `js/engines/arcgis/arcgis-engine.js` — the ArcGIS renderer adapter: 3D scene/camera lifecycle, elevation ground, layer adapters, queries, identify, drawing, refresh, rendering, navigation, capture and geocoding
+- `js/identify.js` — popup-free identify results from the engine, de-duplicated across layer types
 - `js/ui.js` — sidebar, menus, tabbed workspace tools, layer controls, places, and insight rendering
 - `js/project.js` — local projects plus `.gmo` project and `.gmop` package import/export (legacy JSON/ZIP files remain supported)
 - `js/attribute-table.js` — searchable, paginated queryable layer table in a non-modal map drawer
@@ -175,7 +182,7 @@ published builds and generated release notes.
 - `js/share.js` — safe parsing and creation of shareable remote-layer URLs
 - `js/markdown.js` — sanitized Markdown rendering for intelligence responses
 - `js/enterprise-catalog.js` — live ArcGIS Enterprise service-directory browser
-- `js/auth.js` — ArcGIS Online/Enterprise OAuth, standalone Server token/web-tier registration, federation discovery, and connection diagnostics
+- `js/engines/arcgis/arcgis-auth.js` — ArcGIS Online/Enterprise OAuth, standalone Server token/web-tier registration, federation discovery, and connection diagnostics
 - `js/export/` — paginated vector retrieval and background-worker GeoJSON/KML/KMZ/Shapefile conversion
 
 ## Browser and service constraints

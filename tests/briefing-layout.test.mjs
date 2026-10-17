@@ -4,7 +4,7 @@ import test from "node:test";
 
 const html = readFileSync(new URL("../index.html", import.meta.url), "utf8");
 const ui = readFileSync(new URL("../js/ui.js", import.meta.url), "utf8");
-const map = readFileSync(new URL("../js/map.js", import.meta.url), "utf8");
+const map = readFileSync(new URL("../js/engines/arcgis/arcgis-engine.js", import.meta.url), "utf8");
 const slides = readFileSync(new URL("../js/briefing-slides.js", import.meta.url), "utf8");
 const pdf = readFileSync(new URL("../js/briefing-pdf.js", import.meta.url), "utf8");
 const css = readFileSync(new URL("../css/app.css", import.meta.url), "utf8");

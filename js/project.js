@@ -1,12 +1,27 @@
 import { applicationToLegacyPresentation, normalizeApplicationConfig } from "./application-config.js?v=0.18.2";
 import { normalizeDataCatalog } from "./data-catalog.js?v=0.18.2";
-import { normalizeSkin } from "./skin-catalog.js?v=0.18.2";
+import { normalizeSkin } from "./skin-catalog.js?v=0.44.2";
 import { normalizeMobileWorkflow } from "./mobile-feed-store.js?v=0.18.7";
 import { normalizeBriefing } from "./briefing-document.js?v=0.35.0";
-import { composeSmartImage, embedProjectInPng, readProjectFromPng } from "./smart-image.js?v=0.29.0";
+import { composeSmartImage, embedProjectInPng, readProjectFromPng } from "./smart-image.js?v=0.44.2";
 
 const STORAGE_KEY = "gismap-online:projects:v1";
 const CURRENT_KEY = "gismap-online:current-project:v1";
+const TOUR_DEFAULTS = Object.freeze({ transitionMode: "smooth", lingerSeconds: 4, heading: 0, tilt: 0 });
+
+function finite(value, fallback) {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : fallback;
+}
+
+function normalizeTourDefaults(value = {}) {
+  return {
+    transitionMode: value?.transitionMode === "instant" ? "instant" : "smooth",
+    lingerSeconds: Math.min(120, Math.max(1, finite(value?.lingerSeconds, TOUR_DEFAULTS.lingerSeconds))),
+    heading: Math.min(360, Math.max(-360, finite(value?.heading, TOUR_DEFAULTS.heading))),
+    tilt: Math.min(179, Math.max(0, finite(value?.tilt, TOUR_DEFAULTS.tilt))),
+  };
+}
 
 function makeId() {
   return globalThis.crypto?.randomUUID?.() ?? `project-${Date.now()}`;
@@ -45,7 +60,7 @@ export class ProjectManager {
       tools: [],
       ai: { provider: null, model: null },
       connections: [],
-      presentation: { schemaVersion: 1, template: "standard", skin: "gismap", title: "", primaryLayerId: null, fieldMappings: {}, widgets: {}, chapters: [] },
+      presentation: { schemaVersion: 1, template: "standard", skin: "gismap", title: "", primaryLayerId: null, fieldMappings: {}, widgets: {}, tourDefaults: normalizeTourDefaults(), chapters: [] },
       application: null,
       dataCatalog: normalizeDataCatalog(),
       mobile: normalizeMobileWorkflow(),
@@ -60,7 +75,7 @@ export class ProjectManager {
 
   async create(name = "Untitled project") {
     await this.mapController.clearOperationalLayers();
-    this.mapController.drawLayer?.removeAll();
+    this.mapController.clearDrawings();
     this.mapController.setBasemap(this.mapController.getDefaultBasemapId());
     this.mapController.setGround("world-elevation");
     await this.mapController.restoreView({ center: [-98.5, 39.5], zoom: 4, heading: 0, tilt: 35 });
@@ -168,14 +183,11 @@ export class ProjectManager {
   }
 
   async #restoreLayerPresentation(layer, config) {
-    layer.visible = config.visible !== false;
-    layer.opacity = Number.isFinite(config.opacity) ? config.opacity : 1;
+    this.mapController.setVisibility(layer.uid, config.visible !== false, { silent: true });
+    this.mapController.setOpacity(layer.uid, Number.isFinite(config.opacity) ? config.opacity : 1, { silent: true });
     // A service's own style loads with the layer; only styles set in GISMap are restored.
-    if (config.renderer && config.styled !== false) this.mapController.restoreRenderer(layer, config.renderer);
-    if (config.rendererSpec) {
-      const source = this.mapController.layerConfigs.get(layer.uid);
-      if (source) source.rendererSpec = config.rendererSpec;
-    }
+    if (config.renderer && config.styled !== false) this.mapController.restoreRenderer(layer.uid, config.renderer);
+    if (config.rendererSpec) this.mapController.recordRendererSpec(layer.uid, config.rendererSpec);
     if (config.definitionExpression != null) {
       this.mapController.setDefinitionExpression(layer.uid, config.definitionExpression);
     }
@@ -207,7 +219,7 @@ export class ProjectManager {
   /** With `download: false` the PNG is only returned (as `file`), for share dialogs. */
   async exportSmartImage({ width = 1600, height = 1000, download = true } = {}) {
     const project = this.snapshot();
-    const capture = await this.mapController.takeMapScreenshot({ format: "png", width, height });
+    const capture = await this.mapController.captureImage({ format: "png", width, height });
     if (!capture?.dataUrl) throw new Error("The map is not ready to create a Smart Image.");
     const visual = await composeSmartImage({
       dataUrl: capture.dataUrl,
@@ -247,8 +259,8 @@ export class ProjectManager {
     if (!globalThis.JSZip) throw new Error("The ZIP library did not load.");
     const project = this.snapshot();
     const zip = new JSZip();
-    for (const layer of this.mapController.getOperationalLayers()) {
-      const asset = this.mapController.localAssets.get(layer.uid);
+    for (const layer of this.mapController.getLayers()) {
+      const asset = this.mapController.getLocalAsset(layer.uid);
       const config = this.mapController.getLayerConfig(layer);
       if (asset && config.projectPath) zip.file(config.projectPath, asset);
     }
@@ -393,6 +405,9 @@ export class ProjectManager {
         sourceIds: Array.isArray(value.contextSettings.sourceIds) ? value.contextSettings.sourceIds.map(String) : [],
       } : undefined,
       playbackMode: value.playbackMode === "manual" ? "manual" : "auto",
+      // These are authoring defaults for new chapters. A chapter keeps its own
+      // settings once edited, so changing a default never rewrites a tour.
+      tourDefaults: normalizeTourDefaults(value.tourDefaults),
       chapters: Array.isArray(value.chapters) ? value.chapters.map((chapter) => ({
         ...chapter,
         basemapId: typeof chapter?.basemapId === "string" ? chapter.basemapId : null,

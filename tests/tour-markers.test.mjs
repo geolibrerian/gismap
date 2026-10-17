@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { MapController } from "../js/map.js";
+import { ArcGISEngine as MapController } from "../js/engines/arcgis/arcgis-engine.js";
 
 class TestGraphic {
   constructor(properties) { Object.assign(this, properties); }
@@ -42,5 +42,5 @@ test("tour marker graphics remain outside operational layer state", () => {
   controller.tourLayer = { uid: "tour" };
   controller.clickFeedbackLayer = { uid: "click" };
   controller.map = { layers: { toArray: () => [controller.drawLayer, operational, controller.tourLayer, controller.clickFeedbackLayer] } };
-  assert.deepEqual(controller.getOperationalLayers(), [operational]);
+  assert.deepEqual(controller.getLayers().map((layer) => layer.uid), ["data"]);
 });

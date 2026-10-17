@@ -1,3 +1,5 @@
+import { loadArcGISRuntime } from "./arcgis-loader.js?v=0.38.0";
+
 const STORAGE_KEY = "gismap-online:arcgis-connections:v1";
 
 function makeId() {
@@ -79,16 +81,26 @@ export class AuthController {
     this.discoveredServers = new Map();
   }
 
-  async initialize() {
+  /**
+   * Reads the saved connections. With `runtime: false` (another map engine is
+   * drawing) the ArcGIS identity runtime loads only when a connection is used.
+   */
+  async initialize({ runtime = true } = {}) {
+    this.connections = this.#readStore();
+    if (runtime) await this.#runtime();
+    this.events.publish("auth:ready", { connections: this.list() });
+  }
+
+  async #runtime() {
+    if (this.identityManager) return;
+    await loadArcGISRuntime();
     const [identityManager, OAuthInfo, ServerInfo] = await $arcgis.import([
       "@arcgis/core/identity/IdentityManager.js",
       "@arcgis/core/identity/OAuthInfo.js",
       "@arcgis/core/identity/ServerInfo.js",
     ]);
     Object.assign(this, { identityManager, OAuthInfo, ServerInfo });
-    this.connections = this.#readStore();
     this.connections.forEach((connection) => this.#register(connection));
-    this.events.publish("auth:ready", { connections: this.list() });
   }
 
   list() {
@@ -151,6 +163,7 @@ export class AuthController {
       this.events.publish("auth:status-changed", { connection: structuredClone(connection), status, report });
       return status;
     }
+    await this.#runtime();
     const resource = this.#resourceUrl(connection);
     const options = connection.type === "portal" ? { oAuthPopupConfirmation: false } : undefined;
     const credential = await this.identityManager.getCredential(resource, options);
@@ -227,6 +240,7 @@ export class AuthController {
     } catch {
       return null;
     }
+    await this.#runtime();
     const info = new this.ServerInfo({
       server: report.url,
       tokenServiceUrl: report.tokenServiceUrl || undefined,
@@ -248,6 +262,7 @@ export class AuthController {
         return { signedIn: false, userId: null, expires: null };
       }
     }
+    if (!this.identityManager) return { signedIn: false, userId: null, expires: null };
     try {
       const credential = await this.identityManager.checkSignInStatus(this.#resourceUrl(connection));
       return publicCredentialSummary(credential);
@@ -271,12 +286,12 @@ export class AuthController {
     this.#writeStore();
     // IdentityManager does not expose per-registration removal. Revoking active
     // credentials prevents a removed connection from remaining usable this tab.
-    this.identityManager.destroyCredentials();
+    this.identityManager?.destroyCredentials();
     this.events.publish("auth:connections-changed", { connections: this.list(), removed: structuredClone(connection) });
   }
 
   signOutAll() {
-    this.identityManager.destroyCredentials();
+    this.identityManager?.destroyCredentials();
     this.events.publish("auth:status-changed", { connection: null, status: { signedIn: false } });
   }
 
@@ -307,6 +322,7 @@ export class AuthController {
   }
 
   #register(connection) {
+    if (!this.identityManager) return;
     if (connection.type === "portal") {
       if (this.oauthInfos.has(connection.id)) return;
       const info = new this.OAuthInfo({

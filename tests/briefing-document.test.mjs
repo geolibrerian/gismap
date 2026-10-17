@@ -99,7 +99,7 @@ test("the player has a 16:9 desktop stage and swipeable phone cards that never p
   assert.match(css, /body\.briefing-exploring \.briefing-cards__deck/, "exploring hands gestures to the map");
   assert.match(player, /params\.set\("slide", slideId\)/, "slides are deep-linked by ID");
   assert.match(player, /requestFullscreen/);
-  assert.match(player, /view\.padding = /, "the camera centres in the visible part of the map");
+  assert.match(player, /setViewPadding\(/, "the camera centres in the visible part of the map");
   assert.match(player, /Reset slide/);
   assert.match(player, /Tap the map to explore/, "mobile briefing cards use direct map-first guidance");
 });

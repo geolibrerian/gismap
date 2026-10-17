@@ -1,4 +1,4 @@
-import { fromProviderResponse, toProviderRequest } from "./map-assistant.js?v=0.36.3";
+import { fromProviderResponse, toProviderRequest } from "./map-assistant.js?v=0.52.0";
 
 const CONFIG_KEY = "gismap-online:ai-config:v2";
 const LEGACY_CONFIG_KEY = "gismap-online:ai-config:v1";
@@ -210,7 +210,7 @@ export class AIController {
         if (!response.ok) {
           if (response.status === 404) {
             throw new Error(
-              `Ollama could not find “${this.config.model}”. Open Tools → Configure AI, use the exact installed model tag, and test again.`,
+              `Ollama could not find “${this.config.model}”. Open Project → Configure AI, use the exact installed model tag, and test again.`,
             );
           }
           throw new Error(`Ollama returned ${response.status}.`);
@@ -320,7 +320,7 @@ export class AIController {
       if (error instanceof TypeError || /failed to fetch|network/i.test(error?.message || "")) {
         throw new Error(
           `Ollama at ${endpoint} could not be reached from ${origin}. ` +
-          `It may be offline or blocking this origin; open Tools → Configure AI for setup instructions.`,
+          `It may be offline or blocking this origin; open Project → Configure AI for setup instructions.`,
         );
       }
       throw error;
@@ -330,7 +330,7 @@ export class AIController {
   }
 
   #compactContext(context) {
-    const layers = this.mapController.getOperationalLayers().map((layer) => {
+    const layers = this.mapController.getLayers().map((layer) => {
       const { title, type, url } = this.mapController.getLayerConfig(layer);
       const metadata = this.mapController.layerMetadata?.(layer);
       const sentinels = (metadata?.sentinels || []).filter((item) => item.source !== "heuristic").map(({ field, value, label }) => ({ field, value, label }));

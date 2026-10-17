@@ -21,10 +21,10 @@ test("cut survives a briefing link and QR, and the player jumps instead of flyin
   assert.equal(opened.briefing.transition, "cut");
   const slides = await text("js/briefing-slides.js");
   assert.match(slides, /const animate = this\.briefing\.transition !== "cut";/);
-  assert.match(slides, /goTo\(\{ center: slide\.camera\.center[^)]*\}, \{ animate \}\)/);
+  assert.match(slides, /setView\(\{ center: slide\.camera\.center[^)]*\}, \{ animate \}\)/);
   assert.match(slides, /goToFeature\(record, \{ animate \}\)/);
   assert.match(slides, /data-slides-transition/);
-  assert.match(await text("js/map.js"), /async goToFeature\(feature, \{ animate = true \} = \{\}\)/);
+  assert.match(await text("js/engines/arcgis/arcgis-engine.js"), /async goToFeature\(feature, \{ animate = true \} = \{\}\)/);
   const schema = JSON.parse(await text("schemas/briefing-v1.schema.json"));
   assert.deepEqual(schema.properties.transition.enum, ["pan", "cut"]);
 });
@@ -49,7 +49,7 @@ test("the filter dialog builds several conditions; Map Insight pins the tabs, no
 });
 
 test("filter values: coded domains by name, distinct service values sorted, a sample when distinct fails", async () => {
-  const { MapController } = await import("../js/map.js");
+  const { ArcGISEngine: MapController } = await import("../js/engines/arcgis/arcgis-engine.js");
   const map = new MapController({ publish() {} });
   const queries = [];
   const layer = (fields, queryFeatures) => ({ fields, createQuery: () => ({}), queryFeatures: async (query) => { queries.push(query); return queryFeatures(query); } });
