@@ -1,0 +1,42 @@
+<!doctype html><meta charset="utf-8">
+<script>
+// Minimal Node Buffer for tests: base64/utf8 in, byte search on Uint8Array.
+class Buffer extends Uint8Array {
+  static from(value, encoding) {
+    if (typeof value === "string") {
+      const bytes = encoding === "base64" ? Uint8Array.from(atob(value), (char) => char.charCodeAt(0)) : new TextEncoder().encode(value);
+      return new Buffer(bytes);
+    }
+    return new Buffer(value instanceof ArrayBuffer ? new Uint8Array(value) : value);
+  }
+  indexOf(needle, from = 0) {
+    if (typeof needle === "number") return super.indexOf(needle, from);
+    const target = typeof needle === "string" ? new TextEncoder().encode(needle) : needle;
+    outer: for (let index = from; index <= this.length - target.length; index += 1) {
+      for (let offset = 0; offset < target.length; offset += 1) if (this[index + offset] !== target[offset]) continue outer;
+      return index;
+    }
+    return -1;
+  }
+  includes(needle, from = 0) { return this.indexOf(needle, from) >= 0; }
+  toString(encoding) {
+    if (encoding === "base64" || encoding === "base64url") {
+      let binary = "";
+      this.forEach((byte) => { binary += String.fromCharCode(byte); });
+      const b64 = btoa(binary);
+      return encoding === "base64url" ? b64.replaceAll("+", "-").replaceAll("/", "_").replaceAll("=", "") : b64;
+    }
+    return new TextDecoder().decode(this);
+  }
+}
+globalThis.Buffer = Buffer;
+</script>
+<script type="importmap">{"imports":{"node:test":"./node-test.js","node:assert/strict":"./node-assert.js","node:assert":"./node-assert.js","node:fs/promises":"./node-fs.js","node:fs":"./node-fs-sync.js"}}</script>
+<script type="module">
+const files = new URLSearchParams(location.search).getAll("t");
+// Refresh every app module in the HTTP cache so tests never run stale code.
+const listing = await fetch("/js/", { cache: "reload" }).then((response) => response.text());
+await Promise.all([...listing.matchAll(/href="([\w.-]+\.js)"/g)].map(([, name]) => fetch(`/js/${name}`, { cache: "reload" })));
+for (const file of files) { try { await import(`/tests/${file}?run=${Date.now()}`); } catch (error) { (globalThis.__loadErrors ||= []).push({ name: `${file} (load)`, ok: false, error: String(error?.message || error) }); } }
+setTimeout(() => { (globalThis.__testResults ||= []).push(...(globalThis.__loadErrors || [])); globalThis.__testsDone = true; }, 4000);
+</script>

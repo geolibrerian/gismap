@@ -1,0 +1,9 @@
+{
+  "schemaVersion": 1,
+  "layerId": "https://services9.arcgis.com/RHVPKKiFTONKtxq3/ArcGIS/rest/services/USA_Wildfires_v1/FeatureServer/0",
+  "selection": { "ids": [], "useAll": false },
+  "slides": [
+    { "id": "s-open", "template": "title", "title": "Written by hand", "subtitle": "From a JSON file", "camera": { "center": [-110, 40], "zoom": 4, "heading": 0, "tilt": 0 }, "blocks": [], "hidden": false },
+    { "id": "s-count", "template": "key-numbers", "title": "Fires on the map", "blocks": [{ "id": "b-1", "type": "stat", "stat": "count", "label": "Incidents" }], "hidden": false }
+  ]
+}

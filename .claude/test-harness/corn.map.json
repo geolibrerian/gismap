@@ -1,0 +1,19 @@
+{
+  "$schema": "https://gismap.online/schemas/map-v1.schema.json",
+  "version": 1,
+  "title": "U.S. corn sales by county",
+  "basemap": "gray-vector",
+  "camera": { "fit": "layers" },
+  "legend": true,
+  "layers": [
+    {
+      "url": "https://services.arcgis.com/P3ePLMYs2RVChkJx/ArcGIS/rest/services/Corn/FeatureServer/0",
+      "type": "feature",
+      "title": "Corn sales (USD)",
+      "where": "CORN_SALES_IN_DOLLARS >= 0",
+      "renderer": { "type": "choropleth", "field": "CORN_SALES_IN_DOLLARS", "classes": 5, "method": "natural-breaks", "ramp": "greens", "exclude": [-1] },
+      "popup": { "fields": ["county_name", "state_name", "CORN_SALES_IN_DOLLARS"] },
+      "ignoreServiceScaleRange": true
+    }
+  ]
+}
