@@ -1125,9 +1125,9 @@ export class MaplibreEngine {
   #drawingSpecs() {
     const color = this.basemapTheme?.accent || "#d9951e";
     return [
-      { id: DRAW_LAYER_IDS[0], type: "fill", source: DRAW_SOURCE, filter: ["==", ["geometry-type"], "Polygon"], paint: { "fill-color": color, "fill-opacity": 0.18 } },
-      { id: DRAW_LAYER_IDS[1], type: "line", source: DRAW_SOURCE, paint: { "line-color": color, "line-width": 3, "line-dasharray": [2, 1] } },
-      { id: DRAW_LAYER_IDS[2], type: "circle", source: DRAW_SOURCE, filter: ["==", ["geometry-type"], "Point"], paint: { "circle-color": color, "circle-radius": 6, "circle-stroke-color": "#ffffff", "circle-stroke-width": 1.5 } },
+      { id: DRAW_LAYER_IDS[0], type: "fill", source: DRAW_SOURCE, filter: ["==", ["geometry-type"], "Polygon"], paint: { "fill-color": color, "fill-opacity": 0.18, "fill-z-offset": 4 } },
+      { id: DRAW_LAYER_IDS[1], type: "line", source: DRAW_SOURCE, paint: { "line-color": color, "line-width": 3, "line-dasharray": [2, 1], "line-z-offset": 4 } },
+      { id: DRAW_LAYER_IDS[2], type: "circle", source: DRAW_SOURCE, filter: ["==", ["geometry-type"], "Point"], paint: { "circle-color": color, "circle-radius": 6, "circle-stroke-color": "#ffffff", "circle-stroke-width": 1.5, "circle-z-offset": 4 } },
     ];
   }
 
