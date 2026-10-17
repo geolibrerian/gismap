@@ -493,12 +493,18 @@ export class UIController {
 
   #bindMapEvents() {
     const mapWorkspace = document.querySelector(".map-workspace");
+    mapWorkspace.addEventListener("pointerdown", (event) => {
+      // The welcome panel floats over the map; the first touch/click on the
+      // actual map should get it out of the way before map navigation begins.
+      if (event.target?.closest?.(".esri-view-surface, .maplibregl-canvas, canvas")) this.#dismissWelcome();
+    }, { passive: true });
     ["gesturestart", "gesturechange", "gestureend"].forEach((type) => {
       mapWorkspace.addEventListener(type, (event) => event.preventDefault(), { passive: false });
     });
     this.events.subscribe("map:ready", ({ zoom }) => {
       document.querySelector("#map-status").textContent = `Ready · zoom ${zoom.toFixed(1)}`;
     });
+    this.events.subscribe("map:click", () => this.#dismissWelcome());
     this.events.subscribe("view:scale-change", () => this.#updateLayerScaleIndicators());
     this.events.subscribe("view:stationary", () => {
       if (["explorer", "briefing"].includes(this.presentationState.template) && this.presentationState.scope === "extent") {
