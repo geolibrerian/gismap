@@ -522,10 +522,16 @@ body.mobile-workflow-open .field-task-banner { left:auto; right:calc(min(440px,1
 .skin-customize label { display:flex; align-items:center; gap:8px; }
 .skin-customize input[type="color"] { width:42px; height:36px; padding:2px; cursor:pointer; }
 .skin-customize > button { justify-self:start; }
-.maplibre-measurement { position:absolute; z-index:5; top:12px; right:12px; width:min(280px, calc(100% - 24px)); padding:14px; border:1px solid var(--line); border-radius:var(--ui-radius-small); background:var(--surface); color:var(--ink); box-shadow:var(--shadow); }
-.maplibre-measurement > div { display:flex; align-items:center; justify-content:space-between; gap:12px; }
+.maplibre-measurement { padding:16px; color:var(--ink); }
 .maplibre-measurement p { margin:8px 0; font-size:13px; }
 .maplibre-measurement output { display:block; margin:8px 0; font-weight:700; }
+.maplibre-legend__layer { display:grid; gap:6px; padding:12px 0; border-bottom:1px solid var(--line); }
+.maplibre-legend__layer:first-child { padding-top:0; }
+.maplibre-legend__entry { display:flex; align-items:center; gap:10px; min-height:22px; font-size:13px; }
+.maplibre-legend__swatch { flex:none; display:inline-block; width:20px; height:16px; border:1px solid; }
+.maplibre-legend__swatch--point { width:14px; height:14px; border-radius:50%; }
+.maplibre-legend__swatch--line { height:3px; border:0; }
+.maplibre-legend__field, .maplibre-legend__note { margin:0; font-size:12px; color:var(--muted); }
 .presentation-cards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
 .presentation-card { display: grid; gap: 7px; padding: 10px; border: 1px solid var(--line); border-radius: 8px; color: var(--ink); background: var(--surface); text-align: left; cursor: pointer; }
 .presentation-card:hover, .presentation-card.is-selected { border-color: var(--green-2); box-shadow: 0 0 0 2px color-mix(in srgb, var(--green-2) 22%, transparent); }
@@ -2070,6 +2076,8 @@ body.sidebar-collapsed .table-dialog { left: 14px; }
     border-radius: 14px;
     box-shadow: 0 -12px 34px rgb(17 39 33 / 24%);
   }
+  body.mobile-measurement-panel-open .utility-panel { height:min(32dvh, 300px); }
+  body.mobile-measurement-panel-open .map-nav { max-height:max(44px, calc(100dvh - min(32dvh, 300px) - 150px - env(safe-area-inset-bottom))); overflow-y:auto; }
   body.mobile-presentation-panel-open :is(.atlas-chapter-description,.mobile-presentation-controls) { display:none!important; }
   body.mobile-presentation-panel-open .utility-panel {
     inset:auto 0 0;

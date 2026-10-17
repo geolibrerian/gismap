@@ -38,6 +38,7 @@ export const ENGINE_CAPABILITIES = Object.freeze([
   "draw", // draw(type), sketching graphics
   "widgets", // toggleWidget(name): legend, measurement, elevation profile, …
   "measurement", // interactive distance measurement
+  "legend", // operational layer legend
   "tour-markers", // setTourMarkers
   "native", // native(): the SDK's own map and view, an escape hatch for custom tools
 ]);

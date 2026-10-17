@@ -636,7 +636,7 @@ export class UIController {
     this.events.subscribe("app:error", ({ message }) => this.error(message));
     this.events.subscribe("widget:toggled", ({ name, open }) => {
       document.querySelectorAll(`[data-widget="${name}"]`).forEach((button) => button.classList.toggle("is-active", open));
-      if (!["basemapGallery", "elevationProfile", "legend"].includes(name)) return;
+      if (!["basemapGallery", "elevationProfile", "legend"].includes(name) && !(name === "measurement" && this.mapController.getEngineId() === "maplibre")) return;
       this.#syncUtilityPanel(open ? name : null);
     });
   }
@@ -646,6 +646,7 @@ export class UIController {
       basemapGallery: "Basemap gallery",
       elevationProfile: "Elevation profile",
       legend: "Legend",
+      ...(this.mapController.getEngineId() === "maplibre" ? { measurement: "Measurement" } : {}),
     };
     return Object.entries(labels)
       .filter(([name]) => this.mapController.widgetOpen(name))
@@ -762,6 +763,7 @@ export class UIController {
     const utilityModalButton = document.querySelector("#utility-open-modal");
     if (utilityModalButton) utilityModalButton.hidden = ["presentation", "tasks"].includes(this.activeUtilityTab);
     document.body.classList.toggle("utility-panel-open", open);
+    document.body.classList.toggle("mobile-measurement-panel-open", this.mobileMedia.matches && open && this.activeUtilityTab === "measurement");
     document.body.classList.toggle("mobile-presentation-panel-open", this.mobileMedia.matches && open && this.activeUtilityTab === "presentation");
     document.querySelector("#utility-panel").setAttribute("aria-hidden", String(!open));
     requestAnimationFrame(() => this.mapController.resize());
@@ -944,7 +946,7 @@ export class UIController {
       this.#syncUtilityPanel();
       return;
     }
-    if (["basemapGallery", "elevationProfile", "legend"].includes(tabId)) {
+    if (["basemapGallery", "elevationProfile", "legend", "measurement"].includes(tabId)) {
       void this.mapController.toggleWidget(tabId);
     }
   }

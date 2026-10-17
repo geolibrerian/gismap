@@ -13,7 +13,7 @@
 // one lower for the same scale (512-pixel tiles). Everything that crosses the
 // boundary uses GIS Map levels, so links and projects mean the same view.
 import { GisMapError } from "../../gismap-errors.js?v=0.28.0";
-import { unsupported } from "../engine-interface.js?v=0.52.0";
+import { unsupported } from "../engine-interface.js?v=0.52.4";
 import { openBasemapFor } from "./basemaps.js?v=0.41.0";
 import { basemapOnEngine, basemapsForEngine } from "../../basemap-catalog.js?v=0.41.0";
 import { applyBasemapTheme, withBuildings3d } from "./basemap-theme.js?v=0.52.0";
@@ -22,12 +22,13 @@ import { arcgisMetadata } from "../../source-inspector.js?v=0.41.0";
 import { OpenGeocoder } from "./geocoder.js?v=0.47.0";
 import { chooseStyleField, compileRenderer, resolveRendererSpec, suggestRenderers, validateRendererSpec } from "../../renderer-spec.js?v=0.29.0";
 import { rendererToPaint } from "./arcgis-renderer.js?v=0.42.0";
+import { legendForLayer } from "./legend.js?v=0.52.4";
 import { MAX_FEATURES, describeArcGIS, featureServiceLayers, fetchFeatures, fetchGeometries, queryServiceIds } from "./arcgis-service.js?v=0.47.0";
 import { OBJECT_ID_FIELD, boundsIntersect, boundsOf, expandBounds, geometryTypeOf, inferFields, normalizeFeatures, regroupPolygon, representativePoint } from "./geojson.js?v=0.42.0";
 import { loadMaplibre } from "./maplibre-loader.js?v=0.39.0";
 import { HILLSHADE_LAYER_ID, HILLSHADE_SOURCE_ID, MAPLIBRE_GROUNDS, TERRAIN_SOURCE_ID, hillshadeLayer, maplibreGround, terrainSource } from "./terrain.js?v=0.43.0";
 
-export const MAPLIBRE_CAPABILITIES = Object.freeze(["view-2d", "view-3d", "basemaps", "basemap-themes", "ground", "layers-arcgis", "layers-files", "query", "feature-filter", "renderer-spec", "renderer-native", "identify", "highlight", "capture", "geocode", "buildings-3d", "draw", "measurement", "native"]);
+export const MAPLIBRE_CAPABILITIES = Object.freeze(["view-2d", "view-3d", "basemaps", "basemap-themes", "ground", "layers-arcgis", "layers-files", "query", "feature-filter", "renderer-spec", "renderer-native", "identify", "highlight", "capture", "geocode", "buildings-3d", "draw", "measurement", "legend", "native"]);
 
 const ZOOM_OFFSET = 1;
 const SCALE_AT_ZOOM_0 = 591657527.591555;
@@ -37,6 +38,23 @@ const MAX_PITCH = 85;
 const HIGHLIGHT_SOURCE = "gismap-highlight";
 const DRAW_SOURCE = "gismap-drawings";
 const MEASURE_SOURCE = "gismap-measurement";
+// Spherical surface area, with longitude differences wrapped at the date line.
+// This measures a geographic footprint, not the area of the terrain surface.
+export function measurementArea(coordinates) {
+  if (coordinates.length < 3) return 0;
+  const radians = Math.PI / 180;
+  let sum = 0;
+  for (let i = 0; i < coordinates.length; i++) {
+    const [lon1, lat1] = coordinates[i];
+    const [lon2, lat2] = coordinates[(i + 1) % coordinates.length];
+    let delta = (lon2 - lon1) * radians;
+    delta = ((delta + Math.PI) % (2 * Math.PI) + 2 * Math.PI) % (2 * Math.PI) - Math.PI;
+    sum += delta * (Math.sin(lat1 * radians) + Math.sin(lat2 * radians));
+  }
+  const sphere = 4 * Math.PI * 6371008.8 ** 2;
+  const area = Math.abs(sum) * 6371008.8 ** 2 / 2;
+  return Math.min(area, sphere - area);
+}
 const DRAW_LAYER_IDS = ["gismap-drawings-fill", "gismap-drawings-line", "gismap-drawings-point"];
 const toEngineZoom = (zoom) => Number(zoom) - ZOOM_OFFSET;
 const toGisZoom = (zoom) => Number(zoom) + ZOOM_OFFSET;
@@ -128,6 +146,7 @@ export class MaplibreEngine {
     this.drawing = null;
     this.drawPreviousCursor = null;
     this.measurement = null;
+    this.legendHost = null;
     this.groundId = "world-elevation";
   }
 
@@ -183,7 +202,7 @@ export class MaplibreEngine {
       this.#finishDrawing({ type: "Polygon", coordinates: [[[west, south], [east, south], [east, north], [west, north], [west, south]]] });
     });
     this.map.on("mousemove", (event) => this.events.publish("view:pointer-move", { longitude: event.lngLat.lng, latitude: event.lngLat.lat, zoom: this.#gisZoom() }));
-    this.map.on("zoomend", () => this.events.publish("view:scale-change", { scale: this.getScale() }));
+    this.map.on("zoomend", () => { this.#renderLegend(); this.events.publish("view:scale-change", { scale: this.getScale() }); });
     this.map.on("moveend", () => {
       this.events.publish("view:stationary", {});
       this.#sharpen();
@@ -206,6 +225,7 @@ export class MaplibreEngine {
 
   destroy() {
     if (this.measurement) this.toggleWidget("measurement");
+    if (this.legendHost) this.toggleWidget("legend");
     this.map?.remove();
     this.map = null;
     this.#records.clear();
@@ -487,6 +507,7 @@ export class MaplibreEngine {
       for (const [name, value] of Object.entries(spec.layout)) this.map.setLayoutProperty(spec.id, name, value);
       for (const [name, value] of Object.entries(spec.paint)) this.map.setPaintProperty(spec.id, name, value);
     }
+    this.#renderLegend();
   }
 
   /** A new layer record, drawn and announced. */
@@ -532,6 +553,7 @@ export class MaplibreEngine {
     this.map.addSource(this.#sourceId(record), this.#sourceSpec(record));
     for (const spec of this.#layerSpecs(record)) this.map.addLayer(spec);
     record.handle = layerHandle(record);
+    this.#renderLegend();
     this.events.publish("layer:added", { layer: record.handle, config: this.getLayerConfig(record) });
     if (record.truncated) this.events.publish("app:error", { message: `${record.title}: showing the first ${record.features.length.toLocaleString()} features. Add a filter to see the rest.` });
     return record.handle;
@@ -754,6 +776,7 @@ export class MaplibreEngine {
     for (const id of this.#layerIds(record)) if (this.map?.getLayer(id)) this.map.removeLayer(id);
     if (this.map?.getSource(this.#sourceId(record))) this.map.removeSource(this.#sourceId(record));
     this.#records.delete(record.uid);
+    this.#renderLegend();
     this.events.publish("layer:removed", { uid: record.uid });
   }
 
@@ -763,6 +786,7 @@ export class MaplibreEngine {
       if (this.map?.getSource(this.#sourceId(record))) this.map.removeSource(this.#sourceId(record));
     }
     this.#records.clear();
+    this.#renderLegend();
     this.events.publish("layers:reset");
   }
 
@@ -864,6 +888,7 @@ export class MaplibreEngine {
   setTitle(uid, title) {
     const record = this.#record(uid);
     if (record) record.title = String(title);
+    this.#renderLegend();
   }
 
   setOutFields() {
@@ -1212,19 +1237,96 @@ export class MaplibreEngine {
       .map((feature) => ({ geometry: feature.geometry, attributes: { ...feature.properties, geometry_type: feature.geometry.type } }));
   }
 
-  widgetOpen(name) { return name === "measurement" && Boolean(this.measurement); }
+  widgetOpen(name) { return name === "measurement" ? Boolean(this.measurement) : name === "legend" && Boolean(this.legendHost); }
+
+  #renderLegend() {
+    const host = this.legendHost;
+    if (!host) return;
+    host.replaceChildren();
+    const records = [...this.#records.values()].filter((record) => record.visible).reverse();
+    if (!records.length) {
+      const empty = document.createElement("p");
+      empty.className = "maplibre-legend__note";
+      empty.textContent = "No visible layers. Add or show a layer to see its legend.";
+      host.append(empty);
+      return;
+    }
+    for (const record of records) {
+      const section = document.createElement("section");
+      section.className = "maplibre-legend__layer";
+      const heading = document.createElement("strong");
+      heading.textContent = record.title || "Untitled layer";
+      section.append(heading);
+      if (!this.scaleState(record.uid).visibleAtCurrentScale) {
+        const note = document.createElement("p");
+        note.className = "maplibre-legend__note";
+        note.textContent = "Not visible at this scale.";
+        section.append(note);
+      }
+      const legend = legendForLayer(record, this.#dataColor());
+      if (legend.field) {
+        const field = document.createElement("p");
+        field.className = "maplibre-legend__field";
+        field.textContent = legend.field;
+        section.append(field);
+      }
+      if (legend.note) {
+        const note = document.createElement("p");
+        note.className = "maplibre-legend__note";
+        note.textContent = legend.note;
+        section.append(note);
+      }
+      for (const entry of legend.entries) {
+        const row = document.createElement("div");
+        row.className = "maplibre-legend__entry";
+        const swatch = document.createElement("span");
+        swatch.className = `maplibre-legend__swatch maplibre-legend__swatch--${entry.geometry}`;
+        swatch.setAttribute("aria-hidden", "true");
+        const color = entry.geometry === "point" ? entry.paint.circle : entry.geometry === "line" ? entry.paint.line : entry.paint.fill;
+        swatch.style.backgroundColor = color || "transparent";
+        swatch.style.borderColor = entry.paint.stroke || entry.paint.outline || color || "transparent";
+        const unstyledFill = entry.geometry === "polygon" && !this.#paintFor(record);
+        swatch.style.opacity = String(record.opacity * (record.renderer ? 1 : 1 - (record.transparency || 0) / 100) * (unstyledFill ? 0.35 : 1));
+        if (entry.geometry === "point" && entry.paint.radius) {
+          const size = Math.min(24, Math.max(6, entry.paint.radius * 2));
+          swatch.style.width = `${size}px`;
+          swatch.style.height = `${size}px`;
+        }
+        const label = document.createElement("span");
+        label.textContent = entry.label;
+        row.append(swatch, label);
+        section.append(row);
+      }
+      host.append(section);
+    }
+  }
 
   toggleWidget(name) {
+    if (name === "legend") {
+      if (this.legendHost) {
+        this.legendHost.replaceChildren();
+        this.legendHost = null;
+        this.events.publish("widget:toggled", { name, open: false });
+        return false;
+      }
+      this.legendHost = document.querySelector("#utility-legend-content");
+      if (!this.legendHost) throw new Error("The legend panel is unavailable.");
+      this.#renderLegend();
+      this.events.publish("widget:toggled", { name, open: true });
+      return true;
+    }
     if (name !== "measurement") throw new Error(`MapLibre does not support ${name}.`);
     if (this.measurement) {
       this.measurement.panel.remove();
       this.measurement = null;
-      for (const id of ["gismap-measure-line", "gismap-measure-points"]) if (this.map?.getLayer(id)) this.map.removeLayer(id);
+      for (const id of ["gismap-measure-fill", "gismap-measure-line", "gismap-measure-points"]) if (this.map?.getLayer(id)) this.map.removeLayer(id);
       if (this.map?.getSource(MEASURE_SOURCE)) this.map.removeSource(MEASURE_SOURCE);
       this.#restoreDrawCursor();
       this.events.publish("widget:toggled", { name, open: false });
       return false;
     }
+    const host = document.querySelector("#utility-measurement-content");
+    if (!host) throw new Error("The measurement panel is unavailable.");
     if (this.drawing) {
       this.drawing = null;
       this.map?.dragPan.enable();
@@ -1235,11 +1337,16 @@ export class MaplibreEngine {
     canvas.style.cursor = "crosshair";
     const panel = document.createElement("section");
     panel.className = "maplibre-measurement";
-    panel.setAttribute("aria-label", "Distance measurement");
-    panel.innerHTML = '<div><strong>Measure distance</strong><button type="button" data-measure-close aria-label="Close measurement">×</button></div><p>Click or tap the map to add points. Distances follow the globe, not terrain elevation.</p><output aria-live="polite">0 m · 0 ft</output><button type="button" data-measure-clear>Clear</button>';
-    this.map.getContainer().append(panel);
-    this.measurement = { coordinates: [], panel };
-    panel.querySelector("[data-measure-close]").addEventListener("click", () => this.toggleWidget("measurement"));
+    panel.setAttribute("aria-label", "Map measurement");
+    panel.innerHTML = '<label class="field"><span>Measure</span><select data-measure-mode><option value="distance">Distance</option><option value="area">Area</option></select></label><p data-measure-instructions>Click or tap the map to add points. Distance follows the globe, not terrain elevation.</p><output aria-live="polite">0 m · 0 ft</output><button type="button" data-measure-clear>Clear</button>';
+    host.replaceChildren(panel);
+    this.measurement = { coordinates: [], panel, mode: "distance" };
+    panel.querySelector("[data-measure-mode]").addEventListener("change", (event) => {
+      this.measurement.mode = event.target.value === "area" ? "area" : "distance";
+      this.measurement.coordinates = [];
+      panel.querySelector("[data-measure-instructions]").textContent = this.measurement.mode === "area" ? "Click or tap at least three points around the area. The shape closes automatically; area is a geographic footprint, not terrain surface area." : "Click or tap the map to add points. Distance follows the globe, not terrain elevation.";
+      this.#updateMeasurement();
+    });
     panel.querySelector("[data-measure-clear]").addEventListener("click", () => { this.measurement.coordinates = []; this.#updateMeasurement(); });
     this.#updateMeasurement();
     this.events.publish("widget:toggled", { name, open: true });
@@ -1249,12 +1356,15 @@ export class MaplibreEngine {
   #measureSource() {
     const coordinates = this.measurement?.coordinates || [];
     const features = coordinates.map((coordinate) => ({ type: "Feature", properties: {}, geometry: { type: "Point", coordinates: coordinate } }));
-    if (coordinates.length > 1) features.push({ type: "Feature", properties: {}, geometry: { type: "LineString", coordinates } });
+    const area = this.measurement?.mode === "area" && coordinates.length >= 3;
+    if (area) features.push({ type: "Feature", properties: {}, geometry: { type: "Polygon", coordinates: [[...coordinates, coordinates[0]]] } });
+    if (coordinates.length > 1) features.push({ type: "Feature", properties: {}, geometry: { type: "LineString", coordinates: area ? [...coordinates, coordinates[0]] : coordinates } });
     return { type: "geojson", data: { type: "FeatureCollection", features } };
   }
 
   #measureSpecs() {
     return [
+      { id: "gismap-measure-fill", type: "fill", source: MEASURE_SOURCE, filter: ["==", ["geometry-type"], "Polygon"], paint: { "fill-color": "#ff8c00", "fill-opacity": 0.25 } },
       { id: "gismap-measure-line", type: "line", source: MEASURE_SOURCE, filter: ["==", ["geometry-type"], "LineString"], paint: { "line-color": "#ff8c00", "line-width": 4 } },
       { id: "gismap-measure-points", type: "circle", source: MEASURE_SOURCE, filter: ["==", ["geometry-type"], "Point"], paint: { "circle-radius": 5, "circle-color": "#ff8c00", "circle-stroke-color": "#fff", "circle-stroke-width": 2 } },
     ];
@@ -1267,6 +1377,13 @@ export class MaplibreEngine {
 
   #updateMeasurement() {
     const coordinates = this.measurement.coordinates;
+    if (this.measurement.mode === "area") {
+      const area = measurementArea(coordinates);
+      const metric = area < 1e6 ? `${area.toFixed(0)} m²` : `${(area / 1e6).toFixed(2)} km²`;
+      const feet = area * 10.7639104167;
+      const imperial = feet < 43560 ? `${feet.toFixed(0)} ft²` : feet < 27878400 ? `${(feet / 43560).toFixed(2)} acres` : `${(feet / 27878400).toFixed(2)} mi²`;
+      this.measurement.panel.querySelector("output").textContent = `${metric} · ${imperial}`;
+    } else {
     let meters = 0;
     for (let i = 1; i < coordinates.length; i++) {
       const [lon1, lat1] = coordinates[i - 1].map((n) => n * Math.PI / 180);
@@ -1278,6 +1395,7 @@ export class MaplibreEngine {
     const feet = meters * 3.28084;
     const imperial = feet < 5280 ? `${feet.toFixed(0)} ft` : `${(feet / 5280).toFixed(2)} mi`;
     this.measurement.panel.querySelector("output").textContent = `${metric} · ${imperial}`;
+    }
     const source = this.map.getSource(MEASURE_SOURCE);
     if (source) source.setData(this.#measureSource().data);
     else this.map.addSource(MEASURE_SOURCE, this.#measureSource());

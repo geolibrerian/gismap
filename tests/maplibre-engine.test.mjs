@@ -6,7 +6,8 @@ import { readFile } from "node:fs/promises";
 import { compileWhere } from "../js/engines/maplibre/where.js";
 import { OBJECT_ID_FIELD, boundsOf, geometryTypeOf, inferFields, normalizeFeatures, representativePoint } from "../js/engines/maplibre/geojson.js";
 import { openBasemapFor } from "../js/engines/maplibre/basemaps.js";
-import { MAPLIBRE_CAPABILITIES, MaplibreEngine } from "../js/engines/maplibre/maplibre-engine.js";
+import { MAPLIBRE_CAPABILITIES, MaplibreEngine, measurementArea } from "../js/engines/maplibre/maplibre-engine.js";
+import { legendForLayer } from "../js/engines/maplibre/legend.js";
 import { HILLSHADE_LAYER_ID, HILLSHADE_SOURCE_ID, TERRAIN_SOURCE_ID, TERRAIN_TILEJSON, hillshadeLayer, maplibreGround, terrainSource } from "../js/engines/maplibre/terrain.js";
 import { chooseEngine, saveEngine, savedEngine } from "../js/engine-preference.js";
 import { ENGINE_METHODS } from "../js/engines/engine-interface.js";
@@ -197,22 +198,33 @@ test("MapLibre measures distance, clears, and restores the cursor on close", asy
   const map = fakeMap();
   const handlers = {};
   const output = { textContent: "" };
-  const panel = { setAttribute() {}, remove() { this.removed = true; }, querySelector(selector) { return selector === "output" ? output : { addEventListener(_type, fn) { handlers[selector] = fn; } }; } };
-  map.getContainer = () => ({ append() {} });
+  const instructions = { textContent: "" };
+  const panel = { setAttribute() {}, remove() { this.removed = true; }, querySelector(selector) { return selector === "output" ? output : selector === "[data-measure-instructions]" ? instructions : { addEventListener(_type, fn) { handlers[selector] = fn; } }; } };
+  const host = { replaceChildren(node) { this.child = node; } };
   const previous = { document: globalThis.document, maplibregl: globalThis.maplibregl, fetch: globalThis.fetch };
-  globalThis.document = { createElement: () => panel };
+  globalThis.document = { createElement: () => panel, querySelector: () => host };
   globalThis.maplibregl = { Map: function () { return map; } };
   globalThis.fetch = async () => ({ ok: true, json: async () => ({ version: 8, sources: {}, layers: [] }) });
   try {
     const engine = new MaplibreEngine({ publish() {} });
     await engine.initialize();
     assert.equal(engine.toggleWidget("measurement"), true);
+    assert.equal(host.child, panel, "measurement is hosted in the map tools pane");
     assert.equal(map.getCanvas().style.cursor, "crosshair");
     for (const lng of [0, 1]) map.emit("click", { lngLat: { lng, lat: 0 }, point: { x: 0, y: 0 } });
     assert.match(output.textContent, /^111\.20 km · 69\.09 mi$/);
     assert.equal(map.getSource("gismap-measurement").data.features.length, 3);
     handlers["[data-measure-clear]"]();
     assert.equal(output.textContent, "0 m · 0 ft");
+    handlers["[data-measure-mode]"]({ target: { value: "area" } });
+    for (const [lng, lat] of [[0, 0], [1, 0], [1, 1], [0, 1]]) map.emit("click", { lngLat: { lng, lat }, point: { x: 0, y: 0 } });
+    assert.match(output.textContent, /^12363\.72 km² · 4773\.66 mi²$/);
+    assert.match(instructions.textContent, /closes automatically/);
+    const features = map.getSource("gismap-measurement").data.features;
+    assert.equal(features.filter((feature) => feature.geometry.type === "Polygon").length, 1);
+    assert.deepEqual(features.find((feature) => feature.geometry.type === "Polygon").geometry.coordinates[0].at(-1), [0, 0]);
+    handlers["[data-measure-clear]"]();
+    assert.equal(output.textContent, "0 m² · 0 ft²");
     engine.draw("point");
     assert.equal(engine.widgetOpen("measurement"), false);
     assert.equal(map.getCanvas().style.cursor, "crosshair");
@@ -222,6 +234,57 @@ test("MapLibre measures distance, clears, and restores the cursor on close", asy
   } finally {
     Object.assign(globalThis, previous);
   }
+});
+
+test("area measurement handles ring direction and the antimeridian", () => {
+  const square = [[179, 0], [-179, 0], [-179, 1], [179, 1]];
+  assert.ok(Math.abs(measurementArea(square) / 1e6 - 24727.4) < 1);
+  assert.equal(measurementArea(square), measurementArea([...square].reverse()));
+  assert.equal(measurementArea([[0, 0], [1, 1]]), 0);
+});
+
+test("MapLibre legend describes the symbols and class labels actually drawn", () => {
+  const record = { kind: "vector", geometryType: "point", renderer: { type: "unique-value", field: "kind", uniqueValueInfos: [
+    { value: "a", label: "Alpha", symbol: { type: "simple-marker", color: "#ff0000", size: 9 } },
+    { value: "b", label: "Beta", symbol: { type: "simple-marker", color: "#0000ff", size: 18 } },
+  ], defaultSymbol: { type: "simple-marker", color: "#888888" }, defaultLabel: "Other" } };
+  const legend = legendForLayer(record, "#123456");
+  assert.equal(legend.field, "kind");
+  assert.deepEqual(legend.entries.map((entry) => entry.label), ["Alpha", "Beta", "Other"]);
+  assert.equal(legend.entries[0].paint.circle, "#ff0000");
+  assert.ok(legend.entries[1].paint.radius > legend.entries[0].paint.radius);
+  assert.equal(legendForLayer({ kind: "raster" }, "#123456").note, "Legend unavailable for this image layer.");
+  assert.equal(legendForLayer({ kind: "vector", geometryType: "polygon" }, "#123456").entries[0].paint.fill, "#123456");
+  const breaks = legendForLayer({ kind: "vector", geometryType: "polygon", renderer: { type: "class-breaks", field: "value", classBreakInfos: [{ minValue: 0, maxValue: 5, symbol: { type: "simple-fill", color: "#008800" } }] } }, "#123456");
+  assert.equal(breaks.entries[0].label, "0 – 5");
+  assert.equal(breaks.entries[0].paint.fill, "#008800");
+});
+
+test("MapLibre legend updates for layer changes and closes through the widget contract", async () => {
+  const makeElement = () => ({ children: [], style: {}, textContent: "", append(...items) { this.children.push(...items); }, replaceChildren(...items) { this.children = items; }, setAttribute() {} });
+  const host = makeElement();
+  const previousDocument = globalThis.document;
+  globalThis.document = { querySelector: () => host, createElement: makeElement };
+  const events = [];
+  const engine = new MaplibreEngine({ publish: (...args) => events.push(args) });
+  engine.map = fakeMap();
+  try {
+    assert.equal(engine.toggleWidget("legend"), true);
+    assert.match(host.children[0].textContent, /No visible layers/);
+    const layer = await engine.addLocalFile({ name: "test.geojson", text: async () => JSON.stringify({ type: "FeatureCollection", features: [{ type: "Feature", properties: {}, geometry: { type: "Point", coordinates: [0, 0] } }] }) });
+    assert.equal(host.children[0].children[0].textContent, "test.geojson");
+    engine.setTitle(layer.uid, "Renamed");
+    assert.equal(host.children[0].children[0].textContent, "Renamed");
+    engine.setVisibility(layer.uid, false, { silent: true });
+    assert.match(host.children[0].textContent, /No visible layers/);
+    engine.setVisibility(layer.uid, true);
+    engine.removeLayer(layer.uid);
+    assert.match(host.children[0].textContent, /No visible layers/);
+    assert.equal(engine.toggleWidget("legend"), false);
+    assert.equal(engine.widgetOpen("legend"), false);
+    assert.equal(host.children.length, 0);
+    assert.deepEqual(events.filter(([topic]) => topic === "widget:toggled").map(([, payload]) => payload.open), [true, false]);
+  } finally { globalThis.document = previousDocument; }
 });
 
 test("ArcGIS sketches ignore captured elevation and drape on terrain", async () => {
