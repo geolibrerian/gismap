@@ -6,7 +6,8 @@
 // with the provider. Pure functions apart from the tool handlers, which call the
 // in-page API (globalThis.gisMapOnline) and a few app hooks passed in as `host`.
 
-import { DISPLAY_SETTINGS, guideOutline, searchGuide, validateDisplaySetting } from "./app-guide.js?v=0.48.0";
+import { INTERFACE_SKINS } from "./skin-catalog.js?v=0.44.2";
+import { DISPLAY_SETTINGS, guideOutline, searchGuide, validateDisplaySetting } from "./app-guide.js?v=0.49.0";
 
 const MAX_RESULT = 6000;
 const STEP_LIMIT = 10;
@@ -56,6 +57,11 @@ export const ASSISTANT_TOOLS = Object.freeze([
   { name: "app_help", description: "Where a menu, setting or feature of GIS Map Online is and what it does. Call it for any question about the app itself (how do I…, where is…, can I change…) before answering; never guess menu names.", parameters: { type: "object", required: ["question"], properties: { question: { type: "string" } } } },
   { name: "get_display_settings", description: "The current display settings (Project → Layout & display…): appearance, navigation, panel positions, and map click feedback such as the selection style.", parameters: { type: "object", properties: {} } },
   { name: "change_display_setting", description: "Change one display setting for the user, such as the selection style (highlightStyle: fill or outline), the feedback colour or dark mode.", parameters: { type: "object", required: ["setting", "value"], properties: { setting: { enum: Object.keys(DISPLAY_SETTINGS) }, value: { type: ["string", "boolean"], description: Object.entries(DISPLAY_SETTINGS).map(([key, definition]) => `${key}: ${Array.isArray(definition.values) ? definition.values.join("|") : definition.values}`).join("; ") } } } },
+  { name: "set_mode", description: "Switch the app's mode: briefing (slides), tours (guided tours), tasks (field tasks) or map (the standard map).", parameters: { type: "object", required: ["mode"], properties: { mode: { enum: ["briefing", "tours", "tasks", "map"] } } } },
+  { name: "set_skin", description: "Change the interface skin (the app's look, also used by the Skin basemap on MapLibre). Kept with the project.", parameters: { type: "object", required: ["skin"], properties: { skin: { enum: INTERFACE_SKINS.map(({ id }) => id), description: INTERFACE_SKINS.map(({ id, label, description }) => `${id} = ${label} (${description})`).join("; ") } } } },
+  { name: "save_project", description: "Save the current map as a project in this browser, optionally under a new name.", parameters: { type: "object", properties: { name: { type: "string" } } } },
+  { name: "open_share_menu", description: "Open the Share & export dialog for the user (links, QR code, exports).", parameters: { type: "object", properties: {} } },
+  { name: "download", description: "Download the map for the user: pdf (Map PDF), smart-image (a PNG that opens as the project), gmo (project file) or gmop (project package with local files).", parameters: { type: "object", required: ["format"], properties: { format: { enum: ["pdf", "smart-image", "gmo", "gmop"] } } } },
   { name: "get_share_link", description: "A link (and whether it fits a QR code) that opens the map as it is now, with its briefing.", parameters: { type: "object", properties: {} } },
 ]);
 
@@ -77,6 +83,7 @@ export function buildAssistantInstructions({ state = null, textTools = false } =
     "- When a tool returns an error, read its hint and fix the call; do not repeat the same call.",
     "- After acting, reply in two or three sentences: what you did, and anything the user should check (data caveats, missing fields, sample-based numbers). Offer get_share_link when the user wants to share.",
     "- Questions about the app itself (menus, settings, where something is): call app_help and answer with the exact menu path it gives. Display settings (selection style, highlight colour, appearance, panel positions) can be changed for the user with change_display_setting; say where the setting lives too.",
+    "- The app itself: set_mode switches modes, set_skin changes the look, save_project saves, open_share_menu opens Share & export, and download gives a Map PDF, Smart map image, .gmo project file or .gmop package. Do these only when the user asks.",
     "- Keep the conversation in the user's language. Do not claim to have done something a tool did not do.",
     "",
     "The app's menus:",
@@ -367,6 +374,29 @@ export function createAssistantTools(host) {
       if (checked instanceof Error) throw checked;
       host.setDisplaySetting(checked.key, checked.value);
       return { [checked.key]: checked.value, where: "Project → Layout & display…" };
+    },
+    set_mode({ mode }) {
+      if (!["briefing", "tours", "tasks", "map"].includes(mode)) throw Object.assign(new Error(`Unknown mode "${mode}".`), { hint: "Use briefing, tours, tasks or map." });
+      host.setMode(mode);
+      return { mode };
+    },
+    set_skin({ skin }) {
+      const choice = INTERFACE_SKINS.find(({ id, label }) => id === skin || label.toLowerCase() === String(skin).toLowerCase());
+      if (!choice) throw Object.assign(new Error(`Unknown skin "${skin}".`), { hint: `Use one of: ${INTERFACE_SKINS.map(({ id }) => id).join(", ")}.` });
+      host.setSkin(choice.id);
+      return { skin: choice.id, label: choice.label };
+    },
+    save_project({ name } = {}) {
+      return { saved: host.saveProject(name || null) };
+    },
+    open_share_menu() {
+      host.openShareMenu();
+      return { opened: "Share & export" };
+    },
+    async download({ format }) {
+      if (!["pdf", "smart-image", "gmo", "gmop"].includes(format)) throw Object.assign(new Error(`Unknown format "${format}".`), { hint: "Use pdf, smart-image, gmo or gmop." });
+      await host.download(format);
+      return { downloaded: format };
     },
     async get_share_link() {
       const { url, qr } = await api.mapSpec.createLink(api.mapSpec.fromCurrent());

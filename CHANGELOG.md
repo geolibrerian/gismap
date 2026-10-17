@@ -11,6 +11,7 @@ All notable changes to GIS Map Online are documented here. This project follows
 - The assistant has a built-in guide to GIS Map Online's menus, panels and settings (`js/app-guide.js`): its instructions list the menus, and a new `app_help` tool answers "where is…" and "how do I…" questions with the exact menu path.
 - New `get_display_settings` and `change_display_setting` tools let the assistant read and change the Layout & display settings for you, such as switching the selection style to *Outline only*, the feedback colour or dark mode.
 - A test checks that every menu item the guide names exists in the app.
+- More assistant tools: `set_mode` (briefing, tours, field tasks, standard map), `set_skin` (every interface skin, also listed in the guide), `save_project`, `open_share_menu` (Share & export), and `download` (Map PDF, Smart map image, .gmo project file or .gmop package).
 
 ### Place search and addresses on MapLibre
 

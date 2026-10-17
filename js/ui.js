@@ -1,6 +1,6 @@
 import { POPULAR_SERVICES } from "./catalog.js?v=0.18.2";
-import { MapAssistantPanel } from "./assistant-panel.js?v=0.48.0";
-import { createAssistantTools, summarizeMapState } from "./map-assistant.js?v=0.48.0";
+import { MapAssistantPanel } from "./assistant-panel.js?v=0.49.0";
+import { createAssistantTools, summarizeMapState } from "./map-assistant.js?v=0.49.0";
 import { ENTERPRISE_CATALOGS, EnterpriseCatalog, normalizeArcGisDirectoryUrl } from "./enterprise-catalog.js?v=0.18.2";
 import { createShareUrl } from "./share.js?v=0.41.0";
 import { createShareLink, hasDataFilter } from "./map-share.js?v=0.41.0";
@@ -1414,6 +1414,16 @@ export class UIController {
         const settings = { ...this.#readDisplaySettings(), [key]: value };
         localStorage.setItem(DISPLAY_SETTINGS_KEY, JSON.stringify(settings));
         this.#applyDisplaySettings(settings);
+      },
+      setMode: (mode) => document.querySelector(`[data-mobile-workflow="${mode}"]`)?.click(),
+      setSkin: (skin) => this.applySkinChoice(skin),
+      saveProject: (name) => { this.projectManager.save(name); return this.projectManager.current.name; },
+      openShareMenu: () => this.#shareExportDialog(),
+      download: async (format) => {
+        if (format === "pdf") return this.#downloadMapPdf();
+        if (format === "smart-image") return this.projectManager.exportSmartImage();
+        if (format === "gmop") return this.projectManager.exportPackage();
+        return this.projectManager.exportJson();
       },
       createTour: (places, options) => this.createTourFromPlaces(places, { ...options, open: true }),
       draftFieldTask: (draft) => this.fieldTasks?.newTaskFrom(draft),

@@ -16,7 +16,7 @@ test("every menu item the guide names is in the app", () => {
       continue;
     }
     assert.match(html, new RegExp(`class="menu__trigger"[^>]*>${menu} `), `${menu}: no such menu`);
-    for (const item of items.split(" · ")) assert.ok(decode(html).includes(`>${item}`), `${path}: "${item}" is not in index.html`);
+    for (const item of items.replace(/ \(skins\)$/, "").split(" · ")) assert.ok(decode(html).includes(`>${item}`), `${path}: "${item}" is not in index.html`);
   }
 });
 
@@ -51,4 +51,19 @@ test("the assistant knows the menus and can change a display setting", () => {
   assert.deepEqual(changes, [["highlightStyle", "outline"]]);
   assert.throws(() => tools.change_display_setting({ setting: "highlightStyle", value: "dotted" }), /not a value/);
   assert.equal(tools.app_help({ question: "selection outline" }).matches[0].where, "Project → Layout & display…");
+});
+
+test("the assistant switches modes and skins, saves, shares and downloads", async () => {
+  const calls = [];
+  const tools = createAssistantTools({ api: {}, setMode: (mode) => calls.push(["mode", mode]), setSkin: (skin) => calls.push(["skin", skin]), saveProject: (name) => (calls.push(["save", name]), name || "Untitled"), openShareMenu: () => calls.push(["share"]), download: async (format) => calls.push(["download", format]) });
+  assert.deepEqual(tools.set_mode({ mode: "briefing" }), { mode: "briefing" });
+  assert.throws(() => tools.set_mode({ mode: "slides" }), /Unknown mode/);
+  assert.deepEqual(tools.set_skin({ skin: "Midnight" }), { skin: "dark-analytical", label: "Midnight" });
+  assert.throws(() => tools.set_skin({ skin: "neon" }), /Unknown skin/);
+  assert.deepEqual(tools.save_project({ name: "Fires" }), { saved: "Fires" });
+  tools.open_share_menu();
+  await tools.download({ format: "smart-image" });
+  await assert.rejects(tools.download({ format: "docx" }), /Unknown format/);
+  assert.deepEqual(calls, [["mode", "briefing"], ["skin", "dark-analytical"], ["save", "Fires"], ["share"], ["download", "smart-image"]]);
+  assert.match(searchGuide("change the skin to midnight")[0].where, /skins/);
 });

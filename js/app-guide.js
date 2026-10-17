@@ -1,3 +1,4 @@
+import { INTERFACE_SKINS } from "./skin-catalog.js?v=0.44.2";
 /**
  * Where things are in GIS Map Online, for the Map assistant (and anyone else
  * answering "how do I…?"). Keep it in step with the menus in index.html and
@@ -44,6 +45,7 @@ export const APP_GUIDE = Object.freeze([
   { path: "Map → Add Bookmarks panel · Add Draw panel", keywords: "bookmarks saved views draw sketch graphics", text: "Adds the Bookmarks or Draw panel to the side panel." },
   // Modes menu
   { path: "Modes → Instant presentations…", keywords: "presentation present slides instant", text: "Presents a layer as an instant set of slides." },
+  { path: "Modes → Instant presentations… (skins)", keywords: "skin theme look style colours colors interface " + INTERFACE_SKINS.map(({ id, label }) => `${id} ${label}`).join(" ").toLowerCase(), text: `Interface skins change the app's look (on MapLibre the Skin basemap follows it): ${INTERFACE_SKINS.map(({ label, description }) => `${label} (${description})`).join(", ")}.` },
   { path: "Modes → Briefing mode · Tours mode · Field tasks · Standard map", keywords: "briefing tour atlas field task mode workflow", text: "Switches the app between its modes: briefings (slides), guided tours, field tasks, or the standard map." },
   // Tools menu
   { path: "Tools → Map assistant", keywords: "assistant chat ai", text: "Opens this assistant." },
