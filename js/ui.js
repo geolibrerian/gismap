@@ -974,7 +974,8 @@ export class UIController {
       this.#dismissWelcome();
       this.#setInsightsOpen(false);
     }
-    const activePanelId = this.mobilePanelManager?.activate(panelId) ?? panelId;
+    // null is the manager's intentional result when the active tool is toggled off.
+    const activePanelId = this.mobilePanelManager ? this.mobilePanelManager.activate(panelId) : panelId;
     if (openSidebar) this.#setSidebarCollapsed(!activePanelId);
     this.events.publish("mobile:panel-active", { panelId: activePanelId || null });
   }

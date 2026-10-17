@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { readFileSync } from "node:fs";
 import { MOBILE_PANEL_QUERY, MobilePanelManager } from "../js/mobile-panel-manager.js";
 
 class ClassList {
@@ -71,4 +72,24 @@ test("refreshing an active mobile panel does not toggle it closed", () => {
   manager.activate("intelligence-panel", { toggle: false });
   assert.equal(manager.activePanelId, "intelligence-panel");
   assert.equal(panels.get("intelligence-panel").hidden, false);
+});
+
+test("tapping each active mobile tool again closes its panel and clears its button", () => {
+  const { manager, panels, buttons } = fixture();
+  manager.enter();
+  for (const [index, id] of PANEL_IDS.entries()) {
+    assert.equal(manager.activate(id), id);
+    assert.equal(manager.activate(id), null);
+    assert.equal(manager.activePanelId, null);
+    assert.equal([...panels.values()].every((panel) => panel.hidden), true);
+    assert.equal(buttons[index].attributes["aria-pressed"], "false");
+  }
+});
+
+test("mobile UI collapses the drawer when the panel manager returns null", () => {
+  const ui = readFileSync(new URL("../js/ui.js", import.meta.url), "utf8");
+  const handler = ui.slice(ui.indexOf("  #activateMobilePanel("), ui.indexOf("\n  #", ui.indexOf("  #activateMobilePanel(") + 3));
+  assert.match(handler, /this\.mobilePanelManager\s*\?\s*this\.mobilePanelManager\.activate\(panelId\)\s*:\s*panelId/);
+  assert.match(handler, /#setSidebarCollapsed\(!activePanelId\)/);
+  assert.match(handler, /panelId:\s*activePanelId\s*\|\|\s*null/);
 });
