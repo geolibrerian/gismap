@@ -199,10 +199,11 @@ test("3D buildings are added under the labels and follow the skin", async () => 
   assert.ok(index > built.layers.findIndex((layer) => layer.id === "building"));
   assert.ok(index < built.layers.findIndex((layer) => layer.type === "symbol"));
   assert.equal(built.layers[index].type, "fill-extrusion");
-  assert.equal(built.layers[index].minzoom, 14);
+  assert.equal(built.layers[index].minzoom, 13);
+  assert.equal(withBuildings3d(positron, { visible: false }).layers.find((layer) => layer.id === "building-3d").layout.visibility, "none");
   assert.equal(positron.layers.some((layer) => layer.id === "building-3d"), false, "the input is unchanged");
   const liberty = load("liberty");
-  assert.equal(withBuildings3d(liberty), liberty, "a style with 3D buildings keeps its own");
+  assert.deepEqual(withBuildings3d(liberty).layers.filter((layer) => layer.type === "fill-extrusion").map((layer) => layer.id), ["building-3d"], "a style with 3D buildings keeps its own");
   const skinned = theme(built, { skin: "highway", building: "#abcdef", buildingOutline: "#123456" });
   assert.equal(skinned.layers.find((layer) => layer.id === "building-3d").paint["fill-extrusion-color"], "#abcdef");
 });

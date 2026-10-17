@@ -13,10 +13,10 @@
 // one lower for the same scale (512-pixel tiles). Everything that crosses the
 // boundary uses GIS Map levels, so links and projects mean the same view.
 import { GisMapError } from "../../gismap-errors.js?v=0.28.0";
-import { unsupported } from "../engine-interface.js?v=0.47.0";
+import { unsupported } from "../engine-interface.js?v=0.52.0";
 import { openBasemapFor } from "./basemaps.js?v=0.41.0";
 import { basemapOnEngine, basemapsForEngine } from "../../basemap-catalog.js?v=0.41.0";
-import { applyBasemapTheme, withBuildings3d } from "./basemap-theme.js?v=0.51.0";
+import { applyBasemapTheme, withBuildings3d } from "./basemap-theme.js?v=0.52.0";
 import { compileWhere } from "./where.js?v=0.39.0";
 import { arcgisMetadata } from "../../source-inspector.js?v=0.41.0";
 import { OpenGeocoder } from "./geocoder.js?v=0.47.0";
@@ -27,7 +27,7 @@ import { OBJECT_ID_FIELD, boundsIntersect, boundsOf, expandBounds, geometryTypeO
 import { loadMaplibre } from "./maplibre-loader.js?v=0.39.0";
 import { HILLSHADE_LAYER_ID, HILLSHADE_SOURCE_ID, MAPLIBRE_GROUNDS, TERRAIN_SOURCE_ID, hillshadeLayer, maplibreGround, terrainSource } from "./terrain.js?v=0.43.0";
 
-export const MAPLIBRE_CAPABILITIES = Object.freeze(["view-2d", "view-3d", "basemaps", "basemap-themes", "ground", "layers-arcgis", "layers-files", "query", "feature-filter", "renderer-spec", "renderer-native", "identify", "highlight", "capture", "geocode", "native"]);
+export const MAPLIBRE_CAPABILITIES = Object.freeze(["view-2d", "view-3d", "basemaps", "basemap-themes", "ground", "layers-arcgis", "layers-files", "query", "feature-filter", "renderer-spec", "renderer-native", "identify", "highlight", "capture", "geocode", "buildings-3d", "native"]);
 
 const ZOOM_OFFSET = 1;
 const SCALE_AT_ZOOM_0 = 591657527.591555;
@@ -292,6 +292,12 @@ export class MaplibreEngine {
    * "skin" basemap is drawn with them, and data layers without a style of
    * their own take the theme's accent.
    */
+  /** Shows or hides the basemap's 3D buildings (on unless turned off). */
+  setBuildings3d(on = true) {
+    this.buildings3d = on !== false;
+    if (this.map?.getLayer?.("building-3d")) this.map.setLayoutProperty("building-3d", "visibility", this.buildings3d ? "visible" : "none");
+  }
+
   setBasemapTheme(theme) {
     this.basemapTheme = theme || null;
     for (const record of this.#records.values()) if (record.kind === "vector" && !record.renderer && !record.serviceRenderer) this.#refresh(record);
@@ -315,7 +321,7 @@ export class MaplibreEngine {
       }).catch((error) => { this.#styleJson.delete(basemap.style); throw error; }));
     }
     try {
-      const style = withBuildings3d(await this.#styleJson.get(basemap.style));
+      const style = withBuildings3d(await this.#styleJson.get(basemap.style), { visible: this.buildings3d !== false });
       return basemap.themed && this.basemapTheme ? applyBasemapTheme(style, this.basemapTheme) : style;
     } catch {
       return basemap.style;

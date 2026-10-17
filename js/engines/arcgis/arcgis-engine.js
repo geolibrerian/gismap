@@ -6,7 +6,7 @@
 import { arcgisMetadata } from "../../source-inspector.js?v=0.41.0";
 import { chooseStyleField, compileRenderer, resolveRendererSpec, suggestRenderers, validateRendererSpec } from "../../renderer-spec.js?v=0.29.0";
 import { GisMapError } from "../../gismap-errors.js?v=0.28.0";
-import { ENGINE_CAPABILITIES, unsupported } from "../engine-interface.js?v=0.47.0";
+import { ENGINE_CAPABILITIES, unsupported } from "../engine-interface.js?v=0.52.0";
 import { loadArcGISRuntime } from "./arcgis-loader.js?v=0.38.0";
 import { basemapOnEngine, basemapsForEngine } from "../../basemap-catalog.js?v=0.41.0";
 
@@ -336,7 +336,7 @@ export class ArcGISEngine {
   }
 
   getCapabilities() {
-    return ENGINE_CAPABILITIES.filter((name) => name !== "view-2d" && name !== "basemap-themes");
+    return ENGINE_CAPABILITIES.filter((name) => name !== "view-2d" && name !== "basemap-themes" && name !== "buildings-3d");
   }
 
   /**

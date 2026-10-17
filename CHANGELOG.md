@@ -8,8 +8,9 @@ All notable changes to GIS Map Online are documented here. This project follows
 
 ### 3D buildings on MapLibre
 
-- Every MapLibre basemap now shows 3D buildings from zoom 14, extruded from OpenStreetMap building heights (as in MapLibre's 3D buildings example), under the labels; tilt the map to see them.
+- Every MapLibre basemap now shows 3D buildings from zoom 14 (MapLibre zoom 13), extruded from OpenStreetMap building heights (as in MapLibre's 3D buildings example), under the labels; tilt the map to see them.
 - On the Skin basemap the buildings take the skin's building colour, and recolour when you change skins.
+- **Map → 3D buildings** turns them on or off on MapLibre (on unless you turn it off; remembered in this browser). The Map assistant's guide knows it.
 
 ### The Map assistant explains your data
 

@@ -1,7 +1,7 @@
 // Lazy engine discovery. The application asks for an engine by stable id and
 // does not import a renderer implementation directly. Keeping loaders here
 // lets a future MapLibre engine ship without downloading the ArcGIS runtime.
-import { ENGINE_CAPABILITIES, ENGINE_METHODS } from "./engine-interface.js?v=0.47.0";
+import { ENGINE_CAPABILITIES, ENGINE_METHODS } from "./engine-interface.js?v=0.52.0";
 import { GisMapError } from "../gismap-errors.js?v=0.28.0";
 
 const definitions = new Map();
@@ -18,9 +18,9 @@ export function registerEngine(definition) {
 registerEngine({
   id: "arcgis",
   label: "ArcGIS",
-  capabilities: ENGINE_CAPABILITIES.filter((name) => name !== "view-2d" && name !== "basemap-themes"),
+  capabilities: ENGINE_CAPABILITIES.filter((name) => name !== "view-2d" && name !== "basemap-themes" && name !== "buildings-3d"),
   load: async ({ events, authController }) => {
-    const { ArcGISEngine } = await import("./arcgis/arcgis-engine.js?v=0.47.0");
+    const { ArcGISEngine } = await import("./arcgis/arcgis-engine.js?v=0.52.0");
     return new ArcGISEngine(events, authController);
   },
 });
@@ -29,9 +29,9 @@ registerEngine({
   id: "maplibre",
   label: "MapLibre (preview)",
   // Kept in step with MAPLIBRE_CAPABILITIES in maplibre-engine.js (a test checks).
-  capabilities: ["view-2d", "view-3d", "basemaps", "basemap-themes", "ground", "layers-arcgis", "layers-files", "query", "feature-filter", "renderer-spec", "renderer-native", "identify", "highlight", "capture", "geocode", "native"],
+  capabilities: ["view-2d", "view-3d", "basemaps", "basemap-themes", "ground", "layers-arcgis", "layers-files", "query", "feature-filter", "renderer-spec", "renderer-native", "identify", "highlight", "capture", "geocode", "buildings-3d", "native"],
   load: async ({ events }) => {
-    const { MaplibreEngine } = await import("./maplibre/maplibre-engine.js?v=0.51.0");
+    const { MaplibreEngine } = await import("./maplibre/maplibre-engine.js?v=0.52.0");
     return new MaplibreEngine(events);
   },
 });

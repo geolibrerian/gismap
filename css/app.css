@@ -510,6 +510,8 @@ body.mobile-workflow-open .field-task-banner { left:auto; right:calc(min(440px,1
 .menu__content hr { width: 100%; border: 0; border-top: 1px solid var(--line); margin: 5px 0; }
 .menu__field { display: grid; gap: 5px; padding: 7px 8px; color: var(--muted); font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; }
 .menu__field[hidden] { display: none; }
+.menu__toggle { display: flex; align-items: center; gap: 8px; padding: 7px 8px; color: var(--ink); font-size: 12px; cursor: pointer; }
+.menu__toggle[hidden] { display: none; }
 .menu__hint { color: var(--muted); font-size: 11px; font-weight: 500; line-height: 1.35; letter-spacing: 0; text-transform: none; }
 .menu__field select { width: 100%; padding: 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); color: var(--ink); font: inherit; font-size: 11px; font-weight: 500; letter-spacing: 0; text-transform: none; }
 .presentation-picker { display: grid; gap: 14px; }

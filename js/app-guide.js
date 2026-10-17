@@ -42,6 +42,7 @@ export const APP_GUIDE = Object.freeze([
   { path: "Map → Map engine", keywords: "engine arcgis maplibre 3d globe switch", text: "Switches between the ArcGIS engine (3D globe) and MapLibre. The page reloads with the same view." },
   { path: "Map → Basemap", keywords: "basemap background map satellite imagery streets topo dark", text: "Chooses the background map. Each engine has its own basemaps; on MapLibre, Skin follows the app's skin colours." },
   { path: "Map → Terrain surface", keywords: "terrain elevation ground 3d", text: "Chooses the 3D ground surface (ArcGIS engine)." },
+  { path: "Map → 3D buildings", keywords: "buildings 3d extruded heights city skyline", text: "Shows or hides extruded 3D buildings on MapLibre basemaps (on by default; tilt the map and zoom to a city to see them). They take the skin's colours on the Skin basemap." },
   { path: "Map → Add Bookmarks panel · Add Draw panel", keywords: "bookmarks saved views draw sketch graphics", text: "Adds the Bookmarks or Draw panel to the side panel." },
   // Modes menu
   { path: "Modes → Instant presentations…", keywords: "presentation present slides instant", text: "Presents a layer as an instant set of slides." },

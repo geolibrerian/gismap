@@ -1,6 +1,6 @@
 import { POPULAR_SERVICES } from "./catalog.js?v=0.18.2";
 import { MapAssistantPanel } from "./assistant-panel.js?v=0.50.0";
-import { createAssistantTools, summarizeMapState } from "./map-assistant.js?v=0.50.0";
+import { createAssistantTools, summarizeMapState } from "./map-assistant.js?v=0.52.0";
 import { ENTERPRISE_CATALOGS, EnterpriseCatalog, normalizeArcGisDirectoryUrl } from "./enterprise-catalog.js?v=0.18.2";
 import { createShareUrl } from "./share.js?v=0.41.0";
 import { createShareLink, hasDataFilter } from "./map-share.js?v=0.41.0";
@@ -26,6 +26,7 @@ import { RAMPS, rampColors } from "./renderer-spec.js?v=0.29.0";
 import { saveEngine } from "./engine-preference.js?v=0.39.0";
 import { BASEMAPS } from "./basemap-catalog.js?v=0.41.0";
 
+const BUILDINGS_3D_KEY = "gismap-online:buildings-3d:v1";
 const DISPLAY_SETTINGS_KEY = "gismap-online:display:v1";
 const DOCKABLE_PANELS = { places: "Places", bookmarks: "Bookmarks", draw: "Draw", intelligence: "Intelligence", layers: "Layers" };
 const RECENT_PLACES_KEY = "gismap-online:recent-places:v1";
@@ -254,6 +255,13 @@ export class UIController {
         this.mapController.setBasemap(select.value);
         this.toast(`Basemap changed to ${select.selectedOptions[0]?.textContent.trim()}.`);
         this.#closeMenus();
+      }),
+    );
+    document.querySelectorAll("[data-buildings-toggle]").forEach((input) =>
+      input.addEventListener("change", () => {
+        try { localStorage.setItem(BUILDINGS_3D_KEY, input.checked ? "on" : "off"); } catch { /* Not kept. */ }
+        this.mapController.setBuildings3d(input.checked);
+        this.toast(input.checked ? "3D buildings on." : "3D buildings off.");
       }),
     );
     document.querySelectorAll("[data-ground-picker]").forEach((select) =>
@@ -1642,6 +1650,11 @@ export class UIController {
     });
     document.querySelectorAll("[data-basemap-picker]").forEach((select) => { select.innerHTML = this.#basemapOptionsMarkup(); });
     document.querySelectorAll("[data-ground-picker]").forEach((select) => { select.innerHTML = this.#groundOptionsMarkup(); });
+    // 3D buildings are on unless turned off.
+    let buildings = true;
+    try { buildings = localStorage.getItem(BUILDINGS_3D_KEY) !== "off"; } catch { /* On. */ }
+    document.querySelectorAll("[data-buildings-toggle]").forEach((input) => { input.checked = buildings; });
+    if (capabilities.includes("buildings-3d")) this.mapController.setBuildings3d(buildings);
     document.querySelectorAll("[data-requires-capability]").forEach((element) => {
       const available = capabilities.includes(element.dataset.requiresCapability);
       if (element.matches("button")) {

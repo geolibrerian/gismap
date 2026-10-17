@@ -118,18 +118,18 @@ export function applyBasemapTheme(style, theme) {
 
 /**
  * The style with 3D buildings (a new object): an extruded "building-3d" layer
- * from the OpenMapTiles building heights, rising from zoom 14 as in MapLibre's
+ * from the OpenMapTiles building heights, rising from zoom 13 (GIS Map zoom 14) as in MapLibre's
  * 3D buildings example. Placed under the labels; a style that already has one
  * keeps it. Applied before a theme, so the skin recolours the buildings too.
  */
-export function withBuildings3d(style) {
-  const layers = style.layers || [];
+export function withBuildings3d(style, { visible = true } = {}) {
+  const layers = (style.layers || []).map((layer) => (layer.type === "fill-extrusion" && layer["source-layer"] === "building" ? { ...layer, layout: { ...(layer.layout || {}), visibility: visible ? "visible" : "none" } } : layer));
   const flat = layers.find((layer) => layer.type === "fill" && layer["source-layer"] === "building");
-  if (!flat || layers.some((layer) => layer.type === "fill-extrusion" && layer["source-layer"] === "building")) return style;
+  if (!flat || layers.some((layer) => layer.type === "fill-extrusion" && layer["source-layer"] === "building")) return { ...style, layers };
   const color = [flat.paint?.["fill-outline-color"], flat.paint?.["fill-color"]].find((value) => typeof value === "string") || "#d9d6d0";
-  const rise = (property) => ["interpolate", ["linear"], ["zoom"], 14, 0, 14.5, ["coalesce", ["get", property], 0]];
+  const rise = (property) => ["interpolate", ["linear"], ["zoom"], 13, 0, 13.5, ["coalesce", ["get", property], 0]];
   const building = {
-    id: "building-3d", type: "fill-extrusion", source: flat.source, "source-layer": "building", minzoom: 14,
+    id: "building-3d", type: "fill-extrusion", source: flat.source, "source-layer": "building", minzoom: 13, layout: { visibility: visible ? "visible" : "none" },
     filter: ["!=", ["get", "hide_3d"], true],
     paint: { "fill-extrusion-color": color, "fill-extrusion-height": rise("render_height"), "fill-extrusion-base": rise("render_min_height"), "fill-extrusion-opacity": 0.8 },
   };
