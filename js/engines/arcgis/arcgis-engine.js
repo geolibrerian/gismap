@@ -246,7 +246,12 @@ export class ArcGISEngine {
       geometryJsonUtils,
     });
 
-    this.drawLayer = new GraphicsLayer({ title: "Drawings", listMode: "hide" });
+    this.drawLayer = new GraphicsLayer({
+      title: "Drawings",
+      listMode: "hide",
+      // Keep sketches visible above the 3D ground, matching the MapLibre engine.
+      elevationInfo: { mode: "relative-to-ground", offset: 4 },
+    });
     this.tourLayer = new GraphicsLayer({
       title: "Guided tour locations",
       listMode: "hide",
