@@ -13,6 +13,7 @@ import { combineConditions, featureFilterFor, featureId, fieldKind, filterRecord
 import { DEFAULT_SKIN, INTERFACE_SKINS, applyInterfaceSkin, normalizeSkin, skinIsDark, skinOptionsMarkup } from "./skin-catalog.js?v=0.52.3";
 import { themeFromComputedStyle } from "./basemap-themes.js?v=0.40.0";
 import { compactMedia } from "./viewport.js?v=0.18.2";
+import { bindMobileSheetResize } from "./mobile-sheet-resize.js?v=0.52.7";
 import { PdfDocument, brandedMapImage, brandedQrCanvas, loadBrandLogo, printPalette, qrAsset } from "./pdf-document.js?v=0.44.2";
 import { featureLayerUrl, locationUrl } from "./field-task-share.js?v=0.41.0";
 import { dockIcon } from "./dock-icons.js?v=0.24.0";
@@ -132,6 +133,12 @@ export class UIController {
       this.#setSidebarCollapsed(true);
     }
     this.mobileMedia.addEventListener?.("change", ({ matches }) => {
+      if (this.dialog.open && !this.dialog.classList.contains("app-dialog--docked")) {
+        this.suppressNextDialogClose = true;
+        this.dialog.close();
+        if (matches) this.dialog.show();
+        else this.dialog.showModal();
+      }
       document.body.classList.remove("mobile-map-tools-open", "mobile-drawer-expanded");
       document.body.classList.remove("map-tools-collapsed");
       this.#syncMapToolsToggle(matches ? false : true);
@@ -156,6 +163,7 @@ export class UIController {
     this.#bindInsightResize();
     this.#bindUtilityPanel();
     this.#bindMobileDrawerResize();
+    this.#bindMobileSheetResize();
     this.#bindMobileActionBar();
     this.#bindMapEvents();
     this.#renderBookmarks();
@@ -426,11 +434,15 @@ export class UIController {
       if (wasDocked) this.#syncUtilityPanel();
     });
     document.querySelector("#dialog-dock").addEventListener("click", () => {
+      if (this.mobileMedia.matches) return;
       this.#dockDialogInUtilityPanel();
     });
     document.querySelector("#utility-open-modal").innerHTML = dockIcon("popout");
     document.querySelector("#dialog-dock").innerHTML = dockIcon("dock");
-    document.querySelector("#utility-open-modal").addEventListener("click", () => this.#openUtilityAsModal());
+    document.querySelector("#utility-open-modal").addEventListener("click", () => { if (!this.mobileMedia.matches) this.#openUtilityAsModal(); });
+    document.addEventListener("click", (event) => {
+      if (this.mobileMedia.matches && this.dialog.open && event.target.closest?.("[data-mobile-panel], [data-mobile-workflow], #mobile-menu-toggle")) this.dialog.close();
+    }, true);
     document.querySelector("#project-file-input").addEventListener("change", (event) => this.#importProject(event));
     document.querySelector("#image-file-input")?.addEventListener("change", (event) => this.#importProject(event));
     const projectDropTarget = document.querySelector(".map-workspace");
@@ -2116,6 +2128,15 @@ export class UIController {
       window.addEventListener("pointerup", finish);
       window.addEventListener("pointercancel", finish);
     });
+  }
+
+  #bindMobileSheetResize() {
+    for (const [handle, sheet, variable] of [
+      ["#mobile-dialog-resize", "#app-dialog", "--mobile-dialog-height"],
+      ["#mobile-utility-resize", "#utility-panel", "--mobile-utility-height"],
+    ]) {
+      bindMobileSheetResize({ handle: document.querySelector(handle), sheet: document.querySelector(sheet), variable, documentRef: document, windowRef: window, isCompact: () => this.mobileMedia.matches, onResize: () => this.mapController.resize() });
+    }
   }
 
   #serviceDialog(serviceType) {
@@ -5983,7 +6004,7 @@ export class UIController {
       footer.append(button);
     });
     if (!this.dialog.open) {
-      if (presentationSheet && this.mobileMedia.matches) this.dialog.show();
+      if (this.mobileMedia.matches) this.dialog.show();
       else this.dialog.showModal();
     }
   }

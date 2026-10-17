@@ -364,6 +364,7 @@ body:has(.application-dock--bottom.is-collapsed).application-bottom-open #viewDi
 .workspace-tool__actions button { border: 1px solid var(--green); border-radius: 6px; padding: 9px 12px; color: white; background: var(--green); cursor: pointer; }
 .utility-resizer { position: absolute; z-index: 3; inset: 0 auto 0 -5px; width: 10px; cursor: col-resize; touch-action: none; }
 .utility-resizer::after { content: ""; position: absolute; inset: 0 4px; background: var(--line); }
+.mobile-sheet-resize { display:none; }
 body.utility-panel-open .utility-panel { display: grid; grid-template-rows: auto auto minmax(0, 1fr); }
 body.utility-resizing { cursor: col-resize; user-select: none; }
 body.utility-resizing iframe, body.utility-resizing canvas { pointer-events: none; }
@@ -2130,6 +2131,30 @@ body.sidebar-collapsed .table-dialog { left: 14px; }
   .app-dialog--presentation-sheet .dialog__actions { align-items:center; flex:0 0 auto; padding:8px 12px calc(8px + env(safe-area-inset-bottom)); border-top:1px solid var(--line); background:var(--paper); }
   .app-dialog--presentation-sheet .dialog__actions button { flex:0 0 auto; width:auto; min-width:88px; height:40px; min-height:40px; max-height:40px; padding:7px 14px; }
   .app-dialog--presentation-sheet .atlas-chapter-advanced { background:var(--surface); }
+
+  /* Every compact dialog/tool uses the same sheet above both navigation rows. */
+  body { --mobile-sheet-bottom:calc(64px + env(safe-area-inset-bottom)); }
+  body.mobile-map-route:not(.mobile-menu-open):not(.mobile-workflow-open),
+  body.mobile-action-bar-open:not(.mobile-menu-open) { --mobile-sheet-bottom:calc(124px + env(safe-area-inset-bottom)); }
+  #dialog-dock, #utility-open-modal { display:none !important; }
+  .mobile-sheet-resize { display:grid; position:absolute; z-index:4; top:0; left:0; width:100%; height:24px; padding:0; place-items:center; border:0; background:transparent; cursor:ns-resize; touch-action:none; }
+  .mobile-sheet-resize span { width:42px; height:4px; border-radius:999px; background:var(--muted); }
+  .mobile-sheet-resize:focus-visible { outline:2px solid var(--green-2); outline-offset:-3px; }
+  .app-dialog:not(.app-dialog--docked)[open] { position:fixed; z-index:61; inset:auto 8px var(--mobile-sheet-bottom); width:auto; max-width:none; height:var(--mobile-dialog-height, min(60dvh, 620px)); max-height:calc(100dvh - var(--mobile-sheet-bottom) - 52px); margin:0; overflow:hidden; border:1px solid var(--line); border-radius:14px 14px 0 0; background:var(--paper); }
+  .app-dialog:not(.app-dialog--docked) .dialog__shell { position:relative; height:100%; max-height:none; grid-template-rows:auto minmax(0,1fr) auto; background:var(--paper); }
+  .app-dialog:not(.app-dialog--docked) .dialog__header { position:static; display:flex; min-height:0; padding:26px 16px 10px; border-bottom:1px solid var(--line); background:var(--paper); }
+  .app-dialog:not(.app-dialog--docked) .dialog__header > div { display:block; }
+  .app-dialog:not(.app-dialog--docked) .dialog__content { min-height:0; padding:14px 16px; overflow:auto; }
+  .app-dialog:not(.app-dialog--docked) .dialog__actions { padding:10px 16px; border-top:1px solid var(--line); background:var(--paper); }
+  body.utility-panel-open .utility-panel,
+  body.mobile-measurement-panel-open .utility-panel,
+  body.mobile-presentation-panel-open .utility-panel { inset:auto 8px var(--mobile-sheet-bottom); width:auto; height:var(--mobile-utility-height, min(50dvh, 620px)); max-height:calc(100dvh - var(--mobile-sheet-bottom) - 52px); grid-template-rows:auto auto minmax(0,1fr); border:1px solid var(--line); border-radius:14px 14px 0 0; }
+  body.utility-panel-open .utility-panel > header { padding-top:26px; }
+  body.utility-panel-open .map-nav { max-height:max(44px, calc(100dvh - var(--mobile-utility-height, min(50dvh, 620px)) - var(--mobile-sheet-bottom) - 110px)); overflow-y:auto; }
+  body.mobile-presentation-panel-open .utility-panel > header { display:flex; }
+  body.mobile-presentation-panel-open .utility-tabs:not([hidden]) { display:flex; }
+  body:has(.app-dialog:not(.app-dialog--docked)[open]) .utility-panel { visibility:hidden; pointer-events:none; }
+  body.mobile-map-route:has(.app-dialog:not(.app-dialog--docked)[open]) .sidebar { visibility:hidden; pointer-events:none; }
 }
 
 @media (max-width: 480px) {
