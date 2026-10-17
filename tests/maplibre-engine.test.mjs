@@ -100,8 +100,10 @@ function fakeMap() {
   let camera = { center: { lng: -98.5, lat: 39.5 }, zoom: 3, bearing: 0, pitch: 0 };
   let terrain = null;
   let sky = null;
+  const canvas = { style: { cursor: "" } };
   return {
     sources, layers,
+    getCanvas: () => canvas,
     on(type, listener) { listeners.set(type, listener); },
     emit(type, event) { listeners.get(type)?.(event); },
     dragPan: { enable() {}, disable() {} },
@@ -153,7 +155,9 @@ test("MapLibre drawing creates visible terrain-draped graphics and exports them"
     await engine.initialize();
     const click = (lng, lat) => map.emit("click", { lngLat: { lng, lat }, point: { x: 0, y: 0 } });
     engine.draw("point");
+    assert.equal(map.getCanvas().style.cursor, "crosshair");
     click(1, 2);
+    assert.equal(map.getCanvas().style.cursor, "", "the cursor is restored when drawing finishes");
     engine.draw("polyline");
     click(0, 0); click(1, 1);
     assert.equal(map.getSource("gismap-drawings").data.features.length, 4, "vertices and the in-progress line are visible before completion");
@@ -162,8 +166,10 @@ test("MapLibre drawing creates visible terrain-draped graphics and exports them"
     click(0, 0); click(2, 0); click(2, 2);
     map.emit("dblclick", { preventDefault() {} });
     engine.draw("rectangle");
+    assert.equal(map.getCanvas().style.cursor, "crosshair");
     map.emit("mousedown", { lngLat: { lng: 0, lat: 0 } });
     map.emit("mouseup", { lngLat: { lng: 1, lat: 1 } });
+    assert.equal(map.getCanvas().style.cursor, "");
     assert.equal(engine.hasDrawings(), true);
     assert.equal(map.getSource("gismap-drawings").data.features.length, 4);
     assert.deepEqual([...map.layers.keys()].filter((id) => id.startsWith("gismap-drawings")), ["gismap-drawings-fill", "gismap-drawings-line", "gismap-drawings-point"]);
@@ -173,7 +179,12 @@ test("MapLibre drawing creates visible terrain-draped graphics and exports them"
     assert.deepEqual(engine.getDrawGraphicsForExport().map(({ geometry }) => geometry.type), ["Point", "LineString", "Polygon", "Polygon"]);
     assert.equal(engine.getDrawGraphicsForExport()[0].attributes.drawing_id, 1);
     assert.equal(published.filter(([topic]) => topic === "draw:complete").length, 4);
+    map.getCanvas().style.cursor = "pointer";
+    engine.draw("polygon");
+    engine.draw("polyline");
+    assert.equal(map.getCanvas().style.cursor, "crosshair", "switching tools keeps the crosshair");
     engine.clearDrawings();
+    assert.equal(map.getCanvas().style.cursor, "pointer", "clearing restores the previous cursor");
     assert.equal(engine.hasDrawings(), false);
     assert.equal(map.getSource("gismap-drawings").data.features.length, 0);
   } finally {

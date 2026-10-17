@@ -125,6 +125,7 @@ export class MaplibreEngine {
     this.highlight = { enabled: true, color: "#00b8d9", style: "fill", feature: null };
     this.drawings = [];
     this.drawing = null;
+    this.drawPreviousCursor = null;
     this.groundId = "world-elevation";
   }
 
@@ -1162,6 +1163,7 @@ export class MaplibreEngine {
     const feature = { type: "Feature", geometry, properties: { drawing_id: this.drawings.length + 1 } };
     this.drawings.push(feature);
     this.drawing = null;
+    this.#restoreDrawCursor();
     this.#drawDrawings();
     this.map?.dragPan.enable();
     this.events.publish("draw:complete", { feature });
@@ -1176,6 +1178,9 @@ export class MaplibreEngine {
   draw(type) {
     if (type === "clear") return this.clearDrawings();
     if (!["point", "polyline", "polygon", "rectangle"].includes(type)) return;
+    const canvas = this.map?.getCanvas?.();
+    if (canvas && this.drawPreviousCursor === null) this.drawPreviousCursor = canvas.style.cursor;
+    if (canvas) canvas.style.cursor = "crosshair";
     this.map?.dragPan.enable();
     this.drawing = { type, coordinates: [], start: null };
     if (this.map?.getSource?.(DRAW_SOURCE)) this.#drawDrawings();
@@ -1183,8 +1188,14 @@ export class MaplibreEngine {
   }
 
   hasDrawings() { return this.drawings.length > 0; }
+  #restoreDrawCursor() {
+    const canvas = this.map?.getCanvas?.();
+    if (canvas && this.drawPreviousCursor !== null) canvas.style.cursor = this.drawPreviousCursor;
+    this.drawPreviousCursor = null;
+  }
   clearDrawings() {
     this.drawing = null;
+    this.#restoreDrawCursor();
     this.drawings = [];
     this.map?.dragPan.enable();
     this.map?.getSource?.(DRAW_SOURCE)?.setData(this.#drawingSource().data);
