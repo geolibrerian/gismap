@@ -7,6 +7,7 @@ import { compileWhere } from "../js/engines/maplibre/where.js";
 import { OBJECT_ID_FIELD, boundsOf, geometryTypeOf, inferFields, normalizeFeatures, representativePoint } from "../js/engines/maplibre/geojson.js";
 import { openBasemapFor } from "../js/engines/maplibre/basemaps.js";
 import { MAPLIBRE_CAPABILITIES, MaplibreEngine } from "../js/engines/maplibre/maplibre-engine.js";
+import { HILLSHADE_LAYER_ID, HILLSHADE_SOURCE_ID, TERRAIN_SOURCE_ID, TERRAIN_TILEJSON, hillshadeLayer, maplibreGround, terrainSource } from "../js/engines/maplibre/terrain.js";
 import { chooseEngine, saveEngine, savedEngine } from "../js/engine-preference.js";
 import { ENGINE_METHODS } from "../js/engines/engine-interface.js";
 import { getEngineDefinition, listEngines } from "../js/engines/engine-registry.js";
@@ -97,17 +98,35 @@ function fakeMap() {
   const layers = new Map();
   const listeners = new Map();
   let camera = { center: { lng: -98.5, lat: 39.5 }, zoom: 3, bearing: 0, pitch: 0 };
+  let terrain = null;
+  let sky = null;
   return {
     sources, layers,
     addSource: (id, spec) => sources.set(id, { ...spec, setData(data) { this.data = data; } }),
     getSource: (id) => sources.get(id),
     removeSource: (id) => sources.delete(id),
-    addLayer: (spec) => layers.set(spec.id, structuredClone(spec)),
+    addLayer: (spec, before) => layers.set(spec.id, { ...structuredClone(spec), ...(before ? { before } : {}) }),
     getLayer: (id) => layers.get(id),
     removeLayer: (id) => layers.delete(id),
     setFilter: (id, filter) => { layers.get(id).filter = filter; },
     setLayoutProperty: (id, name, value) => { layers.get(id).layout[name] = value; },
     setPaintProperty: (id, name, value) => { layers.get(id).paint[name] = value; },
+    setTerrain: (value) => { terrain = value; },
+    getTerrain: () => terrain,
+    setSky: (value) => { sky = value; },
+    getSky: () => sky,
+    getStyle: () => ({ layers: [...layers.values()] }),
+    isStyleLoaded: () => true,
+    setStyle() {
+      // MapLibre removes terrain sources and layers while replacing a style.
+      terrain = null;
+      sky = null;
+      sources.clear();
+      layers.clear();
+      const listener = listeners.get("style.load");
+      listeners.delete("style.load");
+      listener?.();
+    },
     getBounds: () => ({ getWest: () => -10, getSouth: () => -10, getEast: () => 10, getNorth: () => 10 }),
     getCenter: () => camera.center,
     getZoom: () => camera.zoom,
@@ -118,6 +137,32 @@ function fakeMap() {
     loaded: () => true,
   };
 }
+
+test("MapLibre terrain uses the official open DEM pattern, survives basemap changes and can be turned off", async () => {
+  assert.match(TERRAIN_TILEJSON, /^https:\/\/tiles\.mapterhorn\.com\//);
+  assert.deepEqual(terrainSource(), { type: "raster-dem", url: TERRAIN_TILEJSON });
+  assert.equal(maplibreGround("flat").terrain, false);
+  assert.equal(maplibreGround("unknown").id, "world-elevation");
+  assert.equal(hillshadeLayer().source, HILLSHADE_SOURCE_ID);
+
+  const published = [];
+  const engine = new MaplibreEngine({ publish: (topic, payload) => published.push([topic, payload]) });
+  engine.map = fakeMap();
+  engine.setGround("world-elevation");
+  assert.deepEqual(engine.map.getTerrain(), { source: TERRAIN_SOURCE_ID, exaggeration: 1 });
+  assert.deepEqual(engine.map.getSky(), {});
+  assert.ok(engine.map.getSource(TERRAIN_SOURCE_ID));
+  assert.ok(engine.map.getLayer(HILLSHADE_LAYER_ID));
+  engine.setBasemap("positron");
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  assert.deepEqual(engine.map.getTerrain(), { source: TERRAIN_SOURCE_ID, exaggeration: 1 }, "a new style restores terrain immediately");
+  assert.ok(engine.map.getSource(TERRAIN_SOURCE_ID));
+  engine.setGround("flat");
+  assert.equal(engine.map.getTerrain(), null);
+  assert.equal(engine.map.getSource(TERRAIN_SOURCE_ID), undefined);
+  assert.equal(engine.map.getLayer(HILLSHADE_LAYER_ID), undefined);
+  assert.deepEqual(published.filter(([topic]) => topic === "map:ground-changed").map(([topic, payload]) => [topic, payload.id]), [["map:ground-changed", "world-elevation"], ["map:ground-changed", "flat"]]);
+});
 
 test("GeoJSON layers draw, filter, query and identify in the browser", async () => {
   const published = [];
@@ -194,7 +239,7 @@ test("views persist in GIS Map zoom levels (one above MapLibre's)", async () => 
   assert.equal(engine.map.getZoom(), 11, "MapLibre draws GIS Map zoom 12 at its zoom 11");
   assert.deepEqual(engine.getViewState(), { type: "map", camera: null, center: [-122.27, 37.8], zoom: 12, heading: 30, tilt: 20 });
   await engine.setView({ center: [0, 0], tilt: 80 }, { animate: false });
-  assert.equal(engine.map.getPitch(), 60, "tilt is capped for a flat map");
+  assert.equal(engine.map.getPitch(), 80, "terrain views retain a steep presentation tilt");
   // A 3D camera saved by the ArcGIS engine opens on roughly the place it looked at.
   await engine.setView({ camera: { position: { x: -71.1, y: 42.3, z: 2000, spatialReference: { wkid: 4326 } }, heading: 0, tilt: 0 } }, { animate: false });
   assert.deepEqual(engine.map.getCenter(), { lng: -71.1, lat: 42.3 });

@@ -6,20 +6,26 @@ All notable changes to GIS Map Online are documented here. This project follows
 
 ## [Unreleased]
 
+### MapLibre 3D terrain
+
+- **MapLibre now draws real 3D terrain.** Its existing Terrain surface setting adds a key-free raster DEM from Mapterhorn, subtle hillshade and sky, with pitch up to 85°. Vector and ArcGIS feature layers stay draped on the terrain, and Smart image and briefing PDF captures include the same relief.
+- Terrain is independent of the basemap and survives OpenFreeMap and skin-basemap changes. Projects keep `world-elevation`, `world-topobathymetry` or `flat`; the MapLibre menu makes clear that its open DEM covers land elevation rather than bathymetry, and Flat ground removes the DEM, hillshade and sky.
+- MapLibre now advertises the shared `view-3d` and `ground` capabilities and is labelled **MapLibre — open 3D maps (preview)**. It still supports ordinary overhead maps at zero pitch.
+
 ### ArcGIS services on the MapLibre engine, and engine switching that holds
 
 - **ArcGIS data works on MapLibre.** Feature layers (FeatureServer and MapServer layers that hold features) are fetched as GeoJSON in pages and keep their service's fields, field types, coded values, display field and **object IDs**, so tables, filters, briefings, slide features and field tasks refer to the same features as on ArcGIS. Layers bigger than 50,000 features are fetched already filtered (and fetched again when the filter changes). Map image services (cached tiles or drawn on request), image services and WMS draw as images; areas without data stay transparent, and WMS respects the server's layer limit and any `LAYERS=` in the link.
 - **Styles carry over.** A layer's own service style, and GIS Map styles (choropleth, graduated symbols, categories, single colour, and ArcGIS renderer JSON from links and projects), are translated into MapLibre expressions (`js/engines/maplibre/arcgis-renderer.js`); codes such as -1 draw as "No data". Style suggestions, automatic classes and sentinel detection work as on ArcGIS. Heat maps still need the ArcGIS engine.
 - **Spatial relationships are answered by the service** for ArcGIS layers (briefing slide layers such as "ballparks inside this state", surroundings counts), as on ArcGIS. Publisher scale ranges apply, with **Show anyway**.
 - Polygons whose islands a service packs into one ring list draw correctly (islands as parts, lakes as holes), and layers spread over half the world zoom to their dense core, as on ArcGIS.
-- **Choosing an engine switches at once** (no confirmation prompt that a browser could silence), and the reopened address names the engine, so the choice holds. MapLibre is labelled "open vector maps (preview)", not 2D. A layer that fails to draw reports once every few seconds instead of once per tile.
-- Still ArcGIS-only: WFS and KML, KMZ and shapefile files, 3D terrain, measurement and the other widgets, place search, and secured services.
+- **Choosing an engine switches at once** (no confirmation prompt that a browser could silence), and the reopened address names the engine, so the choice holds. MapLibre is no longer labelled 2D; with terrain enabled it is labelled "open 3D maps (preview)". A layer that fails to draw reports once every few seconds instead of once per tile.
+- Still ArcGIS-only: WFS and KML, KMZ and shapefile files, measurement and the other widgets, place search, secured services, and terrain bathymetry.
 
 ### Clearer menus, and choosing an engine and its basemaps
 
 - **Workflows is now Modes** (Briefing, Tours, Field tasks, Standard map), which fits the menu bar.
 - **Every dropdown fits the side panel.** Menus open across the panel's width under the menu bar instead of under their button, so Map, Modes and Tools no longer run off the panel's edge.
-- **Map** is about the map itself: **Map engine** (ArcGIS 3D globe or MapLibre 2D preview), **Basemap**, **Terrain surface** (shown only with the ArcGIS engine) and the Bookmarks and Draw panels.
+- **Map** is about the map itself: **Map engine** (ArcGIS 3D globe or MapLibre open 3D preview), **Basemap**, **Terrain surface** (with engine-specific choices) and the Bookmarks and Draw panels.
 - **Tools** holds the Map assistant and the **map tools**: Legend, Measurement, Elevation profile, Compass and the 3D basemap gallery (greyed out, with a note, when the MapLibre engine is drawing). **Project** gains the settings: Layout & display, ArcGIS connections, Configure AI, Load custom JavaScript tool and About this build.
 - **The basemap list belongs to the engine.** ArcGIS lists its 3D, 2D and imagery basemaps; MapLibre lists the OpenFreeMap styles (Liberty, Bright, Positron, Dark); both offer Skin. The list shows the basemap actually on screen: a "3D Topographic" link opened with MapLibre shows Liberty. One catalog (`js/basemap-catalog.js`) gives each basemap its engine and its nearest match on the other, used by both engines, links (`basemap=open-positron` …), the map-v1 schema and the API docs.
 - **Switching engines keeps the view and basemap**, also for a map without layers (it reopens with `basemap`, `center` and `scale`).
@@ -32,10 +38,10 @@ All notable changes to GIS Map Online are documented here. This project follows
 - Tests (`tests/basemap-themes.test.mjs`) derive a theme for every skin from `css/app.css` and check contrast, and run the compiler over the three OpenFreeMap styles (`tests/fixtures/openfreemap-*.json`): every layer has a role, and structure is unchanged.
 - The map status no longer says "Loading ArcGIS Maps SDK" while another engine loads.
 
-### MapLibre engine preview (2D, open basemaps, GeoJSON)
+### MapLibre engine preview (open basemaps, GeoJSON)
 
 - **A second map engine, opt-in.** Open any link with `?engine=maplibre`, or choose **Map → Map engine → MapLibre** (also in **Project → Layout & display**), which saves the choice and reopens the current map from its link. ArcGIS stays the default; nothing changes unless you choose it.
-- **What it does so far:** a flat map drawn with MapLibre GL JS 5.24.0 on key-free [OpenFreeMap](https://openfreemap.org) styles (GIS Map basemap ids map to Liberty, Bright, Positron or Dark, so links keep their basemap id); **GeoJSON layers** from URLs and files, with visibility, opacity, single-colour styles, attribute filters, the attribute table and search, identify, queries and briefings; the camera (centre, zoom, heading, tilt up to 60°) in the same GIS Map zoom levels as ArcGIS, so map links, projects and tours open on the same view in either engine; navigation buttons; and image capture for Smart images and PDFs.
+- **What it does so far:** a map drawn with MapLibre GL JS 5.24.0 on key-free [OpenFreeMap](https://openfreemap.org) styles (GIS Map basemap ids map to Liberty, Bright, Positron or Dark, so links keep their basemap id); **GeoJSON layers** from URLs and files, with visibility, opacity, single-colour styles, attribute filters, the attribute table and search, identify, queries and briefings; the camera (centre, zoom, heading and tilt) in the same GIS Map zoom levels as ArcGIS, so map links, projects and tours open on the same view in either engine; navigation buttons; and image capture for Smart images and PDFs.
 - **Not yet:** ArcGIS, WMS, WFS and KML services, KML/KMZ/shapefile files, class-based styles and style suggestions, exact spatial relationships (only "in view" and box queries), geocoding search, drawing, measurement and other widgets, highlights and tour or task pins. Each says it needs the ArcGIS engine instead of failing silently; address lookups are simply skipped.
 - **Optional capabilities are optional.** `MapController` gives harmless defaults when an engine lacks them (no click marker, no tour pins, no address) and reports the missing capability for the rest. With MapLibre selected the ArcGIS runtime is never downloaded; saved ArcGIS sign-ins load it only when a connection is used.
 - New pure modules with Node tests (`tests/maplibre-engine.test.mjs`): `js/engines/maplibre/where.js` evaluates GIS Map's SQL where clauses (comparisons, LIKE, IN, BETWEEN, IS NULL, AND/OR/NOT) against GeoJSON properties, `geojson.js` (object IDs, fields, bounds, representative points), `basemaps.js`, and `js/engine-preference.js`.

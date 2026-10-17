@@ -1588,7 +1588,7 @@ export class UIController {
 
   /** <option>s for the engines, the active one selected. */
   #engineOptionsMarkup() {
-    const labels = { arcgis: "ArcGIS — 3D scenes", maplibre: "MapLibre — open vector maps (preview)" };
+    const labels = { arcgis: "ArcGIS — 3D scenes", maplibre: "MapLibre — open 3D maps (preview)" };
     return this.mapController.availableEngines().map((engine) => `<option value="${escapeHtml(engine.id)}"${engine.id === this.mapController.getEngineId() ? " selected" : ""}>${escapeHtml(labels[engine.id] || engine.label)}</option>`).join("");
   }
 
@@ -1603,6 +1603,11 @@ export class UIController {
     return groups.map((group) => `<optgroup label="${escapeHtml(group)}">${options.filter((entry) => entry.group === group).map((entry) => `<option value="${escapeHtml(entry.id)}"${entry.id === wanted ? " selected" : ""}>${escapeHtml(entry.label)}</option>`).join("")}</optgroup>`).join("");
   }
 
+  #groundOptionsMarkup() {
+    const { selected, options } = this.mapController.getGroundOptions();
+    return options.map((option) => `<option value="${escapeHtml(option.id)}"${option.id === selected ? " selected" : ""}>${escapeHtml(option.label)}</option>`).join("");
+  }
+
   /**
    * The Map menu speaks for the engine that is drawing: its engine choice, its
    * own basemaps with the one on screen selected, terrain only where there is
@@ -1613,11 +1618,11 @@ export class UIController {
     const engine = this.mapController.getEngineId();
     document.querySelectorAll("[data-engine-picker]").forEach((select) => { select.innerHTML = this.#engineOptionsMarkup(); });
     document.querySelectorAll("[data-engine-hint]").forEach((hint) => {
-      hint.textContent = engine === "maplibre" ? "Preview: open basemaps, GeoJSON and ArcGIS services. Terrain, widgets and KML still need the ArcGIS engine." : "";
+      hint.textContent = engine === "maplibre" ? "Preview: open 3D terrain, basemaps, GeoJSON and ArcGIS services. Widgets and KML still need the ArcGIS engine." : "";
       hint.hidden = !hint.textContent;
     });
     document.querySelectorAll("[data-basemap-picker]").forEach((select) => { select.innerHTML = this.#basemapOptionsMarkup(); });
-    document.querySelectorAll("[data-ground-picker]").forEach((select) => { select.value = this.mapController.getGroundId() || "world-elevation"; });
+    document.querySelectorAll("[data-ground-picker]").forEach((select) => { select.innerHTML = this.#groundOptionsMarkup(); });
     document.querySelectorAll("[data-requires-capability]").forEach((element) => {
       const available = capabilities.includes(element.dataset.requiresCapability);
       if (element.matches("button")) {

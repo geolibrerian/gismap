@@ -4,15 +4,16 @@
 // browser as GeoJSON (ArcGIS features keep their service's fields and object
 // IDs), drawn with their service's style or a GIS Map style, and filtered,
 // queried and identified here; ArcGIS map image and imagery services and WMS
-// are drawn as images by their services. Capabilities it lacks (3D ground,
-// WFS and KML, geocoding, drawing, widgets) are left out of getCapabilities(),
+// are drawn as images by their services. Open raster-DEM terrain turns the
+// pitched map into a 3D surface. Capabilities it lacks (WFS and KML,
+// geocoding, drawing, widgets) are left out of getCapabilities(),
 // and MapController falls back or reports them.
 //
 // Zoom: GIS Map zoom levels follow ArcGIS (256-pixel tiles); MapLibre's are
 // one lower for the same scale (512-pixel tiles). Everything that crosses the
 // boundary uses GIS Map levels, so links and projects mean the same view.
 import { GisMapError } from "../../gismap-errors.js?v=0.28.0";
-import { unsupported } from "../engine-interface.js?v=0.41.0";
+import { unsupported } from "../engine-interface.js?v=0.43.0";
 import { openBasemapFor } from "./basemaps.js?v=0.41.0";
 import { basemapOnEngine, basemapsForEngine } from "../../basemap-catalog.js?v=0.41.0";
 import { applyBasemapTheme } from "./basemap-theme.js?v=0.40.0";
@@ -23,14 +24,15 @@ import { rendererToPaint } from "./arcgis-renderer.js?v=0.42.0";
 import { MAX_FEATURES, describeArcGIS, featureServiceLayers, fetchFeatures, queryServiceIds } from "./arcgis-service.js?v=0.42.0";
 import { OBJECT_ID_FIELD, boundsIntersect, boundsOf, expandBounds, geometryTypeOf, inferFields, normalizeFeatures, regroupPolygon, representativePoint } from "./geojson.js?v=0.42.0";
 import { loadMaplibre } from "./maplibre-loader.js?v=0.39.0";
+import { HILLSHADE_LAYER_ID, HILLSHADE_SOURCE_ID, MAPLIBRE_GROUNDS, TERRAIN_SOURCE_ID, hillshadeLayer, maplibreGround, terrainSource } from "./terrain.js?v=0.43.0";
 
-export const MAPLIBRE_CAPABILITIES = Object.freeze(["view-2d", "basemaps", "basemap-themes", "layers-arcgis", "layers-files", "query", "feature-filter", "renderer-spec", "renderer-native", "identify", "capture", "native"]);
+export const MAPLIBRE_CAPABILITIES = Object.freeze(["view-2d", "view-3d", "basemaps", "basemap-themes", "ground", "layers-arcgis", "layers-files", "query", "feature-filter", "renderer-spec", "renderer-native", "identify", "capture", "native"]);
 
 const ZOOM_OFFSET = 1;
 const SCALE_AT_ZOOM_0 = 591657527.591555;
 // GIS Map green, until a skin's theme gives the data its accent colour.
 const DEFAULT_COLOR = "#1b7f6a";
-const MAX_PITCH = 60;
+const MAX_PITCH = 85;
 const toEngineZoom = (zoom) => Number(zoom) - ZOOM_OFFSET;
 const toGisZoom = (zoom) => Number(zoom) + ZOOM_OFFSET;
 const zoomForScale = (scale) => Math.log2(SCALE_AT_ZOOM_0 / Math.max(1, Number(scale)));
@@ -116,6 +118,7 @@ export class MaplibreEngine {
     this.basemapId = "topo-3d";
     this.initialBasemapId = null;
     this.basemapTheme = null;
+    this.groundId = "world-elevation";
   }
 
   /* ---------------- Lifecycle ---------------- */
@@ -140,6 +143,7 @@ export class MaplibreEngine {
       this.map.once("error", (event) => { if (!this.map.loaded()) reject(event.error || new Error("The basemap did not load.")); });
     });
     await this.#loaded;
+    await this.#applyGround();
     this.#bindEvents();
     this.events.publish("map:ready", { engine: this.id, zoom: this.#gisZoom() });
   }
@@ -153,8 +157,11 @@ export class MaplibreEngine {
     this.map.on("error", (event) => {
       // Basemap tiles come and go; a failure in a data layer's source is worth reporting.
       if (!String(event.sourceId || "").startsWith("gismap-")) return;
+      const terrainSourceIds = new Set([TERRAIN_SOURCE_ID, HILLSHADE_SOURCE_ID]);
       const record = this.#records.get(String(event.sourceId).slice("gismap-".length));
-      const message = `Could not draw ${record?.title || "a layer"}: ${event.error?.message || "unknown error"}`;
+      const message = terrainSourceIds.has(event.sourceId)
+        ? `3D terrain could not load: ${event.error?.message || "unknown error"}. You can continue with flat ground.`
+        : `Could not draw ${record?.title || "a layer"}: ${event.error?.message || "unknown error"}`;
       // Every failing tile reports; say it once every few seconds.
       if (this.lastDrawError === message) return;
       this.lastDrawError = message;
@@ -215,6 +222,49 @@ export class MaplibreEngine {
     return this.basemapId;
   }
 
+  getGroundOptions() {
+    return { selected: this.groundId, options: MAPLIBRE_GROUNDS.map(({ id, label }) => ({ id, label })) };
+  }
+
+  setGround(id) {
+    const next = maplibreGround(id).id;
+    if (next === this.groundId && this.map?.getTerrain?.()) return;
+    this.groundId = next;
+    if (this.map) void this.#applyGround();
+    this.events.publish("map:ground-changed", { id: this.groundId });
+  }
+
+  getGroundId() {
+    return this.groundId;
+  }
+
+  /** Adds or removes the open DEM, subtle hillshade and sky after a style is ready. */
+  async #applyGround({ styleReady = false } = {}) {
+    if (!this.map) return;
+    if (!styleReady && !this.map.isStyleLoaded?.()) {
+      await new Promise((resolve) => { this.map.once("style.load", resolve); setTimeout(resolve, 10000); });
+      if (!this.map) return;
+    }
+    const option = maplibreGround(this.groundId);
+    if (!option.terrain) {
+      this.map.setTerrain?.(null);
+      this.map.setSky?.(null);
+      if (this.map.getLayer?.(HILLSHADE_LAYER_ID)) this.map.removeLayer(HILLSHADE_LAYER_ID);
+      if (this.map.getSource?.(HILLSHADE_SOURCE_ID)) this.map.removeSource(HILLSHADE_SOURCE_ID);
+      if (this.map.getSource?.(TERRAIN_SOURCE_ID)) this.map.removeSource(TERRAIN_SOURCE_ID);
+      return;
+    }
+    if (!this.map.getSource?.(TERRAIN_SOURCE_ID)) this.map.addSource(TERRAIN_SOURCE_ID, terrainSource());
+    if (!this.map.getSource?.(HILLSHADE_SOURCE_ID)) this.map.addSource(HILLSHADE_SOURCE_ID, terrainSource());
+    if (!this.map.getLayer?.(HILLSHADE_LAYER_ID)) {
+      const before = this.map.getStyle?.()?.layers?.find((layer) => layer.type === "symbol")?.id || null;
+      const spec = hillshadeLayer();
+      this.map.addLayer(spec, before || undefined);
+    }
+    this.map.setTerrain?.({ source: TERRAIN_SOURCE_ID, exaggeration: option.exaggeration });
+    this.map.setSky?.({});
+  }
+
   /** The basemaps this engine draws, and the one it is drawing now (an ArcGIS id from a link shows as its open equivalent). */
   getBasemapOptions() {
     return { selected: basemapOnEngine(this.basemapId, "maplibre"), options: basemapsForEngine("maplibre") };
@@ -270,6 +320,7 @@ export class MaplibreEngine {
     // A style still loading cannot be diffed (MapLibre would rebuild from scratch); wait for it.
     if (this.map && !this.map.isStyleLoaded()) await new Promise((resolve) => { this.map.once("style.load", resolve); setTimeout(resolve, 10000); });
     if (token !== this.#styleToken || !this.map) return;
+    this.map.once?.("style.load", () => { if (token === this.#styleToken) void this.#applyGround({ styleReady: true }); });
     this.map.setStyle(style, {
       diff: true,
       transformStyle: (_previous, incoming) => ({
