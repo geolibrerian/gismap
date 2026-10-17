@@ -515,6 +515,17 @@ body.mobile-workflow-open .field-task-banner { left:auto; right:calc(min(440px,1
 .menu__hint { color: var(--muted); font-size: 11px; font-weight: 500; line-height: 1.35; letter-spacing: 0; text-transform: none; }
 .menu__field select { width: 100%; padding: 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); color: var(--ink); font: inherit; font-size: 11px; font-weight: 500; letter-spacing: 0; text-transform: none; }
 .presentation-picker { display: grid; gap: 14px; }
+.skin-customize { display:grid; gap:10px; margin:0; padding:14px; border:1px solid var(--line); border-radius:var(--ui-radius-small); }
+.skin-customize legend { font-weight:700; }
+.skin-customize p { margin:0; }
+.skin-customize > div { display:flex; flex-wrap:wrap; gap:18px; }
+.skin-customize label { display:flex; align-items:center; gap:8px; }
+.skin-customize input[type="color"] { width:42px; height:36px; padding:2px; cursor:pointer; }
+.skin-customize > button { justify-self:start; }
+.maplibre-measurement { position:absolute; z-index:5; top:12px; right:12px; width:min(280px, calc(100% - 24px)); padding:14px; border:1px solid var(--line); border-radius:var(--ui-radius-small); background:var(--surface); color:var(--ink); box-shadow:var(--shadow); }
+.maplibre-measurement > div { display:flex; align-items:center; justify-content:space-between; gap:12px; }
+.maplibre-measurement p { margin:8px 0; font-size:13px; }
+.maplibre-measurement output { display:block; margin:8px 0; font-weight:700; }
 .presentation-cards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
 .presentation-card { display: grid; gap: 7px; padding: 10px; border: 1px solid var(--line); border-radius: 8px; color: var(--ink); background: var(--surface); text-align: left; cursor: pointer; }
 .presentation-card:hover, .presentation-card.is-selected { border-color: var(--green-2); box-shadow: 0 0 0 2px color-mix(in srgb, var(--green-2) 22%, transparent); }

@@ -10,7 +10,7 @@ import { markdownToPlainText, renderMarkdown } from "./markdown.js?v=0.18.2";
 import { formatAttributeValue } from "./attribute-format.js?v=0.18.2";
 import { normalizeApplicationConfig, presetApplication } from "./application-config.js?v=0.18.2";
 import { combineConditions, featureFilterFor, featureId, fieldKind, filterRecords, histogram, requestGuard, sortRecords } from "./presentation-query.js?v=0.30.0";
-import { DEFAULT_SKIN, INTERFACE_SKINS, applyInterfaceSkin, normalizeSkin, skinIsDark, skinOptionsMarkup } from "./skin-catalog.js?v=0.44.2";
+import { DEFAULT_SKIN, INTERFACE_SKINS, applyInterfaceSkin, normalizeSkin, skinIsDark, skinOptionsMarkup } from "./skin-catalog.js?v=0.52.3";
 import { themeFromComputedStyle } from "./basemap-themes.js?v=0.40.0";
 import { compactMedia } from "./viewport.js?v=0.18.2";
 import { PdfDocument, brandedMapImage, brandedQrCanvas, loadBrandLogo, printPalette, qrAsset } from "./pdf-document.js?v=0.44.2";
@@ -1744,7 +1744,7 @@ export class UIController {
       this.mapController.setBasemapTheme(theme);
     };
     sync();
-    new MutationObserver(sync).observe(root, { attributes: true, attributeFilter: ["data-skin", "data-theme"] });
+    new MutationObserver(sync).observe(root, { attributes: true, attributeFilter: ["data-skin", "data-theme", "style"] });
   }
 
   #readDisplaySettings() {
@@ -1779,7 +1779,8 @@ export class UIController {
     const resolvedTheme = settings.appearance === "system" ? (prefersDark ? "dark" : "light") : settings.appearance;
     document.documentElement.dataset.theme = resolvedTheme;
     // Light/Dark applies to the GISMap house skin; other skins keep their own palette.
-    applyInterfaceSkin(document.documentElement.dataset.skin || this.projectManager?.current?.presentation?.skin);
+    const skin = document.documentElement.dataset.skin || this.projectManager?.current?.presentation?.skin;
+    applyInterfaceSkin(skin, { colors: this.projectManager?.current?.presentation?.skinColors?.[normalizeSkin(skin)] });
     const mobile = this.mobileMedia.matches;
     const insightPosition = mobile ? "dock-top" : settings.insightPosition;
     const tablePosition = mobile ? "dock-top" : settings.tablePosition;
@@ -4244,7 +4245,8 @@ export class UIController {
     if (template === "standard" || template !== this.presentationState.template) this.#leavePresentationMode();
     app.dataset.presentation = template;
     if (template !== "briefing") document.body.classList.remove("briefing-map-select");
-    applyInterfaceSkin(presentation.skin ?? this.projectManager.current.presentation?.skin);
+    const skin = presentation.skin ?? this.projectManager.current.presentation?.skin;
+    applyInterfaceSkin(skin, { colors: (presentation.skinColors ?? this.projectManager.current.presentation?.skinColors)?.[normalizeSkin(skin)] });
     document.body.dataset.presentation = template;
     if (template === "atlas") {
       const activeIndex = Number.isInteger(this.presentationState.atlasChapterIndex) ? this.presentationState.atlasChapterIndex : null;
@@ -4494,18 +4496,19 @@ export class UIController {
   #presentationDialog() {
     const previous = structuredClone(this.projectManager.current.presentation || {});
     const current = { template: "standard", skin: DEFAULT_SKIN, ...previous };
+    const palettes = structuredClone(current.skinColors || {});
     let applied = false;
     this.openDialog({
       eyebrow: "Presentation",
       title: "Instant presentations",
-      content: `<div class="presentation-picker"><p class="form-note">Choose a look for your map and presentation. Your mode, layers, map symbols, and camera stay as they are.</p><fieldset class="skin-picker"><legend>Interface skin</legend>${INTERFACE_SKINS.map(({ id,label,description }) => `<button type="button" class="skin-card skin-card--${id}" data-skin-choice="${id}" aria-pressed="false"><span class="skin-mini"><i></i><b></b><em></em><small></small></span><strong>${label}</strong><small>${description}</small></button>`).join("")}<select id="presentation-skin" hidden>${skinOptionsMarkup(current.skin)}</select></fieldset></div>`,
+      content: `<div class="presentation-picker"><p class="form-note">Choose a look for your map and presentation. Your mode, layers, map symbols, and camera stay as they are.</p><fieldset class="skin-picker"><legend>Interface skin</legend>${INTERFACE_SKINS.map(({ id,label,description }) => `<button type="button" class="skin-card skin-card--${id}" data-skin-choice="${id}" aria-pressed="false"><span class="skin-mini"><i></i><b></b><em></em><small></small></span><strong>${label}</strong><small>${description}</small></button>`).join("")}<select id="presentation-skin" hidden>${skinOptionsMarkup(current.skin)}</select></fieldset><fieldset class="skin-customize"><legend>Customize skin colors</legend><p class="form-note">Adjust the selected skin’s primary, secondary, and tertiary accents. Colors are saved with this project.</p><div>${["primary", "secondary", "tertiary"].map((name) => `<label><span>${name[0].toUpperCase() + name.slice(1)}</span><input type="color" data-skin-color="${name}" aria-label="${name} color"></label>`).join("")}</div><button type="button" class="button--quiet" data-skin-reset>Reset colors</button></fieldset></div>`,
       actions: [
         { label: "Cancel", handler: () => this.dialog.close() },
         { label: "Apply", primary: true, handler: () => {
           const skin = this.dialog.querySelector("#presentation-skin").value;
-          this.projectManager.patchPresentation({ skin });
+          this.projectManager.patchPresentation({ skin, skinColors: palettes });
           applied = true;
-          applyInterfaceSkin(skin);
+          applyInterfaceSkin(skin, { colors: palettes[skin] });
           this.dialog.close();
           this.toast("Interface skin applied.");
         } },
@@ -4514,7 +4517,7 @@ export class UIController {
     // Closing by any route (Cancel, ×, Escape) restores the previous appearance.
     const session = this.dialogSession;
     this.dialog.addEventListener("close", () => {
-      if (!applied && session === this.dialogSession) applyInterfaceSkin(previous.skin);
+      if (!applied && session === this.dialogSession) applyInterfaceSkin(previous.skin, { colors: previous.skinColors?.[normalizeSkin(previous.skin)] });
     }, { once: true });
     const skin = this.dialog.querySelector("#presentation-skin");
     skin.value = current.skin;
@@ -4525,9 +4528,21 @@ export class UIController {
         card.classList.toggle("is-selected", selected);
         card.setAttribute("aria-pressed", String(selected));
       });
-      applyInterfaceSkin(skin.value);
+      applyInterfaceSkin(skin.value, { colors: palettes[skin.value] });
+      const style = getComputedStyle(document.documentElement);
+      for (const [name, token] of [["primary", "--green"], ["secondary", "--green-2"], ["tertiary", "--amber"]]) {
+        const value = style.getPropertyValue(token).trim();
+        const rgb = value.match(/^rgba?\(\s*(\d+)[,\s]+(\d+)[,\s]+(\d+)/i);
+        const hex = /^#[0-9a-f]{6}$/i.test(value) ? value : /^#[0-9a-f]{3}$/i.test(value) ? `#${[...value.slice(1)].map((digit) => digit + digit).join("")}` : rgb ? `#${rgb.slice(1, 4).map((part) => Number(part).toString(16).padStart(2, "0")).join("")}` : "#000000";
+        this.dialog.querySelector(`[data-skin-color="${name}"]`).value = hex;
+      }
     };
     this.dialog.querySelectorAll("[data-skin-choice]").forEach((card) => card.addEventListener("click", () => chooseSkin(card.dataset.skinChoice)));
+    this.dialog.querySelectorAll("[data-skin-color]").forEach((input) => input.addEventListener("input", () => {
+      palettes[skin.value] = Object.fromEntries([...this.dialog.querySelectorAll("[data-skin-color]")].map((field) => [field.dataset.skinColor, field.value]));
+      applyInterfaceSkin(skin.value, { colors: palettes[skin.value] });
+    }));
+    this.dialog.querySelector("[data-skin-reset]").addEventListener("click", () => { delete palettes[skin.value]; chooseSkin(skin.value); });
     chooseSkin(normalizeSkin(current.skin));
   }
 
@@ -5913,7 +5928,7 @@ export class UIController {
 
   /** Applies a skin as the spec or link asks, and keeps it with the project. */
   applySkinChoice(skin) {
-    const applied = applyInterfaceSkin(skin);
+    const applied = applyInterfaceSkin(skin, { colors: this.projectManager.current.presentation?.skinColors?.[normalizeSkin(skin)] });
     this.projectManager.patchPresentation({ skin: applied });
   }
 

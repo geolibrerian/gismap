@@ -37,6 +37,7 @@ export const ENGINE_CAPABILITIES = Object.freeze([
   "buildings-3d", // setBuildings3d(on): extruded buildings on the basemap // search() may run as the user types (place suggestions)
   "draw", // draw(type), sketching graphics
   "widgets", // toggleWidget(name): legend, measurement, elevation profile, …
+  "measurement", // interactive distance measurement
   "tour-markers", // setTourMarkers
   "native", // native(): the SDK's own map and view, an escape hatch for custom tools
 ]);

@@ -27,7 +27,7 @@ import { OBJECT_ID_FIELD, boundsIntersect, boundsOf, expandBounds, geometryTypeO
 import { loadMaplibre } from "./maplibre-loader.js?v=0.39.0";
 import { HILLSHADE_LAYER_ID, HILLSHADE_SOURCE_ID, MAPLIBRE_GROUNDS, TERRAIN_SOURCE_ID, hillshadeLayer, maplibreGround, terrainSource } from "./terrain.js?v=0.43.0";
 
-export const MAPLIBRE_CAPABILITIES = Object.freeze(["view-2d", "view-3d", "basemaps", "basemap-themes", "ground", "layers-arcgis", "layers-files", "query", "feature-filter", "renderer-spec", "renderer-native", "identify", "highlight", "capture", "geocode", "buildings-3d", "draw", "native"]);
+export const MAPLIBRE_CAPABILITIES = Object.freeze(["view-2d", "view-3d", "basemaps", "basemap-themes", "ground", "layers-arcgis", "layers-files", "query", "feature-filter", "renderer-spec", "renderer-native", "identify", "highlight", "capture", "geocode", "buildings-3d", "draw", "measurement", "native"]);
 
 const ZOOM_OFFSET = 1;
 const SCALE_AT_ZOOM_0 = 591657527.591555;
@@ -36,6 +36,7 @@ const DEFAULT_COLOR = "#1b7f6a";
 const MAX_PITCH = 85;
 const HIGHLIGHT_SOURCE = "gismap-highlight";
 const DRAW_SOURCE = "gismap-drawings";
+const MEASURE_SOURCE = "gismap-measurement";
 const DRAW_LAYER_IDS = ["gismap-drawings-fill", "gismap-drawings-line", "gismap-drawings-point"];
 const toEngineZoom = (zoom) => Number(zoom) - ZOOM_OFFSET;
 const toGisZoom = (zoom) => Number(zoom) + ZOOM_OFFSET;
@@ -126,6 +127,7 @@ export class MaplibreEngine {
     this.drawings = [];
     this.drawing = null;
     this.drawPreviousCursor = null;
+    this.measurement = null;
     this.groundId = "world-elevation";
   }
 
@@ -159,6 +161,7 @@ export class MaplibreEngine {
   #bindEvents() {
     const point = (lngLat) => ({ longitude: lngLat.lng, latitude: lngLat.lat, x: lngLat.lng, y: lngLat.lat, spatialReference: { wkid: 4326 } });
     this.map.on("click", (event) => {
+      if (this.measurement) return this.#measureClick(event);
       if (this.drawing) return this.#handleDrawingClick(event);
       this.events.publish("map:click", { x: event.point.x, y: event.point.y, mapPoint: point(event.lngLat) });
     });
@@ -202,6 +205,7 @@ export class MaplibreEngine {
   }
 
   destroy() {
+    if (this.measurement) this.toggleWidget("measurement");
     this.map?.remove();
     this.map = null;
     this.#records.clear();
@@ -365,8 +369,8 @@ export class MaplibreEngine {
       diff: true,
       transformStyle: (_previous, incoming) => ({
         ...incoming,
-        sources: { ...incoming.sources, [HIGHLIGHT_SOURCE]: this.#highlightSource(), [DRAW_SOURCE]: this.#drawingSource(), ...Object.fromEntries([...this.#records.values()].map((record) => [this.#sourceId(record), this.#sourceSpec(record)])) },
-        layers: [...incoming.layers, ...[...this.#records.values()].flatMap((record) => this.#layerSpecs(record)), ...this.#drawingSpecs(), ...this.#highlightSpecs()],
+        sources: { ...incoming.sources, [HIGHLIGHT_SOURCE]: this.#highlightSource(), [DRAW_SOURCE]: this.#drawingSource(), ...(this.measurement ? { [MEASURE_SOURCE]: this.#measureSource() } : {}), ...Object.fromEntries([...this.#records.values()].map((record) => [this.#sourceId(record), this.#sourceSpec(record)])) },
+        layers: [...incoming.layers, ...[...this.#records.values()].flatMap((record) => this.#layerSpecs(record)), ...this.#drawingSpecs(), ...(this.measurement ? this.#measureSpecs() : []), ...this.#highlightSpecs()],
       }),
     });
   }
@@ -1178,6 +1182,7 @@ export class MaplibreEngine {
   draw(type) {
     if (type === "clear") return this.clearDrawings();
     if (!["point", "polyline", "polygon", "rectangle"].includes(type)) return;
+    if (this.measurement) this.toggleWidget("measurement");
     const canvas = this.map?.getCanvas?.();
     if (canvas && this.drawPreviousCursor === null) this.drawPreviousCursor = canvas.style.cursor;
     if (canvas) canvas.style.cursor = "crosshair";
@@ -1205,6 +1210,78 @@ export class MaplibreEngine {
     const box = extent ? [extent.xmin, extent.ymin, extent.xmax, extent.ymax] : null;
     return this.drawings.filter((feature) => !box || boundsIntersect(boundsOf(feature.geometry), box))
       .map((feature) => ({ geometry: feature.geometry, attributes: { ...feature.properties, geometry_type: feature.geometry.type } }));
+  }
+
+  widgetOpen(name) { return name === "measurement" && Boolean(this.measurement); }
+
+  toggleWidget(name) {
+    if (name !== "measurement") throw new Error(`MapLibre does not support ${name}.`);
+    if (this.measurement) {
+      this.measurement.panel.remove();
+      this.measurement = null;
+      for (const id of ["gismap-measure-line", "gismap-measure-points"]) if (this.map?.getLayer(id)) this.map.removeLayer(id);
+      if (this.map?.getSource(MEASURE_SOURCE)) this.map.removeSource(MEASURE_SOURCE);
+      this.#restoreDrawCursor();
+      this.events.publish("widget:toggled", { name, open: false });
+      return false;
+    }
+    if (this.drawing) {
+      this.drawing = null;
+      this.map?.dragPan.enable();
+      this.#drawDrawings();
+    }
+    const canvas = this.map.getCanvas();
+    if (this.drawPreviousCursor === null) this.drawPreviousCursor = canvas.style.cursor;
+    canvas.style.cursor = "crosshair";
+    const panel = document.createElement("section");
+    panel.className = "maplibre-measurement";
+    panel.setAttribute("aria-label", "Distance measurement");
+    panel.innerHTML = '<div><strong>Measure distance</strong><button type="button" data-measure-close aria-label="Close measurement">×</button></div><p>Click or tap the map to add points. Distances follow the globe, not terrain elevation.</p><output aria-live="polite">0 m · 0 ft</output><button type="button" data-measure-clear>Clear</button>';
+    this.map.getContainer().append(panel);
+    this.measurement = { coordinates: [], panel };
+    panel.querySelector("[data-measure-close]").addEventListener("click", () => this.toggleWidget("measurement"));
+    panel.querySelector("[data-measure-clear]").addEventListener("click", () => { this.measurement.coordinates = []; this.#updateMeasurement(); });
+    this.#updateMeasurement();
+    this.events.publish("widget:toggled", { name, open: true });
+    return true;
+  }
+
+  #measureSource() {
+    const coordinates = this.measurement?.coordinates || [];
+    const features = coordinates.map((coordinate) => ({ type: "Feature", properties: {}, geometry: { type: "Point", coordinates: coordinate } }));
+    if (coordinates.length > 1) features.push({ type: "Feature", properties: {}, geometry: { type: "LineString", coordinates } });
+    return { type: "geojson", data: { type: "FeatureCollection", features } };
+  }
+
+  #measureSpecs() {
+    return [
+      { id: "gismap-measure-line", type: "line", source: MEASURE_SOURCE, filter: ["==", ["geometry-type"], "LineString"], paint: { "line-color": "#ff8c00", "line-width": 4 } },
+      { id: "gismap-measure-points", type: "circle", source: MEASURE_SOURCE, filter: ["==", ["geometry-type"], "Point"], paint: { "circle-radius": 5, "circle-color": "#ff8c00", "circle-stroke-color": "#fff", "circle-stroke-width": 2 } },
+    ];
+  }
+
+  #measureClick(event) {
+    this.measurement.coordinates.push([event.lngLat.lng, event.lngLat.lat]);
+    this.#updateMeasurement();
+  }
+
+  #updateMeasurement() {
+    const coordinates = this.measurement.coordinates;
+    let meters = 0;
+    for (let i = 1; i < coordinates.length; i++) {
+      const [lon1, lat1] = coordinates[i - 1].map((n) => n * Math.PI / 180);
+      const [lon2, lat2] = coordinates[i].map((n) => n * Math.PI / 180);
+      const a = Math.sin((lat2 - lat1) / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin((lon2 - lon1) / 2) ** 2;
+      meters += 12742017.6 * Math.asin(Math.sqrt(Math.min(1, Math.max(0, a))));
+    }
+    const metric = meters < 1000 ? `${meters.toFixed(0)} m` : `${(meters / 1000).toFixed(2)} km`;
+    const feet = meters * 3.28084;
+    const imperial = feet < 5280 ? `${feet.toFixed(0)} ft` : `${(feet / 5280).toFixed(2)} mi`;
+    this.measurement.panel.querySelector("output").textContent = `${metric} · ${imperial}`;
+    const source = this.map.getSource(MEASURE_SOURCE);
+    if (source) source.setData(this.#measureSource().data);
+    else this.map.addSource(MEASURE_SOURCE, this.#measureSource());
+    for (const spec of this.#measureSpecs()) if (!this.map.getLayer(spec.id)) this.map.addLayer(spec);
   }
 
   /* ---------------- Highlight ---------------- */

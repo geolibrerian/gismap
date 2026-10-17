@@ -5,7 +5,7 @@ import { normalizeApplicationConfig, presetApplication } from "./application-con
 import { DuckDBBrowserClient } from "./duckdb-client.js?v=0.18.2";
 import { normalizeDataCatalog, planNaturalLanguageQuery, validateReadOnlySQL } from "./data-catalog.js?v=0.18.2";
 import { PanelManager } from "./panel-manager.js?v=0.18.2";
-import { applyInterfaceSkin } from "./skin-catalog.js?v=0.44.2";
+import { applyInterfaceSkin } from "./skin-catalog.js?v=0.52.3";
 
 const STATIC_PANELS = {
   places: "places-panel",
@@ -58,7 +58,7 @@ export class ApplicationRuntime {
     this.currentConfig = normalized;
     const previousLayout = this.layout.current?.layout?.kind;
     this.document.querySelector("#app").dataset.applicationPreset = normalized.preset;
-    applyInterfaceSkin(normalized.skin, { documentRef: this.document });
+    applyInterfaceSkin(normalized.skin, { documentRef: this.document, colors: this.projectManager.current.presentation?.skinColors?.[normalized.skin] });
     this.document.body.dataset.applicationMode = normalized.mode;
     this.document.querySelector("#application-edit-return").hidden = normalized.mode !== "present";
     const settingsButton = this.document.querySelector("#dashboard-settings-open");

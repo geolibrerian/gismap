@@ -25,6 +25,19 @@ test("only the house skin follows the light/dark appearance setting", () => {
   assert.equal(skinIsDark("violet-circuit", "light"), true);
 });
 
+test("custom skin colors are validated and kept with project presentation", () => {
+  const project = manager();
+  const presentation = project.setPresentation({ skin: "wavelength", skinColors: { wavelength: { primary: "#123456", secondary: "#abcdef", tertiary: "invalid" }, unknown: { primary: "#aaaaaa" } } });
+  assert.deepEqual(presentation.skinColors, { wavelength: { primary: "#123456", secondary: "#abcdef" } });
+  const tokens = {};
+  const style = { setProperty: (key, value) => { tokens[key] = value; }, removeProperty: (key) => { delete tokens[key]; } };
+  const documentRef = { documentElement: { dataset: {}, style } };
+  applyInterfaceSkin("wavelength", { documentRef, colors: presentation.skinColors.wavelength });
+  assert.deepEqual(tokens, { "--green": "#123456", "--green-2": "#abcdef" });
+  applyInterfaceSkin("gismap", { documentRef });
+  assert.deepEqual(tokens, {});
+});
+
 test("applying a skin marks the whole document, not just #app", () => {
   const classes = new Set();
   const app = { dataset: {} };

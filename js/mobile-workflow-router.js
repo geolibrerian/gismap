@@ -1,6 +1,6 @@
 import { MobileFeedStore } from "./mobile-feed-store.js?v=0.18.7";
 import { compactMedia } from "./viewport.js?v=0.18.2";
-import { INTERFACE_SKINS, applyInterfaceSkin, normalizeSkin } from "./skin-catalog.js?v=0.44.2";
+import { INTERFACE_SKINS, applyInterfaceSkin, normalizeSkin } from "./skin-catalog.js?v=0.52.3";
 import { FIELD_TASK_LIMITS, addressDetails, createFieldTaskUrl, featureLayerUrl, taskSteps } from "./field-task-share.js?v=0.41.0";
 import { fieldTaskCsv, fieldTaskFileStem, fieldTaskPdf, fieldTaskPoints, photoDataUrl } from "./field-task-report.js?v=0.44.2";
 
@@ -238,7 +238,7 @@ export class MobileWorkflowRouter {
     if (button.dataset.route) return this.navigate(button.dataset.route);
     if (button.matches("[data-open-image]")) return document.querySelector("#image-file-input")?.click();
     if (button.dataset.mobileSkin) {
-      const skin = applyInterfaceSkin(button.dataset.mobileSkin);
+      const skin = applyInterfaceSkin(button.dataset.mobileSkin, { colors: this.projectManager.current.presentation?.skinColors?.[button.dataset.mobileSkin] });
       this.projectManager.patchPresentation({ skin });
       this.render();
       return;

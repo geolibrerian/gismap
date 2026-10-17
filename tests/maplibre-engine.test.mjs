@@ -193,6 +193,37 @@ test("MapLibre drawing creates visible terrain-draped graphics and exports them"
   }
 });
 
+test("MapLibre measures distance, clears, and restores the cursor on close", async () => {
+  const map = fakeMap();
+  const handlers = {};
+  const output = { textContent: "" };
+  const panel = { setAttribute() {}, remove() { this.removed = true; }, querySelector(selector) { return selector === "output" ? output : { addEventListener(_type, fn) { handlers[selector] = fn; } }; } };
+  map.getContainer = () => ({ append() {} });
+  const previous = { document: globalThis.document, maplibregl: globalThis.maplibregl, fetch: globalThis.fetch };
+  globalThis.document = { createElement: () => panel };
+  globalThis.maplibregl = { Map: function () { return map; } };
+  globalThis.fetch = async () => ({ ok: true, json: async () => ({ version: 8, sources: {}, layers: [] }) });
+  try {
+    const engine = new MaplibreEngine({ publish() {} });
+    await engine.initialize();
+    assert.equal(engine.toggleWidget("measurement"), true);
+    assert.equal(map.getCanvas().style.cursor, "crosshair");
+    for (const lng of [0, 1]) map.emit("click", { lngLat: { lng, lat: 0 }, point: { x: 0, y: 0 } });
+    assert.match(output.textContent, /^111\.20 km · 69\.09 mi$/);
+    assert.equal(map.getSource("gismap-measurement").data.features.length, 3);
+    handlers["[data-measure-clear]"]();
+    assert.equal(output.textContent, "0 m · 0 ft");
+    engine.draw("point");
+    assert.equal(engine.widgetOpen("measurement"), false);
+    assert.equal(map.getCanvas().style.cursor, "crosshair");
+    assert.equal(map.getSource("gismap-measurement"), undefined);
+    map.emit("click", { lngLat: { lng: 0, lat: 0 }, point: { x: 0, y: 0 } });
+    assert.equal(map.getCanvas().style.cursor, "");
+  } finally {
+    Object.assign(globalThis, previous);
+  }
+});
+
 test("ArcGIS sketches ignore captured elevation and drape on terrain", async () => {
   const code = await readFile(new URL("../js/engines/arcgis/arcgis-engine.js", import.meta.url), "utf8");
   assert.match(code, /this\.drawLayer = new GraphicsLayer\(\{[\s\S]*?elevationInfo: \{ mode: "on-the-ground" \}/);

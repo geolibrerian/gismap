@@ -45,11 +45,25 @@ export const skinIsDark = (skin, theme = "light") => {
  * Apply one skin to the whole document. Tokens live on :root so elements
  * outside #app (bottom navigation, dialogs, toasts) share the same look.
  */
-export const applyInterfaceSkin = (skin, { documentRef = globalThis.document } = {}) => {
+export const normalizeSkinColors = (colors) => {
+  if (!colors || typeof colors !== "object") return null;
+  const result = {};
+  for (const key of ["primary", "secondary", "tertiary"]) {
+    if (typeof colors[key] === "string" && /^#[0-9a-f]{6}$/i.test(colors[key])) result[key] = colors[key];
+  }
+  return Object.keys(result).length ? result : null;
+};
+
+export const applyInterfaceSkin = (skin, { documentRef = globalThis.document, colors = null } = {}) => {
   const root = documentRef?.documentElement;
   if (!root) return normalizeSkin(skin);
   const id = normalizeSkin(skin);
   root.dataset.skin = id;
+  const palette = normalizeSkinColors(colors);
+  for (const [key, token] of [["primary", "--green"], ["secondary", "--green-2"], ["tertiary", "--amber"]]) {
+    if (palette?.[key]) root.style.setProperty?.(token, palette[key]);
+    else root.style.removeProperty?.(token);
+  }
   const dark = skinIsDark(id, root.dataset.theme);
   root.style.colorScheme = dark ? "dark" : "light";
   documentRef.body?.classList?.toggle("calcite-mode-dark", dark);
