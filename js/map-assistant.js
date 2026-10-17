@@ -6,6 +6,7 @@
 // with the provider. Pure functions apart from the tool handlers, which call the
 // in-page API (globalThis.gisMapOnline) and a few app hooks passed in as `host`.
 
+import { describeArcgisLayer, describeFields, isArcgisLayerUrl, summarizeArcgisField } from "./layer-insight.js?v=0.50.0";
 import { INTERFACE_SKINS } from "./skin-catalog.js?v=0.44.2";
 import { DISPLAY_SETTINGS, guideOutline, searchGuide, validateDisplaySetting } from "./app-guide.js?v=0.49.0";
 
@@ -24,6 +25,8 @@ const renderer = {
 export const ASSISTANT_TOOLS = Object.freeze([
   { name: "get_map_state", description: "What is on the map now: layers (with their id, URL, style, filter and fields), basemap, camera, briefing and tour. Call it before changing existing layers.", parameters: { type: "object", properties: {} } },
   { name: "inspect_source", description: "Read a public data source's metadata before using it: fields (exact names and types), geometry type, feature count, codes that mean no data (sentinels), scale range and last edit date. For a service root it lists its layers.", parameters: { type: "object", required: ["url"], properties: { url: { type: "string", description: "HTTPS URL of an ArcGIS REST layer or service, GeoJSON, WMS, WFS or KML." } } } },
+  { name: "describe_layer", description: "Everything known about a layer on the map: its service's description, summary, credits, licence, tags, last edit date, feature count, time field, and its schema (every field with type, alias, description and coded values). Use it to answer questions about the data.", parameters: { type: "object", required: ["layer"], properties: { layer: layerRef } } },
+  { name: "summarize_field", description: "Summarize one field's values in a layer, computed by the service over all features: for numbers and dates min, max, mean and spread; for text and codes the most common values with counts. Use it to interpret what a field holds.", parameters: { type: "object", required: ["layer", "field"], properties: { layer: layerRef, field: { type: "string" }, where: { type: "string", description: "Optional SQL filter." } } } },
   { name: "search_datasets", description: "Search GIS Map Online's curated public datasets by topic (wildfires, earthquakes, hurricanes, air quality, census…). Returns titles and layer URLs.", parameters: { type: "object", required: ["query"], properties: { query: { type: "string" } } } },
   { name: "add_layer", description: "Add a public layer to the map, optionally filtered and styled, and zoom to it.", parameters: { type: "object", required: ["url"], properties: { url: { type: "string" }, title: { type: "string" }, where: { type: "string", description: "Read-only SQL filter on the layer's fields, such as \"POP > 1000\"." }, renderer, opacity: { type: "number", minimum: 0, maximum: 1 } } } },
   { name: "update_layer", description: "Change a layer on the map: title, filter, style, opacity or visibility.", parameters: { type: "object", required: ["layer"], properties: { layer: layerRef, title: { type: "string" }, where: { type: ["string", "null"], description: "SQL filter; null clears it." }, renderer, opacity: { type: "number", minimum: 0, maximum: 1 }, visible: { type: "boolean" } } } },
@@ -71,6 +74,8 @@ export function buildAssistantInstructions({ state = null, textTools = false } =
     "You are the Map assistant inside GIS Map Online, a free browser GIS. You build and change the user's map with tools: interactive maps from public data, briefings (slides that present the map), guided tours, and field tasks.",
     "",
     "How to work:",
+    "- A question is answered by reading, not by changing the map: for questions about the loaded data use get_map_state, describe_layer and summarize_field. Add, change or remove layers only when the user asks for it.",
+    "- When explaining a layer: say what it is and who publishes it (description, credits), how current it is (last edited), how many features, and what its main fields mean (aliases, descriptions, coded values, value ranges). Quote the service's own words; do not invent meanings for fields the metadata does not explain, say they are undocumented.",
     "- Use real, public data only: HTTPS ArcGIS REST layers (FeatureServer/0, MapServer, ImageServer), GeoJSON, WMS, WFS or KML. If the user names a topic but no URL, call search_datasets; if nothing fits, ask for a URL. Never invent URLs.",
     "- Before styling or filtering a layer, learn its fields with inspect_source or get_map_state, and use field names exactly as listed. Never invent fields or numbers.",
     "- Sentinel codes (such as -1 for \"Not Disclosed\") are not measurements: add them to the style's exclude list.",
@@ -266,6 +271,17 @@ export function summarizeMapState(api) {
   };
 }
 
+/** A layer on the map by id, URL or title (case-insensitive). */
+function findLayer(api, ref) {
+  const layers = api.describe().state?.layers || [];
+  const text = String(ref || "").trim().toLowerCase();
+  const found = layers.find((layer) => String(layer.id).toLowerCase() === text || String(layer.url || "").toLowerCase().replace(/\/+$/, "") === text.replace(/\/+$/, ""))
+    || layers.find((layer) => String(layer.title || "").toLowerCase() === text)
+    || layers.find((layer) => text && String(layer.title || "").toLowerCase().includes(text));
+  if (!found) throw Object.assign(new Error(`No layer "${ref}" on the map.`), { hint: `Layers: ${layers.map((layer) => `${layer.id} (${layer.title})`).join(", ") || "none"}.` });
+  return found;
+}
+
 const words = (text) => String(text || "").toLowerCase().split(/[^a-z0-9.]+/).filter((word) => word.length > 2);
 
 /**
@@ -288,6 +304,19 @@ export function createAssistantTools(host) {
         ...(meta.sentinels?.length ? { sentinels: meta.sentinels.map(({ field, value, label, source }) => ({ field, value, label, source })) } : {}),
         ...(meta.layers?.length ? { layers: meta.layers.slice(0, 40).map((layer) => ({ ...layer, url: `${String(url).replace(/\/+$/, "")}/${layer.id}` })) } : {}),
       };
+    },
+    async describe_layer({ layer }) {
+      const found = findLayer(api, layer);
+      if (found.url && isArcgisLayerUrl(found.url)) return { id: found.id, ...(await describeArcgisLayer(found.url, { fetch: host.fetch })) };
+      let fields = [];
+      try { fields = api.layers.metadata(found.id)?.fields || []; } catch { /* No metadata. */ }
+      return { ...pick(found, ["id", "title", "url", "type", "featureCount", "where", "dataLastEditDate"]), fields: describeFields(fields), note: "Not an ArcGIS REST layer: only its fields are known." };
+    },
+    async summarize_field({ layer, field, where }) {
+      const found = findLayer(api, layer);
+      if (found.url && isArcgisLayerUrl(found.url)) return summarizeArcgisField(found.url, field, { where, fetch: host.fetch });
+      const suggestion = await api.layers.suggestStyles(found.id, { field });
+      return { field: suggestion.field, stats: suggestion.stats, note: "Computed from the features loaded in the map." };
     },
     search_datasets({ query }) {
       const wanted = words(query);

@@ -1,6 +1,6 @@
 import { POPULAR_SERVICES } from "./catalog.js?v=0.18.2";
-import { MapAssistantPanel } from "./assistant-panel.js?v=0.49.0";
-import { createAssistantTools, summarizeMapState } from "./map-assistant.js?v=0.49.0";
+import { MapAssistantPanel } from "./assistant-panel.js?v=0.50.0";
+import { createAssistantTools, summarizeMapState } from "./map-assistant.js?v=0.50.0";
 import { ENTERPRISE_CATALOGS, EnterpriseCatalog, normalizeArcGisDirectoryUrl } from "./enterprise-catalog.js?v=0.18.2";
 import { createShareUrl } from "./share.js?v=0.41.0";
 import { createShareLink, hasDataFilter } from "./map-share.js?v=0.41.0";

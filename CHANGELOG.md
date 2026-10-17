@@ -6,6 +6,12 @@ All notable changes to GIS Map Online are documented here. This project follows
 
 ## [Unreleased]
 
+### The Map assistant explains your data
+
+- New `describe_layer` tool: a layer's service description, summary, credits, licence, tags, last edit date, feature count and time field, and its schema — every field with its type, alias, description and coded values — read from the ArcGIS layer, its service and its portal item.
+- New `summarize_field` tool: a field's values computed by the service over all features — minimum, maximum, mean and spread for numbers and dates; the most common values with counts (and coded names) for text — so the assistant can interpret what a field holds.
+- The assistant now answers questions about the data by reading it, and adds, changes or removes layers only when asked.
+
 ### The Map assistant knows the app
 
 - The assistant has a built-in guide to GIS Map Online's menus, panels and settings (`js/app-guide.js`): its instructions list the menus, and a new `app_help` tool answers "where is…" and "how do I…" questions with the exact menu path.
