@@ -6,13 +6,17 @@ const ui = await readFile(new URL("../js/ui.js", import.meta.url), "utf8");
 const robots = await readFile(new URL("../robots.txt", import.meta.url), "utf8");
 const sitemap = await readFile(new URL("../sitemap.xml", import.meta.url), "utf8");
 
-assert.match(html, /<title>GIS Map Online — Free 3D ArcGIS REST &amp; GeoJSON Viewer<\/title>/);
+assert.match(html, /<title>GISMap Online: Free Geospatial Application<\/title>/);
+assert.match(html, /property="og:title" content="GISMap Online: Free Geospatial Application"/);
+assert.match(html, /name="twitter:title" content="GISMap Online: Free Geospatial Application"/);
+assert.doesNotMatch(html, /Free 3D ArcGIS REST &amp; GeoJSON Viewer/);
 assert.match(html, /<link rel="canonical" href="https:\/\/gismap\.online\/" \/>/);
 assert.match(html, /property="og:image"/);
 assert.match(html, /name="twitter:card" content="summary_large_image"/);
 assert.match(html, /<script type="application\/ld\+json">([\s\S]*?)<\/script>/);
 const structuredData = JSON.parse(html.match(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/)[1]);
 assert.deepEqual(structuredData["@type"], ["SoftwareApplication", "WebApplication"]);
+assert.equal(structuredData.name, "GISMap Online");
 assert.equal(structuredData.isAccessibleForFree, true);
 assert.equal(structuredData.author.name, "Silas Toms");
 assert.match(html, /id="welcome-title">Explore GIS data instantly/);

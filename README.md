@@ -4,7 +4,7 @@
 [![Tests](https://github.com/geolibrerian/gismap/actions/workflows/test.yml/badge.svg)](https://github.com/geolibrerian/gismap/actions/workflows/test.yml)
 [![License](https://img.shields.io/github/license/geolibrerian/gismap)](LICENSE)
 
-A browser-only 3D GIS viewer targeting ArcGIS Maps SDK for JavaScript 5.0. It uses `SceneView`, native ES modules, a small topic-based event bus, local browser project storage, and portable project packages—no application login or database required.
+GISMap Online is a free browser-based geospatial application for exploring and analyzing data, creating maps, briefings, tours and field tasks, and sharing results. It supports MapLibre (the default) and the ArcGIS Maps SDK, with native ES modules, local browser project storage and portable project packages—no application login or database required.
 
 The interface uses a layered globe-and-analysis mark with an editable HTML wordmark and the descriptor “Spatial intelligence studio.”
 
@@ -148,14 +148,18 @@ The current application version is recorded in [`VERSION`](VERSION). Releases us
 [GitHub Releases page](https://github.com/geolibrerian/gismap/releases) for
 published builds and generated release notes.
 
+Keep `VERSION`, `js/version.js`, and `api/capabilities.json` in sync; tests check
+their agreement. Asset cache-busting revisions and portable document schema
+versions are independent and need not match the application version.
+
 ## Modules
 
 - `js/map-controller.js` — the provider-neutral application facade: selects an engine and owns workflows that can be composed from common map primitives
-- `js/engines/engine-registry.js` — lazy engine registration and factory; ArcGIS is the default and additional renderers can register without changing application consumers
+- `js/engines/engine-registry.js` — lazy engine registration and factory; MapLibre is the default and additional renderers can register without changing application consumers
 - `js/engines/engine-interface.js` — the small renderer contract plus the larger application facade, capabilities, events and plain-data types (layer handles, features, view targets)
 - `js/engines/maplibre/maplibre-engine.js` — the MapLibre preview renderer (`?engine=maplibre` or Map → Map engine): OpenFreeMap basemaps and open raster-DEM 3D terrain; GeoJSON and ArcGIS feature layers held in the browser (filtered, queried and identified here, spatial relationships asked of the service); ArcGIS map image and imagery services and WMS as images; camera and capture. Beside it: `terrain.js`, `arcgis-service.js` (describing and paging ArcGIS services), `arcgis-renderer.js` (ArcGIS renderers as MapLibre paint), `where.js`, `geojson.js` and `basemaps.js`
 - `js/basemap-themes.js` — basemap themes derived from a skin's design tokens (the "skin" basemap); `js/engines/maplibre/basemap-theme.js` applies one to an OpenMapTiles style by layer role
-- `js/engine-preference.js` — which engine draws the map: the link's `?engine=`, then the saved Display settings choice, else ArcGIS
+- `js/engine-preference.js` — which engine draws the map: the link's `?engine=`, then the saved Display settings choice, else MapLibre
 - `js/engines/arcgis/arcgis-loader.js` — loads ArcGIS runtime CSS and JavaScript only when the ArcGIS renderer is selected
 - `js/engines/arcgis/arcgis-engine.js` — the ArcGIS renderer adapter: 3D scene/camera lifecycle, elevation ground, layer adapters, queries, identify, drawing, refresh, rendering, navigation, capture and geocoding
 - `js/identify.js` — popup-free identify results from the engine, de-duplicated across layer types

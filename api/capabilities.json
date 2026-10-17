@@ -1,5 +1,5 @@
 {
-  "apiVersion": "0.28.0",
+  "apiVersion": "0.52.8",
   "execution": "client",
   "global": "globalThis.gisMapOnline",
   "module": "/js/gismap-core.js",

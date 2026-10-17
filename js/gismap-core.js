@@ -40,7 +40,8 @@ import {
   readProjectFromPng,
 } from "./smart-image.js?v=0.44.2";
 
-export const GISMAP_CORE_VERSION = "0.28.0";
+import { APP_VERSION } from "./version.js?v=0.52.8";
+export const GISMAP_CORE_VERSION = APP_VERSION;
 
 export const capabilities = Object.freeze({
   apiVersion: GISMAP_CORE_VERSION,

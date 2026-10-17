@@ -6,6 +6,11 @@ All notable changes to GIS Map Online are documented here. This project follows
 
 ## [Unreleased]
 
+### Identity and version alignment
+
+- Name the application GISMap Online: Free Geospatial Application in browser and social metadata, and describe its MapLibre and ArcGIS engines accurately in About this build.
+- Align the current code's application and client API version at 0.52.8; project and interchange schema versions remain independent.
+
 ### 3D buildings on MapLibre
 
 - Every MapLibre basemap now shows 3D buildings from zoom 14 (MapLibre zoom 13), extruded from OpenStreetMap building heights (as in MapLibre's 3D buildings example), under the labels; tilt the map to see them.

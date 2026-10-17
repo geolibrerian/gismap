@@ -4,7 +4,7 @@ import { createAssistantTools, summarizeMapState } from "./map-assistant.js?v=0.
 import { ENTERPRISE_CATALOGS, EnterpriseCatalog, normalizeArcGisDirectoryUrl } from "./enterprise-catalog.js?v=0.18.2";
 import { createShareUrl } from "./share.js?v=0.41.0";
 import { createShareLink, hasDataFilter } from "./map-share.js?v=0.41.0";
-import { briefingLayerRef, findBriefingLayer } from "./briefing-api.js?v=0.44.2";
+import { briefingLayerRef, findBriefingLayer } from "./briefing-api.js?v=0.52.8";
 import { createEmbeddedTourUrl } from "./tour-share.js?v=0.18.2";
 import { markdownToPlainText, renderMarkdown } from "./markdown.js?v=0.18.2";
 import { formatAttributeValue } from "./attribute-format.js?v=0.18.2";
@@ -13,13 +13,14 @@ import { combineConditions, featureFilterFor, featureId, fieldKind, filterRecord
 import { DEFAULT_SKIN, INTERFACE_SKINS, applyInterfaceSkin, normalizeSkin, skinIsDark, skinOptionsMarkup } from "./skin-catalog.js?v=0.52.3";
 import { themeFromComputedStyle } from "./basemap-themes.js?v=0.40.0";
 import { compactMedia } from "./viewport.js?v=0.18.2";
+import { APP_VERSION } from "./version.js?v=0.52.8";
 import { bindMobileSheetResize } from "./mobile-sheet-resize.js?v=0.52.7";
 import { PdfDocument, brandedMapImage, brandedQrCanvas, loadBrandLogo, printPalette, qrAsset } from "./pdf-document.js?v=0.44.2";
 import { featureLayerUrl, locationUrl } from "./field-task-share.js?v=0.41.0";
 import { dockIcon } from "./dock-icons.js?v=0.24.0";
 import { serviceNameFromUrl } from "./service-name.js?v=0.26.0";
 import { decodeQrFromImage, describeGisMapLink, gisMapLinkFrom, openGisMapLink } from "./qr-import.js?v=0.25.1";
-import { BriefingSlides } from "./briefing-slides.js?v=0.44.2";
+import { BriefingSlides } from "./briefing-slides.js?v=0.52.8";
 import { createSlide, matchesFilter, normalizeFilter } from "./briefing-document.js?v=0.35.0";
 import { aiDescriptionPrompt, applyAiDescriptions, describeWhere, generateBriefing, readAiDescriptions, rendererTheme } from "./briefing-generator.js?v=0.36.1";
 import { briefingFileStem } from "./briefing-pdf.js?v=0.44.2";
@@ -2722,9 +2723,9 @@ export class UIController {
 
   #aboutDialog() {
     this.openDialog({
-      eyebrow: "Foundation build",
-      title: "GIS Map Online",
-      content: `<div class="about-copy"><p>A browser-only GIS viewer built around ArcGIS Maps SDK for JavaScript 5.0 and a topic-based event bus.</p><p><a href="/examples/">Browse public GIS examples</a> or read the <a href="/arcgis-rest-service-viewer/">viewer guides</a>.</p><dl><div><dt>Runtime</dt><dd>Static HTML + ES modules</dd></div><div><dt>Persistence</dt><dd>localStorage + portable ZIP</dd></div><div><dt>Identify</dt><dd>Popup-free normalized results</dd></div><div><dt>Identity</dt><dd>Optional ArcGIS OAuth / token authentication managed by the Esri SDK</dd></div><div><dt>Privacy</dt><dd>No GIS Map Online account or database; credentials are excluded from projects</dd></div></dl></div>`,
+      eyebrow: "About this build",
+      title: "GISMap Online",
+      content: `<div class="about-copy"><p>A free browser-based geospatial application for mapping, analysis, briefings, tours and field tasks.</p><p><a href="/examples/">Browse public GIS examples</a> or read the <a href="/guides/">GISMap guides</a>.</p><dl><div><dt>Version</dt><dd>${APP_VERSION}</dd></div><div><dt>Map engine</dt><dd>${escapeHtml(this.mapController.getEngineId() === "maplibre" ? "MapLibre" : "ArcGIS")}</dd></div><div><dt>Runtime</dt><dd>Static HTML + ES modules</dd></div><div><dt>Persistence</dt><dd>localStorage + portable ZIP</dd></div><div><dt>Identity</dt><dd>Optional ArcGIS OAuth / token authentication</dd></div><div><dt>Privacy</dt><dd>No GISMap Online account or database; credentials are excluded from projects</dd></div></dl></div>`,
     });
   }
 

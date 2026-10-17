@@ -24,6 +24,19 @@ test("the API version is the same in VERSION, capabilities.json and gismap-core"
   assert.equal(coreCapabilities.apiVersion, GISMAP_CORE_VERSION);
 });
 
+test("the app entry point and About dialog use the current build version", async () => {
+  const version = (await read("../VERSION")).trim();
+  const html = await read("../index.html");
+  const app = await read("../js/app.js");
+  const ui = await read("../js/ui.js");
+  const briefingApi = await read("../js/briefing-api.js");
+  assert.ok(html.includes(`./js/app.js?v=${version}`));
+  assert.ok(app.includes(`./ui.js?v=${version}`));
+  assert.ok(app.includes(`./briefing-api.js?v=${version}`));
+  assert.ok(briefingApi.includes(`./gismap-core.js?v=${version}`));
+  assert.match(ui, /<dt>Version<\/dt><dd>\$\{APP_VERSION\}<\/dd>/);
+});
+
 test("capabilities.json lists the live tools, error codes, styles and the whole in-page surface", async () => {
   const published = await json("../api/capabilities.json");
   assert.deepEqual(published.tools, JSON.parse(JSON.stringify(LAYER_TOOL_DEFINITIONS)), "tools and their input schemas match layer-tools.js");
