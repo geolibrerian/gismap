@@ -10,7 +10,7 @@ import { markdownToPlainText, renderMarkdown } from "./markdown.js?v=0.18.2";
 import { formatAttributeValue } from "./attribute-format.js?v=0.18.2";
 import { normalizeApplicationConfig, presetApplication } from "./application-config.js?v=0.18.2";
 import { combineConditions, featureFilterFor, featureId, fieldKind, filterRecords, histogram, requestGuard, sortRecords } from "./presentation-query.js?v=0.30.0";
-import { DEFAULT_SKIN, INTERFACE_SKINS, applyInterfaceSkin, normalizeSkin, skinIsDark, skinOptionsMarkup } from "./skin-catalog.js?v=0.18.2";
+import { DEFAULT_SKIN, INTERFACE_SKINS, applyInterfaceSkin, normalizeSkin, skinIsDark, skinOptionsMarkup } from "./skin-catalog.js?v=0.44.1";
 import { themeFromComputedStyle } from "./basemap-themes.js?v=0.40.0";
 import { compactMedia } from "./viewport.js?v=0.18.2";
 import { PdfDocument, brandedMapImage, brandedQrCanvas, loadBrandLogo, printPalette, qrAsset } from "./pdf-document.js?v=0.30.0";
@@ -4441,70 +4441,49 @@ export class UIController {
     this.openDialog({
       eyebrow: "Account feature · coming soon",
       title: "Dashboard Builder",
-      content: `<div class="dashboard-builder-gate"><p>Dashboard Builder is the signed-in authoring workspace for custom panel layouts, data bindings, and reusable applications.</p><p>The free viewer keeps instant presentations simple: choose Briefing, Explorer, or Atlas from <strong>Map → Instant presentations</strong>.</p><ul><li>Free now: Map tools, Briefing, Tours, and Field Tasks</li><li>With an account: custom dashboards and advanced operational workflows</li></ul></div>`,
+      content: `<div class="dashboard-builder-gate"><p>Dashboard Builder is the signed-in authoring workspace for custom panel layouts, data bindings, and reusable applications.</p><p>Choose Briefing or Tours from <strong>Modes</strong>, and use Instant presentations to choose a look.</p><ul><li>Free now: Map tools, Briefing, Tours, and Field Tasks</li><li>With an account: custom dashboards and advanced operational workflows</li></ul></div>`,
       actions: [{ label: "Close", primary: true, handler: () => this.dialog.close() }],
     });
   }
 
   #presentationDialog() {
     const previous = structuredClone(this.projectManager.current.presentation || {});
-    const current = { template: "standard", skin: DEFAULT_SKIN, title: "", primaryLayerId: null, ...previous };
-    const layers = this.mapController.getLayers();
-    // The skin is independent of the mode: choosing a mode never changes the look.
-    const cards = [
-      ["briefing", "Briefing", "Understand events, changes, and their sources"],
-      ["explorer", "Explorer", "Search, filter, and compare mapped records"],
-      ["atlas", "Tour", "Present places through guided chapters and stories"],
-    ];
+    const current = { template: "standard", skin: DEFAULT_SKIN, ...previous };
     let applied = false;
     this.openDialog({
       eyebrow: "Presentation",
       title: "Instant presentations",
-      content: `<div class="presentation-picker"><p class="form-note">Choose a ready-made presentation, then choose its look. These quick modes do not change layer data, map symbology, or classifications.</p><div class="presentation-cards"><button type="button" class="presentation-card" data-presentation-template="standard"><span class="presentation-preview presentation-preview--standard"></span><strong>Standard map</strong><small>Return to the free map workspace.</small></button>${cards.map(([id, title, description]) => `<button type="button" class="presentation-card" data-presentation-template="${id}"><span class="presentation-preview presentation-preview--${id}"><i></i><i></i><i></i></span><strong>${title}</strong><small>${description}</small></button>`).join("")}</div><p class="form-note" data-presentation-preview-status></p><fieldset class="skin-picker"><legend>Interface skin</legend>${INTERFACE_SKINS.map(({ id,label,description }) => `<button type="button" class="skin-card skin-card--${id}" data-skin-choice="${id}"><span class="skin-mini"><i></i><b></b><em></em><small></small></span><strong>${label}</strong><small>${description}</small></button>`).join("")}<select id="presentation-skin" hidden>${skinOptionsMarkup(current.skin)}</select></fieldset><label class="field"><span>Presentation title</span><input id="presentation-title" value="${escapeHtml(current.title)}" placeholder="Optional title" /></label><label class="field"><span>Primary layer</span><select id="presentation-primary"><option value="">Choose later</option>${layers.map((layer) => `<option value="${escapeHtml(layer.uid)}">${escapeHtml(layer.title || "Untitled layer")}</option>`).join("")}</select></label><p class="form-note" data-presentation-note>Dataset roles remain configurable inside Explorer and Briefing after applying.</p></div>`,
+      content: `<div class="presentation-picker"><p class="form-note">Choose a look for your map and presentation. Your mode, layers, map symbols, and camera stay as they are.</p><fieldset class="skin-picker"><legend>Interface skin</legend>${INTERFACE_SKINS.map(({ id,label,description }) => `<button type="button" class="skin-card skin-card--${id}" data-skin-choice="${id}" aria-pressed="false"><span class="skin-mini"><i></i><b></b><em></em><small></small></span><strong>${label}</strong><small>${description}</small></button>`).join("")}<select id="presentation-skin" hidden>${skinOptionsMarkup(current.skin)}</select></fieldset></div>`,
       actions: [
         { label: "Cancel", handler: () => this.dialog.close() },
-        { label: "Preview", handler: () => {
-          const template = this.dialog.querySelector(".presentation-card.is-selected")?.dataset.presentationTemplate || current.template;
-          this.#applyPresentation({ template, skin: this.dialog.querySelector("#presentation-skin").value });
-        } },
         { label: "Apply", primary: true, handler: () => {
-          const template = this.dialog.querySelector(".presentation-card.is-selected")?.dataset.presentationTemplate || current.template;
-          const presentation = this.projectManager.setPresentation({ ...current, template, skin: this.dialog.querySelector("#presentation-skin").value, title: this.dialog.querySelector("#presentation-title").value.trim(), primaryLayerId: this.dialog.querySelector("#presentation-primary").value || null });
+          const skin = this.dialog.querySelector("#presentation-skin").value;
+          this.projectManager.patchPresentation({ skin });
           applied = true;
-          this.#applyPresentation(presentation);
+          applyInterfaceSkin(skin);
           this.dialog.close();
-          this.toast(`${template === "standard" ? "Standard workspace" : `${template === "atlas" ? "Tour" : `${template[0].toUpperCase()}${template.slice(1)}`} presentation`} applied.`);
+          this.toast("Interface skin applied.");
         } },
       ],
     });
     // Closing by any route (Cancel, ×, Escape) restores the previous appearance.
     const session = this.dialogSession;
     this.dialog.addEventListener("close", () => {
-      if (!applied && session === this.dialogSession) this.#applyPresentation(previous);
+      if (!applied && session === this.dialogSession) applyInterfaceSkin(previous.skin);
     }, { once: true });
     const skin = this.dialog.querySelector("#presentation-skin");
     skin.value = current.skin;
-    this.dialog.querySelector("#presentation-primary").value = current.primaryLayerId || "";
-    const select = (button) => {
-      this.dialog.querySelectorAll("[data-presentation-template]").forEach((card) => card.classList.toggle("is-selected", card === button));
-      const template = button.dataset.presentationTemplate;
-      const titleInput = this.dialog.querySelector("#presentation-title");
-      if (titleInput) titleInput.value = current.modeTitles?.[template] || (template === current.template ? current.title : "");
-      this.#applyPresentation({ template, skin: skin.value });
-      this.dialog.querySelector("[data-presentation-preview-status]").textContent = template === "standard"
-        ? "Previewing the standard authoring workspace."
-        : `Previewing ${template[0].toUpperCase()}${template.slice(1)}. Choose Apply to save this presentation to the project.`;
-    };
-    this.dialog.querySelectorAll("[data-presentation-template]").forEach((button) => button.addEventListener("click", () => select(button)));
     const chooseSkin = (value) => {
       skin.value = value;
-      this.dialog.querySelectorAll("[data-skin-choice]").forEach((card) => card.classList.toggle("is-selected", card.dataset.skinChoice === value));
-      const template = this.dialog.querySelector(".presentation-card.is-selected")?.dataset.presentationTemplate || current.template;
-      this.#applyPresentation({ template, skin: skin.value });
+      this.dialog.querySelectorAll("[data-skin-choice]").forEach((card) => {
+        const selected = card.dataset.skinChoice === value;
+        card.classList.toggle("is-selected", selected);
+        card.setAttribute("aria-pressed", String(selected));
+      });
+      applyInterfaceSkin(skin.value);
     };
     this.dialog.querySelectorAll("[data-skin-choice]").forEach((card) => card.addEventListener("click", () => chooseSkin(card.dataset.skinChoice)));
     chooseSkin(normalizeSkin(current.skin));
-    select(this.dialog.querySelector(`[data-presentation-template="${current.template}"]`) || this.dialog.querySelector("[data-presentation-template=standard]"));
   }
 
   #openGuidedTours() {

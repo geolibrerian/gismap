@@ -52,6 +52,9 @@ export const PRINT_PALETTES = Object.freeze({
   "violet-circuit": { band: "#080811", frame: "#2b1c4f", accent: "#5b3bb0", edge: "#35d7d0", brand: "#9a70ff", soft: "#ece8fb" },
   highway: { band: "#17202b", frame: "#2c3744", accent: "#d83b0b", edge: "#ff4b0b", brand: "#ffffff", soft: "#f0f2f3" },
   steeler: { band: "#303744", frame: "#4f5d73", accent: "#4f5d73", edge: "#b9b2bb", brand: "#dad5d2", soft: "#ebe7e4" },
+  slice: { band: "#463527", frame: "#456a4d", accent: "#42644a", edge: "#e86981", brand: "#f4c2c9", soft: "#edf2e4" },
+  wavelength: { band: "#222326", frame: "#4b3030", accent: "#a83d2c", edge: "#ef804a", brand: "#ffb16e", soft: "#fff1e8" },
+  connect: { band: "#173e34", frame: "#116b50", accent: "#116b50", edge: "#d83632", brand: "#f8d652", soft: "#eaf4e6" },
 });
 
 export const printPalette = (skin) => PRINT_PALETTES[skin === "retro-print" ? "portolan" : skin] || PRINT_PALETTES.gismap;

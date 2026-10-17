@@ -1,6 +1,6 @@
 import { MobileFeedStore } from "./mobile-feed-store.js?v=0.18.7";
 import { compactMedia } from "./viewport.js?v=0.18.2";
-import { INTERFACE_SKINS, applyInterfaceSkin, normalizeSkin } from "./skin-catalog.js?v=0.18.2";
+import { INTERFACE_SKINS, applyInterfaceSkin, normalizeSkin } from "./skin-catalog.js?v=0.44.1";
 import { FIELD_TASK_LIMITS, addressDetails, createFieldTaskUrl, featureLayerUrl, taskSteps } from "./field-task-share.js?v=0.41.0";
 import { fieldTaskCsv, fieldTaskFileStem, fieldTaskPdf, fieldTaskPoints, photoDataUrl } from "./field-task-report.js?v=0.41.0";
 

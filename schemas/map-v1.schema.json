@@ -15,7 +15,7 @@
       "description": "The background map. gray-vector and dark-gray-vector keep attention on the data; the open-* basemaps are OpenFreeMap styles (MapLibre engine; ArcGIS draws the nearest match); skin draws it in the colours of the interface skin (with the MapLibre engine; the ArcGIS engine uses the light or dark gray canvas)."
     },
     "skin": {
-      "enum": ["gismap", "clean-light", "dark-analytical", "tidal-95", "portolan", "velvet-orbit", "violet-circuit", "highway", "steeler"],
+      "enum": ["gismap", "clean-light", "dark-analytical", "tidal-95", "portolan", "velvet-orbit", "violet-circuit", "highway", "steeler", "slice", "wavelength", "connect"],
       "description": "The interface look. It never changes a layer's style; with the skin basemap the map is drawn in its colours, and with the MapLibre engine layers that have no style take its accent colour."
     },
     "camera": {
