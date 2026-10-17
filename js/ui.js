@@ -1449,7 +1449,9 @@ export class UIController {
     const usable = places.filter((place) => Number.isFinite(place?.latitude) && Number.isFinite(place?.longitude));
     if (!usable.length) return this.error("There are no places with coordinates to tour.");
     if (open) this.#openGuidedTours();
-    const chapters = this.projectManager.current.presentation?.chapters || [];
+    const presentation = this.projectManager.current.presentation || {};
+    const chapters = presentation.chapters || [];
+    const defaults = this.#atlasDefaults(presentation);
     const layers = this.mapController.getLayers();
     const added = usable.slice(0, Math.max(0, 50 - chapters.length)).map((place, index) => ({
       id: crypto.randomUUID?.() || `chapter-${Date.now()}-${index}`,
@@ -1457,10 +1459,11 @@ export class UIController {
       body: String(place.body || "").slice(0, 600),
       mediaUrl: "",
       reverseAddress: place.address || "",
-      viewState: { type: "scene", center: [place.longitude, place.latitude], zoom: place.zoom ?? 15, heading: place.heading ?? 0, tilt: place.tilt ?? 0 },
+      viewState: { type: "scene", center: [place.longitude, place.latitude], zoom: place.zoom ?? 15, heading: place.heading ?? defaults.heading, tilt: place.tilt ?? defaults.tilt },
       viewpoint: null,
       basemapId: this.mapController.getBasemapId(),
-      lingerSeconds: 5,
+      lingerSeconds: defaults.lingerSeconds,
+      transitionMode: defaults.transitionMode,
       visibleLayerIds: layers.filter((layer) => layer.visible).map((layer) => layer.uid),
       layerVisibility: layers.map((layer) => ({ key: this.#atlasLayerKey(layer), visible: layer.visible })),
     }));
@@ -3604,9 +3607,32 @@ export class UIController {
     this.#renderPresentationDashboard(presentation);
   }
 
+  /** The tour-wide values used when a new chapter is captured or generated. */
+  #atlasDefaults(presentation = this.projectManager.current.presentation || {}) {
+    const defaults = presentation.tourDefaults || {};
+    return {
+      transitionMode: defaults.transitionMode === "instant" ? "instant" : "smooth",
+      lingerSeconds: Math.min(120, Math.max(1, Number(defaults.lingerSeconds) || 4)),
+      heading: Math.min(360, Math.max(-360, Number(defaults.heading) || 0)),
+      tilt: Math.min(179, Math.max(0, Number(defaults.tilt) || 0)),
+    };
+  }
+
+  #atlasViewWithDefaults(view, defaults) {
+    const state = structuredClone(view);
+    state.heading = defaults.heading;
+    state.tilt = defaults.tilt;
+    if (state.camera) {
+      state.camera.heading = defaults.heading;
+      state.camera.tilt = defaults.tilt;
+    }
+    return state;
+  }
+
   async #captureAtlasChapter() {
     if (!this.mapController.isReady()) return;
     const chapters = this.projectManager.current.presentation?.chapters || [];
+    const defaults = this.#atlasDefaults();
     const [longitude, latitude] = this.mapController.getViewState().center || [];
     const address = await this.mapController.reverseGeocode({ longitude, latitude });
     const next = [...chapters, {
@@ -3615,10 +3641,11 @@ export class UIController {
       body: "",
       mediaUrl: "",
       reverseAddress: address?.address || "",
-      viewState: this.mapController.getViewState(),
+      viewState: this.#atlasViewWithDefaults(this.mapController.getViewState(), defaults),
       viewpoint: this.mapController.getViewpoint(),
       basemapId: this.mapController.getBasemapId(),
-      lingerSeconds: 4,
+      lingerSeconds: defaults.lingerSeconds,
+      transitionMode: defaults.transitionMode,
       visibleLayerIds: this.mapController.getLayers().filter((layer) => layer.visible).map((layer) => layer.uid),
       layerVisibility: this.mapController.getLayers().map((layer) => ({ key: this.#atlasLayerKey(layer), visible: layer.visible })),
     }];
@@ -3668,11 +3695,12 @@ export class UIController {
     return state;
   }
 
-  async #syncAtlasEditorToCurrentView(addressLabel = "", useAddressAsTitle = false) {
+  async #syncAtlasEditorToCurrentView(addressLabel = "", useAddressAsTitle = false, syncCamera = true) {
     if (!this.dialog.open) return;
     const state = this.mapController.getViewState();
-    this.atlasEditingViewState = structuredClone(state);
-    const position = state.camera?.position || {};
+    if (syncCamera) this.atlasEditingViewState = structuredClone(state);
+    const editingState = this.atlasEditingViewState || state;
+    const position = editingState.camera?.position || {};
     const geographic = this.#atlasGeographicCameraPosition(position);
     const setValue = (selector, value, digits = 5) => {
       const input = this.dialog.querySelector(selector);
@@ -3681,12 +3709,14 @@ export class UIController {
     setValue("#atlas-camera-longitude", geographic.longitude, 6);
     setValue("#atlas-camera-latitude", geographic.latitude, 6);
     setValue("#atlas-camera-altitude", geographic.altitude, 1);
-    setValue("#atlas-camera-heading", state.camera?.heading ?? state.heading, 1);
-    setValue("#atlas-camera-tilt", state.camera?.tilt ?? state.tilt, 1);
+    if (syncCamera) {
+      setValue("#atlas-camera-heading", editingState.camera?.heading ?? editingState.heading, 1);
+      setValue("#atlas-camera-tilt", editingState.camera?.tilt ?? editingState.tilt, 1);
+    }
     const addressOutput = this.dialog.querySelector("#atlas-reverse-address");
     if (!addressOutput) return;
     addressOutput.textContent = addressLabel || "Finding the place at the center of this view…";
-    const [longitude, latitude] = this.mapController.getViewState().center || [];
+    const [longitude, latitude] = editingState.center || this.mapController.getViewState().center || [];
     const address = addressLabel ? { address: addressLabel } : await this.mapController.reverseGeocode({ longitude, latitude });
     if (!this.dialog.open || !this.dialog.querySelector("#atlas-reverse-address")) return;
     const locationDetails = address?.address || "";
@@ -3808,7 +3838,9 @@ export class UIController {
         queryInput.setAttribute("aria-expanded", "false");
       }
     });
-    if (!chapter.reverseAddress) void this.#syncAtlasEditorToCurrentView();
+    // Resolve an empty address without replacing a newly captured chapter's
+    // default camera orientation with the map's current orientation.
+    if (!chapter.reverseAddress) void this.#syncAtlasEditorToCurrentView("", false, false);
   }
 
   async #goToAtlasChapter(chapter, index = null, chapters = this.projectManager.current.presentation?.chapters || []) {
@@ -3930,11 +3962,12 @@ export class UIController {
   #atlasSettingsDialog() {
     const presentation = this.projectManager.current.presentation || {};
     const playbackMode = presentation.playbackMode === "manual" ? "manual" : "auto";
+    const defaults = this.#atlasDefaults(presentation);
     const skins = INTERFACE_SKINS.map(({ id, label }) => [id, label]);
     this.openDialog({
       eyebrow: "Guided places",
       title: "Tour settings",
-      content: `<div class="atlas-settings"><label class="field"><span>Look &amp; feel</span><select data-atlas-settings-skin>${skins.map(([value, label]) => `<option value="${value}"${presentation.skin === value ? " selected" : ""}>${label}</option>`).join("")}</select></label><label class="field"><span>Playback</span><select data-atlas-settings-playback><option value="auto"${playbackMode === "auto" ? " selected" : ""}>Auto · advance after each linger time</option><option value="manual"${playbackMode === "manual" ? " selected" : ""}>Manual · use Back and Next</option></select></label><p class="form-note">Chapter camera movement, linger time, basemap, descriptions, images, and visible layers are edited on each chapter.</p></div>`,
+      content: `<div class="atlas-settings"><label class="field"><span>Look &amp; feel</span><select data-atlas-settings-skin>${skins.map(([value, label]) => `<option value="${value}"${presentation.skin === value ? " selected" : ""}>${label}</option>`).join("")}</select></label><label class="field"><span>Playback</span><select data-atlas-settings-playback><option value="auto"${playbackMode === "auto" ? " selected" : ""}>Auto · advance after each linger time</option><option value="manual"${playbackMode === "manual" ? " selected" : ""}>Manual · use Back and Next</option></select></label><fieldset class="atlas-settings__defaults"><legend>Defaults for new chapters</legend><label class="field"><span>Between chapters</span><select data-atlas-settings-transition><option value="smooth"${defaults.transitionMode === "smooth" ? " selected" : ""}>Pan and zoom</option><option value="instant"${defaults.transitionMode === "instant" ? " selected" : ""}>Cut (jump straight there)</option></select></label><div class="field-grid"><label class="field"><span>Linger (seconds)</span><input data-atlas-settings-linger type="number" min="1" max="120" step="1" value="${defaults.lingerSeconds}" /></label><label class="field"><span>Heading</span><input data-atlas-settings-heading type="number" min="-360" max="360" step="0.1" value="${defaults.heading}" /></label><label class="field"><span>Camera tilt</span><input data-atlas-settings-tilt type="number" min="0" max="179" step="0.1" value="${defaults.tilt}" /></label></div></fieldset><p class="form-note">These values start each new chapter. Edit a chapter to override its transition, linger, or camera angle; saved chapters are never overwritten.</p></div>`,
       actions: [
         { label: "Cancel", handler: () => this.dialog.close() },
         { label: "Save settings", primary: true, handler: () => {
@@ -3943,6 +3976,12 @@ export class UIController {
             ...this.projectManager.current.presentation,
             skin: this.dialog.querySelector("[data-atlas-settings-skin]").value,
             playbackMode: this.dialog.querySelector("[data-atlas-settings-playback]").value,
+            tourDefaults: {
+              transitionMode: this.dialog.querySelector("[data-atlas-settings-transition]").value,
+              lingerSeconds: this.dialog.querySelector("[data-atlas-settings-linger]").value,
+              heading: this.dialog.querySelector("[data-atlas-settings-heading]").value,
+              tilt: this.dialog.querySelector("[data-atlas-settings-tilt]").value,
+            },
           });
           this.dialog.close();
           this.#renderPresentationDashboard(updated);
@@ -5058,6 +5097,7 @@ export class UIController {
   }
 
   #createAtlasFromBookmarks() {
+    const defaults = this.#atlasDefaults();
     const chapters = (this.projectManager.current.bookmarks ?? []).map((bookmark, index) => ({
       id: bookmark.id || `bookmark-${index + 1}`,
       title: bookmark.name || `Place ${index + 1}`,
@@ -5065,7 +5105,8 @@ export class UIController {
       reverseAddress: bookmark.reverseAddress || "",
       viewState: bookmark.viewpoint,
       basemapId: bookmark.basemapId || null,
-      lingerSeconds: Math.min(120, Math.max(1, Number(bookmark.lingerSeconds) || 4)),
+      lingerSeconds: Math.min(120, Math.max(1, Number(bookmark.lingerSeconds) || defaults.lingerSeconds)),
+      transitionMode: bookmark.transitionMode === "instant" ? "instant" : defaults.transitionMode,
       layerVisibility: bookmark.layerVisibility || null,
     }));
     if (!chapters.length) return this.error("Add at least one bookmark before creating an atlas.");

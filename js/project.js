@@ -7,6 +7,21 @@ import { composeSmartImage, embedProjectInPng, readProjectFromPng } from "./smar
 
 const STORAGE_KEY = "gismap-online:projects:v1";
 const CURRENT_KEY = "gismap-online:current-project:v1";
+const TOUR_DEFAULTS = Object.freeze({ transitionMode: "smooth", lingerSeconds: 4, heading: 0, tilt: 0 });
+
+function finite(value, fallback) {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : fallback;
+}
+
+function normalizeTourDefaults(value = {}) {
+  return {
+    transitionMode: value?.transitionMode === "instant" ? "instant" : "smooth",
+    lingerSeconds: Math.min(120, Math.max(1, finite(value?.lingerSeconds, TOUR_DEFAULTS.lingerSeconds))),
+    heading: Math.min(360, Math.max(-360, finite(value?.heading, TOUR_DEFAULTS.heading))),
+    tilt: Math.min(179, Math.max(0, finite(value?.tilt, TOUR_DEFAULTS.tilt))),
+  };
+}
 
 function makeId() {
   return globalThis.crypto?.randomUUID?.() ?? `project-${Date.now()}`;
@@ -45,7 +60,7 @@ export class ProjectManager {
       tools: [],
       ai: { provider: null, model: null },
       connections: [],
-      presentation: { schemaVersion: 1, template: "standard", skin: "gismap", title: "", primaryLayerId: null, fieldMappings: {}, widgets: {}, chapters: [] },
+      presentation: { schemaVersion: 1, template: "standard", skin: "gismap", title: "", primaryLayerId: null, fieldMappings: {}, widgets: {}, tourDefaults: normalizeTourDefaults(), chapters: [] },
       application: null,
       dataCatalog: normalizeDataCatalog(),
       mobile: normalizeMobileWorkflow(),
@@ -390,6 +405,9 @@ export class ProjectManager {
         sourceIds: Array.isArray(value.contextSettings.sourceIds) ? value.contextSettings.sourceIds.map(String) : [],
       } : undefined,
       playbackMode: value.playbackMode === "manual" ? "manual" : "auto",
+      // These are authoring defaults for new chapters. A chapter keeps its own
+      // settings once edited, so changing a default never rewrites a tour.
+      tourDefaults: normalizeTourDefaults(value.tourDefaults),
       chapters: Array.isArray(value.chapters) ? value.chapters.map((chapter) => ({
         ...chapter,
         basemapId: typeof chapter?.basemapId === "string" ? chapter.basemapId : null,
