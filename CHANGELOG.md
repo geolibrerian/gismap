@@ -6,6 +6,11 @@ All notable changes to GIS Map Online are documented here. This project follows
 
 ## [Unreleased]
 
+### Selection highlight on MapLibre, filled or outline
+
+- The feature selected in Map Insight, a briefing slide or the Explorer is now highlighted on the MapLibre engine too, above the data and kept across basemap changes.
+- **Layout & display → Selection style**: *Filled polygon with outline* (as before) or *Outline only*, in the feedback colour, on both engines.
+
 ### MapLibre 3D terrain
 
 - **MapLibre now draws real 3D terrain.** Its existing Terrain surface setting adds a key-free raster DEM from Mapterhorn, subtle hillshade and sky, with pitch up to 85°. Vector and ArcGIS feature layers stay draped on the terrain, and Smart image and briefing PDF captures include the same relief.

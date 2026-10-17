@@ -1717,6 +1717,7 @@ export class UIController {
         highlightEnabled: saved.highlightEnabled !== false,
         clickMarkerEnabled: saved.clickMarkerEnabled !== false,
         highlightColor: /^#[0-9a-f]{6}$/i.test(saved.highlightColor) ? saved.highlightColor : "#00b8d9",
+        highlightStyle: saved.highlightStyle === "outline" ? "outline" : "fill",
         navigationLayout: saved.navigationLayout === "top" ? "top" : "side",
         utilityPanelWidth: Number.isFinite(saved.utilityPanelWidth) ? Math.min(620, Math.max(280, saved.utilityPanelWidth)) : 360,
         appearance: ["system", "light", "dark"].includes(saved.appearance) ? saved.appearance : "system",
@@ -1725,7 +1726,7 @@ export class UIController {
         drawPanelVisible: saved.drawPanelVisible === true,
       };
     } catch {
-      return { insightPosition: "upper-left", defaultBasemap: "topo-3d", insightDockWidth: 420, insightDockHeight: 360, tablePosition: "overlay-bottom", tableDockWidth: 520, tableDockHeight: 420, highlightEnabled: true, clickMarkerEnabled: true, highlightColor: "#00b8d9", navigationLayout: "side", utilityPanelWidth: 360, appearance: "system", darkBasemapEnabled: false, bookmarksPanelVisible: false, drawPanelVisible: false };
+      return { insightPosition: "upper-left", defaultBasemap: "topo-3d", insightDockWidth: 420, insightDockHeight: 360, tablePosition: "overlay-bottom", tableDockWidth: 520, tableDockHeight: 420, highlightEnabled: true, clickMarkerEnabled: true, highlightColor: "#00b8d9", highlightStyle: "fill", navigationLayout: "side", utilityPanelWidth: 360, appearance: "system", darkBasemapEnabled: false, bookmarksPanelVisible: false, drawPanelVisible: false };
     }
   }
 
@@ -1797,7 +1798,7 @@ export class UIController {
         <label class="field"><span>Map engine</span><select id="map-engine">${this.#engineOptionsMarkup()}</select></label>
       </div>
       <label class="display-checkbox"><input id="dark-basemap-enabled" type="checkbox" ${current.darkBasemapEnabled ? "checked" : ""} /><span>Use a dark basemap when dark mode is enabled</span></label>
-      <fieldset class="feedback-settings"><legend>Map click feedback</legend><label class="display-checkbox"><input id="click-marker-enabled" type="checkbox" ${current.clickMarkerEnabled ? "checked" : ""} /><span>Show a crosshair where the map is clicked</span></label><label class="display-checkbox"><input id="highlight-enabled" type="checkbox" ${current.highlightEnabled ? "checked" : ""} /><span>Highlight the feature selected in Map Insight</span></label><label class="highlight-color"><span>Feedback color</span><input id="highlight-color" type="color" value="${current.highlightColor}" /><output>${current.highlightColor.toUpperCase()}</output></label></fieldset>
+      <fieldset class="feedback-settings"><legend>Map click feedback</legend><label class="display-checkbox"><input id="click-marker-enabled" type="checkbox" ${current.clickMarkerEnabled ? "checked" : ""} /><span>Show a crosshair where the map is clicked</span></label><label class="display-checkbox"><input id="highlight-enabled" type="checkbox" ${current.highlightEnabled ? "checked" : ""} /><span>Highlight the feature selected in Map Insight</span></label><label class="field"><span>Selection style</span><select id="highlight-style"><option value="fill"${current.highlightStyle === "outline" ? "" : " selected"}>Filled polygon with outline</option><option value="outline"${current.highlightStyle === "outline" ? " selected" : ""}>Outline only</option></select></label><label class="highlight-color"><span>Feedback color</span><input id="highlight-color" type="color" value="${current.highlightColor}" /><output>${current.highlightColor.toUpperCase()}</output></label></fieldset>
       <label class="display-checkbox"><input id="apply-default-basemap" type="checkbox" /><span>Apply the default basemap to the current map</span></label><p class="form-note">Docked panels resize the map instead of covering it. Sizes, navigation, appearance, and feedback preferences are saved in this browser.</p>`,
       actions: [{ label: "Save settings", primary: true, handler: async () => {
         const insightPosition = this.dialog.querySelector("#insight-position").value;
@@ -1805,7 +1806,7 @@ export class UIController {
         const navigationLayout = this.dialog.querySelector("#navigation-layout").value;
         const appearance = this.dialog.querySelector("#appearance").value;
         const defaultBasemap = this.dialog.querySelector("#default-basemap").value;
-        const settings = { ...this.#readDisplaySettings(), insightPosition, tablePosition, navigationLayout, appearance, defaultBasemap, darkBasemapEnabled: this.dialog.querySelector("#dark-basemap-enabled").checked, highlightEnabled: this.dialog.querySelector("#highlight-enabled").checked, clickMarkerEnabled: this.dialog.querySelector("#click-marker-enabled").checked, highlightColor: this.dialog.querySelector("#highlight-color").value };
+        const settings = { ...this.#readDisplaySettings(), insightPosition, tablePosition, navigationLayout, appearance, defaultBasemap, darkBasemapEnabled: this.dialog.querySelector("#dark-basemap-enabled").checked, highlightEnabled: this.dialog.querySelector("#highlight-enabled").checked, clickMarkerEnabled: this.dialog.querySelector("#click-marker-enabled").checked, highlightColor: this.dialog.querySelector("#highlight-color").value, highlightStyle: this.dialog.querySelector("#highlight-style").value === "outline" ? "outline" : "fill" };
         localStorage.setItem(DISPLAY_SETTINGS_KEY, JSON.stringify(settings));
         this.#applyDisplaySettings(settings);
         if (this.dialog.querySelector("#apply-default-basemap").checked) {

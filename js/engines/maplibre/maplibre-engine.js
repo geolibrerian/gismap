@@ -26,13 +26,14 @@ import { OBJECT_ID_FIELD, boundsIntersect, boundsOf, expandBounds, geometryTypeO
 import { loadMaplibre } from "./maplibre-loader.js?v=0.39.0";
 import { HILLSHADE_LAYER_ID, HILLSHADE_SOURCE_ID, MAPLIBRE_GROUNDS, TERRAIN_SOURCE_ID, hillshadeLayer, maplibreGround, terrainSource } from "./terrain.js?v=0.43.0";
 
-export const MAPLIBRE_CAPABILITIES = Object.freeze(["view-2d", "view-3d", "basemaps", "basemap-themes", "ground", "layers-arcgis", "layers-files", "query", "feature-filter", "renderer-spec", "renderer-native", "identify", "capture", "native"]);
+export const MAPLIBRE_CAPABILITIES = Object.freeze(["view-2d", "view-3d", "basemaps", "basemap-themes", "ground", "layers-arcgis", "layers-files", "query", "feature-filter", "renderer-spec", "renderer-native", "identify", "highlight", "capture", "native"]);
 
 const ZOOM_OFFSET = 1;
 const SCALE_AT_ZOOM_0 = 591657527.591555;
 // GIS Map green, until a skin's theme gives the data its accent colour.
 const DEFAULT_COLOR = "#1b7f6a";
 const MAX_PITCH = 85;
+const HIGHLIGHT_SOURCE = "gismap-highlight";
 const toEngineZoom = (zoom) => Number(zoom) - ZOOM_OFFSET;
 const toGisZoom = (zoom) => Number(zoom) + ZOOM_OFFSET;
 const zoomForScale = (scale) => Math.log2(SCALE_AT_ZOOM_0 / Math.max(1, Number(scale)));
@@ -118,6 +119,7 @@ export class MaplibreEngine {
     this.basemapId = "topo-3d";
     this.initialBasemapId = null;
     this.basemapTheme = null;
+    this.highlight = { enabled: true, color: "#00b8d9", style: "fill", feature: null };
     this.groundId = "world-elevation";
   }
 
@@ -325,8 +327,8 @@ export class MaplibreEngine {
       diff: true,
       transformStyle: (_previous, incoming) => ({
         ...incoming,
-        sources: { ...incoming.sources, ...Object.fromEntries([...this.#records.values()].map((record) => [this.#sourceId(record), this.#sourceSpec(record)])) },
-        layers: [...incoming.layers, ...[...this.#records.values()].flatMap((record) => this.#layerSpecs(record))],
+        sources: { ...incoming.sources, [HIGHLIGHT_SOURCE]: this.#highlightSource(), ...Object.fromEntries([...this.#records.values()].map((record) => [this.#sourceId(record), this.#sourceSpec(record)])) },
+        layers: [...incoming.layers, ...[...this.#records.values()].flatMap((record) => this.#layerSpecs(record)), ...this.#highlightSpecs()],
       }),
     });
   }
@@ -997,6 +999,68 @@ export class MaplibreEngine {
 
   async queryObjectIds(uid, params = {}, { layerDefaults = true } = {}) {
     return (await this.#select(this.#require(uid), params, layerDefaults)).map((feature) => feature.id);
+  }
+
+  /* ---------------- Highlight ---------------- */
+
+  #highlightSource() {
+    return { type: "geojson", data: { type: "FeatureCollection", features: this.highlight.feature ? [this.highlight.feature] : [] } };
+  }
+
+  /** The selected feature, drawn above the data in the feedback colour: filled with an outline, or the outline only. */
+  #highlightSpecs() {
+    const { color, style } = this.highlight;
+    return [
+      { id: `${HIGHLIGHT_SOURCE}-fill`, type: "fill", source: HIGHLIGHT_SOURCE, filter: ["match", ["geometry-type"], ["Polygon", "MultiPolygon"], true, false], paint: { "fill-color": color, "fill-opacity": style === "outline" ? 0 : 0.25 } },
+      { id: `${HIGHLIGHT_SOURCE}-line`, type: "line", source: HIGHLIGHT_SOURCE, filter: ["match", ["geometry-type"], ["Point", "MultiPoint"], false, true], layout: { "line-join": "round", "line-cap": "round" }, paint: { "line-color": color, "line-width": 3 } },
+      { id: `${HIGHLIGHT_SOURCE}-point`, type: "circle", source: HIGHLIGHT_SOURCE, filter: ["match", ["geometry-type"], ["Point", "MultiPoint"], true, false], paint: { "circle-color": color, "circle-opacity": style === "outline" ? 0 : 0.35, "circle-radius": 9, "circle-stroke-color": color, "circle-stroke-width": 3 } },
+    ];
+  }
+
+  #drawHighlight() {
+    if (!this.map) return;
+    const source = this.map.getSource(HIGHLIGHT_SOURCE);
+    if (!source) {
+      try {
+        this.map.addSource(HIGHLIGHT_SOURCE, this.#highlightSource());
+        for (const spec of this.#highlightSpecs()) this.map.addLayer(spec);
+      } catch {
+        // The style is being replaced (a basemap change): draw once it settles.
+        this.map.once("idle", () => this.#drawHighlight());
+      }
+      return;
+    }
+    source.setData(this.#highlightSource().data);
+    for (const spec of this.#highlightSpecs()) {
+      if (!this.map.getLayer(spec.id)) continue;
+      this.map.moveLayer(spec.id);
+      for (const [name, value] of Object.entries(spec.paint)) this.map.setPaintProperty(spec.id, name, value);
+    }
+  }
+
+  /** Marks a feature (an identify result or presentation record) on the map. */
+  async highlightFeature(result) {
+    if (!this.highlight.enabled || result?.kind !== "feature" || !result.geometry?.type) {
+      this.clearFeatureHighlight();
+      return false;
+    }
+    this.highlight.feature = { type: "Feature", geometry: result.geometry, properties: {} };
+    this.#drawHighlight();
+    return true;
+  }
+
+  clearFeatureHighlight() {
+    this.highlight.feature = null;
+    this.map?.getSource?.(HIGHLIGHT_SOURCE)?.setData(this.#highlightSource().data);
+  }
+
+  /** Display settings: highlight on or off, its colour, and filled or outline only. */
+  configureInteractionFeedback({ highlightEnabled, highlightColor, highlightStyle } = {}) {
+    this.highlight.enabled = highlightEnabled !== false;
+    if (/^#[0-9a-f]{6}$/i.test(String(highlightColor || ""))) this.highlight.color = highlightColor;
+    this.highlight.style = highlightStyle === "outline" ? "outline" : "fill";
+    if (!this.highlight.enabled) this.highlight.feature = null;
+    if (this.map?.getSource?.(HIGHLIGHT_SOURCE)) this.#drawHighlight();
   }
 
   /* ---------------- Identify ---------------- */

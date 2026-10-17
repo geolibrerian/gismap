@@ -293,3 +293,29 @@ test("MapController falls back quietly for optional capabilities and reports the
   await controller.restoreView({ camera: { position: { x: 1, y: 2, z: 3 } }, center: [5, 6], zoom: 7, heading: 0, tilt: 0 });
   assert.deepEqual(views.at(-1), { center: [5, 6], zoom: 7, heading: 0, tilt: 0 }, "a flat map uses a saved view's centre, not the 3D eye position");
 });
+
+test("MapLibre highlights the selected feature, filled or as an outline only", async () => {
+  const sources = new Map();
+  const layers = new Map();
+  const engine = new MaplibreEngine({ publish() {} });
+  engine.map = {
+    getSource: (id) => sources.get(id),
+    addSource: (id, spec) => sources.set(id, { ...spec, setData(data) { this.data = data; } }),
+    addLayer: (spec) => layers.set(spec.id, structuredClone(spec)),
+    getLayer: (id) => layers.get(id),
+    moveLayer() {},
+    setPaintProperty: (id, name, value) => { layers.get(id).paint[name] = value; },
+    once() {},
+  };
+  const polygon = { type: "Polygon", coordinates: [[[0, 0], [1, 0], [1, 1], [0, 0]]] };
+  assert.equal(await engine.highlightFeature({ kind: "feature", geometry: polygon }), true);
+  assert.deepEqual(sources.get("gismap-highlight").data.features[0].geometry, polygon);
+  assert.equal(layers.get("gismap-highlight-fill").paint["fill-opacity"], 0.25);
+  engine.configureInteractionFeedback({ highlightColor: "#ff00aa", highlightStyle: "outline" });
+  assert.equal(layers.get("gismap-highlight-fill").paint["fill-opacity"], 0, "outline only");
+  assert.equal(layers.get("gismap-highlight-line").paint["line-color"], "#ff00aa");
+  engine.clearFeatureHighlight();
+  assert.equal(sources.get("gismap-highlight").data.features.length, 0);
+  engine.configureInteractionFeedback({ highlightEnabled: false });
+  assert.equal(await engine.highlightFeature({ kind: "feature", geometry: polygon }), false);
+});

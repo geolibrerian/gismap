@@ -163,6 +163,7 @@ export class ArcGISEngine {
     this.highlightEnabled = true;
     this.clickMarkerEnabled = true;
     this.highlightColor = "#00b8d9";
+    this.highlightStyle = "fill";
     this.clickMarkerAnimation = null;
     this.defaultViewpoint = { center: [-98.5, 39.5], zoom: 4, tilt: 35, heading: 0 };
     this.defaultBasemapId = "topo-3d";
@@ -266,7 +267,7 @@ export class ArcGISEngine {
       qualityProfile: "high",
       popupEnabled: false,
       ui: { components: [] },
-      highlightOptions: { color: this.highlightColor, haloOpacity: 1, fillOpacity: 0.25 },
+      highlightOptions: this.#highlightOptions(),
       environment: {
         atmosphereEnabled: true,
         starsEnabled: true,
@@ -826,11 +827,17 @@ export class ArcGISEngine {
     }
   }
 
-  configureInteractionFeedback({ highlightEnabled, clickMarkerEnabled, highlightColor } = {}) {
+  /** The view's highlight look: the feedback colour, filled or as an outline only. */
+  #highlightOptions() {
+    return { color: this.highlightColor, haloOpacity: 1, fillOpacity: this.highlightStyle === "outline" ? 0 : 0.25 };
+  }
+
+  configureInteractionFeedback({ highlightEnabled, clickMarkerEnabled, highlightColor, highlightStyle } = {}) {
+    this.highlightStyle = highlightStyle === "outline" ? "outline" : "fill";
     this.highlightEnabled = highlightEnabled !== false;
     this.clickMarkerEnabled = clickMarkerEnabled !== false;
     if (/^#[0-9a-f]{6}$/i.test(String(highlightColor || ""))) this.highlightColor = highlightColor;
-    if (this.view) this.view.highlightOptions = { color: this.highlightColor, haloOpacity: 1, fillOpacity: 0.25 };
+    if (this.view) this.view.highlightOptions = this.#highlightOptions();
     if (!this.highlightEnabled) this.clearFeatureHighlight();
     if (!this.clickMarkerEnabled) this.clearClickMarker();
   }
