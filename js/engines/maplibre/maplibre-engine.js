@@ -27,7 +27,7 @@ import { OBJECT_ID_FIELD, boundsIntersect, boundsOf, expandBounds, geometryTypeO
 import { loadMaplibre } from "./maplibre-loader.js?v=0.39.0";
 import { HILLSHADE_LAYER_ID, HILLSHADE_SOURCE_ID, MAPLIBRE_GROUNDS, TERRAIN_SOURCE_ID, hillshadeLayer, maplibreGround, terrainSource } from "./terrain.js?v=0.43.0";
 
-export const MAPLIBRE_CAPABILITIES = Object.freeze(["view-2d", "view-3d", "basemaps", "basemap-themes", "ground", "layers-arcgis", "layers-files", "query", "feature-filter", "renderer-spec", "renderer-native", "identify", "highlight", "capture", "geocode", "buildings-3d", "native"]);
+export const MAPLIBRE_CAPABILITIES = Object.freeze(["view-2d", "view-3d", "basemaps", "basemap-themes", "ground", "layers-arcgis", "layers-files", "query", "feature-filter", "renderer-spec", "renderer-native", "identify", "highlight", "capture", "geocode", "buildings-3d", "draw", "native"]);
 
 const ZOOM_OFFSET = 1;
 const SCALE_AT_ZOOM_0 = 591657527.591555;
@@ -35,6 +35,8 @@ const SCALE_AT_ZOOM_0 = 591657527.591555;
 const DEFAULT_COLOR = "#1b7f6a";
 const MAX_PITCH = 85;
 const HIGHLIGHT_SOURCE = "gismap-highlight";
+const DRAW_SOURCE = "gismap-drawings";
+const DRAW_LAYER_IDS = ["gismap-drawings-fill", "gismap-drawings-line", "gismap-drawings-point"];
 const toEngineZoom = (zoom) => Number(zoom) - ZOOM_OFFSET;
 const toGisZoom = (zoom) => Number(zoom) + ZOOM_OFFSET;
 const zoomForScale = (scale) => Math.log2(SCALE_AT_ZOOM_0 / Math.max(1, Number(scale)));
@@ -121,6 +123,8 @@ export class MaplibreEngine {
     this.initialBasemapId = null;
     this.basemapTheme = null;
     this.highlight = { enabled: true, color: "#00b8d9", style: "fill", feature: null };
+    this.drawings = [];
+    this.drawing = null;
     this.groundId = "world-elevation";
   }
 
@@ -153,7 +157,27 @@ export class MaplibreEngine {
 
   #bindEvents() {
     const point = (lngLat) => ({ longitude: lngLat.lng, latitude: lngLat.lat, x: lngLat.lng, y: lngLat.lat, spatialReference: { wkid: 4326 } });
-    this.map.on("click", (event) => this.events.publish("map:click", { x: event.point.x, y: event.point.y, mapPoint: point(event.lngLat) }));
+    this.map.on("click", (event) => {
+      if (this.drawing) return this.#handleDrawingClick(event);
+      this.events.publish("map:click", { x: event.point.x, y: event.point.y, mapPoint: point(event.lngLat) });
+    });
+    this.map.on("dblclick", (event) => {
+      if (!this.drawing || !["polyline", "polygon"].includes(this.drawing.type)) return;
+      event.preventDefault();
+      this.#completeDrawing();
+    });
+    this.map.on("mousedown", (event) => {
+      if (this.drawing?.type !== "rectangle") return;
+      this.drawing.start = [event.lngLat.lng, event.lngLat.lat];
+      this.map.dragPan.disable();
+    });
+    this.map.on("mouseup", (event) => {
+      if (this.drawing?.type !== "rectangle" || !this.drawing.start) return;
+      const [west, east] = [this.drawing.start[0], event.lngLat.lng].sort((a, b) => a - b);
+      const [south, north] = [this.drawing.start[1], event.lngLat.lat].sort((a, b) => a - b);
+      this.map.dragPan.enable();
+      this.#finishDrawing({ type: "Polygon", coordinates: [[[west, south], [east, south], [east, north], [west, north], [west, south]]] });
+    });
     this.map.on("mousemove", (event) => this.events.publish("view:pointer-move", { longitude: event.lngLat.lng, latitude: event.lngLat.lat, zoom: this.#gisZoom() }));
     this.map.on("zoomend", () => this.events.publish("view:scale-change", { scale: this.getScale() }));
     this.map.on("moveend", () => {
@@ -340,8 +364,8 @@ export class MaplibreEngine {
       diff: true,
       transformStyle: (_previous, incoming) => ({
         ...incoming,
-        sources: { ...incoming.sources, [HIGHLIGHT_SOURCE]: this.#highlightSource(), ...Object.fromEntries([...this.#records.values()].map((record) => [this.#sourceId(record), this.#sourceSpec(record)])) },
-        layers: [...incoming.layers, ...[...this.#records.values()].flatMap((record) => this.#layerSpecs(record)), ...this.#highlightSpecs()],
+        sources: { ...incoming.sources, [HIGHLIGHT_SOURCE]: this.#highlightSource(), [DRAW_SOURCE]: this.#drawingSource(), ...Object.fromEntries([...this.#records.values()].map((record) => [this.#sourceId(record), this.#sourceSpec(record)])) },
+        layers: [...incoming.layers, ...[...this.#records.values()].flatMap((record) => this.#layerSpecs(record)), ...this.#drawingSpecs(), ...this.#highlightSpecs()],
       }),
     });
   }
@@ -1093,6 +1117,69 @@ export class MaplibreEngine {
   async queryObjectIds(uid, params = {}, { layerDefaults = true } = {}) {
     return (await this.#select(this.#require(uid), params, layerDefaults)).map((feature) => feature.id);
   }
+
+  /* ---------------- Drawings ---------------- */
+
+  #drawingSource() { return { type: "geojson", data: { type: "FeatureCollection", features: this.drawings } }; }
+
+  #drawingSpecs() {
+    const color = this.basemapTheme?.accent || "#d9951e";
+    return [
+      { id: DRAW_LAYER_IDS[0], type: "fill", source: DRAW_SOURCE, filter: ["==", ["geometry-type"], "Polygon"], paint: { "fill-color": color, "fill-opacity": 0.18 } },
+      { id: DRAW_LAYER_IDS[1], type: "line", source: DRAW_SOURCE, paint: { "line-color": color, "line-width": 3, "line-dasharray": [2, 1] } },
+      { id: DRAW_LAYER_IDS[2], type: "circle", source: DRAW_SOURCE, filter: ["==", ["geometry-type"], "Point"], paint: { "circle-color": color, "circle-radius": 6, "circle-stroke-color": "#ffffff", "circle-stroke-width": 1.5 } },
+    ];
+  }
+
+  #drawDrawings() {
+    if (!this.map) return;
+    const source = this.map.getSource(DRAW_SOURCE);
+    if (!source) {
+      try {
+        this.map.addSource(DRAW_SOURCE, this.#drawingSource());
+        this.#drawingSpecs().forEach((spec) => this.map.addLayer(spec));
+      } catch { this.map.once("idle", () => this.#drawDrawings()); }
+      return;
+    }
+    source.setData(this.#drawingSource().data);
+  }
+
+  #handleDrawingClick(event) {
+    const coordinate = [event.lngLat.lng, event.lngLat.lat];
+    if (this.drawing.type === "point") return this.#finishDrawing({ type: "Point", coordinates: coordinate });
+    if (["polyline", "polygon"].includes(this.drawing.type)) this.drawing.coordinates.push(coordinate);
+  }
+
+  #finishDrawing(geometry) {
+    const feature = { type: "Feature", geometry, properties: { drawing_id: this.drawings.length + 1 } };
+    this.drawings.push(feature);
+    this.#drawDrawings();
+    this.drawing = null;
+    this.map?.dragPan.enable();
+    this.events.publish("draw:complete", { feature });
+  }
+
+  #completeDrawing() {
+    if (!this.drawing || this.drawing.coordinates.length < 2) return;
+    const coordinates = this.drawing.type === "polygon" ? [...this.drawing.coordinates, this.drawing.coordinates[0]] : this.drawing.coordinates;
+    this.#finishDrawing({ type: this.drawing.type === "polygon" ? "Polygon" : "LineString", coordinates: this.drawing.type === "polygon" ? [coordinates] : coordinates });
+  }
+
+  draw(type) {
+    if (type === "clear") return this.clearDrawings();
+    if (!["point", "polyline", "polygon", "rectangle"].includes(type)) return;
+    this.drawing = { type, coordinates: [], start: null };
+    if (type === "rectangle") this.map?.dragPan.disable();
+  }
+
+  hasDrawings() { return this.drawings.length > 0; }
+  clearDrawings() {
+    this.drawing = null;
+    this.drawings = [];
+    this.map?.dragPan.enable();
+    this.map?.getSource?.(DRAW_SOURCE)?.setData(this.#drawingSource().data);
+  }
+  getDrawGraphicsForExport() { return [...this.drawings]; }
 
   /* ---------------- Highlight ---------------- */
 
