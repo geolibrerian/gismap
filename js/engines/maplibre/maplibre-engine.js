@@ -21,7 +21,7 @@ import { compileWhere } from "./where.js?v=0.39.0";
 import { arcgisMetadata } from "../../source-inspector.js?v=0.41.0";
 import { chooseStyleField, compileRenderer, resolveRendererSpec, suggestRenderers, validateRendererSpec } from "../../renderer-spec.js?v=0.29.0";
 import { rendererToPaint } from "./arcgis-renderer.js?v=0.42.0";
-import { MAX_FEATURES, describeArcGIS, featureServiceLayers, fetchFeatures, fetchGeometries, queryServiceIds } from "./arcgis-service.js?v=0.46.0";
+import { MAX_FEATURES, describeArcGIS, featureServiceLayers, fetchFeatures, fetchGeometries, queryServiceIds } from "./arcgis-service.js?v=0.46.1";
 import { OBJECT_ID_FIELD, boundsIntersect, boundsOf, expandBounds, geometryTypeOf, inferFields, normalizeFeatures, regroupPolygon, representativePoint } from "./geojson.js?v=0.42.0";
 import { loadMaplibre } from "./maplibre-loader.js?v=0.39.0";
 import { HILLSHADE_LAYER_ID, HILLSHADE_SOURCE_ID, MAPLIBRE_GROUNDS, TERRAIN_SOURCE_ID, hillshadeLayer, maplibreGround, terrainSource } from "./terrain.js?v=0.43.0";
@@ -552,14 +552,20 @@ export class MaplibreEngine {
     });
     const record = this.#record(handle);
     let drawn = 0;
-    const redraw = () => { drawn = Date.now(); this.#refresh(record, { data: true }); };
+    let done = false;
+    // Coarse sketches show first and are replaced, feature by feature, as the overview pages arrive.
+    const byId = new Map();
+    const redraw = () => { drawn = Date.now(); record.features = [...byId.values()]; this.#refresh(record, { data: true }); };
+    const take = (features, sketch) => {
+      if (done || !this.#records.has(record.uid)) return;
+      for (const feature of features) if (!sketch || !byId.has(feature.id)) byId.set(feature.id, feature);
+      if (Date.now() - drawn > 500) redraw();
+    };
     record.loaded = this.#loadFeatures(service, where, {
-      onPage: (features) => {
-        if (!this.#records.has(record.uid)) return;
-        record.features.push(...features);
-        if (Date.now() - drawn > 500) redraw();
-      },
+      onPage: (features) => take(features, false),
+      onSketch: (features) => take(features, true),
     }).then((loaded) => {
+      done = true;
       Object.assign(record, { features: loaded.features, truncated: loaded.truncated, serverWhere: loaded.serverWhere });
       record.geometryType ||= geometryTypeOf(loaded.features);
       redraw();
@@ -581,6 +587,9 @@ export class MaplibreEngine {
 
   /** The outline detail the overview of line and polygon layers is fetched at (degrees, about 50 m). */
   static OVERVIEW_DETAIL = 0.0005;
+
+  /** The outline detail of the first, coarse sketch of line and polygon layers (degrees, about 2 km). */
+  static SKETCH_DETAIL = 0.02;
 
   /**
    * Zoomed in, the line and polygon features in view are refetched at the
@@ -621,7 +630,7 @@ export class MaplibreEngine {
    * whole and filtered here; bigger ones are fetched already filtered, and
    * fetched again when the filter changes.
    */
-  async #loadFeatures(service, where, { onPage = () => {} } = {}) {
+  async #loadFeatures(service, where, { onPage = () => {}, onSketch = null } = {}) {
     let total = Infinity;
     try {
       total = (await (await fetch(`${service.url}/query?where=1%3D1&returnCountOnly=true&f=json`)).json()).count ?? Infinity;
@@ -630,6 +639,11 @@ export class MaplibreEngine {
     const prepare = (features) => normalizeFeatures({ type: "FeatureCollection", features: features.map((feature) => (feature.geometry?.type === "Polygon" ? { ...feature, geometry: regroupPolygon(feature.geometry) } : feature)) }, { objectIdField: service.objectIdField });
     // Lines and polygons arrive generalized for the overview (a fraction of the size); zooming in sharpens them.
     const simplify = /polygon|polyline/.test(service.geometryType || "") ? { maxAllowableOffset: MaplibreEngine.OVERVIEW_DETAIL, geometryPrecision: 5 } : null;
+    if (simplify && onSketch) {
+      // A quick coarse pass (outlines at about 2 km, only the fields the style reads) to show the layer's shape at once.
+      const outFields = [...new Set([service.objectIdField, ...rendererFields(service.renderer)].filter(Boolean))].join(",");
+      void fetchFeatures(service, { where: serverWhere, simplify: { maxAllowableOffset: MaplibreEngine.SKETCH_DETAIL, geometryPrecision: 3 }, outFields, concurrency: 10, onPage: (batch) => onSketch(prepare(batch)) }).catch(() => {});
+    }
     const { features, truncated } = await fetchFeatures(service, { where: serverWhere, simplify, concurrency: 10, onPage: (batch) => onPage(prepare(batch)) });
     return { features: prepare(features), truncated, serverWhere: total > MAX_FEATURES };
   }
@@ -1438,3 +1452,9 @@ export class MaplibreEngine {
 }
 
 export default MaplibreEngine;
+
+/** The attribute fields an ArcGIS renderer reads. */
+function rendererFields(renderer) {
+  if (!renderer) return [];
+  return [renderer.field, renderer.field1, renderer.field2, renderer.field3, renderer.normalizationField, ...(renderer.visualVariables || []).map((variable) => variable.field)].filter((field) => typeof field === "string");
+}

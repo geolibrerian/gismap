@@ -9,6 +9,7 @@ All notable changes to GIS Map Online are documented here. This project follows
 ### Faster ArcGIS layers on MapLibre
 
 - Large feature layers (for example WFIGS fire perimeters, 42,000+ polygons) draw within a few seconds: simplified overview geometry in 2000-feature pages, ten requests at a time, drawn as pages arrive.
+- Polygons and lines appear first as coarse sketches (outlines generalized to about 2 km, only the fields the style reads) in about 2.5 seconds, then are replaced by the overview outlines page by page.
 - Polygons and lines are refetched at full detail for the area in view as you zoom in.
 
 ### Selection highlight on MapLibre, filled or outline

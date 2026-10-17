@@ -162,13 +162,13 @@ function esriToGeoJSON(json) {
  * A feature layer's features as GeoJSON features (WGS84), paged, at most
  * MAX_FEATURES: { features, truncated }. `where` filters on the service.
  */
-export async function fetchFeatures(layer, { where = null, maxFeatures = MAX_FEATURES, onProgress = () => {}, onPage = () => {}, simplify = null, concurrency = 3, ...options } = {}) {
+export async function fetchFeatures(layer, { where = null, maxFeatures = MAX_FEATURES, onProgress = () => {}, onPage = () => {}, simplify = null, concurrency = 3, outFields = "*", ...options } = {}) {
   // Full-detail polygons can be megabytes per page, so pages stay small; with
   // `simplify` ({ maxAllowableOffset, geometryPrecision } in degrees) the service
   // sends outlines generalized to that tolerance, a fraction of the size, and pages can be full.
   const pageSize = Math.max(1, Math.min(layer.maxRecordCount || 1000, layer.geometryType === "polygon" && !simplify ? 500 : 2000));
   const base = {
-    where: where || "1=1", outFields: "*", returnGeometry: "true", outSR: "4326",
+    where: where || "1=1", outFields, returnGeometry: "true", outSR: "4326",
     ...(simplify ? { maxAllowableOffset: String(simplify.maxAllowableOffset), geometryPrecision: String(simplify.geometryPrecision ?? 6) } : {}),
   };
   let geojson = true;
