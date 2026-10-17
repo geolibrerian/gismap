@@ -1239,6 +1239,11 @@ dialog::backdrop { background: rgb(12 28 23 / 48%); backdrop-filter: blur(3px); 
 .highlight-color output { color: var(--muted); font-family: ui-monospace, monospace; font-size: 10px; }
 @media (max-width: 720px) { .display-settings-grid { grid-template-columns: 1fr; } }
 .field { display: grid; gap: 6px; margin-bottom: 14px; }
+.workspace-tool .field[hidden], .workspace-tool [data-extrusion-options][hidden] { display: none !important; }
+.workspace-tool input[type="color"] { height: 42px; min-height: 42px; padding: 4px; cursor: pointer; }
+.workspace-tool input[type="color"]::-webkit-color-swatch-wrapper { padding: 0; }
+.workspace-tool input[type="color"]::-webkit-color-swatch { border: 1px solid var(--line); border-radius: 4px; }
+.workspace-tool input[type="color"]::-moz-color-swatch { border: 1px solid var(--line); border-radius: 4px; }
 .field > span { font-size: 11px; font-weight: 700; }
 .field small { color: var(--muted); font-weight: 400; }
 .field-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 12px; }

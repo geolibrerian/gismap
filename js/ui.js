@@ -5374,16 +5374,16 @@ export class UIController {
     const polygonControls = layer.geometryType === "polygon"
       ? '<label class="opacity-row"><span>Fill opacity</span><input data-symbol-fill-opacity type="range" min="0" max="1" step="0.05" value="0.35" /><output>35%</output></label><label class="display-checkbox"><input data-symbol-no-fill type="checkbox" /><span>No fill — outline only</span></label>'
       : "";
-    const extrudable = ["polygon", "point", "multipoint"].includes(layer.geometryType);
+    const extrudable = this.mapController.getEngineId() === "maplibre" ? layer.geometryType === "polygon" : ["polygon", "point", "multipoint"].includes(layer.geometryType);
     const extrusionControls = extrudable
       ? `<fieldset class="feedback-settings"><legend>3D extrusion</legend><label class="display-checkbox"><input data-extrusion-enabled type="checkbox"${extrusionEnabledByRenderer ? " checked" : ""} /><span>Extrude in 3D</span></label><div data-extrusion-options hidden><div class="field-grid"><label class="field"><span>Height source</span><select data-extrusion-source><option value="fixed"${initialExtrusionSource === "fixed" ? " selected" : ""}>Fixed height</option><option value="field"${initialExtrusionSource === "field" ? " selected" : ""}>Numeric field</option></select></label><label class="field" data-extrusion-value-control><span>Height <small>meters</small></span><input data-extrusion-value type="number" min="0" step="1" value="${Number(objectSymbol?.height ?? objectSymbol?.size) || 250}" /></label><label class="field" data-extrusion-field-control hidden><span>Height field</span><select data-extrusion-field>${fieldOptions(numericFields, "No numeric fields available", extrusionField)}</select></label><label class="field" data-extrusion-multiplier-control hidden><span>Height multiplier</span><input data-extrusion-multiplier type="number" min="0" step="0.01" value="${Number.isFinite(expressionMultiplier) ? expressionMultiplier : 1}" /></label>${layer.geometryType === "polygon" ? "" : `<label class="field"><span>Column width <small>meters</small></span><input data-extrusion-width type="number" min="1" step="50" value="${Number(objectSymbol?.width) || 650}" /></label>`}</div></div></fieldset>`
       : "";
     // Ranked styles computed from the field's values (renderer-spec.js suggestRenderers).
     const canSuggest = fields.length && layer.queryable;
     const styleOptions = canSuggest
-      ? `<section class="style-options" aria-label="Style options"><div class="style-options__head"><strong>Style options</strong><button type="button" class="link-button" data-suggest-styles>Suggest styles for this field</button></div><label class="field"><span>Suggestion field</span><select data-suggestion-field>${fieldOptions(fields, "No fields available", currentField || preferredNumericField?.name)}</select></label><div class="style-options__list" data-style-options-list aria-live="polite"></div></section>`
+      ? `<section class="style-options" aria-label="Style options"><div class="style-options__head"><strong>Style options</strong><button type="button" class="link-button" data-suggest-styles>Suggest styles for this field</button></div><div class="field-grid"><label class="field"><span>Suggestion field</span><select data-suggestion-field>${fieldOptions(fields, "No fields available", currentField || preferredNumericField?.name)}</select></label><label class="field"><span>Colour range</span><select data-style-ramp>${Object.keys(RAMPS).map((name) => `<option value="${name}">${escapeHtml(name.replaceAll("-", " "))}</option>`).join("")}</select></label></div><div class="style-options__list" data-style-options-list aria-live="polite"></div></section>`
       : "";
-    pane.innerHTML = `<div class="workspace-tool"><p class="eyebrow">Layer presentation</p><h3>Style ${escapeHtml(layer.title || "layer")}</h3>${styleOptions}<div class="field-grid">${rendererControls}<label class="field" data-ramp-control hidden><span>Colour range</span><select data-style-ramp>${Object.keys(RAMPS).map((name) => `<option value="${name}">${escapeHtml(name.replaceAll("-", " "))}</option>`).join("")}</select></label><label class="field"><span>Fill / marker / line</span><input data-symbol-color type="color" value="#1b7f6a" /></label><label class="field"><span>Outline</span><input data-symbol-outline type="color" value="#ffffff" /></label><label class="field"><span>Size / width</span><input data-symbol-size type="number" min="0.5" max="40" step="0.5" value="9" /></label></div>${polygonControls}${extrusionControls}<p class="form-note">Field styles sample up to 1,000 records matching the active layer filter. Renderer JSON is stored with the project.</p><div class="workspace-tool__actions"><button type="button" class="button--primary" data-apply-symbology>Apply symbology</button></div></div>`;
+    pane.innerHTML = `<div class="workspace-tool"><p class="eyebrow">Layer presentation</p><h3>Style ${escapeHtml(layer.title || "layer")}</h3>${styleOptions}<div class="field-grid">${rendererControls}<label class="field"><span>Fill / marker / line</span><input data-symbol-color type="color" value="#1b7f6a" /></label><label class="field"><span>Outline</span><input data-symbol-outline type="color" value="#ffffff" /></label><label class="field"><span>Size / width</span><input data-symbol-size type="number" min="0.5" max="40" step="0.5" value="9" /></label></div>${polygonControls}${extrusionControls}<p class="form-note">Field styles sample up to 1,000 records matching the active layer filter. Renderer JSON is stored with the project.</p><div class="workspace-tool__actions"><button type="button" class="button--primary" data-apply-symbology>Apply symbology</button></div></div>`;
     const fillOpacity = pane.querySelector("[data-symbol-fill-opacity]");
     fillOpacity?.addEventListener("input", () => {
       fillOpacity.nextElementSibling.value = `${Math.round(Number(fillOpacity.value) * 100)}%`;
@@ -5405,7 +5405,6 @@ export class UIController {
       syncStyleField();
       const type = styleMode.value === "categorized" ? "categories" : styleMode.value === "graduated" ? (layer.geometryType === "point" || layer.geometryType === "multipoint" ? "graduated-symbols" : "choropleth") : styleMode.value;
       selectedSpec = { type, ...(styleMode.value !== "simple" && styleField?.value ? { field: styleField.value } : {}) };
-      pane.querySelector("[data-ramp-control]").hidden = type !== "choropleth";
     });
     styleField?.addEventListener("change", () => {
       if (selectedSpec && selectedSpec.field !== styleField.value) {
@@ -5420,6 +5419,10 @@ export class UIController {
       void this.#showStyleOptions(uid, pane.querySelector("[data-style-options-list]"), field || null, applySuggestion, layer);
     });
     pane.querySelector("[data-suggestion-field]")?.addEventListener("change", () => pane.querySelector("[data-suggest-styles]").click());
+    pane.querySelector("[data-style-ramp]")?.addEventListener("change", (event) => {
+      event.target.dataset.userSelected = "true";
+      pane.querySelector("[data-symbol-color]").value = rampColors(event.target.value, 5)[2];
+    });
     const extrusionEnabled = pane.querySelector("[data-extrusion-enabled]");
     const extrusionOptions = pane.querySelector("[data-extrusion-options]");
     const extrusionSource = pane.querySelector("[data-extrusion-source]");
@@ -5442,9 +5445,8 @@ export class UIController {
       if (styleMode) styleMode.value = spec.type === "categories" ? "categorized" : ["choropleth", "graduated-symbols"].includes(spec.type) ? "graduated" : spec.type === "heatmap" ? "heatmap" : "simple";
       syncStyleField();
       if (styleField && spec.field) styleField.value = spec.field;
-      pane.querySelector("[data-ramp-control]").hidden = spec.type !== "choropleth";
-      pane.querySelector("[data-style-ramp]").value = spec.ramp || "greens";
-      pane.querySelector("[data-symbol-color]").value = spec.color || (spec.type === "graduated-symbols" ? "#d9951e" : "#1b7f6a");
+      if (pane.querySelector("[data-style-ramp]")) pane.querySelector("[data-style-ramp]").value = spec.ramp || "greens";
+      pane.querySelector("[data-symbol-color]").value = spec.type === "choropleth" ? rampColors(spec.ramp || "greens", 5)[2] : spec.color || (spec.type === "graduated-symbols" ? "#d9951e" : "#1b7f6a");
       if (spec.outline) pane.querySelector("[data-symbol-outline]").value = spec.outline;
       if (spec.size) pane.querySelector("[data-symbol-size]").value = spec.size;
       if (extrusionEnabled) { extrusionEnabled.checked = false; syncExtrusion(); }
@@ -5455,7 +5457,6 @@ export class UIController {
         selectedSpec = null;
         if (styleMode) styleMode.value = "simple";
         syncStyleField();
-        pane.querySelector("[data-ramp-control]").hidden = true;
         extrusionEnabled.checked = true;
         extrusionSource.value = option.heightField ? "field" : "fixed";
         if (option.heightField) pane.querySelector("[data-extrusion-field]").value = option.heightField;
@@ -5470,12 +5471,18 @@ export class UIController {
       try {
         if (selectedSpec && !extrusionEnabled?.checked) {
           const spec = structuredClone(selectedSpec);
-          if (spec.type === "choropleth") spec.ramp = pane.querySelector("[data-style-ramp]").value;
+          if (spec.type === "choropleth") spec.ramp = pane.querySelector("[data-style-ramp]")?.value || spec.ramp || "greens";
           if (["simple", "graduated-symbols"].includes(spec.type)) spec.color = pane.querySelector("[data-symbol-color]").value;
           if (spec.type === "simple") { spec.outline = pane.querySelector("[data-symbol-outline]").value; spec.size = Number(pane.querySelector("[data-symbol-size]").value); }
           await this.mapController.applyRendererSpec(uid, spec);
           selectedSpec = spec;
-        } else await this.mapController.setLayerSymbology(uid, {
+        } else {
+          if (selectedSpec && extrusionEnabled?.checked && this.mapController.getEngineId() === "maplibre" && ["choropleth", "categories"].includes(selectedSpec.type)) {
+            const spec = structuredClone(selectedSpec);
+            if (spec.type === "choropleth") spec.ramp = pane.querySelector("[data-style-ramp]")?.value || spec.ramp || "greens";
+            await this.mapController.applyRendererSpec(uid, spec);
+          }
+          await this.mapController.setLayerSymbology(uid, {
           mode: styleMode?.value || "simple",
           field: styleField?.value,
           color: pane.querySelector("[data-symbol-color]").value,
@@ -5489,7 +5496,8 @@ export class UIController {
           extrusionField: pane.querySelector("[data-extrusion-field]")?.value,
           extrusionMultiplier: pane.querySelector("[data-extrusion-multiplier]")?.value,
           extrusionWidth: pane.querySelector("[data-extrusion-width]")?.value,
-        });
+          });
+        }
         const persisted = this.projectManager.persistCurrentIfSaved();
         this.toast(`Updated ${layer.title || "layer"} symbology${persisted ? " and saved it" : ""}.`);
       } catch (error) { this.error(error.message); }
@@ -5510,7 +5518,12 @@ export class UIController {
     if (list.closest(".workspace-tool")?.querySelector("[data-suggestion-field]")?.value !== field) return;
     const { stats, fieldAlias } = suggestion;
     const options = [...suggestion.options];
-    if (this.mapController.getEngineId() === "arcgis" && ["polygon", "point", "multipoint"].includes(layer.geometryType)) {
+    const rampControl = list.closest(".workspace-tool").querySelector("[data-style-ramp]");
+    if (rampControl && !rampControl.dataset.userSelected) {
+      rampControl.value = options.find((option) => option.spec?.type === "choropleth")?.spec.ramp || rampControl.value;
+      list.closest(".workspace-tool").querySelector("[data-symbol-color]").value = rampColors(rampControl.value, 5)[2];
+    }
+    if ((this.mapController.getEngineId() === "arcgis" && ["polygon", "point", "multipoint"].includes(layer.geometryType)) || (this.mapController.getEngineId() === "maplibre" && layer.geometryType === "polygon")) {
       const heightField = stats.min != null && stats.min >= 0 && stats.max > 0 ? field : null;
       options.push({ label: layer.geometryType === "polygon" ? "3D extruded areas" : "3D columns", reason: heightField ? `Height is based on ${fieldAlias}; adjust its multiplier below.` : "A fixed height gives features depth; adjust it below.", is3d: true, heightField, spec: {} });
     }
@@ -5525,7 +5538,7 @@ export class UIController {
     const preview = (option) => {
       const { spec, breaks } = option;
       if (!breaks?.length) return "";
-      const colors = spec.type === "choropleth" ? rampColors(spec.ramp || "greens", breaks.length) : breaks.map(() => spec.color || "#d9951e");
+      const colors = spec.type === "choropleth" ? rampColors(list.closest(".workspace-tool").querySelector("[data-style-ramp]")?.value || spec.ramp || "greens", breaks.length) : breaks.map(() => spec.color || "#d9951e");
       let lower = stats.min;
       return `<ol class="style-option__classes">${breaks.map((upper, index) => {
         const label = `${number(lower)} – ${number(upper)}`;
@@ -5534,12 +5547,23 @@ export class UIController {
         return `<li title="${escapeHtml(label)}"><span class="style-option__swatch${spec.type === "graduated-symbols" ? " is-symbol" : ""}" style="background:${colors[index]};width:${size}px;height:${size}px"></span>${escapeHtml(label)}</li>`;
       }).join("")}</ol>`;
     };
-    list.innerHTML = `<p class="form-note">${escapeHtml(fieldAlias)}: ${escapeHtml(summary)}</p>${options.map((option, index) => `<article class="style-option${option.recommended ? " is-recommended" : ""}"><div class="style-option__title"><strong>${escapeHtml(option.label)}</strong>${option.recommended ? '<span class="style-option__badge">Recommended</span>' : ""}</div><p>${escapeHtml(option.reason)}</p>${preview(option)}<button type="button" class="button--secondary" data-use-style-option="${index}">Use this style</button></article>`).join("")}`;
+    list.innerHTML = `<p class="form-note">${escapeHtml(fieldAlias)}: ${escapeHtml(summary)}</p>${options.map((option, index) => `<article class="style-option${option.recommended ? " is-recommended" : ""}" data-option-type="${escapeHtml(option.spec?.type || "3d")}"><div class="style-option__title"><strong>${escapeHtml(option.label)}</strong>${option.recommended ? '<span class="style-option__badge">Recommended</span>' : ""}</div><p>${escapeHtml(option.reason)}</p>${preview(option)}<button type="button" class="button--secondary" data-use-style-option="${index}">Use this style</button></article>`).join("")}`;
+    if (rampControl) rampControl.onchange = () => {
+      rampControl.dataset.userSelected = "true";
+      list.querySelectorAll('[data-option-type="choropleth"]').forEach((card) => {
+        const swatches = card.querySelectorAll(".style-option__swatch");
+        const colors = rampColors(rampControl.value, swatches.length);
+        swatches.forEach((swatch, index) => { swatch.style.background = colors[index]; });
+      });
+      list.closest(".workspace-tool").querySelector("[data-symbol-color]").value = rampColors(rampControl.value, 5)[2];
+    };
     list.querySelectorAll("[data-use-style-option]").forEach((button) => button.addEventListener("click", async () => {
       const option = options[Number(button.dataset.useStyleOption)];
       try {
         // The pinned spec keeps these exact classes in saved projects and shared links.
-        await applySuggestion(option);
+        const ramp = list.closest(".workspace-tool").querySelector("[data-style-ramp]")?.value;
+        const adjusted = option.pinnedSpec?.type === "choropleth" && ramp ? { ...option, pinnedSpec: { ...option.pinnedSpec, ramp } } : option;
+        await applySuggestion(adjusted);
         list.querySelectorAll(".style-option").forEach((card, cardIndex) => card.classList.toggle("is-applied", cardIndex === Number(button.dataset.useStyleOption)));
         const persisted = this.projectManager.persistCurrentIfSaved();
         this.toast(`Styled by ${fieldAlias}: ${option.label.toLowerCase()}${persisted ? ", and saved" : ""}.`);

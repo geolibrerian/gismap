@@ -411,8 +411,17 @@ export class MaplibreEngine {
     const outline = scaled({ "line-color": color, "line-width": 1.5, "line-opacity": 1, ...styled.outline }, ["line-opacity"]);
     const line = scaled({ "line-color": color, "line-width": 2.5, "line-opacity": 1, ...styled.line }, ["line-opacity"]);
     const circle = scaled({ "circle-color": color, "circle-radius": 4.5, "circle-stroke-color": halo, "circle-stroke-width": 1.5, "circle-opacity": 1, "circle-stroke-opacity": 1, ...styled.circle }, ["circle-opacity", "circle-stroke-opacity"]);
+    const symbol = record.renderer?.symbol || record.renderer?.classBreakInfos?.[0]?.symbol || record.renderer?.uniqueValueInfos?.[0]?.symbol;
+    const extrusion = symbol?.symbolLayers?.find((item) => item.type === "extrude");
+    const variable = record.renderer?.visualVariables?.find((item) => item.type === "size");
+    const expression = String(variable?.valueExpression || "");
+    const match = expression.match(/^\$feature\[("(?:[^"\\]|\\.)*")\]\s*\*\s*([0-9.]+)$/);
+    const field = variable?.field || (match ? JSON.parse(match[1]) : null);
+    const height = field ? ["max", 0, ["*", ["to-number", ["get", field], 0], match ? Number(match[2]) : 1]] : Math.max(0, Number(extrusion?.size) || 0);
+    const fillVisibility = extrusion ? "none" : visibility;
     return [
-      { id: `${source}-fill`, type: "fill", source, ...range, filter: filtered(["Polygon", "MultiPolygon"]), layout: { visibility }, paint: fill },
+      { id: `${source}-fill`, type: "fill", source, ...range, filter: filtered(["Polygon", "MultiPolygon"]), layout: { visibility: fillVisibility }, paint: fill },
+      { id: `${source}-extrusion`, type: "fill-extrusion", source, ...range, filter: filtered(["Polygon", "MultiPolygon"]), layout: { visibility: extrusion ? visibility : "none" }, paint: { "fill-extrusion-color": fill["fill-color"], "fill-extrusion-height": height, "fill-extrusion-base": 0, "fill-extrusion-opacity": opacity } },
       { id: `${source}-outline`, type: "line", source, ...range, filter: filtered(["Polygon", "MultiPolygon"]), layout: { visibility }, paint: outline },
       { id: `${source}-line`, type: "line", source, ...range, filter: filtered(["LineString", "MultiLineString"]), layout: { visibility, "line-cap": "round", "line-join": "round" }, paint: line },
       { id: `${source}-circle`, type: "circle", source, ...range, filter: filtered(["Point", "MultiPoint"]), layout: { visibility }, paint: circle },
@@ -420,7 +429,7 @@ export class MaplibreEngine {
   }
 
   #layerIds(record) {
-    return record.kind === "raster" ? [`${this.#sourceId(record)}-raster`] : ["fill", "outline", "line", "circle"].map((suffix) => `${this.#sourceId(record)}-${suffix}`);
+    return record.kind === "raster" ? [`${this.#sourceId(record)}-raster`] : ["fill", "extrusion", "outline", "line", "circle"].map((suffix) => `${this.#sourceId(record)}-${suffix}`);
   }
 
   /** Redraws a layer after its data, filter, range or style changed. */
@@ -835,6 +844,31 @@ export class MaplibreEngine {
     this.#refresh(record);
     this.events.publish("layer:changed", { uid: record.uid });
     return { issues, spec };
+  }
+
+  /** Apply the editor's 3D polygon settings using a portable ArcGIS renderer. */
+  async setLayerSymbology(uid, options = {}) {
+    const record = this.#requireVector(uid);
+    if (!options.extrusionEnabled) {
+      const type = options.mode === "categorized" ? "categories" : options.mode === "graduated" ? (record.geometryType === "polygon" ? "choropleth" : "graduated-symbols") : "simple";
+      return this.applyRendererSpec(uid, { type, ...(type === "simple" ? { color: options.color, outline: options.outline, size: Number(options.size) || 9 } : { field: options.field }) });
+    }
+    if (record.geometryType !== "polygon") throw unsupported("3d-symbols", "MapLibre 3D extrusion currently requires polygon features.");
+    const field = String(options.extrusionField || "");
+    if (options.extrusionSource === "field" && !this.#styleFields(record).some((item) => item.name === field && /integer|double|single|number/i.test(item.type))) throw new Error("Choose a numeric height field.");
+    const multiplier = Math.max(0, Number(options.extrusionMultiplier) || 0);
+    const symbol3d = (symbol) => ({ type: "polygon-3d", symbolLayers: [{ type: "extrude", size: options.extrusionSource === "fixed" ? Math.max(0, Number(options.extrusionValue) || 0) : 0, material: { color: symbol?.color || options.color || "#1b7f6a" }, edges: { type: "solid", color: options.outline || "#ffffff", size: 1 } }] });
+    const preserveClasses = options.mode !== "simple" && record.renderer && ["class-breaks", "unique-value"].includes(record.renderer.type);
+    const renderer = preserveClasses ? structuredClone(record.renderer) : { type: "simple", symbol: symbol3d(null) };
+    if (renderer.classBreakInfos) renderer.classBreakInfos = renderer.classBreakInfos.map((item) => ({ ...item, symbol: symbol3d(item.symbol) }));
+    if (renderer.uniqueValueInfos) renderer.uniqueValueInfos = renderer.uniqueValueInfos.map((item) => ({ ...item, symbol: symbol3d(item.symbol) }));
+    if (renderer.defaultSymbol) renderer.defaultSymbol = symbol3d(renderer.defaultSymbol);
+    if (options.extrusionSource === "field") renderer.visualVariables = [{ type: "size", valueExpression: `$feature[${JSON.stringify(field)}] * ${multiplier}`, valueUnit: "meters" }];
+    else delete renderer.visualVariables;
+    record.renderer = renderer;
+    record.rendererSpec = null;
+    this.#refresh(record);
+    this.events.publish("layer:changed", { uid: record.uid });
   }
 
   /** Ranked style options for one field, from the values matching the layer's filter (renderer-spec.js). */

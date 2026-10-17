@@ -186,7 +186,7 @@ test("GeoJSON layers draw, filter, query and identify in the browser", async () 
   assert.ok(Object.isFrozen(layer));
   assert.equal(published[0][0], "layer:added");
   assert.equal(published[0][1].layer, layer);
-  assert.deepEqual([...engine.map.layers.keys()].map((id) => id.split("-").at(-1)), ["fill", "outline", "line", "circle"]);
+  assert.deepEqual([...engine.map.layers.keys()].map((id) => id.split("-").at(-1)), ["fill", "extrusion", "outline", "line", "circle"]);
 
   assert.equal(await engine.queryFeatureCount(layer.uid), 3);
   const { features, exceededTransferLimit } = await engine.queryFeatures(layer.uid, { where: "KIND = 'a'", outFields: ["NAME"], orderByFields: ["NAME DESC"], num: 1 });
@@ -230,6 +230,33 @@ test("GeoJSON layers draw, filter, query and identify in the browser", async () 
   engine.removeLayer(layer.uid);
   assert.equal(engine.getLayers().length, 0);
   assert.equal(engine.map.layers.size, 0);
+});
+
+test("MapLibre polygon extrusion supports fixed and field heights and survives renderer restore", async () => {
+  const engine = new MaplibreEngine({ publish() {} });
+  engine.map = fakeMap();
+  const previous = globalThis.fetch;
+  globalThis.fetch = async () => ({ ok: true, json: async () => ({ type: "FeatureCollection", features: [{ type: "Feature", geometry: { type: "Polygon", coordinates: [[[0, 0], [1, 0], [1, 1], [0, 0]]] }, properties: { HEIGHT: 20 } }] }) });
+  let layer;
+  try { layer = await engine.addService({ url: "https://example.org/polygons.geojson" }); } finally { globalThis.fetch = previous; }
+  await engine.setLayerSymbology(layer.uid, { extrusionEnabled: true, extrusionSource: "fixed", extrusionValue: 250, color: "#bb3366" });
+  const extrusion = engine.map.layers.get(`gismap-${layer.uid}-extrusion`);
+  assert.equal(extrusion.layout.visibility, "visible");
+  assert.equal(extrusion.paint["fill-extrusion-height"], 250);
+  assert.equal(extrusion.paint["fill-extrusion-color"], "#bb3366");
+  assert.equal(engine.map.layers.get(`gismap-${layer.uid}-fill`).layout.visibility, "none");
+  await engine.setLayerSymbology(layer.uid, { extrusionEnabled: true, extrusionSource: "field", extrusionField: "HEIGHT", extrusionMultiplier: 2, color: "#bb3366" });
+  assert.deepEqual(extrusion.paint["fill-extrusion-height"], ["max", 0, ["*", ["to-number", ["get", "HEIGHT"], 0], 2]]);
+  const saved = engine.getLayerConfig(layer).renderer;
+  await engine.applyRendererSpec(layer.uid, { type: "simple", color: "#111111" });
+  assert.equal(extrusion.layout.visibility, "none");
+  engine.restoreRenderer(layer.uid, saved);
+  assert.equal(extrusion.layout.visibility, "visible");
+  assert.deepEqual(extrusion.paint["fill-extrusion-height"], ["max", 0, ["*", ["to-number", ["get", "HEIGHT"], 0], 2]]);
+  await engine.applyRendererSpec(layer.uid, { type: "choropleth", field: "HEIGHT", ramp: "purples", breaks: [10, 20] });
+  await engine.setLayerSymbology(layer.uid, { mode: "graduated", extrusionEnabled: true, extrusionSource: "fixed", extrusionValue: 250, color: "#bb3366" });
+  assert.equal(engine.getLayerConfig(layer).renderer.type, "class-breaks");
+  assert.equal(extrusion.paint["fill-extrusion-color"][0], "case");
 });
 
 test("views persist in GIS Map zoom levels (one above MapLibre's)", async () => {
