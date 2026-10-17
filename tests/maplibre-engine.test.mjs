@@ -65,21 +65,21 @@ test("GIS Map basemap ids open on key-free OpenFreeMap styles", () => {
   assert.match(openBasemapFor("topo-3d").style, /^https:\/\/tiles\.openfreemap\.org\/styles\//);
 });
 
-test("ArcGIS stays the default; ?engine= picks an engine for one visit and settings save one", () => {
+test("MapLibre is the default; ?engine= picks an engine for one visit and settings save one", () => {
   const store = new Map();
   const storage = { getItem: (key) => store.get(key) ?? null, setItem: (key, value) => store.set(key, value), removeItem: (key) => store.delete(key) };
   const available = ["arcgis", "maplibre"];
-  assert.equal(chooseEngine({ search: "", storage, available }), "arcgis");
+  assert.equal(chooseEngine({ search: "", storage, available }), "maplibre");
   assert.equal(chooseEngine({ search: "?engine=maplibre", storage, available }), "maplibre");
-  assert.equal(chooseEngine({ search: "?engine=leaflet", storage, available }), "arcgis", "unknown engines are ignored");
-  saveEngine(storage, "maplibre");
-  assert.equal(savedEngine(storage, available), "maplibre");
-  assert.equal(chooseEngine({ search: "?engine=arcgis", storage, available }), "arcgis", "the link wins over the saved choice");
+  assert.equal(chooseEngine({ search: "?engine=leaflet", storage, available }), "maplibre", "unknown engines are ignored");
   saveEngine(storage, "arcgis");
+  assert.equal(savedEngine(storage, available), "arcgis");
+  assert.equal(chooseEngine({ search: "?engine=maplibre", storage, available }), "maplibre", "the link wins over the saved choice");
+  saveEngine(storage, "maplibre");
   assert.equal(store.size, 0, "the default is stored as no choice");
   const throwing = { getItem() { throw new Error("blocked"); }, setItem() { throw new Error("blocked"); } };
-  assert.equal(chooseEngine({ search: "", storage: throwing, available }), "arcgis");
-  assert.doesNotThrow(() => saveEngine(throwing, "maplibre"));
+  assert.equal(chooseEngine({ search: "", storage: throwing, available }), "maplibre");
+  assert.doesNotThrow(() => saveEngine(throwing, "arcgis"));
 });
 
 test("the MapLibre engine is registered lazily and implements the renderer contract", async () => {
@@ -102,6 +102,9 @@ function fakeMap() {
   let sky = null;
   return {
     sources, layers,
+    on(type, listener) { listeners.set(type, listener); },
+    emit(type, event) { listeners.get(type)?.(event); },
+    dragPan: { enable() {}, disable() {} },
     addSource: (id, spec) => sources.set(id, { ...spec, setData(data) { this.data = data; } }),
     getSource: (id) => sources.get(id),
     removeSource: (id) => sources.delete(id),
@@ -133,10 +136,57 @@ function fakeMap() {
     getBearing: () => camera.bearing,
     getPitch: () => camera.pitch,
     jumpTo(options) { camera = { center: options.center ? { lng: options.center[0], lat: options.center[1] } : camera.center, zoom: options.zoom ?? camera.zoom, bearing: options.bearing ?? camera.bearing, pitch: options.pitch ?? camera.pitch }; },
-    once(type, listener) { listeners.set(type, listener); },
+    once(type, listener) { if (type === "load") queueMicrotask(listener); else listeners.set(type, listener); },
     loaded: () => true,
   };
 }
+
+test("MapLibre drawing creates visible terrain-draped graphics and exports them", async () => {
+  const map = fakeMap();
+  const oldMaplibre = globalThis.maplibregl;
+  const oldFetch = globalThis.fetch;
+  globalThis.maplibregl = { Map: function () { return map; } };
+  globalThis.fetch = async () => ({ ok: true, json: async () => ({ version: 8, sources: {}, layers: [] }) });
+  const published = [];
+  try {
+    const engine = new MaplibreEngine({ publish: (topic, payload) => published.push([topic, payload]) });
+    await engine.initialize();
+    const click = (lng, lat) => map.emit("click", { lngLat: { lng, lat }, point: { x: 0, y: 0 } });
+    engine.draw("point");
+    click(1, 2);
+    engine.draw("polyline");
+    click(0, 0); click(1, 1);
+    assert.equal(map.getSource("gismap-drawings").data.features.length, 4, "vertices and the in-progress line are visible before completion");
+    map.emit("dblclick", { preventDefault() {} });
+    engine.draw("polygon");
+    click(0, 0); click(2, 0); click(2, 2);
+    map.emit("dblclick", { preventDefault() {} });
+    engine.draw("rectangle");
+    map.emit("mousedown", { lngLat: { lng: 0, lat: 0 } });
+    map.emit("mouseup", { lngLat: { lng: 1, lat: 1 } });
+    assert.equal(engine.hasDrawings(), true);
+    assert.equal(map.getSource("gismap-drawings").data.features.length, 4);
+    assert.deepEqual([...map.layers.keys()].filter((id) => id.startsWith("gismap-drawings")), ["gismap-drawings-fill", "gismap-drawings-line", "gismap-drawings-point"]);
+    for (const id of ["gismap-drawings-fill", "gismap-drawings-line", "gismap-drawings-point"]) {
+      assert.ok(!Object.keys(map.getLayer(id).paint).some((key) => key.endsWith("z-offset")));
+    }
+    assert.deepEqual(engine.getDrawGraphicsForExport().map(({ geometry }) => geometry.type), ["Point", "LineString", "Polygon", "Polygon"]);
+    assert.equal(engine.getDrawGraphicsForExport()[0].attributes.drawing_id, 1);
+    assert.equal(published.filter(([topic]) => topic === "draw:complete").length, 4);
+    engine.clearDrawings();
+    assert.equal(engine.hasDrawings(), false);
+    assert.equal(map.getSource("gismap-drawings").data.features.length, 0);
+  } finally {
+    globalThis.maplibregl = oldMaplibre;
+    globalThis.fetch = oldFetch;
+  }
+});
+
+test("ArcGIS sketches ignore captured elevation and drape on terrain", async () => {
+  const code = await readFile(new URL("../js/engines/arcgis/arcgis-engine.js", import.meta.url), "utf8");
+  assert.match(code, /this\.drawLayer = new GraphicsLayer\(\{[\s\S]*?elevationInfo: \{ mode: "on-the-ground" \}/);
+  assert.match(code, /new this\.modules\.SketchViewModel\(\{[\s\S]*?defaultCreateOptions: \{ hasZ: false \}/);
+});
 
 test("MapLibre terrain uses the official open DEM pattern, survives basemap changes and can be turned off", async () => {
   assert.match(TERRAIN_TILEJSON, /^https:\/\/tiles\.mapterhorn\.com\//);

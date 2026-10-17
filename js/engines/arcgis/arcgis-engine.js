@@ -249,8 +249,8 @@ export class ArcGISEngine {
     this.drawLayer = new GraphicsLayer({
       title: "Drawings",
       listMode: "hide",
-      // Keep sketches visible above the 3D ground, matching the MapLibre engine.
-      elevationInfo: { mode: "relative-to-ground", offset: 4 },
+      // Drape every part of a sketch over the terrain, ignoring captured Z values.
+      elevationInfo: { mode: "on-the-ground" },
     });
     this.tourLayer = new GraphicsLayer({
       title: "Guided tour locations",
@@ -423,6 +423,7 @@ export class ArcGISEngine {
     this.sketch = new this.modules.SketchViewModel({
       view: this.view,
       layer: this.drawLayer,
+      defaultCreateOptions: { hasZ: false },
       pointSymbol: {
         type: "simple-marker",
         color: "#d9951e",

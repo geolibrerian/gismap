@@ -5,8 +5,8 @@
 // IDs), drawn with their service's style or a GIS Map style, and filtered,
 // queried and identified here; ArcGIS map image and imagery services and WMS
 // are drawn as images by their services. Open raster-DEM terrain turns the
-// pitched map into a 3D surface. Capabilities it lacks (WFS and KML,
-// geocoding, drawing, widgets) are left out of getCapabilities(),
+// pitched map into a 3D surface. Capabilities it lacks (WFS, KML, and widgets)
+// are left out of getCapabilities(),
 // and MapController falls back or reports them.
 //
 // Zoom: GIS Map zoom levels follow ArcGIS (256-pixel tiles); MapLibre's are
@@ -1120,47 +1120,55 @@ export class MaplibreEngine {
 
   /* ---------------- Drawings ---------------- */
 
-  #drawingSource() { return { type: "geojson", data: { type: "FeatureCollection", features: this.drawings } }; }
+  #drawingSource() {
+    const vertices = this.drawing?.coordinates || [];
+    const preview = vertices.map((coordinates) => ({ type: "Feature", geometry: { type: "Point", coordinates }, properties: {} }));
+    if (vertices.length >= 2) preview.push({ type: "Feature", geometry: { type: "LineString", coordinates: vertices }, properties: {} });
+    return { type: "geojson", data: { type: "FeatureCollection", features: [...this.drawings, ...preview] } };
+  }
 
   #drawingSpecs() {
     const color = this.basemapTheme?.accent || "#d9951e";
     return [
-      { id: DRAW_LAYER_IDS[0], type: "fill", source: DRAW_SOURCE, filter: ["==", ["geometry-type"], "Polygon"], paint: { "fill-color": color, "fill-opacity": 0.18, "fill-z-offset": 4 } },
-      { id: DRAW_LAYER_IDS[1], type: "line", source: DRAW_SOURCE, paint: { "line-color": color, "line-width": 3, "line-dasharray": [2, 1], "line-z-offset": 4 } },
-      { id: DRAW_LAYER_IDS[2], type: "circle", source: DRAW_SOURCE, filter: ["==", ["geometry-type"], "Point"], paint: { "circle-color": color, "circle-radius": 6, "circle-stroke-color": "#ffffff", "circle-stroke-width": 1.5, "circle-z-offset": 4 } },
+      { id: DRAW_LAYER_IDS[0], type: "fill", source: DRAW_SOURCE, filter: ["==", ["geometry-type"], "Polygon"], paint: { "fill-color": color, "fill-opacity": 0.18 } },
+      { id: DRAW_LAYER_IDS[1], type: "line", source: DRAW_SOURCE, paint: { "line-color": color, "line-width": 3 } },
+      { id: DRAW_LAYER_IDS[2], type: "circle", source: DRAW_SOURCE, filter: ["==", ["geometry-type"], "Point"], paint: { "circle-color": color, "circle-radius": 6, "circle-stroke-color": "#ffffff", "circle-stroke-width": 1.5 } },
     ];
   }
 
   #drawDrawings() {
     if (!this.map) return;
     const source = this.map.getSource(DRAW_SOURCE);
-    if (!source) {
-      try {
-        this.map.addSource(DRAW_SOURCE, this.#drawingSource());
-        this.#drawingSpecs().forEach((spec) => this.map.addLayer(spec));
-      } catch { this.map.once("idle", () => this.#drawDrawings()); }
-      return;
+    try {
+      if (!source) this.map.addSource(DRAW_SOURCE, this.#drawingSource());
+      else source.setData(this.#drawingSource().data);
+      this.#drawingSpecs().forEach((spec) => { if (!this.map.getLayer(spec.id)) this.map.addLayer(spec); });
+    } catch (error) {
+      this.events.publish("app:error", { message: `Could not display drawings: ${error.message}` });
     }
-    source.setData(this.#drawingSource().data);
   }
 
   #handleDrawingClick(event) {
     const coordinate = [event.lngLat.lng, event.lngLat.lat];
     if (this.drawing.type === "point") return this.#finishDrawing({ type: "Point", coordinates: coordinate });
-    if (["polyline", "polygon"].includes(this.drawing.type)) this.drawing.coordinates.push(coordinate);
+    if (["polyline", "polygon"].includes(this.drawing.type)) {
+      const previous = this.drawing.coordinates.at(-1);
+      if (!previous || previous[0] !== coordinate[0] || previous[1] !== coordinate[1]) this.drawing.coordinates.push(coordinate);
+      this.#drawDrawings();
+    }
   }
 
   #finishDrawing(geometry) {
     const feature = { type: "Feature", geometry, properties: { drawing_id: this.drawings.length + 1 } };
     this.drawings.push(feature);
-    this.#drawDrawings();
     this.drawing = null;
+    this.#drawDrawings();
     this.map?.dragPan.enable();
     this.events.publish("draw:complete", { feature });
   }
 
   #completeDrawing() {
-    if (!this.drawing || this.drawing.coordinates.length < 2) return;
+    if (!this.drawing || this.drawing.coordinates.length < (this.drawing.type === "polygon" ? 3 : 2)) return;
     const coordinates = this.drawing.type === "polygon" ? [...this.drawing.coordinates, this.drawing.coordinates[0]] : this.drawing.coordinates;
     this.#finishDrawing({ type: this.drawing.type === "polygon" ? "Polygon" : "LineString", coordinates: this.drawing.type === "polygon" ? [coordinates] : coordinates });
   }
@@ -1168,7 +1176,9 @@ export class MaplibreEngine {
   draw(type) {
     if (type === "clear") return this.clearDrawings();
     if (!["point", "polyline", "polygon", "rectangle"].includes(type)) return;
+    this.map?.dragPan.enable();
     this.drawing = { type, coordinates: [], start: null };
+    if (this.map?.getSource?.(DRAW_SOURCE)) this.#drawDrawings();
     if (type === "rectangle") this.map?.dragPan.disable();
   }
 
@@ -1179,7 +1189,12 @@ export class MaplibreEngine {
     this.map?.dragPan.enable();
     this.map?.getSource?.(DRAW_SOURCE)?.setData(this.#drawingSource().data);
   }
-  getDrawGraphicsForExport() { return [...this.drawings]; }
+  getDrawGraphicsForExport(scope = "all") {
+    const extent = scope === "extent" ? this.getViewExtent() : null;
+    const box = extent ? [extent.xmin, extent.ymin, extent.xmax, extent.ymax] : null;
+    return this.drawings.filter((feature) => !box || boundsIntersect(boundsOf(feature.geometry), box))
+      .map((feature) => ({ geometry: feature.geometry, attributes: { ...feature.properties, geometry_type: feature.geometry.type } }));
+  }
 
   /* ---------------- Highlight ---------------- */
 

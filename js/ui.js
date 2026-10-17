@@ -23,7 +23,7 @@ import { createSlide, matchesFilter, normalizeFilter } from "./briefing-document
 import { aiDescriptionPrompt, applyAiDescriptions, describeWhere, generateBriefing, readAiDescriptions, rendererTheme } from "./briefing-generator.js?v=0.36.1";
 import { briefingFileStem } from "./briefing-pdf.js?v=0.44.2";
 import { RAMPS, rampColors } from "./renderer-spec.js?v=0.29.0";
-import { saveEngine } from "./engine-preference.js?v=0.39.0";
+import { saveEngine } from "./engine-preference.js?v=0.52.1";
 import { BASEMAPS } from "./basemap-catalog.js?v=0.41.0";
 
 const BUILDINGS_3D_KEY = "gismap-online:buildings-3d:v1";
@@ -496,7 +496,7 @@ export class UIController {
     mapWorkspace.addEventListener("pointerdown", (event) => {
       // The welcome panel floats over the map; the first touch/click on the
       // actual map should get it out of the way before map navigation begins.
-      if (event.target?.closest?.(".esri-view-surface, .maplibregl-canvas, canvas")) this.#dismissWelcome();
+      if (event.target?.closest?.("#viewDiv") && !event.target?.closest?.("button, a, input, select")) this.#dismissWelcome();
     }, { passive: true });
     ["gesturestart", "gesturechange", "gestureend"].forEach((type) => {
       mapWorkspace.addEventListener(type, (event) => event.preventDefault(), { passive: false });

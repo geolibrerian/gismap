@@ -608,6 +608,7 @@ body.mobile-workflow-open .field-task-banner { left:auto; right:calc(min(440px,1
 .bookmark-row button:last-child { border: 0; background: transparent; cursor: pointer; color: var(--muted); }
 
 .draw-tools { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.draw-tools .form-note { grid-column: 1 / -1; }
 .draw-tools .workspace-launch { grid-column: 1 / -1; color: var(--green-2); }
 .utility-content .draw-tools { align-content: start; }
 .utility-content .draw-tools .workspace-launch { display: none; }
