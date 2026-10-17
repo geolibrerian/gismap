@@ -94,7 +94,7 @@ test("features are paged as GeoJSON, with Esri JSON when a service cannot answer
   const { features, truncated } = await fetchFeatures({ url: "https://x.org/FeatureServer/0", maxRecordCount: 2, paginated: true, objectIdField: "OBJECTID" }, { fetchImpl });
   assert.deepEqual(features.map((feature) => feature.id), [1, 2, 3, 4, 5]);
   assert.equal(truncated, false);
-  assert.equal(calls.length, 3);
+  assert.equal(calls.length, 4); // one format probe, then a bounded speculative batch
   assert.equal(new URL(calls[0].url).searchParams.get("outSR"), "4326");
   const old = fakeFetch([
     [(url) => url.includes("f=geojson"), { error: { message: "Invalid format" } }],
@@ -103,6 +103,34 @@ test("features are paged as GeoJSON, with Esri JSON when a service cannot answer
   ]);
   const converted = await fetchFeatures({ url: "https://x.org/MapServer/0", maxRecordCount: 1000, paginated: false, objectIdField: "OBJECTID" }, { fetchImpl: old });
   assert.deepEqual(converted.features, [{ type: "Feature", geometry: { type: "Point", coordinates: [1, 2] }, properties: { OBJECTID: 7 } }]);
+});
+
+test("feature pages load concurrently but retain order and report failures", async () => {
+  let active = 0;
+  let peak = 0;
+  const fetchImpl = async (url) => {
+    const offset = Number(new URL(url).searchParams.get("resultOffset"));
+    active += 1;
+    peak = Math.max(peak, active);
+    await new Promise((resolve) => setTimeout(resolve, offset === 2 ? 15 : 2));
+    active -= 1;
+    if (offset === 4) throw new Error("page failed");
+    return { ok: true, json: async () => ({ features: offset < 6 ? [{ id: offset }] : [], exceededTransferLimit: offset < 6 }) };
+  };
+  // GeoJSON errors get the normal Esri JSON fallback, which must also fail.
+  await assert.rejects(fetchFeatures({ url: "https://x.org/FeatureServer/0", maxRecordCount: 1, paginated: true }, { fetchImpl, maxFeatures: 8 }), /page failed/);
+  assert.ok(peak > 1 && peak <= 3);
+});
+
+test("concurrent pagination returns features in order, bounded by the requested limit", async () => {
+  const fetchImpl = async (url) => {
+    const offset = Number(new URL(url).searchParams.get("resultOffset"));
+    await new Promise((resolve) => setTimeout(resolve, offset === 1 ? 10 : 1));
+    return { ok: true, json: async () => ({ features: [{ id: offset }], exceededTransferLimit: true }) };
+  };
+  const result = await fetchFeatures({ url: "https://x.org/FeatureServer/0", maxRecordCount: 1, paginated: true }, { fetchImpl, maxFeatures: 5 });
+  assert.deepEqual(result.features.map((feature) => feature.id), [0, 1, 2, 3, 4]);
+  assert.equal(result.truncated, true);
 });
 
 test("spatial relationships go to the service as ArcGIS queries", async () => {

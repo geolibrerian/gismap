@@ -163,7 +163,9 @@ function esriToGeoJSON(json) {
  * MAX_FEATURES: { features, truncated }. `where` filters on the service.
  */
 export async function fetchFeatures(layer, { where = null, maxFeatures = MAX_FEATURES, onProgress = () => {}, ...options } = {}) {
-  const pageSize = Math.max(1, Math.min(layer.maxRecordCount || 1000, 2000));
+  // Polygon responses can contain very large geometries. Smaller pages bound
+  // the memory used by the concurrent requests below.
+  const pageSize = Math.max(1, Math.min(layer.maxRecordCount || 1000, layer.geometryType === "polygon" ? 500 : 2000));
   const base = { where: where || "1=1", outFields: "*", returnGeometry: "true", outSR: "4326" };
   let geojson = true;
   const page = async (params) => {
@@ -181,11 +183,28 @@ export async function fetchFeatures(layer, { where = null, maxFeatures = MAX_FEA
   };
   const features = [];
   if (layer.paginated) {
-    for (let offset = 0; offset < maxFeatures; offset += pageSize) {
-      const { features: batch, exceeded } = await page({ resultOffset: String(offset), resultRecordCount: String(Math.min(pageSize, maxFeatures - offset)), ...(layer.objectIdField ? { orderByFields: layer.objectIdField } : {}) });
-      features.push(...batch);
-      onProgress(features.length);
-      if (!batch.length || (!exceeded && batch.length < Math.min(pageSize, maxFeatures - offset))) return { features, truncated: false };
+    const requestPage = (offset) => page({ resultOffset: String(offset), resultRecordCount: String(Math.min(pageSize, maxFeatures - offset)), ...(layer.objectIdField ? { orderByFields: layer.objectIdField } : {}) });
+    // Resolve the response format before starting concurrent requests. This
+    // avoids racing the GeoJSON-to-Esri fallback on older services.
+    let offset = 0;
+    let pending = [await requestPage(offset)];
+    while (offset < maxFeatures) {
+      for (const result of pending) {
+        if (result.status === "rejected") throw result.reason;
+        const { features: batch, exceeded } = result.status === "fulfilled" ? result.value : result;
+        features.push(...batch);
+        onProgress(features.length);
+        const requested = Math.min(pageSize, maxFeatures - offset);
+        offset += requested;
+        if (!batch.length || (!exceeded && batch.length < requested)) return { features, truncated: false };
+      }
+      // Keep only three pages in flight: complex polygon geometries can make
+      // each response large, especially on mobile devices. Process results in
+      // offset order, including errors, so later speculative pages cannot
+      // hide a failed page or change feature ordering.
+      const offsets = Array.from({ length: 3 }, (_, index) => offset + index * pageSize).filter((start) => start < maxFeatures);
+      if (!offsets.length) break;
+      pending = await Promise.allSettled(offsets.map(requestPage));
     }
     return { features, truncated: true };
   }
