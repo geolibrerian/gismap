@@ -3815,7 +3815,7 @@ export class UIController {
     queryInput.addEventListener("input", () => {
       clearTimeout(searchTimer);
       searchRequestId += 1;
-      if (queryInput.value.trim().length < 2) {
+      if (queryInput.value.trim().length < 2 || !this.mapController.getCapabilities().includes("geocode-suggest")) {
         this.dialog.querySelector("#atlas-place-results").hidden = true;
         queryInput.setAttribute("aria-expanded", "false");
         return;
@@ -4898,7 +4898,8 @@ export class UIController {
     clearTimeout(this.searchTimer);
     this.searchRequestId += 1;
     const query = value.trim();
-    if (query.length < 2) {
+    // Engines whose geocoder forbids search-as-you-type search on Enter only.
+    if (query.length < 2 || !this.mapController.getCapabilities().includes("geocode-suggest")) {
       this.searchRequestId += 1;
       this.#clearSearchResults();
       return;

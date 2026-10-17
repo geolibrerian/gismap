@@ -33,6 +33,7 @@ export const ENGINE_CAPABILITIES = Object.freeze([
   "highlight", // highlightFeature
   "capture", // captureImage / captureViews
   "geocode", // search(text) / reverseGeocode({ longitude, latitude })
+  "geocode-suggest", // search() may run as the user types (place suggestions)
   "draw", // draw(type), sketching graphics
   "widgets", // toggleWidget(name): legend, measurement, elevation profile, …
   "tour-markers", // setTourMarkers

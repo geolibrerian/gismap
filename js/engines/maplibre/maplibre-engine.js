@@ -13,20 +13,21 @@
 // one lower for the same scale (512-pixel tiles). Everything that crosses the
 // boundary uses GIS Map levels, so links and projects mean the same view.
 import { GisMapError } from "../../gismap-errors.js?v=0.28.0";
-import { unsupported } from "../engine-interface.js?v=0.43.0";
+import { unsupported } from "../engine-interface.js?v=0.47.0";
 import { openBasemapFor } from "./basemaps.js?v=0.41.0";
 import { basemapOnEngine, basemapsForEngine } from "../../basemap-catalog.js?v=0.41.0";
 import { applyBasemapTheme } from "./basemap-theme.js?v=0.40.0";
 import { compileWhere } from "./where.js?v=0.39.0";
 import { arcgisMetadata } from "../../source-inspector.js?v=0.41.0";
+import { OpenGeocoder } from "./geocoder.js?v=0.47.0";
 import { chooseStyleField, compileRenderer, resolveRendererSpec, suggestRenderers, validateRendererSpec } from "../../renderer-spec.js?v=0.29.0";
 import { rendererToPaint } from "./arcgis-renderer.js?v=0.42.0";
-import { MAX_FEATURES, describeArcGIS, featureServiceLayers, fetchFeatures, fetchGeometries, queryServiceIds } from "./arcgis-service.js?v=0.46.1";
+import { MAX_FEATURES, describeArcGIS, featureServiceLayers, fetchFeatures, fetchGeometries, queryServiceIds } from "./arcgis-service.js?v=0.47.0";
 import { OBJECT_ID_FIELD, boundsIntersect, boundsOf, expandBounds, geometryTypeOf, inferFields, normalizeFeatures, regroupPolygon, representativePoint } from "./geojson.js?v=0.42.0";
 import { loadMaplibre } from "./maplibre-loader.js?v=0.39.0";
 import { HILLSHADE_LAYER_ID, HILLSHADE_SOURCE_ID, MAPLIBRE_GROUNDS, TERRAIN_SOURCE_ID, hillshadeLayer, maplibreGround, terrainSource } from "./terrain.js?v=0.43.0";
 
-export const MAPLIBRE_CAPABILITIES = Object.freeze(["view-2d", "view-3d", "basemaps", "basemap-themes", "ground", "layers-arcgis", "layers-files", "query", "feature-filter", "renderer-spec", "renderer-native", "identify", "highlight", "capture", "native"]);
+export const MAPLIBRE_CAPABILITIES = Object.freeze(["view-2d", "view-3d", "basemaps", "basemap-themes", "ground", "layers-arcgis", "layers-files", "query", "feature-filter", "renderer-spec", "renderer-native", "identify", "highlight", "capture", "geocode", "native"]);
 
 const ZOOM_OFFSET = 1;
 const SCALE_AT_ZOOM_0 = 591657527.591555;
@@ -1398,6 +1399,24 @@ export class MaplibreEngine {
   async goToLayerOnInitialLoad(ref) {
     if (this.#gisZoom() > 5.5) return false;
     return this.goToLayer(ref);
+  }
+
+  /** Places matching a text, or a "longitude, latitude" pair, as { label, location: [lon, lat], extent }. */
+  async search(query) {
+    const text = String(query || "").trim();
+    const coordinates = text.match(/^\s*(-?\d+(?:\.\d+)?)\s*[, ]\s*(-?\d+(?:\.\d+)?)\s*$/);
+    if (coordinates) {
+      const center = [Number(coordinates[1]), Number(coordinates[2])];
+      return [{ label: `${center[0].toFixed(5)}, ${center[1].toFixed(5)}`, location: center }];
+    }
+    this.geocoder ??= new OpenGeocoder();
+    return this.geocoder.search(text);
+  }
+
+  /** The address nearest a point in degrees: { address, attributes }, or null. */
+  async reverseGeocode(point) {
+    this.geocoder ??= new OpenGeocoder();
+    return this.geocoder.reverse(point).catch(() => null);
   }
 
   async goToSearchResult(result) {

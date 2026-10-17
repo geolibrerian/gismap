@@ -6,6 +6,12 @@ All notable changes to GIS Map Online are documented here. This project follows
 
 ## [Unreleased]
 
+### Place search and addresses on MapLibre
+
+- Place search and map-click addresses now work on the MapLibre engine, with open geocoders called straight from the browser: the US Census Geocoder for US street addresses, and Nominatim (OpenStreetMap) for everywhere else.
+- In the US, a clicked point's details also list its state, county, census tract and block (with FIPS / GEOID codes).
+- Nominatim's public server allows one request a second and no search-as-you-type, so on MapLibre place search runs when you press Enter instead of suggesting places while you type.
+
 ### Faster ArcGIS layers on MapLibre
 
 - Large feature layers (for example WFIGS fire perimeters, 42,000+ polygons) draw within a few seconds: simplified overview geometry in 2000-feature pages, ten requests at a time, drawn as pages arrive.
