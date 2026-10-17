@@ -52,9 +52,9 @@ export const PRINT_PALETTES = Object.freeze({
   "violet-circuit": { band: "#080811", frame: "#2b1c4f", accent: "#5b3bb0", edge: "#35d7d0", brand: "#9a70ff", soft: "#ece8fb" },
   highway: { band: "#17202b", frame: "#2c3744", accent: "#d83b0b", edge: "#ff4b0b", brand: "#ffffff", soft: "#f0f2f3" },
   steeler: { band: "#303744", frame: "#4f5d73", accent: "#4f5d73", edge: "#b9b2bb", brand: "#dad5d2", soft: "#ebe7e4" },
-  slice: { band: "#463527", frame: "#456a4d", accent: "#42644a", edge: "#e86981", brand: "#f4c2c9", soft: "#edf2e4" },
+  slice: { band: "#57332d", frame: "#704036", accent: "#9c4058", edge: "#e58b9d", brand: "#f8cbd0", soft: "#f9e7e3" },
   wavelength: { band: "#222326", frame: "#4b3030", accent: "#a83d2c", edge: "#ef804a", brand: "#ffb16e", soft: "#fff1e8" },
-  connect: { band: "#173e34", frame: "#116b50", accent: "#116b50", edge: "#d83632", brand: "#f8d652", soft: "#eaf4e6" },
+  connect: { band: "#063c40", frame: "#005963", accent: "#00656b", edge: "#f4cf22", brand: "#ffe45c", soft: "#fff6c9" },
 });
 
 export const printPalette = (skin) => PRINT_PALETTES[skin === "retro-print" ? "portolan" : skin] || PRINT_PALETTES.gismap;

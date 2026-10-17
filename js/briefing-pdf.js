@@ -1,7 +1,7 @@
 // A briefing as a landscape PDF handout: a cover with the QR code back to the
 // live briefing, then one page per slide laid out like the 16:9 stage (content
 // column beside a map snapshot), in the colours of the briefing's skin.
-import { PDF_COLORS, PdfDocument, brandedQrImage, imageToJpeg, loadBrandLogo, pdfColor, printPalette } from "./pdf-document.js?v=0.30.0";
+import { PDF_COLORS, PdfDocument, brandedQrImage, imageToJpeg, loadBrandLogo, pdfColor, printPalette } from "./pdf-document.js?v=0.44.2";
 
 const PAGE = { width: 792, height: 612, margin: 48 };
 

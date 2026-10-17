@@ -19,9 +19,9 @@ export const INTERFACE_SKINS = Object.freeze([
   Object.freeze({ id: "violet-circuit", label: "Violet Circuit", description: "Operational console", tone: "dark" }),
   Object.freeze({ id: "highway", label: "Highway", description: "Clean technical map console", tone: "light" }),
   Object.freeze({ id: "steeler", label: "Steeler", description: "Soft striped field journal", tone: "light" }),
-  Object.freeze({ id: "slice", label: "Slice", description: "Geological pink, sage and earth", tone: "light" }),
+  Object.freeze({ id: "slice", label: "Slice", description: "Geological pink and warm brown", tone: "light" }),
   Object.freeze({ id: "wavelength", label: "Wavelength", description: "Warm signal lines on charcoal", tone: "dark" }),
-  Object.freeze({ id: "connect", label: "Connect", description: "Playful red, yellow and green", tone: "light" }),
+  Object.freeze({ id: "connect", label: "Connect", description: "Bright yellow and playful teal", tone: "light" }),
 ]);
 
 const SKIN_IDS = new Set(INTERFACE_SKINS.map(({ id }) => id));

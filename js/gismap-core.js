@@ -38,7 +38,7 @@ import {
   SMART_IMAGE_VERSION,
   embedProjectInPng,
   readProjectFromPng,
-} from "./smart-image.js?v=0.41.0";
+} from "./smart-image.js?v=0.44.2";
 
 export const GISMAP_CORE_VERSION = "0.28.0";
 

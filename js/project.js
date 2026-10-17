@@ -1,9 +1,9 @@
 import { applicationToLegacyPresentation, normalizeApplicationConfig } from "./application-config.js?v=0.18.2";
 import { normalizeDataCatalog } from "./data-catalog.js?v=0.18.2";
-import { normalizeSkin } from "./skin-catalog.js?v=0.44.1";
+import { normalizeSkin } from "./skin-catalog.js?v=0.44.2";
 import { normalizeMobileWorkflow } from "./mobile-feed-store.js?v=0.18.7";
 import { normalizeBriefing } from "./briefing-document.js?v=0.35.0";
-import { composeSmartImage, embedProjectInPng, readProjectFromPng } from "./smart-image.js?v=0.41.0";
+import { composeSmartImage, embedProjectInPng, readProjectFromPng } from "./smart-image.js?v=0.44.2";
 
 const STORAGE_KEY = "gismap-online:projects:v1";
 const CURRENT_KEY = "gismap-online:current-project:v1";
