@@ -21,7 +21,7 @@ import { compileWhere } from "./where.js?v=0.39.0";
 import { arcgisMetadata } from "../../source-inspector.js?v=0.41.0";
 import { chooseStyleField, compileRenderer, resolveRendererSpec, suggestRenderers, validateRendererSpec } from "../../renderer-spec.js?v=0.29.0";
 import { rendererToPaint } from "./arcgis-renderer.js?v=0.42.0";
-import { MAX_FEATURES, describeArcGIS, featureServiceLayers, fetchFeatures, queryServiceIds } from "./arcgis-service.js?v=0.42.0";
+import { MAX_FEATURES, describeArcGIS, featureServiceLayers, fetchFeatures, fetchGeometries, queryServiceIds } from "./arcgis-service.js?v=0.46.0";
 import { OBJECT_ID_FIELD, boundsIntersect, boundsOf, expandBounds, geometryTypeOf, inferFields, normalizeFeatures, regroupPolygon, representativePoint } from "./geojson.js?v=0.42.0";
 import { loadMaplibre } from "./maplibre-loader.js?v=0.39.0";
 import { HILLSHADE_LAYER_ID, HILLSHADE_SOURCE_ID, MAPLIBRE_GROUNDS, TERRAIN_SOURCE_ID, hillshadeLayer, maplibreGround, terrainSource } from "./terrain.js?v=0.43.0";
@@ -155,7 +155,10 @@ export class MaplibreEngine {
     this.map.on("click", (event) => this.events.publish("map:click", { x: event.point.x, y: event.point.y, mapPoint: point(event.lngLat) }));
     this.map.on("mousemove", (event) => this.events.publish("view:pointer-move", { longitude: event.lngLat.lng, latitude: event.lngLat.lat, zoom: this.#gisZoom() }));
     this.map.on("zoomend", () => this.events.publish("view:scale-change", { scale: this.getScale() }));
-    this.map.on("moveend", () => this.events.publish("view:stationary", {}));
+    this.map.on("moveend", () => {
+      this.events.publish("view:stationary", {});
+      this.#sharpen();
+    });
     this.map.on("error", (event) => {
       // Basemap tiles come and go; a failure in a data layer's source is worth reporting.
       if (!String(event.sourceId || "").startsWith("gismap-")) return;
@@ -530,25 +533,87 @@ export class MaplibreEngine {
       return this.#addRecord({ ...common, kind: "raster", type: service.kind, layerId: service.layers?.[0] ?? null, tiles: service.tiles, transparency: service.json?.drawingInfo?.transparency || 0, minScale: service.json?.minScale || 0, maxScale: service.json?.maxScale || 0 });
     }
     const where = config.definitionExpression ?? service.where ?? null;
-    const loaded = await this.#loadFeatures(service, where);
-    return this.#addRecord({
+    // The layer is on the map at once and fills in page by page; queries wait for all of it.
+    const handle = this.#addRecord({
       ...common,
       type: "feature",
       layerId: service.layerId,
       service,
-      features: loaded.features,
-      truncated: loaded.truncated,
-      serverWhere: loaded.serverWhere,
+      features: [],
       fields: service.fields,
       objectIdField: service.objectIdField || OBJECT_ID_FIELD,
       displayField: service.displayField,
-      geometryType: service.geometryType || geometryTypeOf(loaded.features),
+      geometryType: service.geometryType,
       serviceRenderer: service.renderer,
       transparency: service.transparency,
       minScale: service.minScale,
       maxScale: service.maxScale,
       where,
     });
+    const record = this.#record(handle);
+    let drawn = 0;
+    const redraw = () => { drawn = Date.now(); this.#refresh(record, { data: true }); };
+    record.loaded = this.#loadFeatures(service, where, {
+      onPage: (features) => {
+        if (!this.#records.has(record.uid)) return;
+        record.features.push(...features);
+        if (Date.now() - drawn > 500) redraw();
+      },
+    }).then((loaded) => {
+      Object.assign(record, { features: loaded.features, truncated: loaded.truncated, serverWhere: loaded.serverWhere });
+      record.geometryType ||= geometryTypeOf(loaded.features);
+      redraw();
+      if (loaded.truncated) this.events.publish("app:error", { message: `${record.title}: showing the first ${record.features.length.toLocaleString()} features. Add a filter to see the rest.` });
+      this.events.publish("layer:changed", { uid: record.uid });
+      this.#sharpen();
+    }).catch((error) => {
+      record.loadFailed = error;
+      this.events.publish("app:error", { message: `${record.title}: ${error.message}` });
+    });
+    // A layer that cannot be read at all fails the add, as on ArcGIS.
+    await Promise.race([record.loaded, new Promise((resolve) => setTimeout(resolve, 0))]);
+    if (record.loadFailed && !record.features.length) {
+      this.removeLayer(record.uid);
+      throw record.loadFailed;
+    }
+    return handle;
+  }
+
+  /** The outline detail the overview of line and polygon layers is fetched at (degrees, about 50 m). */
+  static OVERVIEW_DETAIL = 0.0005;
+
+  /**
+   * Zoomed in, the line and polygon features in view are refetched at the
+   * detail the view can show (their overview outlines are generalized).
+   */
+  #sharpen() {
+    clearTimeout(this.sharpenTimer);
+    // Sharpening is a nicety: a failed request leaves the overview outlines.
+    this.sharpenTimer = setTimeout(() => this.#sharpenNow().catch(() => {}), 250);
+  }
+
+  async #sharpenNow() {
+    if (typeof this.map?.getBounds !== "function") return;
+    const bounds = this.#viewBounds();
+    if (!bounds) return;
+    // Degrees per screen pixel at the view's latitude: half a pixel is as sharp as the eye can tell.
+    const detail = ((bounds[2] - bounds[0]) / Math.max(1, this.map.getContainer().clientWidth)) * 0.5;
+    if (detail >= MaplibreEngine.OVERVIEW_DETAIL) return;
+    for (const record of this.#records.values()) {
+      if (record.kind !== "vector" || !record.service || !record.visible || !/polygon|polyline/.test(record.geometryType || "")) continue;
+      record.detail ??= new Map();
+      const sharpened = await fetchGeometries(record.service, { bounds, maxAllowableOffset: detail, where: record.serverWhere ? record.where : null });
+      let changed = false;
+      const byId = new Map(record.features.map((feature) => [feature.id, feature]));
+      for (const { id, geometry } of sharpened) {
+        const feature = byId.get(id);
+        if (!feature || (record.detail.get(id) ?? MaplibreEngine.OVERVIEW_DETAIL) <= detail) continue;
+        feature.geometry = geometry.type === "Polygon" ? regroupPolygon(geometry) : geometry;
+        record.detail.set(id, detail);
+        changed = true;
+      }
+      if (changed) this.#refresh(record, { data: true });
+    }
   }
 
   /**
@@ -556,15 +621,17 @@ export class MaplibreEngine {
    * whole and filtered here; bigger ones are fetched already filtered, and
    * fetched again when the filter changes.
    */
-  async #loadFeatures(service, where) {
+  async #loadFeatures(service, where, { onPage = () => {} } = {}) {
     let total = Infinity;
     try {
       total = (await (await fetch(`${service.url}/query?where=1%3D1&returnCountOnly=true&f=json`)).json()).count ?? Infinity;
     } catch { /* Count unknown: fetch filtered. */ }
     const serverWhere = total > MAX_FEATURES ? where || null : null;
-    const { features, truncated } = await fetchFeatures(service, { where: serverWhere });
-    const repaired = features.map((feature) => (feature.geometry?.type === "Polygon" ? { ...feature, geometry: regroupPolygon(feature.geometry) } : feature));
-    return { features: normalizeFeatures({ type: "FeatureCollection", features: repaired }, { objectIdField: service.objectIdField }), truncated, serverWhere: total > MAX_FEATURES };
+    const prepare = (features) => normalizeFeatures({ type: "FeatureCollection", features: features.map((feature) => (feature.geometry?.type === "Polygon" ? { ...feature, geometry: regroupPolygon(feature.geometry) } : feature)) }, { objectIdField: service.objectIdField });
+    // Lines and polygons arrive generalized for the overview (a fraction of the size); zooming in sharpens them.
+    const simplify = /polygon|polyline/.test(service.geometryType || "") ? { maxAllowableOffset: MaplibreEngine.OVERVIEW_DETAIL, geometryPrecision: 5 } : null;
+    const { features, truncated } = await fetchFeatures(service, { where: serverWhere, simplify, concurrency: 10, onPage: (batch) => onPage(prepare(batch)) });
+    return { features: prepare(features), truncated, serverWhere: total > MAX_FEATURES };
   }
 
   async #addWms(url, config) {
@@ -660,6 +727,7 @@ export class MaplibreEngine {
   }
 
   async loadLayer(uid) {
+    await this.#record(uid)?.loaded;
     return this.getLayer(uid);
   }
 
@@ -945,6 +1013,7 @@ export class MaplibreEngine {
    * IDs); everything else is evaluated here.
    */
   async #select(record, params = {}, layerDefaults = true) {
+    await record.loaded;
     const boxOnly = params.geometry === "view" || Number.isFinite(params.geometry?.xmin);
     const relation = params.spatialRelationship || "intersects";
     if (!params.geometry || (boxOnly && ["intersects", "envelope-intersects", "index-intersects"].includes(relation) && !params.distance) || !record.service) {
@@ -1281,6 +1350,7 @@ export class MaplibreEngine {
   /** [west, south, east, north] of the layers' filtered data (all data layers when none are given), or null. */
   async dataBounds(layers = null) {
     const records = (layers ? layers.map((ref) => this.#record(ref)) : [...this.#records.values()]).filter((record) => record?.kind === "vector");
+    await Promise.all(records.map((record) => record.loaded));
     const geometries = records.flatMap((record) => this.#visibleFeatures(record).map((feature) => feature.geometry));
     const full = boundsOf(geometries);
     // Data spread over half the world (U.S. counties with Alaska, Hawaii and territories) frames its

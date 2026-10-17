@@ -6,6 +6,11 @@ All notable changes to GIS Map Online are documented here. This project follows
 
 ## [Unreleased]
 
+### Faster ArcGIS layers on MapLibre
+
+- Large feature layers (for example WFIGS fire perimeters, 42,000+ polygons) draw within a few seconds: simplified overview geometry in 2000-feature pages, ten requests at a time, drawn as pages arrive.
+- Polygons and lines are refetched at full detail for the area in view as you zoom in.
+
 ### Selection highlight on MapLibre, filled or outline
 
 - The feature selected in Map Insight, a briefing slide or the Explorer is now highlighted on the MapLibre engine too, above the data and kept across basemap changes.

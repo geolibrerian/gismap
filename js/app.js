@@ -1,7 +1,7 @@
 import { events } from "./events.js?v=0.18.2";
 import { AuthController } from "./engines/arcgis/arcgis-auth.js?v=0.39.0";
-import { MapController } from "./map-controller.js?v=0.45.0";
-import { listEngines } from "./engines/engine-registry.js?v=0.45.0";
+import { MapController } from "./map-controller.js?v=0.46.0";
+import { listEngines } from "./engines/engine-registry.js?v=0.46.0";
 import { chooseEngine } from "./engine-preference.js?v=0.39.0";
 import { BASEMAP_IDS } from "./basemap-catalog.js?v=0.41.0";
 import { ProjectManager } from "./project.js?v=0.44.2";
