@@ -180,11 +180,20 @@ export class UIController {
     close.textContent = "×";
     header.append(title, close);
     const mobileMenu = desktopMenu.cloneNode(true);
-    mobileMenu.querySelectorAll('[data-action="dashboard-builder"], [data-action="map-presentation"], [data-desktop-only]').forEach((item) => item.remove());
-    const workflows = document.createElement("div");
-    workflows.className = "menu mobile-workflows-menu";
-    workflows.innerHTML = `<button class="menu__trigger" aria-expanded="false">Workflows <span>⌄</span></button><div class="menu__content" role="menu"><button type="button" data-mobile-workflow="briefing">Briefing</button><button type="button" data-mobile-workflow="tours">Tours</button><button type="button" data-mobile-workflow="tasks">Field tasks</button><button type="button" data-mobile-workflow="map">Map tools</button></div>`;
-    mobileMenu.append(workflows);
+    mobileMenu.querySelectorAll('[data-action="dashboard-builder"]').forEach((item) => item.remove());
+    const workflows = mobileMenu.querySelector(".desktop-workflows-menu");
+    workflows?.classList.remove("desktop-workflows-menu");
+    workflows?.removeAttribute("data-desktop-only");
+    const workflowTrigger = workflows?.querySelector(".menu__trigger");
+    if (workflowTrigger) {
+      workflowTrigger.firstChild.textContent = "Modes ";
+      workflowTrigger.querySelector("span").textContent = "⌄";
+    }
+    workflows?.querySelector('[data-action="map-presentation"]')?.replaceChildren(document.createTextNode("Instant Presentation…"));
+    workflows?.querySelector('[data-mobile-workflow="briefing"]')?.replaceChildren(document.createTextNode("Briefing"));
+    workflows?.querySelector('[data-mobile-workflow="tours"]')?.replaceChildren(document.createTextNode("Tours"));
+    workflows?.querySelector('[data-mobile-workflow="tasks"]')?.replaceChildren(document.createTextNode("Field tasks"));
+    workflows?.querySelector('[data-mobile-workflow="map"]')?.replaceChildren(document.createTextNode("Map tools"));
     drawer.replaceChildren(header, mobileMenu);
   }
 
