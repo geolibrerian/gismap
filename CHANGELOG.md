@@ -6,6 +6,11 @@ All notable changes to GIS Map Online are documented here. This project follows
 
 ## [Unreleased]
 
+### 3D buildings on MapLibre
+
+- Every MapLibre basemap now shows 3D buildings from zoom 14, extruded from OpenStreetMap building heights (as in MapLibre's 3D buildings example), under the labels; tilt the map to see them.
+- On the Skin basemap the buildings take the skin's building colour, and recolour when you change skins.
+
 ### The Map assistant explains your data
 
 - New `describe_layer` tool: a layer's service description, summary, credits, licence, tags, last edit date, feature count and time field, and its schema — every field with its type, alias, description and coded values — read from the ArcGIS layer, its service and its portal item.

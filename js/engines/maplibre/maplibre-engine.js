@@ -16,7 +16,7 @@ import { GisMapError } from "../../gismap-errors.js?v=0.28.0";
 import { unsupported } from "../engine-interface.js?v=0.47.0";
 import { openBasemapFor } from "./basemaps.js?v=0.41.0";
 import { basemapOnEngine, basemapsForEngine } from "../../basemap-catalog.js?v=0.41.0";
-import { applyBasemapTheme } from "./basemap-theme.js?v=0.40.0";
+import { applyBasemapTheme, withBuildings3d } from "./basemap-theme.js?v=0.51.0";
 import { compileWhere } from "./where.js?v=0.39.0";
 import { arcgisMetadata } from "../../source-inspector.js?v=0.41.0";
 import { OpenGeocoder } from "./geocoder.js?v=0.47.0";
@@ -302,10 +302,12 @@ export class MaplibreEngine {
     return this.basemapTheme?.accent || DEFAULT_COLOR;
   }
 
-  /** The style for a basemap id: an OpenFreeMap style URL, or for "skin" that style restyled with the theme. */
+  /**
+   * The style for a basemap id: the OpenFreeMap style with 3D buildings, and
+   * for "skin" restyled with the theme (buildings included).
+   */
   async #styleFor(id) {
     const basemap = openBasemapFor(id);
-    if (!basemap.themed || !this.basemapTheme) return basemap.style;
     if (!this.#styleJson.has(basemap.style)) {
       this.#styleJson.set(basemap.style, fetch(basemap.style).then((response) => {
         if (!response.ok) throw new Error(`The basemap style did not load (HTTP ${response.status}).`);
@@ -313,7 +315,8 @@ export class MaplibreEngine {
       }).catch((error) => { this.#styleJson.delete(basemap.style); throw error; }));
     }
     try {
-      return applyBasemapTheme(await this.#styleJson.get(basemap.style), this.basemapTheme);
+      const style = withBuildings3d(await this.#styleJson.get(basemap.style));
+      return basemap.themed && this.basemapTheme ? applyBasemapTheme(style, this.basemapTheme) : style;
     } catch {
       return basemap.style;
     }
