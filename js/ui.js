@@ -1,10 +1,11 @@
+import { googleMapsLinkForChapter } from "./google-maps-link.js?v=0.52.9";
 import { POPULAR_SERVICES } from "./catalog.js?v=0.18.2";
 import { MapAssistantPanel } from "./assistant-panel.js?v=0.50.0";
 import { createAssistantTools, summarizeMapState } from "./map-assistant.js?v=0.52.0";
 import { ENTERPRISE_CATALOGS, EnterpriseCatalog, normalizeArcGisDirectoryUrl } from "./enterprise-catalog.js?v=0.18.2";
 import { createShareUrl } from "./share.js?v=0.41.0";
 import { createShareLink, hasDataFilter } from "./map-share.js?v=0.41.0";
-import { briefingLayerRef, findBriefingLayer } from "./briefing-api.js?v=0.52.8";
+import { briefingLayerRef, findBriefingLayer } from "./briefing-api.js?v=0.52.9";
 import { createEmbeddedTourUrl } from "./tour-share.js?v=0.18.2";
 import { markdownToPlainText, renderMarkdown } from "./markdown.js?v=0.18.2";
 import { formatAttributeValue } from "./attribute-format.js?v=0.18.2";
@@ -13,14 +14,14 @@ import { combineConditions, featureFilterFor, featureId, fieldKind, filterRecord
 import { DEFAULT_SKIN, INTERFACE_SKINS, applyInterfaceSkin, normalizeSkin, skinIsDark, skinOptionsMarkup } from "./skin-catalog.js?v=0.52.3";
 import { themeFromComputedStyle } from "./basemap-themes.js?v=0.40.0";
 import { compactMedia } from "./viewport.js?v=0.18.2";
-import { APP_VERSION } from "./version.js?v=0.52.8";
+import { APP_VERSION } from "./version.js?v=0.52.9";
 import { bindMobileSheetResize } from "./mobile-sheet-resize.js?v=0.52.7";
 import { PdfDocument, brandedMapImage, brandedQrCanvas, loadBrandLogo, printPalette, qrAsset } from "./pdf-document.js?v=0.44.2";
 import { featureLayerUrl, locationUrl } from "./field-task-share.js?v=0.41.0";
 import { dockIcon } from "./dock-icons.js?v=0.24.0";
 import { serviceNameFromUrl } from "./service-name.js?v=0.26.0";
 import { decodeQrFromImage, describeGisMapLink, gisMapLinkFrom, openGisMapLink } from "./qr-import.js?v=0.25.1";
-import { BriefingSlides } from "./briefing-slides.js?v=0.52.8";
+import { BriefingSlides } from "./briefing-slides.js?v=0.52.9";
 import { createSlide, matchesFilter, normalizeFilter } from "./briefing-document.js?v=0.35.0";
 import { aiDescriptionPrompt, applyAiDescriptions, describeWhere, generateBriefing, readAiDescriptions, rendererTheme } from "./briefing-generator.js?v=0.36.1";
 import { briefingFileStem } from "./briefing-pdf.js?v=0.44.2";
@@ -3199,7 +3200,7 @@ export class UIController {
           this.dialog.close();
           this.toast(`Tour saved locally as “${name}”.`);
         } },
-        { label: "End tour", primary: true, handler: () => { this.dialog.close(); this.#exitAtlasTour(); } },
+        { label: "End tour · Open GISMap.online", primary: true, handler: () => { this.dialog.close(); this.#exitAtlasTour(); } },
       ],
     });
   }
@@ -3941,6 +3942,11 @@ export class UIController {
     this.presentationState.atlasChapterIndex = index;
     document.querySelector("#atlas-chapter-position").textContent = `Chapter ${index + 1} of ${chapters.length}`;
     document.querySelector("#atlas-chapter-title").textContent = chapter.title || `Chapter ${index + 1}`;
+    const mapsLink = document.querySelector("#atlas-chapter-google-maps");
+    const mapsUrl = googleMapsLinkForChapter(chapter);
+    mapsLink.hidden = !mapsUrl;
+    if (mapsUrl) mapsLink.href = mapsUrl;
+    else mapsLink.removeAttribute("href");
     const message = document.querySelector("#atlas-chapter-message");
     message.textContent = chapter.body || "";
     const description = document.querySelector("#atlas-chapter-description");

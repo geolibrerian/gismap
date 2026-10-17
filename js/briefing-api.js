@@ -1,4 +1,4 @@
-import core, { normalizeBriefing, updateSlide, validateBriefingDocument } from "./gismap-core.js?v=0.52.8";
+import core, { normalizeBriefing, updateSlide, validateBriefingDocument } from "./gismap-core.js?v=0.52.9";
 import { createShareLink } from "./map-share.js?v=0.41.0";
 import { GisMapError, layerLoadError, toGisMapError } from "./gismap-errors.js?v=0.28.0";
 import { featureLayerUrl } from "./field-task-share.js?v=0.41.0";

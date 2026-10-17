@@ -1,3 +1,4 @@
+import { googleMapsLink } from "./google-maps-link.js?v=0.52.9";
 import { MobileFeedStore } from "./mobile-feed-store.js?v=0.18.7";
 import { compactMedia } from "./viewport.js?v=0.18.2";
 import { INTERFACE_SKINS, applyInterfaceSkin, normalizeSkin } from "./skin-catalog.js?v=0.52.3";
@@ -184,15 +185,20 @@ export class MobileWorkflowRouter {
     return `<p class="mobile-workflow__subtitle">Write the steps, attach up to ${FIELD_TASK_LIMITS.maxFeatures} map features, then share a link or QR code. The person who completes it sends a link back.</p><button class="mobile-primary" data-new-task data-mobile-bar="primary">+ New field task</button><div class="feed-list">${tasks.map(card).join("") || `<div class="mobile-empty"><h2>No field tasks</h2><p>Create a task with steps to do and the features to visit, then share it.</p></div>`}</div>`;
   }
 
+  #mapsLink(latitude, longitude) {
+    const url = googleMapsLink(latitude, longitude);
+    return url ? `<a class="task-google-maps" href="${url}" target="_blank" rel="noopener noreferrer">Google Maps ↗</a>` : "";
+  }
+
   #featureRows(features, { editable = false, checkable = false } = {}) {
     if (!features.length) return `<p class="task-feature-empty">No features attached.</p>`;
-    return `<ol class="task-feature-list">${features.map((feature, index) => `<li>${checkable ? `<label class="check-row"><input type="checkbox" name="featureDone" value="${index}" ${feature.done ? "checked" : ""}/> <span>${escapeHtml(feature.label)}</span></label>` : `<span>${feature.done ? '<b class="task-feature-done" aria-label="Visited">✓</b> ' : ""}${escapeHtml(feature.label)}</span>`}<small>${feature.objectId != null ? `ID ${escapeHtml(feature.objectId)} · ` : ""}${Number(feature.latitude).toFixed(5)}, ${Number(feature.longitude).toFixed(5)}</small><span class="task-feature-actions"><button type="button" data-zoom-feature="${index}">Zoom</button>${editable ? `<button type="button" data-remove-feature="${index}" aria-label="Remove ${escapeHtml(feature.label)}">×</button>` : ""}</span></li>`).join("")}</ol>`;
+    return `<ol class="task-feature-list">${features.map((feature, index) => `<li>${checkable ? `<label class="check-row"><input type="checkbox" name="featureDone" value="${index}" ${feature.done ? "checked" : ""}/> <span>${escapeHtml(feature.label)}</span></label>` : `<span>${feature.done ? '<b class="task-feature-done" aria-label="Visited">✓</b> ' : ""}${escapeHtml(feature.label)}</span>`}<small>${feature.objectId != null ? `ID ${escapeHtml(feature.objectId)} · ` : ""}${Number(feature.latitude).toFixed(5)}, ${Number(feature.longitude).toFixed(5)}</small><span class="task-feature-actions">${this.#mapsLink(feature.latitude, feature.longitude)}<button type="button" data-zoom-feature="${index}">Zoom</button>${editable ? `<button type="button" data-remove-feature="${index}" aria-label="Remove ${escapeHtml(feature.label)}">×</button>` : ""}</span></li>`).join("")}</ol>`;
   }
 
   #locationRow(task) {
     if (!Number.isFinite(task.latitude) || !Number.isFinite(task.longitude)) return "";
     const address = task.address?.label && task.address.label !== task.location ? `<small>${escapeHtml(task.address.label)}</small>` : "";
-    return `<div class="task-location-row"><span><b>${escapeHtml(task.location || task.address?.label || "Task location")}</b>${address}<small>${Number(task.latitude).toFixed(5)}, ${Number(task.longitude).toFixed(5)}</small></span><button type="button" data-zoom-location>Zoom</button></div>`;
+    return `<div class="task-location-row"><span><b>${escapeHtml(task.location || task.address?.label || "Task location")}</b>${address}<small>${Number(task.latitude).toFixed(5)}, ${Number(task.longitude).toFixed(5)}</small></span><span class="task-feature-actions">${this.#mapsLink(task.latitude, task.longitude)}<button type="button" data-zoom-location>Zoom</button></span></div>`;
   }
 
   #checkInSummary(checkIn) {

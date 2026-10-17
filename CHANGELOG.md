@@ -6,10 +6,15 @@ All notable changes to GIS Map Online are documented here. This project follows
 
 ## [Unreleased]
 
+### Tour and field-task navigation
+
+- Link tour chapters and field-task locations to Google Maps using their existing coordinates.
+- Make the tour control offer an exit to the GISMap workspace and keep its actions clear of the mobile control bar.
+
 ### Identity and version alignment
 
 - Name the application GISMap Online: Free Geospatial Application in browser and social metadata, and describe its MapLibre and ArcGIS engines accurately in About this build.
-- Align the current code's application and client API version at 0.52.8; project and interchange schema versions remain independent.
+- Align the current code's application and client API version at 0.52.9; project and interchange schema versions remain independent.
 
 ### 3D buildings on MapLibre
 

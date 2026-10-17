@@ -2253,3 +2253,17 @@ body.sidebar-collapsed .table-dialog { left: 14px; }
 .assistant__setup h3 { margin: 0; }
 .assistant__setup p { margin: 0; color: var(--muted); font-size: 13px; }
 .assistant__setup button { justify-self: start; padding: 8px 14px; border: 1px solid var(--green); border-radius: 6px; color: white; background: var(--green); font-weight: 700; cursor: pointer; }
+
+/* Links use the chapter/task coordinates; they do not alter the QR payload. */
+.atlas-chapter-overlay__copy { position:relative; padding-right:96px; }
+.atlas-google-maps { position:absolute; top:0; right:0; color:var(--green); font-size:11px; font-weight:700; white-space:nowrap; }
+.atlas-google-maps[hidden] { display:none; }
+.task-location-row .task-feature-actions { display:flex; align-items:center; }
+.task-feature-actions { align-items:center; flex-wrap:wrap; }
+.task-google-maps { color:var(--green); font-size:12px; font-weight:700; white-space:nowrap; }
+@media (max-width: 640px), (max-width: 880px) and (orientation: portrait) {
+  .atlas-chapter-overlay__copy { padding-right:96px; }
+  /* Keep dialog actions tappable rather than behind the tour's control bar. */
+  body.mobile-atlas-presenting:has(.app-dialog:not(.app-dialog--docked)[open]) .mobile-presentation-controls { display:none; }
+  .app-dialog:not(.app-dialog--docked) .dialog__actions { flex-wrap:wrap; }
+}
