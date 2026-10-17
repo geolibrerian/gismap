@@ -46,10 +46,11 @@ jobs:
       - name: Check JavaScript syntax
         run: |
           node --check js/app.js
-          node --check js/map.js
+          node --check js/map-controller.js
+          node --check js/engines/maplibre/maplibre-engine.js
           node --check js/ui.js
           node --check js/attribute-table.js
-          node --check js/auth.js
+          node --check js/engines/arcgis/arcgis-auth.js
           node --check js/export/export-core.js
           node --check js/export/export-controller.js
           node --check js/export/export-worker.js
