@@ -1061,17 +1061,17 @@ export class UIController {
           this.#serviceDialog("wfs");
           break;
         case "data-pmtiles": {
-          const { openPmtilesPanel } = await import("./data-connections-panel.js?v=0.54.0-localhost1");
+          const { openPmtilesPanel } = await import("./data-connections-panel.js?v=0.54.0-collections1");
           openPmtilesPanel(this, this.mapController, (engine) => this.#switchEngine(engine));
           break;
         }
         case "data-duckdb": {
-          const { openDuckdbPanel } = await import("./data-connections-panel.js?v=0.54.0-localhost1");
+          const { openDuckdbPanel } = await import("./data-connections-panel.js?v=0.54.0-collections1");
           openDuckdbPanel(this, this.applicationRuntime.duckdb);
           break;
         }
         case "data-postgis": {
-          const { openPostgisPanel } = await import("./data-connections-panel.js?v=0.54.0-localhost1");
+          const { openPostgisPanel } = await import("./data-connections-panel.js?v=0.54.0-collections1");
           openPostgisPanel(this);
           break;
         }

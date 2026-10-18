@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { ConnectionRegistry, connectionUrl, discoverOgcCollections } from '../js/data-connections.js';
+import { ConnectionRegistry, connectionUrl, discoverOgcCollections, filterOgcCollections, inspectOgcSpatial } from '../js/data-connections.js';
 import { DuckDBBrowserClient } from '../js/duckdb-client.js';
 
 function memoryStorage() { const values = new Map(); return { getItem: (key) => values.get(key) || null, setItem: (key, value) => values.set(key, value), values }; }
@@ -45,6 +45,29 @@ test('OGC discovery tests the actual collections endpoint, handles auth and fail
   await assert.rejects(discoverOgcCollections('https://agency.example', { fetchImpl: async () => new Response('', {status:401}) }), /Authentication/);
   await assert.rejects(discoverOgcCollections('https://agency.example', { fetchImpl: async () => Response.json({hello:'world'}) }), /not a supported/);
   await assert.rejects(discoverOgcCollections('https://agency.example', { fetchImpl: async () => { throw new TypeError(); } }), /CORS/);
+});
+
+test('collection search and sorting use labels, ids and descriptions without mutating the list', () => {
+  const entries = [{ id: 'a.roads', title: 'Roads', description: 'Streets', spatialStatus: 'spatial' }, { id: 'b.places', title: 'Places', description: '', spatialStatus: 'unknown' }];
+  assert.deepEqual(filterOgcCollections(entries).map((e) => e.title), ['Places', 'Roads']);
+  assert.deepEqual(filterOgcCollections(entries, { sort: 'desc' }).map((e) => e.title), ['Roads', 'Places']);
+  assert.deepEqual(filterOgcCollections(entries, { search: 'STREETS', spatial: 'spatial' }).map((e) => e.id), ['a.roads']);
+  assert.equal(filterOgcCollections(entries, { search: 'b.places' })[0].title, 'Places');
+  assert.deepEqual(entries.map((e) => e.title), ['Roads', 'Places']);
+});
+
+test('spatial inspection samples a same-origin collection and does not guess about empty data', async () => {
+  let request;
+  const spatial = await inspectOgcSpatial('http://localhost:9000/collections', '../places', { token: 'session', fetchImpl: async (url, options) => { request = { url, options }; return Response.json({ type: 'FeatureCollection', features: [{ type: 'Feature', geometry: { type: 'Point', coordinates: [0, 0] } }] }); } });
+  assert.equal(request.url, 'http://localhost:9000/collections/..%2Fplaces/items?limit=1');
+  assert.equal(request.options.headers.Authorization, 'Bearer session'); assert.equal(request.options.redirect, 'error');
+  assert.deepEqual(spatial, { status: 'spatial', geometryType: 'Point' });
+  for (const features of [[], [{ type: 'Feature', geometry: null }]]) {
+    const result = await inspectOgcSpatial('https://example.com', 'table', { fetchImpl: async () => Response.json({ type: 'FeatureCollection', features }) });
+    assert.equal(result.status, 'unknown');
+  }
+  await assert.rejects(inspectOgcSpatial('https://example.com', 'table', { fetchImpl: async () => new Response('', { status: 403 }) }), /403/);
+  await assert.rejects(inspectOgcSpatial('https://example.com', 'table', { fetchImpl: async () => Response.json({ features: [] }) }), /GeoJSON/);
 });
 
 test('DuckDB local import uses generated statements and limits inspection', async () => {

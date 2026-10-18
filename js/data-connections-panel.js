@@ -1,6 +1,6 @@
 // The existing GISMap dialog is dockable on desktop and a sheet on mobile.
 // These panels never serialize runtime objects, file contents, or credentials.
-import { ConnectionRegistry, connectionUrl, discoverOgcCollections } from './data-connections.js?v=0.54.0-localhost1';
+import { ConnectionRegistry, connectionUrl, discoverOgcCollections, filterOgcCollections, inspectOgcSpatial } from './data-connections.js?v=0.54.0-collections1';
 import { inspectExternalTiles } from './engines/maplibre/external-tiles.js?v=0.54.0';
 
 const registry = () => new ConnectionRegistry();
@@ -21,9 +21,11 @@ export function openPostgisPanel(ui) {
     <label class="field"><span>Connector endpoint (HTTPS or local HTTP)</span><input data-connection-url type="url" autocomplete="url"></label>
     <label class="field"><span>Workspace or database display name (optional)</span><input data-connection-workspace></label>
     <label class="field"><span>Session bearer token (optional, never saved)</span><input data-connection-token type="password" autocomplete="off"></label>
-    <div><button type="button" data-connection-test>Test and browse</button> <button type="button" data-connection-save>Save connection</button> <button type="button" data-connection-remove>Remove</button></div>
+    <div class="connection-actions"><button class="button button--primary" type="button" data-connection-test>Test and browse</button> <button class="button" type="button" data-connection-save>Save connection</button> <button class="button" type="button" data-connection-remove>Remove</button></div>
     <p class="form-note" role="status" data-connection-status>Not connected.</p><div data-connection-results></div>` });
   const list = field('saved');
+  let generation = 0;
+  const clearResults = () => { generation++; field('results').replaceChildren(); };
   function refresh(selected = '') {
     list.replaceChildren(new Option('New connection', ''));
     for (const item of registry().list().filter((entry) => entry.type === 'postgis-http')) list.add(new Option(item.name, item.id));
@@ -33,20 +35,78 @@ export function openPostgisPanel(ui) {
   list.addEventListener('change', () => {
     const item = registry().list().find((entry) => entry.id === list.value);
     field('name').value = item?.name || ''; field('url').value = item?.config?.url || ''; field('workspace').value = item?.config?.workspace || '';
-    field('token').value = ''; field('results').replaceChildren(); status('Not connected.');
+    field('token').value = ''; clearResults(); status('Not connected.');
   });
+  field('url').addEventListener('input', () => { clearResults(); status('Endpoint changed. Test the connection to browse collections.'); });
+  field('token').addEventListener('input', () => { clearResults(); status('Authentication changed. Test the connection to browse collections.'); });
   bind('save', () => {
     const item = registry().save({ id: list.value || undefined, type: 'postgis-http', name: field('name').value, config: { url: connectionUrl(field('url').value, { allowLoopbackHttp: true }), workspace: field('workspace').value } });
     refresh(item.id); status('Connection settings saved locally. No connection has been tested.');
   });
-  bind('remove', () => { if (!list.value) throw new Error('Select a saved connection to remove.'); registry().remove(list.value); refresh(); field('name').value = ''; field('url').value = ''; field('workspace').value = ''; field('token').value = ''; field('results').replaceChildren(); status('Connection removed.'); });
+  bind('remove', () => { if (!list.value) throw new Error('Select a saved connection to remove.'); registry().remove(list.value); refresh(); field('name').value = ''; field('url').value = ''; field('workspace').value = ''; field('token').value = ''; clearResults(); status('Connection removed.'); });
   bind('test', async () => {
-    field('results').replaceChildren(); status('Checking the connector…');
-    const entries = await discoverOgcCollections(field('url').value, { token: field('token').value.trim() });
-    const ul = document.createElement('ul');
-    for (const entry of entries) { const li = document.createElement('li'); li.textContent = `${entry.title} (${entry.id})`; ul.append(li); }
-    field('results').append(ul);
-    status(`OGC API Features collections discovered: ${entries.length}. Adding collections to the map is not yet supported here.`);
+    clearResults(); const current = generation; status('Checking the connector…');
+    const endpoint = field('url').value; const token = field('token').value.trim();
+    const entries = (await discoverOgcCollections(endpoint, { token })).map((entry) => ({ ...entry, spatialStatus: 'unknown' }));
+    if (current !== generation) return;
+    status(`Loaded ${entries.length} collections. Adding collections to the map is not yet supported.`);
+    const results = field('results');
+    results.innerHTML = `<section class="connection-browser" aria-label="Browse collections">
+      <h3>Browse collections</h3>
+      <div class="connection-browser__controls">
+        <label class="field"><span>Search collections</span><input type="search" data-collection-search placeholder="Search name or description"></label>
+        <label class="field"><span>Sort by name</span><select data-collection-sort><option value="asc">A to Z</option><option value="desc">Z to A</option></select></label>
+        <label class="field"><span>Spatial status</span><select data-collection-filter><option value="all">All collections</option><option value="spatial">Spatial</option><option value="unknown">Not checked / unknown</option></select></label>
+      </div>
+      <p class="form-note">Check collections for geometry in a sample feature. Empty collections or features without geometry remain unknown. The connector may paginate its collection list.</p>
+      <button class="button" type="button" data-collection-check-visible>Check visible for spatial data</button>
+      <p class="form-note" data-collection-count aria-live="polite"></p><ul class="connection-browser__list" data-collection-list></ul></section>`;
+    const search = results.querySelector('[data-collection-search]');
+    const sort = results.querySelector('[data-collection-sort]');
+    const filter = results.querySelector('[data-collection-filter]');
+    const collectionList = results.querySelector('[data-collection-list]');
+    const checkVisible = results.querySelector('[data-collection-check-visible]');
+    const inspect = async (entry) => {
+      entry.checking = true; entry.inspectionMessage = ''; render();
+      try {
+        const result = await inspectOgcSpatial(endpoint, entry.id, { token });
+        entry.spatialStatus = result.status; entry.geometryType = result.geometryType;
+        if (result.status === 'unknown') entry.inspectionMessage = 'No geometry in the sample; spatial status is still unknown.';
+      } catch (error) { entry.inspectionMessage = error?.message || 'Inspection failed.'; }
+      finally { entry.checking = false; if (current === generation && results.isConnected) render(); }
+    };
+    const render = () => {
+      const visible = filterOgcCollections(entries, { search: search.value, sort: sort.value, spatial: filter.value });
+      results.querySelector('[data-collection-count]').textContent = `Showing ${visible.length} of ${entries.length} loaded collections`;
+      collectionList.replaceChildren();
+      for (const entry of visible) {
+        const li = document.createElement('li'); li.className = 'connection-browser__item';
+        const info = document.createElement('div'); info.className = 'connection-browser__info';
+        const name = document.createElement('strong'); name.textContent = entry.title; info.append(name);
+        if (entry.title !== entry.id) { const id = document.createElement('small'); id.textContent = entry.id; info.append(id); }
+        if (entry.description) { const desc = document.createElement('small'); desc.textContent = entry.description; info.append(desc); }
+        const badge = document.createElement('small'); badge.className = 'connection-browser__badge';
+        badge.textContent = entry.spatialStatus === 'spatial' ? `Spatial · ${entry.geometryType}` : 'Spatial status unknown'; info.append(badge);
+        if (entry.inspectionMessage) { const note = document.createElement('small'); note.textContent = entry.inspectionMessage; info.append(note); }
+        const check = document.createElement('button'); check.className = 'button'; check.type = 'button';
+        check.textContent = entry.checking ? 'Checking…' : 'Check spatial'; check.disabled = !!entry.checking;
+        check.setAttribute('aria-label', `Check spatial status of ${entry.title}`);
+        check.addEventListener('click', () => inspect(entry));
+        li.append(info, check); collectionList.append(li);
+      }
+      if (!visible.length) { const li = document.createElement('li'); li.className = 'connection-browser__empty'; li.textContent = 'No collections match these filters.'; collectionList.append(li); }
+    };
+    checkVisible.addEventListener('click', async () => {
+      const targets = filterOgcCollections(entries, { search: search.value, sort: sort.value, spatial: filter.value }).filter((entry) => !entry.checking);
+      checkVisible.disabled = true;
+      try {
+        for (let i = 0; i < targets.length && current === generation && results.isConnected; i++) {
+          checkVisible.textContent = `Checking ${i + 1} of ${targets.length}…`;
+          if (!targets[i].checking) await inspect(targets[i]);
+        }
+      } finally { checkVisible.disabled = false; checkVisible.textContent = 'Check visible for spatial data'; }
+    });
+    search.addEventListener('input', render); sort.addEventListener('change', render); filter.addEventListener('change', render); render();
   });
 }
 
