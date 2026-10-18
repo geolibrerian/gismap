@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex">
+  <title>Page not found | GISMap Online</title>
+  <style>
+    :root { color-scheme: light; font-family: system-ui, -apple-system, sans-serif; color: #133e36; background: #f7f4e9; }
+    * { box-sizing: border-box; }
+    body { min-height: 100vh; margin: 0; display: grid; place-items: center; padding: 24px; background: radial-gradient(ellipse at 70% 0%, #d9e9df, transparent 60%), #f7f4e9; }
+    main { width: min(100%, 740px); padding: clamp(24px, 6vw, 52px); background: #fffcf3; border: 1px solid #cad8c9; border-radius: 20px; box-shadow: 0 18px 60px #173e3520; }
+    .brand { display: flex; align-items: center; gap: 10px; color: #276a59; text-decoration: none; font-weight: 750; }
+    .brand img { width: 34px; height: 34px; object-fit: contain; }
+    .scene { position: relative; width: min(100%, 350px); margin: 16px auto 8px; }
+    .scene svg { width: 100%; display: block; }
+    .dragon { transform-origin: 185px 104px; animation: float 3s ease-in-out infinite; }
+    .wing { transform-origin: 160px 91px; animation: wing 1.3s ease-in-out infinite alternate; }
+    .trail { stroke-dasharray: 4 8; animation: trail 4s linear infinite; }
+    @keyframes float { 50% { transform: translateY(-7px); } }
+    @keyframes wing { to { transform: scaleY(.72); } }
+    @keyframes trail { to { stroke-dashoffset: -24; } }
+    .eyebrow { color: #b47726; font-weight: 800; font-size: .75rem; letter-spacing: .14em; text-transform: uppercase; }
+    h1 { font-family: Georgia, serif; font-size: clamp(2.2rem, 7vw, 3.5rem); line-height: 1.05; margin: 10px 0 14px; }
+    p { color: #526e64; line-height: 1.6; margin: 0 0 20px; }
+    .actions { display: flex; flex-wrap: wrap; gap: 10px; margin: 24px 0; }
+    .actions a { display: inline-flex; align-items: center; min-height: 44px; border-radius: 7px; padding: 10px 16px; text-decoration: none; font-weight: 700; border: 1px solid #0e6656; color: #0e6656; }
+    .actions a:first-child { color: white; background: #0e6656; }
+    a:focus-visible { outline: 3px solid #d89b33; outline-offset: 3px; }
+    #suggestions { border-top: 1px solid #dce6db; padding-top: 20px; }
+    #suggestions[hidden] { display: none; }
+    h2 { font-size: 1rem; margin: 0 0 9px; }
+    ul { padding-left: 20px; margin: 0; line-height: 2; }
+    li a, .footer a { color: #0e6656; }
+    .footer { margin: 22px 0 0; font-size: .9rem; }
+    @media (prefers-reduced-motion: reduce) { .dragon, .wing, .trail { animation: none; } }
+  </style>
+</head>
+<body>
+  <main>
+    <a class="brand" href="/"><img src="/assets/gis-map-online-mark-v2.png" alt="">GISMap Online</a>
+    <div class="scene" aria-hidden="true">
+      <svg viewBox="0 0 350 170" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M18 136c48-15 67-34 112-22 52 14 75 24 129-8 27-16 48-6 73 1" stroke="#c89d5d" stroke-width="2" class="trail"/>
+        <path d="m33 94 33-20 27 15 25-23 32 17M219 138l17-14 19 10 20-17 27 13" stroke="#9bbca9" stroke-width="2" stroke-linecap="round"/>
+        <circle cx="54" cy="45" r="13" fill="#f4dca8"/><path d="M46 45h16M54 37v16" stroke="#bd8b47" stroke-width="1.5"/>
+        <g class="dragon" stroke="#164e40" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M93 113c18-6 29-24 46-26 16-2 26 12 43 12 16 0 26-10 37-26l13 6-6 15 19 7-21 7c-6 21-24 32-46 32-20 0-33-12-52-12-13 0-24 8-33 14l7-20-17-5z" fill="#328771"/>
+          <path class="wing" d="m151 99-25-49 37 18 18-34 4 65z" fill="#80b9a1"/>
+          <circle cx="226" cy="86" r="2.8" fill="#fffaf0" stroke="none"/>
+        </g>
+      </svg>
+    </div>
+    <div class="eyebrow">404 · Uncharted territory</div>
+    <h1>Here be dragons.</h1>
+    <p>We couldn’t find that page. The map is still here, and there are plenty of other places to explore.</p>
+    <div class="actions"><a href="/">Open GISMap Online</a><a href="/skills/">Explore agent skills</a></div>
+    <section id="suggestions" hidden aria-labelledby="suggestions-title"><h2 id="suggestions-title">Were you looking for…</h2><ul id="suggested-pages"></ul></section>
+    <p class="footer">Or browse the <a href="/examples/">examples</a> and <a href="/guides/">guides</a>.</p>
+  </main>
+  <script type="module" src="/js/not-found.js?v=1"></script>
+</body>
+</html>
