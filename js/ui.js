@@ -12,7 +12,7 @@ import { formatAttributeValue } from "./attribute-format.js?v=0.18.2";
 import { normalizeApplicationConfig, presetApplication } from "./application-config.js?v=0.18.2";
 import { combineConditions, featureFilterFor, featureId, fieldKind, filterRecords, histogram, requestGuard, sortRecords } from "./presentation-query.js?v=0.30.0";
 import { DEFAULT_SKIN, INTERFACE_SKINS, applyInterfaceSkin, normalizeSkin, skinIsDark, skinOptionsMarkup } from "./skin-catalog.js?v=0.52.3";
-import { themeFromComputedStyle } from "./basemap-themes.js?v=0.40.0";
+import { applyMapColors, MAP_COLOR_COMPONENTS, SKIN_BASEMAP, themeFromComputedStyle } from "./basemap-themes.js?v=0.53.0-mapcolors1";
 import { compactMedia } from "./viewport.js?v=0.18.2";
 import { APP_VERSION } from "./version.js?v=0.53.0";
 import { bindMobileSheetResize } from "./mobile-sheet-resize.js?v=0.52.7";
@@ -1754,12 +1754,15 @@ export class UIController {
     let applied = null;
     const sync = () => {
       const skin = normalizeSkin(root.dataset.skin);
-      const theme = themeFromComputedStyle(getComputedStyle(root), { skin, dark: skinIsDark(skin, root.dataset.theme) });
+      const baseTheme = themeFromComputedStyle(getComputedStyle(root), { skin, dark: skinIsDark(skin, root.dataset.theme) });
+      const palettes = this.mapColorPreview ?? this.projectManager.current.presentation?.mapColors ?? {};
+      const theme = applyMapColors(baseTheme, palettes[skin]);
       const key = JSON.stringify(theme);
       if (key === applied) return;
       applied = key;
       this.mapController.setBasemapTheme(theme);
     };
+    this.syncBasemapTheme = sync;
     sync();
     new MutationObserver(sync).observe(root, { attributes: true, attributeFilter: ["data-skin", "data-theme", "style"] });
   }
@@ -4278,6 +4281,7 @@ export class UIController {
     if (template !== "briefing") document.body.classList.remove("briefing-map-select");
     const skin = presentation.skin ?? this.projectManager.current.presentation?.skin;
     applyInterfaceSkin(skin, { colors: (presentation.skinColors ?? this.projectManager.current.presentation?.skinColors)?.[normalizeSkin(skin)] });
+    this.syncBasemapTheme?.();
     document.body.dataset.presentation = template;
     if (template === "atlas") {
       const activeIndex = Number.isInteger(this.presentationState.atlasChapterIndex) ? this.presentationState.atlasChapterIndex : null;
@@ -4528,18 +4532,23 @@ export class UIController {
     const previous = structuredClone(this.projectManager.current.presentation || {});
     const current = { template: "standard", skin: DEFAULT_SKIN, ...previous };
     const palettes = structuredClone(current.skinColors || {});
+    const mapPalettes = structuredClone(current.mapColors || {});
+    const maplibre = this.mapController.getEngineId() === "maplibre";
+    if (maplibre) this.mapColorPreview = mapPalettes;
     let applied = false;
     this.openDialog({
       eyebrow: "Presentation",
       title: "Instant presentations",
-      content: `<div class="presentation-picker"><p class="form-note">Choose a look for your map and presentation. Your mode, layers, map symbols, and camera stay as they are.</p><fieldset class="skin-picker"><legend>Interface skin</legend>${INTERFACE_SKINS.map(({ id,label,description }) => `<button type="button" class="skin-card skin-card--${id}" data-skin-choice="${id}" aria-pressed="false"><span class="skin-mini"><i></i><b></b><em></em><small></small></span><strong>${label}</strong><small>${description}</small></button>`).join("")}<select id="presentation-skin" hidden>${skinOptionsMarkup(current.skin)}</select></fieldset><fieldset class="skin-customize"><legend>Customize skin colors</legend><p class="form-note">Adjust the selected skin’s primary, secondary, and tertiary accents. Colors are saved with this project.</p><div>${["primary", "secondary", "tertiary"].map((name) => `<label><span>${name[0].toUpperCase() + name.slice(1)}</span><input type="color" data-skin-color="${name}" aria-label="${name} color"></label>`).join("")}</div><button type="button" class="button--quiet" data-skin-reset>Reset colors</button></fieldset></div>`,
+      content: `<div class="presentation-picker"><p class="form-note">Choose a look for your map and presentation. Your mode, layers, map symbols, and camera stay as they are.</p><fieldset class="skin-picker"><legend>Interface skin</legend>${INTERFACE_SKINS.map(({ id,label,description }) => `<button type="button" class="skin-card skin-card--${id}" data-skin-choice="${id}" aria-pressed="false"><span class="skin-mini"><i></i><b></b><em></em><small></small></span><strong>${label}</strong><small>${description}</small></button>`).join("")}<select id="presentation-skin" hidden>${skinOptionsMarkup(current.skin)}</select></fieldset><fieldset class="skin-customize"><legend>Customize skin colors</legend><p class="form-note">Adjust the interface accents. Colors are saved with this project.</p><div>${["primary", "secondary", "tertiary"].map((name) => `<label><span>${name[0].toUpperCase() + name.slice(1)}</span><input type="color" data-skin-color="${name}" aria-label="${name} color"></label>`).join("")}</div><button type="button" class="button--quiet" data-skin-reset>Reset colors</button></fieldset>${maplibre ? `<fieldset class="skin-customize map-color-customize"><legend>Customize map colors</legend><p class="form-note">Choose which components to override for this skin. These colors apply to the MapLibre Skin basemap, including 3D buildings—not imagery, other basemaps, or your data layers. Colors are saved with this project. Selecting the Skin basemap changes the map immediately, even if you cancel. Check label contrast after changing colors.</p><button type="button" class="button--quiet" data-use-skin-basemap>Use Skin basemap</button><div>${Object.entries(MAP_COLOR_COMPONENTS).map(([key, label]) => `<label><input type="checkbox" data-map-toggle="${key}"><span>${label}</span><input type="color" data-map-color="${key}" aria-label="${label} color"></label>`).join("")}</div><button type="button" class="button--quiet" data-map-reset>Reset map colors</button></fieldset>` : ""}</div>`,
       actions: [
         { label: "Cancel", handler: () => this.dialog.close() },
         { label: "Apply", primary: true, handler: () => {
           const skin = this.dialog.querySelector("#presentation-skin").value;
-          this.projectManager.patchPresentation({ skin, skinColors: palettes });
+          this.projectManager.patchPresentation({ skin, skinColors: palettes, ...(maplibre ? { mapColors: mapPalettes } : {}) });
           applied = true;
+          this.mapColorPreview = null;
           applyInterfaceSkin(skin, { colors: palettes[skin] });
+          this.syncBasemapTheme?.();
           this.dialog.close();
           this.toast("Interface skin applied.");
         } },
@@ -4548,7 +4557,11 @@ export class UIController {
     // Closing by any route (Cancel, ×, Escape) restores the previous appearance.
     const session = this.dialogSession;
     this.dialog.addEventListener("close", () => {
-      if (!applied && session === this.dialogSession) applyInterfaceSkin(previous.skin, { colors: previous.skinColors?.[normalizeSkin(previous.skin)] });
+      if (!applied && session === this.dialogSession) {
+        this.mapColorPreview = null;
+        applyInterfaceSkin(previous.skin, { colors: previous.skinColors?.[normalizeSkin(previous.skin)] });
+        this.syncBasemapTheme?.();
+      }
     }, { once: true });
     const skin = this.dialog.querySelector("#presentation-skin");
     skin.value = current.skin;
@@ -4567,6 +4580,18 @@ export class UIController {
         const hex = /^#[0-9a-f]{6}$/i.test(value) ? value : /^#[0-9a-f]{3}$/i.test(value) ? `#${[...value.slice(1)].map((digit) => digit + digit).join("")}` : rgb ? `#${rgb.slice(1, 4).map((part) => Number(part).toString(16).padStart(2, "0")).join("")}` : "#000000";
         this.dialog.querySelector(`[data-skin-color="${name}"]`).value = hex;
       }
+      if (maplibre) {
+        const base = themeFromComputedStyle(style, { skin: value, dark: skinIsDark(value, document.documentElement.dataset.theme) });
+        const defaults = { land: base.land, water: base.water, roads: base.roadMinor, buildings: base.building, vegetation: base.park, labels: base.label };
+        for (const key of Object.keys(MAP_COLOR_COMPONENTS)) {
+          const color = this.dialog.querySelector(`[data-map-color="${key}"]`);
+          const toggle = this.dialog.querySelector(`[data-map-toggle="${key}"]`);
+          toggle.checked = Boolean(mapPalettes[value]?.[key]);
+          color.disabled = !toggle.checked;
+          color.value = mapPalettes[value]?.[key] || defaults[key];
+        }
+        this.syncBasemapTheme?.();
+      }
     };
     this.dialog.querySelectorAll("[data-skin-choice]").forEach((card) => card.addEventListener("click", () => chooseSkin(card.dataset.skinChoice)));
     this.dialog.querySelectorAll("[data-skin-color]").forEach((input) => input.addEventListener("input", () => {
@@ -4574,6 +4599,22 @@ export class UIController {
       applyInterfaceSkin(skin.value, { colors: palettes[skin.value] });
     }));
     this.dialog.querySelector("[data-skin-reset]").addEventListener("click", () => { delete palettes[skin.value]; chooseSkin(skin.value); });
+    if (maplibre) {
+      const updateMapColors = () => {
+        mapPalettes[skin.value] = Object.fromEntries([...this.dialog.querySelectorAll("[data-map-color]")]
+          .filter((field) => this.dialog.querySelector(`[data-map-toggle="${field.dataset.mapColor}"]`).checked)
+          .map((field) => [field.dataset.mapColor, field.value]));
+        this.dialog.querySelectorAll("[data-map-color]").forEach((field) => { field.disabled = !this.dialog.querySelector(`[data-map-toggle="${field.dataset.mapColor}"]`).checked; });
+        this.syncBasemapTheme?.();
+      };
+      this.dialog.querySelectorAll("[data-map-toggle]").forEach((field) => field.addEventListener("change", updateMapColors));
+      this.dialog.querySelectorAll("[data-map-color]").forEach((field) => field.addEventListener("input", updateMapColors));
+      this.dialog.querySelector("[data-map-reset]").addEventListener("click", () => { delete mapPalettes[skin.value]; chooseSkin(skin.value); });
+      this.dialog.querySelector("[data-use-skin-basemap]").addEventListener("click", () => {
+        this.mapController.setBasemap(SKIN_BASEMAP);
+        this.toast("Skin basemap selected.");
+      });
+    }
     chooseSkin(normalizeSkin(current.skin));
   }
 

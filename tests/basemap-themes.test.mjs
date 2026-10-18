@@ -5,7 +5,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
-import { SKIN_BASEMAP, THEME_TOKENS, contrast, luminance, mix, parseColor, themeFromComputedStyle, themeFromTokens } from "../js/basemap-themes.js";
+import { SKIN_BASEMAP, THEME_TOKENS, applyMapColors, normalizeMapColors, contrast, luminance, mix, parseColor, themeFromComputedStyle, themeFromTokens } from "../js/basemap-themes.js";
 import { applyBasemapTheme, classifyLayer } from "../js/engines/maplibre/basemap-theme.js";
 import { openBasemapFor } from "../js/engines/maplibre/basemaps.js";
 import { MaplibreEngine } from "../js/engines/maplibre/maplibre-engine.js";
@@ -40,6 +40,32 @@ test("colour helpers parse, mix and measure contrast", () => {
   assert.equal(mix("#000000", "#ffffff", 0.5), "#808080");
   assert.equal(Math.round(contrast("#000000", "#ffffff")), 21);
   assert.ok(luminance("#ffffff") > luminance("#777777"));
+});
+
+test("map color overrides affect basemap components and 3D buildings without changing the data accent", () => {
+  const base = themeFromTokens(tokensFor("highway"), { skin: "highway" });
+  const colors = { land: "#112233", water: "#224466", roads: "#abcdef", buildings: "#ff0000", vegetation: "#00aa00", labels: "#ffffff" };
+  const theme = applyMapColors(base, colors);
+  assert.equal(theme.accent, base.accent);
+  const style = { layers: [
+    { id: "ground", type: "background" },
+    { id: "water", type: "fill", "source-layer": "water" },
+    { id: "road_primary", type: "line", "source-layer": "transportation" },
+    { id: "building", type: "fill", "source-layer": "building" },
+    { id: "building-3d", type: "fill-extrusion", "source-layer": "building" },
+    { id: "park", type: "fill", "source-layer": "park" },
+    { id: "city", type: "symbol", "source-layer": "place" },
+  ] };
+  const layers = applyBasemapTheme(style, theme).layers;
+  assert.equal(layers[0].paint["background-color"], colors.land);
+  assert.equal(layers[1].paint["fill-color"], colors.water);
+  assert.equal(layers[2].paint["line-color"], colors.roads);
+  assert.equal(layers[3].paint["fill-color"], colors.buildings);
+  assert.equal(layers[4].paint["fill-extrusion-color"], colors.buildings);
+  assert.equal(layers[5].paint["fill-color"], colors.vegetation);
+  assert.equal(layers[6].paint["text-color"], colors.labels);
+  assert.deepEqual(normalizeMapColors({ buildings: "#ABCDEF", water: "red", bad: "#ffffff" }), { buildings: "#abcdef" });
+  assert.deepEqual(applyMapColors(base, {}), base);
 });
 
 test("every skin's tokens give a complete, readable basemap theme in its own neutrals", () => {

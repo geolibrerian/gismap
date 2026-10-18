@@ -38,6 +38,14 @@ test("custom skin colors are validated and kept with project presentation", () =
   assert.deepEqual(tokens, {});
 });
 
+test("map component colors survive project presentation updates and validate per skin", () => {
+  const project = manager();
+  project.setPresentation({ skin: "wavelength", mapColors: { wavelength: { buildings: "#ABCDEF", water: "nope", roads: "#123456" }, unknown: { land: "#ffffff" } } });
+  assert.deepEqual(project.current.presentation.mapColors, { wavelength: { roads: "#123456", buildings: "#abcdef" } });
+  project.patchPresentation({ title: "A map" });
+  assert.deepEqual(project.current.presentation.mapColors.wavelength, { roads: "#123456", buildings: "#abcdef" });
+});
+
 test("applying a skin marks the whole document, not just #app", () => {
   const classes = new Set();
   const app = { dataset: {} };

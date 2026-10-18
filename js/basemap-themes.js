@@ -125,3 +125,26 @@ export function themeFromComputedStyle(style, { dark = false, skin = null } = {}
   const tokens = Object.fromEntries(THEME_TOKENS.map((name) => [name, style?.getPropertyValue?.(`--${name}`)?.trim() || null]));
   return themeFromTokens(tokens, { dark, skin });
 }
+
+export const MAP_COLOR_COMPONENTS = Object.freeze({ land: "Land", water: "Water", roads: "Roads", buildings: "Buildings", vegetation: "Parks and vegetation", labels: "Labels" });
+
+/** Only accept known components and opaque six-digit colors from project data. */
+export function normalizeMapColors(value) {
+  if (!value || typeof value !== "object") return {};
+  return Object.fromEntries(Object.keys(MAP_COLOR_COMPONENTS)
+    .filter((key) => typeof value[key] === "string" && /^#[0-9a-f]{6}$/i.test(value[key]))
+    .map((key) => [key, value[key].toLowerCase()]));
+}
+
+/** Apply optional basemap-only overrides without changing the skin's data accent. */
+export function applyMapColors(theme, value) {
+  const colors = normalizeMapColors(value);
+  const result = { ...theme };
+  if (colors.land) Object.assign(result, { land: colors.land, landuse: mix(colors.land, theme.labelStrong, 0.035), landcoverBare: colors.land, labelHalo: colors.land });
+  if (colors.water) Object.assign(result, { water: colors.water, waterLine: colors.water });
+  if (colors.roads) Object.assign(result, { roadMinor: colors.roads, roadMajor: colors.roads, roadCasing: mix(colors.roads, result.land, 0.45), rail: colors.roads });
+  if (colors.buildings) Object.assign(result, { building: colors.buildings, buildingOutline: mix(colors.buildings, theme.labelStrong, 0.25) });
+  if (colors.vegetation) Object.assign(result, { park: colors.vegetation, landcover: colors.vegetation });
+  if (colors.labels) Object.assign(result, { label: colors.labels, labelStrong: colors.labels, waterLabel: colors.labels });
+  return result;
+}

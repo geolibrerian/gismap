@@ -9,7 +9,7 @@ assert.match(html, /data-action="map-presentation">Instant presentations…</, "
 const picker = ui.slice(ui.indexOf("  #presentationDialog()"), ui.indexOf("  #openGuidedTours()"));
 assert.doesNotMatch(picker, /data-presentation-template|presentation-title|presentation-primary/, "The skin picker must not change the mode, title, or layer.");
 assert.match(picker, /applyInterfaceSkin\(skin\.value, \{ colors: palettes\[skin\.value\] \}\)/, "Choosing a skin previews its colors without changing the mode.");
-assert.match(picker, /patchPresentation\(\{ skin, skinColors: palettes \}\)/, "Applying a skin persists only the appearance.");
+assert.match(picker, /patchPresentation\(\{ skin, skinColors: palettes, .*mapColors: mapPalettes/, "Applying a skin persists appearance and map colors.");
 assert.match(ui, /#openGuidedTours\(\)[\s\S]*?template: "atlas"[\s\S]*?chapters: Array\.isArray\(current\.chapters\)/, "Opening Guided Tours directly must preserve existing chapters.");
 const app = await readFile(new URL("../js/app.js", import.meta.url), "utf8");
 

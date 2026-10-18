@@ -1,6 +1,7 @@
 import { applicationToLegacyPresentation, normalizeApplicationConfig } from "./application-config.js?v=0.18.2";
 import { normalizeDataCatalog } from "./data-catalog.js?v=0.18.2";
 import { normalizeSkin, normalizeSkinColors } from "./skin-catalog.js?v=0.52.3";
+import { normalizeMapColors } from "./basemap-themes.js?v=0.53.0-mapcolors1";
 import { normalizeMobileWorkflow } from "./mobile-feed-store.js?v=0.18.7";
 import { normalizeBriefing } from "./briefing-document.js?v=0.35.0";
 import { composeSmartImage, embedProjectInPng, readProjectFromPng } from "./smart-image.js?v=0.44.2";
@@ -378,6 +379,7 @@ export class ProjectManager {
       template,
       skin: normalizeSkin(value.skin),
       skinColors: Object.fromEntries(Object.entries(value.skinColors && typeof value.skinColors === "object" ? value.skinColors : {}).filter(([id]) => normalizeSkin(id) === id).map(([id, colors]) => [id, normalizeSkinColors(colors)]).filter(([, colors]) => colors)),
+      mapColors: Object.fromEntries(Object.entries(value.mapColors && typeof value.mapColors === "object" ? value.mapColors : {}).filter(([id]) => normalizeSkin(id) === id).map(([id, colors]) => [id, normalizeMapColors(colors)]).filter(([, colors]) => Object.keys(colors).length)),
       title,
       modeTitles,
       briefingSelection: selection && typeof selection === "object" ? {

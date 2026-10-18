@@ -58,7 +58,7 @@ test('the direct dragon page is up to date and uses the same game without a 404 
   assert.match(direct, /\/js\/dragon-game\.js\?v=10/);
   assert.match(direct, /download="here-be-dragons\.png"/);
   assert.doesNotMatch(direct, /id="shareQrBrand"/);
-  assert.match(direct, /href="\/examples\/">See Examples<\/a>/);
+  assert.match(direct, /href="\/examples\/">See examples<\/a>/);
   assert.match(direct, />Download QR Card<\/a>/);
   assert.match(direct, /type="submit">Share your legend<\/button>/);
   const redirects = await readFile(new URL('../_redirects', import.meta.url), 'utf8');
