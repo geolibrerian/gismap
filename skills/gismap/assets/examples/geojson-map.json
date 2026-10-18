@@ -1,0 +1,1 @@
+{"version":1,"title":"GeoJSON example","basemap":"gray-vector","camera":{"center":[-105,40],"zoom":6},"layers":[{"url":"https://gismap.online/skills/gismap/assets/examples/places.geojson","type":"geojson","title":"Example places"}]}

@@ -1,0 +1,348 @@
+{
+  "$schema": "https://gismap.online/schemas/map-v1.schema.json",
+  "version": 1,
+  "title": "Major League ballparks by state",
+  "basemap": "gray-vector",
+  "layers": [
+    {
+      "url": "https://services.arcgis.com/P3ePLMYs2RVChkJx/arcgis/rest/services/USA_States_Generalized_Boundaries/FeatureServer/0",
+      "title": "U.S. states",
+      "renderer": {
+        "type": "choropleth",
+        "field": "POP_SQMI",
+        "method": "auto",
+        "ramp": "blues"
+      },
+      "opacity": 0.7
+    },
+    {
+      "url": "https://services.arcgis.com/P3ePLMYs2RVChkJx/arcgis/rest/services/Major_League_Baseball_Stadiums/FeatureServer/0",
+      "title": "MLB ballparks",
+      "renderer": {
+        "type": "categories",
+        "field": "LEAGUE",
+        "colors": {
+          "American": "#c8102e",
+          "National": "#002d72"
+        }
+      }
+    }
+  ],
+  "briefing": {
+    "schemaVersion": 1,
+    "layerId": "https://services.arcgis.com/P3ePLMYs2RVChkJx/arcgis/rest/services/USA_States_Generalized_Boundaries/FeatureServer/0",
+    "transition": "cut",
+    "selection": {
+      "ids": [
+        "5",
+        "44",
+        "10",
+        "33",
+        "39",
+        "36",
+        "26",
+        "14"
+      ]
+    },
+    "slides": [
+      {
+        "id": "s-title",
+        "template": "title",
+        "title": "Major League ballparks by state",
+        "subtitle": "Two layers, one briefing · made by an AI agent",
+        "camera": {
+          "center": [
+            -96,
+            38.5
+          ],
+          "zoom": 3.6
+        },
+        "blocks": [
+          {
+            "type": "text",
+            "markdown": "States are shaded by **population density**; ballparks are coloured by **league**. Each state slide shows only the ballparks inside that state."
+          }
+        ]
+      },
+      {
+        "id": "s-california",
+        "template": "feature",
+        "title": "California",
+        "featureId": "5",
+        "fit": "feature",
+        "layers": [
+          {
+            "layer": "https://services.arcgis.com/P3ePLMYs2RVChkJx/arcgis/rest/services/Major_League_Baseball_Stadiums/FeatureServer/0",
+            "visible": true,
+            "relation": {
+              "type": "contains"
+            }
+          }
+        ],
+        "blocks": [
+          {
+            "type": "facts",
+            "fields": [
+              "STATE_NAME",
+              "POPULATION",
+              "POP_SQMI"
+            ]
+          },
+          {
+            "type": "text",
+            "markdown": "Ballparks: five teams, the most of any state. Only the ballparks inside California are shown (spatial relationship: contains)."
+          }
+        ]
+      },
+      {
+        "id": "s-texas",
+        "template": "feature",
+        "title": "Texas",
+        "featureId": "44",
+        "fit": "feature",
+        "layers": [
+          {
+            "layer": "https://services.arcgis.com/P3ePLMYs2RVChkJx/arcgis/rest/services/Major_League_Baseball_Stadiums/FeatureServer/0",
+            "visible": true,
+            "relation": {
+              "type": "contains"
+            }
+          }
+        ],
+        "blocks": [
+          {
+            "type": "facts",
+            "fields": [
+              "STATE_NAME",
+              "POPULATION",
+              "POP_SQMI"
+            ]
+          },
+          {
+            "type": "text",
+            "markdown": "Ballparks: Houston and Arlington. Only the ballparks inside Texas are shown (spatial relationship: contains)."
+          }
+        ]
+      },
+      {
+        "id": "s-florida",
+        "template": "feature",
+        "title": "Florida",
+        "featureId": "10",
+        "fit": "feature",
+        "layers": [
+          {
+            "layer": "https://services.arcgis.com/P3ePLMYs2RVChkJx/arcgis/rest/services/Major_League_Baseball_Stadiums/FeatureServer/0",
+            "visible": true,
+            "relation": {
+              "type": "contains"
+            }
+          }
+        ],
+        "blocks": [
+          {
+            "type": "facts",
+            "fields": [
+              "STATE_NAME",
+              "POPULATION",
+              "POP_SQMI"
+            ]
+          },
+          {
+            "type": "text",
+            "markdown": "Ballparks: Miami and St. Petersburg. Only the ballparks inside Florida are shown (spatial relationship: contains)."
+          }
+        ]
+      },
+      {
+        "id": "s-new-york",
+        "template": "feature",
+        "title": "New York",
+        "featureId": "33",
+        "fit": "feature",
+        "layers": [
+          {
+            "layer": "https://services.arcgis.com/P3ePLMYs2RVChkJx/arcgis/rest/services/Major_League_Baseball_Stadiums/FeatureServer/0",
+            "visible": true,
+            "relation": {
+              "type": "contains"
+            }
+          }
+        ],
+        "blocks": [
+          {
+            "type": "facts",
+            "fields": [
+              "STATE_NAME",
+              "POPULATION",
+              "POP_SQMI"
+            ]
+          },
+          {
+            "type": "text",
+            "markdown": "Ballparks: both in New York City. Only the ballparks inside New York are shown (spatial relationship: contains)."
+          }
+        ]
+      },
+      {
+        "id": "s-pennsylvania",
+        "template": "feature",
+        "title": "Pennsylvania",
+        "featureId": "39",
+        "fit": "feature",
+        "layers": [
+          {
+            "layer": "https://services.arcgis.com/P3ePLMYs2RVChkJx/arcgis/rest/services/Major_League_Baseball_Stadiums/FeatureServer/0",
+            "visible": true,
+            "relation": {
+              "type": "contains"
+            }
+          }
+        ],
+        "blocks": [
+          {
+            "type": "facts",
+            "fields": [
+              "STATE_NAME",
+              "POPULATION",
+              "POP_SQMI"
+            ]
+          },
+          {
+            "type": "text",
+            "markdown": "Ballparks: Philadelphia and Pittsburgh. Only the ballparks inside Pennsylvania are shown (spatial relationship: contains)."
+          }
+        ]
+      },
+      {
+        "id": "s-ohio",
+        "template": "feature",
+        "title": "Ohio",
+        "featureId": "36",
+        "fit": "feature",
+        "layers": [
+          {
+            "layer": "https://services.arcgis.com/P3ePLMYs2RVChkJx/arcgis/rest/services/Major_League_Baseball_Stadiums/FeatureServer/0",
+            "visible": true,
+            "relation": {
+              "type": "contains",
+              "distance": 1,
+              "units": "miles"
+            }
+          }
+        ],
+        "blocks": [
+          {
+            "type": "facts",
+            "fields": [
+              "STATE_NAME",
+              "POPULATION",
+              "POP_SQMI"
+            ]
+          },
+          {
+            "type": "text",
+            "markdown": "Ballparks: Cleveland and Cincinnati. Cincinnati's park sits on the Ohio River, the state line, so this slide grows Ohio by **1 mile** before asking which ballparks it contains."
+          }
+        ]
+      },
+      {
+        "id": "s-missouri",
+        "template": "feature",
+        "title": "Missouri",
+        "featureId": "26",
+        "fit": "feature",
+        "layers": [
+          {
+            "layer": "https://services.arcgis.com/P3ePLMYs2RVChkJx/arcgis/rest/services/Major_League_Baseball_Stadiums/FeatureServer/0",
+            "visible": true,
+            "relation": {
+              "type": "contains"
+            }
+          }
+        ],
+        "blocks": [
+          {
+            "type": "facts",
+            "fields": [
+              "STATE_NAME",
+              "POPULATION",
+              "POP_SQMI"
+            ]
+          },
+          {
+            "type": "text",
+            "markdown": "Ballparks: Kansas City and St. Louis. Only the ballparks inside Missouri are shown (spatial relationship: contains)."
+          }
+        ]
+      },
+      {
+        "id": "s-illinois",
+        "template": "feature",
+        "title": "Illinois",
+        "featureId": "14",
+        "fit": "feature",
+        "layers": [
+          {
+            "layer": "https://services.arcgis.com/P3ePLMYs2RVChkJx/arcgis/rest/services/Major_League_Baseball_Stadiums/FeatureServer/0",
+            "visible": true,
+            "relation": {
+              "type": "contains"
+            }
+          }
+        ],
+        "blocks": [
+          {
+            "type": "facts",
+            "fields": [
+              "STATE_NAME",
+              "POPULATION",
+              "POP_SQMI"
+            ]
+          },
+          {
+            "type": "text",
+            "markdown": "Ballparks: both in Chicago. Only the ballparks inside Illinois are shown (spatial relationship: contains)."
+          }
+        ]
+      },
+      {
+        "id": "s-how",
+        "template": "actions",
+        "title": "How this briefing was built",
+        "camera": {
+          "center": [
+            -96,
+            38.5
+          ],
+          "zoom": 3.6
+        },
+        "blocks": [
+          {
+            "type": "list",
+            "items": [
+              "Main layer: U.S. states. Other layer: MLB ballparks, limited on each state slide by a spatial query to the ballparks the state contains.",
+              "The generalized outlines put Cincinnati's ballpark, on the Ohio River, just inside Kentucky, so the Ohio slide grows Ohio by 1 mile first.",
+              "Growing Illinois the same way would pull in St. Louis's Busch Stadium across the Mississippi, so only Ohio is grown.",
+              "Rogers Centre (Toronto Blue Jays) is in Canada, so no state slide shows it.",
+              "Slides cut between states rather than flying across the country."
+            ]
+          },
+          {
+            "type": "links",
+            "links": [
+              {
+                "label": "USA States Generalized Boundaries",
+                "url": "https://services.arcgis.com/P3ePLMYs2RVChkJx/arcgis/rest/services/USA_States_Generalized_Boundaries/FeatureServer/0"
+              },
+              {
+                "label": "Major League Baseball Stadiums",
+                "url": "https://services.arcgis.com/P3ePLMYs2RVChkJx/arcgis/rest/services/Major_League_Baseball_Stadiums/FeatureServer/0"
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

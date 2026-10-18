@@ -1,0 +1,3 @@
+# Sharing
+
+`await mapSpec.createLink(spec)` returns a URL and QR suitability; `mapSpec.decode` checks its encoded content. Inspect the decoded spec against intended filters, layers, renderer, camera and briefing. Then open the result in the app and verify rendered state. Encoded equality is not a rendering or mobile test. Public links expose their content: do not include credentials, sensitive personal information, or private service URLs. Respect payload limits; use the app's supported file export or hosted map spec instead of a third-party shortener. See https://gismap.online/guides/ai-agents/.
