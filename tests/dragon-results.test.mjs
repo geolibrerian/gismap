@@ -7,15 +7,15 @@ const code = await readFile(new URL('../js/dragon-results.js', import.meta.url),
 function setup({nativeShare = true, clipboard = true} = {}) {
   const listeners = new Map();
   const make = (id) => ({ id, value:'', textContent:'', hidden:false, href:'', focus(){}, select(){}, showModal(){}, close(){}, setCustomValidity(){}, reportValidity(){}, addEventListener(type, fn){listeners.set(`${id}:${type}`,fn)} });
-  const nodes = Object.fromEntries(['legendStory','legendScroll','legendScore','shareResults','shareDialog','shareClose','shareQr','shareStatus','copyLink','challengeBanner','downloadQr','recordDialog','recordForm','recordName','recordScore','mobileShare','copyFallback','copyFallbackLabel'].map(id=>[id,make(id)]));
+  const nodes = Object.fromEntries(['legendStory','legendScroll','legendScore','shareResults','shareDialog','shareClose','shareQr','shareQrBrand','shareStatus','copyLink','challengeBanner','downloadQr','recordDialog','recordForm','recordName','recordScore','recordOutcome','recordFlyAgain','mobileShare','copyFallback','copyFallbackLabel'].map(id=>[id,make(id)]));
   let encoded = '', copied = '', shared = null, dragonDrawn = false;
-  const draws = [];
-  const ctx = new Proxy({}, { get: (_target, key) => (...args) => { if (key === 'drawImage') draws.push(args); }, set: () => true });
+  const draws = [], labels = [];
+  const ctx = new Proxy({}, { get: (_target, key) => (...args) => { if (key === 'drawImage') draws.push(args); if (key === 'fillText') labels.push(args[0]); }, set: () => true });
   nodes.shareQr.getContext = () => ctx;
   nodes.shareQr.toDataURL = () => 'data:image/png;base64,example';
   const context = { document:{querySelector: selector=>nodes[selector.slice(1)], createElement: () => ({})}, location:{origin:'https://gismap.online'}, navigator:{clipboard:{writeText:async url=>{if (!clipboard) throw new Error('unavailable'); copied=url}},share:nativeShare ? async data=>{shared=data} : undefined}, URL, URLSearchParams, Math, Array, String, Number, DragonArt:{drawDragon:()=>{dragonDrawn=true}}, QRCode:{toCanvas:async (_canvas, url)=>{encoded=url}} };
   runInNewContext(code, context);
-  return { api:context.DragonResults, nodes, listeners, getEncoded:()=>encoded, getCopied:()=>copied, getShared:()=>shared, getDragonDrawn:()=>dragonDrawn, draws };
+  return { api:context.DragonResults, nodes, listeners, getEncoded:()=>encoded, getCopied:()=>copied, getShared:()=>shared, getDragonDrawn:()=>dragonDrawn, draws, labels };
 }
 test('share links preserve name and score and reject malformed results', () => {
   const {api} = setup();
@@ -75,6 +75,7 @@ test('share generates a decorated downloadable QR without drawing over its quiet
   await listeners.get('shareResults:click')();
   assert.equal(nodes.shareQr.width,600);
   assert.equal(nodes.shareQr.height,760);
+  assert.equal(nodes.shareQrBrand.hidden,false);
   assert.equal(nodes.downloadQr.hidden,false);
   assert.match(nodes.downloadQr.href,/^data:image\/png/);
   assert.equal(getDragonDrawn(),true);
@@ -114,4 +115,53 @@ test('mobile sharing falls back to copy and offers manual copy if clipboard is u
   await second.listeners.get('mobileShare:click')();
   assert.equal(second.nodes.copyFallback.hidden, false);
   assert.equal(second.nodes.copyFallback.value, second.getEncoded());
+});
+
+
+test('fly again skips recording even without a name', () => {
+  const {api,nodes,listeners} = setup();
+  let retried = 0, recorded = 0;
+  api.record({score:1,distance:20}, () => recorded++, () => retried++);
+  nodes.recordName.value = '';
+  listeners.get('recordFlyAgain:click')();
+  assert.equal(retried, 1);
+  assert.equal(recorded, 0);
+  listeners.get('recordForm:submit')({preventDefault(){}});
+  assert.equal(recorded, 0);
+});
+
+
+test('challenge outcomes are announced and preserved in shared legends and QR cards', async () => {
+  const target = {name:'<Old Wyrm>',score:3,distance:100};
+  for (const [score, distance, message, story, card] of [
+    [4, 0, 'You have defeated <Old Wyrm>.', /SURPASSED THE LEGEND OF <OLD WYRM>/, 'DEFEATED <OLD WYRM>'],
+    [2, 999, 'You have been defeated by <Old Wyrm>.', /FELL SHORT OF THE LEGEND OF <OLD WYRM>/, 'OUTMATCHED BY <OLD WYRM>'],
+    [3, 100.9, 'You have tied with <Old Wyrm>.', /MATCHED THE LEGEND OF <OLD WYRM>/, 'TIED WITH <OLD WYRM>'],
+  ]) {
+    const {api,nodes,listeners,getEncoded,labels} = setup();
+    let recorded;
+    api.record({score,distance,challenge:target}, value => { recorded = value; api.show(value); });
+    assert.equal(nodes.recordOutcome.hidden, false);
+    assert.equal(nodes.recordOutcome.textContent, message);
+    nodes.recordName.value = 'New Wyrm';
+    listeners.get('recordForm:submit')({preventDefault(){}});
+    assert.match(nodes.legendStory.textContent, story);
+    assert.equal(recorded.challenge.name, target.name);
+    await listeners.get('shareResults:click')();
+    assert.ok(labels.includes(card));
+    const restored = api.parse(getEncoded());
+    assert.equal(restored.challenge.name, target.name);
+    assert.match(api.storyFor(restored), story);
+  }
+  const {api,nodes} = setup();
+  api.record({score:0,distance:0}, () => {});
+  assert.equal(nodes.recordOutcome.hidden, true);
+});
+
+test('malformed challenger data is ignored and older winning links stay readable', () => {
+  const {api} = setup();
+  const malformed = api.parse('https://gismap.online/dragons/?legend=1&name=A&maidens=1&distance=2&challenger=B&challengerMaidens=-1&challengerDistance=1');
+  assert.equal(malformed.challenge, undefined);
+  const old = api.parse('https://gismap.online/dragons/?legend=1&name=A&maidens=2&distance=2&beaten=B&beatenMaidens=1&beatenDistance=1');
+  assert.match(api.storyFor(old), /SURPASSED THE LEGEND OF B/);
 });

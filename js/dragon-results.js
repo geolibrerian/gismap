@@ -12,6 +12,9 @@
       const name = cleanName(p.get('name'));
       if (!name) return null;
       const result = { name, score: Number(p.get('maidens')), distance: Number(p.get('distance')) };
+      if (cleanName(p.get('challenger')) && validNumber(p.get('challengerMaidens')) && validNumber(p.get('challengerDistance'))) {
+        result.challenge = { name: cleanName(p.get('challenger')), score: Number(p.get('challengerMaidens')), distance: Number(p.get('challengerDistance')) };
+      }
       if (cleanName(p.get('beaten')) && validNumber(p.get('beatenMaidens')) && validNumber(p.get('beatenDistance'))) {
         const target = { name: cleanName(p.get('beaten')), score: Number(p.get('beatenMaidens')), distance: Number(p.get('beatenDistance')) };
         if (beats(result, target)) result.beaten = target;
@@ -22,7 +25,11 @@
   const linkFor = (origin, result) => {
     const url = new URL('/dragons/', origin);
     const params = new URLSearchParams({ legend: '1', name: cleanName(result.name), maidens: String(result.score), distance: String(result.distance) });
-    if (result.beaten && beats(result, result.beaten)) {
+    if (result.challenge) {
+      params.set('challenger', cleanName(result.challenge.name));
+      params.set('challengerMaidens', String(result.challenge.score));
+      params.set('challengerDistance', String(result.challenge.distance));
+    } else if (result.beaten && beats(result, result.beaten)) {
       params.set('beaten', cleanName(result.beaten.name));
       params.set('beatenMaidens', String(result.beaten.score));
       params.set('beatenDistance', String(result.beaten.distance));
@@ -30,20 +37,35 @@
     url.search = params;
     return url.href;
   };
-  const storyFor = ({ name, score, distance, beaten }) => {
+  const challengeOutcome = (result, target) => {
+    if (!target) return null;
+    const comparable = { score: result.score, distance: Math.floor(result.distance) };
+    return beats(comparable, target) ? 'win' : beats(target, comparable) ? 'loss' : 'tie';
+  };
+  const storyFor = ({ name, score, distance, beaten, challenge }) => {
     const dragon = cleanName(name) || 'THE NAMELESS DRAGON';
-    const triumph = beaten && beats({score, distance}, beaten) ? `\n\nAND LO! ${dragon.toUpperCase()} SURPASSED THE LEGEND OF ${cleanName(beaten.name).toUpperCase()}, WHOSE SCORE WAS ${beaten.score} MAIDENS AND ${beaten.distance} LEAGUES. THE ROYAL SCOREKEEPER DROPPED HIS QUILL.` : '';
-    return `HEAR YE, HEAR YE!\n\nWE, THE BRAVE KNIGHTS OF THE REALM, FINALLY SLEW ${dragon.toUpperCase()}!\n\nTHE BEAST CROSSED ${distance} LEAGUES, OUTWITTING SERPENTS, KRAKENS, AND AN ALARMING NUMBER OF LANCES.\n\nWE LOST ${score} ${score === 1 ? 'MAIDEN' : 'MAIDENS'} TO THE BEAST. WE SHALL BE DISCUSSING THIS WITH THE CASTLE GUARDS.${triumph}\n\nAT LAST WE TRIUMPHED! (THE DRAGON MAY ALSO HAVE HIT THE GROUND.)\n\nTHUS ENDS THE LEGEND. INSERT ANOTHER ADVENTURE?`;
+    const target = challenge || beaten;
+    const outcome = challengeOutcome({ score, distance }, target);
+    let contest = '';
+    if (target && outcome) {
+      const opponent = cleanName(target.name).toUpperCase();
+      const comparison = outcome === 'win' ? `SURPASSED THE LEGEND OF ${opponent}` : outcome === 'loss' ? `FELL SHORT OF THE LEGEND OF ${opponent}` : `MATCHED THE LEGEND OF ${opponent}`;
+      contest = `\n\nAND LO! ${dragon.toUpperCase()} ${comparison}, WHOSE SCORE WAS ${target.score} MAIDENS AND ${target.distance} LEAGUES. THE ROYAL SCOREKEEPER DROPPED HIS QUILL.`;
+    }
+    return `HEAR YE, HEAR YE!\n\nWE, THE BRAVE KNIGHTS OF THE REALM, FINALLY SLEW ${dragon.toUpperCase()}!\n\nTHE BEAST CROSSED ${distance} LEAGUES, OUTWITTING SERPENTS, KRAKENS, AND AN ALARMING NUMBER OF LANCES.\n\nWE LOST ${score} ${score === 1 ? 'MAIDEN' : 'MAIDENS'} TO THE BEAST. WE SHALL BE DISCUSSING THIS WITH THE CASTLE GUARDS.${contest}\n\nAT LAST WE TRIUMPHED! (THE DRAGON MAY ALSO HAVE HIT THE GROUND.)\n\nTHUS ENDS THE LEGEND. INSERT ANOTHER ADVENTURE?`;
   };
   const story = document.querySelector('#legendStory'), scroll = document.querySelector('#legendScroll'), scoreText = document.querySelector('#legendScore'), shareButton = document.querySelector('#shareResults'), banner = document.querySelector('#challengeBanner');
   const dialog = document.querySelector('#shareDialog'), close = document.querySelector('#shareClose');
-  const qr = document.querySelector('#shareQr'), status = document.querySelector('#shareStatus'), copy = document.querySelector('#copyLink'), download = document.querySelector('#downloadQr'), mobileShare = document.querySelector('#mobileShare'), copyFallback = document.querySelector('#copyFallback'), copyFallbackLabel = document.querySelector('#copyFallbackLabel'), brand = document.querySelector('.logo img');
-  const recordDialog = document.querySelector('#recordDialog'), recordForm = document.querySelector('#recordForm'), recordName = document.querySelector('#recordName'), recordScore = document.querySelector('#recordScore');
+  const qr = document.querySelector('#shareQr'), qrBrand = document.querySelector('#shareQrBrand'), status = document.querySelector('#shareStatus'), copy = document.querySelector('#copyLink'), download = document.querySelector('#downloadQr'), mobileShare = document.querySelector('#mobileShare'), copyFallback = document.querySelector('#copyFallback'), copyFallbackLabel = document.querySelector('#copyFallbackLabel'), brand = document.querySelector('.logo img');
+  const recordDialog = document.querySelector('#recordDialog'), recordForm = document.querySelector('#recordForm'), recordName = document.querySelector('#recordName'), recordScore = document.querySelector('#recordScore'), recordOutcome = document.querySelector('#recordOutcome'), recordFlyAgain = document.querySelector('#recordFlyAgain');
   let current = null, pendingRecord = null, shareUrl = '', shareImage = null, shareGeneration = 0;
-  function record(result, onComplete) {
-    pendingRecord = { result, onComplete };
+  function record(result, onComplete, onRetry) {
+    pendingRecord = { result, onComplete, onRetry };
     recordName.value = '';
     recordName.setCustomValidity('');
+    const outcome = challengeOutcome(result, result.challenge);
+    recordOutcome.hidden = !outcome;
+    recordOutcome.textContent = outcome ? `You have ${outcome === 'win' ? 'defeated' : outcome === 'loss' ? 'been defeated by' : 'tied with'} ${cleanName(result.challenge.name)}.` : '';
     recordScore.textContent = `Maidens ${result.score} · Distance ${Math.floor(result.distance)} leagues`;
     recordDialog.showModal();
     recordName.focus();
@@ -59,6 +81,13 @@
     recordDialog.close();
     onComplete({ ...result, name });
   });
+  recordFlyAgain.addEventListener('click', () => {
+    if (!pendingRecord) return;
+    const { onRetry } = pendingRecord;
+    pendingRecord = null;
+    recordDialog.close();
+    onRetry();
+  });
   recordName.addEventListener('input', () => recordName.setCustomValidity(''));
   // Keep the game-over flow reachable even when the browser sends Escape.
   recordDialog.addEventListener('cancel', (event) => event.preventDefault());
@@ -69,7 +98,7 @@
     banner.textContent = `${challengeMessage(target)} More maidens wins; distance breaks a tie.`;
   }
   function show(result) {
-    current = { name: cleanName(result.name), score: Math.max(0, Math.min(MAX_SCORE, Math.floor(result.score))), distance: Math.max(0, Math.min(MAX_SCORE, Math.floor(result.distance))), beaten: result.beaten || null };
+    current = { name: cleanName(result.name), score: Math.max(0, Math.min(MAX_SCORE, Math.floor(result.score))), distance: Math.max(0, Math.min(MAX_SCORE, Math.floor(result.distance))), beaten: result.beaten || null, challenge: result.challenge || null };
     story.textContent = storyFor(current); scoreText.textContent = `MAIDENS ${current.score} · DISTANCE ${current.distance} LEAGUES`;
     scroll.hidden = false; scoreText.hidden = false; shareButton.hidden = false;
   }
@@ -86,6 +115,13 @@
     if (brand?.complete && brand.naturalWidth) c.drawImage(brand, 42, 30, 86, 86);
     c.textAlign = 'left'; c.fillStyle = '#ffffff'; c.font = 'bold 31px Arial, sans-serif'; c.fillText('GISMap Online', 146, 72);
     c.fillStyle = '#f6d478'; c.font = 'bold 16px monospace'; c.fillText('HERE BE DRAGONS', 146, 101);
+    const opponent = current.challenge || current.beaten;
+    if (opponent) {
+      const outcome = challengeOutcome(current, opponent);
+      const label = outcome === 'win' ? 'DEFEATED' : outcome === 'loss' ? 'OUTMATCHED BY' : 'TIED WITH';
+      c.textAlign = 'center'; c.fillStyle = '#245245'; c.font = 'bold 13px monospace';
+      c.fillText(`${label} ${cleanName(opponent.name).toUpperCase()}`, 300, 149, 530);
+    }
     c.fillStyle = '#fff4c6'; c.fillRect(76, 156, 448, 448);
     c.imageSmoothingEnabled = false; c.drawImage(source, 80, 160, 440, 440);
     // Reuse the same artwork as the game, scaled to fit below the QR quiet zone.
@@ -105,16 +141,16 @@
       if (brand?.decode) await brand.decode().catch(() => {});
       if (generation !== shareGeneration) return;
       decorateQr(plain, qr);
-      qr.hidden = false; download.href = qr.toDataURL('image/png'); download.hidden = false;
+      qr.hidden = false; qrBrand.hidden = false; download.href = qr.toDataURL('image/png'); download.hidden = false;
       if (qr.toBlob && typeof File !== 'undefined') qr.toBlob((blob) => {
         if (blob && generation === shareGeneration) shareImage = new File([blob], 'here-be-dragons.png', {type: 'image/png'});
       }, 'image/png');
-    } catch { if (generation === shareGeneration) { qr.hidden = true; status.textContent = 'QR code unavailable; you can still share or copy the link.'; } }
+    } catch { if (generation === shareGeneration) { qr.hidden = true; qrBrand.hidden = true; status.textContent = 'QR code unavailable; you can still share or copy the link.'; } }
   }
   shareButton.addEventListener('click', async () => {
     if (!current) return;
     shareUrl = linkFor('https://gismap.online', current); shareImage = null;
-    qr.hidden = true; download.hidden = true; copyFallback.hidden = true; copyFallbackLabel.hidden = true; status.textContent = '';
+    qr.hidden = true; qrBrand.hidden = true; download.hidden = true; copyFallback.hidden = true; copyFallbackLabel.hidden = true; status.textContent = '';
     dialog.showModal();
     await makeShareCard(++shareGeneration);
   });

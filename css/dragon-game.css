@@ -32,3 +32,7 @@ main{max-width:1090px;margin:auto;border:1px solid #bed3c5;border-radius:26px;ba
 .share-actions{justify-content:center}.share-dialog #copyFallback[hidden],.share-dialog #copyFallbackLabel[hidden]{display:none}.share-dialog #shareOutput{margin-top:12px}.share-dialog #shareStatus:empty{display:none}
 
 .share-dialog #shareQr[hidden],.share-dialog #downloadQr[hidden]{display:none}
+
+.dialog-actions a.dialog-secondary{display:inline-flex;align-items:center;justify-content:center;text-decoration:none}
+
+.share-qr-card{position:relative;width:min(100%,300px);margin:auto}.share-dialog .share-qr-card #shareQr{width:100%}.share-qr-brand{position:absolute;left:0;right:0;top:0;height:17.7%;border-radius:3px}.share-qr-brand[hidden]{display:none}.share-qr-brand:focus-visible{outline:3px solid #f6d478;outline-offset:-4px}

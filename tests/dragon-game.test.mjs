@@ -55,8 +55,9 @@ test('the direct dragon page is up to date and uses the same game without a 404 
   assert.match(direct, /rel="icon" href="\/assets\/gis-map-online-mark-v2\.png" type="image\/png"/);
   assert.doesNotMatch(direct, /404 ·|couldn’t find that page|content="noindex"/);
   for (const id of ['game', 'canvas', 'start', 'flapButton', 'pauseButton']) assert.match(direct, new RegExp(`id="${id}"`));
-  assert.match(direct, /\/js\/dragon-game\.js\?v=7/);
+  assert.match(direct, /\/js\/dragon-game\.js\?v=9/);
   assert.match(direct, /download="here-be-dragons\.png"/);
+  assert.match(direct, /id="shareQrBrand"[^>]*href="https:\/\/gismap\.online\/"/);
   const redirects = await readFile(new URL('../_redirects', import.meta.url), 'utf8');
   assert.match(redirects, /^\/dragons \/dragons\/ 301$/m);
 });
