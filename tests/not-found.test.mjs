@@ -17,7 +17,9 @@ test('missing URLs use the 404 page and retain proper not-found handling', async
   const html = await file('404.html');
   assert.match(html, /Here be dragons/);
   assert.match(html, /href="\/"/);
-  assert.match(html, /prefers-reduced-motion/);
+  assert.match(await file("css/dragon-game.css"), /prefers-reduced-motion/);
+  assert.match(html, /id="canvas"/);
+  assert.match(html, /id="pauseButton"/);
   assert.match(html, /name="robots" content="noindex"/);
   for (const { path } of DESTINATIONS) assert.ok(await file(`${path.slice(1)}index.html`), path);
 });
