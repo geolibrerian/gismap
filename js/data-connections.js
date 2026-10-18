@@ -17,6 +17,17 @@ export function connectionUrl(value, { allowLoopbackHttp = false } = {}) {
   return url.href;
 }
 
+/** Convert public Source Cooperative file pages to the advertised data host. */
+export function resolveRemoteParquetUrl(value) {
+  const url = new URL(connectionUrl(value));
+  const segments = url.pathname.split('/').filter(Boolean);
+  if (url.hostname === 'source.coop' && !url.port && segments.length >= 3 && /\.(?:parquet|geoparquet)$/i.test(segments.at(-1))) {
+    url.hostname = 'data.source.coop';
+    return { url: url.href, normalized: true };
+  }
+  return { url: url.href, normalized: false };
+}
+
 export class ConnectionRegistry {
   constructor(storage = globalThis.localStorage) { this.storage = storage; }
   list() {

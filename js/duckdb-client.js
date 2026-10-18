@@ -6,7 +6,7 @@ const DUCKDB_MODULE = "https://cdn.jsdelivr.net/npm/@duckdb/duckdb-wasm@1.32.0/+
 function sqlLiteral(value) { return `'${String(value).replaceAll("'", "''")}'`; }
 
 export class DuckDBBrowserClient {
-  constructor() { this.db = null; this.connection = null; this.worker = null; this.loadedRelations = new Set(); this.registeredFiles = new Set(); this.relationFiles = new Map(); this.initializing = null; }
+  constructor() { this.db = null; this.connection = null; this.worker = null; this.loadedRelations = new Set(); this.registeredFiles = new Set(); this.relationFiles = new Map(); this.parquetSources = new Map(); this.initializing = null; }
 
   async initialize() {
     if (this.connection) return this;
@@ -48,6 +48,7 @@ export class DuckDBBrowserClient {
       if (previous) { await this.db.dropFile?.(previous); this.registeredFiles.delete(previous); }
       this.registeredFiles.add(filename);
       this.relationFiles.set(name, filename);
+      if (["parquet", "geoparquet"].includes(extension)) this.parquetSources.set(name, filename); else this.parquetSources.delete(name);
       this.loadedRelations.add(name);
       return name;
     } catch (error) {
@@ -66,6 +67,45 @@ export class DuckDBBrowserClient {
       this.connection.query(`SELECT * FROM ${identifier} LIMIT ${size}`),
     ]);
     return { schema: toRows(schema), rows: toRows(rows) };
+  }
+
+  /** Return a bounded snapshot of a WGS84 GeoParquet relation for map display. */
+  async geoParquetFeatures(name, limit = 1000) {
+    if (!this.loadedRelations.has(name) || !this.parquetSources.has(name)) throw new Error("Load a Parquet file before adding it to the map.");
+    const source = this.parquetSources.get(name);
+    const metadataRows = await this.connection.query(`SELECT decode(value) AS geo FROM parquet_kv_metadata(${sqlLiteral(source)}) WHERE decode(key) = 'geo'`);
+    const metadataRow = metadataRows.toArray()[0];
+    if (!metadataRow) throw new Error("This Parquet file has no GeoParquet geometry metadata; it can still be queried as a table.");
+    let metadata;
+    try { metadata = JSON.parse(metadataRow.toJSON?.().geo ?? metadataRow.geo); }
+    catch { throw new Error("The GeoParquet geometry metadata is invalid."); }
+    const column = metadata.primary_column;
+    const geometryInfo = metadata.columns?.[column];
+    if (typeof column !== "string" || !column || !geometryInfo || geometryInfo.encoding !== "WKB") throw new Error("Only GeoParquet with WKB primary geometry is supported for mapping.");
+    const crs = geometryInfo.crs;
+    if (crs === null || (crs !== undefined && !((crs.id?.authority === "EPSG" && Number(crs.id.code) === 4326) || (crs.id?.authority === "OGC" && String(crs.id.code).toUpperCase() === "CRS84")))) throw new Error("This GeoParquet CRS is unknown or not WGS84 (EPSG:4326 / CRS84). Reproject it before mapping.");
+    await this.checkSpatial();
+    const table = quoteIdentifier(name);
+    const quotedColumn = `"${column.replaceAll('"', '""')}"`;
+    const schemaResult = await this.connection.query(`DESCRIBE SELECT * FROM ${table}`);
+    const schema = schemaResult.toArray().map((row) => row.toJSON?.() || row);
+    const field = schema.find((item) => item.column_name === column);
+    if (!field) throw new Error("The GeoParquet primary geometry column is missing.");
+    const size = Math.max(1, Math.min(5000, Math.floor(Number(limit) || 1000)));
+    const geometrySql = /^GEOMETRY(?:\b|$)/i.test(field.column_type) ? quotedColumn : `ST_GeomFromWKB(${quotedColumn})`;
+    const result = await this.connection.query(`SELECT * EXCLUDE (${quotedColumn}), ST_AsGeoJSON(${geometrySql}) AS "__gismap_geometry" FROM ${table} LIMIT ${size + 1}`);
+    const rows = result.toArray().map((row) => row.toJSON?.() || row);
+    const features = rows.slice(0, size).map((row) => {
+      const { __gismap_geometry: raw, ...properties } = row;
+      let geometry = null;
+      if (raw != null) {
+        try { geometry = typeof raw === "string" ? JSON.parse(raw) : raw; } catch { throw new Error("A geometry could not be converted to GeoJSON."); }
+        if (!geometry || typeof geometry.type !== "string" || (!Array.isArray(geometry.coordinates) && !(geometry.type === "GeometryCollection" && Array.isArray(geometry.geometries)))) throw new Error("The GeoParquet contains an unsupported geometry.");
+      }
+      return { type: "Feature", geometry, properties };
+    });
+    if (!features.some((feature) => feature.geometry)) throw new Error("No non-null geometry was found in the first rows of this dataset.");
+    return { collection: { type: "FeatureCollection", features }, truncated: rows.length > size, limit: size };
   }
 
   async checkSpatial() {
@@ -96,6 +136,7 @@ export class DuckDBBrowserClient {
       } else if (relation.source.url && relation.source.format === "csv") {
         await this.connection.query(`CREATE VIEW ${name} AS SELECT * FROM read_csv_auto(${sqlLiteral(relation.source.url)})`);
       }
+      if (relation.source.url && relation.source.format === "parquet") this.parquetSources.set(relation.name, relation.source.url); else this.parquetSources.delete(relation.name);
       this.loadedRelations.add(relation.name);
     }
     return normalized;
@@ -112,6 +153,6 @@ export class DuckDBBrowserClient {
     for (const file of this.registeredFiles) await this.db?.dropFile?.(file).catch(() => {});
     await this.db?.terminate?.();
     this.worker?.terminate?.();
-    this.connection = null; this.db = null; this.worker = null; this.loadedRelations.clear(); this.registeredFiles.clear(); this.relationFiles.clear();
+    this.connection = null; this.db = null; this.worker = null; this.loadedRelations.clear(); this.registeredFiles.clear(); this.relationFiles.clear(); this.parquetSources.clear();
   }
 }

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { ConnectionRegistry, connectionUrl, discoverOgcCollections, filterOgcCollections, inspectOgcSpatial, ogcItemsUrl, fetchOgcItems, validateOgcGeometry } from '../js/data-connections.js';
+import { ConnectionRegistry, connectionUrl, resolveRemoteParquetUrl, discoverOgcCollections, filterOgcCollections, inspectOgcSpatial, ogcItemsUrl, fetchOgcItems, validateOgcGeometry } from '../js/data-connections.js';
 import { DuckDBBrowserClient } from '../js/duckdb-client.js';
 
 function memoryStorage() { const values = new Map(); return { getItem: (key) => values.get(key) || null, setItem: (key, value) => values.set(key, value), values }; }
@@ -97,4 +97,14 @@ test('DuckDB local import uses generated statements and limits inspection', asyn
   await assert.rejects(client.importLocalFile({...file, name:'test.zip'}, 'points'), /Choose/);
   await assert.rejects(client.importLocalFile({...file, size: 201 * 1024 * 1024}, 'points'), /200 MB/);
   await assert.rejects(client.importLocalFile(file, 'x;DROP TABLE x'), /Invalid catalog identifier/);
+});
+
+
+test('Source Cooperative Parquet pages resolve to the direct data host', () => {
+  assert.deepEqual(resolveRemoteParquetUrl('https://source.coop/cholmes/nyc-taxi-zones/taxi_zones_4326.parquet'), { url: 'https://data.source.coop/cholmes/nyc-taxi-zones/taxi_zones_4326.parquet', normalized: true });
+  assert.deepEqual(resolveRemoteParquetUrl('https://data.source.coop/cholmes/data/file.parquet'), { url: 'https://data.source.coop/cholmes/data/file.parquet', normalized: false });
+  assert.equal(resolveRemoteParquetUrl('https://source.coop/cholmes/nyc-taxi-zones').normalized, false);
+  assert.equal(resolveRemoteParquetUrl('https://source.coop.example/cholmes/data/file.parquet').normalized, false);
+  assert.throws(() => resolveRemoteParquetUrl('https://source.coop/cholmes/data/file.parquet?token=secret'), /query parameters/);
+  assert.throws(() => resolveRemoteParquetUrl('http://source.coop/cholmes/data/file.parquet'), /HTTPS/);
 });
