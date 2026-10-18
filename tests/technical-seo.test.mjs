@@ -7,6 +7,7 @@ import { test } from "node:test";
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const pages = [
   "examples/index.html", "guides/index.html",
+  "examples/data-connections/local-postgis/index.html",
   "examples/modis-active-fires/index.html",
   "examples/air-quality-pm25/index.html", "examples/usgs-earthquakes/index.html",
   "arcgis-rest-service-viewer/index.html", "arcgis-feature-service-viewer/index.html",

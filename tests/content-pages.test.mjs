@@ -32,3 +32,18 @@ test("featured examples and viewer guides contain canonical pages and map action
   assert.match(guides, /arcgis-feature-service-viewer/);
   assert.match(guides, /ai-connection-guide/);
 });
+
+test("local PostGIS tutorial is discoverable and describes safe, bounded access", async () => {
+  const index = await read("examples/index.html");
+  const tutorial = await read("examples/data-connections/local-postgis/index.html");
+  const sitemap = await read("sitemap.xml");
+  assert.match(index, /id="data-connections"/);
+  assert.match(index, /href="\/examples\/data-connections\/local-postgis\/"/);
+  assert.match(tutorial, /Connect a Local PostGIS Database to GISMap\.online/);
+  assert.match(tutorial, /PGFS_SERVER_HTTPHOST/);
+  assert.match(tutorial, /PGFS_SERVER_CORSORIGINS/);
+  assert.match(tutorial, /CORS controls which browser origins may read responses; it is not authentication/);
+  assert.match(tutorial, /does not support authenticated map layers or viewport loading/);
+  assert.match(tutorial, /localhost.*computer/i);
+  assert.match(sitemap, /https:\/\/gismap\.online\/examples\/data-connections\/local-postgis\//);
+});
