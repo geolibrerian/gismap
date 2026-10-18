@@ -1,0 +1,1 @@
+{"type":"FeatureCollection","features":[{"type":"Feature","properties":{"name":"Boulder","category":"city"},"geometry":{"type":"Point","coordinates":[-105.2705,40.015]}},{"type":"Feature","properties":{"name":"Denver","category":"city"},"geometry":{"type":"Point","coordinates":[-104.9903,39.7392]}}]}

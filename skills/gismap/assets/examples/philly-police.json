@@ -1,0 +1,269 @@
+{
+  "$schema": "https://gismap.online/schemas/map-v1.schema.json",
+  "version": 1,
+  "title": "Police Divisions",
+  "basemap": "navigation-dark-3d",
+  "skin": "highway",
+  "camera": {
+    "center": [
+      -75.13979,
+      39.95016
+    ],
+    "zoom": 12.7,
+    "heading": 0,
+    "tilt": 24.4
+  },
+  "layers": [
+    {
+      "url": "https://services.arcgis.com/P3ePLMYs2RVChkJx/ArcGIS/rest/services/Philadelphia_Crime_Map_WFL1/FeatureServer/1",
+      "title": "Police Divisions"
+    },
+    {
+      "url": "https://services.arcgis.com/P3ePLMYs2RVChkJx/ArcGIS/rest/services/Philadelphia_Crime_Map_WFL1/FeatureServer/2",
+      "title": "Police Districts",
+      "opacity": 0.75
+    }
+  ],
+  "briefing": {
+    "schemaVersion": 1,
+    "layerId": "https://services.arcgis.com/P3ePLMYs2RVChkJx/ArcGIS/rest/services/Philadelphia_Crime_Map_WFL1/FeatureServer/1",
+    "selection": {
+      "useAll": true
+    },
+    "slides": [
+      {
+        "id": "s-d2e52c58",
+        "template": "title",
+        "title": "Police Divisions",
+        "subtitle": "6 Police Divisions · October 15, 2026",
+        "camera": {
+          "center": [
+            -75.13979450557153,
+            39.95034184219627
+          ],
+          "zoom": 12.470380210262963,
+          "heading": 359.9982136757788,
+          "tilt": 24.37715755370049
+        },
+        "featureId": null,
+        "fit": null,
+        "notes": "",
+        "hidden": false,
+        "blocks": [
+          {
+            "type": "text",
+            "markdown": "The map shows **Police Divisions**."
+          }
+        ]
+      },
+      {
+        "id": "s-8c602ec9",
+        "template": "key-numbers",
+        "title": "At a glance",
+        "subtitle": "",
+        "featureId": null,
+        "camera": null,
+        "fit": null,
+        "notes": "",
+        "hidden": false,
+        "blocks": [
+          {
+            "type": "stat",
+            "stat": "count",
+            "label": "Police Divisions",
+            "field": null,
+            "queryRef": null
+          }
+        ]
+      },
+      {
+        "id": "s-63f8b151",
+        "template": "feature",
+        "title": "CPD",
+        "featureId": "1",
+        "fit": "feature",
+        "subtitle": "",
+        "camera": null,
+        "notes": "",
+        "hidden": false,
+        "blocks": [
+          {
+            "type": "facts",
+            "fields": [
+              "PERIMETER",
+              "DIV_NAME",
+              "SHAPE_Leng",
+              "Shape__Area",
+              "Shape__Length"
+            ]
+          },
+          {
+            "type": "text",
+            "markdown": ""
+          }
+        ]
+      },
+      {
+        "id": "s-e1c80f87",
+        "template": "feature",
+        "title": "EPD",
+        "featureId": "2",
+        "fit": "feature",
+        "subtitle": "",
+        "camera": null,
+        "notes": "",
+        "hidden": false,
+        "blocks": [
+          {
+            "type": "facts",
+            "fields": [
+              "PERIMETER",
+              "DIV_NAME",
+              "SHAPE_Leng",
+              "Shape__Area",
+              "Shape__Length"
+            ]
+          },
+          {
+            "type": "text",
+            "markdown": ""
+          }
+        ]
+      },
+      {
+        "id": "s-f996334e",
+        "template": "feature",
+        "title": "NEPD",
+        "featureId": "3",
+        "fit": "feature",
+        "subtitle": "",
+        "camera": null,
+        "notes": "",
+        "hidden": false,
+        "blocks": [
+          {
+            "type": "facts",
+            "fields": [
+              "PERIMETER",
+              "DIV_NAME",
+              "SHAPE_Leng",
+              "Shape__Area",
+              "Shape__Length"
+            ]
+          },
+          {
+            "type": "text",
+            "markdown": ""
+          }
+        ]
+      },
+      {
+        "id": "s-464e90a7",
+        "template": "feature",
+        "title": "NWPD",
+        "featureId": "4",
+        "fit": "feature",
+        "subtitle": "",
+        "camera": null,
+        "notes": "",
+        "hidden": false,
+        "blocks": [
+          {
+            "type": "facts",
+            "fields": [
+              "PERIMETER",
+              "DIV_NAME",
+              "SHAPE_Leng",
+              "Shape__Area",
+              "Shape__Length"
+            ]
+          },
+          {
+            "type": "text",
+            "markdown": ""
+          }
+        ]
+      },
+      {
+        "id": "s-f5c658b9",
+        "template": "feature",
+        "title": "SPD",
+        "featureId": "5",
+        "fit": "feature",
+        "subtitle": "",
+        "camera": null,
+        "notes": "",
+        "hidden": false,
+        "blocks": [
+          {
+            "type": "facts",
+            "fields": [
+              "PERIMETER",
+              "DIV_NAME",
+              "SHAPE_Leng",
+              "Shape__Area",
+              "Shape__Length"
+            ]
+          },
+          {
+            "type": "text",
+            "markdown": ""
+          }
+        ]
+      },
+      {
+        "id": "s-997c6c5d",
+        "template": "feature",
+        "title": "SWPD",
+        "featureId": "6",
+        "fit": "feature",
+        "subtitle": "",
+        "camera": null,
+        "notes": "",
+        "hidden": false,
+        "blocks": [
+          {
+            "type": "facts",
+            "fields": [
+              "PERIMETER",
+              "DIV_NAME",
+              "SHAPE_Leng",
+              "Shape__Area",
+              "Shape__Length"
+            ]
+          },
+          {
+            "type": "text",
+            "markdown": ""
+          }
+        ]
+      },
+      {
+        "id": "s-02e2106e",
+        "template": "actions",
+        "title": "Next steps and sources",
+        "subtitle": "",
+        "featureId": null,
+        "camera": null,
+        "fit": null,
+        "notes": "",
+        "hidden": false,
+        "blocks": [
+          {
+            "type": "list",
+            "items": []
+          },
+          {
+            "type": "links",
+            "links": [
+              {
+                "label": "Data: Police Divisions",
+                "url": "https://services.arcgis.com/P3ePLMYs2RVChkJx/ArcGIS/rest/services/Philadelphia_Crime_Map_WFL1/FeatureServer/1"
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

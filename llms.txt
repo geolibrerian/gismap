@@ -21,6 +21,7 @@ The map in a link is one JSON object (map-v1): layers with filters and styles, b
 - [TypeScript types](https://gismap.online/js/gismap-core.d.ts)
 
 ## Guides
+- [GISMap Agent Skill](https://gismap.online/skills/): installable instructions, validation and implementation proposal
 - [Making maps with an AI agent](https://gismap.online/guides/ai-agents/): chat-only, code-running and browser-driving recipes
 - [ArcGIS FeatureServer viewer](https://gismap.online/arcgis-feature-service-viewer/)
 

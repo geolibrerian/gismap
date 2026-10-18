@@ -211,6 +211,7 @@ The map in a link is one JSON object (map-v1): layers with filters and styles, b
 - [TypeScript types](${SITE}/js/gismap-core.d.ts)
 
 ## Guides
+- [GISMap Agent Skill](${SITE}/skills/): installable instructions, validation and implementation proposal
 - [Making maps with an AI agent](${SITE}/guides/ai-agents/): chat-only, code-running and browser-driving recipes
 - [ArcGIS FeatureServer viewer](${SITE}/arcgis-feature-service-viewer/)
 ${examples?.items?.length ? `\n## Worked examples\n${examples.items.map((item) => `- [${item.title}](${item.url}): ${item.summary}`).join("\n")}\n` : ""}
