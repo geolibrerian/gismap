@@ -1,6 +1,6 @@
 // The existing GISMap dialog is dockable on desktop and a sheet on mobile.
 // These panels never serialize runtime objects, file contents, or credentials.
-import { ConnectionRegistry, connectionUrl, discoverOgcCollections, filterOgcCollections, inspectOgcSpatial } from './data-connections.js?v=0.54.0-collections1';
+import { ConnectionRegistry, connectionUrl, discoverOgcCollections, filterOgcCollections, inspectOgcSpatial, fetchOgcItems, validateOgcGeometry, ogcHasLocalBounds } from './data-connections.js?v=0.54.0-ogc1';
 import { inspectExternalTiles } from './engines/maplibre/external-tiles.js?v=0.54.0';
 
 const registry = () => new ConnectionRegistry();
@@ -49,7 +49,7 @@ export function openPostgisPanel(ui) {
     const endpoint = field('url').value; const token = field('token').value.trim();
     const entries = (await discoverOgcCollections(endpoint, { token })).map((entry) => ({ ...entry, spatialStatus: 'unknown' }));
     if (current !== generation) return;
-    status(`Loaded ${entries.length} collections. Adding collections to the map is not yet supported.`);
+    status(`Loaded ${entries.length} collections. Map layers load a bounded result, not necessarily the entire collection.`);
     const results = field('results');
     results.innerHTML = `<section class="connection-browser" aria-label="Browse collections">
       <h3>Browse collections</h3>
@@ -69,7 +69,7 @@ export function openPostgisPanel(ui) {
     const inspect = async (entry) => {
       entry.checking = true; entry.inspectionMessage = ''; render();
       try {
-        const result = await inspectOgcSpatial(endpoint, entry.id, { token });
+        const result = await inspectOgcSpatial(endpoint, entry, { token });
         entry.spatialStatus = result.status; entry.geometryType = result.geometryType;
         if (result.status === 'unknown') entry.inspectionMessage = 'No geometry in the sample; spatial status is still unknown.';
       } catch (error) { entry.inspectionMessage = error?.message || 'Inspection failed.'; }
@@ -92,7 +92,43 @@ export function openPostgisPanel(ui) {
         check.textContent = entry.checking ? 'Checking…' : 'Check spatial'; check.disabled = !!entry.checking;
         check.setAttribute('aria-label', `Check spatial status of ${entry.title}`);
         check.addEventListener('click', () => inspect(entry));
-        li.append(info, check); collectionList.append(li);
+        const actions = document.createElement('div'); actions.className = 'connection-actions'; actions.append(check);
+        const action = (label, fn) => {
+          const button = document.createElement('button'); button.type = 'button'; button.textContent = label;
+          button.setAttribute('aria-label', `${label}: ${entry.title}`);
+          button.addEventListener('click', async () => {
+            button.disabled = true;
+            try { await fn(); } catch (error) { if (current === generation) status(error?.message || 'Operation failed.'); }
+            finally { button.disabled = false; }
+          });
+          actions.append(button);
+        };
+        action('Details', () => {
+          entry.inspectionMessage = `Collection ID: ${entry.id}. CRS: ${entry.crs.join(', ') || 'not advertised'}. ${entry.description || 'No description provided.'}`;
+          render();
+        });
+        action('Preview records', async () => {
+          status(`Loading a preview of ${entry.title}…`);
+          const { data, truncated } = await fetchOgcItems(endpoint, entry, { token, limit: 10 });
+          if (current !== generation) return;
+          const preview = document.createElement('pre'); preview.className = 'connection-browser__preview';
+          preview.textContent = JSON.stringify(data.features.map((feature) => ({ id: feature.id, geometry: feature.geometry?.type || null, properties: feature.properties })), null, 2);
+          results.querySelector('[data-collection-preview]')?.remove(); preview.dataset.collectionPreview = ''; results.append(preview);
+          status(`Preview: ${data.features.length} records from ${entry.title}${truncated ? '; more records may be available' : ''}.`);
+        });
+        action('Add to map', async () => {
+          if (token) throw new Error('Adding authenticated connector layers is not supported yet; the session token will not be passed to the map engine.');
+          status(`Loading up to 1,000 features from ${entry.title}…`);
+          const { url, data, truncated } = await fetchOgcItems(endpoint, entry);
+          const spatial = validateOgcGeometry(data);
+          if (!spatial) throw new Error('The returned sample contains no mappable geometry. Try Preview records instead.');
+          if (current !== generation) return;
+          const layer = await ui.mapController.addService({ url, title: `${entry.title} (up to 1,000 features)`, serviceType: 'geojson' });
+          if (current !== generation) return;
+          status(`Added ${entry.title} as a bounded GeoJSON layer. ${truncated ? 'The result may be incomplete; only the first 1,000 features are shown.' : 'Only the loaded features are shown.'} Viewport loading and authenticated layer refresh are not supported yet. Localhost links only work on this device.`);
+          if (ogcHasLocalBounds(data)) await ui.mapController.goToLayer(layer).catch(() => {});
+        });
+        li.append(info, actions); collectionList.append(li);
       }
       if (!visible.length) { const li = document.createElement('li'); li.className = 'connection-browser__empty'; li.textContent = 'No collections match these filters.'; collectionList.append(li); }
     };

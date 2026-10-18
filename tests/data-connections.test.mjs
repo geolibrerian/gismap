@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { ConnectionRegistry, connectionUrl, discoverOgcCollections, filterOgcCollections, inspectOgcSpatial } from '../js/data-connections.js';
+import { ConnectionRegistry, connectionUrl, discoverOgcCollections, filterOgcCollections, inspectOgcSpatial, ogcItemsUrl, fetchOgcItems, validateOgcGeometry } from '../js/data-connections.js';
 import { DuckDBBrowserClient } from '../js/duckdb-client.js';
 
 function memoryStorage() { const values = new Map(); return { getItem: (key) => values.get(key) || null, setItem: (key, value) => values.set(key, value), values }; }
@@ -68,6 +68,21 @@ test('spatial inspection samples a same-origin collection and does not guess abo
   }
   await assert.rejects(inspectOgcSpatial('https://example.com', 'table', { fetchImpl: async () => new Response('', { status: 403 }) }), /403/);
   await assert.rejects(inspectOgcSpatial('https://example.com', 'table', { fetchImpl: async () => Response.json({ features: [] }) }), /GeoJSON/);
+});
+
+test('OGC items use advertised same-origin URLs, bounded requests, and indicate partial results', async () => {
+  const collection = { id: 'abc.latest_announced_premises', links: [{ rel: 'items', href: 'http://localhost:9000/collections/abc.latest_announced_premises/items', type: 'application/geo+json' }] };
+  assert.equal(ogcItemsUrl('http://localhost:9000', collection), 'http://localhost:9000/collections/abc.latest_announced_premises/items?limit=1000');
+  assert.match(ogcItemsUrl('http://localhost:9000', { id: collection.id }), /items\.json\?limit=1000$/);
+  assert.throws(() => ogcItemsUrl('http://localhost:9000', { id: 'x', links: [{ href: 'https://evil.example/items' }] }), /connector origin/);
+  assert.throws(() => ogcItemsUrl('http://localhost:9000', { id: 'x', links: [{ href: 'http://localhost:9000/items?token=secret' }] }), /credentials/);
+  const feature = { type: 'Feature', id: 'abc-1', properties: { name: 'A' }, geometry: { type: 'Point', coordinates: [-122, 38] } };
+  const result = await fetchOgcItems('http://localhost:9000', collection, { limit: 1, fetchImpl: async () => Response.json({ type: 'FeatureCollection', features: [feature], numberMatched: 2 }) });
+  assert.equal(result.truncated, true); assert.equal(validateOgcGeometry(result.data), 1);
+  assert.equal(result.data.features[0].id, 'abc-1');
+  assert.equal(validateOgcGeometry({ features: [{ type: 'Feature', properties: {}, geometry: null }] }), 0);
+  assert.throws(() => validateOgcGeometry({ features: [{ ...feature, geometry: { type: 'Point', coordinates: [300, 1] } }] }), /invalid geometry/);
+  await assert.rejects(fetchOgcItems('http://localhost:9000', collection, { limit: 1, fetchImpl: async () => Response.json({ type: 'FeatureCollection', features: [feature, feature] }) }), /ignored the feature limit/);
 });
 
 test('DuckDB local import uses generated statements and limits inspection', async () => {
