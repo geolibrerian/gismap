@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Here be dragons | GISMap Online</title>
+  <link rel="icon" href="/assets/favicon.ico">
+  <link rel="stylesheet" href="/css/dragon-game.css?v=1">
+</head>
+<body>
+<main>
+  <a class="logo" href="/"><img src="/assets/gis-map-online-mark-v2.png" alt="">GISMap Online</a>
+  <p class="kicker">GISMap Online · Dragon game</p>
+  <h1>Here be dragons.</h1>
+  <p class="intro">Help our dragon cross the kingdom and rescue the maidens, or return to the map.</p>
+  <div class="actions"><a href="/">Open GISMap Online</a><a href="/skills/">Explore agent skills</a></div>
+  <section class="game-wrap" id="game" tabindex="0" role="group" aria-label="Dragon game. Tap, click, or press Space to flap. Avoid hazards and rescue maidens.">
+    <canvas id="canvas" width="960" height="480">Your browser does not support the dragon game.</canvas>
+    <div class="hud" aria-hidden="true"><span id="score">MAIDENS 0</span><span id="distance">DISTANCE 0</span><span id="lives">♥ ♥ ♥</span></div>
+    <div class="overlay" id="overlay"><div class="panel" role="status"><h2 id="overlayTitle">Ready to fly?</h2><p id="overlayText">Click, tap, or press Space to flap. Avoid serpents, krakens, and knights. Fly into the glowing maiden above each castle to rescue her!</p><button class="button" id="start" type="button">Take flight ↗</button></div></div>
+  </section>
+  <div class="game-controls"><button class="flap-button" id="flapButton" type="button" aria-label="Flap dragon wings">🪽 TAP TO FLAP</button><button class="pause-button" id="pauseButton" type="button" disabled>Pause</button></div>
+  <div class="below"><p>🪽 <strong>Click / tap / Space</strong> to flap · <kbd>P</kbd> to pause</p><a class="back" href="/">Return to GISMap Online →</a></div>
+  <noscript><p class="help">Enable JavaScript to play. Navigation links are still available.</p></noscript>
+  <p class="footer">Or browse the <a href="/examples/">examples</a> and <a href="/guides/">guides</a>.</p>
+</main>
+<script src="/js/dragon-game.js?v=1" defer></script>
+</body>
+</html>

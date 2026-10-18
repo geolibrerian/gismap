@@ -43,3 +43,16 @@ test('keyboard shortcuts do not steal space from links or buttons', () => {
   assert.equal(prevented, true);
   assert.equal(frames.size, 1);
 });
+
+test('the direct dragon page is up to date and uses the same game without a 404 message', async () => {
+  const { renderDragonPage } = await import('../scripts/build-dragon-page.mjs');
+  const source = await readFile(new URL('../404.html', import.meta.url), 'utf8');
+  const direct = await readFile(new URL('../dragons/index.html', import.meta.url), 'utf8');
+  assert.equal(direct, renderDragonPage(source));
+  assert.match(direct, /<title>Here be dragons \| GISMap Online<\/title>/);
+  assert.doesNotMatch(direct, /404 ·|couldn’t find that page|content="noindex"/);
+  for (const id of ['game', 'canvas', 'start', 'flapButton', 'pauseButton']) assert.match(direct, new RegExp(`id="${id}"`));
+  assert.match(direct, /\/js\/dragon-game\.js\?v=1/);
+  const redirects = await readFile(new URL('../_redirects', import.meta.url), 'utf8');
+  assert.match(redirects, /^\/dragons \/dragons\/ 301$/m);
+});
