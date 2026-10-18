@@ -30,7 +30,7 @@ export function boundedSql(sql, limit) {
 }
 
 const escape = (value) => String(value ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
-export function openDuckdbQueryWorkspace(ui, client) {
+export function openDuckdbQueryWorkspace(ui, client, { selectedRelation = "", message = "" } = {}) {
   ui.openDialog({ eyebrow: 'Data connections · DuckDB', title: 'Query Data', content: `<div class="query-workspace">
     <p class="form-note">Explore tables in this browser session. Data stays local unless you choose a remote source or explicitly ask your configured AI provider for a suggestion.</p>
     <div class="query-layout"><aside><label class="field"><span>Search datasets</span><input type="search" data-q-search placeholder="Find a table"></label><label class="field"><span>Dataset</span><select data-q-table></select></label><button type="button" data-q-refresh>Refresh datasets</button><div data-q-schema class="query-schema"></div></aside>
@@ -38,16 +38,16 @@ export function openDuckdbQueryWorkspace(ui, client) {
     <section data-q-pane="builder"><label class="field"><span>Fields (leave all unchecked for all fields)</span><div data-q-fields class="query-fields"></div></label><div class="query-grid"><label class="field"><span>Filter field</span><select data-q-filter><option value="">No filter</option></select></label><label class="field"><span>Operator</span><select data-q-op><option value="=">Equals</option><option value="&lt;&gt;">Not equal</option><option value="&gt;">Greater than</option><option value="&gt;=">At least</option><option value="&lt;">Less than</option><option value="&lt;=">At most</option><option value="contains">Contains</option><option value="starts">Starts with</option><option value="null">Is null</option><option value="notnull">Is not null</option></select></label><label class="field"><span>Value</span><input data-q-value></label><label class="field"><span>Sort field</span><select data-q-order><option value="">No sort</option></select></label><label class="field"><span>Direction</span><select data-q-direction><option value="asc">Ascending</option><option value="desc">Descending</option></select></label></div><p class="form-note">One filter and sort are available in the builder. For joins, grouping, or additional conditions, use SQL.</p></section>
     <section data-q-pane="sql" hidden><label class="field"><span>SQL query</span><textarea data-q-sql rows="8" spellcheck="false" placeholder="SELECT * FROM ..."></textarea></label><p class="form-note">Run only SQL you trust. The read-only check is a safeguard, not a security sandbox: SQL functions may access external sources.</p></section>
     <section data-q-pane="ai" hidden><label class="field"><span>Describe your query</span><textarea data-q-prompt rows="4" placeholder="Which records have the highest values?"></textarea></label><p class="form-note">Suggest sends your request and the selected table’s names and types (not records) to your configured Map Assistant provider. Review the suggested SQL before running it.</p><button type="button" data-q-suggest>Suggest SQL</button></section>
-    <div class="query-run"><label class="field"><span>Maximum rows (1–5,000)</span><input type="number" min="1" max="5000" value="1000" data-q-limit></label><button type="button" class="button--primary" data-q-run>Run query</button></div><p class="form-note" role="status" aria-live="polite" data-q-status>Select a loaded dataset.</p></main></div>
-    <section aria-label="Query results"><h3>Results</h3><div data-q-results class="sql-result"></div><p class="form-note">Results are session-only. Adding query results to the map, saved queries, and Explorer integration are not yet available.</p></section></div>` });
+    <div class="query-run"><label class="field"><span>Maximum rows (1–5,000)</span><input type="number" min="1" max="5000" value="1000" data-q-limit></label><button type="button" class="button--primary" data-q-run>Run query</button></div><p class="form-note" data-q-provenance hidden></p><p class="form-note" role="status" aria-live="polite" data-q-status>Select a loaded dataset.</p></main></div>
+    <section aria-label="Query results"><h3>Results</h3><div data-q-results class="sql-result"></div><div class="query-run"><button type="button" data-q-map disabled>Add results to map</button></div><p class="form-note">Results are session-only. Map results require the __gismap_geometry column; truncated results are only a sample. Saved queries and Explorer integration are not yet available.</p></section></div>` });
   const root = document.querySelector('#dialog-content .query-workspace');
   const get = (key) => root.querySelector(`[data-q-${key}]`);
-  const output = get('status'); let schema = []; let mode = 'builder'; let inspectGeneration = 0;
+  const output = get('status'); let schema = []; let mode = 'builder'; let inspectGeneration = 0; let mapRows = null;
   const switchMode = (next) => { mode = next; root.querySelectorAll('[data-q-mode]').forEach((button) => button.setAttribute('aria-selected', String(button.dataset.qMode === mode))); root.querySelectorAll('[data-q-pane]').forEach((pane) => { pane.hidden = pane.dataset.qPane !== mode; }); };
   root.querySelectorAll('[data-q-mode]').forEach((button) => button.addEventListener('click', () => switchMode(button.dataset.qMode)));
   const renderDatasets = () => { const previous = get('table').value; const search = get('search').value.toLowerCase(); const names = [...client.loadedRelations].sort().filter((name) => name.toLowerCase().includes(search)); get('table').replaceChildren(new Option(names.length ? 'Select a dataset' : 'No loaded datasets', ''), ...names.map((name) => new Option(name, name))); if (names.includes(previous)) get('table').value = previous; else { inspectGeneration++; schema = []; get('schema').replaceChildren(); get('fields').replaceChildren(); } };
   const inspect = async () => {
-    const generation = ++inspectGeneration; const name = get('table').value; schema = []; get('schema').textContent = ''; get('fields').textContent = '';
+    const generation = ++inspectGeneration; const name = get('table').value; get('provenance').hidden = !message || name !== selectedRelation; get('provenance').textContent = message; schema = []; get('schema').textContent = ''; get('fields').textContent = '';
     for (const key of ['filter', 'order']) get(key).replaceChildren(new Option(key === 'filter' ? 'No filter' : 'No sort', ''));
     if (!name) return;
     try {
@@ -63,7 +63,7 @@ export function openDuckdbQueryWorkspace(ui, client) {
       get('sql').value = `SELECT * FROM ${ident(name)} LIMIT 1000`; output.textContent = `Ready to query ${name}.`;
     } catch (error) { output.textContent = `Could not inspect dataset: ${error.message}`; }
   };
-  get('refresh').addEventListener('click', () => { renderDatasets(); if (get('table').value) void inspect(); }); get('search').addEventListener('input', renderDatasets); get('table').addEventListener('change', inspect); renderDatasets();
+  get('refresh').addEventListener('click', () => { renderDatasets(); if (get('table').value) void inspect(); }); get('search').addEventListener('input', renderDatasets); get('table').addEventListener('change', inspect); renderDatasets(); if (selectedRelation && client.loadedRelations.has(selectedRelation)) { get('table').value = selectedRelation; void inspect().then(() => { if (message && root.isConnected) output.textContent = message; }); }
   get('suggest').addEventListener('click', async () => {
     const prompt = get('prompt').value.trim(); if (!prompt || !get('table').value || !schema.length) { output.textContent = 'Select a dataset and describe the query first.'; return; }
     const button = get('suggest'); button.disabled = true; output.textContent = 'Asking your configured AI provider for a suggestion…';
@@ -74,8 +74,26 @@ export function openDuckdbQueryWorkspace(ui, client) {
       get('sql').value = suggestion; switchMode('sql'); output.textContent = 'Suggestion ready. Review it carefully; it has not been run.';
     } catch (error) { output.textContent = `Could not suggest SQL: ${error.message}`; } finally { button.disabled = false; }
   });
+  get('map').addEventListener('click', async () => {
+    const button = get('map'); button.disabled = true;
+    try {
+      const features = mapRows.map((row) => {
+        const { __gismap_geometry: raw, ...properties } = row;
+        let geometry = raw; if (typeof raw === 'string') geometry = JSON.parse(raw);
+        if (geometry && (!geometry.type || (!Array.isArray(geometry.coordinates) && !(geometry.type === 'GeometryCollection' && Array.isArray(geometry.geometries))))) throw new Error('Results contain an unsupported geometry.');
+        return { type: 'Feature', properties, geometry: geometry || null };
+      });
+      if (!features.some((feature) => feature.geometry)) throw new Error('No mappable geometry was returned.');
+      const collection = { type: 'FeatureCollection', features };
+      const file = new File([JSON.stringify(collection, (_key, value) => typeof value === 'bigint' ? String(value) : value)], `duckdb-query-results-${crypto.randomUUID().slice(0, 8)}.geojson`, { type: 'application/geo+json' });
+      const layer = await ui.mapController.addLocalFile(file);
+      output.textContent = `Added ${features.length} result rows to the map as a local layer. Save a project package to retain it.`;
+      await ui.mapController.goToLayerOnInitialLoad(layer).catch(() => {});
+    } catch (error) { output.textContent = `Could not map results: ${error.message}`; }
+    finally { button.disabled = !mapRows; }
+  });
   get('run').addEventListener('click', async () => {
-    const button = get('run'); button.disabled = true; output.textContent = 'Running locally…';
+    const button = get('run'); button.disabled = true; mapRows = null; get('map').disabled = true; output.textContent = 'Running locally…';
     try {
       if (mode === 'ai') throw new Error('Generate and review SQL before running it.');
       let request;
@@ -88,6 +106,7 @@ export function openDuckdbQueryWorkspace(ui, client) {
       else result = await client.connection.query(request.sql);
       const rows = result.toArray().map((row) => row.toJSON?.() || row); const more = rows.length > request.limit; const shown = rows.slice(0, request.limit); const fields = result.schema?.fields?.map((f) => f.name) || Object.keys(shown[0] || {});
       get('results').innerHTML = fields.length ? `<table><thead><tr>${fields.map((field) => `<th>${escape(field)}</th>`).join('')}</tr></thead><tbody>${shown.map((row) => `<tr>${fields.map((field) => `<td>${escape(typeof row[field] === 'object' && row[field] !== null ? JSON.stringify(row[field], (_k, v) => typeof v === 'bigint' ? String(v) : v) : row[field])}</td>`).join('')}</tr>`).join('')}</tbody></table>` : '';
+      if (shown.length && fields.includes('__gismap_geometry')) { mapRows = shown; get('map').disabled = false; }
       output.textContent = `${shown.length} rows shown${more ? '; results truncated at the selected limit' : ''}.`;
     } catch (error) { output.textContent = `Query unavailable: ${error.message}`; } finally { button.disabled = false; }
   });

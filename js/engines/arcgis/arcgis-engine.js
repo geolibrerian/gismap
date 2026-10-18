@@ -3,6 +3,7 @@
 // callers get layer handles, features with plain JSON geometry and view
 // states, never SDK objects. Only native() hands the SDK's own map and view
 // out, for custom tools and the in-page API's escape hatches.
+import { parseLocalVectorFile } from "../../local-vector-import.js?v=0.54.0-vector1";
 import { arcgisMetadata } from "../../source-inspector.js?v=0.53.0";
 import { chooseStyleField, compileRenderer, resolveRendererSpec, suggestRenderers, validateRendererSpec } from "../../renderer-spec.js?v=0.29.0";
 import { GisMapError } from "../../gismap-errors.js?v=0.28.0";
@@ -627,57 +628,21 @@ export class ArcGISEngine {
     return "arcgis-auto";
   }
 
-  async addLocalFile(file, projectPath = null) {
-    const extension = file.name.split(".").pop()?.toLowerCase();
-    let layer;
-    let storedFile = file;
-
-    if (extension === "json" || extension === "geojson") {
-      const text = await file.text();
-      JSON.parse(text);
-      const url = URL.createObjectURL(new Blob([text], { type: "application/geo+json" }));
-      layer = new this.modules.GeoJSONLayer({ url, title: file.name, popupEnabled: false });
-    } else if (extension === "kml" || extension === "kmz") {
-      const toGeoJSON = await import("https://cdn.jsdelivr.net/npm/@tmcw/togeojson@7.1.2/+esm");
-      let kmlText;
-      if (extension === "kmz") {
-        if (!globalThis.JSZip) throw new Error("The ZIP library did not load.");
-        const zip = await JSZip.loadAsync(file);
-        const entry = Object.values(zip.files).find((item) => !item.dir && /\.kml$/i.test(item.name));
-        if (!entry) throw new Error("The KMZ archive does not contain a KML document.");
-        kmlText = await entry.async("text");
-      } else {
-        kmlText = await file.text();
-      }
-      const documentNode = new DOMParser().parseFromString(kmlText, "application/xml");
-      if (documentNode.querySelector("parsererror")) throw new Error("The KML document is not valid XML.");
-      const collection = toGeoJSON.kml(documentNode);
-      const url = URL.createObjectURL(
-        new Blob([JSON.stringify(collection)], { type: "application/geo+json" }),
-      );
-      layer = new this.modules.GeoJSONLayer({ url, title: file.name, popupEnabled: false });
-    } else if (extension === "zip") {
-      const shp = await import("https://cdn.jsdelivr.net/npm/shpjs@6.2.0/+esm");
-      const parsed = await shp.default(await file.arrayBuffer());
-      const collection = Array.isArray(parsed)
-        ? { type: "FeatureCollection", features: parsed.flatMap((part) => part.features ?? []) }
-        : parsed;
-      const url = URL.createObjectURL(
-        new Blob([JSON.stringify(collection)], { type: "application/geo+json" }),
-      );
-      layer = new this.modules.GeoJSONLayer({ url, title: file.name, popupEnabled: false });
-    } else {
-      throw new Error("Unsupported file. Use GeoJSON, JSON, KML, KMZ, or a zipped shapefile.");
+  async addLocalFile(file, projectPath = null, options = {}) {
+    const parsed = await parseLocalVectorFile(file);
+    const parts = options.collectionKey != null ? parsed.collections.filter((part) => part.key === options.collectionKey) : parsed.collections;
+    if (!parts.length) throw new Error("The requested shapefile was not found in the archive.");
+    let first;
+    for (const part of parts) {
+      const url = URL.createObjectURL(new Blob([JSON.stringify(part.data)], { type: "application/geo+json" }));
+      try {
+        const layer = new this.modules.GeoJSONLayer({ url, title: part.key ? `${file.name} — ${part.key}` : file.name, popupEnabled: false });
+        const added = await this.#addLayer(layer, { sourceType: parsed.extension === "zip" ? "shapefile" : parsed.extension, fileName: file.name, projectPath: projectPath || `data/${file.name}`, collectionKey: part.key, local: true });
+        this.localAssets.set(added.uid, file); first ||= added;
+      } catch (error) { URL.revokeObjectURL(url); throw error; }
     }
-
-    const added = await this.#addLayer(layer, {
-      sourceType: extension === "zip" ? "shapefile" : extension,
-      fileName: file.name,
-      projectPath: projectPath || `data/${file.name}`,
-      local: true,
-    });
-    this.localAssets.set(added.uid, storedFile);
-    return added;
+    if (parsed.warnings.length) this.events.publish("app:error", { message: `${file.name}: ${parsed.warnings.join(" ")}` });
+    return first;
   }
 
   async #addLayer(layer, config = {}) {
@@ -1135,6 +1100,7 @@ export class ArcGISEngine {
       sourceType: source.sourceType ?? layer.type,
       fileName: source.fileName ?? null,
       projectPath: source.projectPath ?? null,
+      collectionKey: source.collectionKey ?? null,
       local: Boolean(source.local),
       visible: layer.visible,
       opacity: layer.opacity,

@@ -1,7 +1,7 @@
 // The existing GISMap dialog is dockable on desktop and a sheet on mobile.
 // These panels never serialize runtime objects, file contents, or credentials.
 import { ConnectionRegistry, connectionUrl, discoverOgcCollections, filterOgcCollections, inspectOgcSpatial, fetchOgcItems, validateOgcGeometry, ogcHasLocalBounds } from './data-connections.js?v=0.54.0-ogc1';
-import { openDuckdbQueryWorkspace } from './duckdb-query-workspace.js?v=0.54.0-query1';
+import { openDuckdbQueryWorkspace } from './duckdb-query-workspace.js?v=0.54.0-vector1';
 import { inspectExternalTiles } from './engines/maplibre/external-tiles.js?v=0.54.0';
 
 const registry = () => new ConnectionRegistry();

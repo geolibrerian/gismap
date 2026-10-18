@@ -1061,17 +1061,17 @@ export class UIController {
           this.#serviceDialog("wfs");
           break;
         case "data-pmtiles": {
-          const { openPmtilesPanel } = await import("./data-connections-panel.js?v=0.54.0-query1");
+          const { openPmtilesPanel } = await import("./data-connections-panel.js?v=0.54.0-vector1");
           openPmtilesPanel(this, this.mapController, (engine) => this.#switchEngine(engine));
           break;
         }
         case "data-duckdb": {
-          const { openDuckdbPanel } = await import("./data-connections-panel.js?v=0.54.0-query1");
+          const { openDuckdbPanel } = await import("./data-connections-panel.js?v=0.54.0-vector1");
           openDuckdbPanel(this, this.applicationRuntime.duckdb);
           break;
         }
         case "data-postgis": {
-          const { openPostgisPanel } = await import("./data-connections-panel.js?v=0.54.0-query1");
+          const { openPostgisPanel } = await import("./data-connections-panel.js?v=0.54.0-vector1");
           openPostgisPanel(this);
           break;
         }
@@ -1712,7 +1712,7 @@ export class UIController {
     const engine = this.mapController.getEngineId();
     document.querySelectorAll("[data-engine-picker]").forEach((select) => { select.innerHTML = this.#engineOptionsMarkup(); });
     document.querySelectorAll("[data-engine-hint]").forEach((hint) => {
-      hint.textContent = engine === "maplibre" ? "Preview: open 3D terrain, basemaps, GeoJSON and ArcGIS services. Widgets and KML still need the ArcGIS engine." : "";
+      hint.textContent = engine === "maplibre" ? "Preview: open 3D terrain, basemaps, GeoJSON and ArcGIS services. KML services and some widgets still need the ArcGIS engine." : "";
       hint.hidden = !hint.textContent;
     });
     document.querySelectorAll("[data-basemap-picker]").forEach((select) => { select.innerHTML = this.#basemapOptionsMarkup(); });
@@ -5334,7 +5334,7 @@ export class UIController {
           <div class="layer-card__head"><label class="layer-toggle"><input type="checkbox" data-layer-visible ${layer.visible ? "checked" : ""} /><span></span></label><div><strong title="${escapeHtml(layer.title)}">${escapeHtml(layer.title)}</strong><small>${escapeHtml(config.sourceType)}${config.definitionExpression ? " · Filtered" : ""}${config.refreshInterval ? ` · ${config.refreshInterval}m refresh` : ""}${dataDate ? ` · <span title="When the publisher last edited the data">Data ${escapeHtml(dataDate)}</span>` : ""}</small></div><button data-layer-action="remove" title="Remove layer">×</button></div>
           <div class="layer-scale-note" data-layer-scale-note ${scaleMessage ? "" : "hidden"}><span data-scale-text>${escapeHtml(scaleMessage || "")}</span><button type="button" data-layer-action="ignore-scale" title="Draw this layer at every zoom level">Show anyway</button></div>
           <label class="opacity-row"><span>Opacity</span><input data-layer-opacity type="range" min="0" max="1" step="0.05" value="${layer.opacity}" /><output>${Math.round(layer.opacity * 100)}%</output></label>
-          <div class="layer-card__actions"><button data-layer-action="zoom">Zoom</button><button data-layer-action="table">Table</button><button data-layer-action="filter">Filter</button><button data-layer-action="export" title="Share this map, make a PDF or briefing, or download data">Share</button><button data-layer-action="style">Style</button><button data-layer-action="refresh">Refresh</button></div>
+          <div class="layer-card__actions"><button data-layer-action="zoom">Zoom</button><button data-layer-action="table">Table</button>${config.local && layer.queryable ? '<button data-layer-action="query-duckdb">Query in DuckDB</button>' : ''}<button data-layer-action="filter">Filter</button><button data-layer-action="export" title="Share this map, make a PDF or briefing, or download data">Share</button><button data-layer-action="style">Style</button><button data-layer-action="refresh">Refresh</button></div>
         </article>`;
       }).join("")
       : '<div class="empty-state empty-state--layers"><p>No layers yet. Add data to start.</p><div class="empty-state__actions"><button type="button" data-empty-action="data-arcgis">ArcGIS service</button><button type="button" data-empty-action="data-geojson">GeoJSON URL</button><button type="button" data-empty-action="data-file">Local file</button><button type="button" data-empty-action="data-popular">Try an example</button></div></div>';
@@ -5385,6 +5385,15 @@ export class UIController {
           break;
         }
         case "table": this.events.publish("table:open", { uid }); break;
+        case "query-duckdb": {
+          button.disabled = true;
+          try {
+            const { openLayerInDuckdb } = await import("./layer-duckdb.js?v=0.54.0-vector1");
+            await openLayerInDuckdb(this, uid);
+          } catch (error) { this.error(error.message); }
+          finally { button.disabled = false; }
+          break;
+        }
         case "filter": await this.#filterDialog(uid); break;
         case "export": this.#shareExportDialog(uid); break;
         case "style": this.#openSymbologyUtility(uid); break;

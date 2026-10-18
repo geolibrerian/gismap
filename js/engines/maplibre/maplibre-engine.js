@@ -12,6 +12,7 @@
 // Zoom: GIS Map zoom levels follow ArcGIS (256-pixel tiles); MapLibre's are
 // one lower for the same scale (512-pixel tiles). Everything that crosses the
 // boundary uses GIS Map levels, so links and projects mean the same view.
+import { parseLocalVectorFile } from "../../local-vector-import.js?v=0.54.0-vector1";
 import { GisMapError } from "../../gismap-errors.js?v=0.28.0";
 import { unsupported } from "../engine-interface.js?v=0.52.4";
 import { openBasemapFor, withUsgsImagery } from "./basemaps.js?v=0.53.0-gallery1";
@@ -746,13 +747,19 @@ export class MaplibreEngine {
     return this.#addRecord({ ...this.#common(config), title, url: base, kind: "raster", type: "wms", tiles: { urls: [getMap.href.replace("BBOX=BBOX", "BBOX={bbox-epsg-3857}")], tileSize: 512 }, config: { sourceType: "wms", url } });
   }
 
-  async addLocalFile(file, projectPath = null) {
-    const extension = file.name.split(".").pop()?.toLowerCase();
-    if (!["json", "geojson"].includes(extension)) {
-      throw unsupported("layers-files", "The MapLibre engine (preview) opens GeoJSON files only so far. Switch to the ArcGIS engine under Map → Map engine for KML, KMZ and shapefiles.");
+  async addLocalFile(file, projectPath = null, options = {}) {
+    const parsed = await parseLocalVectorFile(file);
+    const parts = options.collectionKey != null ? parsed.collections.filter((part) => part.key === options.collectionKey) : parsed.collections;
+    if (!parts.length) throw new Error("The requested shapefile was not found in the archive.");
+    let first;
+    for (const part of parts) {
+      const features = normalizeFeatures(part.data);
+      const title = part.key ? `${file.name} — ${part.key}` : file.name;
+      const added = this.#addRecord({ title, features, fields: inferFields(features), geometryType: geometryTypeOf(features), asset: file, config: { sourceType: parsed.extension === "zip" ? "shapefile" : parsed.extension, fileName: file.name, projectPath: projectPath || `data/${file.name}`, collectionKey: part.key, local: true } });
+      first ||= added;
     }
-    const features = normalizeFeatures(JSON.parse(await file.text()));
-    return this.#addRecord({ title: file.name, features, fields: inferFields(features), geometryType: geometryTypeOf(features), asset: file, config: { sourceType: extension, fileName: file.name, projectPath: projectPath || `data/${file.name}`, local: true } });
+    if (parsed.warnings.length) this.events.publish("app:error", { message: `${file.name}: ${parsed.warnings.join(" ")}` });
+    return first;
   }
 
   async discoverFeatureServiceLayers(value) {
@@ -843,6 +850,7 @@ export class MaplibreEngine {
       sourceType: record.config.sourceType,
       fileName: record.config.fileName,
       projectPath: record.config.projectPath,
+      collectionKey: record.config.collectionKey ?? null,
       local: record.config.local,
       visible: record.visible,
       opacity: record.opacity,
