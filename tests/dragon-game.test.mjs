@@ -14,7 +14,8 @@ function setup() {
   let next = 0; const frames = new Map();
   const document = { hidden: false, querySelector: (selector) => nodes[selector.slice(1)], addEventListener: (type, fn) => listeners.set(`document:${type}`, fn) };
   const window = { PointerEvent: true, addEventListener: (type, fn) => listeners.set(`window:${type}`, fn) };
-  runInNewContext(code, { document, window, Math, Array, performance: { now: () => 0 }, requestAnimationFrame: (fn) => { frames.set(++next, fn); return next; }, cancelAnimationFrame: (id) => frames.delete(id) });
+  const DragonResults = { hide() {}, show() {}, beats: () => false, setChallenge() {}, parse: () => null };
+  runInNewContext(code, { document, window, DragonResults, location: {href:'https://gismap.online/dragons/'}, Math, Array, performance: { now: () => 0 }, requestAnimationFrame: (fn) => { frames.set(++next, fn); return next; }, cancelAnimationFrame: (id) => frames.delete(id) });
   return { nodes, frames, listeners };
 }
 test('game stays still until started, then pauses and resumes without duplicate frames', () => {
@@ -52,7 +53,7 @@ test('the direct dragon page is up to date and uses the same game without a 404 
   assert.match(direct, /<title>Here be dragons \| GISMap Online<\/title>/);
   assert.doesNotMatch(direct, /404 ·|couldn’t find that page|content="noindex"/);
   for (const id of ['game', 'canvas', 'start', 'flapButton', 'pauseButton']) assert.match(direct, new RegExp(`id="${id}"`));
-  assert.match(direct, /\/js\/dragon-game\.js\?v=1/);
+  assert.match(direct, /\/js\/dragon-game\.js\?v=3/);
   const redirects = await readFile(new URL('../_redirects', import.meta.url), 'utf8');
   assert.match(redirects, /^\/dragons \/dragons\/ 301$/m);
 });

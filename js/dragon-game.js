@@ -1,7 +1,8 @@
 (()=>{'use strict';
 const canvas=document.querySelector('#canvas'),c=canvas.getContext('2d');let W=960;const H=480;
 const wrap=document.querySelector('#game'),overlay=document.querySelector('#overlay'),title=document.querySelector('#overlayTitle'),description=document.querySelector('#overlayText'),start=document.querySelector('#start');
-const flapButton=document.querySelector('#flapButton'),pauseButton=document.querySelector('#pauseButton');const scoreEl=document.querySelector('#score'),distEl=document.querySelector('#distance'),livesEl=document.querySelector('#lives');
+const flapButton=document.querySelector('#flapButton'),pauseButton=document.querySelector('#pauseButton');
+let challenge = null;const scoreEl=document.querySelector('#score'),distEl=document.querySelector('#distance'),livesEl=document.querySelector('#lives');
 let state='ready',last=0,frameId=0,elapsed=0,offset=0,score=0,distance=0,lives=3,nextSpawn=0,hazards=[],particles=[],dragon={x:225,y:205,vy:0,flap:0,invuln:0},clouds=Array.from({length:9},(_,i)=>({x:i*143+40,y:35+(i*59)%145,s:.7+(i%3)*.3}));
 const rnd=(a,b)=>a+Math.random()*(b-a);const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 // Mobile uses a narrower *logical* world, not a squashed 960px canvas.
@@ -18,8 +19,8 @@ function resizeGame(){
 }
 function reset(){elapsed=0;offset=0;score=0;distance=0;lives=3;nextSpawn=1.25;hazards=[];particles=[];dragon={x:W<760?Math.round(W*.29):225,y:205,vy:0,flap:0,invuln:0};updateHud()}
 function updateHud(){scoreEl.textContent=`MAIDENS ${score}`;distEl.textContent=`DISTANCE ${Math.floor(distance)}`;livesEl.textContent=Array.from({length:3},(_,i)=>i<lives?'♥':'♡').join(' ')}
-function begin(){reset();state='playing';overlay.classList.add('hidden');pauseButton.disabled=false;pauseButton.textContent='Pause';last=0;scheduleFrame()}
-function end(){state='over';pauseButton.disabled=true;pauseButton.textContent='Pause';title.textContent='The dragon rests…';description.textContent=`You rescued ${score} ${score===1?'maiden':'maidens'} and traveled ${Math.floor(distance)} leagues. Another flight?`;start.textContent='Fly again ↗';overlay.classList.remove('hidden')}
+function begin(){DragonResults.hide();reset();state='playing';overlay.classList.add('hidden');pauseButton.disabled=false;pauseButton.textContent='Pause';last=0;scheduleFrame()}
+function end(name=''){state='over';pauseButton.disabled=true;pauseButton.textContent='Pause';title.textContent='The legend of the dragon';description.textContent='A tale told by the knights who finally slew the beast…';start.textContent='Fly again ↗';DragonResults.show({name,score,distance,beaten:DragonResults.beats({score,distance:Math.floor(distance)},challenge)?challenge:null});overlay.classList.remove('hidden')}
 function flap(){if(state==='ready'||state==='over'){begin()}if(state==='paused'){togglePause()}if(state==='playing'){dragon.vy=-258;dragon.flap=0.26;for(let i=0;i<5;i++)particles.push({x:dragon.x-27,y:dragon.y+10,vx:rnd(-65,-20),vy:rnd(15,65),life:.5,color:'#a7c7a6'})}}
 function togglePause(){if(state==='playing'){state='paused';if(frameId){cancelAnimationFrame(frameId);frameId=0}title.textContent='Paused in the clouds';description.textContent='Press P or select Continue to return to your flight.';start.textContent='Continue';pauseButton.textContent='Continue';overlay.classList.remove('hidden')}else if(state==='paused'){state='playing';pauseButton.textContent='Pause';overlay.classList.add('hidden');last=0;scheduleFrame()}}
 function spawn(){const types=['serpent','knight','kraken','castle'];let type=types[Math.floor(Math.random()*types.length)];if(distance<60)type='castle';const y=type==='kraken'?353:type==='knight'?340:type==='castle'?320:385;hazards.push({type,x:W+90,y,w:type==='castle'?105:type==='kraken'?85:76,h:type==='castle'?118:75,t:0,taken:false,phase:rnd(0,Math.PI*2)});nextSpawn=rnd(1.55,2.3)}
@@ -135,6 +136,9 @@ document.addEventListener('keydown',e=>{
 });
 document.addEventListener('visibilitychange',()=>{if(document.hidden&&state==='playing')togglePause()});
 window.addEventListener('resize',resizeGame,{passive:true});
+// Shared scores are untrusted keepsakes, not verified achievements.
+const shared = DragonResults.parse(location.href);
+if (shared) { score=shared.score; distance=shared.distance; updateHud(); end(shared.name); DragonResults.show(shared); challenge={name:shared.name,score:shared.score,distance:shared.distance}; DragonResults.setChallenge(challenge); }
 // The game is still until the visitor deliberately starts it, including for reduced motion.
 resizeGame();
 })();
