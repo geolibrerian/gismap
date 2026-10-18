@@ -1061,17 +1061,17 @@ export class UIController {
           this.#serviceDialog("wfs");
           break;
         case "data-pmtiles": {
-          const { openPmtilesPanel } = await import("./data-connections-panel.js?v=0.54.0-unified5");
+          const { openPmtilesPanel } = await import("./data-connections-panel.js?v=0.54.0-analysis2");
           openPmtilesPanel(this, this.mapController, (engine) => this.#switchEngine(engine));
           break;
         }
         case "data-duckdb": {
-          const { openDuckdbPanel } = await import("./data-connections-panel.js?v=0.54.0-unified5");
+          const { openDuckdbPanel } = await import("./data-connections-panel.js?v=0.54.0-analysis2");
           openDuckdbPanel(this, this.applicationRuntime.duckdb);
           break;
         }
         case "data-postgis": {
-          const { openPostgisPanel } = await import("./data-connections-panel.js?v=0.54.0-unified5");
+          const { openPostgisPanel } = await import("./data-connections-panel.js?v=0.54.0-analysis2");
           openPostgisPanel(this);
           break;
         }
@@ -2234,7 +2234,7 @@ export class UIController {
           if (isGeoJson && isParquetName(sourceUrl)) {
             const result = await addGeoParquetLayer(this, { url: sourceUrl, title: this.dialog.querySelector("#service-title").value });
             if (result.tableOnly) {
-              const { openDuckdbQueryWorkspace } = await import("./duckdb-query-workspace.js?v=0.54.0-vector1");
+              const { openDuckdbQueryWorkspace } = await import("./duckdb-query-workspace.js?v=0.54.0-analysis2");
               openDuckdbQueryWorkspace(this, this.applicationRuntime.duckdb, { selectedRelation: result.relation, message: "This Parquet file has no recognized GeoParquet geometry metadata. It was loaded as a table, not a map layer." });
               return;
             }
@@ -5075,7 +5075,7 @@ export class UIController {
         const { isParquetName, addGeoParquetLayer } = await import("./geoparquet-layer.js?v=0.54.0-analysis1");
         const result = isParquetName(file.name) ? await addGeoParquetLayer(this, { file }) : null;
         if (result?.tableOnly) {
-          const { openDuckdbQueryWorkspace } = await import("./duckdb-query-workspace.js?v=0.54.0-vector1");
+          const { openDuckdbQueryWorkspace } = await import("./duckdb-query-workspace.js?v=0.54.0-analysis2");
           openDuckdbQueryWorkspace(this, this.applicationRuntime.duckdb, { selectedRelation: result.relation, message: "This Parquet file has no recognized GeoParquet geometry metadata. It was loaded as a table, not a map layer." });
           continue;
         }
@@ -5410,7 +5410,7 @@ export class UIController {
         case "query-duckdb": {
           button.disabled = true;
           try {
-            const { openLayerInDuckdb } = await import("./layer-duckdb.js?v=0.54.0-analysis1");
+            const { openLayerInDuckdb } = await import("./layer-duckdb.js?v=0.54.0-analysis2");
             await openLayerInDuckdb(this, uid);
           } catch (error) { this.error(error.message); }
           finally { button.disabled = false; }

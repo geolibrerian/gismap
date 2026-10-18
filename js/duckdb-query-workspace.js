@@ -3,6 +3,29 @@
 import { validateReadOnlySQL } from './data-catalog.js?v=0.18.2';
 
 const ident = (value) => `"${String(value).replaceAll('"', '""')}"`;
+
+// These are map layers, not arbitrary remote service results. GeoParquet keeps
+// its original relation even when its map representation is a bounded preview.
+export function analysisLayerChoices(mapController, runtime) {
+  return (mapController?.getLayers?.() || []).filter((layer) => {
+    const config = mapController.getLayerConfig(layer);
+    return Boolean(runtime?.geoParquetLayers?.has(layer.uid) || (layer.queryable && config?.local));
+  });
+}
+
+export function spatialJoinExample(source, comparison) {
+  const geometry = (dataset, alias) => {
+    const { field, encoding } = dataset.geometry || {};
+    if (!field || !['geojson-text', 'duckdb-geometry', 'wkb'].includes(String(encoding).toLowerCase())) throw new Error('Both datasets need a recognized geometry column.');
+    const column = `${alias}.${ident(field)}`;
+    return encoding.toLowerCase() === 'duckdb-geometry' ? column : `${encoding.toLowerCase() === 'wkb' ? 'ST_GeomFromWKB' : 'ST_GeomFromGeoJSON'}(${column})`;
+  };
+  if (!source?.relation || !comparison?.relation || source.relation === comparison.relation) throw new Error('Choose two different prepared spatial datasets.');
+  const a = geometry(source, 'a'); const b = geometry(comparison, 'b');
+  const projection = source.geometry.field === '__gismap_geometry' && source.geometry.encoding === 'geojson-text'
+    ? 'a.*' : `a.* EXCLUDE (${ident(source.geometry.field)}), ST_AsGeoJSON(${a}) AS "__gismap_geometry"`;
+  return `SELECT ${projection}\nFROM ${ident(source.relation)} AS a\nWHERE EXISTS (\n  SELECT 1 FROM ${ident(comparison.relation)} AS b\n  WHERE ${a} IS NOT NULL AND ${b} IS NOT NULL\n    AND ST_Intersects(${a}, ${b})\n)`;
+}
 export function buildQuery({ table, schema, fields = [], filterField = '', operator = '=', value = '', orderField = '', descending = false, limit = 1000 }) {
   if (!table || !Array.isArray(schema)) throw new Error('Choose a loaded dataset first.');
   const names = new Set(schema.map((column) => String(column.column_name)));
@@ -33,10 +56,10 @@ const escape = (value) => String(value ?? '').replace(/[&<>"']/g, (c) => ({ '&':
 export function openDuckdbQueryWorkspace(ui, client, { selectedRelation = "", message = "" } = {}) {
   ui.openDialog({ eyebrow: 'Data connections · DuckDB', title: 'Query Data', content: `<div class="query-workspace">
     <p class="form-note">Explore tables in this browser session. Data stays local unless you choose a remote source or explicitly ask your configured AI provider for a suggestion.</p>
-    <div class="query-layout"><aside><label class="field"><span>Search datasets</span><input type="search" data-q-search placeholder="Find a table"></label><label class="field"><span>Dataset</span><select data-q-table></select></label><button type="button" data-q-refresh>Refresh datasets</button><div data-q-schema class="query-schema"></div></aside>
+    <div class="query-layout"><aside><label class="field"><span>Prepare a map layer</span><select data-q-layer></select></label><button type="button" data-q-prepare>Prepare layer for analysis</button><p class="form-note">Prepare each local layer to query it alongside the others. Remote GeoParquet is supported; remote feature services are not.</p><label class="field"><span>Search datasets</span><input type="search" data-q-search placeholder="Find a table"></label><label class="field"><span>Dataset</span><select data-q-table></select></label><button type="button" data-q-refresh>Refresh datasets</button><div data-q-schema class="query-schema"></div></aside>
     <main><div class="query-tabs" role="tablist" aria-label="Query mode"><button type="button" role="tab" aria-selected="true" data-q-mode="builder">Builder</button><button type="button" role="tab" aria-selected="false" data-q-mode="sql">SQL</button><button type="button" role="tab" aria-selected="false" data-q-mode="ai">AI Assistant</button></div>
     <section data-q-pane="builder"><label class="field"><span>Fields (leave all unchecked for all fields)</span><div data-q-fields class="query-fields"></div></label><div class="query-grid"><label class="field"><span>Filter field</span><select data-q-filter><option value="">No filter</option></select></label><label class="field"><span>Operator</span><select data-q-op><option value="=">Equals</option><option value="&lt;&gt;">Not equal</option><option value="&gt;">Greater than</option><option value="&gt;=">At least</option><option value="&lt;">Less than</option><option value="&lt;=">At most</option><option value="contains">Contains</option><option value="starts">Starts with</option><option value="null">Is null</option><option value="notnull">Is not null</option></select></label><label class="field"><span>Value</span><input data-q-value></label><label class="field"><span>Sort field</span><select data-q-order><option value="">No sort</option></select></label><label class="field"><span>Direction</span><select data-q-direction><option value="asc">Ascending</option><option value="desc">Descending</option></select></label></div><p class="form-note">One filter and sort are available in the builder. For joins, grouping, or additional conditions, use SQL. Select each dataset to check whether it is a complete or partial snapshot before joining.</p></section>
-    <section data-q-pane="sql" hidden><label class="field"><span>SQL query</span><textarea data-q-sql rows="8" spellcheck="false" placeholder="SELECT * FROM ..."></textarea></label><p class="form-note">Run only SQL you trust. The read-only check is a safeguard, not a security sandbox: SQL functions may access external sources.</p></section>
+    <section data-q-pane="sql" hidden><label class="field"><span>Compare selected dataset with</span><select data-q-compare></select></label><p class="form-note" data-q-compare-provenance hidden></p><button type="button" data-q-example>Insert intersection example</button><p class="form-note">Intersection uses raw coordinates, not meters. Check that both layers use the same CRS and that their coverage is sufficient; GISMap does not transform or verify local snapshot CRS. The example loads the spatial extension and replaces the SQL below.</p><label class="field"><span>SQL query</span><textarea data-q-sql rows="8" spellcheck="false" placeholder="SELECT * FROM ..."></textarea></label><p class="form-note">Run only SQL you trust. The read-only check is a safeguard, not a security sandbox: SQL functions may access external sources.</p></section>
     <section data-q-pane="ai" hidden><label class="field"><span>Describe your query</span><textarea data-q-prompt rows="4" placeholder="Which records have the highest values?"></textarea></label><p class="form-note">Suggest sends your request and the selected table’s names and types (not records) to your configured Map Assistant provider. Review the suggested SQL before running it.</p><button type="button" data-q-suggest>Suggest SQL</button></section>
     <div class="query-run"><label class="field"><span>Maximum rows (1–5,000)</span><input type="number" min="1" max="5000" value="1000" data-q-limit></label><button type="button" class="button--primary" data-q-run>Run query</button></div><p class="form-note" data-q-provenance hidden></p><p class="form-note" role="status" aria-live="polite" data-q-status>Select a loaded dataset.</p></main></div>
     <section aria-label="Query results"><h3>Results</h3><div data-q-results class="sql-result"></div><div class="query-run"><button type="button" data-q-map disabled>Add results to map</button></div><p class="form-note">Results are session-only. Map results require the __gismap_geometry column; truncated results are only a sample. Saved queries and Explorer integration are not yet available.</p></section></div>` });
@@ -45,7 +68,8 @@ export function openDuckdbQueryWorkspace(ui, client, { selectedRelation = "", me
   const output = get('status'); let schema = []; let mode = 'builder'; let inspectGeneration = 0; let mapRows = null;
   const switchMode = (next) => { mode = next; root.querySelectorAll('[data-q-mode]').forEach((button) => button.setAttribute('aria-selected', String(button.dataset.qMode === mode))); root.querySelectorAll('[data-q-pane]').forEach((pane) => { pane.hidden = pane.dataset.qPane !== mode; }); };
   root.querySelectorAll('[data-q-mode]').forEach((button) => button.addEventListener('click', () => switchMode(button.dataset.qMode)));
-  const renderDatasets = () => { const previous = get('table').value; const search = get('search').value.toLowerCase(); const names = [...client.loadedRelations].sort().filter((name) => name.toLowerCase().includes(search)); get('table').replaceChildren(new Option(names.length ? 'Select a dataset' : 'No loaded datasets', ''), ...names.map((name) => new Option(name, name))); if (names.includes(previous)) get('table').value = previous; else { inspectGeneration++; schema = []; get('schema').replaceChildren(); get('fields').replaceChildren(); } };
+  const renderLayers = () => { const previous = get('layer').value; const layers = analysisLayerChoices(ui.mapController, ui.applicationRuntime); get('layer').replaceChildren(new Option(layers.length ? 'Select a map layer' : 'No eligible map layers', ''), ...layers.map((layer) => new Option(layer.title || 'Untitled layer', layer.uid))); if (layers.some((layer) => layer.uid === previous)) get('layer').value = previous; };
+  const renderDatasets = () => { const previous = get('table').value; const previousCompare = get('compare').value; const all = [...client.loadedRelations].sort(); const search = get('search').value.toLowerCase(); const names = all.filter((name) => name.toLowerCase().includes(search)); get('table').replaceChildren(new Option(names.length ? 'Select a dataset' : 'No loaded datasets', ''), ...names.map((name) => new Option(name, name))); get('compare').replaceChildren(new Option('Select a prepared spatial dataset', ''), ...all.filter((name) => client.analysisDatasets?.get(name)?.geometry?.field).map((name) => new Option(name, name))); if (all.includes(previousCompare)) get('compare').value = previousCompare; if (names.includes(previous)) get('table').value = previous; else { inspectGeneration++; schema = []; get('schema').replaceChildren(); get('fields').replaceChildren(); get('provenance').hidden = true; } };
   const inspect = async () => {
     const generation = ++inspectGeneration; const name = get('table').value; const provenance = client.relationProvenance?.get(name) || (name === selectedRelation ? message : ''); get('provenance').hidden = !provenance; get('provenance').textContent = provenance; schema = []; get('schema').textContent = ''; get('fields').textContent = '';
     for (const key of ['filter', 'order']) get(key).replaceChildren(new Option(key === 'filter' ? 'No filter' : 'No sort', ''));
@@ -63,7 +87,31 @@ export function openDuckdbQueryWorkspace(ui, client, { selectedRelation = "", me
       get('sql').value = `SELECT * FROM ${ident(name)} LIMIT 1000`; output.textContent = `Ready to query ${name}.`;
     } catch (error) { output.textContent = `Could not inspect dataset: ${error.message}`; }
   };
-  get('refresh').addEventListener('click', () => { renderDatasets(); if (get('table').value) void inspect(); }); get('search').addEventListener('input', renderDatasets); get('table').addEventListener('change', inspect); renderDatasets(); if (selectedRelation && client.loadedRelations.has(selectedRelation)) { get('table').value = selectedRelation; void inspect().then(() => { if (message && root.isConnected) output.textContent = message; }); }
+  get('prepare').addEventListener('click', async () => {
+    const uid = get('layer').value; if (!uid) { output.textContent = 'Select a map layer first.'; return; }
+    get('prepare').disabled = true; output.textContent = 'Preparing the layer locally…';
+    try {
+      const { registerLayerSnapshot, restoreGeoParquetRelation } = await import('./layer-duckdb.js?v=0.54.0-analysis2');
+      const entry = ui.applicationRuntime.geoParquetLayers?.has(uid) ? await restoreGeoParquetRelation(ui.applicationRuntime, ui.mapController, uid) : await registerLayerSnapshot(ui.applicationRuntime, ui.mapController, uid);
+      if (!root.isConnected) return;
+      get('search').value = ''; renderLayers(); renderDatasets(); get('table').value = entry.relation; await inspect();
+      if (root.isConnected) output.textContent = `Prepared ${entry.relation}. Check its coverage and CRS before analysis.`;
+    } catch (error) { if (root.isConnected) output.textContent = `Could not prepare layer: ${error.message}`; }
+    finally { get('prepare').disabled = false; }
+  });
+  get('example').addEventListener('click', async () => {
+    try {
+      const first = client.analysisDatasets?.get(get('table').value); const second = client.analysisDatasets?.get(get('compare').value);
+      const sql = spatialJoinExample(first, second);
+      get('example').disabled = true; output.textContent = 'Loading the spatial extension…';
+      await client.checkSpatial(); if (!root.isConnected) return;
+      get('sql').value = sql;
+      output.textContent = 'Intersection example ready; review both datasets’ coverage and CRS before running.';
+    } catch (error) { if (root.isConnected) output.textContent = `Could not prepare example: ${error.message}`; }
+    finally { get('example').disabled = false; }
+  });
+  get('compare').addEventListener('change', () => { const text = client.relationProvenance?.get(get('compare').value) || ''; get('compare-provenance').textContent = text; get('compare-provenance').hidden = !text; });
+  get('refresh').addEventListener('click', () => { renderLayers(); renderDatasets(); if (get('table').value) void inspect(); }); get('search').addEventListener('input', renderDatasets); get('table').addEventListener('change', inspect); renderLayers(); renderDatasets(); if (selectedRelation && client.loadedRelations.has(selectedRelation)) { get('table').value = selectedRelation; void inspect().then(() => { if (message && root.isConnected) output.textContent = message; }); }
   get('suggest').addEventListener('click', async () => {
     const prompt = get('prompt').value.trim(); if (!prompt || !get('table').value || !schema.length) { output.textContent = 'Select a dataset and describe the query first.'; return; }
     const button = get('suggest'); button.disabled = true; output.textContent = 'Asking your configured AI provider for a suggestion…';

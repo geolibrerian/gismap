@@ -18,3 +18,22 @@ test('SQL is bounded and rejects mutations and multiple statements', () => {
   assert.throws(() => boundedSql('DROP TABLE foo', 20), /read-only/);
   assert.throws(() => boundedSql('SELECT 1; SELECT 2', 20), /one read-only/);
 });
+
+test('eligible analysis layers exclude remote feature services but retain source GeoParquet', async () => {
+  const { analysisLayerChoices } = await import('../js/duckdb-query-workspace.js');
+  const layers = [{uid:'local',queryable:true}, {uid:'remote',queryable:true}, {uid:'parquet',queryable:true}];
+  const map = {getLayers:() => layers, getLayerConfig:(layer) => ({local:layer.uid === 'local'})};
+  assert.deepEqual(analysisLayerChoices(map,{geoParquetLayers:new Map([['parquet',{}]])}).map(l=>l.uid), ['local','parquet']);
+});
+test('spatial intersection template quotes names and converts mixed geometry formats', async () => {
+  const { spatialJoinExample } = await import('../js/duckdb-query-workspace.js');
+  const local = {relation:'places"one',geometry:{field:'__gismap_geometry',encoding:'geojson-text'}};
+  const parquet = {relation:'zones',geometry:{field:'geom',encoding:'duckdb-geometry'}};
+  const sql = spatialJoinExample(local,parquet);
+  assert.match(sql,/FROM "places""one" AS a/);
+  assert.match(sql,/ST_Intersects\(ST_GeomFromGeoJSON\(a\."__gismap_geometry"\), b\."geom"\)/);
+  assert.match(spatialJoinExample(parquet,local),/ST_AsGeoJSON\(a\."geom"\) AS "__gismap_geometry"/);
+  assert.match(spatialJoinExample({...parquet,geometry:{field:'g',encoding:'WKB'}},local),/ST_GeomFromWKB\(a\."g"\)/);
+  assert.throws(() => spatialJoinExample(local,local),/different/);
+  assert.throws(() => spatialJoinExample(local,{...parquet,geometry:{field:'g',encoding:'unknown'}}),/recognized/);
+});
