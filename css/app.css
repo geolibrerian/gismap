@@ -2309,3 +2309,24 @@ body.sidebar-collapsed .table-dialog { left: 14px; }
 .basemap-gallery__choice span { display:grid; gap:3px; }
 .basemap-gallery__choice small { color:var(--muted); line-height:1.35; }
 .basemap-gallery__favorite { min-width:44px; font-size:1.35em; }
+
+/* DuckDB query workspace: the same dialog becomes a dock or mobile sheet. */
+.query-workspace { display:grid; gap:16px; }
+.query-layout { display:grid; grid-template-columns:minmax(150px, .7fr) minmax(0, 2fr); gap:16px; }
+.query-layout aside, .query-layout main { min-width:0; display:grid; align-content:start; gap:10px; }
+.query-layout aside { border-right:1px solid var(--line); padding-right:14px; }
+.query-workspace button { min-height:40px; padding:8px 12px; border:1px solid var(--line); border-radius:var(--ui-radius-small, 6px); color:var(--ink); background:var(--surface); font:600 12px/1.25 var(--ui-font, sans-serif); cursor:pointer; }
+.query-workspace button.button--primary { background:var(--green); border-color:var(--green); color:var(--on-accent, #fff); }
+.query-workspace button:focus-visible { outline:2px solid var(--green-2); outline-offset:2px; }
+.query-tabs { display:flex; flex-wrap:wrap; gap:6px; }
+.query-tabs [aria-selected="true"] { background:var(--green); color:var(--on-accent, #fff); border-color:var(--green); }
+.query-schema, .query-fields { max-height:170px; overflow:auto; border:1px solid var(--line); border-radius:6px; padding:8px; }
+.query-schema div, .query-fields label { display:block; overflow-wrap:anywhere; padding:3px 0; }
+.query-schema small { color:var(--muted); }
+.query-grid { display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:8px; }
+.query-run { display:flex; flex-wrap:wrap; align-items:end; gap:8px; }
+.query-run .field { flex:1 1 160px; }
+.query-workspace [hidden] { display:none !important; }
+@media (max-width: 750px) { .query-layout { grid-template-columns:1fr; } .query-layout aside { border-right:0; border-bottom:1px solid var(--line); padding:0 0 12px; } }
+.app-dialog--docked .query-layout { grid-template-columns:1fr; }
+.app-dialog--docked .query-layout aside { border-right:0; border-bottom:1px solid var(--line); padding:0 0 12px; }

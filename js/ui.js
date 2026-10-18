@@ -1061,17 +1061,17 @@ export class UIController {
           this.#serviceDialog("wfs");
           break;
         case "data-pmtiles": {
-          const { openPmtilesPanel } = await import("./data-connections-panel.js?v=0.54.0-connection-ui1");
+          const { openPmtilesPanel } = await import("./data-connections-panel.js?v=0.54.0-query1");
           openPmtilesPanel(this, this.mapController, (engine) => this.#switchEngine(engine));
           break;
         }
         case "data-duckdb": {
-          const { openDuckdbPanel } = await import("./data-connections-panel.js?v=0.54.0-connection-ui1");
+          const { openDuckdbPanel } = await import("./data-connections-panel.js?v=0.54.0-query1");
           openDuckdbPanel(this, this.applicationRuntime.duckdb);
           break;
         }
         case "data-postgis": {
-          const { openPostgisPanel } = await import("./data-connections-panel.js?v=0.54.0-connection-ui1");
+          const { openPostgisPanel } = await import("./data-connections-panel.js?v=0.54.0-query1");
           openPostgisPanel(this);
           break;
         }
@@ -6096,7 +6096,9 @@ export class UIController {
 
   openDialog({ eyebrow = "GIS Map Online", title, content, actions = [], presentationSheet = false }) {
     this.dialogSession = (this.dialogSession || 0) + 1;
+    const remainsDocked = this.utilityDialogOpen && this.dialog.open;
     this.dialog.classList.remove("app-dialog--docked", "app-dialog--presentation-sheet");
+    if (remainsDocked) this.dialog.classList.add("app-dialog--docked");
     this.dialog.classList.toggle("app-dialog--presentation-sheet", presentationSheet);
     document.querySelector("#dialog-dock").setAttribute("aria-label", "Move dialog to the right panel");
     document.querySelector("#dialog-dock").innerHTML = dockIcon("dock");
@@ -6116,7 +6118,7 @@ export class UIController {
     if (!this.dialog.open) {
       if (this.mobileMedia.matches) this.dialog.show();
       else this.dialog.showModal();
-    }
+    } else if (remainsDocked) this.#syncUtilityPanel("dialog");
   }
 
   toast(message) {

@@ -1,6 +1,7 @@
 // The existing GISMap dialog is dockable on desktop and a sheet on mobile.
 // These panels never serialize runtime objects, file contents, or credentials.
 import { ConnectionRegistry, connectionUrl, discoverOgcCollections, filterOgcCollections, inspectOgcSpatial, fetchOgcItems, validateOgcGeometry, ogcHasLocalBounds } from './data-connections.js?v=0.54.0-ogc1';
+import { openDuckdbQueryWorkspace } from './duckdb-query-workspace.js?v=0.54.0-query1';
 import { inspectExternalTiles } from './engines/maplibre/external-tiles.js?v=0.54.0';
 
 const registry = () => new ConnectionRegistry();
@@ -150,7 +151,7 @@ export function openDuckdbPanel(ui, client) {
   ui.openDialog({ eyebrow: 'Data connections', title: 'Connect DuckDB', content: `
     <div class="connection-panel">
     <p class="form-note">DuckDB-Wasm runs in a worker on this device. Files are not uploaded. Local data must be re-imported after a reload. Large files may exhaust browser memory, especially on mobile.</p>
-    <div class="connection-actions"><button class="button--primary" type="button" data-connection-start>Start DuckDB</button><button type="button" data-connection-stop>Stop</button><button type="button" data-connection-spatial>Check spatial extension</button></div>
+    <div class="connection-actions"><button class="button--primary" type="button" data-connection-start>Start DuckDB</button><button type="button" data-connection-stop>Stop</button><button type="button" data-connection-spatial>Check spatial extension</button><button type="button" data-connection-query>Query Data</button></div>
     <section class="connection-group" aria-labelledby="duckdb-local-title"><h3 id="duckdb-local-title">Local file</h3>
     <label class="field"><span>Local CSV, JSON, Parquet or GeoParquet</span><input type="file" data-connection-file accept=".csv,.json,.geojson,.parquet,.geoparquet"></label>
     <label class="field"><span>Table name</span><input data-connection-name value="local_data" autocomplete="off"></label>
@@ -160,8 +161,9 @@ export function openDuckdbPanel(ui, client) {
     <div class="connection-actions"><button type="button" data-connection-remote>Load remote Parquet and preview</button></div></section>
     <p class="form-note" role="status" data-connection-status>Stopped. DuckDB is loaded only when started.</p>
     <pre class="connection-browser__preview" data-connection-results></pre>
-    <p class="form-note">Remote Parquet requires provider CORS and may require HTTP ranges. Spatial rendering, SQL editing, and remote DuckDB services are not yet available in this panel.</p></div>` });
+    <p class="form-note">Remote Parquet requires provider CORS and may require HTTP ranges. Remote DuckDB services and spatial rendering are not yet available here.</p></div>` });
   status(client.connection ? 'Ready: browser DuckDB is running.' : 'Stopped. DuckDB is loaded only when started.');
+  bind('query', () => openDuckdbQueryWorkspace(ui, client));
   bind('start', async () => { status('Starting DuckDB locally…'); await client.initialize(); status('Ready: browser DuckDB is running.'); });
   bind('stop', async () => { if (client.initializing) throw new Error('Wait for initialization to finish before stopping.'); await client.close(); field('results').textContent = ''; status('Stopped; in-memory tables were cleared.'); });
   bind('spatial', async () => { status('Checking the DuckDB spatial extension…'); await client.checkSpatial(); status('DuckDB spatial extension loaded successfully. Mapping spatial results is not yet supported here.'); });
