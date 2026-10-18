@@ -5410,7 +5410,7 @@ export class UIController {
         case "query-duckdb": {
           button.disabled = true;
           try {
-            const { openLayerInDuckdb } = await import("./layer-duckdb.js?v=0.54.0-unified1");
+            const { openLayerInDuckdb } = await import("./layer-duckdb.js?v=0.54.0-unified2");
             await openLayerInDuckdb(this, uid);
           } catch (error) { this.error(error.message); }
           finally { button.disabled = false; }

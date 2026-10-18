@@ -2,7 +2,7 @@ import { ApplicationState } from "./application-state.js?v=0.18.2";
 import { PanelRegistry, ToolRegistry } from "./application-registry.js?v=0.27.0";
 import { LayoutManager } from "./layout-manager.js?v=0.18.2";
 import { normalizeApplicationConfig, presetApplication } from "./application-config.js?v=0.18.2";
-import { DuckDBBrowserClient } from "./duckdb-client.js?v=0.54.0-unified1";
+import { DuckDBBrowserClient } from "./duckdb-client.js?v=0.54.0-unified2";
 import { normalizeDataCatalog, planNaturalLanguageQuery, validateReadOnlySQL } from "./data-catalog.js?v=0.18.2";
 import { PanelManager } from "./panel-manager.js?v=0.18.2";
 import { applyInterfaceSkin } from "./skin-catalog.js?v=0.52.3";
@@ -181,9 +181,10 @@ export class ApplicationRuntime {
   #bridgeState() {
     this.events.subscribe("layer:added", ({ layer }) => this.state.dispatch("layer:activate", { layerId: layer?.uid }, { undoable: false }));
     this.events.subscribe("layer:removed", ({ uid }) => {
-      const relation = this.geoParquetLayers?.get(uid)?.relation;
+      const relations = new Set([this.geoParquetLayers?.get(uid)?.relation, this.analysisLayers?.get(uid)?.relation].filter(Boolean));
       this.geoParquetLayers?.delete(uid);
-      if (relation) this.duckdb.removeRelation(relation).catch(() => {});
+      this.analysisLayers?.delete(uid);
+      for (const relation of relations) this.duckdb.removeRelation(relation).catch(() => {});
       if (this.state.value.activeLayerId === uid) this.state.dispatch("layer:activate", { layerId: this.mapController.getLayers()[0]?.uid || null }, { undoable: false });
     });
     this.events.subscribe("identify:complete", ({ results = [] }) => {

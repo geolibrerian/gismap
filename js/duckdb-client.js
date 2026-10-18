@@ -57,6 +57,15 @@ export class DuckDBBrowserClient {
     }
   }
 
+  // Empty layers still have a queryable schema; never infer one from nonexistent rows.
+  async registerEmptyLayer(name, fields = []) {
+    await this.initialize();
+    const names = [...new Set(fields.map((field) => field.name).filter((field) => typeof field === "string" && field && field !== "__gismap_geometry"))];
+    const columns = [...names, "__gismap_geometry"].map((field) => `CAST(NULL AS VARCHAR) AS "${field.replaceAll('"', '""')}"`);
+    await this.connection.query(`CREATE TEMP VIEW ${quoteIdentifier(name)} AS SELECT ${columns.join(", ")} WHERE FALSE`);
+    this.loadedRelations.add(name);
+  }
+
   async inspectRelation(name, limit = 50) {
     if (!this.loadedRelations.has(name)) throw new Error("This table is not loaded in the current browser session.");
     const identifier = quoteIdentifier(name);
@@ -148,6 +157,7 @@ export class DuckDBBrowserClient {
     const file = this.relationFiles.get(name);
     if (file) { await this.db.dropFile?.(file); this.registeredFiles.delete(file); this.relationFiles.delete(name); }
     this.parquetSources.delete(name);
+    this.relationProvenance?.delete(name);
     this.loadedRelations.delete(name);
   }
 
@@ -162,6 +172,6 @@ export class DuckDBBrowserClient {
     for (const file of this.registeredFiles) await this.db?.dropFile?.(file).catch(() => {});
     await this.db?.terminate?.();
     this.worker?.terminate?.();
-    this.connection = null; this.db = null; this.worker = null; this.loadedRelations.clear(); this.registeredFiles.clear(); this.relationFiles.clear(); this.parquetSources.clear();
+    this.connection = null; this.db = null; this.worker = null; this.loadedRelations.clear(); this.registeredFiles.clear(); this.relationFiles.clear(); this.parquetSources.clear(); this.relationProvenance?.clear();
   }
 }
