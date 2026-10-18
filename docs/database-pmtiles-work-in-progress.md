@@ -1,0 +1,21 @@
+# Database connections and PMTiles — work in progress
+
+This branch is an incremental prototype, **not the completed integration**. Do not deploy it as satisfying the database/PMTiles specification.
+
+## What is available
+
+The existing Data menu, also cloned into the mobile menu, exposes DuckDB, PostGIS and PMTiles. These use GISMap's existing dockable dialog/mobile sheet. DuckDB reuses the existing lazy-loaded browser worker and supports explicit local CSV/JSON/Parquet imports and bounded schema/record previews. The database and file registrations are ephemeral; stop or reload clears them. Files are read in the browser, not uploaded. The UI rejects files over 200 MiB; even smaller files can exhaust browser memory.
+
+A public HTTPS Parquet URL can be loaded and previewed by the existing DuckDB catalog path. The provider must permit browser CORS and may need HTTP Range support. Some DuckDB-Wasm paths can download the whole file, so avoid large remote files. Checking the optional spatial extension explicitly loads it from DuckDB's extension service; success is verified by a spatial point query and a useful error is shown on failure. See [DuckDB-Wasm deployment](https://duckdb.org/docs/stable/clients/wasm/deploying_duckdb_wasm) and [extension documentation](https://duckdb.org/docs/current/clients/wasm/extensions).
+
+PostGIS settings store only connection name, HTTPS endpoint, and an optional workspace label in browser localStorage. Queries and fragments in saved endpoint URLs are rejected. A bearer token entered for the current session is sent only to the explicitly configured endpoint and is not saved. An OGC API Features collections response can be discovered, but this does not prove what database backs the endpoint. A browser cannot make direct PostgreSQL connections. No connector is provided by this application.
+
+PMTiles inspection reuses the existing pinned PMTiles protocol loader, checks byte ranges, and shows archive metadata and source-layer names in MapLibre. Archive metadata is untrusted text, not inserted as HTML. An ArcGIS user is offered the existing engine switch rather than an unsupported adapter. Providers control CORS, range access, licensing, and availability.
+
+## Deferred / not supported
+
+- This branch does **not** add PMTiles as managed rendered layers, serialize or restore them, or implement their styling, filtering, picking, Explorer integration, or layer removal.
+- DuckDB's new connection panel does not yet provide arbitrary SQL, cancellation, result mapping, exports, statistics, or saved connection editing. The existing application SQL workspace predates this work; its keyword-based validation is not an authorization boundary and has not been upgraded to enforce the specification's restrictions.
+- Spatial extension availability varies by runtime/browser; this branch does not convert GeoParquet or spatial query results to map layers or handle CRS transformation.
+- PostGIS collection mapping, detailed per-collection schema/capability discovery, and other connector protocols are not implemented. Protected endpoints require a user-supplied session token and permissive CORS; redirecting endpoints are rejected to avoid forwarding credentials.
+- No mobile device, remote Parquet, PostGIS service, raster PMTiles, or map/share restoration end-to-end verification has been completed. Existing application regressions remain to be checked.
