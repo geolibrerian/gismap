@@ -26,3 +26,5 @@ main{max-width:1090px;margin:auto;border:1px solid #bed3c5;border-radius:26px;ba
 .legend-scroll:focus .legend-story,.legend-scroll:focus-within .legend-story{animation:none}
 @media(prefers-reduced-motion:reduce){.panel .legend-story{animation:none}}
 .challenge-banner{margin:0 0 12px;padding:10px 14px;border:1px solid #caa462;background:#faf0d5;border-radius:9px;color:#354f3a;font-size:14px;font-weight:700}.challenge-banner[hidden],#downloadQr[hidden]{display:none}.challenge-banner small{display:block;margin-top:3px;font-weight:500}.share-dialog #shareQr{display:block;width:min(100%,300px);height:auto;margin:auto;image-rendering:auto}.share-dialog #downloadQr{display:inline-flex;align-items:center;text-decoration:none;justify-content:center}
+
+.panel .shared-challenge{color:#f5e6b2;font-size:clamp(12px,1.4vw,15px);line-height:1.4;margin:8px 0 12px}.shared-challenge[hidden]{display:none}

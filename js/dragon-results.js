@@ -32,21 +32,45 @@
   };
   const storyFor = ({ name, score, distance, beaten }) => {
     const dragon = cleanName(name) || 'THE NAMELESS DRAGON';
-    const triumph = beaten && beats({score, distance}, beaten) ? `\n\nAND LO! ${dragon.toUpperCase()} SURPASSED THE LEGEND OF ${cleanName(beaten.name).toUpperCase()}, WHO RESCUED ${beaten.score} AND FLEW ${beaten.distance} LEAGUES. THE ROYAL SCOREKEEPER DROPPED HIS QUILL.` : '';
-    return `HEAR YE, HEAR YE!\n\nWE, THE BRAVE KNIGHTS OF THE REALM, FINALLY SLEW ${dragon.toUpperCase()}!\n\nTHE BEAST CROSSED ${distance} LEAGUES, OUTWITTING SERPENTS, KRAKENS, AND AN ALARMING NUMBER OF LANCES.\n\nIT RESCUED ${score} ${score === 1 ? 'MAIDEN' : 'MAIDENS'} FROM OUR CASTLES. WE SHALL BE DISCUSSING THIS WITH THE CASTLE GUARDS.${triumph}\n\nAT LAST WE TRIUMPHED! (THE DRAGON MAY ALSO HAVE HIT THE GROUND.)\n\nTHUS ENDS THE LEGEND. INSERT ANOTHER ADVENTURE?`;
+    const triumph = beaten && beats({score, distance}, beaten) ? `\n\nAND LO! ${dragon.toUpperCase()} SURPASSED THE LEGEND OF ${cleanName(beaten.name).toUpperCase()}, WHOSE SCORE WAS ${beaten.score} MAIDENS AND ${beaten.distance} LEAGUES. THE ROYAL SCOREKEEPER DROPPED HIS QUILL.` : '';
+    return `HEAR YE, HEAR YE!\n\nWE, THE BRAVE KNIGHTS OF THE REALM, FINALLY SLEW ${dragon.toUpperCase()}!\n\nTHE BEAST CROSSED ${distance} LEAGUES, OUTWITTING SERPENTS, KRAKENS, AND AN ALARMING NUMBER OF LANCES.\n\nWE LOST ${score} ${score === 1 ? 'MAIDEN' : 'MAIDENS'} TO THE BEAST. WE SHALL BE DISCUSSING THIS WITH THE CASTLE GUARDS.${triumph}\n\nAT LAST WE TRIUMPHED! (THE DRAGON MAY ALSO HAVE HIT THE GROUND.)\n\nTHUS ENDS THE LEGEND. INSERT ANOTHER ADVENTURE?`;
   };
   const story = document.querySelector('#legendStory'), scroll = document.querySelector('#legendScroll'), scoreText = document.querySelector('#legendScore'), shareButton = document.querySelector('#shareResults'), banner = document.querySelector('#challengeBanner');
   const dialog = document.querySelector('#shareDialog'), form = document.querySelector('#shareForm'), nameInput = document.querySelector('#dragonName'), close = document.querySelector('#shareClose');
   const output = document.querySelector('#shareOutput'), qr = document.querySelector('#shareQr'), link = document.querySelector('#shareLink'), status = document.querySelector('#shareStatus'), copy = document.querySelector('#copyLink'), download = document.querySelector('#downloadQr');
-  let current = null;
+  const recordDialog = document.querySelector('#recordDialog'), recordForm = document.querySelector('#recordForm'), recordName = document.querySelector('#recordName'), recordScore = document.querySelector('#recordScore');
+  let current = null, pendingRecord = null;
+  function record(result, onComplete) {
+    pendingRecord = { result, onComplete };
+    recordName.value = '';
+    recordName.setCustomValidity('');
+    recordScore.textContent = `Maidens ${result.score} · Distance ${Math.floor(result.distance)} leagues`;
+    recordDialog.showModal();
+    recordName.focus();
+  }
+  recordForm.addEventListener('submit', (event) => {
+    event.preventDefault();
+    if (!pendingRecord) return;
+    const name = cleanName(recordName.value);
+    if (!name) { recordName.setCustomValidity('Enter a dragon name.'); recordName.reportValidity(); return; }
+    recordName.setCustomValidity('');
+    const { result, onComplete } = pendingRecord;
+    pendingRecord = null;
+    recordDialog.close();
+    onComplete({ ...result, name });
+  });
+  recordName.addEventListener('input', () => recordName.setCustomValidity(''));
+  // Keep the game-over flow reachable even when the browser sends Escape.
+  recordDialog.addEventListener('cancel', (event) => event.preventDefault());
+  const challengeMessage = (target) => `The famous dragon ${cleanName(target.name)} has taken ${target.score} ${target.score === 1 ? 'maiden' : 'maidens'} and flown ${target.distance} ${target.distance === 1 ? 'league' : 'leagues'} — can you beat ${cleanName(target.name)}?`;
   function setChallenge(target) {
     if (!target) { banner.hidden = true; banner.textContent = ''; return; }
     banner.hidden = false;
-    banner.textContent = `Can you beat ${cleanName(target.name)}? High score: ${target.score} ${target.score === 1 ? 'maiden' : 'maidens'} · ${target.distance} leagues. More maidens wins; distance breaks a tie.`;
+    banner.textContent = `${challengeMessage(target)} More maidens wins; distance breaks a tie.`;
   }
   function show(result) {
     current = { name: cleanName(result.name), score: Math.max(0, Math.min(MAX_SCORE, Math.floor(result.score))), distance: Math.max(0, Math.min(MAX_SCORE, Math.floor(result.distance))), beaten: result.beaten || null };
-    story.textContent = storyFor(current); scoreText.textContent = `${current.score} ${current.score === 1 ? 'MAIDEN' : 'MAIDENS'} · ${current.distance} LEAGUES`;
+    story.textContent = storyFor(current); scoreText.textContent = `MAIDENS ${current.score} · DISTANCE ${current.distance} LEAGUES`;
     scroll.hidden = false; scoreText.hidden = false; shareButton.hidden = false;
   }
   function hide() { scroll.hidden = true; scoreText.hidden = true; shareButton.hidden = true; }
@@ -78,7 +102,7 @@
     if (!name) { nameInput.setCustomValidity('Enter a dragon name.'); nameInput.reportValidity(); return; }
     nameInput.setCustomValidity('');
     show({ ...current, name });
-    const href = linkFor(location.origin, current);
+    const href = linkFor('https://gismap.online', current);
     link.href = href; link.textContent = href; output.hidden = false; status.textContent = ''; download.hidden = true;
     try {
       if (!globalThis.QRCode?.toCanvas) throw new Error('QR code generator unavailable');
@@ -93,5 +117,5 @@
     try { await navigator.clipboard.writeText(link.href); status.textContent = 'Link copied.'; }
     catch { status.textContent = 'Copy the link above from your browser.'; }
   });
-  globalThis.DragonResults = { parse, linkFor, storyFor, beats, setChallenge, show, hide };
+  globalThis.DragonResults = { parse, linkFor, storyFor, beats, challengeMessage, setChallenge, record, show, hide };
 })();

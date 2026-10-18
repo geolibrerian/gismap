@@ -7,7 +7,7 @@ const code = await readFile(new URL('../js/dragon-results.js', import.meta.url),
 function setup() {
   const listeners = new Map();
   const make = (id) => ({ id, value:'', textContent:'', hidden:false, href:'', focus(){}, showModal(){}, close(){}, setCustomValidity(){}, reportValidity(){}, addEventListener(type, fn){listeners.set(`${id}:${type}`,fn)} });
-  const nodes = Object.fromEntries(['legendStory','legendScroll','legendScore','shareResults','shareDialog','shareForm','dragonName','shareClose','shareOutput','shareQr','shareLink','shareStatus','copyLink','challengeBanner','downloadQr'].map(id=>[id,make(id)]));
+  const nodes = Object.fromEntries(['legendStory','legendScroll','legendScore','shareResults','shareDialog','shareForm','dragonName','shareClose','shareOutput','shareQr','shareLink','shareStatus','copyLink','challengeBanner','downloadQr','recordDialog','recordForm','recordName','recordScore'].map(id=>[id,make(id)]));
   let encoded = '';
   const draws = [];
   const ctx = new Proxy({}, { get: (_target, key) => (...args) => { if (key === 'drawImage') draws.push(args); }, set: () => true });
@@ -30,12 +30,14 @@ test('legend uses text, updates its name, and generates a QR of the result URL',
   const {api,nodes,listeners,getEncoded} = setup();
   api.show({name:'',score:1,distance:42});
   assert.match(nodes.legendStory.textContent,/THE NAMELESS DRAGON/);
-  assert.match(nodes.legendStory.textContent,/RESCUED 1 MAIDEN FROM/);
+  assert.match(nodes.legendStory.textContent,/WE LOST 1 MAIDEN TO THE BEAST/);
   nodes.dragonName.value = '<dragon> & friends';
   await listeners.get('shareForm:submit')({preventDefault(){}});
   assert.match(nodes.legendStory.textContent,/<DRAGON> & FRIENDS/);
   assert.equal(nodes.shareOutput.hidden, false);
   assert.equal(getEncoded(), nodes.shareLink.href);
+  assert.equal(new URL(getEncoded()).origin, 'https://gismap.online');
+  assert.equal(new URL(getEncoded()).pathname, '/dragons/');
   assert.equal(api.parse(nodes.shareLink.href).name, '<dragon> & friends');
 });
 
@@ -48,8 +50,7 @@ test('challenge compares maidens first and distance breaks ties', () => {
   assert.equal(api.beats({score:3,distance:101},target), true);
   assert.equal(api.beats({score:3,distance:100},target), false);
   api.setChallenge(target);
-  assert.match(nodes.challengeBanner.textContent,/Can you beat Old Wyrm\?/);
-  assert.match(nodes.challengeBanner.textContent,/3 maidens · 100 leagues/);
+  assert.match(nodes.challengeBanner.textContent,/The famous dragon Old Wyrm has taken 3 maidens and flown 100 leagues — can you beat Old Wyrm\?/);
   api.setChallenge(null);
   assert.equal(nodes.challengeBanner.hidden, true);
 });
@@ -78,4 +79,21 @@ test('share generates a decorated downloadable QR without drawing over its quiet
   assert.match(nodes.downloadQr.href,/^data:image\/png/);
   assert.equal(draws.length,1);
   assert.deepEqual(draws[0].slice(1),[80,160,440,440]);
+});
+
+
+test('record score asks for a name before showing the story', () => {
+  const {api,nodes,listeners} = setup();
+  let result;
+  api.record({score:2,distance:42.8,beaten:null}, value => {result = value; api.show(value)});
+  assert.equal(nodes.recordScore.textContent, 'Maidens 2 · Distance 42 leagues');
+  nodes.recordName.value = '  ';
+  listeners.get('recordForm:submit')({preventDefault(){}});
+  assert.equal(result, undefined);
+  nodes.recordName.value = 'Sir Flaps';
+  listeners.get('recordForm:submit')({preventDefault(){}});
+  assert.equal(result.name, 'Sir Flaps');
+  assert.match(nodes.legendStory.textContent, /SLEW SIR FLAPS/);
+  assert.match(nodes.legendStory.textContent, /WE LOST 2 MAIDENS/);
+  assert.equal(nodes.legendScore.textContent, 'MAIDENS 2 · DISTANCE 42 LEAGUES');
 });
