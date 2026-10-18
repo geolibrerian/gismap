@@ -1,3 +1,4 @@
+import { buildManifest, createPublicStateApi } from "./application-manifest.js?v=1.0.0";
 import { events } from "./events.js?v=0.18.2";
 import { AuthController } from "./engines/arcgis/arcgis-auth.js?v=0.39.0";
 import { MapController } from "./map-controller.js?v=0.54.0-unified4";
@@ -167,12 +168,15 @@ async function start() {
       },
     };
   };
+  const publicState = createPublicStateApi({ runtime: applicationRuntime, mapController, documentRef: document, events });
   uiController.mapSpec = mapSpecApi;
   globalThis.gisMapOnline = Object.freeze({
     version: clientApi.version,
     /** Resolves once the view, basemap and the layers the address asked for have loaded. */
     ready,
     describe,
+    manifest: () => buildManifest({ tools: applicationRuntime.tools.list(), panels: applicationRuntime.panels.list() }),
+    state: publicState,
     layers: layersApi,
     camera: cameraApi,
     /** Whole maps as one JSON object (schemas/map-v1.schema.json): validate, encode, decode, createLink, load, fromCurrent. */

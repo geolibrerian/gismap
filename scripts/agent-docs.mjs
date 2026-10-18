@@ -208,6 +208,7 @@ The map in a link is one JSON object (map-v1): layers with filters and styles, b
 - [Briefing schema](${SITE}/schemas/briefing-v1.schema.json): slides that present a map
 - [URL parameters](${SITE}/api/url-parameters.json): every query and fragment parameter
 - [Capabilities](${SITE}/api/capabilities.json): in-page API, tools, error codes, limits
+- [Application manifest](${SITE}/api/manifest.json) and [API explorer](${SITE}/api/explorer/): privacy-safe state and live registry discovery
 - [TypeScript types](${SITE}/js/gismap-core.d.ts)
 
 ## Guides

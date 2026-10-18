@@ -27,6 +27,7 @@
         "map-image",
         "imagery",
         "geojson",
+        "geoparquet",
         "wms",
         "wfs",
         "kml"
@@ -160,10 +161,13 @@
         "osm",
         "satellite",
         "hybrid",
+        "usgs-imagery",
+        "usgs-imagery-topo",
         "open-liberty",
         "open-bright",
         "open-positron",
         "open-dark",
+        "open-fiord",
         "skin"
       ],
       "description": "The background map, applied before the scene starts.",

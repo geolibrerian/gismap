@@ -1,0 +1,465 @@
+{
+  "manifestVersion": "1.0.0",
+  "scope": "in-page",
+  "description": "GISMap browser API. Runtime registry may contain additional tools and panels.",
+  "discovery": {
+    "runtime": "gisMapOnline.manifest()",
+    "state": "gisMapOnline.state.snapshot()",
+    "stateSchema": "/schemas/application-state-v1.schema.json",
+    "explorer": "/api/explorer/"
+  },
+  "privacy": "The state projection excludes feature records, coordinates, source URLs, filter expressions, credentials and user-entered text.",
+  "actions": [
+    {
+      "id": "layer.add",
+      "displayName": "Add layer",
+      "description": "Add a public layer by HTTPS URL (ArcGIS REST, GeoJSON, WMS, WFS or KML) and wait until it has loaded.",
+      "inputSchema": {
+        "type": "object",
+        "required": [
+          "url"
+        ],
+        "properties": {
+          "url": {
+            "type": "string",
+            "description": "HTTPS URL of a layer, service or GeoJSON file."
+          },
+          "type": {
+            "enum": [
+              "arcgis-auto",
+              "feature",
+              "map-image",
+              "imagery",
+              "geojson",
+              "wms",
+              "wfs",
+              "kml"
+            ],
+            "description": "Layer type; arcgis-auto detects it."
+          },
+          "title": {
+            "type": "string"
+          },
+          "where": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "A read-only SQL where clause on the layer's fields, such as \"POP > 1000\". null clears it."
+          },
+          "renderer": {
+            "type": "object",
+            "description": "A RendererSpec, such as { \"type\": \"choropleth\", \"field\": \"POP\", \"method\": \"auto\" }, or { \"type\": \"auto\", \"field\": \"POP\" } to let the app choose. See schemas/renderer-v1.schema.json."
+          },
+          "opacity": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          },
+          "visible": {
+            "type": "boolean"
+          },
+          "ignoreServiceScaleRange": {
+            "type": "boolean",
+            "description": "Draw at every zoom level, ignoring the publisher's scale range."
+          },
+          "zoomTo": {
+            "type": "boolean",
+            "description": "Fit the view to the data; default true for the first data layer."
+          }
+        }
+      },
+      "outputSchema": null
+    },
+    {
+      "id": "layer.remove",
+      "displayName": "Remove layer",
+      "description": "Remove a layer from the map.",
+      "inputSchema": {
+        "type": "object",
+        "required": [
+          "layer"
+        ],
+        "properties": {
+          "layer": {
+            "type": "string",
+            "description": "The layer's id (from layers.list()), service URL or title."
+          }
+        }
+      },
+      "outputSchema": null
+    },
+    {
+      "id": "layer.update",
+      "displayName": "Update layer",
+      "description": "Change a layer's title, filter, style, opacity, visibility or scale range.",
+      "inputSchema": {
+        "type": "object",
+        "required": [
+          "layer"
+        ],
+        "properties": {
+          "layer": {
+            "type": "string",
+            "description": "The layer's id (from layers.list()), service URL or title."
+          },
+          "title": {
+            "type": "string"
+          },
+          "where": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "A read-only SQL where clause on the layer's fields, such as \"POP > 1000\". null clears it."
+          },
+          "renderer": {
+            "type": "object",
+            "description": "A RendererSpec, such as { \"type\": \"choropleth\", \"field\": \"POP\", \"method\": \"auto\" }, or { \"type\": \"auto\", \"field\": \"POP\" } to let the app choose. See schemas/renderer-v1.schema.json."
+          },
+          "opacity": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          },
+          "visible": {
+            "type": "boolean"
+          },
+          "ignoreServiceScaleRange": {
+            "type": "boolean"
+          }
+        }
+      },
+      "outputSchema": null
+    },
+    {
+      "id": "layer.style",
+      "displayName": "Style layer",
+      "description": "Style a layer with a RendererSpec.",
+      "inputSchema": {
+        "type": "object",
+        "required": [
+          "layer",
+          "renderer"
+        ],
+        "properties": {
+          "layer": {
+            "type": "string",
+            "description": "The layer's id (from layers.list()), service URL or title."
+          },
+          "renderer": {
+            "type": "object",
+            "description": "A RendererSpec, such as { \"type\": \"choropleth\", \"field\": \"POP\", \"method\": \"auto\" }, or { \"type\": \"auto\", \"field\": \"POP\" } to let the app choose. See schemas/renderer-v1.schema.json."
+          }
+        }
+      },
+      "outputSchema": null
+    },
+    {
+      "id": "layer.filter",
+      "displayName": "Filter layer",
+      "description": "Show only the features matching a where clause.",
+      "inputSchema": {
+        "type": "object",
+        "required": [
+          "layer",
+          "where"
+        ],
+        "properties": {
+          "layer": {
+            "type": "string",
+            "description": "The layer's id (from layers.list()), service URL or title."
+          },
+          "where": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "A read-only SQL where clause on the layer's fields, such as \"POP > 1000\". null clears it."
+          }
+        }
+      },
+      "outputSchema": null
+    },
+    {
+      "id": "layer.suggestStyles",
+      "displayName": "Suggest styles",
+      "description": "Rank the styles that suit a field, from its values: each option has a label, a reason, its class breaks and a pinnedSpec to pass to layer.style.",
+      "inputSchema": {
+        "type": "object",
+        "required": [
+          "layer"
+        ],
+        "properties": {
+          "layer": {
+            "type": "string",
+            "description": "The layer's id (from layers.list()), service URL or title."
+          },
+          "field": {
+            "type": "string",
+            "description": "The field to style by; the most measurement-like field when omitted."
+          }
+        }
+      },
+      "outputSchema": null
+    },
+    {
+      "id": "map.zoomToLayer",
+      "displayName": "Zoom to layer",
+      "description": "Fit the view to a layer's filtered data, or to every data layer when no layer is given.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "layer": {
+            "type": "string",
+            "description": "The layer's id (from layers.list()), service URL or title."
+          }
+        }
+      },
+      "outputSchema": null
+    },
+    {
+      "id": "source.inspect",
+      "displayName": "Inspect source",
+      "description": "Read a public ArcGIS or GeoJSON source's metadata without adding it to the map.",
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "url"
+        ],
+        "properties": {
+          "url": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "\\S"
+          },
+          "sample": {
+            "type": "boolean"
+          }
+        }
+      },
+      "outputSchema": null
+    },
+    {
+      "id": "layer.list",
+      "displayName": "List map layers",
+      "description": "Read the layers in the current map.",
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {}
+      },
+      "outputSchema": null
+    },
+    {
+      "id": "map.camera.inspect",
+      "displayName": "Inspect map camera",
+      "description": "Read the current map camera.",
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {}
+      },
+      "outputSchema": null
+    },
+    {
+      "id": "briefing.inspect",
+      "displayName": "Inspect briefing",
+      "description": "Read the current briefing document without changing it.",
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {}
+      },
+      "outputSchema": null
+    },
+    {
+      "id": "briefing.validate",
+      "displayName": "Validate briefing",
+      "description": "Statically validate a briefing document; this does not verify the rendered map.",
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "document"
+        ],
+        "properties": {
+          "document": {
+            "type": "object"
+          }
+        }
+      },
+      "outputSchema": null
+    }
+  ],
+  "panels": [],
+  "presets": [
+    "standard",
+    "explorer",
+    "briefing",
+    "atlas",
+    "ai-map",
+    "operations",
+    "globe"
+  ],
+  "layouts": [
+    "workspace",
+    "bottom-nav",
+    "bottom-workspace",
+    "globe",
+    "ai-map"
+  ],
+  "modes": [
+    "edit",
+    "present"
+  ],
+  "skins": [
+    {
+      "id": "gismap",
+      "label": "GISMap",
+      "tone": "auto"
+    },
+    {
+      "id": "clean-light",
+      "label": "Clean Light",
+      "tone": "light"
+    },
+    {
+      "id": "dark-analytical",
+      "label": "Midnight",
+      "tone": "dark"
+    },
+    {
+      "id": "tidal-95",
+      "label": "Pacific ’94",
+      "tone": "light"
+    },
+    {
+      "id": "portolan",
+      "label": "Copperplate",
+      "tone": "light"
+    },
+    {
+      "id": "velvet-orbit",
+      "label": "Velvet Orbit",
+      "tone": "dark"
+    },
+    {
+      "id": "violet-circuit",
+      "label": "Violet Circuit",
+      "tone": "dark"
+    },
+    {
+      "id": "highway",
+      "label": "Highway",
+      "tone": "light"
+    },
+    {
+      "id": "steeler",
+      "label": "Steeler",
+      "tone": "light"
+    },
+    {
+      "id": "slice",
+      "label": "Slice",
+      "tone": "light"
+    },
+    {
+      "id": "wavelength",
+      "label": "Wavelength",
+      "tone": "dark"
+    },
+    {
+      "id": "connect",
+      "label": "Connect",
+      "tone": "light"
+    }
+  ],
+  "engines": [
+    {
+      "id": "arcgis",
+      "label": "ArcGIS",
+      "capabilities": [
+        "view-3d",
+        "basemaps",
+        "ground",
+        "layers-arcgis",
+        "layers-ogc",
+        "layers-files",
+        "query",
+        "spatial-query",
+        "feature-filter",
+        "renderer-spec",
+        "renderer-native",
+        "identify",
+        "highlight",
+        "capture",
+        "geocode",
+        "geocode-suggest",
+        "draw",
+        "widgets",
+        "measurement",
+        "legend",
+        "tour-markers",
+        "native"
+      ]
+    },
+    {
+      "id": "maplibre",
+      "label": "MapLibre (preview)",
+      "capabilities": [
+        "view-2d",
+        "view-3d",
+        "basemaps",
+        "basemap-themes",
+        "ground",
+        "layers-arcgis",
+        "layers-files",
+        "query",
+        "feature-filter",
+        "renderer-spec",
+        "renderer-native",
+        "identify",
+        "highlight",
+        "capture",
+        "geocode",
+        "buildings-3d",
+        "draw",
+        "measurement",
+        "legend",
+        "native"
+      ]
+    }
+  ],
+  "stateMutations": [
+    {
+      "id": "layer.activate",
+      "inputSchema": {
+        "type": "object",
+        "required": [
+          "layerId"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "layerId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "outputSchema": {
+        "type": "object"
+      },
+      "undo": true
+    }
+  ],
+  "limitations": [
+    "Static actions cover exported tool definitions; call manifest() for the live registry.",
+    "Some existing registered tools do not yet declare input or output schemas.",
+    "State is a privacy-preserving projection, not a complete project export.",
+    "Only layer.activate is supported by the validated mutation facade."
+  ]
+}

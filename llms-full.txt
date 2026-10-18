@@ -18,6 +18,7 @@ The map in a link is one JSON object (map-v1): layers with filters and styles, b
 - [Briefing schema](https://gismap.online/schemas/briefing-v1.schema.json): slides that present a map
 - [URL parameters](https://gismap.online/api/url-parameters.json): every query and fragment parameter
 - [Capabilities](https://gismap.online/api/capabilities.json): in-page API, tools, error codes, limits
+- [Application manifest](https://gismap.online/api/manifest.json) and [API explorer](https://gismap.online/api/explorer/): privacy-safe state and live registry discovery
 - [TypeScript types](https://gismap.online/js/gismap-core.d.ts)
 
 ## Guides
@@ -37,7 +38,7 @@ The map in a link is one JSON object (map-v1): layers with filters and styles, b
 
 ## Limits
 - At most 10 layers per map; HTTPS only; URLs containing tokens or keys are refused; sources must allow browser (CORS) access.
-- Basemaps: topo-3d, navigation-3d, navigation-dark-3d, osm-3d, gray-3d, dark-gray-3d, streets-3d, streets-dark-3d, topo-vector, streets-vector, navigation, gray-vector, dark-gray-vector, osm, satellite, hybrid, open-liberty, open-bright, open-positron, open-dark, skin.
+- Basemaps: topo-3d, navigation-3d, navigation-dark-3d, osm-3d, gray-3d, dark-gray-3d, streets-3d, streets-dark-3d, topo-vector, streets-vector, navigation, gray-vector, dark-gray-vector, osm, satellite, hybrid, usgs-imagery, usgs-imagery-topo, open-liberty, open-bright, open-positron, open-dark, open-fiord, skin.
 - Colour ramps: greens, blues, reds, oranges, purples, viridis, magma, red-blue-diverging, brown-teal-diverging.
 
 ## Optional
@@ -164,7 +165,7 @@ Top-level properties:
 - `version`: The spec version. Always 1.
 - `title`: The map's name, shown as the project title.
 - `description`: What the map shows, for people reading the spec.
-- `basemap`: The background map. gray-vector and dark-gray-vector keep attention on the data; the open-* basemaps are OpenFreeMap styles (MapLibre engine; ArcGIS draws the nearest match); skin draws it in the colours of the interface skin (with the MapLibre engine; the ArcGIS engine uses the light or dark gray canvas). One of: topo-3d, navigation-3d, navigation-dark-3d, osm-3d, gray-3d, dark-gray-3d, streets-3d, streets-dark-3d, topo-vector, streets-vector, navigation, gray-vector, dark-gray-vector, osm, satellite, hybrid, open-liberty, open-bright, open-positron, open-dark, skin.
+- `basemap`: The background map. gray-vector and dark-gray-vector keep attention on the data; the open-* basemaps are OpenFreeMap styles (MapLibre engine; ArcGIS draws the nearest match); skin draws it in the colours of the interface skin (with the MapLibre engine; the ArcGIS engine uses the light or dark gray canvas). One of: topo-3d, navigation-3d, navigation-dark-3d, osm-3d, gray-3d, dark-gray-3d, streets-3d, streets-dark-3d, topo-vector, streets-vector, navigation, gray-vector, dark-gray-vector, osm, satellite, hybrid, usgs-imagery, usgs-imagery-topo, open-liberty, open-bright, open-positron, open-dark, open-fiord, skin.
 - `skin`: The interface look. It never changes a layer's style; with the skin basemap the map is drawn in its colours, and with the MapLibre engine layers that have no style take its accent colour. One of: gismap, clean-light, dark-analytical, tidal-95, portolan, velvet-orbit, violet-circuit, highway, steeler, slice, wavelength, connect.
 - `camera`: Where the map looks. Default { "fit": "layers" }: fit the loaded data (its dense core when it spreads over half the world).
 - `layers`: The data, drawn in order (the last is on top). At most 10.
@@ -174,7 +175,7 @@ Top-level properties:
 Layer properties:
 
 - `layers[].url`: HTTPS URL of an ArcGIS REST layer or service (FeatureServer/0, MapServer, ImageServer), a GeoJSON file, or a WMS/WFS/KML service. Public only: no tokens or keys. The service must allow browser (CORS) access. Append ?f=pjson to an ArcGIS URL to see its fields.
-- `layers[].type`: The layer type; arcgis-auto detects it from the service. One of: arcgis-auto, feature, map-image, imagery, geojson, wms, wfs, kml.
+- `layers[].type`: The layer type; arcgis-auto detects it from the service. One of: arcgis-auto, feature, map-image, imagery, geojson, geoparquet, wms, wfs, kml.
 - `layers[].title`: The name shown in the Layers panel and legend.
 - `layers[].where`: A read-only SQL filter on the layer's fields, such as "CORN_SALES_IN_DOLLARS >= 0" or "STATE = 'Iowa'". No statements, comments or semicolons.
 - `layers[].renderer`: The style. Field names must match the service exactly; a misspelled field keeps the service's own style and is reported.
@@ -204,7 +205,7 @@ Named ramps: greens, blues, reds, oranges, purples, viridis, magma, red-blue-div
 Query (after ?):
 
 - `layer`: HTTPS URL of a public layer, service or GeoJSON file. No tokens or keys. Example: `https://services.arcgis.com/P3ePLMYs2RVChkJx/ArcGIS/rest/services/Corn/FeatureServer/0`.
-- `layerType` (index-aligned with layer): Layer type; arcgis-auto detects it. Values: arcgis-auto, feature, map-image, imagery, geojson, wms, wfs, kml. Example: `feature`.
+- `layerType` (index-aligned with layer): Layer type; arcgis-auto detects it. Values: arcgis-auto, feature, map-image, imagery, geojson, geoparquet, wms, wfs, kml. Example: `feature`.
 - `title` (index-aligned with layer): Layer title. Example: `Corn sales`.
 - `where` (index-aligned with layer): Read-only SQL filter on the layer's fields. Example: `CORN_SALES_IN_DOLLARS >= 0`.
 - `style` (index-aligned with layer): A style without JSON. Values: service, simple, choropleth, graduated, categories, heatmap, auto. Example: `choropleth`.
@@ -216,7 +217,7 @@ Query (after ?):
 - `exclude` (index-aligned with layer): Comma-separated codes drawn as "No data" and kept out of the classes. Example: `-1`.
 - `color` (index-aligned with layer): Hex colour for simple and graduated styles. Example: `d9951e`.
 - `opacity` (index-aligned with layer): 0 (transparent) to 1 (opaque). Example: `0.8`.
-- `basemap`: The background map, applied before the scene starts. Values: topo-3d, navigation-3d, navigation-dark-3d, osm-3d, gray-3d, dark-gray-3d, streets-3d, streets-dark-3d, topo-vector, streets-vector, navigation, gray-vector, dark-gray-vector, osm, satellite, hybrid, open-liberty, open-bright, open-positron, open-dark, skin. Example: `gray-vector`.
+- `basemap`: The background map, applied before the scene starts. Values: topo-3d, navigation-3d, navigation-dark-3d, osm-3d, gray-3d, dark-gray-3d, streets-3d, streets-dark-3d, topo-vector, streets-vector, navigation, gray-vector, dark-gray-vector, osm, satellite, hybrid, usgs-imagery, usgs-imagery-topo, open-liberty, open-bright, open-positron, open-dark, open-fiord, skin. Example: `gray-vector`.
 - `zoom`: layers fits the loaded data; none keeps the starting view. Values: layers, none. Example: `none`.
 - `center`: View centre in degrees; use with scale or level. Example: `-93.6,42`.
 - `scale`: Map scale denominator, with center. Example: `500000`.

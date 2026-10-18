@@ -1,0 +1,93 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://gismap.online/schemas/application-state-v1.schema.json",
+  "title": "GISMap privacy-preserving application state",
+  "type": "object",
+  "required": [
+    "revision",
+    "version",
+    "status",
+    "engine",
+    "basemap",
+    "skin",
+    "application",
+    "activeLayerId",
+    "selection",
+    "layers"
+  ],
+  "properties": {
+    "revision": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "version": {
+      "const": 1
+    },
+    "status": {
+      "type": "string"
+    },
+    "engine": {
+      "type": "string"
+    },
+    "basemap": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "skin": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "activeLayerId": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "application": {
+      "type": "object",
+      "required": [
+        "preset",
+        "mode",
+        "layout",
+        "panels"
+      ]
+    },
+    "selection": {
+      "type": "object",
+      "required": [
+        "active",
+        "count"
+      ],
+      "properties": {
+        "active": {
+          "type": "boolean"
+        },
+        "count": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "layers": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "type",
+          "visible",
+          "opacity",
+          "metadata",
+          "filters",
+          "styling",
+          "capabilities"
+        ]
+      }
+    }
+  },
+  "additionalProperties": false
+}
