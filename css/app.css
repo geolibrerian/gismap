@@ -1274,8 +1274,18 @@ dialog::backdrop { background: rgb(12 28 23 / 48%); backdrop-filter: blur(3px); 
 .field-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 12px; }
 .form-note { margin: 10px 0 0; color: var(--muted); font-size: 11px; line-height: 1.55; }
 .connection-actions { display:flex; flex-wrap:wrap; gap:8px; }
-.connection-actions button, .connection-browser button { min-height:40px; padding:8px 12px; border:1px solid var(--line); border-radius:6px; color:var(--ink); background:var(--surface); cursor:pointer; }
-.connection-actions .button--primary { color:#fff; background:var(--green); border-color:var(--green); }
+.connection-actions button, .connection-browser button, .connection-panel input[type="file"]::file-selector-button { min-height:40px; padding:8px 12px; border:1px solid var(--line); border-radius:var(--ui-radius-small, 6px); color:var(--ink); background:var(--surface); font:600 12px/1.25 var(--ui-font, sans-serif); cursor:pointer; }
+.connection-actions .button--primary { color:var(--on-accent, #fff); background:var(--green); border-color:var(--green); }
+.connection-actions button:not(:disabled):hover, .connection-browser button:not(:disabled):hover, .connection-panel input[type="file"]::file-selector-button:hover { border-color:var(--green-2); }
+.connection-actions button:focus-visible, .connection-browser button:focus-visible, .connection-panel input:focus-visible { outline:2px solid var(--green-2); outline-offset:2px; }
+.connection-actions button:disabled, .connection-browser button:disabled { opacity:.6; cursor:wait; }
+.connection-panel { display:grid; gap:16px; }
+.connection-panel > .form-note { margin:0; }
+.connection-group { padding-top:14px; border-top:1px solid var(--line); }
+.connection-group h3 { margin:0 0 12px; font:700 14px/1.3 var(--ui-font, sans-serif); }
+.connection-panel input[type="file"] { padding:6px; font:inherit; }
+.connection-panel input[type="file"]::file-selector-button { margin-right:10px; }
+.connection-panel pre:empty { display:none; }
 .connection-browser { margin-top:18px; border-top:1px solid var(--line); padding-top:14px; }
 .connection-browser h3 { margin:0 0 12px; }
 .connection-browser__controls { display:grid; grid-template-columns:2fr 1fr 1fr; gap:10px; }

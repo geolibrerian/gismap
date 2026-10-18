@@ -148,16 +148,19 @@ export function openPostgisPanel(ui) {
 
 export function openDuckdbPanel(ui, client) {
   ui.openDialog({ eyebrow: 'Data connections', title: 'Connect DuckDB', content: `
+    <div class="connection-panel">
     <p class="form-note">DuckDB-Wasm runs in a worker on this device. Files are not uploaded. Local data must be re-imported after a reload. Large files may exhaust browser memory, especially on mobile.</p>
-    <div><button type="button" data-connection-start>Start DuckDB</button> <button type="button" data-connection-stop>Stop</button> <button type="button" data-connection-spatial>Check spatial extension</button></div>
+    <div class="connection-actions"><button class="button--primary" type="button" data-connection-start>Start DuckDB</button><button type="button" data-connection-stop>Stop</button><button type="button" data-connection-spatial>Check spatial extension</button></div>
+    <section class="connection-group" aria-labelledby="duckdb-local-title"><h3 id="duckdb-local-title">Local file</h3>
     <label class="field"><span>Local CSV, JSON, Parquet or GeoParquet</span><input type="file" data-connection-file accept=".csv,.json,.geojson,.parquet,.geoparquet"></label>
     <label class="field"><span>Table name</span><input data-connection-name value="local_data" autocomplete="off"></label>
-    <div><button type="button" data-connection-import>Import and preview</button></div>
+    <div class="connection-actions"><button type="button" data-connection-import>Import and preview</button></div></section>
+    <section class="connection-group" aria-labelledby="duckdb-remote-title"><h3 id="duckdb-remote-title">Remote file</h3>
     <label class="field"><span>Remote Parquet / GeoParquet HTTPS URL</span><input type="url" data-connection-url placeholder="https://example.com/data.parquet"></label>
-    <div><button type="button" data-connection-remote>Load remote Parquet and preview</button></div>
+    <div class="connection-actions"><button type="button" data-connection-remote>Load remote Parquet and preview</button></div></section>
     <p class="form-note" role="status" data-connection-status>Stopped. DuckDB is loaded only when started.</p>
-    <pre data-connection-results style="max-height:18rem;overflow:auto;white-space:pre-wrap"></pre>
-    <p class="form-note">Remote Parquet requires provider CORS and may require HTTP ranges. Spatial rendering, SQL editing, and remote DuckDB services are not yet available in this panel.</p>` });
+    <pre class="connection-browser__preview" data-connection-results></pre>
+    <p class="form-note">Remote Parquet requires provider CORS and may require HTTP ranges. Spatial rendering, SQL editing, and remote DuckDB services are not yet available in this panel.</p></div>` });
   status(client.connection ? 'Ready: browser DuckDB is running.' : 'Stopped. DuckDB is loaded only when started.');
   bind('start', async () => { status('Starting DuckDB locally…'); await client.initialize(); status('Ready: browser DuckDB is running.'); });
   bind('stop', async () => { if (client.initializing) throw new Error('Wait for initialization to finish before stopping.'); await client.close(); field('results').textContent = ''; status('Stopped; in-memory tables were cleared.'); });
@@ -185,7 +188,7 @@ export function openPmtilesPanel(ui, mapController, switchEngine) {
   const available = mapController.getEngineId() === 'maplibre';
   ui.openDialog({ eyebrow: 'Tiled data', title: 'Add PMTiles', content: `
     <p class="form-note">${available ? 'Inspect a public HTTPS PMTiles archive. The host must allow CORS and HTTP byte ranges.' : 'PMTiles requires MapLibre; the ArcGIS adapter does not currently support it.'}</p>
-    ${available ? '<label class="field"><span>Archive URL</span><input type="url" data-connection-url placeholder="https://example.com/data.pmtiles"></label><button type="button" data-connection-test>Inspect archive</button><p class="form-note" role="status" data-connection-status>Not inspected.</p><pre data-connection-results style="max-height:18rem;overflow:auto;white-space:pre-wrap"></pre><p class="form-note">Archive rendering, layer management, and share restoration are not implemented yet.</p>' : '<button type="button" data-connection-switch>Switch to MapLibre</button><p class="form-note" role="status" data-connection-status>Other layers and view are preserved where supported.</p>'}` });
+    ${available ? '<label class="field"><span>Archive URL</span><input type="url" data-connection-url placeholder="https://example.com/data.pmtiles"></label><div class="connection-actions"><button class="button--primary" type="button" data-connection-test>Inspect archive</button></div><p class="form-note" role="status" data-connection-status>Not inspected.</p><pre data-connection-results style="max-height:18rem;overflow:auto;white-space:pre-wrap"></pre><p class="form-note">Archive rendering, layer management, and share restoration are not implemented yet.</p>' : '<div class="connection-actions"><button class="button--primary" type="button" data-connection-switch>Switch to MapLibre</button></div><p class="form-note" role="status" data-connection-status>Other layers and view are preserved where supported.</p>'}` });
   bind('switch', () => switchEngine('maplibre'));
   bind('test', async () => {
     status('Inspecting archive…');
