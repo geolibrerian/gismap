@@ -55,7 +55,7 @@ test('the direct dragon page is up to date and uses the same game without a 404 
   assert.match(direct, /rel="icon" href="\/assets\/gis-map-online-mark-v2\.png" type="image\/png"/);
   assert.doesNotMatch(direct, /404 ·|couldn’t find that page|content="noindex"/);
   for (const id of ['game', 'canvas', 'start', 'flapButton', 'pauseButton']) assert.match(direct, new RegExp(`id="${id}"`));
-  assert.match(direct, /\/js\/dragon-game\.js\?v=9/);
+  assert.match(direct, /\/js\/dragon-game\.js\?v=10/);
   assert.match(direct, /download="here-be-dragons\.png"/);
   assert.doesNotMatch(direct, /id="shareQrBrand"/);
   assert.match(direct, /href="\/examples\/">See Examples<\/a>/);
@@ -92,4 +92,42 @@ test('shared dragon artwork draws the in-game dragon in both flight and card pos
   assert.ok(calls.filter(([name]) => name === 'bezierCurveTo').length > 10);
   assert.ok(calls.some(([name, x, y]) => name === 'translate' && x === 225 && y === 205));
   assert.ok(calls.some(([name, x, y]) => name === 'translate' && x === 0 && y === 0));
+});
+
+
+test('serpents leap near the top, drift down, and their collision box follows', () => {
+  const start = code.indexOf('function serpentRise(h)');
+  const end = code.indexOf('function knightThrust(h)', start);
+  const helpers = code.slice(start, end);
+  const scope = { Math, clamp:(v,a,b)=>Math.max(a,Math.min(b,v)) };
+  runInNewContext(`${helpers}; globalThis.rise=serpentRise; globalThis.box=serpentCollisionBox;`, scope);
+  const h = {x:300,y:385};
+  assert.equal(scope.rise(h), 0);
+  h.jumpElapsed = .65;
+  const top = scope.rise(h);
+  assert.equal(top, 327);
+  assert.equal(h.y-top-54, 4); // The serpent's head reaches the top edge.
+  assert.equal(scope.box(h).y, h.y-top-50);
+  h.jumpElapsed = 1.5;
+  const mid = scope.rise(h);
+  assert.ok(mid > 0 && mid < top);
+  assert.equal(scope.box(h).y, h.y-mid-50);
+  h.jumpElapsed = 4;
+  assert.equal(scope.rise(h), 0);
+});
+
+test('serpents begin their leap on approach in desktop and mobile worlds', () => {
+  const start = code.indexOf('function updateSerpentJump(h,dt)');
+  const end = code.indexOf('function serpentRise(h)', start);
+  const helper = code.slice(start, end);
+  for (const [width, dragonX] of [[960,225],[440,128]]) {
+    const scope = {W:width,dragon:{x:dragonX},clamp:(v,a,b)=>Math.max(a,Math.min(b,v))};
+    runInNewContext(`${helper}; globalThis.advance=updateSerpentJump;`, scope);
+    const serpent = {x:width+90};
+    scope.advance(serpent,.02);
+    assert.equal(serpent.jumpElapsed, undefined);
+    serpent.x = dragonX + Math.max(230,Math.min(440,width*.46));
+    scope.advance(serpent,.02);
+    assert.equal(serpent.jumpElapsed,.02);
+  }
 });

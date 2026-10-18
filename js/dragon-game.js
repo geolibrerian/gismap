@@ -28,8 +28,8 @@ function spawn(){const types=['serpent','knight','kraken','castle'];let type=typ
 function hit(a,b){return a.x+a.w>b.x&&a.x<b.x+b.w&&a.y+a.h>b.y&&a.y<b.y+b.h}
 function burst(x,y,color,n=12){for(let i=0;i<n;i++)particles.push({x,y,vx:rnd(-130,130),vy:rnd(-170,60),life:rnd(.25,.7),color})}
 function update(dt){if(state!=='playing')return;dt=Math.min(.038,dt);elapsed+=dt;const speed=clamp(176+elapsed*1.4,176,280);offset+=speed*dt;distance+=speed*dt/15;dragon.vy+=610*dt;dragon.y+=dragon.vy*dt;dragon.flap=Math.max(0,dragon.flap-dt);dragon.invuln=Math.max(0,dragon.invuln-dt);if(dragon.y<35){dragon.y=35;dragon.vy=45}if(dragon.y>H-94){dragon.y=H-94;dragon.vy=-110;if(dragon.invuln<=0)damage()}
-nextSpawn-=dt;if(nextSpawn<=0)spawn();for(const h of hazards){h.x-=speed*dt;h.t+=dt;const box={x:dragon.x-25,y:dragon.y-20,w:58,h:42};if(h.type==='castle'){const princess={x:h.x+38,y:h.y-66+Math.sin(h.t*4)*4,w:25,h:48};if(!h.taken&&hit(box,princess)){h.taken=true;score++;burst(princess.x+12,princess.y+18,'#c9903c',18);updateHud()}const castle={x:h.x+8,y:h.y+3,w:95,h:100};if(dragon.invuln<=0&&hit(box,castle))damage()}
-else{let box2;if(h.type==='serpent'){const rise=serpentRise(h);box2={x:h.x+7,y:h.y-rise-30,w:70,h:66}}else if(h.type==='knight'){const thrust=knightThrust(h);box2={x:h.x+8,y:h.y-103-thrust,w:66,h:174+thrust}}else{box2={x:h.x+8,y:h.y-48,w:h.w-15,h:124}}if(dragon.invuln<=0&&hit(box,box2))damage()}}
+nextSpawn-=dt;if(nextSpawn<=0)spawn();for(const h of hazards){h.x-=speed*dt;h.t+=dt;if(h.type==='serpent')updateSerpentJump(h,dt);const box={x:dragon.x-25,y:dragon.y-20,w:58,h:42};if(h.type==='castle'){const princess={x:h.x+38,y:h.y-66+Math.sin(h.t*4)*4,w:25,h:48};if(!h.taken&&hit(box,princess)){h.taken=true;score++;burst(princess.x+12,princess.y+18,'#c9903c',18);updateHud()}const castle={x:h.x+8,y:h.y+3,w:95,h:100};if(dragon.invuln<=0&&hit(box,castle))damage()}
+else{let box2;if(h.type==='serpent'){box2=serpentCollisionBox(h)}else if(h.type==='knight'){const thrust=knightThrust(h);box2={x:h.x+8,y:h.y-103-thrust,w:66,h:174+thrust}}else{box2={x:h.x+8,y:h.y-48,w:h.w-15,h:124}}if(dragon.invuln<=0&&hit(box,box2))damage()}}
 hazards=hazards.filter(h=>h.x>-160);for(const p of particles){p.x+=p.vx*dt;p.y+=p.vy*dt;p.life-=dt}particles=particles.filter(p=>p.life>0);updateHud()}
 function damage(){lives--;dragon.invuln=1.5;dragon.vy=-155;burst(dragon.x,dragon.y,'#bb6744');updateHud();if(lives<=0)end()}
 function line(points,color,width=2){c.strokeStyle=color;c.lineWidth=width;c.lineJoin='round';c.lineCap='round';c.beginPath();points.forEach(([x,y],i)=>i?c.lineTo(x,y):c.moveTo(x,y));c.stroke()}
@@ -45,7 +45,21 @@ c.fillStyle='#83b6ad';c.fillRect(0,397,W,83);for(let i=0;i<14;i++){let x=(i*105-
 // Foreground rolling land / rocky shoals.
 for(let i=-1;i<9;i++){let x=i*155-(offset%155);polygon([[x,471],[x+43,451],[x+105,459],[x+170,480]],'#547f6b','#547f6b',1)}
 }
-function serpentRise(h){const cycle=(h.t*0.68+h.phase*.08)%3.45; if(cycle<.65)return 90*Math.sin((cycle/.65)*Math.PI/2);if(cycle<1.5)return 90+15*Math.sin((cycle-.65)/.85*Math.PI);if(cycle<3.3)return Math.max(0,90*(1-(cycle-1.5)/1.8));return 0}
+// Wait until the serpent approaches the dragon, then leap near the top of the
+// logical canvas and drift slowly back down. Rendering and collisions share
+// the same vertical position on both the wide and mobile playfields.
+function updateSerpentJump(h,dt){
+  if(h.jumpElapsed==null && h.x<=dragon.x+clamp(W*.46,230,440))h.jumpElapsed=0;
+  if(h.jumpElapsed!=null)h.jumpElapsed+=dt;
+}
+function serpentRise(h){
+  if(h.jumpElapsed==null)return 0;
+  const leap=.65, drift=2.8, maxRise=Math.max(0,h.y-58), t=h.jumpElapsed;
+  if(t<leap)return maxRise*Math.sin(Math.max(0,t)/leap*Math.PI/2);
+  const progress=clamp((t-leap)/drift,0,1);
+  return maxRise*(1-Math.pow(progress,1.4));
+}
+function serpentCollisionBox(h){return {x:h.x+3,y:h.y-serpentRise(h)-50,w:100,h:116}}
 function knightThrust(h){return 22*Math.sin(h.t*5+h.phase)}
 function drawDragon(){DragonArt.drawDragon(c,dragon,elapsed)}
 function drawCastle(h){const x=h.x,y=h.y;c.save();c.translate(x,y);
