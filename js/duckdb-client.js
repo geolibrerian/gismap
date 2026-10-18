@@ -142,6 +142,15 @@ export class DuckDBBrowserClient {
     return normalized;
   }
 
+  async removeRelation(name) {
+    if (!this.loadedRelations.has(name)) return;
+    await this.connection.query(`DROP VIEW IF EXISTS ${quoteIdentifier(name)}`);
+    const file = this.relationFiles.get(name);
+    if (file) { await this.db.dropFile?.(file); this.registeredFiles.delete(file); this.relationFiles.delete(name); }
+    this.parquetSources.delete(name);
+    this.loadedRelations.delete(name);
+  }
+
   async query(sql) {
     await this.initialize();
     const result = await this.connection.query(validateReadOnlySQL(sql));

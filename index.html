@@ -126,8 +126,8 @@
           <div class="menu">
             <button class="menu__trigger" aria-expanded="false">Data <span>⌄</span></button>
             <div class="menu__content" role="menu">
-              <button data-action="data-file">Add KML / KMZ / zipped SHP / GeoJSON</button>
-              <button data-action="data-geojson">Add GeoJSON URL / feed</button>
+              <button data-action="data-file">Add local spatial file</button>
+              <button data-action="data-geojson">Add GeoJSON / GeoParquet URL</button>
               <button data-action="data-arcgis">Add ArcGIS REST service</button>
               <button data-action="data-wms">Add WMS service</button>
               <button data-action="data-wfs">Add WFS service</button>
@@ -418,7 +418,7 @@
     <input id="project-file-input" type="file" accept=".gmo,.gmop,.gmoatlas,.json,.gismap,.zip,.png,image/png" hidden />
     <!-- Any picture: phones offer the photo library and camera. -->
     <input id="image-file-input" type="file" accept="image/*" hidden />
-    <input id="data-file-input" type="file" accept=".json,.geojson,.kml,.kmz,.zip" multiple hidden />
+    <input id="data-file-input" type="file" accept=".json,.geojson,.kml,.kmz,.zip,.parquet,.geoparquet" multiple hidden />
     <input id="tool-file-input" type="file" accept=".js,.mjs" hidden />
 
     <section class="sr-only" aria-labelledby="agent-docs-title">
@@ -433,6 +433,6 @@
       </ul>
     </section>
     <noscript>GISMap Online is a geospatial application and needs JavaScript. Without it, a map can still be described as a link: see <a href="/llms.txt">/llms.txt</a> and the <a href="/guides/ai-agents/">guide for AI agents</a>.</noscript>
-    <script type="module" src="./js/app.js?v=0.54.0-geomap1"></script>
+    <script type="module" src="./js/app.js?v=0.54.0-unified3"></script>
   </body>
 </html>

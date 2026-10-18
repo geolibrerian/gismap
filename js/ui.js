@@ -2207,7 +2207,7 @@ export class UIController {
     const isWms = serviceType === "wms";
     const isWfs = serviceType === "wfs";
     const isGeoJson = serviceType === "geojson";
-    const title = isWms ? "Add WMS service" : isWfs ? "Add WFS service" : isGeoJson ? "Add GeoJSON URL / feed" : "Add ArcGIS REST service";
+    const title = isWms ? "Add WMS service" : isWfs ? "Add WFS service" : isGeoJson ? "Add GeoJSON / GeoParquet URL" : "Add ArcGIS REST service";
     const placeholder = isWms
       ? "https://server.example/geoserver/wms"
       : isWfs
@@ -2218,19 +2218,33 @@ export class UIController {
     this.openDialog({
       eyebrow: isGeoJson ? "Open vector data feed" : isWms || isWfs ? "Open geospatial service" : "ArcGIS Enterprise / Online",
       title,
-      content: `<label class="field"><span>${isGeoJson ? "GeoJSON URL" : isWfs ? "WFS endpoint or GetFeature URL" : "Service URL"}</span><input id="service-url" type="url" placeholder="${placeholder}" /></label>
+      content: `<label class="field"><span>${isGeoJson ? "GeoJSON or GeoParquet URL" : isWfs ? "WFS endpoint or GetFeature URL" : "Service URL"}</span><input id="service-url" type="url" placeholder="${placeholder}" /></label>
         <label class="field"><span>Layer title <small>optional</small></span><input id="service-title" /></label>
         ${isWfs ? '<label class="field"><span>Feature type <small>optional when included as TYPENAME in the URL</small></span><input id="wfs-name" placeholder="workspace:layer_name" /></label>' : ""}
         ${isWms || isWfs || isGeoJson ? "" : `<label class="field"><span>Service type</span><select id="service-type"><option value="arcgis-auto">Detect automatically</option><option value="feature">Feature service / layer</option><option value="map-image">Map service</option><option value="imagery">Image service</option></select></label>`}
-        <label class="field"><span>Refresh every <small>minutes; 0 disables</small></span><input id="service-refresh" type="number" min="0" step="0.5" value="0" /></label>
-        <p class="form-note">${isGeoJson ? "The URL must return RFC 7946 GeoJSON and allow browser requests through CORS. It will load as a native ArcGIS GeoJSONLayer with querying, styling, tables, and refresh support." : isWfs ? "Requires WFS 2.0, GeoJSON output advertised by the server, and browser CORS access. Full GetFeature URLs are reduced to the service endpoint and their TYPENAME is detected automatically." : "Layer URLs and FeatureServer /query URLs are supported. Query URLs apply their where and outFields parameters; geometry is projected into the map automatically. The remote server must allow cross-origin browser requests (CORS)."}</p>`,
-      actions: [{ label: isGeoJson ? "Add GeoJSON feed" : isWfs ? "Add WFS layer" : "Add service", primary: true, handler: async () => {
+        <label class="field"><span>Refresh every <small>minutes; 0 disables</small></span><input id="service-refresh" type="number" min="0" step="0.5" value="0" /></label><p class="form-note" role="status" id="service-status"></p>
+        <p class="form-note">${isGeoJson ? "Use a direct GeoJSON or GeoParquet file URL. The provider must permit CORS; GeoParquet also requires byte-range requests. Large GeoParquet files are shown as a bounded snapshot. Refresh settings apply to GeoJSON feeds, not GeoParquet snapshots." : isWfs ? "Requires WFS 2.0, GeoJSON output advertised by the server, and browser CORS access. Full GetFeature URLs are reduced to the service endpoint and their TYPENAME is detected automatically." : "Layer URLs and FeatureServer /query URLs are supported. Query URLs apply their where and outFields parameters; geometry is projected into the map automatically. The remote server must allow cross-origin browser requests (CORS)."}</p>`,
+      actions: [{ label: isGeoJson ? "Add data" : isWfs ? "Add WFS layer" : "Add service", primary: true, handler: async () => {
         const button = this.dialog.querySelector(".button--primary");
         button.disabled = true;
         button.textContent = "Adding…";
         try {
+          const sourceUrl = this.dialog.querySelector("#service-url").value;
+          const { isParquetName, addGeoParquetLayer } = await import("./geoparquet-layer.js?v=0.54.0-unified3");
+          if (isGeoJson && isParquetName(sourceUrl)) {
+            const result = await addGeoParquetLayer(this, { url: sourceUrl, title: this.dialog.querySelector("#service-title").value });
+            if (result.tableOnly) {
+              const { openDuckdbQueryWorkspace } = await import("./duckdb-query-workspace.js?v=0.54.0-vector1");
+              openDuckdbQueryWorkspace(this, this.applicationRuntime.duckdb, { selectedRelation: result.relation, message: "This Parquet file has no recognized GeoParquet geometry metadata. It was loaded as a table, not a map layer." });
+              return;
+            }
+            this.dialog.close();
+            this.toast(result.truncated ? `Showing the first ${result.limit} features; SQL can query the full source. Save a project package to retain the map snapshot.` : `${result.layer.title} added as a session snapshot. Save a project package to retain it.`);
+            await this.mapController.goToLayerOnInitialLoad(result.layer).catch(() => {});
+            return;
+          }
           const layer = await this.#addServiceOrBrowse({
-            url: this.dialog.querySelector("#service-url").value,
+            url: sourceUrl,
             title: this.dialog.querySelector("#service-title").value,
             serviceType: isWms ? "wms" : isWfs ? "wfs" : isGeoJson ? "geojson" : this.dialog.querySelector("#service-type").value,
             wfsName: isWfs ? this.dialog.querySelector("#wfs-name").value : undefined,
@@ -2242,7 +2256,8 @@ export class UIController {
           await this.mapController.goToLayerOnInitialLoad(layer).catch(() => {});
         } catch (error) {
           button.disabled = false;
-            button.textContent = isGeoJson ? "Add GeoJSON feed" : isWfs ? "Add WFS layer" : "Add service";
+            button.textContent = isGeoJson ? "Add data" : isWfs ? "Add WFS layer" : "Add service";
+          this.dialog.querySelector("#service-status").textContent = error.message;
           this.error(error.message);
         }
       }}],
@@ -5057,8 +5072,15 @@ export class UIController {
     event.target.value = "";
     for (const file of files) {
       try {
-        const layer = await this.mapController.addLocalFile(file);
-        this.toast(`${layer.title} added.`);
+        const { isParquetName, addGeoParquetLayer } = await import("./geoparquet-layer.js?v=0.54.0-unified3");
+        const result = isParquetName(file.name) ? await addGeoParquetLayer(this, { file }) : null;
+        if (result?.tableOnly) {
+          const { openDuckdbQueryWorkspace } = await import("./duckdb-query-workspace.js?v=0.54.0-vector1");
+          openDuckdbQueryWorkspace(this, this.applicationRuntime.duckdb, { selectedRelation: result.relation, message: "This Parquet file has no recognized GeoParquet geometry metadata. It was loaded as a table, not a map layer." });
+          continue;
+        }
+        const layer = result?.layer || await this.mapController.addLocalFile(file);
+        this.toast(result?.truncated ? `Showing the first ${result.limit} features; SQL can query the full source. Save a project package to retain the map snapshot.` : `${layer.title} added.${result ? " Save a project package to retain the map snapshot." : ""}`);
         await this.mapController.goToLayerOnInitialLoad(layer).catch(() => {});
       } catch (error) {
         this.error(`${file.name}: ${error.message}`);
@@ -5388,7 +5410,7 @@ export class UIController {
         case "query-duckdb": {
           button.disabled = true;
           try {
-            const { openLayerInDuckdb } = await import("./layer-duckdb.js?v=0.54.0-vector1");
+            const { openLayerInDuckdb } = await import("./layer-duckdb.js?v=0.54.0-unified1");
             await openLayerInDuckdb(this, uid);
           } catch (error) { this.error(error.message); }
           finally { button.disabled = false; }

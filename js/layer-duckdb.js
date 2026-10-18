@@ -5,6 +5,11 @@ const MAX_ROWS = 5000;
 export async function openLayerInDuckdb(ui, uid) {
   const layer = ui.mapController.getLayer(uid);
   const config = layer && ui.mapController.getLayerConfig(layer);
+  const parquet = ui.applicationRuntime.geoParquetLayers?.get(uid);
+  if (parquet && ui.applicationRuntime.duckdb.loadedRelations.has(parquet.relation)) {
+    openDuckdbQueryWorkspace(ui, ui.applicationRuntime.duckdb, { selectedRelation: parquet.relation, message: `Querying the full GeoParquet source. The map ${parquet.truncated ? `shows only the first ${parquet.limit} features` : `shows ${parquet.count} features`}.` });
+    return;
+  }
   if (!layer?.queryable || !config?.local) throw new Error('Choose a local, queryable vector layer.');
   ui.toast('Preparing a local DuckDB snapshot…');
   const result = await ui.mapController.queryFeatures(uid, { where: '1=1', outFields: ['*'], returnGeometry: true, outSpatialReference: { wkid: 4326 }, num: MAX_ROWS + 1 }, { layerDefaults: false });
