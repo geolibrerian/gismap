@@ -60,7 +60,7 @@
     <link rel="describedby" type="application/json" href="/api/capabilities.json" />
     <link rel="help" href="/guides/ai-agents/" />
     <link rel="preconnect" href="https://js.arcgis.com" />
-    <link rel="stylesheet" href="./css/app.css?v=0.53.0-loading1" />
+    <link rel="stylesheet" href="./css/app.css?v=0.53.0-revert1" />
     <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
     <script src="https://unpkg.com/@mapbox/shp-write@0.4.3/shpwrite.js"></script>
     <script src="./js/vendor/qrcode-1.5.4.js?v=1"></script>
@@ -346,21 +346,6 @@
           </header>
           <div id="insights-content"></div>
         </aside>
-        <div id="shared-loading" class="shared-loading" role="status" aria-live="polite" hidden>
-          <div class="shared-loading__card">
-            <svg class="shared-loading__dragon" viewBox="0 0 120 86" aria-hidden="true">
-              <path class="shared-loading__trail" d="M6 72c22-14 36 9 55-2s28-5 47-14"/>
-              <g class="shared-loading__creature">
-                <path d="M26 52c10-4 16-14 25-15 8-1 13 7 22 7 9 0 14-5 20-14l7 3-3 9 11 4-12 4c-3 12-13 18-25 18-11 0-18-7-28-7-7 0-13 5-18 8l4-11-9-3z"/>
-                <path class="shared-loading__wing" d="M57 43 43 15l21 10 10-19 2 37z"/>
-                <circle cx="95" cy="38" r="1.6"/>
-              </g>
-            </svg>
-            <span class="shared-loading__eyebrow">Here be dragons</span>
-            <strong>Charting your map</strong>
-            <span data-shared-loading-message>Opening your shared experience…</span>
-          </div>
-        </div>
         <div id="map-status" class="map-status">Loading the map…</div>
         <button id="dashboard-settings-open" class="dashboard-settings-open" type="button" hidden aria-label="Open Dashboard Builder information" title="Dashboard Builder (account required)"><span aria-hidden="true">⚙</span> Dashboard Builder</button>
         <div id="toast-region" class="toast-region" aria-live="polite"></div>
@@ -445,6 +430,6 @@
       </ul>
     </section>
     <noscript>GISMap Online is a geospatial application and needs JavaScript. Without it, a map can still be described as a link: see <a href="/llms.txt">/llms.txt</a> and the <a href="/guides/ai-agents/">guide for AI agents</a>.</noscript>
-    <script type="module" src="./js/app.js?v=0.53.0-loading1"></script>
+    <script type="module" src="./js/app.js?v=0.53.0-revert1"></script>
   </body>
 </html>

@@ -28,7 +28,6 @@ import { createMapSpecApi } from "./map-spec-api.js?v=0.41.0";
 import { mapSpecFromShareParameters } from "./map-spec.js?v=0.41.0";
 import { GisMapError, ERROR_CODES } from "./gismap-errors.js?v=0.28.0";
 
-import { createSharedLoading } from "./shared-loading.js?v=0.53.0-loading1";
 import { loadSharedLayer } from "./shared-layer-loader.js?v=0.53.0";
 
 // Readiness for agents and scripts: gisMapOnline.ready, a `gismap:ready` event,
@@ -38,8 +37,6 @@ let resolveReady;
 let rejectReady;
 const ready = new Promise((resolve, reject) => { resolveReady = resolve; rejectReady = reject; });
 ready.catch(() => {});
-
-const sharedLoading = createSharedLoading({ element: document.querySelector("#shared-loading"), location });
 
 async function start() {
   const allowHttp = location.hostname === "localhost" || location.hostname === "127.0.0.1";
@@ -202,7 +199,6 @@ async function start() {
   }
   const linkBasemap = shared?.basemap || (sharedState?.kind === "map-spec" ? sharedState.spec?.basemap : sharedState?.basemap) || null;
   mapController.setInitialBasemap(SHARE_BASEMAPS.has(linkBasemap) ? linkBasemap : null);
-  sharedLoading.update("Preparing your map…");
   await mapController.initialize();
   events.publish("project:loaded", { project: projectManager.current, missingFiles: [] });
 
@@ -229,7 +225,6 @@ async function start() {
     events.publish("app:error", { message: error.message });
   }
 
-  sharedLoading.update("Loading the places and layers…");
   // A styled map or briefing link (`#map=…`, `#briefing=…`, or `?briefing=<file URL>`).
   try {
     if (sharedStateError) throw sharedStateError;
@@ -306,16 +301,13 @@ async function start() {
   });
 
   // The basemap's layers loading is part of "ready": a screenshot taken now shows the whole map.
-  sharedLoading.update("Putting the finishing touches on your map…");
   await mapController.whenBasemapLoaded(15000);
-  sharedLoading.finish();
   document.documentElement.dataset.gismapState = "ready";
   resolveReady();
   dispatchEvent(new CustomEvent("gismap:ready", { detail: describe() }));
 }
 
 start().catch((error) => {
-  sharedLoading.finish();
   console.error(error);
   document.documentElement.dataset.gismapState = "error";
   rejectReady(error);
