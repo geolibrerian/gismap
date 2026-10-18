@@ -3,10 +3,15 @@
 const KEY = 'gismap-online:data-connections:v1';
 const TYPES = new Set(['duckdb-wasm', 'duckdb-remote-file', 'postgis-http', 'pmtiles']);
 
-export function connectionUrl(value) {
+export function connectionUrl(value, { allowLoopbackHttp = false } = {}) {
   let url;
-  try { url = new URL(String(value || '').trim()); } catch { throw new Error('Enter a valid HTTPS URL.'); }
-  if (url.protocol !== 'https:' || url.username || url.password) throw new Error('Use an HTTPS URL without a username or password.');
+  try { url = new URL(String(value || '').trim()); } catch { throw new Error('Enter a valid connector URL.'); }
+  const loopback = ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname);
+  if ((url.protocol !== 'https:' && !(allowLoopbackHttp && url.protocol === 'http:' && loopback)) || url.username || url.password) {
+    throw new Error(allowLoopbackHttp
+      ? 'Use HTTPS or HTTP on localhost, 127.0.0.1, or [::1], without a username or password.'
+      : 'Use an HTTPS URL without a username or password.');
+  }
   // A conservative boundary: query parameters may contain provider secrets.
   if (url.search || url.hash) throw new Error('Connection URLs cannot contain query parameters or fragments; use session authentication instead.');
   return url.href;
@@ -26,7 +31,7 @@ export class ConnectionRegistry {
     if (!name) throw new Error('Enter a connection name.');
     const id = String(input.id || globalThis.crypto.randomUUID());
     const config = {};
-    if (input.config?.url) config.url = connectionUrl(input.config.url);
+    if (input.config?.url) config.url = connectionUrl(input.config.url, { allowLoopbackHttp: input.type === 'postgis-http' });
     if (input.type === 'postgis-http') config.workspace = String(input.config?.workspace || '').trim().slice(0, 120);
     const record = { id, name, type: input.type, config };
     const entries = this.list().filter((entry) => entry.id !== id);
@@ -40,7 +45,7 @@ export class ConnectionRegistry {
 // OGC API Features collection discovery, not a direct PostgreSQL connection.
 // Tokens are accepted only in memory and only sent to the configured origin.
 export async function discoverOgcCollections(endpoint, { token = '', fetchImpl = fetch, signal } = {}) {
-  const base = new URL(connectionUrl(endpoint));
+  const base = new URL(connectionUrl(endpoint, { allowLoopbackHttp: true }));
   const collections = base.pathname.replace(/\/$/, '').endsWith('/collections')
     ? base : new URL(`${base.href.replace(/\/$/, '')}/collections`);
   let response;
@@ -48,7 +53,7 @@ export async function discoverOgcCollections(endpoint, { token = '', fetchImpl =
     response = await fetchImpl(collections.href, { headers: { Accept: 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) }, signal, redirect: 'error' });
   } catch (error) {
     if (error?.name === 'AbortError') throw error;
-    throw new Error('The connector could not be reached. Check the network, HTTPS, redirects, and CORS.');
+    throw new Error('The connector could not be reached. Check the address, CORS, browser local-network permissions, and redirects. A PostgreSQL port is not an HTTP connector.');
   }
   if (response.status === 401) throw new Error('Authentication required or credentials rejected (HTTP 401).');
   if (response.status === 403) throw new Error('The connector denied access (HTTP 403).');

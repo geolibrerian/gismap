@@ -1,6 +1,6 @@
 // The existing GISMap dialog is dockable on desktop and a sheet on mobile.
 // These panels never serialize runtime objects, file contents, or credentials.
-import { ConnectionRegistry, connectionUrl, discoverOgcCollections } from './data-connections.js?v=0.54.0';
+import { ConnectionRegistry, connectionUrl, discoverOgcCollections } from './data-connections.js?v=0.54.0-localhost1';
 import { inspectExternalTiles } from './engines/maplibre/external-tiles.js?v=0.54.0';
 
 const registry = () => new ConnectionRegistry();
@@ -15,10 +15,10 @@ const bind = (name, fn) => field(name)?.addEventListener('click', async (event) 
 
 export function openPostgisPanel(ui) {
   ui.openDialog({ eyebrow: 'Data connections', title: 'Connect PostGIS', content: `
-    <p class="form-note">Connect through your organization's HTTPS OGC API Features service. Browsers cannot connect directly to PostgreSQL. A successful discovery does not verify the underlying database.</p>
+    <p class="form-note">Connect through an OGC API Features HTTP service. Remote services require HTTPS; HTTP is also allowed on localhost, 127.0.0.1, or [::1]. Browsers cannot connect directly to a PostgreSQL port. The service must allow CORS from GISMap Online. A successful discovery does not verify the underlying database.</p>
     <label class="field"><span>Saved connections</span><select data-connection-saved><option value="">New connection</option></select></label>
     <label class="field"><span>Connection name</span><input data-connection-name autocomplete="off"></label>
-    <label class="field"><span>Connector endpoint (HTTPS)</span><input data-connection-url type="url" autocomplete="url"></label>
+    <label class="field"><span>Connector endpoint (HTTPS or local HTTP)</span><input data-connection-url type="url" autocomplete="url"></label>
     <label class="field"><span>Workspace or database display name (optional)</span><input data-connection-workspace></label>
     <label class="field"><span>Session bearer token (optional, never saved)</span><input data-connection-token type="password" autocomplete="off"></label>
     <div><button type="button" data-connection-test>Test and browse</button> <button type="button" data-connection-save>Save connection</button> <button type="button" data-connection-remove>Remove</button></div>
@@ -36,7 +36,7 @@ export function openPostgisPanel(ui) {
     field('token').value = ''; field('results').replaceChildren(); status('Not connected.');
   });
   bind('save', () => {
-    const item = registry().save({ id: list.value || undefined, type: 'postgis-http', name: field('name').value, config: { url: connectionUrl(field('url').value), workspace: field('workspace').value } });
+    const item = registry().save({ id: list.value || undefined, type: 'postgis-http', name: field('name').value, config: { url: connectionUrl(field('url').value, { allowLoopbackHttp: true }), workspace: field('workspace').value } });
     refresh(item.id); status('Connection settings saved locally. No connection has been tested.');
   });
   bind('remove', () => { if (!list.value) throw new Error('Select a saved connection to remove.'); registry().remove(list.value); refresh(); field('name').value = ''; field('url').value = ''; field('workspace').value = ''; field('token').value = ''; field('results').replaceChildren(); status('Connection removed.'); });

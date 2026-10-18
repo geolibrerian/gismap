@@ -16,6 +16,25 @@ test('connection registry persists only allowlisted non-secret settings', () => 
   for (const url of ['http://agency.example', 'https://user:pass@agency.example/', 'https://agency.example/?secret=x', 'javascript:alert(1)']) assert.throws(() => connectionUrl(url));
 });
 
+test('PostGIS connectors permit HTTP only on loopback and keep credentials out of URLs', async () => {
+  const registry = new ConnectionRegistry(memoryStorage());
+  for (const host of ['localhost', '127.0.0.1', '[::1]']) {
+    const endpoint = `http://${host}:5435/api`;
+    const saved = registry.save({ id: host, type: 'postgis-http', name: host, config: { url: endpoint } });
+    assert.equal(saved.config.url, endpoint);
+    let requested;
+    const entries = await discoverOgcCollections(saved.config.url, { fetchImpl: async (url) => { requested = url; return Response.json({ collections: [{ id: 'local' }] }); } });
+    assert.equal(requested, `${endpoint}/collections`);
+    assert.equal(entries[0].id, 'local');
+  }
+  for (const url of ['http://remote.example/', 'http://localhost.example/', 'http://127.0.0.1.example/', 'http://user:password@localhost/', 'http://localhost/?token=secret', 'http://localhost/#secret']) {
+    assert.throws(() => connectionUrl(url, { allowLoopbackHttp: true }));
+  }
+  assert.throws(() => connectionUrl('http://localhost:5435/'));
+  assert.throws(() => registry.save({ id: 'remote', type: 'postgis-http', name: 'Remote', config: { url: 'http://remote.example/' } }));
+  assert.throws(() => registry.save({ id: 'file', type: 'duckdb-remote-file', name: 'File', config: { url: 'http://localhost/file.parquet' } }));
+});
+
 test('OGC discovery tests the actual collections endpoint, handles auth and fails closed', async () => {
   let seen;
   const result = await discoverOgcCollections('https://agency.example/api', { token: 'in-memory', fetchImpl: async (url, options) => { seen = {url, options}; return Response.json({collections:[{id:'one',title:'Roads'}]}); } });
