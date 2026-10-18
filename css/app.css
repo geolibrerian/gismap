@@ -2330,3 +2330,46 @@ body.sidebar-collapsed .table-dialog { left: 14px; }
 @media (max-width: 750px) { .query-layout { grid-template-columns:1fr; } .query-layout aside { border-right:0; border-bottom:1px solid var(--line); padding:0 0 12px; } }
 .app-dialog--docked .query-layout { grid-template-columns:1fr; }
 .app-dialog--docked .query-layout aside { border-right:0; border-bottom:1px solid var(--line); padding:0 0 12px; }
+
+/* Progressive disclosure keeps layer controls compact without losing actions. */
+.layer-card__more { margin-top: 8px; border-top: 1px solid var(--line); }
+.layer-card__more summary { padding: 9px 2px 2px; color: var(--muted); cursor: pointer; font-size: 10px; font-weight: 700; }
+.layer-card__more summary:hover { color: var(--green-2); }
+.layer-card__more[open] summary { color: var(--ink); }
+.layer-card__head > div { min-width: 0; }
+.layer-card__head strong { max-width: 100%; }
+
+/* A table's grid items must be allowed to shrink: wide rows scroll inside it. */
+.table-dialog, .table-dialog__shell { min-width: 0; min-height: 0; }
+.table-dialog__shell { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto auto minmax(0, 1fr) auto; overflow: hidden; }
+.table-dialog__shell > * { min-width: 0; max-width: 100%; }
+.table-tools { flex-wrap: wrap; }
+.table-search { flex: 1 1 220px; min-width: 0; max-width: 100%; }
+.table-scroll { min-width: 0; max-width: calc(100% - 28px); }
+.table-footer { flex-wrap: wrap; }
+
+/* Query uses a compact single column in both a dialog and a resizable dock. */
+.query-utility { padding: 18px; }
+.query-workspace { min-width: 0; gap: 14px; }
+.query-workspace > *, .query-layout > * { min-width: 0; }
+.query-layout, .app-dialog--docked .query-layout { grid-template-columns: minmax(0, 1fr); }
+.query-layout aside, .app-dialog--docked .query-layout aside { border-right: 0; border-bottom: 1px solid var(--line); padding: 0 0 14px; }
+.query-intro { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.5; }
+.query-disclosure { min-width: 0; border: 1px solid var(--line); border-radius: 8px; padding: 9px 12px; }
+.query-disclosure summary { color: var(--ink); cursor: pointer; font-size: 12px; font-weight: 700; }
+.query-disclosure summary small { color: var(--muted); font-weight: 400; }
+.query-disclosure[open] > :not(summary) { margin-top: 10px; }
+.query-fields { max-height: 180px; padding: 4px 0; border: 0; }
+.query-fields label { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 8px; padding: 7px 4px; font-size: 12px; overflow-wrap: anywhere; }
+.query-fields label input[type="checkbox"] { width: 16px; min-width: 16px; height: 16px; margin: 0; padding: 0; accent-color: var(--green-2); }
+.query-fields label small { color: var(--muted); font-size: 10px; }
+.query-workspace section, .query-workspace .sql-result { min-width: 0; max-width: 100%; }
+.query-workspace .sql-result { overflow: auto; }
+.query-workspace [data-q-pane] > .field, .query-workspace [data-q-pane] > .query-disclosure { margin-bottom: 10px; }
+.query-limit { flex: 0 1 auto; }
+.query-limit .field { min-width: 150px; }
+@media (max-width: 450px) { .query-grid { grid-template-columns: minmax(0, 1fr); } .table-tools { align-items: stretch; } .table-search { flex-basis: 100%; } }
+@media (min-width: 881px) { body[data-navigation-layout="top"] #layers-panel .layer-card__more { display: none; } }
+.query-workspace { container-type: inline-size; }
+@container (max-width: 480px) { .query-grid { grid-template-columns: minmax(0, 1fr); } }
+.table-dialog .dialog__header > div { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

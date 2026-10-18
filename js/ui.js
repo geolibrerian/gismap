@@ -71,6 +71,8 @@ export class UIController {
     this.activeUtilityTab = null;
     this.utilityModalPane = null;
     this.utilityDialogOpen = false;
+    this.utilityQueryOpen = false;
+    this.expandedLayerCards = new Set();
     this.suppressNextDialogClose = false;
     this.presentationSearchTimer = null;
     this.atlasPlaybackToken = 0;
@@ -742,6 +744,18 @@ export class UIController {
       this.#syncUtilityPanel(returnTab);
       return;
     }
+    // The analysis workspace owns a persistent pane, rather than the shared
+    // dialog shell: opening another dialog must not replace an in-progress SQL query.
+    const query = this.dialog.querySelector("#dialog-content > .query-workspace");
+    if (query) {
+      document.querySelector("#utility-query-content").replaceChildren(query);
+      this.suppressNextDialogClose = true;
+      this.dialog.close();
+      this.#undockDialogShell();
+      this.utilityQueryOpen = true;
+      this.#syncUtilityPanel("query");
+      return;
+    }
     this.suppressNextDialogClose = true;
     this.dialog.close();
     this.dialog.classList.add("app-dialog--docked");
@@ -773,6 +787,7 @@ export class UIController {
       ...this.#utilityWidgetTabs(),
       ...(this.utilityTasksOpen ? [{ id: "tasks", label: "Field tasks" }] : []),
       ...(this.utilityDialogOpen ? [{ id: "dialog", label: document.querySelector("#dialog-title")?.textContent || "Dialog" }] : []),
+      ...(this.utilityQueryOpen ? [{ id: "query", label: "Query data" }] : []),
       ...[...this.utilityPanelsOpen].map((id) => ({ id, label: DOCKABLE_PANELS[id] })),
       ...(this.utilityDrawOpen ? [{ id: "draw", label: "Draw" }] : []),
       ...(this.utilityStyleLayerUid ? [{ id: "style", label: `Style: ${this.mapController.getLayer(this.utilityStyleLayerUid)?.title || "Layer"}` }] : []),
@@ -913,6 +928,12 @@ export class UIController {
   }
 
   #closeUtilityTab(tabId) {
+    if (tabId === "query") {
+      this.utilityQueryOpen = false;
+      document.querySelector("#utility-query-content")?.replaceChildren();
+      this.#syncUtilityPanel();
+      return;
+    }
     if (this.utilityPanelsOpen.has(tabId)) {
       this.utilityPanelsOpen.delete(tabId);
       this.panelManager?.restore(`content:${tabId}`);
@@ -1061,17 +1082,17 @@ export class UIController {
           this.#serviceDialog("wfs");
           break;
         case "data-pmtiles": {
-          const { openPmtilesPanel } = await import("./data-connections-panel.js?v=0.54.0-analysis2");
+          const { openPmtilesPanel } = await import("./data-connections-panel.js?v=0.54.0-queryui1");
           openPmtilesPanel(this, this.mapController, (engine) => this.#switchEngine(engine));
           break;
         }
         case "data-duckdb": {
-          const { openDuckdbPanel } = await import("./data-connections-panel.js?v=0.54.0-analysis2");
+          const { openDuckdbPanel } = await import("./data-connections-panel.js?v=0.54.0-queryui1");
           openDuckdbPanel(this, this.applicationRuntime.duckdb);
           break;
         }
         case "data-postgis": {
-          const { openPostgisPanel } = await import("./data-connections-panel.js?v=0.54.0-analysis2");
+          const { openPostgisPanel } = await import("./data-connections-panel.js?v=0.54.0-queryui1");
           openPostgisPanel(this);
           break;
         }
@@ -2230,11 +2251,11 @@ export class UIController {
         button.textContent = "Adding…";
         try {
           const sourceUrl = this.dialog.querySelector("#service-url").value;
-          const { isParquetName, addGeoParquetLayer } = await import("./geoparquet-layer.js?v=0.54.0-analysis1");
+          const { isParquetName, addGeoParquetLayer } = await import("./geoparquet-layer.js?v=0.54.0-queryui1");
           if (isGeoJson && isParquetName(sourceUrl)) {
             const result = await addGeoParquetLayer(this, { url: sourceUrl, title: this.dialog.querySelector("#service-title").value });
             if (result.tableOnly) {
-              const { openDuckdbQueryWorkspace } = await import("./duckdb-query-workspace.js?v=0.54.0-analysis2");
+              const { openDuckdbQueryWorkspace } = await import("./duckdb-query-workspace.js?v=0.54.0-queryui1");
               openDuckdbQueryWorkspace(this, this.applicationRuntime.duckdb, { selectedRelation: result.relation, message: "This Parquet file has no recognized GeoParquet geometry metadata. It was loaded as a table, not a map layer." });
               return;
             }
@@ -5072,10 +5093,10 @@ export class UIController {
     event.target.value = "";
     for (const file of files) {
       try {
-        const { isParquetName, addGeoParquetLayer } = await import("./geoparquet-layer.js?v=0.54.0-analysis1");
+        const { isParquetName, addGeoParquetLayer } = await import("./geoparquet-layer.js?v=0.54.0-queryui1");
         const result = isParquetName(file.name) ? await addGeoParquetLayer(this, { file }) : null;
         if (result?.tableOnly) {
-          const { openDuckdbQueryWorkspace } = await import("./duckdb-query-workspace.js?v=0.54.0-analysis2");
+          const { openDuckdbQueryWorkspace } = await import("./duckdb-query-workspace.js?v=0.54.0-queryui1");
           openDuckdbQueryWorkspace(this, this.applicationRuntime.duckdb, { selectedRelation: result.relation, message: "This Parquet file has no recognized GeoParquet geometry metadata. It was loaded as a table, not a map layer." });
           continue;
         }
@@ -5353,10 +5374,11 @@ export class UIController {
         const edited = this.mapController.layerMetadata?.(layer)?.dataLastEditDate;
         const dataDate = edited ? new Date(edited).toLocaleDateString(undefined, { year: "numeric", month: "short" }) : "";
         return `<article class="layer-card" data-layer-uid="${escapeHtml(layer.uid)}">
-          <div class="layer-card__head"><label class="layer-toggle"><input type="checkbox" data-layer-visible ${layer.visible ? "checked" : ""} /><span></span></label><div><strong title="${escapeHtml(layer.title)}">${escapeHtml(layer.title)}</strong><small>${escapeHtml(config.sourceType)}${config.definitionExpression ? " · Filtered" : ""}${config.refreshInterval ? ` · ${config.refreshInterval}m refresh` : ""}${dataDate ? ` · <span title="When the publisher last edited the data">Data ${escapeHtml(dataDate)}</span>` : ""}</small></div><button data-layer-action="remove" title="Remove layer">×</button></div>
+          <div class="layer-card__head"><label class="layer-toggle"><input type="checkbox" data-layer-visible ${layer.visible ? "checked" : ""} /><span></span></label><div><strong title="${escapeHtml(layer.title)}">${escapeHtml(layer.title)}</strong><small>${escapeHtml(config.sourceType === "geoparquet" ? "GeoParquet" : config.sourceType)}${config.definitionExpression ? " · Filtered" : ""}${config.refreshInterval ? ` · ${config.refreshInterval}m refresh` : ""}${dataDate ? ` · <span title="When the publisher last edited the data">Data ${escapeHtml(dataDate)}</span>` : ""}</small></div><button data-layer-action="remove" title="Remove layer">×</button></div>
           <div class="layer-scale-note" data-layer-scale-note ${scaleMessage ? "" : "hidden"}><span data-scale-text>${escapeHtml(scaleMessage || "")}</span><button type="button" data-layer-action="ignore-scale" title="Draw this layer at every zoom level">Show anyway</button></div>
           <label class="opacity-row"><span>Opacity</span><input data-layer-opacity type="range" min="0" max="1" step="0.05" value="${layer.opacity}" /><output>${Math.round(layer.opacity * 100)}%</output></label>
-          <div class="layer-card__actions"><button data-layer-action="zoom">Zoom</button><button data-layer-action="table">Table</button>${(config.local || config.sourceType === "geoparquet") && layer.queryable ? '<button data-layer-action="query-duckdb">Query in DuckDB</button>' : ''}<button data-layer-action="filter">Filter</button><button data-layer-action="export" title="Share this map, make a PDF or briefing, or download data">Share</button><button data-layer-action="style">Style</button><button data-layer-action="refresh">Refresh</button></div>
+          <div class="layer-card__actions layer-card__primary"><button data-layer-action="zoom">Zoom</button><button data-layer-action="table">Table</button><button data-layer-action="style">Style</button></div>
+          <details class="layer-card__more" ${this.expandedLayerCards.has(layer.uid) ? "open" : ""}><summary>More layer tools</summary><div class="layer-card__actions"><button data-layer-action="filter" title="Show only matching features on the map">Filter map</button>${(config.local || config.sourceType === "geoparquet") && layer.queryable ? '<button data-layer-action="query-duckdb" title="Explore or join a separate analysis dataset">Query data</button>' : ''}<button data-layer-action="export" title="Share this map, make a PDF or briefing, or download data">Share</button><button data-layer-action="refresh">Refresh</button></div></details>
         </article>`;
       }).join("")
       : '<div class="empty-state empty-state--layers"><p>No layers yet. Add data to start.</p><div class="empty-state__actions"><button type="button" data-empty-action="data-arcgis">ArcGIS service</button><button type="button" data-empty-action="data-geojson">GeoJSON URL</button><button type="button" data-empty-action="data-file">Local file</button><button type="button" data-empty-action="data-popular">Try an example</button></div></div>';
@@ -5386,6 +5408,7 @@ export class UIController {
 
   #bindLayerCard(card) {
     const uid = card.dataset.layerUid;
+    card.querySelector(".layer-card__more")?.addEventListener("toggle", (event) => { if (event.currentTarget.open) this.expandedLayerCards.add(uid); else this.expandedLayerCards.delete(uid); });
     card.querySelector("[data-layer-visible]").addEventListener("change", (event) => this.mapController.setVisibility(uid, event.target.checked));
     card.querySelector("[data-layer-opacity]").addEventListener("input", (event) => {
       this.mapController.setOpacity(uid, event.target.value);
@@ -5410,7 +5433,7 @@ export class UIController {
         case "query-duckdb": {
           button.disabled = true;
           try {
-            const { openLayerInDuckdb } = await import("./layer-duckdb.js?v=0.54.0-analysis2");
+            const { openLayerInDuckdb } = await import("./layer-duckdb.js?v=0.54.0-queryui1");
             await openLayerInDuckdb(this, uid);
           } catch (error) { this.error(error.message); }
           finally { button.disabled = false; }
@@ -5441,9 +5464,9 @@ export class UIController {
     const savedMatches = saved && saved.expression === (layer.where || null);
     const MAX_CONDITIONS = 10;
     this.openDialog({
-      eyebrow: "Attribute query",
+      eyebrow: "Map layer filter",
       title: `Filter ${layer.title || "layer"}`,
-      content: `<div class="filter-builder"><label class="field filter-logic" data-filter-logic hidden><span>Show features that match</span><select id="filter-logic"><option value="AND">all of these conditions (AND)</option><option value="OR">any of these conditions (OR)</option></select></label><ol class="filter-conditions" data-filter-conditions></ol><button type="button" class="link-button filter-add" data-filter-add>+ Add a condition</button></div>${layer.where ? `<p class="form-note"><strong>Current filter:</strong> <code>${escapeHtml(layer.where)}</code></p>` : '<p class="form-note">Only matching features will draw, appear in identify results, and be returned by the attribute table.</p>'}`,
+      content: `<p class="form-note">Filter changes which features appear on the map and in the attribute table. Query data explores a separate analysis dataset and does not change this map filter.</p><div class="filter-builder"><label class="field filter-logic" data-filter-logic hidden><span>Show features that match</span><select id="filter-logic"><option value="AND">all of these conditions (AND)</option><option value="OR">any of these conditions (OR)</option></select></label><ol class="filter-conditions" data-filter-conditions></ol><button type="button" class="link-button filter-add" data-filter-add>+ Add a condition</button></div>${layer.where ? `<p class="form-note"><strong>Current filter:</strong> <code>${escapeHtml(layer.where)}</code></p>` : ''}`,
       actions: [
         { label: "Clear filter", handler: () => {
           this.mapController.setDefinitionExpression(uid, null);

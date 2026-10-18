@@ -9,7 +9,7 @@ import { IdentifyController } from "./identify.js?v=0.37.0";
 import { AttributeTableController } from "./attribute-table.js?v=0.37.0";
 import { AIController } from "./ai.js?v=0.53.0";
 import { ToolManager } from "./tool-manager.js?v=0.37.0";
-import { UIController } from "./ui.js?v=0.54.0-analysis2";
+import { UIController } from "./ui.js?v=0.54.0-queryui1";
 import { ExportController } from "./export/export-controller.js?v=0.37.0";
 import { SHARE_BASEMAPS, parseShareParameters } from "./share.js?v=0.54.0-unified4";
 import { readShareLocation } from "./map-share.js?v=0.54.0-unified4";
@@ -94,7 +94,7 @@ async function start() {
   uiController.fieldTasks = mobileWorkflowRouter;
   // Project, map-spec and UI imports use the same shared DuckDB session.
   projectManager.geoParquetLoader = async (options) => {
-    const { addGeoParquetLayer } = await import("./geoparquet-layer.js?v=0.54.0-analysis1");
+    const { addGeoParquetLayer } = await import("./geoparquet-layer.js?v=0.54.0-queryui1");
     return addGeoParquetLayer(uiController, options);
   };
   const loadUnifiedLayer = async (config) => {

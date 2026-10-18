@@ -1,7 +1,7 @@
 import { resolveRemoteParquetUrl } from './data-connections.js?v=0.54.0-parquet1';
 import { createAnalysisDataset, describeAnalysisDataset } from './analysis-dataset.js?v=0.54.0-analysis1';
 import { graphicToGeoJSONFeature } from './export/export-core.js?v=0.18.2';
-import { openDuckdbQueryWorkspace } from './duckdb-query-workspace.js?v=0.54.0-analysis2';
+import { openDuckdbQueryWorkspace } from './duckdb-query-workspace.js?v=0.54.0-queryui1';
 
 // Snapshots are deliberately bounded: local layers may already occupy substantial memory.
 const MAX_ROWS = 20000;

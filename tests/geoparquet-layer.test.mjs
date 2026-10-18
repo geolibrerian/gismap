@@ -15,7 +15,7 @@ function fixture({ nonspatial = false } = {}) {
     geoParquetFeatures: async () => { if (nonspatial) throw new Error('This Parquet file has no GeoParquet geometry metadata; it can still be queried as a table.'); return { collection: { type: 'FeatureCollection', features: [{ type: 'Feature', geometry: { type: 'Point', coordinates: [1, 2] }, properties: {} }] }, truncated: true, limit: 1000 }; },
     removeRelation: async () => calls.push('remove'),
   };
-  const ui = { applicationRuntime: { duckdb }, mapController: { addLocalFile: async (file) => { calls.push(file.name); return { uid: 'map-layer' }; } } };
+  const ui = { applicationRuntime: { duckdb }, mapController: { addLocalFile: async (file) => { calls.push(file.name); return { uid: 'map-layer' }; }, setTitle: (uid, title) => calls.push({uid, title}) } };
   return { ui, calls };
 }
 test('creates a normal bounded layer and keeps its full-source relation', async () => {
@@ -24,8 +24,15 @@ test('creates a normal bounded layer and keeps its full-source relation', async 
   assert.equal(calls[0], 'spatial');
   assert.equal(calls[1].relations[0].source.url, 'https://data.source.coop/a/b/file.parquet');
   assert.match(calls[2], /first 1000 features/);
+  assert.deepEqual(calls[3], {uid:'map-layer', title:'file — first 1000 features'});
   assert.equal(result.truncated, true);
   assert.match(ui.applicationRuntime.geoParquetLayers.get('map-layer').relation, /^layer_[0-9a-f]+$/);
+});
+test('preserves a custom GeoParquet layer title without a GeoJSON extension', async () => {
+  const { ui, calls } = fixture();
+  await addGeoParquetLayer(ui, { url:'https://example.com/data.parquet', title:'Taxi zones' });
+  assert.equal(calls[3].title, 'Taxi zones — first 1000 features');
+  assert.equal(ui.applicationRuntime.geoParquetLayers.get('map-layer').descriptor.title, calls[3].title);
 });
 test('keeps ordinary Parquet available as a table instead of inventing geometry', async () => {
   const { ui, calls } = fixture({ nonspatial: true });

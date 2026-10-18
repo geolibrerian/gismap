@@ -33,9 +33,10 @@ export async function addGeoParquetLayer(ui, { file, url, title, projectPath } =
     const snapshot = new File([JSON.stringify(collection, (_key, value) => typeof value === 'bigint' ? String(value) : value)], `${label}${suffix}.geojson`, { type: 'application/geo+json' });
     layer = await ui.mapController.addLocalFile(snapshot);
     ui.mapController.setGeoParquetSource?.(layer.uid, { file: file || null, url: sourceUrl, projectPath: file ? (projectPath || `data/${name}-${file.name}`) : null });
+    ui.mapController.setTitle?.(layer.uid, `${label}${suffix}`);
     if (!ui.applicationRuntime.geoParquetLayers) ui.applicationRuntime.geoParquetLayers = new Map();
     const config = { sourceType: 'geoparquet', local: Boolean(file) };
-    const descriptor = createAnalysisDataset({ layer: { uid: layer.uid, title: layer.title || label, fields: fields || [], objectIdField: null }, config, relation: name, geometry: { field: geometryMetadata?.field || null, encoding: geometryMetadata?.encoding || 'unknown', types: geometryMetadata?.types || [], crs: geometryMetadata?.crs || 'unknown', crsStatus: geometryMetadata?.crs ? 'known' : 'unknown' }, coverage: { scope: 'source', status: 'source-relation' }, freshness: { kind: 'source', preparedAt: new Date().toISOString() } });
+    const descriptor = createAnalysisDataset({ layer: { uid: layer.uid, title: `${label}${suffix}`, fields: fields || [], objectIdField: null }, config, relation: name, geometry: { field: geometryMetadata?.field || null, encoding: geometryMetadata?.encoding || 'unknown', types: geometryMetadata?.types || [], crs: geometryMetadata?.crs || 'unknown', crsStatus: geometryMetadata?.crs ? 'known' : 'unknown' }, coverage: { scope: 'source', status: 'source-relation' }, freshness: { kind: 'source', preparedAt: new Date().toISOString() } });
     client.analysisDatasets ||= new Map(); client.analysisDatasets.set(name, descriptor);
     client.relationProvenance ||= new Map(); client.relationProvenance.set(name, `${describeAnalysisDataset(descriptor)} Map preview: ${collection.features.length}${truncated ? ` (first ${limit} only)` : ''}.`);
     ui.applicationRuntime.geoParquetLayers.set(layer.uid, { relation: name, truncated, count: collection.features.length, limit, descriptor });
