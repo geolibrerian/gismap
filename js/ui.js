@@ -612,6 +612,24 @@ export class UIController {
       }
       this.#renderInsight(payload);
     });
+    this.events.subscribe("identify:cleared", () => {
+      const hadInsight = Boolean(this.lastInsight);
+      this.lastInsight = null;
+      this.identifyPending = false;
+      this.aiPending = false;
+      this.lastAIResponseText = null;
+      this.lastAIQueryText = null;
+      this.selectedInsightIndexes.clear();
+      if (hadInsight) {
+        this.#clearInsightIsolation();
+        this.mapController.clearFeatureHighlight();
+        this.mapController.clearClickMarker();
+        document.querySelector("#insights-content").replaceChildren();
+        this.#setInsightsOpen(false);
+      }
+      document.querySelector("#insights-overlay").setAttribute("aria-busy", "false");
+      this.#renderIntelligenceContents();
+    });
     this.events.subscribe("table:open", () => {
       this.#clearInsightIsolation();
       this.mapController.clearFeatureHighlight();
@@ -628,11 +646,13 @@ export class UIController {
       this.#renderIntelligenceContents();
       this.toast("Asking the configured model…");
     });
-    this.events.subscribe("ai:complete", ({ text }) => {
+    this.events.subscribe("ai:complete", ({ text, context }) => {
+      if (context !== this.lastInsight) return;
       this.aiPending = false;
       this.#showAIResponse(text);
     });
-    this.events.subscribe("ai:error", ({ error }) => {
+    this.events.subscribe("ai:error", ({ error, context }) => {
+      if (context !== this.lastInsight) return;
       this.aiPending = false;
       this.#renderIntelligenceContents();
       this.error(error.message);

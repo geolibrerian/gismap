@@ -125,6 +125,7 @@ export class AIController {
     this.events.subscribe("identify:complete", (payload) => {
       this.lastContext = payload;
     });
+    this.events.subscribe("identify:cleared", () => { this.lastContext = null; });
   }
 
   configure(config) {
@@ -198,7 +199,7 @@ export class AIController {
       { role: "system", content: system },
       { role: "user", content: `Map context:\n${JSON.stringify(mapContext)}\n\nQuestion: ${prompt}` },
     ];
-    if (!quiet) this.events.publish("ai:start");
+    if (!quiet) this.events.publish("ai:start", { context });
     try {
       let text;
       if (this.config.provider === "ollama") {
@@ -263,10 +264,10 @@ export class AIController {
         if (!response.ok) throw new Error(await responseError(response, "AI endpoint"));
         text = (await response.json()).choices?.[0]?.message?.content;
       }
-      if (!quiet) this.events.publish("ai:complete", { text: text || "No response returned." });
+      if (!quiet) this.events.publish("ai:complete", { text: text || "No response returned.", context });
       return text;
     } catch (error) {
-      if (!quiet) this.events.publish("ai:error", { error });
+      if (!quiet) this.events.publish("ai:error", { error, context });
       throw error;
     }
   }
