@@ -7,7 +7,7 @@ const code = await readFile(new URL('../js/dragon-results.js', import.meta.url),
 function setup({nativeShare = true, clipboard = true} = {}) {
   const listeners = new Map();
   const make = (id) => ({ id, value:'', textContent:'', hidden:false, href:'', focus(){}, select(){}, showModal(){}, close(){}, setCustomValidity(){}, reportValidity(){}, addEventListener(type, fn){listeners.set(`${id}:${type}`,fn)} });
-  const nodes = Object.fromEntries(['legendStory','legendScroll','legendScore','shareResults','shareDialog','shareClose','shareQr','shareQrBrand','shareStatus','copyLink','challengeBanner','downloadQr','recordDialog','recordForm','recordName','recordScore','recordOutcome','recordFlyAgain','mobileShare','copyFallback','copyFallbackLabel'].map(id=>[id,make(id)]));
+  const nodes = Object.fromEntries(['legendStory','legendScroll','legendScore','shareResults','shareDialog','shareClose','shareQr','shareStatus','copyLink','challengeBanner','downloadQr','recordDialog','recordForm','recordName','recordScore','recordOutcome','recordFlyAgain','mobileShare','copyFallback','copyFallbackLabel'].map(id=>[id,make(id)]));
   let encoded = '', copied = '', shared = null, dragonDrawn = false;
   const draws = [], labels = [];
   const ctx = new Proxy({}, { get: (_target, key) => (...args) => { if (key === 'drawImage') draws.push(args); if (key === 'fillText') labels.push(args[0]); }, set: () => true });
@@ -70,14 +70,14 @@ test('winning challenge survives sharing and appears in the legend, but ties do 
 });
 
 test('share generates a decorated downloadable QR without drawing over its quiet zone', async () => {
-  const { api,nodes,listeners,draws,getDragonDrawn } = setup();
+  const { api,nodes,listeners,draws,getDragonDrawn,labels } = setup();
   api.show({name:'Flap',score:5,distance:123});
   await listeners.get('shareResults:click')();
   assert.equal(nodes.shareQr.width,600);
   assert.equal(nodes.shareQr.height,760);
-  assert.equal(nodes.shareQrBrand.hidden,false);
   assert.equal(nodes.downloadQr.hidden,false);
   assert.match(nodes.downloadQr.href,/^data:image\/png/);
+  assert.ok(labels.includes('GISMap.Online'));
   assert.equal(getDragonDrawn(),true);
   assert.equal(draws.length,1);
   assert.deepEqual(draws[0].slice(1),[80,160,440,440]);

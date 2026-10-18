@@ -56,7 +56,7 @@
   };
   const story = document.querySelector('#legendStory'), scroll = document.querySelector('#legendScroll'), scoreText = document.querySelector('#legendScore'), shareButton = document.querySelector('#shareResults'), banner = document.querySelector('#challengeBanner');
   const dialog = document.querySelector('#shareDialog'), close = document.querySelector('#shareClose');
-  const qr = document.querySelector('#shareQr'), qrBrand = document.querySelector('#shareQrBrand'), status = document.querySelector('#shareStatus'), copy = document.querySelector('#copyLink'), download = document.querySelector('#downloadQr'), mobileShare = document.querySelector('#mobileShare'), copyFallback = document.querySelector('#copyFallback'), copyFallbackLabel = document.querySelector('#copyFallbackLabel'), brand = document.querySelector('.logo img');
+  const qr = document.querySelector('#shareQr'), status = document.querySelector('#shareStatus'), copy = document.querySelector('#copyLink'), download = document.querySelector('#downloadQr'), mobileShare = document.querySelector('#mobileShare'), copyFallback = document.querySelector('#copyFallback'), copyFallbackLabel = document.querySelector('#copyFallbackLabel'), brand = document.querySelector('.logo img');
   const recordDialog = document.querySelector('#recordDialog'), recordForm = document.querySelector('#recordForm'), recordName = document.querySelector('#recordName'), recordScore = document.querySelector('#recordScore'), recordOutcome = document.querySelector('#recordOutcome'), recordFlyAgain = document.querySelector('#recordFlyAgain');
   let current = null, pendingRecord = null, shareUrl = '', shareImage = null, shareGeneration = 0;
   function record(result, onComplete, onRetry) {
@@ -113,7 +113,7 @@
     c.fillStyle = '#125848'; c.fillRect(16, 16, 568, 118);
     c.strokeStyle = '#2e8068'; c.lineWidth = 3; c.strokeRect(25, 25, 550, 710);
     if (brand?.complete && brand.naturalWidth) c.drawImage(brand, 42, 30, 86, 86);
-    c.textAlign = 'left'; c.fillStyle = '#ffffff'; c.font = 'bold 31px Arial, sans-serif'; c.fillText('GISMap Online', 146, 72);
+    c.textAlign = 'left'; c.fillStyle = '#ffffff'; c.font = 'bold 31px Arial, sans-serif'; c.fillText('GISMap.Online', 146, 72);
     c.fillStyle = '#f6d478'; c.font = 'bold 16px monospace'; c.fillText('HERE BE DRAGONS', 146, 101);
     const opponent = current.challenge || current.beaten;
     if (opponent) {
@@ -141,16 +141,16 @@
       if (brand?.decode) await brand.decode().catch(() => {});
       if (generation !== shareGeneration) return;
       decorateQr(plain, qr);
-      qr.hidden = false; qrBrand.hidden = false; download.href = qr.toDataURL('image/png'); download.hidden = false;
+      qr.hidden = false; download.href = qr.toDataURL('image/png'); download.hidden = false;
       if (qr.toBlob && typeof File !== 'undefined') qr.toBlob((blob) => {
         if (blob && generation === shareGeneration) shareImage = new File([blob], 'here-be-dragons.png', {type: 'image/png'});
       }, 'image/png');
-    } catch { if (generation === shareGeneration) { qr.hidden = true; qrBrand.hidden = true; status.textContent = 'QR code unavailable; you can still share or copy the link.'; } }
+    } catch { if (generation === shareGeneration) { qr.hidden = true; status.textContent = 'QR code unavailable; you can still share or copy the link.'; } }
   }
   shareButton.addEventListener('click', async () => {
     if (!current) return;
     shareUrl = linkFor('https://gismap.online', current); shareImage = null;
-    qr.hidden = true; qrBrand.hidden = true; download.hidden = true; copyFallback.hidden = true; copyFallbackLabel.hidden = true; status.textContent = '';
+    qr.hidden = true; download.hidden = true; copyFallback.hidden = true; copyFallbackLabel.hidden = true; status.textContent = '';
     dialog.showModal();
     await makeShareCard(++shareGeneration);
   });
