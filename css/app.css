@@ -2267,3 +2267,18 @@ body.sidebar-collapsed .table-dialog { left: 14px; }
   body.mobile-atlas-presenting:has(.app-dialog:not(.app-dialog--docked)[open]) .mobile-presentation-controls { display:none; }
   .app-dialog:not(.app-dialog--docked) .dialog__actions { flex-wrap:wrap; }
 }
+
+/* Link restoration is visible but never intercepts map gestures or controls. */
+.shared-loading { position: absolute; inset: 0; z-index: 100; display: grid; place-items: center; padding: 20px; pointer-events: none; }
+.shared-loading[hidden] { display: none; }
+.shared-loading__card { width: min(300px, 100%); box-sizing: border-box; display: grid; justify-items: center; gap: 6px; padding: 20px 24px 22px; color: #103d35; background: rgb(255 252 241 / 95%); border: 1px solid #9db8a8; border-radius: 16px; box-shadow: 0 12px 42px rgb(10 37 29 / 24%); text-align: center; font-size: 14px; line-height: 1.4; }
+.shared-loading__card strong { font-size: 21px; }
+.shared-loading__eyebrow { color: #ad6d20; font-size: 11px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; }
+.shared-loading__dragon { width: 100px; height: 72px; overflow: visible; fill: #287966; stroke: #164d41; stroke-width: 2; stroke-linejoin: round; }
+.shared-loading__dragon circle { fill: #fff8e9; stroke: none; }
+.shared-loading__trail { fill: none; stroke: #c59b58; stroke-width: 2; stroke-dasharray: 3 5; }
+.shared-loading__creature { animation: shared-dragon-float 2.4s ease-in-out infinite; }
+.shared-loading__wing { transform-origin: 70px 43px; animation: shared-dragon-wing 1.2s ease-in-out infinite alternate; }
+@keyframes shared-dragon-float { 50% { transform: translateY(-5px); } }
+@keyframes shared-dragon-wing { to { transform: scaleY(.65); } }
+@media (prefers-reduced-motion: reduce) { .shared-loading__creature, .shared-loading__wing { animation: none; } }
