@@ -2230,7 +2230,7 @@ export class UIController {
         button.textContent = "Adding…";
         try {
           const sourceUrl = this.dialog.querySelector("#service-url").value;
-          const { isParquetName, addGeoParquetLayer } = await import("./geoparquet-layer.js?v=0.54.0-unified4");
+          const { isParquetName, addGeoParquetLayer } = await import("./geoparquet-layer.js?v=0.54.0-analysis1");
           if (isGeoJson && isParquetName(sourceUrl)) {
             const result = await addGeoParquetLayer(this, { url: sourceUrl, title: this.dialog.querySelector("#service-title").value });
             if (result.tableOnly) {
@@ -5072,7 +5072,7 @@ export class UIController {
     event.target.value = "";
     for (const file of files) {
       try {
-        const { isParquetName, addGeoParquetLayer } = await import("./geoparquet-layer.js?v=0.54.0-unified4");
+        const { isParquetName, addGeoParquetLayer } = await import("./geoparquet-layer.js?v=0.54.0-analysis1");
         const result = isParquetName(file.name) ? await addGeoParquetLayer(this, { file }) : null;
         if (result?.tableOnly) {
           const { openDuckdbQueryWorkspace } = await import("./duckdb-query-workspace.js?v=0.54.0-vector1");
@@ -5410,7 +5410,7 @@ export class UIController {
         case "query-duckdb": {
           button.disabled = true;
           try {
-            const { openLayerInDuckdb } = await import("./layer-duckdb.js?v=0.54.0-unified2");
+            const { openLayerInDuckdb } = await import("./layer-duckdb.js?v=0.54.0-analysis1");
             await openLayerInDuckdb(this, uid);
           } catch (error) { this.error(error.message); }
           finally { button.disabled = false; }

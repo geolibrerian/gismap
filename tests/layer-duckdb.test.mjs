@@ -49,3 +49,38 @@ test('does not leave a relation when the layer is removed during import', async 
   await assert.rejects(registerLayerSnapshot(f.runtime, f.map, 'one'), /removed/);
   assert.equal(f.client.loadedRelations.size, 0);
 });
+test('a transfer limit prevents a complete classification even when counts agree', async () => {
+  const f = fixture([feature(1)]);
+  f.map.queryFeatures = async () => ({ features: [feature(1)], exceededTransferLimit: true });
+  const result = await registerLayerSnapshot(f.runtime, f.map, 'one', {pageSize: 1});
+  assert.equal(result.completeness, 'partial');
+  assert.equal(result.descriptor.coverage.status, 'partial');
+});
+test('a stale relation is re-registered after a DuckDB session reset', async () => {
+  const f = fixture([feature(1)]);
+  const first = await registerLayerSnapshot(f.runtime, f.map, 'one');
+  f.client.loadedRelations.clear();
+  const second = await registerLayerSnapshot(f.runtime, f.map, 'one');
+  assert.notEqual(first, second); assert.equal(f.client.loadedRelations.has(second.relation), true);
+});
+test('a project reset during registration discards the old relation even if a UID is reused', async () => {
+  const f = fixture([feature(1)]);
+  f.client.importLocalFile = async (_file, name) => { f.client.loadedRelations.add(name); f.runtime.analysisEpoch = 1; };
+  await assert.rejects(registerLayerSnapshot(f.runtime, f.map, 'one'), /removed/);
+  assert.equal(f.client.loadedRelations.size, 0);
+});
+
+test('restores original GeoParquet source after the DuckDB session stops', async () => {
+  const { restoreGeoParquetRelation } = await import('../js/layer-duckdb.js');
+  const client = {loadedRelations:new Set(), checkSpatial:async () => {}, loadCatalog:async (catalog) => client.loadedRelations.add(catalog.relations[0].name), removeRelation:async (name) => client.loadedRelations.delete(name)};
+  const entry = {relation:'parquet_view', count:3, truncated:true, limit:3};
+  const runtime = {duckdb:client, geoParquetLayers:new Map([['p',entry]])};
+  const map = {getLayer:() => ({uid:'p'}), getLayerConfig:() => ({sourceType:'geoparquet',local:false,url:'https://example.com/data.parquet'})};
+  await restoreGeoParquetRelation(runtime,map,'p'); assert.ok(client.loadedRelations.has('parquet_view'));
+});
+test('reports a missing original local GeoParquet after session restart', async () => {
+  const { restoreGeoParquetRelation } = await import('../js/layer-duckdb.js');
+  const runtime = {duckdb:{loadedRelations:new Set(),checkSpatial:async () => {}},geoParquetLayers:new Map([['p',{relation:'p'}]])};
+  const map = {getLayer:() => ({uid:'p'}),getLayerConfig:() => ({sourceType:'geoparquet',local:true}),getLocalAsset:() => null};
+  await assert.rejects(restoreGeoParquetRelation(runtime,map,'p'), /Re-import/);
+});

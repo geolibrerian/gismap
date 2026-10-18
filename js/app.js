@@ -9,14 +9,14 @@ import { IdentifyController } from "./identify.js?v=0.37.0";
 import { AttributeTableController } from "./attribute-table.js?v=0.37.0";
 import { AIController } from "./ai.js?v=0.53.0";
 import { ToolManager } from "./tool-manager.js?v=0.37.0";
-import { UIController } from "./ui.js?v=0.54.0-unified7";
+import { UIController } from "./ui.js?v=0.54.0-analysis1";
 import { ExportController } from "./export/export-controller.js?v=0.37.0";
 import { SHARE_BASEMAPS, parseShareParameters } from "./share.js?v=0.54.0-unified4";
 import { readShareLocation } from "./map-share.js?v=0.54.0-unified4";
 import { decodeEmbeddedTour } from "./tour-share.js?v=0.54.0-unified4";
 import { decodeFieldTask, featureLayerUrl, readFieldTaskHash, readFocus } from "./field-task-share.js?v=0.54.0-unified4";
 import { POPULAR_SERVICES } from "./catalog.js?v=0.18.2";
-import { ApplicationRuntime } from "./application-runtime.js?v=0.54.0-unified5";
+import { ApplicationRuntime } from "./application-runtime.js?v=0.54.0-analysis1";
 import { PanelManager } from "./panel-manager.js?v=0.18.2";
 import { MobilePanelManager } from "./mobile-panel-manager.js?v=0.18.2";
 import { MobileWorkflowRouter } from "./mobile-workflow-router.js?v=0.53.0";
@@ -94,7 +94,7 @@ async function start() {
   uiController.fieldTasks = mobileWorkflowRouter;
   // Project, map-spec and UI imports use the same shared DuckDB session.
   projectManager.geoParquetLoader = async (options) => {
-    const { addGeoParquetLayer } = await import("./geoparquet-layer.js?v=0.54.0-unified4");
+    const { addGeoParquetLayer } = await import("./geoparquet-layer.js?v=0.54.0-analysis1");
     return addGeoParquetLayer(uiController, options);
   };
   const loadUnifiedLayer = async (config) => {

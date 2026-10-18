@@ -30,3 +30,14 @@ test('rejects missing metadata and unknown or projected CRS', async () => {
     await assert.rejects(clientFor({ primary_column: 'geometry', columns: { geometry: { encoding: 'WKB', crs } } }).geoParquetFeatures('taxi'), /CRS/);
   }
 });
+test('returns source geometry metadata and source fields, not the map preview identity', async () => {
+  const point = JSON.stringify({ type: 'Point', coordinates: [-74, 40] });
+  const output = await clientFor({primary_column:'geometry',columns:{geometry:{encoding:'WKB',geometry_types:['Point']}}}, [{geometry:point,__gismap_geometry:point}]).geoParquetFeatures('taxi');
+  assert.deepEqual(output.geometryMetadata, {field:'geometry',encoding:'WKB',types:['Point'],crs:'OGC:CRS84'});
+  assert.equal(output.fields[0].name,'geometry');
+});
+test('reports a useful spatial-extension failure', async () => {
+  const client = new DuckDBBrowserClient();
+  client.connection = {query: async () => { throw new Error('extension fetch failed'); }};
+  await assert.rejects(client.checkSpatial(), /DuckDB spatial extension is unavailable in this browser: extension fetch failed/);
+});

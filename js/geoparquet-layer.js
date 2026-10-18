@@ -1,5 +1,6 @@
 // A bounded rendering snapshot uses the existing layer importer; the original
 // Parquet relation remains in the application's shared DuckDB session.
+import { createAnalysisDataset, describeAnalysisDataset } from './analysis-dataset.js?v=0.54.0-analysis1';
 import { resolveRemoteParquetUrl } from './data-connections.js?v=0.54.0-parquet1';
 
 export const isParquetName = (name) => /\.(?:geo)?parquet$/i.test(String(name || '').split(/[?#]/)[0]);
@@ -26,14 +27,18 @@ export async function addGeoParquetLayer(ui, { file, url, title, projectPath } =
       if (/no GeoParquet geometry metadata/i.test(error.message)) return { tableOnly: true, relation: name };
       throw error;
     }
-    const { collection, truncated, limit } = mapped;
+    const { collection, truncated, limit, geometryMetadata, fields } = mapped;
     const label = String(title || file?.name || new URL(url).pathname.split('/').pop() || 'GeoParquet').replace(/(?:\.(?:geo)?parquet|\.geojson)$/i, '').replace(/ — first \d+ features$/, '');
     const suffix = truncated ? ` — first ${limit} features` : '';
     const snapshot = new File([JSON.stringify(collection, (_key, value) => typeof value === 'bigint' ? String(value) : value)], `${label}${suffix}.geojson`, { type: 'application/geo+json' });
     layer = await ui.mapController.addLocalFile(snapshot);
     ui.mapController.setGeoParquetSource?.(layer.uid, { file: file || null, url: sourceUrl, projectPath: file ? (projectPath || `data/${name}-${file.name}`) : null });
     if (!ui.applicationRuntime.geoParquetLayers) ui.applicationRuntime.geoParquetLayers = new Map();
-    ui.applicationRuntime.geoParquetLayers.set(layer.uid, { relation: name, truncated, count: collection.features.length, limit });
+    const config = { sourceType: 'geoparquet', local: Boolean(file) };
+    const descriptor = createAnalysisDataset({ layer: { uid: layer.uid, title: layer.title || label, fields: fields || [], objectIdField: null }, config, relation: name, geometry: { field: geometryMetadata?.field || null, encoding: geometryMetadata?.encoding || 'unknown', types: geometryMetadata?.types || [], crs: geometryMetadata?.crs || 'unknown', crsStatus: geometryMetadata?.crs ? 'known' : 'unknown' }, coverage: { scope: 'source', status: 'source-relation' }, freshness: { kind: 'source', preparedAt: new Date().toISOString() } });
+    client.analysisDatasets ||= new Map(); client.analysisDatasets.set(name, descriptor);
+    client.relationProvenance ||= new Map(); client.relationProvenance.set(name, `${describeAnalysisDataset(descriptor)} Map preview: ${collection.features.length}${truncated ? ` (first ${limit} only)` : ''}.`);
+    ui.applicationRuntime.geoParquetLayers.set(layer.uid, { relation: name, truncated, count: collection.features.length, limit, descriptor });
     ui.events?.publish?.("layer:changed", { uid: layer.uid });
     return { layer, truncated, limit, count: collection.features.length };
   } catch (error) {

@@ -114,7 +114,7 @@ export class DuckDBBrowserClient {
       return { type: "Feature", geometry, properties };
     });
     if (!features.some((feature) => feature.geometry)) throw new Error("No non-null geometry was found in the first rows of this dataset.");
-    return { collection: { type: "FeatureCollection", features }, truncated: rows.length > size, limit: size };
+    return { collection: { type: "FeatureCollection", features }, truncated: rows.length > size, limit: size, fields: schema.map((item) => ({ name: item.column_name, type: item.column_type })), geometryMetadata: { field: column, encoding: /^GEOMETRY(?:\b|$)/i.test(field.column_type) ? "duckdb-geometry" : "WKB", types: Array.isArray(geometryInfo.geometry_types) ? geometryInfo.geometry_types.filter((type) => typeof type === "string") : [], crs: crs === undefined ? "OGC:CRS84" : `${crs.id.authority}:${crs.id.code}` } };
   }
 
   async checkSpatial() {
@@ -158,6 +158,7 @@ export class DuckDBBrowserClient {
     if (file) { await this.db.dropFile?.(file); this.registeredFiles.delete(file); this.relationFiles.delete(name); }
     this.parquetSources.delete(name);
     this.relationProvenance?.delete(name);
+    this.analysisDatasets?.delete(name);
     this.loadedRelations.delete(name);
   }
 
@@ -172,6 +173,6 @@ export class DuckDBBrowserClient {
     for (const file of this.registeredFiles) await this.db?.dropFile?.(file).catch(() => {});
     await this.db?.terminate?.();
     this.worker?.terminate?.();
-    this.connection = null; this.db = null; this.worker = null; this.loadedRelations.clear(); this.registeredFiles.clear(); this.relationFiles.clear(); this.parquetSources.clear(); this.relationProvenance?.clear();
+    this.connection = null; this.db = null; this.worker = null; this.loadedRelations.clear(); this.registeredFiles.clear(); this.relationFiles.clear(); this.parquetSources.clear(); this.relationProvenance?.clear(); this.analysisDatasets?.clear();
   }
 }
