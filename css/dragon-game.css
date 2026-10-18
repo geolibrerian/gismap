@@ -21,10 +21,14 @@ main{max-width:1090px;margin:auto;border:1px solid #bed3c5;border-radius:26px;ba
 .share-dialog{width:min(92vw,460px);max-height:90dvh;overflow:auto;border:1px solid #a8c6b6;border-radius:18px;background:#fcf9ee;color:#123f36;padding:24px;box-shadow:0 14px 60px #092c2566}.share-dialog::backdrop{background:#0b2923b3}.share-dialog h2{font:700 28px Georgia,serif;margin:0 0 10px}.share-dialog p{line-height:1.45;color:#496a60}.share-dialog label{font-weight:800;display:block;margin:14px 0 7px}.share-dialog input{width:100%;padding:11px 12px;font:inherit;border:1px solid #93b1a3;border-radius:8px;background:white}.dialog-actions{justify-content:flex-start;margin-top:16px}.dialog-secondary{border:1px solid #176e59;background:transparent;color:#176e59;border-radius:9px;padding:10px 14px;font-weight:750;cursor:pointer;min-height:44px}#shareOutput{text-align:center;border-top:1px solid #c7d7c9;margin-top:18px;padding-top:15px}#shareQr{width:180px;height:180px;max-width:100%;background:white;image-rendering:pixelated}#shareLink{display:block;overflow-wrap:anywhere;color:#086854;margin:8px 0 12px;font-size:13px}
 @media(prefers-reduced-motion:reduce){.panel .legend-story{animation:none}}
 .panel:has(.legend-scroll:not([hidden])) #overlayText{color:#bed2be;font-size:12px}
-@keyframes legend-crawl{0%{transform:translateY(100px)}100%{transform:translateY(calc(-100% + 100px))}}
+@keyframes legend-crawl{0%,8%{transform:translateY(0)}100%{transform:translateY(calc(-100% + 100px))}}
 .panel .legend-story{animation-duration:32s}
 .legend-scroll:focus .legend-story,.legend-scroll:focus-within .legend-story{animation:none}
 @media(prefers-reduced-motion:reduce){.panel .legend-story{animation:none}}
 .challenge-banner{margin:0 0 12px;padding:10px 14px;border:1px solid #caa462;background:#faf0d5;border-radius:9px;color:#354f3a;font-size:14px;font-weight:700}.challenge-banner[hidden],#downloadQr[hidden]{display:none}.challenge-banner small{display:block;margin-top:3px;font-weight:500}.share-dialog #shareQr{display:block;width:min(100%,300px);height:auto;margin:auto;image-rendering:auto}.share-dialog #downloadQr{display:inline-flex;align-items:center;text-decoration:none;justify-content:center}
 
 .panel .shared-challenge{color:#f5e6b2;font-size:clamp(12px,1.4vw,15px);line-height:1.4;margin:8px 0 12px}.shared-challenge[hidden]{display:none}
+
+.share-actions{justify-content:center}.share-dialog #copyFallback[hidden],.share-dialog #copyFallbackLabel[hidden]{display:none}.share-dialog #shareOutput{margin-top:12px}.share-dialog #shareStatus:empty{display:none}
+
+.share-dialog #shareQr[hidden],.share-dialog #downloadQr[hidden]{display:none}

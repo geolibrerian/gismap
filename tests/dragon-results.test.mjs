@@ -4,18 +4,18 @@ import { readFile } from 'node:fs/promises';
 import { runInNewContext } from 'node:vm';
 
 const code = await readFile(new URL('../js/dragon-results.js', import.meta.url), 'utf8');
-function setup() {
+function setup({nativeShare = true, clipboard = true} = {}) {
   const listeners = new Map();
-  const make = (id) => ({ id, value:'', textContent:'', hidden:false, href:'', focus(){}, showModal(){}, close(){}, setCustomValidity(){}, reportValidity(){}, addEventListener(type, fn){listeners.set(`${id}:${type}`,fn)} });
-  const nodes = Object.fromEntries(['legendStory','legendScroll','legendScore','shareResults','shareDialog','shareForm','dragonName','shareClose','shareOutput','shareQr','shareLink','shareStatus','copyLink','challengeBanner','downloadQr','recordDialog','recordForm','recordName','recordScore'].map(id=>[id,make(id)]));
-  let encoded = '';
+  const make = (id) => ({ id, value:'', textContent:'', hidden:false, href:'', focus(){}, select(){}, showModal(){}, close(){}, setCustomValidity(){}, reportValidity(){}, addEventListener(type, fn){listeners.set(`${id}:${type}`,fn)} });
+  const nodes = Object.fromEntries(['legendStory','legendScroll','legendScore','shareResults','shareDialog','shareClose','shareQr','shareStatus','copyLink','challengeBanner','downloadQr','recordDialog','recordForm','recordName','recordScore','mobileShare','copyFallback','copyFallbackLabel'].map(id=>[id,make(id)]));
+  let encoded = '', copied = '', shared = null;
   const draws = [];
   const ctx = new Proxy({}, { get: (_target, key) => (...args) => { if (key === 'drawImage') draws.push(args); }, set: () => true });
   nodes.shareQr.getContext = () => ctx;
   nodes.shareQr.toDataURL = () => 'data:image/png;base64,example';
-  const context = { document:{querySelector: selector=>nodes[selector.slice(1)], createElement: () => ({})}, location:{origin:'https://gismap.online'}, navigator:{clipboard:{writeText:async()=>{}}}, URL, URLSearchParams, Math, Array, String, Number, QRCode:{toCanvas:async (_canvas, url)=>{encoded=url}} };
+  const context = { document:{querySelector: selector=>nodes[selector.slice(1)], createElement: () => ({})}, location:{origin:'https://gismap.online'}, navigator:{clipboard:{writeText:async url=>{if (!clipboard) throw new Error('unavailable'); copied=url}},share:nativeShare ? async data=>{shared=data} : undefined}, URL, URLSearchParams, Math, Array, String, Number, QRCode:{toCanvas:async (_canvas, url)=>{encoded=url}} };
   runInNewContext(code, context);
-  return { api:context.DragonResults, nodes, listeners, getEncoded:()=>encoded, draws };
+  return { api:context.DragonResults, nodes, listeners, getEncoded:()=>encoded, getCopied:()=>copied, getShared:()=>shared, draws };
 }
 test('share links preserve name and score and reject malformed results', () => {
   const {api} = setup();
@@ -26,19 +26,20 @@ test('share links preserve name and score and reject malformed results', () => {
   assert.equal(result.distance, 507);
   for (const bad of ['?legend=1&name=A&maidens=-1&distance=2','?legend=1&name=A&maidens=1&distance=9999999','?legend=1&name=&maidens=1&distance=2','?legend=1&name=A&maidens=NaN&distance=2']) assert.equal(api.parse('https://gismap.online/dragons/'+bad), null);
 });
-test('legend uses text, updates its name, and generates a QR of the result URL', async () => {
-  const {api,nodes,listeners,getEncoded} = setup();
-  api.show({name:'',score:1,distance:42});
-  assert.match(nodes.legendStory.textContent,/THE NAMELESS DRAGON/);
-  assert.match(nodes.legendStory.textContent,/WE LOST 1 MAIDEN TO THE BEAST/);
-  nodes.dragonName.value = '<dragon> & friends';
-  await listeners.get('shareForm:submit')({preventDefault(){}});
-  assert.match(nodes.legendStory.textContent,/<DRAGON> & FRIENDS/);
-  assert.equal(nodes.shareOutput.hidden, false);
-  assert.equal(getEncoded(), nodes.shareLink.href);
-  assert.equal(new URL(getEncoded()).origin, 'https://gismap.online');
-  assert.equal(new URL(getEncoded()).pathname, '/dragons/');
-  assert.equal(api.parse(nodes.shareLink.href).name, '<dragon> & friends');
+test('sharing uses the recorded name immediately and generates a canonical challenge URL', async () => {
+  const {api,nodes,listeners,getEncoded,getCopied,getShared} = setup();
+  api.show({name:'<dragon> & friends',score:1,distance:42});
+  assert.match(nodes.legendStory.textContent, /WE LOST 1 MAIDEN TO THE BEAST/);
+  await listeners.get('shareResults:click')();
+  const url = getEncoded();
+  assert.equal(new URL(url).origin, 'https://gismap.online');
+  assert.equal(new URL(url).pathname, '/dragons/');
+  assert.equal(api.parse(url).name, '<dragon> & friends');
+  await listeners.get('copyLink:click')();
+  assert.equal(getCopied(), url);
+  await listeners.get('mobileShare:click')();
+  assert.equal(getShared().url, url);
+  assert.match(getShared().text, /<dragon> & friends/);
 });
 
 
@@ -70,9 +71,8 @@ test('winning challenge survives sharing and appears in the legend, but ties do 
 
 test('share generates a decorated downloadable QR without drawing over its quiet zone', async () => {
   const { api,nodes,listeners,draws } = setup();
-  api.show({name:'',score:5,distance:123});
-  nodes.dragonName.value = 'Flap';
-  await listeners.get('shareForm:submit')({preventDefault(){}});
+  api.show({name:'Flap',score:5,distance:123});
+  await listeners.get('shareResults:click')();
   assert.equal(nodes.shareQr.width,600);
   assert.equal(nodes.shareQr.height,760);
   assert.equal(nodes.downloadQr.hidden,false);
@@ -96,4 +96,21 @@ test('record score asks for a name before showing the story', () => {
   assert.match(nodes.legendStory.textContent, /SLEW SIR FLAPS/);
   assert.match(nodes.legendStory.textContent, /WE LOST 2 MAIDENS/);
   assert.equal(nodes.legendScore.textContent, 'MAIDENS 2 · DISTANCE 42 LEAGUES');
+});
+
+
+test('mobile sharing falls back to copy and offers manual copy if clipboard is unavailable', async () => {
+  const first = setup({nativeShare:false});
+  first.api.show({name:'Flap',score:2,distance:50});
+  await first.listeners.get('shareResults:click')();
+  await first.listeners.get('mobileShare:click')();
+  assert.equal(first.getCopied(), first.getEncoded());
+  assert.equal(first.nodes.shareStatus.textContent, 'Link copied.');
+
+  const second = setup({nativeShare:false,clipboard:false});
+  second.api.show({name:'Flap',score:2,distance:50});
+  await second.listeners.get('shareResults:click')();
+  await second.listeners.get('mobileShare:click')();
+  assert.equal(second.nodes.copyFallback.hidden, false);
+  assert.equal(second.nodes.copyFallback.value, second.getEncoded());
 });

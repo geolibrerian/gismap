@@ -16,6 +16,7 @@ test('missing URLs use the 404 page and retain proper not-found handling', async
   assert.equal(config.assets.not_found_handling, '404-page');
   const html = await file('404.html');
   assert.match(html, /Here be dragons/);
+  assert.match(html, /rel="icon" href="\/assets\/gis-map-online-mark-v2\.png" type="image\/png"/);
   assert.match(html, /href="\/"/);
   assert.match(await file("css/dragon-game.css"), /prefers-reduced-motion/);
   assert.match(html, /id="canvas"/);

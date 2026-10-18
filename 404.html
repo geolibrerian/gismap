@@ -5,8 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="robots" content="noindex">
   <title>Page not found | GISMap Online</title>
-  <link rel="icon" href="/assets/favicon.ico">
-  <link rel="stylesheet" href="/css/dragon-game.css?v=5">
+  <link rel="icon" href="/assets/gis-map-online-mark-v2.png" type="image/png">
+  <link rel="stylesheet" href="/css/dragon-game.css?v=6">
 </head>
 <body>
 <main>
@@ -34,21 +34,21 @@
     </form>
   </dialog>
   <dialog id="shareDialog" class="share-dialog" aria-labelledby="shareTitle">
-    <form id="shareForm">
-      <h2 id="shareTitle">Share your legend</h2>
-      <p>Name your dragon, then make a QR code for this journey. Anyone with the link can see your score and try to beat it.</p>
-      <label for="dragonName">Dragon name</label>
-      <input id="dragonName" name="dragonName" type="text" maxlength="32" placeholder="e.g. Sir Flapsalot" required autocomplete="off">
-      <div class="dialog-actions"><button class="button" type="submit">Create QR code</button><button class="dialog-secondary" id="shareClose" type="button">Close</button></div>
-      <div id="shareOutput" hidden><canvas id="shareQr" width="600" height="760" aria-label="QR code linking to the dragon challenge"></canvas><p>Scan the code or open this link:</p><a id="shareLink"></a><button class="dialog-secondary" id="copyLink" type="button">Copy link</button> <a class="dialog-secondary" id="downloadQr" download="dragon-challenge.png" hidden>Download QR image</a><p id="shareStatus" role="status"></p></div>
-    </form>
+    <h2 id="shareTitle">Share your legend</h2>
+    <p>Share your dragon’s story and challenge someone to beat your score.</p>
+    <div id="shareOutput"><canvas id="shareQr" width="600" height="760" role="img" aria-label="GISMap-branded QR code linking to the dragon challenge" hidden></canvas>
+      <p>Scan the code or share your challenge.</p>
+      <div class="dialog-actions share-actions"><button class="button" id="mobileShare" type="button">Mobile share</button><button class="dialog-secondary" id="copyLink" type="button">Copy link</button><a class="dialog-secondary" id="downloadQr" download="dragon-challenge.png" hidden>Download QR image</a><button class="dialog-secondary" id="shareClose" type="button">Close</button></div>
+      <label id="copyFallbackLabel" for="copyFallback" hidden>Copy this link manually</label><input id="copyFallback" type="text" readonly hidden>
+      <p id="shareStatus" role="status"></p>
+    </div>
   </dialog>
   <noscript><p class="help">Enable JavaScript to play. Navigation links are still available.</p></noscript>
   <section id="suggestions" hidden aria-labelledby="suggestions-title"><h2 id="suggestions-title">Were you looking for…</h2><ul id="suggested-pages"></ul></section>
   <p class="footer">Or browse the <a href="/examples/">examples</a> and <a href="/guides/">guides</a>.</p>
 </main>
 <script src="/js/vendor/qrcode-1.5.4.js?v=1" defer></script>
-<script src="/js/dragon-results.js?v=4" defer></script>
+<script src="/js/dragon-results.js?v=5" defer></script>
 <script src="/js/dragon-game.js?v=6" defer></script>
 <script type="module" src="/js/not-found.js?v=1"></script>
 </body>

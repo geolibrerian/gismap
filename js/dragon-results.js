@@ -36,10 +36,10 @@
     return `HEAR YE, HEAR YE!\n\nWE, THE BRAVE KNIGHTS OF THE REALM, FINALLY SLEW ${dragon.toUpperCase()}!\n\nTHE BEAST CROSSED ${distance} LEAGUES, OUTWITTING SERPENTS, KRAKENS, AND AN ALARMING NUMBER OF LANCES.\n\nWE LOST ${score} ${score === 1 ? 'MAIDEN' : 'MAIDENS'} TO THE BEAST. WE SHALL BE DISCUSSING THIS WITH THE CASTLE GUARDS.${triumph}\n\nAT LAST WE TRIUMPHED! (THE DRAGON MAY ALSO HAVE HIT THE GROUND.)\n\nTHUS ENDS THE LEGEND. INSERT ANOTHER ADVENTURE?`;
   };
   const story = document.querySelector('#legendStory'), scroll = document.querySelector('#legendScroll'), scoreText = document.querySelector('#legendScore'), shareButton = document.querySelector('#shareResults'), banner = document.querySelector('#challengeBanner');
-  const dialog = document.querySelector('#shareDialog'), form = document.querySelector('#shareForm'), nameInput = document.querySelector('#dragonName'), close = document.querySelector('#shareClose');
-  const output = document.querySelector('#shareOutput'), qr = document.querySelector('#shareQr'), link = document.querySelector('#shareLink'), status = document.querySelector('#shareStatus'), copy = document.querySelector('#copyLink'), download = document.querySelector('#downloadQr');
+  const dialog = document.querySelector('#shareDialog'), close = document.querySelector('#shareClose');
+  const qr = document.querySelector('#shareQr'), status = document.querySelector('#shareStatus'), copy = document.querySelector('#copyLink'), download = document.querySelector('#downloadQr'), mobileShare = document.querySelector('#mobileShare'), copyFallback = document.querySelector('#copyFallback'), copyFallbackLabel = document.querySelector('#copyFallbackLabel'), brand = document.querySelector('.logo img');
   const recordDialog = document.querySelector('#recordDialog'), recordForm = document.querySelector('#recordForm'), recordName = document.querySelector('#recordName'), recordScore = document.querySelector('#recordScore');
-  let current = null, pendingRecord = null;
+  let current = null, pendingRecord = null, shareUrl = '', shareImage = null, shareGeneration = 0;
   function record(result, onComplete) {
     pendingRecord = { result, onComplete };
     recordName.value = '';
@@ -79,43 +79,56 @@
   function decorateQr(source, canvas) {
     canvas.width = 600; canvas.height = 760;
     const c = canvas.getContext('2d');
-    c.fillStyle = '#f6edcf'; c.fillRect(0, 0, 600, 760);
-    c.strokeStyle = '#486d58'; c.lineWidth = 4; c.strokeRect(15, 15, 570, 730);
-    c.strokeStyle = '#c3934d'; c.lineWidth = 2; c.strokeRect(25, 25, 550, 710);
-    c.textAlign = 'center'; c.fillStyle = '#204d40'; c.font = 'bold 24px Georgia, serif'; c.fillText('HERE BE DRAGONS', 300, 69);
-    c.font = 'bold 15px monospace'; c.fillText('A CHALLENGE FROM THE REALM', 300, 99);
-    c.fillStyle = '#fff'; c.fillRect(76, 156, 448, 448);
+    c.fillStyle = '#125848'; c.fillRect(0, 0, 600, 760);
+    c.fillStyle = '#fffaf0'; c.fillRect(16, 16, 568, 728);
+    c.fillStyle = '#125848'; c.fillRect(16, 16, 568, 118);
+    c.strokeStyle = '#2e8068'; c.lineWidth = 3; c.strokeRect(25, 25, 550, 710);
+    if (brand?.complete && brand.naturalWidth) c.drawImage(brand, 42, 30, 86, 86);
+    c.textAlign = 'left'; c.fillStyle = '#ffffff'; c.font = 'bold 31px Arial, sans-serif'; c.fillText('GISMap Online', 146, 72);
+    c.fillStyle = '#f6d478'; c.font = 'bold 16px monospace'; c.fillText('HERE BE DRAGONS', 146, 101);
+    c.fillStyle = '#fff4c6'; c.fillRect(76, 156, 448, 448);
     c.imageSmoothingEnabled = false; c.drawImage(source, 80, 160, 440, 440);
     // A little sea dragon curls around the lower border, as on an old chart.
     c.strokeStyle = '#215748'; c.lineWidth = 9; c.lineCap = 'round'; c.beginPath(); c.moveTo(76, 684); c.bezierCurveTo(110, 653, 140, 717, 178, 686); c.bezierCurveTo(195, 673, 185, 655, 197, 644); c.stroke();
-    c.fillStyle = '#4c9274'; c.strokeStyle = '#215748'; c.lineWidth = 3; c.beginPath(); c.moveTo(167, 686); c.lineTo(145, 651); c.lineTo(176, 664); c.lineTo(190, 638); c.lineTo(194, 681); c.closePath(); c.fill(); c.stroke();
+    c.fillStyle = '#f0c65f'; c.strokeStyle = '#215748'; c.lineWidth = 3; c.beginPath(); c.moveTo(167, 686); c.lineTo(145, 651); c.lineTo(176, 664); c.lineTo(190, 638); c.lineTo(194, 681); c.closePath(); c.fill(); c.stroke();
     c.beginPath(); c.moveTo(190, 647); c.lineTo(205, 633); c.lineTo(217, 640); c.lineTo(211, 648); c.lineTo(198, 651); c.closePath(); c.fill(); c.stroke();
-    c.fillStyle = '#f6edcf'; c.beginPath(); c.arc(208, 640, 2, 0, Math.PI * 2); c.fill();
-    c.fillStyle = '#245245'; c.font = 'bold 18px monospace'; c.textAlign = 'center'; c.fillText('CAN YOU BEAT THE DRAGON?', 380, 691);
+    c.fillStyle = '#fffaf0'; c.beginPath(); c.arc(208, 640, 2, 0, Math.PI * 2); c.fill();
+    c.fillStyle = '#245245'; c.font = 'bold 18px monospace'; c.textAlign = 'center'; c.fillText('MIGHT YOU BEST MY BEST?', 380, 691);
     c.fillStyle = '#a27a3f'; c.font = '14px Georgia, serif'; c.fillText('gismap.online/dragons', 300, 721);
   }
-  shareButton.addEventListener('click', () => { if (!current) return; nameInput.value = current.name; output.hidden = true; status.textContent = ''; dialog.showModal(); nameInput.focus(); });
-  close.addEventListener('click', () => dialog.close());
-  form.addEventListener('submit', async (event) => {
-    event.preventDefault();
-    const name = cleanName(nameInput.value);
-    if (!name) { nameInput.setCustomValidity('Enter a dragon name.'); nameInput.reportValidity(); return; }
-    nameInput.setCustomValidity('');
-    show({ ...current, name });
-    const href = linkFor('https://gismap.online', current);
-    link.href = href; link.textContent = href; output.hidden = false; status.textContent = ''; download.hidden = true;
+  async function makeShareCard(generation) {
     try {
       if (!globalThis.QRCode?.toCanvas) throw new Error('QR code generator unavailable');
       const plain = document.createElement('canvas');
-      await globalThis.QRCode.toCanvas(plain, href, { width: 440, margin: 4, errorCorrectionLevel: 'M' });
+      await globalThis.QRCode.toCanvas(plain, shareUrl, { width: 440, margin: 4, errorCorrectionLevel: 'M', color: { dark: '#123f36', light: '#fff4c6' } });
+      if (brand?.decode) await brand.decode().catch(() => {});
+      if (generation !== shareGeneration) return;
       decorateQr(plain, qr);
       qr.hidden = false; download.href = qr.toDataURL('image/png'); download.hidden = false;
-    } catch { qr.hidden = true; status.textContent = 'QR code unavailable; you can still use the link.'; }
+      if (qr.toBlob && typeof File !== 'undefined') qr.toBlob((blob) => {
+        if (blob && generation === shareGeneration) shareImage = new File([blob], 'dragon-challenge.png', {type: 'image/png'});
+      }, 'image/png');
+    } catch { if (generation === shareGeneration) { qr.hidden = true; status.textContent = 'QR code unavailable; you can still share or copy the link.'; } }
+  }
+  shareButton.addEventListener('click', async () => {
+    if (!current) return;
+    shareUrl = linkFor('https://gismap.online', current); shareImage = null;
+    qr.hidden = true; download.hidden = true; copyFallback.hidden = true; copyFallbackLabel.hidden = true; status.textContent = '';
+    dialog.showModal();
+    await makeShareCard(++shareGeneration);
   });
-  nameInput.addEventListener('input', () => { nameInput.setCustomValidity(''); output.hidden = true; status.textContent = ''; });
-  copy.addEventListener('click', async () => {
-    try { await navigator.clipboard.writeText(link.href); status.textContent = 'Link copied.'; }
-    catch { status.textContent = 'Copy the link above from your browser.'; }
+  close.addEventListener('click', () => { shareGeneration++; dialog.close(); });
+  async function copyShareLink() {
+    try { await navigator.clipboard.writeText(shareUrl); status.textContent = 'Link copied.'; }
+    catch { copyFallback.value = shareUrl; copyFallback.hidden = false; copyFallbackLabel.hidden = false; copyFallback.focus(); copyFallback.select(); status.textContent = 'Copy the selected link manually.'; }
+  }
+  copy.addEventListener('click', copyShareLink);
+  mobileShare.addEventListener('click', async () => {
+    if (!navigator.share) { await copyShareLink(); return; }
+    const share = { title: 'Here be dragons | GISMap Online', text: challengeMessage(current), url: shareUrl };
+    if (shareImage && navigator.canShare?.({ ...share, files: [shareImage] })) share.files = [shareImage];
+    try { await navigator.share(share); }
+    catch (error) { if (error?.name !== 'AbortError') status.textContent = 'Could not open sharing. Try Copy link instead.'; }
   });
   globalThis.DragonResults = { parse, linkFor, storyFor, beats, challengeMessage, setChallenge, record, show, hide };
 })();
