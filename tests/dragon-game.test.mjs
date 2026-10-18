@@ -16,7 +16,7 @@ function setup(shared = null) {
   const window = { PointerEvent: true, addEventListener: (type, fn) => listeners.set(`window:${type}`, fn) };
   let shown = null, target = null;
   const DragonResults = { hide() {}, show(value) { shown = value; }, beats: () => false, setChallenge(value) { target = value; }, challengeMessage: value => `The famous dragon ${value.name} has taken ${value.score} maidens and flown ${value.distance} leagues — can you beat ${value.name}?`, parse: () => shared };
-  runInNewContext(code, { document, window, DragonResults, location: {href:'https://gismap.online/dragons/'}, Math, Array, performance: { now: () => 0 }, requestAnimationFrame: (fn) => { frames.set(++next, fn); return next; }, cancelAnimationFrame: (id) => frames.delete(id) });
+  runInNewContext(code, { document, window, DragonResults, DragonArt: { drawDragon() {} }, location: {href:'https://gismap.online/dragons/'}, Math, Array, performance: { now: () => 0 }, requestAnimationFrame: (fn) => { frames.set(++next, fn); return next; }, cancelAnimationFrame: (id) => frames.delete(id) });
   return { nodes, frames, listeners, getShown: () => shown, getTarget: () => target };
 }
 test('game stays still until started, then pauses and resumes without duplicate frames', () => {
@@ -55,7 +55,8 @@ test('the direct dragon page is up to date and uses the same game without a 404 
   assert.match(direct, /rel="icon" href="\/assets\/gis-map-online-mark-v2\.png" type="image\/png"/);
   assert.doesNotMatch(direct, /404 ·|couldn’t find that page|content="noindex"/);
   for (const id of ['game', 'canvas', 'start', 'flapButton', 'pauseButton']) assert.match(direct, new RegExp(`id="${id}"`));
-  assert.match(direct, /\/js\/dragon-game\.js\?v=6/);
+  assert.match(direct, /\/js\/dragon-game\.js\?v=7/);
+  assert.match(direct, /download="here-be-dragons\.png"/);
   const redirects = await readFile(new URL('../_redirects', import.meta.url), 'utf8');
   assert.match(redirects, /^\/dragons \/dragons\/ 301$/m);
 });
@@ -74,4 +75,17 @@ test('shared links show the previous legend followed by a playable challenge', (
   assert.equal(nodes.sharedChallenge.hidden, true);
   assert.equal(frames.size, 1);
   assert.equal(getTarget().score, 3);
+});
+
+test('shared dragon artwork draws the in-game dragon in both flight and card poses', async () => {
+  const source = await readFile(new URL('../js/dragon-art.js', import.meta.url), 'utf8');
+  const calls = [];
+  const ctx = new Proxy({}, { get: (_target, name) => (...args) => calls.push([name, ...args]), set: () => true });
+  const scope = { Math };
+  runInNewContext(source, scope);
+  scope.DragonArt.drawDragon(ctx, {x:225,y:205,vy:-200,flap:0.26,invuln:0}, 1);
+  scope.DragonArt.drawDragon(ctx, {x:0,y:0,vy:0,flap:1,invuln:0}, 0);
+  assert.ok(calls.filter(([name]) => name === 'bezierCurveTo').length > 10);
+  assert.ok(calls.some(([name, x, y]) => name === 'translate' && x === 225 && y === 205));
+  assert.ok(calls.some(([name, x, y]) => name === 'translate' && x === 0 && y === 0));
 });

@@ -8,14 +8,14 @@ function setup({nativeShare = true, clipboard = true} = {}) {
   const listeners = new Map();
   const make = (id) => ({ id, value:'', textContent:'', hidden:false, href:'', focus(){}, select(){}, showModal(){}, close(){}, setCustomValidity(){}, reportValidity(){}, addEventListener(type, fn){listeners.set(`${id}:${type}`,fn)} });
   const nodes = Object.fromEntries(['legendStory','legendScroll','legendScore','shareResults','shareDialog','shareClose','shareQr','shareStatus','copyLink','challengeBanner','downloadQr','recordDialog','recordForm','recordName','recordScore','mobileShare','copyFallback','copyFallbackLabel'].map(id=>[id,make(id)]));
-  let encoded = '', copied = '', shared = null;
+  let encoded = '', copied = '', shared = null, dragonDrawn = false;
   const draws = [];
   const ctx = new Proxy({}, { get: (_target, key) => (...args) => { if (key === 'drawImage') draws.push(args); }, set: () => true });
   nodes.shareQr.getContext = () => ctx;
   nodes.shareQr.toDataURL = () => 'data:image/png;base64,example';
-  const context = { document:{querySelector: selector=>nodes[selector.slice(1)], createElement: () => ({})}, location:{origin:'https://gismap.online'}, navigator:{clipboard:{writeText:async url=>{if (!clipboard) throw new Error('unavailable'); copied=url}},share:nativeShare ? async data=>{shared=data} : undefined}, URL, URLSearchParams, Math, Array, String, Number, QRCode:{toCanvas:async (_canvas, url)=>{encoded=url}} };
+  const context = { document:{querySelector: selector=>nodes[selector.slice(1)], createElement: () => ({})}, location:{origin:'https://gismap.online'}, navigator:{clipboard:{writeText:async url=>{if (!clipboard) throw new Error('unavailable'); copied=url}},share:nativeShare ? async data=>{shared=data} : undefined}, URL, URLSearchParams, Math, Array, String, Number, DragonArt:{drawDragon:()=>{dragonDrawn=true}}, QRCode:{toCanvas:async (_canvas, url)=>{encoded=url}} };
   runInNewContext(code, context);
-  return { api:context.DragonResults, nodes, listeners, getEncoded:()=>encoded, getCopied:()=>copied, getShared:()=>shared, draws };
+  return { api:context.DragonResults, nodes, listeners, getEncoded:()=>encoded, getCopied:()=>copied, getShared:()=>shared, getDragonDrawn:()=>dragonDrawn, draws };
 }
 test('share links preserve name and score and reject malformed results', () => {
   const {api} = setup();
@@ -70,13 +70,14 @@ test('winning challenge survives sharing and appears in the legend, but ties do 
 });
 
 test('share generates a decorated downloadable QR without drawing over its quiet zone', async () => {
-  const { api,nodes,listeners,draws } = setup();
+  const { api,nodes,listeners,draws,getDragonDrawn } = setup();
   api.show({name:'Flap',score:5,distance:123});
   await listeners.get('shareResults:click')();
   assert.equal(nodes.shareQr.width,600);
   assert.equal(nodes.shareQr.height,760);
   assert.equal(nodes.downloadQr.hidden,false);
   assert.match(nodes.downloadQr.href,/^data:image\/png/);
+  assert.equal(getDragonDrawn(),true);
   assert.equal(draws.length,1);
   assert.deepEqual(draws[0].slice(1),[80,160,440,440]);
 });

@@ -88,11 +88,12 @@
     c.fillStyle = '#f6d478'; c.font = 'bold 16px monospace'; c.fillText('HERE BE DRAGONS', 146, 101);
     c.fillStyle = '#fff4c6'; c.fillRect(76, 156, 448, 448);
     c.imageSmoothingEnabled = false; c.drawImage(source, 80, 160, 440, 440);
-    // A little sea dragon curls around the lower border, as on an old chart.
-    c.strokeStyle = '#215748'; c.lineWidth = 9; c.lineCap = 'round'; c.beginPath(); c.moveTo(76, 684); c.bezierCurveTo(110, 653, 140, 717, 178, 686); c.bezierCurveTo(195, 673, 185, 655, 197, 644); c.stroke();
-    c.fillStyle = '#f0c65f'; c.strokeStyle = '#215748'; c.lineWidth = 3; c.beginPath(); c.moveTo(167, 686); c.lineTo(145, 651); c.lineTo(176, 664); c.lineTo(190, 638); c.lineTo(194, 681); c.closePath(); c.fill(); c.stroke();
-    c.beginPath(); c.moveTo(190, 647); c.lineTo(205, 633); c.lineTo(217, 640); c.lineTo(211, 648); c.lineTo(198, 651); c.closePath(); c.fill(); c.stroke();
-    c.fillStyle = '#fffaf0'; c.beginPath(); c.arc(208, 640, 2, 0, Math.PI * 2); c.fill();
+    // Reuse the same artwork as the game, scaled to fit below the QR quiet zone.
+    if (globalThis.DragonArt) {
+      c.save(); c.translate(145, 690); c.scale(.45, .45);
+      globalThis.DragonArt.drawDragon(c, { x: 0, y: 0, vy: 0, flap: 1, invuln: 0 }, 0);
+      c.restore();
+    }
     c.fillStyle = '#245245'; c.font = 'bold 18px monospace'; c.textAlign = 'center'; c.fillText('MIGHT YOU BEST MY BEST?', 380, 691);
     c.fillStyle = '#a27a3f'; c.font = '14px Georgia, serif'; c.fillText('gismap.online/dragons', 300, 721);
   }
@@ -106,7 +107,7 @@
       decorateQr(plain, qr);
       qr.hidden = false; download.href = qr.toDataURL('image/png'); download.hidden = false;
       if (qr.toBlob && typeof File !== 'undefined') qr.toBlob((blob) => {
-        if (blob && generation === shareGeneration) shareImage = new File([blob], 'dragon-challenge.png', {type: 'image/png'});
+        if (blob && generation === shareGeneration) shareImage = new File([blob], 'here-be-dragons.png', {type: 'image/png'});
       }, 'image/png');
     } catch { if (generation === shareGeneration) { qr.hidden = true; status.textContent = 'QR code unavailable; you can still share or copy the link.'; } }
   }

@@ -47,50 +47,7 @@ for(let i=-1;i<9;i++){let x=i*155-(offset%155);polygon([[x,471],[x+43,451],[x+10
 }
 function serpentRise(h){const cycle=(h.t*0.68+h.phase*.08)%3.45; if(cycle<.65)return 90*Math.sin((cycle/.65)*Math.PI/2);if(cycle<1.5)return 90+15*Math.sin((cycle-.65)/.85*Math.PI);if(cycle<3.3)return Math.max(0,90*(1-(cycle-1.5)/1.8));return 0}
 function knightThrust(h){return 22*Math.sin(h.t*5+h.phase)}
-function drawDragon(){c.save();c.translate(dragon.x,dragon.y);c.rotate(clamp(dragon.vy/1250,-.26,.33));if(dragon.invuln>0&&Math.floor(elapsed*14)%2===0)c.globalAlpha=.42;
-// long, sinuous tail
-c.strokeStyle='#194d40';c.lineWidth=17;c.lineCap='round';c.beginPath();c.moveTo(-26,10);c.bezierCurveTo(-72,2,-79,44,-112,17);c.bezierCurveTo(-133,-2,-123,-28,-100,-20);c.stroke();c.strokeStyle='#31836e';c.lineWidth=11;c.stroke();
-// hind legs
-polygon([[-12,17],[-23,40],[-9,39],[1,27]],'#286d5b');polygon([[19,18],[11,42],[26,39],[32,23]],'#286d5b');
-// Single sweeping, sail-like dragon wings. Each leading edge is one curved arc,
-// with a scalloped bat membrane hanging below it (no jagged zigzag spires).
-function batWing(scale,fill,stroke){
-  c.save();c.scale(scale,scale);
-  c.beginPath();c.moveTo(0,0);
-  // Shoulder -> high arch -> outward swept wingtip.
-  c.bezierCurveTo(-24,-34,-69,-101,-131,-94);
-  // Four soft inverted scallops hanging from the spar.
-  c.bezierCurveTo(-119,-78,-112,-69,-113,-53);
-  c.quadraticCurveTo(-98,-67,-88,-73);
-  c.bezierCurveTo(-85,-53,-79,-49,-71,-43);
-  c.quadraticCurveTo(-59,-60,-48,-62);
-  c.bezierCurveTo(-44,-41,-31,-26,-22,-21);
-  c.quadraticCurveTo(-8,-15,0,0);
-  c.closePath();c.fillStyle=fill;c.fill();c.strokeStyle=stroke;c.lineWidth=3.3;c.lineJoin='round';c.stroke();
-  // Radial wing-finger bones, kept within the same curved membrane.
-  c.strokeStyle=stroke;c.lineWidth=1.8;c.globalAlpha=.5;
-  for(const [ex,ey,cx,cy] of [[-131,-94,-59,-64],[-113,-53,-63,-38],[-88,-73,-47,-49],[-71,-43,-38,-25],[-48,-62,-26,-39]]){
-    c.beginPath();c.moveTo(0,0);c.quadraticCurveTo(cx,cy,ex,ey);c.stroke();
-  }
-  c.restore();
-}
-const wingBeat=dragon.flap>0?1:0.5+0.5*Math.sin(elapsed*12);
-// Smaller, mistier rear wing gives depth without a butterfly silhouette.
-c.save();c.translate(-20,-8);c.rotate(-.09+wingBeat*.1);
-batWing(.68,'#6ea58c','#194d40');c.restore();
-// Body stays in front of wing roots.
-ellipse(0,5,51,26,'#287e69');ellipse(20,9,29,17,'#62a78d');
-// Main wing sweeps backwards; subtle rotation and lift animate each flap.
-c.save();c.translate(-8,-9-wingBeat*8);c.rotate(-.08+wingBeat*.16);
-batWing(.88+wingBeat*.1,'#82b9a1','#154d3f');c.restore();
-// Longer elegant swan-like neck, small dragon skull, horns, and tapered muzzle.
-polygon([[27,1],[37,-13],[45,-39],[52,-63],[67,-66],[74,-51],[62,-43],[57,-25],[53,-3],[37,15]],'#287e69');
-polygon([[59,-64],[81,-68],[94,-58],[94,-46],[81,-42],[66,-47]],'#287e69');
-polygon([[69,-63],[65,-80],[77,-68]],'#c9974c','#164b3f',2);polygon([[81,-62],[84,-78],[90,-58]],'#c9974c','#164b3f',2);
-ellipse(80,-57,3.7,3.7,'#fff9e9');ellipse(81,-57,1.8,1.8,'#122f2b');ellipse(91,-49,2.2,2.2,'#143e33');
-line([[44,-25],[48,-43],[56,-55]],'#72aa91',3);
-// front arms / talons
-line([[29,7],[40,19],[49,16]],'#164c40',5);line([[12,18],[21,31],[31,28]],'#164c40',5);c.restore()}
+function drawDragon(){DragonArt.drawDragon(c,dragon,elapsed)}
 function drawCastle(h){const x=h.x,y=h.y;c.save();c.translate(x,y);
 // stone castle and towers
 polygon([[8,23],[94,23],[94,105],[8,105]],'#d4cbb0','#6b806c',2);for(const tx of [4,74]){polygon([[tx,5],[tx+24,5],[tx+24,104],[tx,104]],'#e6d6b7','#6b806c',2);for(let j=0;j<3;j++)c.fillRect(tx+j*9,0,6,11)}polygon([[32,23],[46,6],[67,23]],'#af754c','#80543b',2);c.fillStyle='#6f8d79';c.fillRect(39,57,13,23);c.fillRect(69,58,12,22);c.fillStyle='#5a786c';c.beginPath();c.arc(50,104,17,Math.PI,0);c.fill();c.fillRect(33,104,34,10);line([[51,6],[51,-18]],'#7e694f',2);polygon([[51,-18],[76,-13],[51,-8]],'#c59146','#986d36',1);
