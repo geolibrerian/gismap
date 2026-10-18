@@ -140,7 +140,14 @@ export class ProjectManager {
 
     for (const layer of project.layers) {
       try {
-        if (layer.local) {
+        if (layer.sourceType === "geoparquet") {
+          if (!this.geoParquetLoader) throw new Error("GeoParquet import is unavailable.");
+          const packaged = layer.local ? (packageFiles.get(layer.projectPath) || packageFiles.get(`data/${layer.fileName}`)) : null;
+          if (layer.local && !packaged) { missingFiles.push(layer.fileName); continue; }
+          const result = await this.geoParquetLoader({ file: packaged || undefined, url: layer.local ? undefined : layer.url, title: layer.title, projectPath: layer.projectPath });
+          if (!result.layer) throw new Error("This source no longer contains mappable GeoParquet geometry.");
+          await this.#restoreLayerPresentation(result.layer, layer);
+        } else if (layer.local) {
           const packaged = packageFiles.get(layer.projectPath) || packageFiles.get(`data/${layer.fileName}`);
           if (!packaged) {
             missingFiles.push(layer.fileName);

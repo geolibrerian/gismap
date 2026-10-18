@@ -161,30 +161,18 @@ export function openDuckdbPanel(ui, client) {
     <section class="connection-group" aria-labelledby="duckdb-remote-title"><h3 id="duckdb-remote-title">Remote file</h3>
     <label class="field"><span>Remote Parquet / GeoParquet HTTPS URL</span><input type="url" data-connection-url placeholder="https://example.com/data.parquet"></label>
     <div class="connection-actions"><button type="button" data-connection-remote>Load remote Parquet and preview</button></div></section>
-    <div class="connection-actions"><button type="button" data-connection-map disabled>Add loaded GeoParquet to map</button></div>
     <p class="form-note" role="status" data-connection-status>Stopped. DuckDB is loaded only when started.</p>
     <pre class="connection-browser__preview" data-connection-results></pre>
-    <p class="form-note">Use the direct file URL, not its catalog page. Remote Parquet requires provider CORS and HTTP range requests. Source Cooperative file-page links are converted to their data URL. Mapping creates a session-only snapshot of up to 1,000 features. GeoParquet must use WKB geometry in WGS84 (EPSG:4326 or CRS84); other data can still be queried.</p></div>` });
-  let mappedRelation = null;
+    <p class="form-note">Use the direct file URL, not its catalog page. Remote Parquet requires provider CORS and HTTP range requests. Source Cooperative file-page links are converted to their data URL. To map GeoParquet, use Data → Add local spatial file or Add GeoJSON / GeoParquet URL. Mapped results are bounded; WKB geometry in WGS84 (EPSG:4326 or CRS84) is required.</p></div>` });
   status(client.connection ? 'Ready: browser DuckDB is running.' : 'Stopped. DuckDB is loaded only when started.');
-  bind('map', async () => {
-    if (!mappedRelation) throw new Error('Load a Parquet file first.');
-    status('Reading GeoParquet geometry and preparing a map layer…');
-    const { collection, truncated, limit } = await client.geoParquetFeatures(mappedRelation);
-    const file = new File([JSON.stringify(collection, (_key, value) => typeof value === 'bigint' ? String(value) : value)], `${mappedRelation}.geojson`, { type: 'application/geo+json' });
-    const layer = await ui.mapController.addLocalFile(file);
-    await ui.mapController.goToLayerOnInitialLoad(layer).catch(() => {});
-    status(`Added ${collection.features.length} features to the map${truncated ? `; truncated to the first ${limit} records` : ''}. This is a session snapshot; save a project package to retain it.`);
-  });
   bind('query', () => openDuckdbQueryWorkspace(ui, client));
   bind('start', async () => { status('Starting DuckDB locally…'); await client.initialize(); status('Ready: browser DuckDB is running.'); });
-  bind('stop', async () => { mappedRelation = null; field('map').disabled = true; if (client.initializing) throw new Error('Wait for initialization to finish before stopping.'); await client.close(); field('results').textContent = ''; status('Stopped; in-memory tables were cleared.'); });
+  bind('stop', async () => { if (client.initializing) throw new Error('Wait for initialization to finish before stopping.'); await client.close(); field('results').textContent = ''; status('Stopped; in-memory tables were cleared.'); });
   bind('spatial', async () => { status('Checking the DuckDB spatial extension…'); await client.checkSpatial(); status('DuckDB spatial extension loaded successfully.'); });
   bind('import', async () => {
     const file = field('file').files?.[0]; if (!file) throw new Error('Select a local file first.');
     status(`Importing ${file.name} locally…`);
     const name = await client.importLocalFile(file, field('name').value.trim());
-    mappedRelation = /\.(?:geo)?parquet$/i.test(file.name) ? name : null; field('map').disabled = !mappedRelation;
     const { schema, rows } = await client.inspectRelation(name);
     field('results').textContent = JSON.stringify({ schema, rows }, previewValue, 2);
     status(`Loaded ${name}. Showing up to 50 records; dataset contents stay in this browser.`);
@@ -203,7 +191,6 @@ export function openDuckdbPanel(ui, client) {
       }
       throw error;
     }
-    mappedRelation = name; field('map').disabled = false;
     const { schema, rows } = await client.inspectRelation(name);
     field('results').textContent = JSON.stringify({ schema, rows }, previewValue, 2);
     status(`Loaded ${name} from the remote file${resolved.normalized ? ' using the Source Cooperative direct data URL' : ''}. Showing up to 50 records.`);

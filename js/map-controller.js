@@ -47,6 +47,8 @@ export class MapController {
     this.initialBasemapId = null;
     this.defaultBasemapId = null;
     this.groundId = "world-elevation";
+    this.geoParquetSources = new Map();
+    this.events?.subscribe?.("layer:removed", ({ uid }) => this.geoParquetSources.delete(uid));
   }
 
   availableEngines() { return listEngines(); }
@@ -90,6 +92,23 @@ export class MapController {
   }
 
   getBasemapId() { return this.engine?.getBasemapId?.() || this.initialBasemapId || this.defaultBasemapId; }
+
+  setGeoParquetSource(uid, source) { this.geoParquetSources.set(uid, source); }
+
+  getLayerConfig(ref) {
+    const config = this._delegate("getLayerConfig", [ref]);
+    if (!config) return config;
+    const source = this.geoParquetSources.get(config.uid);
+    if (!source) return config;
+    return { ...config, sourceType: "geoparquet", type: "geoparquet", local: Boolean(source.file),
+      url: source.url || null, fileName: source.file?.name || null,
+      projectPath: source.file ? source.projectPath : null, refreshInterval: 0 };
+  }
+
+  getLocalAsset(ref) {
+    const uid = typeof ref === "string" ? ref : ref?.uid;
+    return this.geoParquetSources.get(uid)?.file || this._delegate("getLocalAsset", [ref]);
+  }
 
   getAllLayerConfigs() { return this.getLayers().map((layer) => this.getLayerConfig(layer)); }
 

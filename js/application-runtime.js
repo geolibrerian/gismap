@@ -181,6 +181,9 @@ export class ApplicationRuntime {
   #bridgeState() {
     this.events.subscribe("layer:added", ({ layer }) => this.state.dispatch("layer:activate", { layerId: layer?.uid }, { undoable: false }));
     this.events.subscribe("layer:removed", ({ uid }) => {
+      const relation = this.geoParquetLayers?.get(uid)?.relation;
+      this.geoParquetLayers?.delete(uid);
+      if (relation) this.duckdb.removeRelation(relation).catch(() => {});
       if (this.state.value.activeLayerId === uid) this.state.dispatch("layer:activate", { layerId: this.mapController.getLayers()[0]?.uid || null }, { undoable: false });
     });
     this.events.subscribe("identify:complete", ({ results = [] }) => {

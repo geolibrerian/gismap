@@ -3,10 +3,10 @@ import { POPULAR_SERVICES } from "./catalog.js?v=0.18.2";
 import { MapAssistantPanel } from "./assistant-panel.js?v=0.53.0";
 import { createAssistantTools, summarizeMapState } from "./map-assistant.js?v=0.53.0";
 import { ENTERPRISE_CATALOGS, EnterpriseCatalog, normalizeArcGisDirectoryUrl } from "./enterprise-catalog.js?v=0.18.2";
-import { createShareUrl } from "./share.js?v=0.53.0-gallery1";
-import { createShareLink, hasDataFilter } from "./map-share.js?v=0.53.0-gallery1";
+import { createShareUrl } from "./share.js?v=0.54.0-unified4";
+import { createShareLink, hasDataFilter } from "./map-share.js?v=0.54.0-unified4";
 import { briefingLayerRef, findBriefingLayer } from "./briefing-api.js?v=0.53.0";
-import { createEmbeddedTourUrl } from "./tour-share.js?v=0.18.2";
+import { createEmbeddedTourUrl } from "./tour-share.js?v=0.54.0-unified4";
 import { markdownToPlainText, renderMarkdown } from "./markdown.js?v=0.18.2";
 import { formatAttributeValue } from "./attribute-format.js?v=0.18.2";
 import { normalizeApplicationConfig, presetApplication } from "./application-config.js?v=0.18.2";
@@ -17,7 +17,7 @@ import { compactMedia } from "./viewport.js?v=0.18.2";
 import { APP_VERSION } from "./version.js?v=0.53.0";
 import { bindMobileSheetResize } from "./mobile-sheet-resize.js?v=0.52.7";
 import { PdfDocument, brandedMapImage, brandedQrCanvas, loadBrandLogo, printPalette, qrAsset } from "./pdf-document.js?v=0.44.2";
-import { featureLayerUrl, locationUrl } from "./field-task-share.js?v=0.53.0-gallery1";
+import { featureLayerUrl, locationUrl } from "./field-task-share.js?v=0.54.0-unified4";
 import { dockIcon } from "./dock-icons.js?v=0.24.0";
 import { serviceNameFromUrl } from "./service-name.js?v=0.26.0";
 import { decodeQrFromImage, describeGisMapLink, gisMapLinkFrom, openGisMapLink } from "./qr-import.js?v=0.25.1";
@@ -1061,17 +1061,17 @@ export class UIController {
           this.#serviceDialog("wfs");
           break;
         case "data-pmtiles": {
-          const { openPmtilesPanel } = await import("./data-connections-panel.js?v=0.54.0-geomap1");
+          const { openPmtilesPanel } = await import("./data-connections-panel.js?v=0.54.0-unified5");
           openPmtilesPanel(this, this.mapController, (engine) => this.#switchEngine(engine));
           break;
         }
         case "data-duckdb": {
-          const { openDuckdbPanel } = await import("./data-connections-panel.js?v=0.54.0-geomap1");
+          const { openDuckdbPanel } = await import("./data-connections-panel.js?v=0.54.0-unified5");
           openDuckdbPanel(this, this.applicationRuntime.duckdb);
           break;
         }
         case "data-postgis": {
-          const { openPostgisPanel } = await import("./data-connections-panel.js?v=0.54.0-geomap1");
+          const { openPostgisPanel } = await import("./data-connections-panel.js?v=0.54.0-unified5");
           openPostgisPanel(this);
           break;
         }
@@ -2230,7 +2230,7 @@ export class UIController {
         button.textContent = "Adding…";
         try {
           const sourceUrl = this.dialog.querySelector("#service-url").value;
-          const { isParquetName, addGeoParquetLayer } = await import("./geoparquet-layer.js?v=0.54.0-unified3");
+          const { isParquetName, addGeoParquetLayer } = await import("./geoparquet-layer.js?v=0.54.0-unified4");
           if (isGeoJson && isParquetName(sourceUrl)) {
             const result = await addGeoParquetLayer(this, { url: sourceUrl, title: this.dialog.querySelector("#service-title").value });
             if (result.tableOnly) {
@@ -2239,7 +2239,7 @@ export class UIController {
               return;
             }
             this.dialog.close();
-            this.toast(result.truncated ? `Showing the first ${result.limit} features; SQL can query the full source. Save a project package to retain the map snapshot.` : `${result.layer.title} added as a session snapshot. Save a project package to retain it.`);
+            this.toast(result.truncated ? `Showing the first ${result.limit} features; SQL can query the full source.` : `${result.layer.title} added from the remote GeoParquet source.`);
             await this.mapController.goToLayerOnInitialLoad(result.layer).catch(() => {});
             return;
           }
@@ -5072,7 +5072,7 @@ export class UIController {
     event.target.value = "";
     for (const file of files) {
       try {
-        const { isParquetName, addGeoParquetLayer } = await import("./geoparquet-layer.js?v=0.54.0-unified3");
+        const { isParquetName, addGeoParquetLayer } = await import("./geoparquet-layer.js?v=0.54.0-unified4");
         const result = isParquetName(file.name) ? await addGeoParquetLayer(this, { file }) : null;
         if (result?.tableOnly) {
           const { openDuckdbQueryWorkspace } = await import("./duckdb-query-workspace.js?v=0.54.0-vector1");
@@ -5080,7 +5080,7 @@ export class UIController {
           continue;
         }
         const layer = result?.layer || await this.mapController.addLocalFile(file);
-        this.toast(result?.truncated ? `Showing the first ${result.limit} features; SQL can query the full source. Save a project package to retain the map snapshot.` : `${layer.title} added.${result ? " Save a project package to retain the map snapshot." : ""}`);
+        this.toast(result?.truncated ? `Showing the first ${result.limit} features; SQL can query the full source. Local files require a project package for restoration.` : `${layer.title} added.${result ? " Local files require a project package for restoration." : ""}`);
         await this.mapController.goToLayerOnInitialLoad(layer).catch(() => {});
       } catch (error) {
         this.error(`${file.name}: ${error.message}`);
@@ -5356,7 +5356,7 @@ export class UIController {
           <div class="layer-card__head"><label class="layer-toggle"><input type="checkbox" data-layer-visible ${layer.visible ? "checked" : ""} /><span></span></label><div><strong title="${escapeHtml(layer.title)}">${escapeHtml(layer.title)}</strong><small>${escapeHtml(config.sourceType)}${config.definitionExpression ? " · Filtered" : ""}${config.refreshInterval ? ` · ${config.refreshInterval}m refresh` : ""}${dataDate ? ` · <span title="When the publisher last edited the data">Data ${escapeHtml(dataDate)}</span>` : ""}</small></div><button data-layer-action="remove" title="Remove layer">×</button></div>
           <div class="layer-scale-note" data-layer-scale-note ${scaleMessage ? "" : "hidden"}><span data-scale-text>${escapeHtml(scaleMessage || "")}</span><button type="button" data-layer-action="ignore-scale" title="Draw this layer at every zoom level">Show anyway</button></div>
           <label class="opacity-row"><span>Opacity</span><input data-layer-opacity type="range" min="0" max="1" step="0.05" value="${layer.opacity}" /><output>${Math.round(layer.opacity * 100)}%</output></label>
-          <div class="layer-card__actions"><button data-layer-action="zoom">Zoom</button><button data-layer-action="table">Table</button>${config.local && layer.queryable ? '<button data-layer-action="query-duckdb">Query in DuckDB</button>' : ''}<button data-layer-action="filter">Filter</button><button data-layer-action="export" title="Share this map, make a PDF or briefing, or download data">Share</button><button data-layer-action="style">Style</button><button data-layer-action="refresh">Refresh</button></div>
+          <div class="layer-card__actions"><button data-layer-action="zoom">Zoom</button><button data-layer-action="table">Table</button>${(config.local || config.sourceType === "geoparquet") && layer.queryable ? '<button data-layer-action="query-duckdb">Query in DuckDB</button>' : ''}<button data-layer-action="filter">Filter</button><button data-layer-action="export" title="Share this map, make a PDF or briefing, or download data">Share</button><button data-layer-action="style">Style</button><button data-layer-action="refresh">Refresh</button></div>
         </article>`;
       }).join("")
       : '<div class="empty-state empty-state--layers"><p>No layers yet. Add data to start.</p><div class="empty-state__actions"><button type="button" data-empty-action="data-arcgis">ArcGIS service</button><button type="button" data-empty-action="data-geojson">GeoJSON URL</button><button type="button" data-empty-action="data-file">Local file</button><button type="button" data-empty-action="data-popular">Try an example</button></div></div>';

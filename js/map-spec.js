@@ -6,8 +6,8 @@
 // Older app links (`#map=z…` holding the compact share payload) still open; they
 // decode to map-v1 too. Pure functions only, so headless callers can build links.
 import { decodePayload, encodePayload } from "./link-codec.js?v=0.21.0";
-import { MAP_SPEC_JSON_LIMIT, QR_SAFE_LENGTH, readShare } from "./map-share.js?v=0.53.0-gallery1";
-import { SHARE_BASEMAPS, SHARE_LAYER_TYPES, SHARE_LIMITS, sanitizeSharedResourceUrl } from "./share.js?v=0.53.0-gallery1";
+import { MAP_SPEC_JSON_LIMIT, QR_SAFE_LENGTH, readShare } from "./map-share.js?v=0.54.0-unified4";
+import { SHARE_BASEMAPS, SHARE_LAYER_TYPES, SHARE_LIMITS, sanitizeSharedResourceUrl } from "./share.js?v=0.54.0-unified4";
 import { validateRendererSpec } from "./renderer-spec.js?v=0.29.0";
 import { normalizeBriefing, validateBriefing } from "./briefing-document.js?v=0.35.0";
 import { INTERFACE_SKINS } from "./skin-catalog.js?v=0.44.2";

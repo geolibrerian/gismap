@@ -1,31 +1,31 @@
 import { events } from "./events.js?v=0.18.2";
 import { AuthController } from "./engines/arcgis/arcgis-auth.js?v=0.39.0";
-import { MapController } from "./map-controller.js?v=0.54.0-vector1";
+import { MapController } from "./map-controller.js?v=0.54.0-unified4";
 import { listEngines } from "./engines/engine-registry.js?v=0.54.0-vector1";
 import { chooseEngine } from "./engine-preference.js?v=0.52.5";
 import { BASEMAP_IDS } from "./basemap-catalog.js?v=0.53.0-gallery1";
-import { ProjectManager } from "./project.js?v=0.54.0-vector1";
+import { ProjectManager } from "./project.js?v=0.54.0-unified4";
 import { IdentifyController } from "./identify.js?v=0.37.0";
 import { AttributeTableController } from "./attribute-table.js?v=0.37.0";
 import { AIController } from "./ai.js?v=0.53.0";
 import { ToolManager } from "./tool-manager.js?v=0.37.0";
-import { UIController } from "./ui.js?v=0.54.0-unified3";
+import { UIController } from "./ui.js?v=0.54.0-unified6";
 import { ExportController } from "./export/export-controller.js?v=0.37.0";
-import { SHARE_BASEMAPS, parseShareParameters } from "./share.js?v=0.53.0-gallery1";
-import { readShareLocation } from "./map-share.js?v=0.53.0-gallery1";
-import { decodeEmbeddedTour } from "./tour-share.js?v=0.18.2";
-import { decodeFieldTask, featureLayerUrl, readFieldTaskHash, readFocus } from "./field-task-share.js?v=0.53.0-gallery1";
+import { SHARE_BASEMAPS, parseShareParameters } from "./share.js?v=0.54.0-unified4";
+import { readShareLocation } from "./map-share.js?v=0.54.0-unified4";
+import { decodeEmbeddedTour } from "./tour-share.js?v=0.54.0-unified4";
+import { decodeFieldTask, featureLayerUrl, readFieldTaskHash, readFocus } from "./field-task-share.js?v=0.54.0-unified4";
 import { POPULAR_SERVICES } from "./catalog.js?v=0.18.2";
-import { ApplicationRuntime } from "./application-runtime.js?v=0.54.0-unified1";
+import { ApplicationRuntime } from "./application-runtime.js?v=0.54.0-unified4";
 import { PanelManager } from "./panel-manager.js?v=0.18.2";
 import { MobilePanelManager } from "./mobile-panel-manager.js?v=0.18.2";
 import { MobileWorkflowRouter } from "./mobile-workflow-router.js?v=0.53.0";
 import { createClientApi } from "./briefing-api.js?v=0.53.0";
 import { registerAuthoringTools } from "./agent-authoring-tools.js?v=0.53.0";
-import { createCameraApi, createLayersApi } from "./layers-api.js?v=0.41.0";
+import { createCameraApi, createLayersApi } from "./layers-api.js?v=0.54.0-unified4";
 import { registerLayerTools } from "./layer-tools.js?v=0.29.0";
-import { createMapSpecApi } from "./map-spec-api.js?v=0.53.0-gallery1";
-import { mapSpecFromShareParameters } from "./map-spec.js?v=0.53.0-gallery1";
+import { createMapSpecApi } from "./map-spec-api.js?v=0.54.0-unified4";
+import { mapSpecFromShareParameters } from "./map-spec.js?v=0.54.0-unified4";
 import { GisMapError, ERROR_CODES } from "./gismap-errors.js?v=0.28.0";
 
 import { loadSharedLayer } from "./shared-layer-loader.js?v=0.53.0";
@@ -92,11 +92,25 @@ async function start() {
   mobileWorkflowRouter.initialize();
   // Briefing action items become field tasks.
   uiController.fieldTasks = mobileWorkflowRouter;
+  // Project, map-spec and UI imports use the same shared DuckDB session.
+  projectManager.geoParquetLoader = async (options) => {
+    const { addGeoParquetLayer } = await import("./geoparquet-layer.js?v=0.54.0-unified4");
+    return addGeoParquetLayer(uiController, options);
+  };
+  const loadUnifiedLayer = async (config) => {
+    if (config.serviceType !== "geoparquet") return loadSharedLayer(mapController, config);
+    const result = await projectManager.geoParquetLoader({ url: config.url, title: config.title });
+    if (!result.layer) throw new Error("This source does not contain mappable GeoParquet geometry.");
+    if (config.visible !== undefined) mapController.setVisibility(result.layer.uid, config.visible !== false);
+    if (Number.isFinite(config.opacity)) mapController.setOpacity(result.layer.uid, config.opacity);
+    if (config.definitionExpression) mapController.setDefinitionExpression(result.layer.uid, config.definitionExpression);
+    return [result.layer];
+  };
   // Briefing documents can name a service URL as their layer; it loads like a shared layer.
-  uiController.loadLayer = (config) => loadSharedLayer(mapController, config);
+  uiController.loadLayer = loadUnifiedLayer;
 
   // The public, in-page API. Defined before the map starts so agents can await `ready`.
-  const layersApi = createLayersApi({ mapController, loadLayer: (config) => loadSharedLayer(mapController, config), state: applicationRuntime.state, events, allowHttp });
+  const layersApi = createLayersApi({ mapController, loadLayer: loadUnifiedLayer, state: applicationRuntime.state, events, allowHttp });
   const cameraApi = createCameraApi({ mapController, layers: layersApi });
   registerLayerTools(applicationRuntime.tools, layersApi);
   const clientApi = createClientApi({
@@ -106,7 +120,7 @@ async function start() {
       openBriefing: (briefing, options) => uiController.openBriefingDocument(briefing, options),
       generate: (options) => uiController.generateBriefingFromView(options),
       createPdf: (options) => uiController.briefingPdfFile(options),
-      loadLayer: (config) => loadSharedLayer(mapController, config),
+      loadLayer: loadUnifiedLayer,
       layerInfo: (layer) => layersApi.get(layer.uid),
     },
   });
@@ -234,7 +248,7 @@ async function start() {
       // (mapSpec.load from the API stays quiet: an agent decides when to present.)
       const briefing = projectManager.current?.presentation?.briefing;
       if (sharedState.spec?.briefing && briefing?.slides?.some((slide) => !slide.hidden)) await uiController.openBriefingDocument(briefing, { present: true });
-    } else if (sharedState) await uiController.openSharedState(sharedState, { loadLayer: (config) => loadSharedLayer(mapController, config) });
+    } else if (sharedState) await uiController.openSharedState(sharedState, { loadLayer: loadUnifiedLayer });
   } catch (error) {
     events.publish("app:error", { message: error.message });
   }
