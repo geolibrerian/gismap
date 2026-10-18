@@ -1,4 +1,4 @@
-import { BASEMAP_IDS } from "./basemap-catalog.js?v=0.41.0";
+import { BASEMAP_IDS } from "./basemap-catalog.js?v=0.53.0-gallery1";
 
 const ALLOWED_PROTOCOLS = new Set(["https:", "http:"]);
 const SENSITIVE_PARAMETER = /^(?:token|oauth[_-]?token|access[_-]?token|api[_-]?key|apikey|key|client[_-]?secret|password|passwd|pwd|authorization|auth|signature|sig)$/i;

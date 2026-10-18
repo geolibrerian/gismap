@@ -19,10 +19,13 @@ export const BASEMAPS = Object.freeze([
   { id: "osm", label: "OpenStreetMap", group: "2D basemaps", engine: "arcgis", maplibre: "open-bright" },
   { id: "satellite", label: "Satellite", group: "Imagery", engine: "arcgis", maplibre: "open-liberty" },
   { id: "hybrid", label: "Satellite + labels", group: "Imagery", engine: "arcgis", maplibre: "open-liberty" },
+  { id: "usgs-imagery", label: "USGS Aerial Imagery", group: "Imagery", engine: "maplibre", arcgis: "satellite" },
+  { id: "usgs-imagery-topo", label: "USGS Imagery Topo — retiring Nov 16, 2026", group: "Imagery", engine: "maplibre", arcgis: "hybrid" },
   { id: "open-liberty", label: "Liberty — detailed", group: "OpenFreeMap", engine: "maplibre", arcgis: "topo-vector" },
   { id: "open-bright", label: "Bright — streets", group: "OpenFreeMap", engine: "maplibre", arcgis: "streets-vector" },
   { id: "open-positron", label: "Positron — light", group: "OpenFreeMap", engine: "maplibre", arcgis: "gray-vector" },
   { id: "open-dark", label: "Dark", group: "OpenFreeMap", engine: "maplibre", arcgis: "dark-gray-vector" },
+  { id: "open-fiord", label: "Fiord", group: "OpenFreeMap", engine: "maplibre", arcgis: "dark-gray-vector" },
   { id: "skin", label: "Skin — follows the look", group: "Styled by the skin", engine: "any" },
 ].map((entry) => Object.freeze(entry)));
 

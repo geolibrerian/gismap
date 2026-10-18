@@ -14,8 +14,9 @@
 // boundary uses GIS Map levels, so links and projects mean the same view.
 import { GisMapError } from "../../gismap-errors.js?v=0.28.0";
 import { unsupported } from "../engine-interface.js?v=0.52.4";
-import { openBasemapFor } from "./basemaps.js?v=0.41.0";
-import { basemapOnEngine, basemapsForEngine } from "../../basemap-catalog.js?v=0.41.0";
+import { openBasemapFor, withUsgsImagery } from "./basemaps.js?v=0.53.0-gallery1";
+import { mountBasemapGallery } from "./basemap-gallery.js?v=0.53.0-gallery1";
+import { basemapOnEngine, basemapsForEngine } from "../../basemap-catalog.js?v=0.53.0-gallery1";
 import { applyBasemapTheme, withBuildings3d } from "./basemap-theme.js?v=0.52.0";
 import { compileWhere } from "./where.js?v=0.39.0";
 import { arcgisMetadata } from "../../source-inspector.js?v=0.53.0";
@@ -212,7 +213,9 @@ export class MaplibreEngine {
       if (!String(event.sourceId || "").startsWith("gismap-")) return;
       const terrainSourceIds = new Set([TERRAIN_SOURCE_ID, HILLSHADE_SOURCE_ID]);
       const record = this.#records.get(String(event.sourceId).slice("gismap-".length));
-      const message = terrainSourceIds.has(event.sourceId)
+      const message = event.sourceId === "gismap-usgs-basemap"
+        ? "USGS imagery could not be loaded. The fallback basemap remains available; check the provider or choose another basemap."
+        : terrainSourceIds.has(event.sourceId)
         ? `3D terrain could not load: ${event.error?.message || "unknown error"}. You can continue with flat ground.`
         : `Could not draw ${record?.title || "a layer"}: ${event.error?.message || "unknown error"}`;
       // Every failing tile reports; say it once every few seconds.
@@ -226,6 +229,7 @@ export class MaplibreEngine {
   destroy() {
     if (this.measurement) this.toggleWidget("measurement");
     if (this.legendHost) this.toggleWidget("legend");
+    if (this.basemapGallery) this.toggleWidget("basemapGallery");
     this.map?.remove();
     this.map = null;
     this.#records.clear();
@@ -332,7 +336,8 @@ export class MaplibreEngine {
     const previous = openBasemapFor(this.basemapId);
     this.basemapId = next;
     const upcoming = openBasemapFor(next);
-    if (this.map && (upcoming.themed || previous.themed || upcoming.style !== previous.style)) void this.#applyStyle();
+    if (this.map && (upcoming.themed || previous.themed || upcoming.key !== previous.key)) void this.#applyStyle();
+    this.basemapGallery?.update();
     this.events.publish("map:basemap-changed", { id: this.basemapId });
   }
 
@@ -370,9 +375,11 @@ export class MaplibreEngine {
       }).catch((error) => { this.#styleJson.delete(basemap.style); throw error; }));
     }
     try {
-      const style = withBuildings3d(await this.#styleJson.get(basemap.style), { visible: this.buildings3d !== false });
+      let style = withBuildings3d(await this.#styleJson.get(basemap.style), { visible: this.buildings3d !== false });
+      if (basemap.raster) style = withUsgsImagery(style, basemap.raster);
       return basemap.themed && this.basemapTheme ? applyBasemapTheme(style, this.basemapTheme) : style;
     } catch {
+      if (basemap.raster) return withUsgsImagery({ version: 8, sources: {}, layers: [{ id: "fallback-background", type: "background", paint: { "background-color": "#e8e7dc" } }] }, basemap.raster);
       return basemap.style;
     }
   }
@@ -1248,7 +1255,7 @@ export class MaplibreEngine {
       .map((feature) => ({ geometry: feature.geometry, attributes: { ...feature.properties, geometry_type: feature.geometry.type } }));
   }
 
-  widgetOpen(name) { return name === "measurement" ? Boolean(this.measurement) : name === "legend" && Boolean(this.legendHost); }
+  widgetOpen(name) { return name === "measurement" ? Boolean(this.measurement) : name === "basemapGallery" ? Boolean(this.basemapGallery) : name === "legend" && Boolean(this.legendHost); }
 
   #renderLegend() {
     const host = this.legendHost;
@@ -1313,6 +1320,19 @@ export class MaplibreEngine {
   }
 
   toggleWidget(name) {
+    if (name === "basemapGallery") {
+      const host = document.querySelector("#utility-basemap-content");
+      if (!host) throw new Error("The basemap gallery panel is unavailable.");
+      if (this.basemapGallery) {
+        host.replaceChildren();
+        this.basemapGallery = null;
+        this.events.publish("widget:toggled", { name, open: false });
+        return false;
+      }
+      this.basemapGallery = mountBasemapGallery(host, { options: () => this.getBasemapOptions(), select: (id) => this.setBasemap(id) });
+      this.events.publish("widget:toggled", { name, open: true });
+      return true;
+    }
     if (name === "legend") {
       if (this.legendHost) {
         this.legendHost.replaceChildren();

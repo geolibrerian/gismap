@@ -277,10 +277,13 @@
     "osm",
     "satellite",
     "hybrid",
+    "usgs-imagery",
+    "usgs-imagery-topo",
     "open-liberty",
     "open-bright",
     "open-positron",
     "open-dark",
+    "open-fiord",
     "skin"
   ],
   "limits": {

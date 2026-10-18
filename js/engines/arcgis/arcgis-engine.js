@@ -8,7 +8,7 @@ import { chooseStyleField, compileRenderer, resolveRendererSpec, suggestRenderer
 import { GisMapError } from "../../gismap-errors.js?v=0.28.0";
 import { ENGINE_CAPABILITIES, unsupported } from "../engine-interface.js?v=0.52.0";
 import { loadArcGISRuntime } from "./arcgis-loader.js?v=0.38.0";
-import { basemapOnEngine, basemapsForEngine } from "../../basemap-catalog.js?v=0.41.0";
+import { basemapOnEngine, basemapsForEngine } from "../../basemap-catalog.js?v=0.53.0-gallery1";
 
 const ARCGIS_WORLD_GEOCODER =
   "https://geocode.arcgis.com/arcgis/rest/services/World/GeocodeServer";

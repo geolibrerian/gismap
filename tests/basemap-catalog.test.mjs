@@ -5,7 +5,8 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { BASEMAPS, BASEMAP_IDS, basemapLabel, basemapOnEngine, basemapsForEngine } from "../js/basemap-catalog.js";
 import { SHARE_BASEMAPS } from "../js/share.js";
-import { openBasemapFor } from "../js/engines/maplibre/basemaps.js";
+import { openBasemapFor, withUsgsImagery } from "../js/engines/maplibre/basemaps.js";
+import { galleryEntries } from "../js/engines/maplibre/basemap-gallery.js";
 import { MaplibreEngine } from "../js/engines/maplibre/maplibre-engine.js";
 import { ArcGISEngine } from "../js/engines/arcgis/arcgis-engine.js";
 
@@ -37,7 +38,7 @@ test("each engine lists only its own basemaps and selects the one it draws", () 
   const maplibre = new MaplibreEngine({ publish() {} });
   maplibre.basemapId = "topo-3d";
   const open = maplibre.getBasemapOptions();
-  assert.deepEqual(open.options.map(({ id }) => id), ["open-liberty", "open-bright", "open-positron", "open-dark", "skin"]);
+  assert.deepEqual(open.options.map(({ id }) => id), ["usgs-imagery", "usgs-imagery-topo", "open-liberty", "open-bright", "open-positron", "open-dark", "open-fiord", "skin"]);
   assert.equal(open.selected, "open-liberty", "an ArcGIS id from a link shows as what MapLibre draws");
   assert.equal(openBasemapFor("open-bright").key, "bright");
   assert.equal(openBasemapFor("navigation-dark-3d").key, "dark");
@@ -57,14 +58,31 @@ test("menus: Modes, map tools in Tools, settings in Project, an engine choice an
   const menu = (name) => html.match(new RegExp(`aria-expanded="false">${name} <span>⌄</span></button>\\s*<div class="menu__content" role="menu">([\\s\\S]*?)\\n            </div>`))[1];
   assert.doesNotMatch(html, />Workflows </);
   assert.match(menu("Modes"), /data-mobile-workflow="briefing"/);
-  for (const widget of ["legend", "measurement", "elevationProfile", "compass", "basemapGallery"]) assert.match(menu("Tools"), new RegExp(`data-widget="${widget}"`), widget);
+  for (const widget of ["legend", "measurement", "elevationProfile", "compass"]) assert.match(menu("Tools"), new RegExp(`data-widget="${widget}"`), widget);
+  assert.doesNotMatch(menu("Tools"), /data-widget="basemapGallery"/);
   for (const action of ["tools-display", "tools-connections", "tools-ai", "tools-custom", "tools-about"]) assert.match(menu("Project"), new RegExp(`data-action="${action}"`), action);
   assert.match(menu("Map"), /data-engine-picker/);
   assert.match(menu("Map"), /<select data-basemap-picker><\/select>/, "the basemap list comes from the engine");
   assert.match(menu("Map"), /data-requires-capability="ground"/);
-  assert.doesNotMatch(menu("Map"), /data-widget=/);
+  assert.match(menu("Map"), /<button type="button" data-widget="basemapGallery">Basemap gallery<\/button>/);
   assert.match(css, /\.menu \{ position: static; \}/, "dropdowns hang from the menu bar");
   assert.match(css, /\.menu__content \{[^}]*left: 8px; right: 8px;/);
   assert.match(ui, /mobile-workflows-menu.*>Modes </s);
   assert.match(ui, /#syncMapMenu\(\)/);
+});
+
+test("gallery search, categories and favorites use the engine catalog", () => {
+  const options = basemapsForEngine("maplibre");
+  assert.deepEqual(galleryEntries(options, { category: "Imagery" }).map(({ id }) => id), ["usgs-imagery", "usgs-imagery-topo"]);
+  assert.deepEqual(galleryEntries(options, { search: "fiord" }).map(({ id }) => id), ["open-fiord"]);
+  assert.deepEqual(galleryEntries(options, { category: "Favorites", favorites: ["open-dark"] }).map(({ id }) => id), ["open-dark"]);
+});
+
+test("USGS raster is inserted below labels without mutating the vector style", () => {
+  const original = { version: 8, sources: {}, layers: [{ id: "land", type: "background" }, { id: "labels", type: "symbol" }] };
+  const style = withUsgsImagery(original, "USGSImageryOnly");
+  assert.deepEqual(style.layers.map(({ id }) => id), ["land", "gismap-usgs-basemap", "labels"]);
+  assert.match(style.sources["gismap-usgs-basemap"].tiles[0], /USGSImageryOnly\/MapServer\/tile\/\{z\}\/\{y\}\/\{x\}/);
+  assert.match(style.sources["gismap-usgs-basemap"].attribution, /USGS/);
+  assert.equal(original.layers.length, 2);
 });

@@ -3,8 +3,8 @@ import { POPULAR_SERVICES } from "./catalog.js?v=0.18.2";
 import { MapAssistantPanel } from "./assistant-panel.js?v=0.53.0";
 import { createAssistantTools, summarizeMapState } from "./map-assistant.js?v=0.53.0";
 import { ENTERPRISE_CATALOGS, EnterpriseCatalog, normalizeArcGisDirectoryUrl } from "./enterprise-catalog.js?v=0.18.2";
-import { createShareUrl } from "./share.js?v=0.41.0";
-import { createShareLink, hasDataFilter } from "./map-share.js?v=0.53.0";
+import { createShareUrl } from "./share.js?v=0.53.0-gallery1";
+import { createShareLink, hasDataFilter } from "./map-share.js?v=0.53.0-gallery1";
 import { briefingLayerRef, findBriefingLayer } from "./briefing-api.js?v=0.53.0";
 import { createEmbeddedTourUrl } from "./tour-share.js?v=0.18.2";
 import { markdownToPlainText, renderMarkdown } from "./markdown.js?v=0.18.2";
@@ -17,7 +17,7 @@ import { compactMedia } from "./viewport.js?v=0.18.2";
 import { APP_VERSION } from "./version.js?v=0.53.0";
 import { bindMobileSheetResize } from "./mobile-sheet-resize.js?v=0.52.7";
 import { PdfDocument, brandedMapImage, brandedQrCanvas, loadBrandLogo, printPalette, qrAsset } from "./pdf-document.js?v=0.44.2";
-import { featureLayerUrl, locationUrl } from "./field-task-share.js?v=0.41.0";
+import { featureLayerUrl, locationUrl } from "./field-task-share.js?v=0.53.0-gallery1";
 import { dockIcon } from "./dock-icons.js?v=0.24.0";
 import { serviceNameFromUrl } from "./service-name.js?v=0.26.0";
 import { decodeQrFromImage, describeGisMapLink, gisMapLinkFrom, openGisMapLink } from "./qr-import.js?v=0.25.1";
@@ -27,7 +27,7 @@ import { aiDescriptionPrompt, applyAiDescriptions, describeWhere, generateBriefi
 import { briefingFileStem } from "./briefing-pdf.js?v=0.44.2";
 import { RAMPS, rampColors } from "./renderer-spec.js?v=0.29.0";
 import { saveEngine } from "./engine-preference.js?v=0.52.1";
-import { BASEMAPS } from "./basemap-catalog.js?v=0.41.0";
+import { BASEMAPS } from "./basemap-catalog.js?v=0.53.0-gallery1";
 
 const BUILDINGS_3D_KEY = "gismap-online:buildings-3d:v1";
 const DISPLAY_SETTINGS_KEY = "gismap-online:display:v1";
@@ -1702,6 +1702,20 @@ export class UIController {
   #bindMapMenu() {
     this.#syncMapMenu();
     ["map:ready", "map:basemap-changed", "map:ground-changed"].forEach((topic) => this.events.subscribe(topic, () => this.#syncMapMenu()));
+    this.events.subscribe("map:basemap-changed", () => {
+      try {
+        const { selected, options } = this.mapController.getBasemapOptions();
+        if (options.some(({ id }) => id === selected)) localStorage.setItem(`gismap-online:basemap:${this.mapController.getEngineId()}`, selected);
+      } catch { /* Preferences are optional when storage is unavailable. */ }
+    });
+    this.events.subscribe("map:ready", () => {
+      try {
+        if (sessionStorage.getItem("gismap-online:reopen-basemap-gallery") === "1") {
+          sessionStorage.removeItem("gismap-online:reopen-basemap-gallery");
+          if (!this.mapController.widgetOpen("basemapGallery")) Promise.resolve(this.mapController.toggleWidget("basemapGallery")).catch((error) => this.error(error.message));
+        }
+      } catch { /* Session storage is optional. */ }
+    });
     document.addEventListener("change", async (event) => {
       const select = event.target.closest?.("[data-engine-picker]");
       if (!select || select.value === this.mapController.getEngineId()) return;
@@ -1719,19 +1733,27 @@ export class UIController {
    * otherwise cancel it silently.
    */
   async #switchEngine(engine) {
-    saveEngine(globalThis.localStorage, engine);
     this.toast(`Opening this map with ${engine === "maplibre" ? "MapLibre" : "ArcGIS"}…`);
     const url = new URL(location.href);
     url.searchParams.delete("engine");
     let target = url.href;
     try {
-      target = (await this.mapSpec?.createLink(this.mapSpec.fromCurrent()))?.url || target;
-    } catch {
+      const spec = this.mapSpec.fromCurrent();
+      // Blob/local-only layers cannot be reconstructed by a share link; do not silently discard them.
+      if (this.mapController.getLayers().length > spec.layers.length) throw new Error("Some local layers cannot survive an engine switch. Save or export them first.");
+      let preferred;
+      try { preferred = localStorage.getItem(`gismap-online:basemap:${engine}`); } catch { /* optional */ }
+      if (preferred && BASEMAPS.some((item) => item.id === preferred && (item.engine === engine || item.engine === "any"))) spec.basemap = preferred;
+      target = (await this.mapSpec.createLink(spec))?.url || target;
+    } catch (error) {
+      if (this.mapController.getLayers().length) { this.error(error.message || "This map could not be preserved for the engine switch."); return; }
       // A map without layers has no map spec; its basemap and view still travel as link parameters.
       const plain = new URL(url.origin + url.pathname);
       const view = this.mapController.getViewState();
       const scale = this.mapController.getScale?.();
-      if (this.mapController.getBasemapId()) plain.searchParams.set("basemap", this.mapController.getBasemapId());
+      let preferred;
+      try { preferred = localStorage.getItem(`gismap-online:basemap:${engine}`); } catch { /* optional */ }
+      if (preferred || this.mapController.getBasemapId()) plain.searchParams.set("basemap", preferred || this.mapController.getBasemapId());
       if (view?.center && Number.isFinite(scale)) {
         plain.searchParams.set("center", view.center.map((value) => Number(value).toFixed(5)).join(","));
         plain.searchParams.set("scale", String(Math.round(scale)));
@@ -1740,6 +1762,8 @@ export class UIController {
     }
     const reopen = new URL(target);
     reopen.searchParams.set("engine", engine);
+    try { if (this.mapController.widgetOpen("basemapGallery")) sessionStorage.setItem("gismap-online:reopen-basemap-gallery", "1"); } catch { /* optional */ }
+    saveEngine(globalThis.localStorage, engine);
     history.replaceState(null, "", reopen.href);
     location.reload();
   }
