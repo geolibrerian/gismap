@@ -2381,7 +2381,15 @@ body.sidebar-collapsed .table-dialog { left: 14px; }
 .table-dialog .dialog__header > div { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* The game uses its existing standalone page in the shared dialog. */
-.dragon-game-frame { display:block; width:100%; height:min(72dvh, 850px); min-height:400px; border:0; border-radius:8px; background:var(--paper); }
+.dragon-game-frame { display:block; width:100%; height:min(72dvh, 850px); min-height:0; border:0; border-radius:8px; background:var(--paper); }
+/* A hidden tab bar must not put the game pane in the auto-sized tab row. */
+body.utility-panel-open .utility-panel:has(.dragon-game-frame) .utility-panes { grid-row:3; }
+/* The docked iframe owns the remaining pane height, instead of being clipped
+   by a fixed-height frame nested inside the scrollable dialog content. */
+.app-dialog--docked .dialog__content:has(> .dragon-game-frame) { display:flex; padding:0; overflow:hidden; }
+.app-dialog--docked .dragon-game-frame { flex:1; height:100%; border-radius:0; }
+.app-dialog--docked .dialog__shell:has(.dragon-game-frame) { grid-template-rows:minmax(0,1fr); }
+.app-dialog--docked .dialog__shell:has(.dragon-game-frame) .dialog__actions:empty { display:none; }
 
 /* Project-owned Map Notes: compact, readable cards in the existing dialog. */
 .map-notes-panel { display: grid; gap: 1.25rem; min-width: 0; }

@@ -1185,7 +1185,7 @@ export class UIController {
           openMapNotesPanel(this);
           break;
         case "game-dragons":
-          this.openDialog({ eyebrow: "Games", title: "Here be dragons", content: '<iframe class="dragon-game-frame" src="/dragons/" title="Here be dragons game"></iframe>' });
+          this.openDialog({ eyebrow: "Games", title: "Here be dragons", content: '<iframe class="dragon-game-frame" src="/dragons/?embed=1" title="Here be dragons game"></iframe>' });
           if (this.dialog.classList.contains("app-dialog--docked")) this.#reopenDialog(false);
           {
             const stopGame = () => {

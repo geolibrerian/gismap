@@ -1,4 +1,6 @@
 (()=>{'use strict';
+// Keep the standalone page intact; the workspace uses a compact game-only view.
+if(location.search==='?embed=1')document.documentElement.classList.add('dragon-embedded');
 const canvas=document.querySelector('#canvas'),c=canvas.getContext('2d');let W=960;const H=480;
 const wrap=document.querySelector('#game'),overlay=document.querySelector('#overlay'),title=document.querySelector('#overlayTitle'),description=document.querySelector('#overlayText'),start=document.querySelector('#start');
 const flapButton=document.querySelector('#flapButton'),pauseButton=document.querySelector('#pauseButton'),sharedChallenge=document.querySelector('#sharedChallenge');
