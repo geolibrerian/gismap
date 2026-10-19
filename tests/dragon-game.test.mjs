@@ -55,7 +55,7 @@ test('the direct dragon page is up to date and uses the same game without a 404 
   assert.match(direct, /rel="icon" href="\/assets\/gis-map-online-mark-v2\.png" type="image\/png"/);
   assert.doesNotMatch(direct, /404 ·|couldn’t find that page|content="noindex"/);
   for (const id of ['game', 'canvas', 'start', 'flapButton', 'pauseButton']) assert.match(direct, new RegExp(`id="${id}"`));
-  assert.match(direct, /\/js\/dragon-game\.js\?v=10/);
+  assert.match(direct, /\/js\/dragon-game\.js\?v=11/);
   assert.match(direct, /download="here-be-dragons\.png"/);
   assert.doesNotMatch(direct, /id="shareQrBrand"/);
   assert.match(direct, /href="\/examples\/">See examples<\/a>/);
@@ -129,5 +129,48 @@ test('serpents begin their leap on approach in desktop and mobile worlds', () =>
     serpent.x = dragonX + Math.max(230,Math.min(440,width*.46));
     scope.advance(serpent,.02);
     assert.equal(serpent.jumpElapsed,.02);
+  }
+});
+
+test('every ten maidens adds a speed step without losing time-based progression', () => {
+  const helper = code.slice(code.indexOf('function gameSpeed('), code.indexOf('// Mobile uses'));
+  const scope = { Math, clamp:(v,a,b)=>Math.max(a,Math.min(b,v)) };
+  runInNewContext(`${helper}; globalThis.speed=gameSpeed;`, scope);
+  assert.equal(scope.speed(0, 0), 176);
+  assert.equal(scope.speed(0, 9), 176);
+  assert.equal(scope.speed(0, 10), 183);
+  assert.equal(scope.speed(0, 20), 190);
+  assert.equal(scope.speed(1000, 20), 294);
+});
+
+test('flying krakens are spaced seven to twenty krakens apart', () => {
+  const spawn = code.slice(code.indexOf('function spawn()'), code.indexOf('function hit('));
+  const next = code.slice(code.indexOf('function nextFlyingKraken()'), code.indexOf('// The existing time-based'));
+  for (const [random, expected] of [[0,7],[0.999999,20]]) {
+    const math = Object.create(Math); math.random = () => random;
+    const scope = { Math:math, W:960, distance:100, hazards:[], rnd:()=>1 };
+    // Always spawn a kraken, but use the supplied random value for the gap.
+    runInNewContext(`${next}; globalThis.gap=nextFlyingKraken();`, scope);
+    assert.equal(scope.gap, expected);
+    scope.krakensUntilFlight=scope.gap;
+    scope.Math = Object.create(Math); scope.Math.random = () => .51;
+    runInNewContext(`${next}; ${spawn}; globalThis.spawn=spawn;`, scope);
+    for (let i=1;i<=expected;i++) { scope.spawn(); assert.equal(scope.hazards.at(-1).flying, i===expected); }
+    assert.ok(scope.krakensUntilFlight>=7&&scope.krakensUntilFlight<=20);
+  }
+});
+
+test('winged krakens launch on approach and their collision box follows their flight', () => {
+  const helper = code.slice(code.indexOf('function updateKrakenFlight('), code.indexOf('function knightThrust('));
+  for (const [width,dragonX] of [[960,225],[440,128]]) {
+    const scope = { Math, W:width, dragon:{x:dragonX}, clamp:(v,a,b)=>Math.max(a,Math.min(b,v)) };
+    runInNewContext(`${helper}; globalThis.advance=updateKrakenFlight; globalThis.y=krakenY; globalThis.box=krakenCollisionBox;`, scope);
+    const h={x:width+90,y:353,w:85,flying:true};
+    scope.advance(h,.1); assert.equal(h.flightElapsed,undefined);
+    h.x=dragonX+Math.max(230,Math.min(440,width*.46));
+    scope.advance(h,.1); assert.equal(scope.y(h),353);
+    scope.advance(h,1); assert.ok(scope.y(h)<353); assert.equal(scope.box(h).y,scope.y(h)-48);
+    scope.advance(h,3); assert.ok(scope.y(h)<-150);
+    const regular={...h,flying:false,flightElapsed:undefined}; scope.advance(regular,2); assert.equal(scope.y(regular),353);
   }
 });

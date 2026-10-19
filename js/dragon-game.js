@@ -5,6 +5,11 @@ const flapButton=document.querySelector('#flapButton'),pauseButton=document.quer
 let challenge = null;const scoreEl=document.querySelector('#score'),distEl=document.querySelector('#distance'),livesEl=document.querySelector('#lives');
 let state='ready',last=0,frameId=0,elapsed=0,offset=0,score=0,distance=0,lives=3,nextSpawn=0,hazards=[],particles=[],dragon={x:225,y:205,vy:0,flap:0,invuln:0},clouds=Array.from({length:9},(_,i)=>({x:i*143+40,y:35+(i*59)%145,s:.7+(i%3)*.3}));
 const rnd=(a,b)=>a+Math.random()*(b-a);const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+let krakensUntilFlight=nextFlyingKraken();
+function nextFlyingKraken(){return 7+Math.floor(Math.random()*14)}
+// The existing time-based difficulty remains; every ten maidens adds a small,
+// permanent step, even after the time-based component reaches its old cap.
+function gameSpeed(seconds,maidens){return clamp(176+seconds*1.4,176,280)+Math.floor(maidens/10)*7}
 // Mobile uses a narrower *logical* world, not a squashed 960px canvas.
 // This keeps characters and approaching obstacles large enough to see on phones.
 function resizeGame(){
@@ -17,20 +22,20 @@ function resizeGame(){
   canvas.style.height='auto';
   render();
 }
-function reset(){elapsed=0;offset=0;score=0;distance=0;lives=3;nextSpawn=1.25;hazards=[];particles=[];dragon={x:W<760?Math.round(W*.29):225,y:205,vy:0,flap:0,invuln:0};updateHud()}
+function reset(){elapsed=0;offset=0;score=0;distance=0;lives=3;nextSpawn=1.25;krakensUntilFlight=nextFlyingKraken();hazards=[];particles=[];dragon={x:W<760?Math.round(W*.29):225,y:205,vy:0,flap:0,invuln:0};updateHud()}
 function updateHud(){scoreEl.textContent=`MAIDENS ${score}`;distEl.textContent=`DISTANCE ${Math.floor(distance)}`;livesEl.textContent=Array.from({length:3},(_,i)=>i<lives?'♥':'♡').join(' ')}
 function begin(){sharedChallenge.hidden=true;DragonResults.hide();reset();state='playing';overlay.classList.add('hidden');pauseButton.disabled=false;pauseButton.textContent='Pause';last=0;scheduleFrame()}
 function showLegend(result){state='over';title.textContent='The legend of the dragon';description.textContent='A tale told by the knights who finally slew the beast…';start.textContent='Fly again ↗';DragonResults.show(result);overlay.classList.remove('hidden')}
 function end(){state='recording';pauseButton.disabled=true;pauseButton.textContent='Pause';const result={score,distance,challenge};DragonResults.record(result,showLegend,()=>{begin();wrap.focus({preventScroll:true})})}
 function flap(){if(state==='ready'||state==='over'){begin()}if(state==='paused'){togglePause()}if(state==='playing'){dragon.vy=-258;dragon.flap=0.26;for(let i=0;i<5;i++)particles.push({x:dragon.x-27,y:dragon.y+10,vx:rnd(-65,-20),vy:rnd(15,65),life:.5,color:'#a7c7a6'})}}
 function togglePause(){if(state==='playing'){state='paused';if(frameId){cancelAnimationFrame(frameId);frameId=0}title.textContent='Paused in the clouds';description.textContent='Press P or select Continue to return to your flight.';start.textContent='Continue';pauseButton.textContent='Continue';overlay.classList.remove('hidden')}else if(state==='paused'){state='playing';pauseButton.textContent='Pause';overlay.classList.add('hidden');last=0;scheduleFrame()}}
-function spawn(){const types=['serpent','knight','kraken','castle'];let type=types[Math.floor(Math.random()*types.length)];if(distance<60)type='castle';const y=type==='kraken'?353:type==='knight'?340:type==='castle'?320:385;hazards.push({type,x:W+90,y,w:type==='castle'?105:type==='kraken'?85:76,h:type==='castle'?118:75,t:0,taken:false,phase:rnd(0,Math.PI*2)});nextSpawn=rnd(1.55,2.3)}
+function spawn(){const types=['serpent','knight','kraken','castle'];let type=types[Math.floor(Math.random()*types.length)];if(distance<60)type='castle';const y=type==='kraken'?353:type==='knight'?340:type==='castle'?320:385;let flying=false;if(type==='kraken'&&--krakensUntilFlight===0){flying=true;krakensUntilFlight=nextFlyingKraken()}hazards.push({type,x:W+90,y,w:type==='castle'?105:type==='kraken'?85:76,h:type==='castle'?118:75,t:0,taken:false,phase:rnd(0,Math.PI*2),flying});nextSpawn=rnd(1.55,2.3)}
 function hit(a,b){return a.x+a.w>b.x&&a.x<b.x+b.w&&a.y+a.h>b.y&&a.y<b.y+b.h}
 function burst(x,y,color,n=12){for(let i=0;i<n;i++)particles.push({x,y,vx:rnd(-130,130),vy:rnd(-170,60),life:rnd(.25,.7),color})}
-function update(dt){if(state!=='playing')return;dt=Math.min(.038,dt);elapsed+=dt;const speed=clamp(176+elapsed*1.4,176,280);offset+=speed*dt;distance+=speed*dt/15;dragon.vy+=610*dt;dragon.y+=dragon.vy*dt;dragon.flap=Math.max(0,dragon.flap-dt);dragon.invuln=Math.max(0,dragon.invuln-dt);if(dragon.y<35){dragon.y=35;dragon.vy=45}if(dragon.y>H-94){dragon.y=H-94;dragon.vy=-110;if(dragon.invuln<=0)damage()}
-nextSpawn-=dt;if(nextSpawn<=0)spawn();for(const h of hazards){h.x-=speed*dt;h.t+=dt;if(h.type==='serpent')updateSerpentJump(h,dt);const box={x:dragon.x-25,y:dragon.y-20,w:58,h:42};if(h.type==='castle'){const princess={x:h.x+38,y:h.y-66+Math.sin(h.t*4)*4,w:25,h:48};if(!h.taken&&hit(box,princess)){h.taken=true;score++;burst(princess.x+12,princess.y+18,'#c9903c',18);updateHud()}const castle={x:h.x+8,y:h.y+3,w:95,h:100};if(dragon.invuln<=0&&hit(box,castle))damage()}
-else{let box2;if(h.type==='serpent'){box2=serpentCollisionBox(h)}else if(h.type==='knight'){const thrust=knightThrust(h);box2={x:h.x+8,y:h.y-103-thrust,w:66,h:174+thrust}}else{box2={x:h.x+8,y:h.y-48,w:h.w-15,h:124}}if(dragon.invuln<=0&&hit(box,box2))damage()}}
-hazards=hazards.filter(h=>h.x>-160);for(const p of particles){p.x+=p.vx*dt;p.y+=p.vy*dt;p.life-=dt}particles=particles.filter(p=>p.life>0);updateHud()}
+function update(dt){if(state!=='playing')return;dt=Math.min(.038,dt);elapsed+=dt;const speed=gameSpeed(elapsed,score);offset+=speed*dt;distance+=speed*dt/15;dragon.vy+=610*dt;dragon.y+=dragon.vy*dt;dragon.flap=Math.max(0,dragon.flap-dt);dragon.invuln=Math.max(0,dragon.invuln-dt);if(dragon.y<35){dragon.y=35;dragon.vy=45}if(dragon.y>H-94){dragon.y=H-94;dragon.vy=-110;if(dragon.invuln<=0)damage()}
+nextSpawn-=dt;if(nextSpawn<=0)spawn();for(const h of hazards){h.x-=speed*dt;h.t+=dt;if(h.type==='serpent')updateSerpentJump(h,dt);if(h.type==='kraken')updateKrakenFlight(h,dt);const box={x:dragon.x-25,y:dragon.y-20,w:58,h:42};if(h.type==='castle'){const princess={x:h.x+38,y:h.y-66+Math.sin(h.t*4)*4,w:25,h:48};if(!h.taken&&hit(box,princess)){h.taken=true;score++;burst(princess.x+12,princess.y+18,'#c9903c',18);updateHud()}const castle={x:h.x+8,y:h.y+3,w:95,h:100};if(dragon.invuln<=0&&hit(box,castle))damage()}
+else{let box2;if(h.type==='serpent'){box2=serpentCollisionBox(h)}else if(h.type==='knight'){const thrust=knightThrust(h);box2={x:h.x+8,y:h.y-103-thrust,w:66,h:174+thrust}}else{box2=krakenCollisionBox(h)}if(dragon.invuln<=0&&hit(box,box2))damage()}}
+hazards=hazards.filter(h=>h.x>-160&&(h.type!=='kraken'||krakenY(h)>-150));for(const p of particles){p.x+=p.vx*dt;p.y+=p.vy*dt;p.life-=dt}particles=particles.filter(p=>p.life>0);updateHud()}
 function damage(){lives--;dragon.invuln=1.5;dragon.vy=-155;burst(dragon.x,dragon.y,'#bb6744');updateHud();if(lives<=0)end()}
 function line(points,color,width=2){c.strokeStyle=color;c.lineWidth=width;c.lineJoin='round';c.lineCap='round';c.beginPath();points.forEach(([x,y],i)=>i?c.lineTo(x,y):c.moveTo(x,y));c.stroke()}
 function ellipse(x,y,rx,ry,color){c.fillStyle=color;c.beginPath();c.ellipse(x,y,rx,ry,0,0,Math.PI*2);c.fill()}
@@ -60,6 +65,15 @@ function serpentRise(h){
   return maxRise*(1-Math.pow(progress,1.4));
 }
 function serpentCollisionBox(h){return {x:h.x+3,y:h.y-serpentRise(h)-50,w:100,h:116}}
+// A rare kraken sprouts wings on approach, then launches above the screen.
+// Its body and tentacle collision box follows the same position as its art.
+function updateKrakenFlight(h,dt){
+  if(!h.flying)return;
+  if(h.flightElapsed==null&&h.x<=dragon.x+clamp(W*.46,230,440))h.flightElapsed=0;
+  if(h.flightElapsed!=null)h.flightElapsed+=dt;
+}
+function krakenY(h){return h.y-Math.max(0,(h.flightElapsed||0)-.45)*230}
+function krakenCollisionBox(h){return {x:h.x+8,y:krakenY(h)-48,w:h.w-15,h:124}}
 function knightThrust(h){return 22*Math.sin(h.t*5+h.phase)}
 function drawDragon(){DragonArt.drawDragon(c,dragon,elapsed)}
 function drawCastle(h){const x=h.x,y=h.y;c.save();c.translate(x,y);
@@ -77,7 +91,9 @@ line([[66,24],[71+bend*.3,-9],[77+bend,-39]],'#355f50',15);line([[69,22],[75+ben
 ellipse(84+bend,-44,16,10,'#67977a');polygon([[92+bend,-44],[106+bend,-39],[93+bend,-34]],'#67977a','#355f50',2);ellipse(88+bend,-48,2.8,2.8,'#1e3a33');
 for(let i=0;i<3;i++)polygon([[22+i*16,33],[27+i*16,19],[34+i*16,35]],'#42775f','#355f50',1);
 c.restore()}
-function drawKraken(h){const x=h.x,y=h.y;c.save();c.translate(x,y);ellipse(45,63,39,17,'#3e867b');ellipse(45,33,26,33,'#478b80');
+function drawKraken(h){const x=h.x,y=krakenY(h);c.save();c.translate(x,y);
+if(h.flying&&h.flightElapsed!=null){const growth=clamp(h.flightElapsed/.45,0,1),flap=.72+.28*Math.sin(h.flightElapsed*11);c.save();c.translate(45,30);c.scale(growth*flap,growth);for(const side of [-1,1]){c.save();c.scale(side,1);polygon([[0,0],[22,-34],[47,-58],[83,-52],[66,-31],[55,-12],[39,-19],[25,4]],'#759a69','#285c50',3);line([[0,0],[47,-58],[39,-19]],'#285c50',2);line([[47,-58],[55,-12]],'#285c50',2);c.restore()}c.restore()}
+ellipse(45,63,39,17,'#3e867b');ellipse(45,33,26,33,'#478b80');
 // Segmented Bézier tentacles undulate along their entire length, not just at the tips.
 for(let i=0;i<5;i++){let root=15+i*15,phase=h.t*3.4+i*.92,tip=18+i*13+Math.sin(phase)*19,reach=32+(i%2)*21;
 c.strokeStyle='#245e5b';c.lineWidth=13;c.lineCap='round';c.beginPath();c.moveTo(root,62);c.bezierCurveTo(root-20+Math.sin(phase)*9,27,root+26+Math.sin(phase+1)*23,1,tip,-reach+Math.sin(phase+.7)*9);c.stroke();
