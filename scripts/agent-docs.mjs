@@ -135,7 +135,7 @@ const { options } = await gisMapOnline.layers.suggestStyles(layer.id, { field: "
 await gisMapOnline.layers.update(layer.id, { renderer: options[0].pinnedSpec }); // the recommended style
 console.log(gisMapOnline.describe().state); // layers, basemap, camera, issues
 const { url } = await gisMapOnline.mapSpec.createLink(gisMapOnline.mapSpec.fromCurrent());`),
-        after: ["The in-browser shared command registry provides source.inspect, layer.list, map.camera.inspect, briefing.inspect, and briefing.validate through gisMapOnline.application.runTool(id, input). The initial command schema is https://gismap.online/schemas/agent-command-v1.schema.json. This does not provide REST or MCP endpoints."],
+        after: ["Discover the live registry with gisMapOnline.actions.list() and actions.describe(id). Execute an action with actions.execute({ id, input, expectedRevision }); the revision is optional and only detects changes in the public state projection, not all private or camera changes. Inputs are checked against the declared schema and the existing tool validator before execution; unsupported schema keywords fail closed. Tools without input schemas remain available through the legacy application.runTool but cannot be executed through actions.execute. Outputs are not yet schema-validated; action results can contain session data, so invoke explicitly in a trusted page context. The public state snapshot remains privacy-preserving. This does not provide REST or MCP endpoints."],
       },
       {
         heading: "4. Handling errors",

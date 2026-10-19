@@ -1,4 +1,5 @@
-import { buildManifest, createPublicStateApi } from "./application-manifest.js?v=1.0.0";
+import { buildManifest, createPublicStateApi } from "./application-manifest.js?v=1.0.1";
+import { createActionsApi } from "./application-actions.js?v=1.0.0";
 import { events } from "./events.js?v=0.18.2";
 import { AuthController } from "./engines/arcgis/arcgis-auth.js?v=0.39.0";
 import { MapController } from "./map-controller.js?v=0.54.0-unified4";
@@ -17,7 +18,7 @@ import { readShareLocation } from "./map-share.js?v=0.54.0-unified4";
 import { decodeEmbeddedTour } from "./tour-share.js?v=0.54.0-unified4";
 import { decodeFieldTask, featureLayerUrl, readFieldTaskHash, readFocus } from "./field-task-share.js?v=0.54.0-unified4";
 import { POPULAR_SERVICES } from "./catalog.js?v=0.18.2";
-import { ApplicationRuntime } from "./application-runtime.js?v=0.54.0-analysis1";
+import { ApplicationRuntime } from "./application-runtime.js?v=0.54.0-agent1";
 import { PanelManager } from "./panel-manager.js?v=0.18.2";
 import { MobilePanelManager } from "./mobile-panel-manager.js?v=0.18.2";
 import { MobileWorkflowRouter } from "./mobile-workflow-router.js?v=0.53.0";
@@ -177,6 +178,7 @@ async function start() {
     describe,
     manifest: () => buildManifest({ tools: applicationRuntime.tools.list(), panels: applicationRuntime.panels.list() }),
     state: publicState,
+    actions: createActionsApi({ runtime: applicationRuntime, state: publicState }),
     layers: layersApi,
     camera: cameraApi,
     /** Whole maps as one JSON object (schemas/map-v1.schema.json): validate, encode, decode, createLink, load, fromCurrent. */

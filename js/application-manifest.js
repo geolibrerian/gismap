@@ -22,7 +22,7 @@ export const PUBLIC_STATE_SCHEMA = {
     layers: { type: 'array', items: { type: 'object', required: ['id', 'type', 'visible', 'opacity', 'metadata', 'filters', 'styling', 'capabilities'] } },
   }, additionalProperties: false,
 };
-const action = (tool) => ({ id: tool.id, displayName: tool.displayName, description: tool.description || '', inputSchema: tool.inputSchema || null, outputSchema: tool.outputSchema || null });
+export const describeAction = (tool) => ({ id: tool.id, displayName: tool.displayName, description: tool.description || '', inputSchema: tool.inputSchema || null, outputSchema: tool.outputSchema || null, validatedExecution: Boolean(tool.inputSchema) });
 
 export function buildManifest({ tools = [...LAYER_TOOL_DEFINITIONS, ...AUTHORING_TOOL_DEFINITIONS], panels = [] } = {}) {
   return {
@@ -31,7 +31,7 @@ export function buildManifest({ tools = [...LAYER_TOOL_DEFINITIONS, ...AUTHORING
     description: 'GISMap browser API. Runtime registry may contain additional tools and panels.',
     discovery: { runtime: 'gisMapOnline.manifest()', state: 'gisMapOnline.state.snapshot()', stateSchema: '/schemas/application-state-v1.schema.json', explorer: '/api/explorer/' },
     privacy: 'The state projection excludes feature records, coordinates, source URLs, filter expressions, credentials and user-entered text.',
-    actions: tools.map(action),
+    actions: tools.map(describeAction),
     panels: panels.map((p) => ({ type: p.type, displayName: p.displayName, category: p.category, placements: p.placements, status: p.status, multiple: p.multiple })),
     presets: Object.keys(APPLICATION_PRESETS),
     layouts: ['workspace', 'bottom-nav', 'bottom-workspace', 'globe', 'ai-map'],

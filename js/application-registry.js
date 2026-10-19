@@ -18,6 +18,7 @@ export class ToolRegistry {
       description: String(definition.description || ""),
       // JSON Schema of the input, published in capabilities.json for agents.
       inputSchema: definition.inputSchema || null,
+      outputSchema: definition.outputSchema || null,
       validate: typeof definition.validate === "function" ? definition.validate : () => true,
       execute: definition.execute,
     });

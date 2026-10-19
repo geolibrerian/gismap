@@ -69,7 +69,8 @@
           }
         }
       },
-      "outputSchema": null
+      "outputSchema": null,
+      "validatedExecution": true
     },
     {
       "id": "layer.remove",
@@ -87,7 +88,8 @@
           }
         }
       },
-      "outputSchema": null
+      "outputSchema": null,
+      "validatedExecution": true
     },
     {
       "id": "layer.update",
@@ -130,7 +132,8 @@
           }
         }
       },
-      "outputSchema": null
+      "outputSchema": null,
+      "validatedExecution": true
     },
     {
       "id": "layer.style",
@@ -153,7 +156,8 @@
           }
         }
       },
-      "outputSchema": null
+      "outputSchema": null,
+      "validatedExecution": true
     },
     {
       "id": "layer.filter",
@@ -179,7 +183,8 @@
           }
         }
       },
-      "outputSchema": null
+      "outputSchema": null,
+      "validatedExecution": true
     },
     {
       "id": "layer.suggestStyles",
@@ -201,7 +206,8 @@
           }
         }
       },
-      "outputSchema": null
+      "outputSchema": null,
+      "validatedExecution": true
     },
     {
       "id": "map.zoomToLayer",
@@ -216,7 +222,8 @@
           }
         }
       },
-      "outputSchema": null
+      "outputSchema": null,
+      "validatedExecution": true
     },
     {
       "id": "source.inspect",
@@ -239,7 +246,8 @@
           }
         }
       },
-      "outputSchema": null
+      "outputSchema": null,
+      "validatedExecution": true
     },
     {
       "id": "layer.list",
@@ -250,7 +258,8 @@
         "additionalProperties": false,
         "properties": {}
       },
-      "outputSchema": null
+      "outputSchema": null,
+      "validatedExecution": true
     },
     {
       "id": "map.camera.inspect",
@@ -261,7 +270,8 @@
         "additionalProperties": false,
         "properties": {}
       },
-      "outputSchema": null
+      "outputSchema": null,
+      "validatedExecution": true
     },
     {
       "id": "briefing.inspect",
@@ -272,7 +282,8 @@
         "additionalProperties": false,
         "properties": {}
       },
-      "outputSchema": null
+      "outputSchema": null,
+      "validatedExecution": true
     },
     {
       "id": "briefing.validate",
@@ -290,7 +301,8 @@
           }
         }
       },
-      "outputSchema": null
+      "outputSchema": null,
+      "validatedExecution": true
     }
   ],
   "panels": [],
