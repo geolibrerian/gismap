@@ -195,3 +195,21 @@ test('feature references use stable IDs and never include credentials', async ()
   assert.equal(secret.sourceUrl, undefined); assert.equal(secret.datasetId, 'layer-1');
   assert.throws(() => normalizeNote({ ...fixture, relationships: [{ ...ref, sourceUrl: 'https://example.test/?token=secret' }] }), /credential/i);
 });
+
+test('portable observation links preserve the canonical note and session without truncation', async () => {
+  const { createFieldNoteUrl, readFieldNoteHash } = await import('../js/field-note-link.js');
+  const { newFieldSession } = await import('../js/field-session-store.js');
+  const session = { ...newFieldSession({ id: 'p', notes: [] }), title: 'Survey 🗺️' };
+  const note = normalizeNote({ ...fixture, title: 'Bridge 🐉', fieldSessionId: session.id });
+  const url = createFieldNoteUrl('https://gismap.online/?token=do-not-keep#old', session, note);
+  assert.equal(new URL(url).search, '');
+  assert.ok(!url.includes('do-not-keep'));
+  const restored = readFieldNoteHash(new URL(url).hash);
+  assert.deepEqual(restored.notes, [note]);
+  assert.equal(restored.session.title, 'Survey 🗺️');
+  assert.equal(readFieldNoteHash('#at=1,2'), null);
+  assert.throws(() => readFieldNoteHash('#fieldNote=j1.%%%'), /damaged|incomplete/);
+  assert.throws(() => readFieldNoteHash('#fieldNote=z1.abc'), /unsupported/);
+  assert.throws(() => createFieldNoteUrl('https://gismap.online/', session, { ...note, body: 'x'.repeat(5000) }), /too large/);
+  assert.throws(() => createFieldNoteUrl('https://gismap.online/', session, { ...note, anchor: { type: 'area', crs: 'EPSG:4326', geometry: { type: 'LineString', coordinates: [[0, 0], [1, 1]] } } }), /point observations/);
+});

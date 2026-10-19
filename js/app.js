@@ -11,12 +11,13 @@ import { IdentifyController } from "./identify.js?v=0.54.0-pan2";
 import { AttributeTableController } from "./attribute-table.js?v=0.37.0";
 import { AIController } from "./ai.js?v=0.54.0-pan2";
 import { ToolManager } from "./tool-manager.js?v=0.37.0";
-import { UIController } from "./ui.js?v=0.54.0-notes9";
+import { UIController } from "./ui.js?v=0.54.0-notes10";
 import { ExportController } from "./export/export-controller.js?v=0.37.0";
 import { SHARE_BASEMAPS, parseShareParameters } from "./share.js?v=0.54.0-unified4";
 import { readShareLocation } from "./map-share.js?v=0.54.0-unified4";
 import { decodeEmbeddedTour } from "./tour-share.js?v=0.54.0-unified4";
 import { decodeFieldTask, featureLayerUrl, readFieldTaskHash, readFocus } from "./field-task-share.js?v=0.54.0-unified4";
+import { readFieldNoteHash } from "./field-note-link.js?v=0.1.0";
 import { POPULAR_SERVICES } from "./catalog.js?v=0.18.2";
 import { ApplicationRuntime } from "./application-runtime.js?v=0.54.0-agent1";
 import { PanelManager } from "./panel-manager.js?v=0.18.2";
@@ -232,7 +233,7 @@ async function start() {
     if (shared.layers.length) {
       const spec = mapSpecFromShareParameters(shared);
       // Another part of the link (#map, #briefing, a tour, a task, #at=) decides the view.
-      if (sharedState || /(?:^#|&)(?:tour|fieldTask|at)=/.test(location.hash)) spec.camera = { fit: "none" };
+      if (sharedState || /(?:^#|&)(?:tour|fieldTask|fieldNote|at)=/.test(location.hash)) spec.camera = { fit: "none" };
       await within(mapSpecApi.load(spec, { replace: false }).ready, 120).catch((error) => events.publish("app:error", { message: error.message }));
       sharedLayers.push(...mapController.getLayers());
     }
@@ -267,6 +268,10 @@ async function start() {
     if (layer) projectManager.patchPresentation({ primaryLayerId: layer.uid, briefingSelection: { layerId: layer.uid, ids: sharedBriefingIds.split(",").filter(Boolean), useAll: false } });
   }
   const fieldTaskPayload = readFieldTaskHash(location.hash);
+  try {
+    const observation = readFieldNoteHash(location.hash);
+    if (observation) await uiController.previewSharedObservation(observation);
+  } catch (error) { events.publish("app:error", { message: error.message }); }
   if (fieldTaskPayload) {
     try {
       const shared = decodeFieldTask(fieldTaskPayload, { allowHttp: location.hostname === "localhost" || location.hostname === "127.0.0.1" });

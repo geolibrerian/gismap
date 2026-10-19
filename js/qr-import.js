@@ -103,6 +103,7 @@ export function describeGisMapLink(href) {
   if (hash.has("map")) return "map";
   if (hash.has("tour")) return "tour";
   if (hash.has("fieldTask")) return "field task";
+  if (hash.has("fieldNote")) return "observation";
   if (hash.has("at")) return "location";
   return url.searchParams.has("layer") || url.searchParams.has("example") ? "map" : "link";
 }

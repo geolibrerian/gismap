@@ -1,5 +1,5 @@
 import { noteFeatureReference } from './map-note-feature.js?v=0.1.0';
-import { openMapNotesPanel } from "./map-notes-panel.js?v=0.7.0";
+import { openMapNotesPanel } from "./map-notes-panel.js?v=0.8.0";
 import { googleMapsLinkForChapter } from "./google-maps-link.js?v=0.53.0";
 import { POPULAR_SERVICES } from "./catalog.js?v=0.18.2";
 import { MapAssistantPanel } from "./assistant-panel.js?v=0.54.0-pan2";
@@ -22,7 +22,7 @@ import { PdfDocument, brandedMapImage, brandedQrCanvas, loadBrandLogo, printPale
 import { featureLayerUrl, locationUrl } from "./field-task-share.js?v=0.54.0-unified4";
 import { dockIcon } from "./dock-icons.js?v=0.24.0";
 import { serviceNameFromUrl } from "./service-name.js?v=0.26.0";
-import { decodeQrFromImage, describeGisMapLink, gisMapLinkFrom, openGisMapLink } from "./qr-import.js?v=0.25.1";
+import { decodeQrFromImage, describeGisMapLink, gisMapLinkFrom, openGisMapLink } from "./qr-import.js?v=0.25.2";
 import { BriefingSlides } from "./briefing-slides.js?v=0.53.0";
 import { createSlide, matchesFilter, normalizeFilter } from "./briefing-document.js?v=0.35.0";
 import { aiDescriptionPrompt, applyAiDescriptions, describeWhere, generateBriefing, readAiDescriptions, rendererTheme } from "./briefing-generator.js?v=0.36.1";
@@ -6333,6 +6333,34 @@ export class UIController {
     pane.innerHTML = content;
     this.#syncUtilityPanel("notes");
     return pane;
+  }
+
+  async previewSharedObservation(bundle) {
+    const note = bundle.notes[0];
+    const [longitude, latitude] = note.anchor.geometry.coordinates;
+    this.mapController.setTaskPin({ kind: "task", label: "Shared observation", longitude, latitude });
+    this.mapController.setView({ center: [longitude, latitude], zoom: 15 }, { animate: false }).catch(() => {});
+    const reference = note.relationships.find((item) => item.type === "references_feature" || item.type === "references_dataset");
+    this.openDialog({
+      eyebrow: "Map Notes · shared observation",
+      title: note.title || "Shared observation",
+      content: `<p>${escapeHtml(note.body).replaceAll("\n", "<br>")}</p><p class="form-note">${escapeHtml(bundle.session?.title || "Field observation")} · ${escapeHtml(note.type)} · ${latitude.toFixed(5)}, ${longitude.toFixed(5)}</p>${reference ? `<p class="form-note">Related dataset: ${escapeHtml(reference.datasetTitle || reference.datasetId || reference.targetId)}${reference.featureId ? ` · feature ${escapeHtml(reference.featureId)}` : ""}. The source is not automatically loaded; it may require access or reconnection.</p>` : ""}<p class="form-note">This is a preview. Importing saves the observation to this device; it does not overwrite conflicting notes.</p>`,
+      actions: [
+        { label: "Close", handler: () => this.dialog.close() },
+        { label: "Import observation", primary: true, handler: async (event) => {
+          const button = event.currentTarget; button.disabled = true;
+          try {
+            const { FieldSessionController } = await import("./field-session-store.js?v=0.4.0");
+            const field = this.fieldSessionController ||= new FieldSessionController(this.projectManager, this.events);
+            await field.importBundle(bundle);
+            this.dialog.close();
+            this.mapController.setTaskPin(null);
+            openMapNotesPanel(this, { editId: note.id });
+            this.toast("Observation imported locally.");
+          } catch (error) { button.disabled = false; this.error(`Could not import observation: ${error.message}`); }
+        } },
+      ],
+    });
   }
 
   refreshMapNoteMarkers(draft = null) {

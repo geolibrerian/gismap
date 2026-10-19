@@ -24,3 +24,9 @@ An identified feature in Map Insight offers **Add observation**. Clicking the ma
 On mobile, **Record collector GPS** can add a separate position and reported accuracy without moving the observation's anchor. These coordinates, timestamp and feature references survive project snapshots and portable JSON. Browser location permission is required; actual GPS capture and offline/mobile device behavior have not yet been verified.
 
 The Create PDF control is a disabled placeholder: report generation and portable QR/link support are not yet implemented. Desktop authoring does not request GPS.
+
+## Portable single-observation links
+
+A point observation's **Share link** action explicitly warns that its complete contents, coordinates, feature references and session metadata are visible to anyone with the link. Only after choosing Copy does the app place it on the clipboard. The fragment contains the same validated, versioned field-session bundle as JSON export, with exactly one observation; no server stores it. Links can still be exposed through browser history, clipboard history, screenshots or recipients, so they are not appropriate for secrets. Oversized observations are rejected without truncation; use JSON export instead.
+
+Opening a link centers the map and previews the note without saving it. The recipient must explicitly import it; existing conflict checks apply. The link retains source references, but does not yet automatically load or highlight the source feature. This is a foundation for report links, not a PDF exporter or QR package. Non-point anchors, larger notes, multiple observations and multipart QR are not supported by this link format. Opening GISMap itself still requires the application to be available; offline launch is not yet implemented.
