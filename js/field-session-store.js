@@ -1,6 +1,7 @@
 // IndexedDB is the durable store for field observations. Attachments have their
 // own reserved store; this version does not accept or export attachment data.
 import { normalizeNotes } from './map-notes.js?v=0.2.0';
+import { normalizeFieldBundle, mergeObservations } from './field-session-bundle.js?v=0.1.0';
 
 export class FieldSessionStore {
   constructor(indexedDB = globalThis.indexedDB) { this.indexedDB = indexedDB; this.db = null; }
@@ -29,6 +30,16 @@ export class FieldSessionStore {
       const request = tx.objectStore('settings').get('active'); let result = null;
       request.onsuccess = () => { if (request.result) { const session = tx.objectStore('sessions').get(request.result); session.onsuccess = () => { result = session.result || null; }; } };
       tx.oncomplete = () => { try { if (result) result.notes = normalizeNotes(result.notes); resolve(result); } catch (error) { reject(error); } };
+      tx.onerror = () => reject(tx.error || new Error('Could not read the field session.'));
+      tx.onabort = () => reject(tx.error || new Error('Reading the field session was interrupted.'));
+    });
+  }
+  async get(id) {
+    const db = await this.open();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction('sessions', 'readonly');
+      const request = tx.objectStore('sessions').get(id);
+      tx.oncomplete = () => resolve(request.result || null);
       tx.onerror = () => reject(tx.error || new Error('Could not read the field session.'));
       tx.onabort = () => reject(tx.error || new Error('Reading the field session was interrupted.'));
     });
@@ -80,6 +91,34 @@ export class FieldSessionController {
     this.session = { ...structuredClone(session), resumedIntoProjectId: this.projectManager.current.id };
     this.projectManager.current.notes = notes;
     this.events?.publish('notes:changed', { action: 'resume', noteId: null, count: notes.length });
+  }
+  importBundle(input) {
+    const bundle = normalizeFieldBundle(input);
+    const operation = this.pending.then(async () => {
+      const project = this.projectManager.current;
+      if (bundle.session && project.notes?.length && (!this.session || this.session.id !== bundle.session.id)) {
+        throw new Error('Open an empty project or resume this same field session before importing it. Existing project notes will not be overwritten.');
+      }
+      let session = this.session || (bundle.session ? await this.store.get(bundle.session.id) : null) || (bundle.session ? { ...bundle.session, notes: [], revision: 0 } : newFieldSession(project));
+      if (bundle.session && session.id !== bundle.session.id) throw new Error('The selected session does not match the imported session.');
+      if (bundle.session) {
+        for (const key of ['id', 'title', 'description', 'collector', 'projectId', 'createdAt']) {
+          if (session[key] !== bundle.session[key]) throw new Error(`The saved session has different ${key}; import cancelled to protect local changes.`);
+        }
+      }
+      // Merge with the durable copy as well as the visible project, without losing either.
+      const local = mergeObservations(session.notes || [], project.notes || []);
+      const merged = mergeObservations(local.notes, bundle.notes);
+      if (merged.added || local.added || !session.revision) session = await this.store.save({ ...session, notes: merged.notes });
+      if (this.projectManager.current !== project) throw new Error('The session was saved locally, but the project changed. Resume the session to see it.');
+      this.session = { ...session, resumedIntoProjectId: project.id };
+      project.notes = merged.notes;
+      try { this.projectManager.persistCurrentIfSaved(); } catch { /* IndexedDB is the durable copy. */ }
+      this.events?.publish('notes:changed', { action: 'import', noteId: null, count: merged.notes.length });
+      return { added: merged.added, skipped: merged.skipped };
+    });
+    this.pending = operation.catch(() => {});
+    return operation;
   }
   mutate(action, ...args) {
     const operation = this.pending.then(async () => {

@@ -61,7 +61,7 @@ test('the note panel uses the shared dialog without a nested form', async () => 
   const html = await readFile(new URL('../index.html', import.meta.url), 'utf8');
   assert.match(html, /data-action="tools-map-notes"/);
   assert.match(source, /data-note-save/); assert.doesNotMatch(source, /<form\b/);
-  assert.match(source, /escape\(item\.body\)/); assert.match(source, /2 \* 1024 \* 1024/);
+  assert.match(source, /escape\(item\.body\)/); assert.match(source, /32 \* 1024 \* 1024/);
 });
 
 test('field observation location metadata round trips and validates', () => {
@@ -87,4 +87,37 @@ test('field session commits locally before changing project; failed writes do no
   const other = { current: { id: 'new', notes: [] } }; const resumed = new FieldSessionController(other, events, store);
   await resumed.resume(saved); assert.equal(other.current.notes[0].body, 'updated');
   await assert.rejects(resumed.resume(saved), /empty project/);
+});
+
+test('portable field session bundles retain 100 observations, metadata, and feature references', async () => {
+  const { makeFieldBundle, normalizeFieldBundle } = await import('../js/field-session-bundle.js');
+  const { newFieldSession } = await import('../js/field-session-store.js');
+  const session = { ...newFieldSession({ id: 'project-1', notes: [] }), title: 'Survey', description: 'Field work', collector: 'A' };
+  const notes = Array.from({ length: 100 }, (_, i) => normalizeNote({ ...fixture, id: `note-${i}`, fieldSessionId: session.id, coordinateSource: 'gps', accuracyMeters: 5, observedAt: fixture.createdAt }));
+  const parsed = normalizeFieldBundle(JSON.parse(JSON.stringify(makeFieldBundle(session, notes))));
+  assert.equal(parsed.notes.length, 100); assert.equal(parsed.session.collector, 'A');
+  assert.equal(parsed.notes[99].relationships[0].featureId, '42'); assert.equal(parsed.notes[0].accuracyMeters, 5);
+  assert.throws(() => normalizeFieldBundle({ ...parsed, session: { ...parsed.session, token: 'secret' } }), /Unsupported/);
+  assert.throws(() => normalizeFieldBundle({ ...parsed, notes: null }), /observation list/);
+});
+
+test('field imports are idempotent and reject conflicting revisions without changing the project', async () => {
+  const { FieldSessionController, newFieldSession } = await import('../js/field-session-store.js');
+  const { makeFieldBundle } = await import('../js/field-session-bundle.js');
+  const session = newFieldSession({ id: 'source', notes: [] });
+  const notes = [normalizeNote({ ...fixture, fieldSessionId: session.id })];
+  const bundle = makeFieldBundle(session, notes);
+  const storage = new Map();
+  const store = { async get(id) { return storage.get(id) || null; }, async save(value) { const saved = structuredClone({ ...value, revision: (value.revision || 0) + 1 }); storage.set(saved.id, saved); return saved; } };
+  const manager = { current: { id: 'target', notes: [] }, persistCurrentIfSaved() {} };
+  const field = new FieldSessionController(manager, events, store);
+  assert.deepEqual(await field.importBundle(bundle), { added: 1, skipped: 0 });
+  assert.deepEqual(await field.importBundle(bundle), { added: 0, skipped: 1 });
+  assert.equal(manager.current.notes.length, 1);
+  await assert.rejects(field.importBundle({ ...bundle, notes: [{ ...notes[0], body: 'different' }] }), /different contents/);
+  assert.equal(manager.current.notes[0].body, 'Incorrect');
+  const other = new FieldSessionController({ current: { id: 'new', notes: [] }, persistCurrentIfSaved() {} }, events, store);
+  assert.deepEqual(await other.importBundle(bundle), { added: 0, skipped: 1 });
+  assert.equal(other.projectManager.current.notes.length, 1);
+  await assert.rejects(other.importBundle({ ...bundle, session: { ...bundle.session, title: 'changed' } }), /different title/);
 });

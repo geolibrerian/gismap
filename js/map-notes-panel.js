@@ -1,4 +1,5 @@
-import { FieldSessionController } from './field-session-store.js?v=0.1.1';
+import { FieldSessionController } from './field-session-store.js?v=0.2.0';
+import { makeFieldBundle, normalizeFieldBundle } from './field-session-bundle.js?v=0.1.0';
 // A deliberately small first UI for project-owned location notes. The shared
 // dialog supplies docking and mobile behavior. All note text is escaped.
 const escape = (value) => String(value ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
@@ -16,7 +17,7 @@ export function openMapNotesPanel(ui, { point = null, editId = null, locationSou
   const anchor = note?.anchor?.geometry?.type === 'Point' ? note.anchor.geometry.coordinates : point;
   const list = registry.list();
   const items = list.map((item) => `<article class="map-note-card"><strong>${escape(item.title || 'Untitled note')}</strong><p>${escape(item.body)}</p><small>${escape(label(item.type))} · ${escape(label(item.status))}</small><div class="map-note-card__actions"><button type="button" data-note-focus="${escape(item.id)}">Go to location</button>${item.anchor.geometry.type === 'Point' ? `<button type="button" data-note-edit="${escape(item.id)}">Edit</button>` : ''}<button type="button" data-note-remove="${escape(item.id)}">Remove</button></div></article>`).join('');
-  ui.openDialog({ eyebrow: 'Map tools', title: 'Map Notes', content: `<div class="map-notes-panel"><p class="form-note">Observations are saved on this device, not published or sent to AI. Browser storage can be cleared: download a JSON backup regularly. Offline launch requires the application to have been cached separately.</p><section><h3>Field session</h3><label class="field"><span>Session title</span><input data-session-title maxlength="240" value="${escape(field.session?.title || 'Field notes')}" /></label><p class="form-note" data-field-storage>Checking local storage…</p><button type="button" data-persist-storage>Request persistent storage</button><div data-session-resume></div></section><section><h3>${note ? 'Edit note' : 'New location note'}</h3>${anchor ? `<p class="form-note">Location: ${escape(Number(anchor[1]).toFixed(5))}, ${escape(Number(anchor[0]).toFixed(5))}${locationSource === 'gps' && accuracy != null && !note ? ` · GPS accuracy ±${escape(Math.round(accuracy))} m` : ''}</p><div data-note-form><label class="field"><span>Type</span><select name="type">${options(choices, note?.type || 'observation')}</select></label><label class="field"><span>Title (optional)</span><input name="title" maxlength="240" value="${escape(note?.title || '')}" /></label><label class="field"><span>Details</span><textarea name="body" maxlength="20000" rows="4">${escape(note?.body || '')}</textarea></label>${note ? `<label class="field"><span>Status</span><select name="status">${options(states, note.status)}</select></label>` : ''}<div class="map-note-card__actions"><button type="button" data-note-save class="button--primary">${note ? 'Save changes' : 'Save observation'}</button>${note ? '<button type="button" data-note-cancel>Cancel editing</button>' : ''}</div><p data-note-error role="alert"></p></div>` : '<p class="form-note">Use your location or click a location on the map, then open Map Notes.</p>'}<button type="button" data-note-gps>Use my GPS location</button><p data-gps-error role="status"></p></section><section><div class="map-notes-panel__head"><h3>Project notes (${list.length})</h3><div class="map-note-card__actions"><button type="button" data-note-export ${list.length ? '' : 'disabled'}>Download notes JSON</button><button type="button" data-note-import-button>Import notes JSON</button><input type="file" accept=".json,application/json" data-note-import hidden></div></div>${items || '<p class="form-note">No notes in this project yet.</p>'}</section></div>` });
+  ui.openDialog({ eyebrow: 'Map tools', title: 'Map Notes', content: `<div class="map-notes-panel"><p class="form-note">Observations are saved on this device, not published or sent to AI. Browser storage can be cleared: download a JSON backup regularly. Offline launch requires the application to have been cached separately.</p><section><h3>Field session</h3><label class="field"><span>Session title</span><input data-session-title maxlength="240" value="${escape(field.session?.title || 'Field notes')}" /></label><label class="field"><span>Description (optional)</span><textarea data-session-description maxlength="10000" rows="2">${escape(field.session?.description || '')}</textarea></label><label class="field"><span>Collector (optional)</span><input data-session-collector maxlength="120" value="${escape(field.session?.collector || '')}" /></label><p class="form-note">Session details are saved with the next observation.</p><p class="form-note" data-field-storage>Checking local storage…</p><button type="button" data-persist-storage>Request persistent storage</button><div data-session-resume></div></section><section><h3>${note ? 'Edit note' : 'New location note'}</h3>${anchor ? `<p class="form-note">Location: ${escape(Number(anchor[1]).toFixed(5))}, ${escape(Number(anchor[0]).toFixed(5))}${locationSource === 'gps' && accuracy != null && !note ? ` · GPS accuracy ±${escape(Math.round(accuracy))} m` : ''}</p><div data-note-form><label class="field"><span>Type</span><select name="type">${options(choices, note?.type || 'observation')}</select></label><label class="field"><span>Title (optional)</span><input name="title" maxlength="240" value="${escape(note?.title || '')}" /></label><label class="field"><span>Details</span><textarea name="body" maxlength="20000" rows="4">${escape(note?.body || '')}</textarea></label>${note ? `<label class="field"><span>Status</span><select name="status">${options(states, note.status)}</select></label>` : ''}<div class="map-note-card__actions"><button type="button" data-note-save class="button--primary">${note ? 'Save changes' : 'Save observation'}</button>${note ? '<button type="button" data-note-cancel>Cancel editing</button>' : ''}</div><p data-note-error role="alert"></p></div>` : '<p class="form-note">Use your location or click a location on the map, then open Map Notes.</p>'}<button type="button" data-note-gps>Use my GPS location</button><p data-gps-error role="status"></p></section><section><div class="map-notes-panel__head"><h3>Project notes (${list.length})</h3><div class="map-note-card__actions"><button type="button" data-note-export ${list.length ? '' : 'disabled'}>Download notes JSON</button><button type="button" data-note-import-button>Import notes JSON</button><input type="file" accept=".json,application/json" data-note-import hidden></div></div>${items || '<p class="form-note">No notes in this project yet.</p>'}</section></div>` });
   const host = ui.dialog.querySelector('#dialog-content');
   host.querySelector('[data-note-save]')?.addEventListener('click', async (event) => {
     event.preventDefault(); const saveButton = event.currentTarget; const form = host.querySelector('[data-note-form]');
@@ -24,8 +25,10 @@ export function openMapNotesPanel(ui, { point = null, editId = null, locationSou
     try {
       saveButton.disabled = true;
       if (!field.session || (field.session.projectId !== ui.projectManager.current.id && field.session.resumedIntoProjectId !== ui.projectManager.current.id)) field.session = null;
-      if (!field.session) { const { newFieldSession } = await import('./field-session-store.js?v=0.1.1'); field.session = newFieldSession(ui.projectManager.current); }
+      if (!field.session) { const { newFieldSession } = await import('./field-session-store.js?v=0.2.0'); field.session = newFieldSession(ui.projectManager.current); }
       field.session.title = host.querySelector('[data-session-title]').value.trim().slice(0, 240) || 'Field notes';
+      field.session.description = host.querySelector('[data-session-description]').value;
+      field.session.collector = host.querySelector('[data-session-collector]').value;
       if (note) await field.mutate('update', note.id, { type: read('type'), title: read('title'), body: read('body'), status: read('status') });
       else await field.mutate('create', { type: read('type'), title: read('title'), body: read('body'), coordinateSource: locationSource, ...(accuracy != null ? { accuracyMeters: accuracy } : {}), anchor: { type: 'point', geometry: { type: 'Point', coordinates: anchor }, crs: 'EPSG:4326' } });
       ui.toast('Observation saved locally. Export a backup regularly.');
@@ -48,13 +51,12 @@ export function openMapNotesPanel(ui, { point = null, editId = null, locationSou
   }));
   host.querySelector('[data-note-import-button]')?.addEventListener('click', () => host.querySelector('[data-note-import]')?.click());
   host.querySelector('[data-note-import]')?.addEventListener('change', async (event) => {
-    const file = event.currentTarget.files?.[0]; if (!file) return;
+    const input = event.currentTarget; const file = input.files?.[0]; if (!file) return;
     try {
-      if (file.size > 2 * 1024 * 1024) throw new Error('Notes files must be 2 MB or smaller.');
-      const bundle = JSON.parse(await file.text());
-      if (!bundle || bundle.schemaVersion !== '1.0' || !Array.isArray(bundle.notes) || Object.keys(bundle).some((key) => !['schemaVersion', 'notes'].includes(key))) throw new Error('This is not a supported notes JSON bundle.');
-      const count = await field.mutate('import', bundle.notes); ui.toast(`Imported ${count} note${count === 1 ? '' : 's'} into this project.`); openMapNotesPanel(ui, { point });
-    } catch (error) { ui.error(`Could not import notes: ${error.message}`); event.currentTarget.value = ''; }
+      if (file.size > 32 * 1024 * 1024) throw new Error('Field notes files must be 32 MB or smaller.');
+      const bundle = normalizeFieldBundle(JSON.parse(await file.text()));
+      const result = await field.importBundle(bundle); ui.toast(`Imported ${result.added} observation${result.added === 1 ? '' : 's'}; ${result.skipped} already present.`); openMapNotesPanel(ui, { point });
+    } catch (error) { ui.error(`Could not import notes: ${error.message}`); } finally { input.value = ''; }
   });
   host.querySelector('[data-persist-storage]')?.addEventListener('click', async () => {
     const status = host.querySelector('[data-field-storage]');
@@ -87,7 +89,8 @@ export function openMapNotesPanel(ui, { point = null, editId = null, locationSou
     } catch (error) { if (status.isConnected) status.textContent = `Local storage unavailable: ${error.message} Observations cannot be saved.`; }
   })();
   host.querySelector('[data-note-export]')?.addEventListener('click', () => {
-    const blob = new Blob([registry.exportJSON()], { type: 'application/json' }); const url = URL.createObjectURL(blob);
-    const link = document.createElement('a'); link.href = url; link.download = 'gismap-notes.json'; link.click(); setTimeout(() => URL.revokeObjectURL(url), 5000);
+    const bundle = makeFieldBundle(field.session, registry.list());
+    const blob = new Blob([JSON.stringify(bundle, null, 2)], { type: 'application/json' }); const url = URL.createObjectURL(blob);
+    const link = document.createElement('a'); link.href = url; link.download = 'gismap-field-session.json'; link.click(); setTimeout(() => URL.revokeObjectURL(url), 5000);
   });
 }
