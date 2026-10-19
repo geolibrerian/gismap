@@ -55,13 +55,13 @@ export function openMapNotesPanel(ui, { point = null, editId = null, locationSou
     let url;
     try { url = createFieldNoteUrl(new URL('/', location.href).href, field.session, selected); }
     catch (error) { ui.error(error.message); return; }
-    ui.openDialog({ eyebrow: 'Map Notes · sharing', title: 'Share this observation?',
+    ui.openDialog({ eyebrow: 'Field Notes · sharing', title: 'Share this observation?',
       content: '<p>This link contains the complete observation, its location, feature references, and field session details. Anyone with the link can read and share them. Do not share sensitive observations unless you intend to disclose them.</p><p class="form-note">The data is embedded in the link; no account or server stores it. Linked features may need a separately accessible source.</p>',
       actions: [
         { label: 'Cancel', handler: () => ui.dialog.close() },
         { label: 'Show QR code', handler: async () => {
           if (!globalThis.QRCode?.toCanvas) { ui.error('The QR generator is unavailable. You can still copy the link.'); return; }
-          ui.openDialog({ eyebrow: 'Map Notes · sharing', title: 'Scan this observation',
+          ui.openDialog({ eyebrow: 'Field Notes · sharing', title: 'Scan this observation',
             content: '<p>Anyone who scans this code can read and share the complete observation, including its location and session details.</p><canvas class="map-note-qr" data-note-qr width="720" height="720" role="img" aria-label="QR code to open this observation"></canvas><p class="form-note" data-note-qr-status>Creating QR code…</p>',
             actions: [ { label: 'Close', primary: true, handler: () => ui.dialog.close() } ],
           });
@@ -132,7 +132,7 @@ export function openMapNotesPanel(ui, { point = null, editId = null, locationSou
     } catch (error) { if (status.isConnected) status.textContent = `Local storage unavailable: ${error.message} Observations cannot be saved.`; }
   })();
   host.querySelector('[data-note-pdf]')?.addEventListener('click', () => {
-    ui.openDialog({ eyebrow: 'Map Notes · export', title: 'Create a field report?',
+    ui.openDialog({ eyebrow: 'Field Notes · export', title: 'Create a field report?',
       content: '<p>The PDF and its QR codes contain private observation and session details. Anyone receiving them can read and share that information.</p><p class="form-note">Each QR contains one observation. The report uses a coordinate diagram, not a map screenshot, and does not restore source layers. This first version supports point notes with short links and ASCII text only. Export JSON for a complete backup. Links made on localhost only work where that local application is available.</p><p data-report-progress role="status"></p>',
       actions: [ { label: 'Cancel', handler: () => ui.dialog.close() }, { label: 'Create PDF', primary: true, handler: async (event) => {
         const button = event.currentTarget; button.disabled = true;

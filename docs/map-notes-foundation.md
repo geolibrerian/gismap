@@ -1,3 +1,5 @@
+> **Product update:** the existing observation workflow described below is now called Field Notes. The new data-review Map Notes foundation and revised phases are described in [the two-note systems plan](two-note-systems-plan.md). Existing records are unchanged.
+
 # Map Notes foundation (in progress)
 
 Map Notes are separate, project-owned records, not modifications to feature services. `schemas/map-note-v1.schema.json` describes the currently supported subset; `js/map-notes.js` validates records, limits untrusted input, and implements a registry over the existing project object. The normal project snapshot includes `notes`. Older projects without notes load with an empty array; invalid note data is rejected before changing the map. A saved project uses the existing project storage and export paths. This is browser-local, not collaboration or publication.

@@ -1,5 +1,5 @@
 import { noteFeatureReference } from './map-note-feature.js?v=0.1.0';
-import { openMapNotesPanel } from "./map-notes-panel.js?v=0.10.0";
+import { openMapNotesPanel } from "./map-notes-panel.js?v=0.11.0";
 import { googleMapsLinkForChapter } from "./google-maps-link.js?v=0.53.0";
 import { POPULAR_SERVICES } from "./catalog.js?v=0.18.2";
 import { MapAssistantPanel } from "./assistant-panel.js?v=0.54.0-pan2";
@@ -839,7 +839,7 @@ export class UIController {
   #syncUtilityPanel(preferredTab = null) {
     const tabs = [
       ...(this.utilityWorkspaceOpen ? [{ id: "workspace", label: "Workspace" }] : []),
-      ...(this.mapNotesModeActive ? [{ id: "notes", label: "Map Notes" }] : []),
+      ...(this.mapNotesModeActive ? [{ id: "notes", label: "Field Notes" }] : []),
       ...this.#utilityWidgetTabs(),
       ...(this.utilityTasksOpen ? [{ id: "tasks", label: "Field tasks" }] : []),
       ...(this.utilityDialogOpen ? [{ id: "dialog", label: document.querySelector("#dialog-title")?.textContent || "Dialog" }] : []),
@@ -1876,8 +1876,8 @@ export class UIController {
    * otherwise cancel it silently.
    */
   async #switchEngine(engine) {
-    if (this.projectManager.current.notes?.length) {
-      if (!globalThis.confirm("Switching engines reloads the map without carrying Map Notes. Save or download this project first, then reopen it after switching. Continue?")) return;
+    if (this.projectManager.current.notes?.length || this.projectManager.current.mapNotes?.length) {
+      if (!globalThis.confirm("Switching engines reloads the map without carrying Map Notes or Field Notes. Save or download this project first, then reopen it after switching. Continue?")) return;
     }
     this.toast(`Opening this map with ${engine === "maplibre" ? "MapLibre" : "ArcGIS"}…`);
     const url = new URL(location.href);
@@ -6342,7 +6342,7 @@ export class UIController {
     this.mapController.setView({ center: [longitude, latitude], zoom: 15 }, { animate: false }).catch(() => {});
     const reference = note.relationships.find((item) => item.type === "references_feature" || item.type === "references_dataset");
     this.openDialog({
-      eyebrow: "Map Notes · shared observation",
+      eyebrow: "Field Notes · shared observation",
       title: note.title || "Shared observation",
       content: `<p>${escapeHtml(note.body).replaceAll("\n", "<br>")}</p><p class="form-note">${escapeHtml(bundle.session?.title || "Field observation")} · ${escapeHtml(note.type)} · ${latitude.toFixed(5)}, ${longitude.toFixed(5)}</p>${reference ? `<p class="form-note">Related dataset: ${escapeHtml(reference.datasetTitle || reference.datasetId || reference.targetId)}${reference.featureId ? ` · feature ${escapeHtml(reference.featureId)}` : ""}. The source is not automatically loaded; it may require access or reconnection.</p>` : ""}<p class="form-note">This is a preview. Importing saves the observation to this device; it does not overwrite conflicting notes.</p>`,
       actions: [

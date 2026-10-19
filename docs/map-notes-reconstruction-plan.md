@@ -1,3 +1,5 @@
+> **Product update:** this roadmap describes Field Notes exports and reconstruction. Phase order and the separate data-review Map Notes product are now defined in [the two-note systems plan](two-note-systems-plan.md).
+
 # Map Notes: portable reconstruction roadmap
 
 The field-collection/offline-sharing priority and the self-reconstructing report specification extend the original Map Notes plan. This roadmap distinguishes delivered behavior from proposed work. No hosted backend, account, or new database is required for portable records. Explicit user consent is required before embedding private notes, GPS positions, photos or session metadata in any shareable artifact. Links and QR codes are readable by anyone who receives them; fragments may persist in clipboard or browser history.
