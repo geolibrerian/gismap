@@ -10,7 +10,9 @@ A new, separate project-local `project.mapNotes` array and `projectManager.mapNo
 
 A separate **Map Notes** workspace now creates and reviews dataset, feature, service and location notes, independently of the Field Notes tab. The Map Insights feature action can start a note with its available stable identifiers. Notes belong to the current project; users must save an unsaved project to retain them. Field Notes remain the existing location-observation workflow.
 
-**Not yet delivered:** a shared typed geographic-relationship/identity core, cross-links, a standalone Field Notes schema and independent persistence implementation, API/agent permission scopes, or migration tooling. The new registry is not exposed as an agent API. Field Notes can still reference an identified feature but do not execute edits. No new public sharing or automatic AI exposure is introduced.
+Project-local, typed note relationships can link a Field Note to a Map Note as related, supporting, or contradicting. They are independent records: deleting a note does not cascade-delete the link, and links to missing notes remain unresolved rather than being discarded. The Map Notes workspace can create, view, and remove these links. They persist in project snapshots, not in field-only JSON, QR links or reports; importing a field note does not automatically transfer project links. Links themselves grant no authority and do not publish or expose either note to AI.
+
+**Not yet delivered:** the broader shared geographic identity, provenance, attachments and access-control core, standalone Field Notes schema and independent persistence implementation, API/agent permission scopes, or migration tooling. Field-side relationship exploration is also still outstanding. The new registries are not exposed as an agent API. Field Notes can still reference an identified feature but do not execute edits. No new public sharing or automatic AI exposure is introduced.
 
 ## Phase 2: Field Notes MVP
 

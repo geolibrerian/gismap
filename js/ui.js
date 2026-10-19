@@ -1,4 +1,4 @@
-import { openDataMapNotesPanel } from "./data-map-notes-panel.js?v=0.1.0";
+import { openDataMapNotesPanel } from "./data-map-notes-panel.js?v=0.2.0";
 import { noteFeatureReference } from './map-note-feature.js?v=0.1.0';
 import { openMapNotesPanel } from "./map-notes-panel.js?v=0.11.0";
 import { googleMapsLinkForChapter } from "./google-maps-link.js?v=0.53.0";

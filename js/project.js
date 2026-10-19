@@ -1,4 +1,5 @@
 import { DataMapNotesRegistry, normalizeDataMapNotes } from "./data-map-notes.js?v=0.1.0";
+import { NoteRelationshipsRegistry, normalizeNoteRelationships } from "./note-relationships.js?v=0.1.0";
 import { MapNotesRegistry, normalizeNotes } from "./map-notes.js?v=0.3.0";
 import { applicationToLegacyPresentation, normalizeApplicationConfig } from "./application-config.js?v=0.18.2";
 import { normalizeDataCatalog } from "./data-catalog.js?v=0.18.2";
@@ -49,6 +50,7 @@ export class ProjectManager {
     this.notes = new MapNotesRegistry({ project: () => this.current, events, persist: () => this.persistCurrentIfSaved() });
     this.fieldNotes = this.notes;
     this.mapNotes = new DataMapNotesRegistry({ project: () => this.current, events, persist: () => this.persistCurrentIfSaved() });
+    this.noteRelationships = new NoteRelationshipsRegistry({ project: () => this.current, events, persist: () => this.persistCurrentIfSaved() });
   }
 
   #blank(name) {
@@ -67,6 +69,7 @@ export class ProjectManager {
       bookmarks: [],
       notes: [],
       mapNotes: [],
+      noteRelationships: [],
       tools: [],
       ai: { provider: null, model: null },
       connections: [],
@@ -143,6 +146,7 @@ export class ProjectManager {
     // Validate before changing the current map or accepting an imported project.
     const notes = normalizeNotes(project.notes ?? []);
     const mapNotes = normalizeDataMapNotes(project.mapNotes ?? []);
+    const noteRelationships = normalizeNoteRelationships(project.noteRelationships ?? []);
     this.authController?.importConnections(project.connections ?? []);
     await this.mapController.clearOperationalLayers();
     this.mapController.setDefaultBasemap(project.defaultBasemap || this.mapController.getDefaultBasemapId());
@@ -193,6 +197,7 @@ export class ProjectManager {
     this.current = structuredClone(project);
     this.current.notes = notes;
     this.current.mapNotes = mapNotes;
+    this.current.noteRelationships = noteRelationships;
     this.current.presentation = this.#presentation(project.presentation);
     this.current.application = project.application?.configured === true
       ? normalizeApplicationConfig(project.application)
