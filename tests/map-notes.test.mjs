@@ -213,3 +213,28 @@ test('portable observation links preserve the canonical note and session without
   assert.throws(() => createFieldNoteUrl('https://gismap.online/', session, { ...note, body: 'x'.repeat(5000) }), /too large/);
   assert.throws(() => createFieldNoteUrl('https://gismap.online/', session, { ...note, anchor: { type: 'area', crs: 'EPSG:4326', geometry: { type: 'LineString', coordinates: [[0, 0], [1, 1]] } } }), /point observations/);
 });
+
+test('the single-observation QR payload decodes to the same portable link', async () => {
+  const { readFile } = await import('node:fs/promises');
+  const vm = await import('node:vm');
+  const { createRequire } = await import('node:module');
+  const { createFieldNoteUrl, readFieldNoteHash } = await import('../js/field-note-link.js');
+  const context = { TextEncoder, Uint8Array, Uint8ClampedArray, ArrayBuffer };
+  vm.runInNewContext(await readFile(new URL('../js/vendor/qrcode-1.5.4.js', import.meta.url), 'utf8'), context);
+  const jsQR = createRequire(import.meta.url)('../js/vendor/jsqr-1.4.0.js');
+  const note = normalizeNote(fixture);
+  const url = createFieldNoteUrl('https://gismap.online/', null, note);
+  const qr = context.QRCode.create(url, { errorCorrectionLevel: 'L' });
+  const scale = 5, margin = 4, side = (qr.modules.size + 2 * margin) * scale;
+  const pixels = new Uint8ClampedArray(side * side * 4); pixels.fill(255);
+  for (let y = 0; y < qr.modules.size; y++) for (let x = 0; x < qr.modules.size; x++) {
+    if (!qr.modules.get(y, x)) continue;
+    for (let dy = 0; dy < scale; dy++) for (let dx = 0; dx < scale; dx++) {
+      const offset = (((y + margin) * scale + dy) * side + (x + margin) * scale + dx) * 4;
+      pixels[offset] = pixels[offset + 1] = pixels[offset + 2] = 0;
+    }
+  }
+  const decoded = jsQR(pixels, side, side);
+  assert.equal(decoded?.data, url);
+  assert.deepEqual(readFieldNoteHash(new URL(decoded.data).hash).notes, [note]);
+});

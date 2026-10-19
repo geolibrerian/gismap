@@ -59,6 +59,21 @@ export function openMapNotesPanel(ui, { point = null, editId = null, locationSou
       content: '<p>This link contains the complete observation, its location, feature references, and field session details. Anyone with the link can read and share them. Do not share sensitive observations unless you intend to disclose them.</p><p class="form-note">The data is embedded in the link; no account or server stores it. Linked features may need a separately accessible source.</p>',
       actions: [
         { label: 'Cancel', handler: () => ui.dialog.close() },
+        { label: 'Show QR code', handler: async () => {
+          if (!globalThis.QRCode?.toCanvas) { ui.error('The QR generator is unavailable. You can still copy the link.'); return; }
+          ui.openDialog({ eyebrow: 'Map Notes · sharing', title: 'Scan this observation',
+            content: '<p>Anyone who scans this code can read and share the complete observation, including its location and session details.</p><canvas class="map-note-qr" data-note-qr width="720" height="720" role="img" aria-label="QR code to open this observation"></canvas><p class="form-note" data-note-qr-status>Creating QR code…</p>',
+            actions: [ { label: 'Close', primary: true, handler: () => ui.dialog.close() } ],
+          });
+          const canvas = ui.dialog.querySelector('[data-note-qr]');
+          const status = ui.dialog.querySelector('[data-note-qr-status]');
+          try {
+            await globalThis.QRCode.toCanvas(canvas, url, { width: 720, margin: 4, errorCorrectionLevel: 'L', color: { dark: '#072f2b', light: '#ffffff' } });
+            if (status.isConnected) status.textContent = 'Scan to preview the observation in GISMap. Importing requires confirmation.';
+          } catch {
+            if (status.isConnected) status.textContent = 'Could not generate a QR code for this observation. Use the link or export JSON instead.';
+          }
+        } },
         { label: 'Copy link', primary: true, handler: async () => {
           try { await navigator.clipboard.writeText(url); ui.dialog.close(); ui.toast('Observation link copied. Anyone with it can read the note.'); }
           catch { ui.error('Could not copy the link. Check browser clipboard permissions.'); }
