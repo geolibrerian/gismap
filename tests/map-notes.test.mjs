@@ -64,7 +64,7 @@ test('the note mode uses a workspace pane without a nested form', async () => {
   assert.match(source, /escape\(item\.body\)/); assert.match(source, /32 \* 1024 \* 1024/);
   assert.match(source, /<textarea data-session-description/);
   assert.match(source, /ui\.mobileMedia\.matches \? `<button type="button" data-note-gps/);
-  assert.match(source, /Create PDF · coming soon/);
+  assert.match(source, /data-note-pdf/);
   const ui = await readFile(new URL('../js/ui.js', import.meta.url), 'utf8');
   assert.match(ui, /map-notes-authoring/);
   assert.match(ui, /setMapNoteMarkers\(points\)/);

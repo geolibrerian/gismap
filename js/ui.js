@@ -1,5 +1,5 @@
 import { noteFeatureReference } from './map-note-feature.js?v=0.1.0';
-import { openMapNotesPanel } from "./map-notes-panel.js?v=0.9.0";
+import { openMapNotesPanel } from "./map-notes-panel.js?v=0.10.0";
 import { googleMapsLinkForChapter } from "./google-maps-link.js?v=0.53.0";
 import { POPULAR_SERVICES } from "./catalog.js?v=0.18.2";
 import { MapAssistantPanel } from "./assistant-panel.js?v=0.54.0-pan2";
