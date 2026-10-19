@@ -1,4 +1,11 @@
 User-agent: *
 Allow: /
 
+# Explicit search crawler groups retain the same public access as the default.
+User-agent: meta-webindexer
+Allow: /
+
+User-agent: OAI-SearchBot
+Allow: /
+
 Sitemap: https://gismap.online/sitemap.xml

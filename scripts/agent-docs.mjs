@@ -190,7 +190,7 @@ export function renderGuideMarkdown(guide) {
 export function buildLlmsTxt({ capabilities, examples = null }) {
   return `# GIS Map Online
 
-> Free, browser-only 3D GIS viewer (gismap.online). A language model can make a map for someone by producing a URL: no API key, account or server call is needed. It opens public ArcGIS REST (FeatureServer, MapServer, ImageServer), GeoJSON, WMS, WFS and KML sources over HTTPS.
+> GISMap.online is a free, open-source, browser-based GIS workspace for people and AI agents to explore, style and share geographic data in 2D and 3D. A language model can make a map for someone by producing a URL: no API key, account or server call is needed. It opens public ArcGIS REST (FeatureServer, MapServer, ImageServer), GeoJSON, WMS, WFS and KML sources over HTTPS.
 
 The map in a link is one JSON object (map-v1): layers with filters and styles, basemap, camera. Write it after #map=json: in the URL. Invalid parts are skipped and reported; the rest of the map still opens.
 
