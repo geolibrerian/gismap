@@ -86,11 +86,26 @@ export class FieldSessionController {
   }
   async inspect() { return this.store.active(); }
   async resume(session) {
-    if (this.projectManager.current.notes?.length) throw new Error('Open an empty project before resuming a field session; existing project notes will not be overwritten.');
-    const notes = normalizeNotes(session.notes);
-    this.session = { ...structuredClone(session), resumedIntoProjectId: this.projectManager.current.id };
-    this.projectManager.current.notes = notes;
-    this.events?.publish('notes:changed', { action: 'resume', noteId: null, count: notes.length });
+    const operation = this.pending.then(async () => {
+      const project = this.projectManager.current;
+      const existing = normalizeNotes(project.notes || []);
+      if (existing.some((note) => note.fieldSessionId !== session.id)) {
+        throw new Error('Open an empty project or a project containing only notes from this session. Existing notes will not be overwritten.');
+      }
+      // The project and durable session can each contain observations missing
+      // from the other. Divergent versions must never be silently overwritten.
+      const merged = mergeObservations(session.notes, existing);
+      let saved = structuredClone(session);
+      if (merged.added) saved = await this.store.save({ ...saved, notes: merged.notes });
+      if (this.projectManager.current !== project) throw new Error('The project changed while resuming. Resume the session again in the intended project.');
+      this.session = { ...saved, resumedIntoProjectId: project.id };
+      project.notes = merged.notes;
+      try { this.projectManager.persistCurrentIfSaved?.(); } catch { /* IndexedDB remains the durable copy. */ }
+      this.events?.publish('notes:changed', { action: 'resume', noteId: null, count: merged.notes.length });
+      return { restored: merged.notes.length, merged: merged.added };
+    });
+    this.pending = operation.catch(() => {});
+    return operation;
   }
   importBundle(input) {
     const bundle = normalizeFieldBundle(input);

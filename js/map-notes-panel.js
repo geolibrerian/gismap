@@ -1,4 +1,4 @@
-import { FieldSessionController } from './field-session-store.js?v=0.3.0';
+import { FieldSessionController } from './field-session-store.js?v=0.4.0';
 import { makeFieldBundle, normalizeFieldBundle } from './field-session-bundle.js?v=0.2.0';
 // A deliberately small first UI for project-owned location notes. The shared
 // workspace supplies docking and mobile behavior. All note text is escaped.
@@ -30,7 +30,8 @@ export function openMapNotesPanel(ui, { point = null, editId = null, locationSou
     try {
       saveButton.disabled = true;
       if (!field.session || (field.session.projectId !== ui.projectManager.current.id && field.session.resumedIntoProjectId !== ui.projectManager.current.id)) field.session = null;
-      if (!field.session) { const { newFieldSession } = await import('./field-session-store.js?v=0.3.0'); field.session = newFieldSession(ui.projectManager.current); }
+      if (!field.session && registry.list().some((item) => item.fieldSessionId)) throw new Error('Resume the saved field session before adding or editing its observations. If it is unavailable, export a JSON backup first.');
+      if (!field.session) { const { newFieldSession } = await import('./field-session-store.js?v=0.4.0'); field.session = newFieldSession(ui.projectManager.current); }
       field.session.title = host.querySelector('[data-session-title]').value.trim().slice(0, 240) || 'Field notes';
       field.session.description = host.querySelector('[data-session-description]').value;
       field.session.collector = host.querySelector('[data-session-collector]').value;
@@ -85,12 +86,16 @@ export function openMapNotesPanel(ui, { point = null, editId = null, locationSou
       const low = estimate?.quota && estimate.usage / estimate.quota > 0.8;
       status.textContent = `Local storage ready. ${persisted ? 'Persistent storage granted.' : 'Storage may be evicted by the browser.'}${low ? ' Device storage is running low.' : ''} Export a backup regularly.`;
       const container = host.querySelector('[data-session-resume]');
-      if (sessions.length && !registry.list().length && !field.session) {
+      const projectNotes = registry.list();
+      const resumable = sessions.filter((session) => projectNotes.every((item) => item.fieldSessionId === session.id));
+      if (resumable.length && !field.session) {
         const select = document.createElement('select'); select.setAttribute('aria-label', 'Saved field session');
-        for (const session of sessions) { const option = document.createElement('option'); option.value = session.id; option.textContent = `${session.title} (${session.notes.length} observations)`; select.append(option); }
+        for (const session of resumable) { const option = document.createElement('option'); option.value = session.id; option.textContent = `${session.title} (${session.notes.length} observations)`; select.append(option); }
         const resume = document.createElement('button'); resume.type = 'button'; resume.textContent = 'Resume saved field session';
-        resume.addEventListener('click', async () => { try { await field.resume(sessions.find((item) => item.id === select.value)); ui.mapNotesSessionDraft = null; openMapNotesPanel(ui, { point, locationSource, accuracy, feature, featureUnavailable }); } catch (error) { ui.error(error.message); } });
+        resume.addEventListener('click', async () => { resume.disabled = true; try { await field.resume(resumable.find((item) => item.id === select.value)); ui.mapNotesSessionDraft = null; openMapNotesPanel(ui, { point, locationSource, accuracy, feature, featureUnavailable }); ui.toast('Field session resumed locally.'); } catch (error) { resume.disabled = false; ui.error(error.message); } });
         container.append(select, resume);
+      } else if (sessions.length && projectNotes.length && !field.session) {
+        container.textContent = 'Saved sessions can be resumed in an empty project or a project with notes from that session.';
       }
     } catch (error) { if (status.isConnected) status.textContent = `Local storage unavailable: ${error.message} Observations cannot be saved.`; }
   })();

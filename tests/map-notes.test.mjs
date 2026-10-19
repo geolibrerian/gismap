@@ -93,7 +93,48 @@ test('field session commits locally before changing project; failed writes do no
   await controller.mutate('update', note.id, { body: 'updated' }); assert.equal(project.notes[0].revision, 2);
   const other = { current: { id: 'new', notes: [] } }; const resumed = new FieldSessionController(other, events, store);
   await resumed.resume(saved); assert.equal(other.current.notes[0].body, 'updated');
+  await resumed.resume(saved); assert.equal(other.current.notes.length, 1);
+  other.current.notes = [normalizeNote({ ...fixture, fieldSessionId: 'another-session' })];
   await assert.rejects(resumed.resume(saved), /empty project/);
+});
+
+test('resuming merges compatible project notes safely and rejects divergent revisions', async () => {
+  const { FieldSessionController, newFieldSession } = await import('../js/field-session-store.js');
+  const session = { ...newFieldSession({ id: 'p', notes: [] }), revision: 1 };
+  const first = normalizeNote({ ...fixture, id: 'first', fieldSessionId: session.id });
+  const second = normalizeNote({ ...fixture, id: 'second', fieldSessionId: session.id });
+  session.notes = [first];
+  const manager = { current: { id: 'p', notes: [first, second] }, persistCurrentIfSaved() {} };
+  let stored;
+  const store = { async save(value) { stored = structuredClone(value); return { ...stored, revision: 2 }; } };
+  const field = new FieldSessionController(manager, events, store);
+  assert.deepEqual(await field.resume(session), { restored: 2, merged: 1 });
+  assert.deepEqual(stored.notes.map(note => note.id), ['first', 'second']);
+  assert.deepEqual(manager.current.notes.map(note => note.id), ['first', 'second']);
+  const conflictProject = { id: 'p', notes: [{ ...first, body: 'changed' }] };
+  const conflict = new FieldSessionController({ current: conflictProject }, events, store);
+  await assert.rejects(conflict.resume(session), /different contents/);
+  assert.equal(conflictProject.notes[0].body, 'changed');
+  const failingProject = { id: 'p', notes: [second] };
+  const failing = new FieldSessionController({ current: failingProject }, events, { async save() { throw new Error('disk full'); } });
+  await assert.rejects(failing.resume(session), /disk full/);
+  assert.deepEqual(failingProject.notes.map(note => note.id), ['second']);
+});
+
+test('twenty saved field observations survive controller recreation and resume', async () => {
+  const { FieldSessionController } = await import('../js/field-session-store.js');
+  let stored;
+  const store = { async save(value) { stored = structuredClone({ ...value, revision: (value.revision || 0) + 1 }); return structuredClone(stored); } };
+  const original = { current: { id: 'p', notes: [] }, persistCurrentIfSaved() {} };
+  const field = new FieldSessionController(original, events, store);
+  for (let i = 0; i < 20; i++) await field.mutate('create', { body: `Observation ${i}`, anchor: point, coordinateSource: 'map-selected' });
+  const restored = { current: { id: 'p', notes: structuredClone(original.current.notes) }, persistCurrentIfSaved() {} };
+  const newController = new FieldSessionController(restored, events, store);
+  await newController.resume(structuredClone(stored));
+  assert.equal(restored.current.notes.length, 20);
+  assert.equal(restored.current.notes[19].body, 'Observation 19');
+  await newController.mutate('create', { body: 'After resume', anchor: point });
+  assert.equal(stored.notes.length, 21);
 });
 
 test('portable field session bundles retain 100 observations, metadata, and feature references', async () => {
