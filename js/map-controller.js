@@ -1,7 +1,7 @@
 // Stable application-facing map facade. It owns engine selection and the
 // higher-level workflows that can be expressed with provider-neutral
 // primitives. Renderer adapters stay focused on drawing and interaction.
-import { createEngine, getEngineDefinition, listEngines } from "./engines/engine-registry.js?v=0.54.0-style2";
+import { createEngine, getEngineDefinition, listEngines } from "./engines/engine-registry.js?v=0.54.0-notes1";
 import { MAP_CONTROLLER_METHODS, METHOD_CAPABILITIES, unsupported } from "./engines/engine-interface.js?v=0.52.5";
 import { GisMapError } from "./gismap-errors.js?v=0.28.0";
 
@@ -86,6 +86,8 @@ export class MapController {
     this.defaultBasemapId = id || null;
     this.engine?.setDefaultBasemap?.(this.defaultBasemapId);
   }
+
+  setMapNoteMarkers(points = []) { this.engine?.setMapNoteMarkers?.(points); }
 
   getDefaultBasemapId() {
     return this.engine?.getDefaultBasemapId?.() || this.defaultBasemapId || this.engine?.getBasemapId?.() || this.initialBasemapId;

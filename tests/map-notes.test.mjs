@@ -55,13 +55,20 @@ test('failed storage leaves the project unchanged and emits no success event', (
   assert.throws(() => registry.create({ body: 'Unsaved', anchor: point }), /storage full/);
   assert.deepEqual(project.notes, []); assert.equal(emitted, 0);
 });
-test('the note panel uses the shared dialog without a nested form', async () => {
+test('the note mode uses a workspace pane without a nested form', async () => {
   const { readFile } = await import('node:fs/promises');
   const source = await readFile(new URL('../js/map-notes-panel.js', import.meta.url), 'utf8');
   const html = await readFile(new URL('../index.html', import.meta.url), 'utf8');
-  assert.match(html, /data-action="tools-map-notes"/);
+  assert.match(html, /data-action="mode-map-notes"/); assert.doesNotMatch(html, /data-action="tools-map-notes"/); assert.match(source, /openMapNotesWorkspace/);
   assert.match(source, /data-note-save/); assert.doesNotMatch(source, /<form\b/);
   assert.match(source, /escape\(item\.body\)/); assert.match(source, /32 \* 1024 \* 1024/);
+  assert.match(source, /<textarea data-session-description/);
+  assert.match(source, /ui\.mobileMedia\.matches \? `<button type="button" data-note-gps/);
+  assert.match(source, /Create PDF · coming soon/);
+  const ui = await readFile(new URL('../js/ui.js', import.meta.url), 'utf8');
+  assert.match(ui, /map-notes-authoring/);
+  assert.match(ui, /setMapNoteMarkers\(points\)/);
+  assert.match(ui, /attach !== this\.mapNotesAttachFeature/);
 });
 
 test('field observation location metadata round trips and validates', () => {

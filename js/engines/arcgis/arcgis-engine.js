@@ -907,6 +907,15 @@ export class ArcGISEngine {
     this.locationLayer.addMany([halo, dot]);
   }
 
+  setMapNoteMarkers(points = []) {
+    if (!this.locationLayer || !this.modules.Graphic) return;
+    this.locationLayer.graphics.filter((graphic) => graphic.attributes?.kind === "map-note").forEach((graphic) => this.locationLayer.remove(graphic));
+    for (const point of points) {
+      if (!Number.isFinite(point.longitude) || !Number.isFinite(point.latitude)) continue;
+      this.locationLayer.add(new this.modules.Graphic({ geometry: { type: "point", longitude: point.longitude, latitude: point.latitude }, attributes: { kind: "map-note" }, symbol: { type: "simple-marker", style: "circle", size: point.draft ? 16 : 13, color: point.draft ? "#f3ae2b" : "#087c68", outline: { color: "#ffffff", width: 2 } } }));
+    }
+  }
+
   /** Marks the place (or places) a field task points at; pass nothing to clear them. */
   setTaskPin(points = null) {
     if (!this.locationLayer) return;
