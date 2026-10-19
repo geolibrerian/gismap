@@ -1,7 +1,7 @@
 import { googleMapsLinkForChapter } from "./google-maps-link.js?v=0.53.0";
 import { POPULAR_SERVICES } from "./catalog.js?v=0.18.2";
-import { MapAssistantPanel } from "./assistant-panel.js?v=0.54.0-pan2";
-import { createAssistantTools, summarizeMapState } from "./map-assistant.js?v=0.54.0-pan2";
+import { MapAssistantPanel } from "./assistant-panel.js?v=0.54.0-geourl1";
+import { createAssistantTools, summarizeMapState } from "./map-assistant.js?v=0.54.0-geourl1";
 import { ENTERPRISE_CATALOGS, EnterpriseCatalog, normalizeArcGisDirectoryUrl } from "./enterprise-catalog.js?v=0.18.2";
 import { createShareUrl } from "./share.js?v=0.54.0-unified4";
 import { createShareLink, hasDataFilter } from "./map-share.js?v=0.54.0-unified4";
@@ -1108,17 +1108,17 @@ export class UIController {
           this.#serviceDialog("wfs");
           break;
         case "data-pmtiles": {
-          const { openPmtilesPanel } = await import("./data-connections-panel.js?v=0.54.0-queryui1");
+          const { openPmtilesPanel } = await import("./data-connections-panel.js?v=0.54.0-geourl1");
           openPmtilesPanel(this, this.mapController, (engine) => this.#switchEngine(engine));
           break;
         }
         case "data-duckdb": {
-          const { openDuckdbPanel } = await import("./data-connections-panel.js?v=0.54.0-queryui1");
+          const { openDuckdbPanel } = await import("./data-connections-panel.js?v=0.54.0-geourl1");
           openDuckdbPanel(this, this.applicationRuntime.duckdb);
           break;
         }
         case "data-postgis": {
-          const { openPostgisPanel } = await import("./data-connections-panel.js?v=0.54.0-queryui1");
+          const { openPostgisPanel } = await import("./data-connections-panel.js?v=0.54.0-geourl1");
           openPostgisPanel(this);
           break;
         }
@@ -2285,7 +2285,7 @@ export class UIController {
     const isWms = serviceType === "wms";
     const isWfs = serviceType === "wfs";
     const isGeoJson = serviceType === "geojson";
-    const title = isWms ? "Add WMS service" : isWfs ? "Add WFS service" : isGeoJson ? "Add GeoJSON / GeoParquet URL" : "Add ArcGIS REST service";
+    const title = isWms ? "Add WMS service" : isWfs ? "Add WFS service" : isGeoJson ? "Add Geo URL" : "Add ArcGIS REST service";
     const placeholder = isWms
       ? "https://server.example/geoserver/wms"
       : isWfs
@@ -5438,7 +5438,7 @@ export class UIController {
           <details class="layer-card__more" ${this.expandedLayerCards.has(layer.uid) ? "open" : ""}><summary>More layer tools</summary><div class="layer-card__actions"><button data-layer-action="filter" title="Show only matching features on the map">Filter map</button>${(config.local || config.sourceType === "geoparquet") && layer.queryable ? '<button data-layer-action="query-duckdb" title="Explore or join a separate analysis dataset">Query data</button>' : ''}<button data-layer-action="export" title="Share this map, make a PDF or briefing, or download data">Share</button><button data-layer-action="refresh">Refresh</button></div></details>
         </article>`;
       }).join("")
-      : '<div class="empty-state empty-state--layers"><p>No layers yet. Add data to start.</p><div class="empty-state__actions"><button type="button" data-empty-action="data-arcgis">ArcGIS service</button><button type="button" data-empty-action="data-geojson">GeoJSON URL</button><button type="button" data-empty-action="data-file">Local file</button><button type="button" data-empty-action="data-popular">Try an example</button></div></div>';
+      : '<div class="empty-state empty-state--layers"><p>No layers yet. Add data to start.</p><div class="empty-state__actions"><button type="button" data-empty-action="data-arcgis">ArcGIS service</button><button type="button" data-empty-action="data-geojson">Geo URL</button><button type="button" data-empty-action="data-file">Local file</button><button type="button" data-empty-action="data-popular">Try an example</button></div></div>';
     container.querySelectorAll(".layer-card").forEach((card) => this.#bindLayerCard(card));
   }
 

@@ -163,7 +163,7 @@ export function openDuckdbPanel(ui, client) {
     <div class="connection-actions"><button type="button" data-connection-remote>Load remote Parquet and preview</button></div></section>
     <p class="form-note" role="status" data-connection-status>Stopped. DuckDB is loaded only when started.</p>
     <pre class="connection-browser__preview" data-connection-results></pre>
-    <p class="form-note">Use the direct file URL, not its catalog page. Remote Parquet requires provider CORS and HTTP range requests. Source Cooperative file-page links are converted to their data URL. To map GeoParquet, use Data → Add local spatial file or Add GeoJSON / GeoParquet URL. Mapped results are bounded; WKB geometry in WGS84 (EPSG:4326 or CRS84) is required.</p></div>` });
+    <p class="form-note">Use the direct file URL, not its catalog page. Remote Parquet requires provider CORS and HTTP range requests. Source Cooperative file-page links are converted to their data URL. To map GeoParquet, use Data → Add local spatial file or Add Geo URL. Mapped results are bounded; WKB geometry in WGS84 (EPSG:4326 or CRS84) is required.</p></div>` });
   status(client.connection ? 'Ready: browser DuckDB is running.' : 'Stopped. DuckDB is loaded only when started.');
   bind('query', () => openDuckdbQueryWorkspace(ui, client));
   bind('start', async () => { status('Starting DuckDB locally…'); await client.initialize(); status('Ready: browser DuckDB is running.'); });

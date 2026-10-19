@@ -123,7 +123,7 @@
             <button class="menu__trigger" aria-expanded="false">Data <span>⌄</span></button>
             <div class="menu__content" role="menu">
               <button data-action="data-file">Add local spatial file</button>
-              <button data-action="data-geojson">Add GeoJSON / GeoParquet URL</button>
+              <button data-action="data-geojson">Add Geo URL</button>
               <button data-action="data-arcgis">Add ArcGIS REST service</button>
               <button data-action="data-wms">Add WMS service</button>
               <button data-action="data-wfs">Add WFS service</button>
@@ -254,7 +254,7 @@
             <summary><span>Layers</span><small id="layer-count">0 loaded</small></summary>
             <div class="panel__body">
               <div id="layers-list" class="layers-list">
-                <div class="empty-state empty-state--layers"><p>No layers yet. Add data to start.</p><div class="empty-state__actions"><button type="button" data-empty-action="data-arcgis">ArcGIS service</button><button type="button" data-empty-action="data-geojson">GeoJSON URL</button><button type="button" data-empty-action="data-file">Local file</button><button type="button" data-empty-action="data-popular">Try an example</button></div></div>
+                <div class="empty-state empty-state--layers"><p>No layers yet. Add data to start.</p><div class="empty-state__actions"><button type="button" data-empty-action="data-arcgis">ArcGIS service</button><button type="button" data-empty-action="data-geojson">Geo URL</button><button type="button" data-empty-action="data-file">Local file</button><button type="button" data-empty-action="data-popular">Try an example</button></div></div>
               </div>
             </div>
           </details>
@@ -276,10 +276,10 @@
           <div class="welcome-brand"><img src="./assets/gis-map-online-mark-v2.png" alt="" /><strong>GIS MAP <span>ONLINE</span></strong></div>
           <span class="eyebrow">Free, open-source browser GIS</span>
           <h1 id="welcome-title">Free browser-based GIS maps</h1>
-          <p>GISMap.online is a free, open-source, browser-based GIS workspace for people and AI agents. Open ArcGIS REST services, GeoJSON URLs or local files; inspect, style and share interactive 2D and 3D maps without installing desktop GIS software. Remote services must allow browser access, and supported features depend on the source and map engine.</p>
+          <p>GISMap.online is a free, open-source, browser-based GIS workspace for people and AI agents. Open ArcGIS REST services, Geo URLs such as GeoJSON and GeoParquet, or local files; inspect, style and share interactive 2D and 3D maps without installing desktop GIS software. Remote services must allow browser access, and supported features depend on the source and map engine.</p>
           <div class="welcome-panel__actions">
             <button type="button" data-action="data-arcgis">Add ArcGIS REST service</button>
-            <button type="button" data-action="data-geojson">Add GeoJSON URL</button>
+            <button type="button" data-action="data-geojson">Add Geo URL</button>
             <button type="button" data-action="data-file">Open local file</button>
             <button type="button" data-action="data-popular" class="button--quiet">Try an example</button>
           </div>
@@ -455,6 +455,6 @@
       </ul>
     </section>
     <noscript>GISMap Online is a geospatial application and needs JavaScript. Without it, a map can still be described as a link: see <a href="/llms.txt">/llms.txt</a> and the <a href="/guides/ai-agents/">guide for AI agents</a>.</noscript>
-    <script type="module" src="./js/app.js?v=0.54.0-style2"></script>
+    <script type="module" src="./js/app.js?v=0.54.0-geourl1"></script>
   </body>
 </html>

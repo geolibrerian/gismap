@@ -47,3 +47,15 @@ test("local PostGIS tutorial is discoverable and describes safe, bounded access"
   assert.match(tutorial, /localhost.*computer/i);
   assert.match(sitemap, /https:\/\/gismap\.online\/examples\/data-connections\/local-postgis\//);
 });
+
+test("Geo URL entry points and instructions use a consistent label", async () => {
+  const home = await read("index.html");
+  const ui = await read("js/ui.js");
+  const guide = await read("geojson-viewer/index.html");
+  assert.match(home, /data-action="data-geojson">Add Geo URL<\/button>/);
+  assert.match(home, /data-empty-action="data-geojson">Geo URL<\/button>/);
+  assert.match(ui, /data-empty-action="data-geojson">Geo URL<\/button>/);
+  assert.match(ui, /isGeoJson \? "Add Geo URL"/);
+  assert.match(guide, /or Add Geo URL for a public feed/);
+  assert.doesNotMatch(home, />Add GeoJSON URL<\/button>|>GeoJSON URL<\/button>/);
+});

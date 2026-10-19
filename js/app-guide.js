@@ -34,7 +34,7 @@ export const APP_GUIDE = Object.freeze([
   { path: "Project → About this build", keywords: "about version build", text: "Shows the version." },
   // Data menu
   { path: "Data → Add local spatial file", keywords: "file upload kml kmz shapefile shp geojson local", text: "Adds a file from this computer." },
-  { path: "Data → Add GeoJSON / GeoParquet URL", keywords: "geojson url feed", text: "Adds GeoJSON from a web address." },
+  { path: "Data → Add Geo URL", keywords: "geojson url feed", text: "Adds supported GeoJSON or GeoParquet from a web address." },
   { path: "Data → Add ArcGIS REST service", keywords: "arcgis rest featureserver mapserver imageserver service url layer add", text: "Adds an ArcGIS FeatureServer, MapServer or ImageServer layer by URL." },
   { path: "Data → Add WMS service · Add WFS service", keywords: "wms wfs ogc", text: "Adds an OGC WMS or WFS service." },
   { path: "Data → Popular data services", keywords: "popular datasets examples catalog public data", text: "Curated public datasets to add in one click." },
