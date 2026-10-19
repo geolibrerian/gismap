@@ -1,4 +1,5 @@
-import { openMapNotesPanel } from "./map-notes-panel.js?v=0.3.0";
+import { noteFeatureReference } from './map-note-feature.js?v=0.1.0';
+import { openMapNotesPanel } from "./map-notes-panel.js?v=0.4.0";
 import { googleMapsLinkForChapter } from "./google-maps-link.js?v=0.53.0";
 import { POPULAR_SERVICES } from "./catalog.js?v=0.18.2";
 import { MapAssistantPanel } from "./assistant-panel.js?v=0.54.0-pan2";
@@ -5980,7 +5981,7 @@ export class UIController {
         const selection = aiEnabled
           ? `<label class="insight-ai-select"><input type="checkbox" data-ai-selection="${index}" ${index === 0 ? "checked" : ""}> Include in AI</label>`
           : "";
-        return `<article class="insight-panel" id="insight-panel-${index}" role="tabpanel" aria-labelledby="insight-tab-${index}" ${index === 0 ? "" : "hidden"}><header><span><strong>${escapeHtml(result.layerTitle)}</strong><small>${escapeHtml(result.kind)}</small></span>${selection}</header><dl>${entries.map(([key, value]) => `<div><dt>${escapeHtml(key)}</dt><dd>${escapeHtml(formatAttributeValue(value, fieldsByName.get(key), key))}</dd></div>`).join("") || "<div><dd>No attributes returned.</dd></div>"}</dl></article>`;
+        return `<article class="insight-panel" id="insight-panel-${index}" role="tabpanel" aria-labelledby="insight-tab-${index}" ${index === 0 ? "" : "hidden"}><header><span><strong>${escapeHtml(result.layerTitle)}</strong><small>${escapeHtml(result.kind)}</small></span>${selection}</header>${result.kind === "feature" && payload.point ? `<button type="button" data-feature-note="${index}">Add observation</button>` : ""}<dl>${entries.map(([key, value]) => `<div><dt>${escapeHtml(key)}</dt><dd>${escapeHtml(formatAttributeValue(value, fieldsByName.get(key), key))}</dd></div>`).join("") || "<div><dd>No attributes returned.</dd></div>"}</dl></article>`;
       }).join("");
     document.querySelector(".orbital-insight-details")?.remove();
     this.#renderIntelligenceContents();
@@ -6008,6 +6009,13 @@ export class UIController {
           this.#isolateInsightResult(Number(button.dataset.insightTab));
         }),
       );
+      document.querySelectorAll("[data-feature-note]").forEach((button) => button.addEventListener("click", () => {
+        const result = visibleResults[Number(button.dataset.featureNote)];
+        const layer = result && this.mapController.getLayer(result.layerUid);
+        const config = layer && this.mapController.getLayerConfig(layer);
+        const feature = noteFeatureReference(result, layer, config);
+        openMapNotesPanel(this, { point: [payload.point.longitude, payload.point.latitude], feature, featureUnavailable: !feature });
+      }));
       document.querySelectorAll("[data-ai-selection]").forEach((input) =>
         input.addEventListener("change", () => this.#setInsightSelection(Number(input.dataset.aiSelection), input.checked)),
       );

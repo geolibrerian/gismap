@@ -1,3 +1,4 @@
+import { sanitizeSharedResourceUrl } from './share.js?v=0.54.0-unified4';
 // Map Notes are project-owned records, independent of map engines and source features.
 // Do not put these records in the public application state or send them to an AI.
 export const NOTE_VERSION = '1.0';
@@ -40,10 +41,13 @@ function geometry(value) {
   throw new Error('Notes support point, line, or polygon anchors.');
 }
 function relationship(value) {
-  keys(value, ['type', 'targetType', 'targetId', 'datasetId', 'featureId'], 'relationship');
+  keys(value, ['type', 'targetType', 'targetId', 'datasetId', 'featureId', 'sourceUrl', 'datasetTitle'], 'relationship');
   if (!value || !RELATIONSHIP_TYPES.includes(value.type) || !TARGETS.has(value.targetType) || REL_TARGET[value.type] !== value.targetType) throw new Error('Invalid note relationship.');
   const result = { type: value.type, targetType: value.targetType, targetId: text(value.targetId, 'relationship target', 256, value.targetType !== 'feature') };
   if (value.targetType === 'feature') { result.datasetId = text(value.datasetId, 'dataset ID', 256, true); result.featureId = text(String(value.featureId ?? ''), 'feature ID', 256, true); }
+  if (value.datasetId != null && value.targetType !== 'feature') result.datasetId = text(value.datasetId, 'dataset ID', 256, true);
+  if (value.datasetTitle != null) result.datasetTitle = text(value.datasetTitle, 'dataset title', 240);
+  if (value.sourceUrl != null) result.sourceUrl = sanitizeSharedResourceUrl(value.sourceUrl, { allowHttp: true });
   return result;
 }
 function list(value, limit, name) { if (value == null) return []; if (!Array.isArray(value) || value.length > limit) throw new Error(`Invalid ${name}.`); return value; }
@@ -56,7 +60,7 @@ function message(value, label) {
 /** Validate and normalize untrusted version 1 records. No HTML is interpreted. */
 export function normalizeNote(value) {
   if (!value || typeof value !== 'object' || value.schemaVersion !== NOTE_VERSION) throw new Error('Unsupported Map Note version.');
-  keys(value, ['schemaVersion', 'id', 'type', 'title', 'body', 'tags', 'status', 'priority', 'createdAt', 'updatedAt', 'author', 'anchor', 'relationships', 'replies', 'attachments', 'review', 'fieldSessionId', 'observedAt', 'coordinateSource', 'accuracyMeters', 'revision'], 'note');
+  keys(value, ['schemaVersion', 'id', 'type', 'title', 'body', 'tags', 'status', 'priority', 'createdAt', 'updatedAt', 'author', 'anchor', 'relationships', 'replies', 'attachments', 'review', 'fieldSessionId', 'observedAt', 'coordinateSource', 'accuracyMeters', 'revision', 'observerPosition'], 'note');
   if (value.author) keys(value.author, ['displayName'], 'author');
   if (value.review) keys(value.review, ['status', 'events'], 'review');
   if (value.anchor) keys(value.anchor, ['type', 'geometry', 'crs'], 'anchor');
@@ -67,6 +71,13 @@ export function normalizeNote(value) {
   if (value.coordinateSource != null && !['gps', 'map-selected', 'feature-derived', 'manual'].includes(value.coordinateSource)) throw new Error('Invalid coordinate source.');
   if (value.accuracyMeters != null && (typeof value.accuracyMeters !== 'number' || !Number.isFinite(value.accuracyMeters) || value.accuracyMeters < 0)) throw new Error('Invalid GPS accuracy.');
   if (value.revision != null && (!Number.isSafeInteger(value.revision) || value.revision < 1)) throw new Error('Invalid observation revision.');
+  let observerPosition;
+  if (value.observerPosition != null) {
+    keys(value.observerPosition, ['coordinates', 'accuracyMeters', 'capturedAt'], 'observer position');
+    const accuracy = value.observerPosition.accuracyMeters;
+    if (accuracy != null && (typeof accuracy !== 'number' || !Number.isFinite(accuracy) || accuracy < 0)) throw new Error('Invalid observer GPS accuracy.');
+    observerPosition = { coordinates: coordinate(value.observerPosition.coordinates), ...(accuracy != null ? { accuracyMeters: accuracy } : {}), capturedAt: date(value.observerPosition.capturedAt, 'observer position date') };
+  }
   const geom = geometry(value.anchor?.geometry);
   if (value.anchor?.type && !['point', 'area', 'feature'].includes(value.anchor.type)) throw new Error('Invalid anchor type.');
   if (value.anchor?.type === 'area' && geom.type === 'Point') throw new Error('An area note requires a line or polygon.');
@@ -81,7 +92,7 @@ export function normalizeNote(value) {
     if (!event || !REVIEWS.has(event.decision) || event.decision === 'unreviewed') throw new Error('Invalid review decision.');
     return { id: text(event.id, 'review ID', 128, true), decision: event.decision, createdAt: date(event.createdAt, 'review date'), ...(event.author ? { author: { displayName: text(event.author.displayName, 'review author', 120) } } : {}) };
   });
-  return { ...(value.fieldSessionId ? { fieldSessionId: text(value.fieldSessionId, 'field session ID', 128, true) } : {}), ...(value.observedAt ? { observedAt: date(value.observedAt, 'observation date') } : {}), ...(value.coordinateSource ? { coordinateSource: value.coordinateSource } : {}), ...(value.accuracyMeters != null ? { accuracyMeters: value.accuracyMeters } : {}), ...(value.revision != null ? { revision: value.revision } : {}), schemaVersion: NOTE_VERSION, id: text(value.id, 'note ID', 128, true), type: kind, title: text(value.title, 'title', 240), body: text(value.body, 'body', 20000), tags: list(value.tags, 50, 'tags').map((tag) => text(tag, 'tag', 80, true)), status, priority: ['low', 'normal', 'high'].includes(value.priority) ? value.priority : 'normal', createdAt: date(value.createdAt, 'creation date'), updatedAt: date(value.updatedAt, 'update date'), ...(value.author ? { author: { displayName: text(value.author.displayName, 'author', 120) } } : {}), anchor: { type: geom.type === 'Point' ? 'point' : 'area', geometry: geom, crs: 'EPSG:4326' }, relationships: list(value.relationships, 100, 'relationships').map(relationship), replies: list(value.replies, 200, 'replies').map((item) => message(item, 'reply')), attachments: [], review: { status: review, events: reviews } };
+  return { ...(observerPosition ? { observerPosition } : {}), ...(value.fieldSessionId ? { fieldSessionId: text(value.fieldSessionId, 'field session ID', 128, true) } : {}), ...(value.observedAt ? { observedAt: date(value.observedAt, 'observation date') } : {}), ...(value.coordinateSource ? { coordinateSource: value.coordinateSource } : {}), ...(value.accuracyMeters != null ? { accuracyMeters: value.accuracyMeters } : {}), ...(value.revision != null ? { revision: value.revision } : {}), schemaVersion: NOTE_VERSION, id: text(value.id, 'note ID', 128, true), type: kind, title: text(value.title, 'title', 240), body: text(value.body, 'body', 20000), tags: list(value.tags, 50, 'tags').map((tag) => text(tag, 'tag', 80, true)), status, priority: ['low', 'normal', 'high'].includes(value.priority) ? value.priority : 'normal', createdAt: date(value.createdAt, 'creation date'), updatedAt: date(value.updatedAt, 'update date'), ...(value.author ? { author: { displayName: text(value.author.displayName, 'author', 120) } } : {}), anchor: { type: geom.type === 'Point' ? 'point' : 'area', geometry: geom, crs: 'EPSG:4326' }, relationships: list(value.relationships, 100, 'relationships').map(relationship), replies: list(value.replies, 200, 'replies').map((item) => message(item, 'reply')), attachments: [], review: { status: review, events: reviews } };
 }
 export function normalizeNotes(values) {
   const notes = list(values, NOTE_LIMIT, 'notes').map(normalizeNote); const ids = new Set();

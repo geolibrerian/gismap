@@ -6,7 +6,7 @@ Only point, line, and polygon longitude/latitude anchors are accepted. Feature r
 
 The Map Notes tool supports creating and editing point-anchored observations from a clicked location or GPS, navigating to them, and importing or exporting bounded JSON bundles. Observations are stored in IndexedDB; field sessions can be explicitly resumed after reload. Project context still requires separate project saving. Engine switching warns that notes are not carried through the reload.
 
-This is **not yet the full MVP**: there is no map rendering, feature association UI, seamless engine-switch integration, CSV/Markdown/GeoJSON/QR export, undo, Observations mode, or agent access. Do not advertise these capabilities until implemented and tested. Public state and AI tools intentionally do not expose note content. A future UI must use text-safe DOM rendering and obtain explicit user approval for sharing or sending private contents to AI.
+This is **not yet the full MVP**: there is no map rendering, automatic feature relinking, seamless engine-switch integration, CSV/Markdown/GeoJSON/QR export, undo, Observations mode, or agent access. Do not advertise these capabilities until implemented and tested. Public state and AI tools intentionally do not expose note content. A future UI must use text-safe DOM rendering and obtain explicit user approval for sharing or sending private contents to AI.
 
 ## Revised field-collection priority (in progress)
 
@@ -14,4 +14,11 @@ The field workflow is now the primary direction. The current incremental slice s
 
 Portable JSON exports the active session metadata and normalized observations, including existing feature references. Older notes-only bundles remain supported. Re-import skips identical observation IDs and rejects conflicting contents without overwriting records. A session bundle can be imported into an empty project or the same active session; importing it into a different nonempty session is intentionally blocked. The importer limits files to 32 MB and 5,000 observations. Resume is explicit, not automatic, and does not restore the original map or project. Save a project separately if that context is needed. Browser storage can be evicted; request persistent storage and export backups. The application shell is not yet cached for offline launch, so do not assume GISMap can reopen without connectivity. GPS, actual offline use, and mobile behavior require further device testing.
 
-Remaining phase 1: independent GPS and feature positions, feature association UX, map markers, session/project restoration and multi-session project merging, service-worker/offline shell, and the basic PDF report with real QR/link portability. Multipart QR, richer reports, photos and packages remain phase 2. No claim is made that the revised phase 1 acceptance criteria are complete.
+Remaining phase 1: map markers, source geometry snapshots and automatic feature relinking, session/project restoration and multi-session project merging, service-worker/offline shell, and the basic PDF report with real QR/link portability. Multipart QR, richer reports, photos and packages remain phase 2. No claim is made that the revised phase 1 acceptance criteria are complete.
+
+
+## Feature-linked observations and collector GPS
+
+An identified feature in Map Insight offers **Add observation**. The note keeps the map-clicked location, dataset reference and, when the source exposes one, its stable feature ID. A safe, credential-free HTTP(S) source URL and dataset title are preserved where available. Generated MapLibre `__OBJECTID` values are deliberately not treated as stable: such notes retain only a dataset reference. Local or credential-protected datasets may require manual reconnection; links do not automatically load or highlight their feature yet.
+
+**Record collector GPS** can add a separate position and reported accuracy without moving the observation's anchor. These coordinates, timestamp and feature references survive project snapshots and portable JSON. Browser location permission is required; actual GPS capture and offline/mobile device behavior have not yet been verified.

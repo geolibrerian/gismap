@@ -121,3 +121,29 @@ test('field imports are idempotent and reject conflicting revisions without chan
   assert.equal(other.projectManager.current.notes.length, 1);
   await assert.rejects(other.importBundle({ ...bundle, session: { ...bundle.session, title: 'changed' } }), /different title/);
 });
+
+test('observer GPS is independent of note anchor and survives portable export', async () => {
+  const { makeFieldBundle } = await import('../js/field-session-bundle.js');
+  const observerPosition = { coordinates: [-122.271, 37.801], accuracyMeters: 7, capturedAt: fixture.createdAt };
+  const note = normalizeNote({ ...fixture, observerPosition });
+  assert.notDeepEqual(note.anchor.geometry.coordinates, observerPosition.coordinates);
+  assert.deepEqual(makeFieldBundle(null, [note]).notes[0].observerPosition, observerPosition);
+  assert.throws(() => normalizeNote({ ...fixture, observerPosition: { ...observerPosition, coordinates: [0, 100] } }), /coordinate/);
+  assert.throws(() => normalizeNote({ ...fixture, observerPosition: { ...observerPosition, accuracyMeters: -3 } }), /accuracy/);
+});
+
+test('feature references use stable IDs and never include credentials', async () => {
+  const { noteFeatureReference } = await import('../js/map-note-feature.js');
+  const layer = { id: 'layer-1', objectIdField: 'OBJECTID', title: 'Buildings' };
+  const config = { id: 'layer-1', url: 'https://example.test/FeatureServer/0' };
+  const result = { kind: 'feature', layerTitle: 'Buildings', attributes: { OBJECTID: 42 }, source: { objectIdField: 'OBJECTID', url: config.url } };
+  const ref = noteFeatureReference(result, layer, config);
+  assert.equal(ref.featureId, '42'); assert.equal(ref.sourceUrl, config.url);
+  const note = normalizeNote({ ...fixture, relationships: [ref] });
+  assert.deepEqual(note.relationships[0], ref);
+  const unstable = noteFeatureReference({ ...result, source: { objectIdField: '__OBJECTID' }, attributes: { __OBJECTID: 1 } }, layer, config);
+  assert.equal(unstable.type, 'references_dataset'); assert.equal(unstable.featureId, undefined);
+  const secret = noteFeatureReference({ ...result, source: { objectIdField: 'OBJECTID', url: 'https://example.test/FeatureServer/0?token=secret' } }, layer, config);
+  assert.equal(secret.sourceUrl, undefined); assert.equal(secret.datasetId, 'layer-1');
+  assert.throws(() => normalizeNote({ ...fixture, relationships: [{ ...ref, sourceUrl: 'https://example.test/?token=secret' }] }), /credential/i);
+});

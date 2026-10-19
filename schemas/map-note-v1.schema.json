@@ -168,6 +168,15 @@
           "featureId": {
             "type": "string",
             "maxLength": 256
+          },
+          "sourceUrl": {
+            "type": "string",
+            "format": "uri",
+            "maxLength": 4096
+          },
+          "datasetTitle": {
+            "type": "string",
+            "maxLength": 240
           }
         },
         "additionalProperties": false
@@ -285,6 +294,32 @@
     "revision": {
       "type": "integer",
       "minimum": 1
+    },
+    "observerPosition": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "coordinates",
+        "capturedAt"
+      ],
+      "properties": {
+        "coordinates": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 3,
+          "items": {
+            "type": "number"
+          }
+        },
+        "accuracyMeters": {
+          "type": "number",
+          "minimum": 0
+        },
+        "capturedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
     }
   },
   "$defs": {

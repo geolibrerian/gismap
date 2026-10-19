@@ -1,7 +1,7 @@
 // IndexedDB is the durable store for field observations. Attachments have their
 // own reserved store; this version does not accept or export attachment data.
-import { normalizeNotes } from './map-notes.js?v=0.2.0';
-import { normalizeFieldBundle, mergeObservations } from './field-session-bundle.js?v=0.1.0';
+import { normalizeNotes } from './map-notes.js?v=0.3.0';
+import { normalizeFieldBundle, mergeObservations } from './field-session-bundle.js?v=0.2.0';
 
 export class FieldSessionStore {
   constructor(indexedDB = globalThis.indexedDB) { this.indexedDB = indexedDB; this.db = null; }
@@ -126,7 +126,7 @@ export class FieldSessionController {
       if (!this.session || this.session.projectId !== project.id && !this.session.resumedIntoProjectId) this.session = newFieldSession(project);
       if (this.session.resumedIntoProjectId && this.session.resumedIntoProjectId !== project.id) this.session = newFieldSession(project);
       const session = this.session;
-      const { MapNotesRegistry } = await import('./map-notes.js?v=0.2.0');
+      const { MapNotesRegistry } = await import('./map-notes.js?v=0.3.0');
       const draft = { id: project.id, notes: structuredClone(project.notes || []) };
       const registry = new MapNotesRegistry({ project: () => draft });
       if (action === 'create') args[0] = { ...args[0], fieldSessionId: session.id, observedAt: new Date().toISOString(), revision: 1 };
