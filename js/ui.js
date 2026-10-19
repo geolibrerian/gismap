@@ -1,3 +1,4 @@
+import { openDataMapNotesPanel } from "./data-map-notes-panel.js?v=0.1.0";
 import { noteFeatureReference } from './map-note-feature.js?v=0.1.0';
 import { openMapNotesPanel } from "./map-notes-panel.js?v=0.11.0";
 import { googleMapsLinkForChapter } from "./google-maps-link.js?v=0.53.0";
@@ -535,7 +536,7 @@ export class UIController {
       const { mapPoint } = click;
       this.#dismissWelcome();
       const point = Number.isFinite(mapPoint?.longitude) && Number.isFinite(mapPoint?.latitude) ? [((mapPoint.longitude + 180) % 360 + 360) % 360 - 180, mapPoint.latitude] : null;
-      if (!this.mapNotesModeActive || !point) { this.mapNotePoint = point; return; }
+      if (!this.mapNotesModeActive || this.activeUtilityTab !== "notes" || !point) { this.mapNotePoint = point; return; }
       const pane = document.querySelector("#utility-notes-content");
       if ([...pane.querySelectorAll('[data-note-form] [name="title"], [data-note-form] [name="body"]')].some((input) => input.value.trim())) {
         this.toast("Save or clear the current observation before choosing another location."); return;
@@ -584,6 +585,7 @@ export class UIController {
     this.events.subscribe("project:loaded", ({ project, missingFiles }) => {
       this.mapNotePoint = null;
       if (this.mapNotesModeActive) { this.mapNotesSessionDraft = null; this.fieldSessionController.session = null; openMapNotesPanel(this); }
+      if (this.dataMapNotesOpen) openDataMapNotesPanel(this);
       if (project.application?.configured) {
         this.#applyPresentation({ template: "standard" });
         this.applicationRuntime.apply(project.application);
@@ -652,7 +654,7 @@ export class UIController {
       this.#renderIntelligenceContents();
     });
     this.events.subscribe("identify:complete", (payload) => {
-      if (this.mapNotesModeActive) { this.identifyPending = false; document.querySelector("#insights-overlay").setAttribute("aria-busy", "false"); this.#setInsightsOpen(false); return; }
+      if (this.mapNotesModeActive && this.activeUtilityTab === "notes") { this.identifyPending = false; document.querySelector("#insights-overlay").setAttribute("aria-busy", "false"); this.#setInsightsOpen(false); return; }
       // Picking a feature for a field task should not cover the map with its details.
       if (this.presentationState.template === "briefing" || document.body.classList.contains("field-task-picking")) {
         this.#setInsightsOpen(false);
@@ -840,6 +842,7 @@ export class UIController {
     const tabs = [
       ...(this.utilityWorkspaceOpen ? [{ id: "workspace", label: "Workspace" }] : []),
       ...(this.mapNotesModeActive ? [{ id: "notes", label: "Field Notes" }] : []),
+      ...(this.dataMapNotesOpen ? [{ id: "data-notes", label: "Map Notes" }] : []),
       ...this.#utilityWidgetTabs(),
       ...(this.utilityTasksOpen ? [{ id: "tasks", label: "Field tasks" }] : []),
       ...(this.utilityDialogOpen ? [{ id: "dialog", label: document.querySelector("#dialog-title")?.textContent || "Dialog" }] : []),
@@ -855,6 +858,7 @@ export class UIController {
     this.activeUtilityTab = validTabs.has(preferredTab)
       ? preferredTab
       : validTabs.has(this.activeUtilityTab) ? this.activeUtilityTab : tabs[0]?.id || null;
+    document.body.classList.toggle("map-notes-authoring", this.mapNotesModeActive && this.activeUtilityTab === "notes");
     const open = tabs.length > 0;
     if (open) this.#dismissWelcome();
     if (open && this.mobileMedia.matches) this.#setSidebarCollapsed(true);
@@ -866,7 +870,7 @@ export class UIController {
     document.querySelectorAll("[data-utility-pane]").forEach((pane) => { pane.hidden = pane.dataset.utilityPane !== this.activeUtilityTab; });
     document.querySelector("#utility-title").textContent = tabs.find((tab) => tab.id === this.activeUtilityTab)?.label || "Map tools";
     const utilityModalButton = document.querySelector("#utility-open-modal");
-    if (utilityModalButton) utilityModalButton.hidden = ["presentation", "tasks", "notes"].includes(this.activeUtilityTab);
+    if (utilityModalButton) utilityModalButton.hidden = ["presentation", "tasks", "notes", "data-notes"].includes(this.activeUtilityTab);
     document.body.classList.toggle("utility-panel-open", open);
     document.body.classList.toggle("mobile-measurement-panel-open", this.mobileMedia.matches && open && this.activeUtilityTab === "measurement");
     document.body.classList.toggle("mobile-presentation-panel-open", this.mobileMedia.matches && open && this.activeUtilityTab === "presentation");
@@ -997,6 +1001,7 @@ export class UIController {
       document.querySelector("#utility-notes-content")?.replaceChildren();
       this.#syncUtilityPanel(); return;
     }
+    if (tabId === "data-notes") { this.dataMapNotesOpen = false; document.querySelector("#utility-data-notes-content")?.replaceChildren(); this.#syncUtilityPanel(); return; }
     if (tabId === "workspace") { this.utilityWorkspaceOpen = false; this.#syncUtilityPanel(); return; }
     if (tabId === "query") {
       this.utilityQueryOpen = false;
@@ -1180,6 +1185,9 @@ export class UIController {
           break;
         case "data-popular":
           this.#popularDataDialog();
+          break;
+        case "mode-data-map-notes":
+          openDataMapNotesPanel(this);
           break;
         case "mode-map-notes":
           openMapNotesPanel(this);
@@ -6021,7 +6029,7 @@ export class UIController {
         const selection = aiEnabled
           ? `<label class="insight-ai-select"><input type="checkbox" data-ai-selection="${index}" ${index === 0 ? "checked" : ""}> Include in AI</label>`
           : "";
-        return `<article class="insight-panel" id="insight-panel-${index}" role="tabpanel" aria-labelledby="insight-tab-${index}" ${index === 0 ? "" : "hidden"}><header><span><strong>${escapeHtml(result.layerTitle)}</strong><small>${escapeHtml(result.kind)}</small></span>${selection}</header>${result.kind === "feature" && payload.point ? `<button type="button" data-feature-note="${index}">Add observation</button>` : ""}<dl>${entries.map(([key, value]) => `<div><dt>${escapeHtml(key)}</dt><dd>${escapeHtml(formatAttributeValue(value, fieldsByName.get(key), key))}</dd></div>`).join("") || "<div><dd>No attributes returned.</dd></div>"}</dl></article>`;
+        return `<article class="insight-panel" id="insight-panel-${index}" role="tabpanel" aria-labelledby="insight-tab-${index}" ${index === 0 ? "" : "hidden"}><header><span><strong>${escapeHtml(result.layerTitle)}</strong><small>${escapeHtml(result.kind)}</small></span>${selection}</header>${result.kind === "feature" && payload.point ? `<button type="button" data-feature-note="${index}">Add field observation</button><button type="button" data-feature-map-note="${index}">Add Map Note</button>` : ""}<dl>${entries.map(([key, value]) => `<div><dt>${escapeHtml(key)}</dt><dd>${escapeHtml(formatAttributeValue(value, fieldsByName.get(key), key))}</dd></div>`).join("") || "<div><dd>No attributes returned.</dd></div>"}</dl></article>`;
       }).join("");
     document.querySelector(".orbital-insight-details")?.remove();
     this.#renderIntelligenceContents();
@@ -6059,6 +6067,14 @@ export class UIController {
       document.querySelectorAll("[data-ai-selection]").forEach((input) =>
         input.addEventListener("change", () => this.#setInsightSelection(Number(input.dataset.aiSelection), input.checked)),
       );
+      document.querySelectorAll("[data-feature-map-note]").forEach(button => button.addEventListener("click", () => {
+        const result = visibleResults[Number(button.dataset.featureMapNote)];
+        const layer = result && this.mapController.getLayer(result.layerUid);
+        const feature = noteFeatureReference(result, layer, layer && this.mapController.getLayerConfig(layer));
+        const target = feature ? { type: feature.featureId ? "feature" : "dataset", datasetId: feature.datasetId, ...(feature.featureId ? { featureId: feature.featureId } : {}), ...(feature.sourceUrl ? { sourceUrl: feature.sourceUrl } : {}) } : null;
+        if (!target) this.toast("Enter a dataset or feature ID to link this Map Note.");
+        openDataMapNotesPanel(this, { target });
+      }));
       void this.mapController.highlightFeature(visibleResults[0], { pulse: false });
     } else {
       this.mapController.clearFeatureHighlight();
@@ -6324,6 +6340,14 @@ export class UIController {
   #showProject(project, state = "Local") {
     document.querySelector("#project-name").textContent = project.name;
     document.querySelector("#save-state").textContent = state;
+  }
+
+  openDataMapNotesWorkspace(content) {
+    this.dataMapNotesOpen = true;
+    const pane = document.querySelector("#utility-data-notes-content");
+    pane.innerHTML = content;
+    this.#syncUtilityPanel("data-notes");
+    return pane;
   }
 
   openMapNotesWorkspace(content) {

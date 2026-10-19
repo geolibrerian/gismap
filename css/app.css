@@ -2413,3 +2413,5 @@ body.map-notes-authoring #viewDiv canvas { cursor: crosshair !important; }
 .map-notes-panel button:disabled { opacity: .55; cursor: not-allowed; }
 
 .map-note-qr { display: block; width: min(100%, 560px); height: auto; image-rendering: pixelated; background: #fff; }
+/* Keep the data notes pane in the flexible row even when its tab bar is hidden. */
+body.utility-panel-open .utility-panel:has([data-utility-pane="data-notes"]:not([hidden])) .utility-panes { grid-row: 3; }

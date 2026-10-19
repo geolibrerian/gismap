@@ -59,7 +59,7 @@ test('the note mode uses a workspace pane without a nested form', async () => {
   const { readFile } = await import('node:fs/promises');
   const source = await readFile(new URL('../js/map-notes-panel.js', import.meta.url), 'utf8');
   const html = await readFile(new URL('../index.html', import.meta.url), 'utf8');
-  assert.match(html, /data-action="mode-map-notes">Field Notes/); assert.match(html, /Map Notes · coming soon/); assert.doesNotMatch(html, /data-action="tools-map-notes"/); assert.match(source, /openMapNotesWorkspace/);
+  assert.match(html, /data-action="mode-map-notes">Field Notes/); assert.match(html, /data-action="mode-data-map-notes">Map Notes/); assert.doesNotMatch(html, /data-action="tools-map-notes"/); assert.match(source, /openMapNotesWorkspace/);
   assert.match(source, /data-note-save/); assert.doesNotMatch(source, /<form\b/);
   assert.match(source, /escape\(item\.body\)/); assert.match(source, /32 \* 1024 \* 1024/);
   assert.match(source, /<textarea data-session-description/);

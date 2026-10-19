@@ -8,7 +8,9 @@ The existing field-session workflow is now labelled **Field Notes** in the Modes
 
 A new, separate project-local `project.mapNotes` array and `projectManager.mapNotes` registry hold data-review notes, using `data-map-note-v1.schema.json`. Project load validates both collections before changing the map; old projects get an empty new collection. Data notes have feature, dataset, service or coordinate targets and editable human categories/status. This first schema intentionally rejects unknown fields, attachments and proposed actions rather than discarding them. Its events include identifiers and counts, not note text. Saved projects can include both collections; the field-only JSON/link/report paths still export only the legacy observation records.
 
-**Not yet delivered:** a separate Map Notes editor or actions, a shared typed geographic-relationship/identity core, cross-links, a standalone Field Notes schema and independent persistence implementation, API/agent permission scopes, or migration tooling. Map Notes is explicitly marked coming soon in the menu. The new registry is not exposed as an agent API. Field Notes can still reference an identified feature but do not execute edits. No new public sharing or automatic AI exposure is introduced.
+A separate **Map Notes** workspace now creates and reviews dataset, feature, service and location notes, independently of the Field Notes tab. The Map Insights feature action can start a note with its available stable identifiers. Notes belong to the current project; users must save an unsaved project to retain them. Field Notes remain the existing location-observation workflow.
+
+**Not yet delivered:** a shared typed geographic-relationship/identity core, cross-links, a standalone Field Notes schema and independent persistence implementation, API/agent permission scopes, or migration tooling. The new registry is not exposed as an agent API. Field Notes can still reference an identified feature but do not execute edits. No new public sharing or automatic AI exposure is introduced.
 
 ## Phase 2: Field Notes MVP
 
@@ -16,7 +18,7 @@ Continue local field collection and existing JSON, QR and basic PDF work, then a
 
 ## Phase 3: Map Notes MVP
 
-Provide a separate data-review editor and data-target exploration, categories, review and links to Field Notes. Introduce a separately validated Proposed Change entity; preview and validation must not apply edits. Check schema, permissions, conflicts, source revision, explicit approval and auditability before any eventual execution. Read-only services must not be modified; export/stage patches instead.
+Expand the initial data-review editor with richer data-target exploration and links to Field Notes. Introduce a separately validated Proposed Change entity; preview and validation must not apply edits. Check schema, permissions, conflicts, source revision, explicit approval and auditability before any eventual execution. Read-only services must not be modified; export/stage patches instead.
 
 ## Phases 4–5: AI and shared services
 
