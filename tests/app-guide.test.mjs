@@ -29,7 +29,7 @@ test("every display setting the assistant may change is a Layout & display setti
 
 test("a question about the selection outline finds Layout & display", () => {
   const [first] = searchGuide("when a polygon is selected I want just the outline of the selection, where do I adjust that?");
-  assert.equal(first.where, "Project → Layout & display…");
+  assert.equal(first.where, "Map → Layout & display…");
   assert.match(first.what, /Outline only/);
 });
 
@@ -42,15 +42,15 @@ test("display settings are checked before they change", () => {
 });
 
 test("the assistant knows the menus and can change a display setting", () => {
-  assert.match(buildAssistantInstructions(), /Project: .*Layout & display…/);
+  assert.match(buildAssistantInstructions(), /Map: .*Layout & display…/);
   for (const name of ["app_help", "get_display_settings", "change_display_setting"]) assert.ok(ASSISTANT_TOOLS.some((tool) => tool.name === name), name);
   const changes = [];
   const tools = createAssistantTools({ api: {}, getDisplaySettings: () => ({ highlightStyle: "fill" }), setDisplaySetting: (key, value) => changes.push([key, value]) });
   assert.equal(tools.get_display_settings().highlightStyle, "fill");
-  assert.deepEqual(tools.change_display_setting({ setting: "highlightStyle", value: "outline" }), { highlightStyle: "outline", where: "Project → Layout & display…" });
+  assert.deepEqual(tools.change_display_setting({ setting: "highlightStyle", value: "outline" }), { highlightStyle: "outline", where: "Map → Layout & display…" });
   assert.deepEqual(changes, [["highlightStyle", "outline"]]);
   assert.throws(() => tools.change_display_setting({ setting: "highlightStyle", value: "dotted" }), /not a value/);
-  assert.equal(tools.app_help({ question: "selection outline" }).matches[0].where, "Project → Layout & display…");
+  assert.equal(tools.app_help({ question: "selection outline" }).matches[0].where, "Map → Layout & display…");
 });
 
 test("the assistant switches modes and skins, saves, shares and downloads", async () => {

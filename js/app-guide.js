@@ -5,7 +5,7 @@ import { INTERFACE_SKINS } from "./skin-catalog.js?v=0.44.2";
  * the Layout & display dialog in ui.js: a test checks the menu labels.
  */
 
-/** The display settings the assistant may change (Project → Layout & display…), with their allowed values. */
+/** The display settings the assistant may change (Map → Layout & display…), with their allowed values. */
 export const DISPLAY_SETTINGS = Object.freeze({
   appearance: { label: "Appearance", values: ["system", "light", "dark"] },
   navigationLayout: { label: "Application navigation", values: ["side", "top"] },
@@ -27,14 +27,14 @@ export const APP_GUIDE = Object.freeze([
   { path: "Project → Share & export… · Share map link & QR… · Map PDF", keywords: "share export qr code pdf print image", text: "Share a link or QR code, or export the map as a PDF." },
   { path: "Project → Download project… · Import project, tour, or Smart Image · Export guided tour (.gmoatlas)", keywords: "download import export file gmo gmop gmoatlas backup", text: "Save the project or a tour as a file, and open one again." },
   { path: "Project → Open from a photo or QR code…", keywords: "photo qr scan image", text: "Opens a map from a Smart Image or a photo of its QR code." },
-  { path: "Project → Layout & display…", keywords: "settings layout display appearance dark mode light theme navigation top side panel insight table position dock selection highlight outline fill polygon colour color crosshair click marker default basemap engine", text: "Display settings: appearance (system, light, dark), navigation (side panel or top bar), Map Insight and attribute table positions, default basemap, map engine, dark basemap in dark mode, and Map click feedback: crosshair on click, highlight of the selected feature, Selection style (Filled polygon with outline, or Outline only) and the feedback colour.", setting: true },
-  { path: "Project → ArcGIS connections", keywords: "arcgis sign in login account portal enterprise token", text: "Connect an ArcGIS Online or Enterprise account to use secured layers." },
-  { path: "Project → Configure AI", keywords: "ai model ollama openai anthropic key provider assistant settings", text: "Choose the AI model the Map assistant uses: Ollama on this computer, or a provider with your own key." },
-  { path: "Project → Load custom JavaScript tool", keywords: "custom tool javascript plugin script", text: "Loads your own JavaScript tool into the app." },
+  { path: "Map → Layout & display…", keywords: "settings layout display appearance dark mode light theme navigation top side panel insight table position dock selection highlight outline fill polygon colour color crosshair click marker default basemap engine", text: "Display settings: appearance (system, light, dark), navigation (side panel or top bar), Map Insight and attribute table positions, default basemap, map engine, dark basemap in dark mode, an optional Map Insight dismissal distance, and Map click feedback: crosshair on click, highlight of the selected feature, Selection style (Filled polygon with outline, or Outline only) and the feedback colour.", setting: true },
+  { path: "Tools → ArcGIS Online / Portal connections", keywords: "arcgis sign in login account portal enterprise token", text: "Connect an ArcGIS Online or Enterprise account to use secured layers." },
+  { path: "Tools → Connect to AI", keywords: "ai model ollama openai anthropic key provider assistant settings", text: "Choose the AI model the Map assistant uses: Ollama on this computer, or a provider with your own key." },
+  { path: "Tools → Run JavaScript tool…", keywords: "custom tool javascript plugin script", text: "Loads your own JavaScript tool into the app." },
   { path: "Project → About this build", keywords: "about version build", text: "Shows the version." },
   // Data menu
-  { path: "Data → Add KML / KMZ / zipped SHP / GeoJSON", keywords: "file upload kml kmz shapefile shp geojson local", text: "Adds a file from this computer." },
-  { path: "Data → Add GeoJSON URL / feed", keywords: "geojson url feed", text: "Adds GeoJSON from a web address." },
+  { path: "Data → Add local spatial file", keywords: "file upload kml kmz shapefile shp geojson local", text: "Adds a file from this computer." },
+  { path: "Data → Add GeoJSON / GeoParquet URL", keywords: "geojson url feed", text: "Adds GeoJSON from a web address." },
   { path: "Data → Add ArcGIS REST service", keywords: "arcgis rest featureserver mapserver imageserver service url layer add", text: "Adds an ArcGIS FeatureServer, MapServer or ImageServer layer by URL." },
   { path: "Data → Add WMS service · Add WFS service", keywords: "wms wfs ogc", text: "Adds an OGC WMS or WFS service." },
   { path: "Data → Popular data services", keywords: "popular datasets examples catalog public data", text: "Curated public datasets to add in one click." },
@@ -50,10 +50,10 @@ export const APP_GUIDE = Object.freeze([
   { path: "Modes → Briefing mode · Tours mode · Field tasks · Standard map", keywords: "briefing tour atlas field task mode workflow", text: "Switches the app between its modes: briefings (slides), guided tours, field tasks, or the standard map." },
   // Tools menu
   { path: "Tools → Map assistant", keywords: "assistant chat ai", text: "Opens this assistant." },
-  { path: "Tools → Legend · Measurement · Elevation profile · Compass · 3D basemap gallery", keywords: "legend measure distance area elevation profile compass gallery widget", text: "Map tools (ArcGIS engine)." },
+  { path: "Tools → Legend · Measurement · Elevation profile · Compass", keywords: "legend measure distance area elevation profile compass gallery widget", text: "Map tools; availability depends on the map engine." },
   // Panels
   { path: "Side panel → Places", keywords: "search address place find geocode go to coordinates", text: "Search for an address, place or longitude, latitude. On MapLibre, press Enter to search." },
-  { path: "Side panel → Intelligence (Map Insight)", keywords: "click identify feature info popup insight attributes", text: "Click the map to see the features there and the address. The selected feature is highlighted, as set in Project → Layout & display…." },
+  { path: "Side panel → Intelligence (Map Insight)", keywords: "click identify feature info popup insight attributes", text: "Click the map to see the features there and the address. The selected feature is highlighted, as set in Map → Layout & display…." },
   { path: "Side panel → Layers", keywords: "layers style symbology filter opacity table remove order", text: "Each layer's menu changes its style, filter and opacity, opens its attribute table, or removes it." },
 ]);
 

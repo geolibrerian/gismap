@@ -123,7 +123,7 @@ export class AIController {
     // Remove credentials saved by the foundation build. Secrets now remain in memory only.
     sessionStorage.removeItem(LEGACY_CONFIG_KEY);
     this.events.subscribe("identify:complete", (payload) => {
-      this.lastContext = payload;
+      if (payload.intelligenceCurrent !== false) this.lastContext = payload;
     });
     this.events.subscribe("identify:cleared", () => { this.lastContext = null; });
   }

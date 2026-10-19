@@ -1,7 +1,7 @@
 import { googleMapsLinkForChapter } from "./google-maps-link.js?v=0.53.0";
 import { POPULAR_SERVICES } from "./catalog.js?v=0.18.2";
-import { MapAssistantPanel } from "./assistant-panel.js?v=0.53.0";
-import { createAssistantTools, summarizeMapState } from "./map-assistant.js?v=0.53.0";
+import { MapAssistantPanel } from "./assistant-panel.js?v=0.54.0-pan2";
+import { createAssistantTools, summarizeMapState } from "./map-assistant.js?v=0.54.0-pan2";
 import { ENTERPRISE_CATALOGS, EnterpriseCatalog, normalizeArcGisDirectoryUrl } from "./enterprise-catalog.js?v=0.18.2";
 import { createShareUrl } from "./share.js?v=0.54.0-unified4";
 import { createShareLink, hasDataFilter } from "./map-share.js?v=0.54.0-unified4";
@@ -59,6 +59,7 @@ export class UIController {
     this.lastPlaceLabel = "";
     this.searchSelection = -1;
     this.lastInsight = null;
+    this.intelligenceInsight = null;
     this.selectedInsightIndexes = new Set();
     this.insightIsolation = null;
     this.lastAIResponseText = null;
@@ -600,6 +601,7 @@ export class UIController {
       this.#applyPresentation(this.projectManager.setPresentation({ ...current, primaryLayerId: layer.uid, title: current.title || `${layer.title || "Feature"} briefing` }));
     });
     this.events.subscribe("identify:start", () => {
+      this.intelligenceInsight = null;
       this.#clearInsightIsolation();
       this.mapController.clearFeatureHighlight();
       document.querySelector("#insights-overlay").setAttribute("aria-busy", "true");
@@ -612,25 +614,33 @@ export class UIController {
         this.#setInsightsOpen(false);
         return;
       }
+      this.intelligenceInsight = payload.intelligenceCurrent === false ? null : payload;
+      if (payload.insightCurrent === false) {
+        this.identifyPending = false;
+        document.querySelector("#insights-overlay").setAttribute("aria-busy", "false");
+        this.#renderIntelligenceContents();
+        return;
+      }
       this.#renderInsight(payload);
     });
     this.events.subscribe("identify:cleared", () => {
-      const hadInsight = Boolean(this.lastInsight);
-      this.lastInsight = null;
+      // Map Insight and its selected features are independent of the Intelligence
+      // panel. A pan invalidates only the latter, including any pending AI reply.
+      this.intelligenceInsight = null;
       this.identifyPending = false;
       this.aiPending = false;
       this.lastAIResponseText = null;
       this.lastAIQueryText = null;
-      this.selectedInsightIndexes.clear();
-      if (hadInsight) {
-        this.#clearInsightIsolation();
-        this.mapController.clearFeatureHighlight();
-        this.mapController.clearClickMarker();
-        document.querySelector("#insights-content").replaceChildren();
-        this.#setInsightsOpen(false);
-      }
-      document.querySelector("#insights-overlay").setAttribute("aria-busy", "false");
       this.#renderIntelligenceContents();
+    });
+    this.events.subscribe("insight:distance-exceeded", () => {
+      this.lastInsight = null;
+      this.selectedInsightIndexes.clear();
+      document.querySelector("#insights-content").replaceChildren();
+      this.#clearInsightIsolation();
+      this.mapController.clearFeatureHighlight();
+      this.#setInsightsOpen(false);
+      document.querySelector(".orbital-insight-details")?.remove();
     });
     this.events.subscribe("table:open", () => {
       this.#clearInsightIsolation();
@@ -649,12 +659,12 @@ export class UIController {
       this.toast("Asking the configured model…");
     });
     this.events.subscribe("ai:complete", ({ text, context }) => {
-      if (context !== this.lastInsight) return;
+      if (context !== this.intelligenceInsight) return;
       this.aiPending = false;
       this.#showAIResponse(text);
     });
     this.events.subscribe("ai:error", ({ error, context }) => {
-      if (context !== this.lastInsight) return;
+      if (context !== this.intelligenceInsight) return;
       this.aiPending = false;
       this.#renderIntelligenceContents();
       this.error(error.message);
@@ -1108,6 +1118,18 @@ export class UIController {
           break;
         case "data-popular":
           this.#popularDataDialog();
+          break;
+        case "game-dragons":
+          this.openDialog({ eyebrow: "Games", title: "Here be dragons", content: '<iframe class="dragon-game-frame" src="/dragons/" title="Here be dragons game"></iframe>' });
+          if (this.dialog.classList.contains("app-dialog--docked")) this.#reopenDialog(false);
+          {
+            const stopGame = () => {
+              if (this.dialog.open) return;
+              this.dialog.querySelector(".dragon-game-frame")?.remove();
+              this.dialog.removeEventListener("close", stopGame);
+            };
+            this.dialog.addEventListener("close", stopGame);
+          }
           break;
         case "tools-custom":
           this.#customToolDialog();
@@ -1851,6 +1873,8 @@ export class UIController {
     try {
       const saved = JSON.parse(localStorage.getItem(DISPLAY_SETTINGS_KEY)) ?? {};
       return {
+        insightDismissEnabled: saved.insightDismissEnabled !== false,
+        insightDismissMiles: Number.isFinite(saved.insightDismissMiles) && saved.insightDismissMiles >= 1 && saved.insightDismissMiles <= 12450 ? saved.insightDismissMiles : 75,
         insightPosition: INSIGHT_POSITIONS.has(saved.insightPosition) ? saved.insightPosition : "upper-left",
         defaultBasemap: BASEMAP_IDS.has(saved.defaultBasemap) ? saved.defaultBasemap : "topo-3d",
         insightDockWidth: Number.isFinite(saved.insightDockWidth) ? Math.min(720, Math.max(300, saved.insightDockWidth)) : 420,
@@ -1870,7 +1894,7 @@ export class UIController {
         drawPanelVisible: saved.drawPanelVisible === true,
       };
     } catch {
-      return { insightPosition: "upper-left", defaultBasemap: "topo-3d", insightDockWidth: 420, insightDockHeight: 360, tablePosition: "overlay-bottom", tableDockWidth: 520, tableDockHeight: 420, highlightEnabled: true, clickMarkerEnabled: true, highlightColor: "#00b8d9", highlightStyle: "fill", navigationLayout: "side", utilityPanelWidth: 360, appearance: "system", darkBasemapEnabled: false, bookmarksPanelVisible: false, drawPanelVisible: false };
+      return { insightDismissEnabled: true, insightDismissMiles: 75, insightPosition: "upper-left", defaultBasemap: "topo-3d", insightDockWidth: 420, insightDockHeight: 360, tablePosition: "overlay-bottom", tableDockWidth: 520, tableDockHeight: 420, highlightEnabled: true, clickMarkerEnabled: true, highlightColor: "#00b8d9", highlightStyle: "fill", navigationLayout: "side", utilityPanelWidth: 360, appearance: "system", darkBasemapEnabled: false, bookmarksPanelVisible: false, drawPanelVisible: false };
     }
   }
 
@@ -1906,6 +1930,7 @@ export class UIController {
       this.mapController.setBasemap(resolvedTheme === "dark" ? "navigation-dark-3d" : settings.defaultBasemap);
     }
     this.mapController.configureInteractionFeedback(settings);
+    this.events.publish("display:insight-dismiss-distance", { miles: settings.insightDismissEnabled ? settings.insightDismissMiles : null });
     requestAnimationFrame(() => this.mapController.resize());
   }
 
@@ -1943,6 +1968,7 @@ export class UIController {
         <label class="field"><span>Map engine</span><select id="map-engine">${this.#engineOptionsMarkup()}</select></label>
       </div>
       <label class="display-checkbox"><input id="dark-basemap-enabled" type="checkbox" ${current.darkBasemapEnabled ? "checked" : ""} /><span>Use a dark basemap when dark mode is enabled</span></label>
+      <fieldset class="feedback-settings"><legend>Map Insight while navigating</legend><label class="display-checkbox"><input id="insight-dismiss-enabled" type="checkbox" ${current.insightDismissEnabled ? "checked" : ""} /><span>Close Map Insight after panning beyond a distance</span></label><label class="field"><span>Distance (miles)</span><input id="insight-dismiss-miles" type="number" min="1" max="12450" step="1" value="${current.insightDismissMiles}" /></label><p class="form-note">Measured from the map center when the feature was identified. Zooming to a feature from Map Insight keeps it open. Intelligence clears after any pan.</p></fieldset>
       <fieldset class="feedback-settings"><legend>Map click feedback</legend><label class="display-checkbox"><input id="click-marker-enabled" type="checkbox" ${current.clickMarkerEnabled ? "checked" : ""} /><span>Show a crosshair where the map is clicked</span></label><label class="display-checkbox"><input id="highlight-enabled" type="checkbox" ${current.highlightEnabled ? "checked" : ""} /><span>Highlight the feature selected in Map Insight</span></label><label class="field"><span>Selection style</span><select id="highlight-style"><option value="fill"${current.highlightStyle === "outline" ? "" : " selected"}>Filled polygon with outline</option><option value="outline"${current.highlightStyle === "outline" ? " selected" : ""}>Outline only</option></select></label><label class="highlight-color"><span>Feedback color</span><input id="highlight-color" type="color" value="${current.highlightColor}" /><output>${current.highlightColor.toUpperCase()}</output></label></fieldset>
       <label class="display-checkbox"><input id="apply-default-basemap" type="checkbox" /><span>Apply the default basemap to the current map</span></label><p class="form-note">Docked panels resize the map instead of covering it. Sizes, navigation, appearance, and feedback preferences are saved in this browser.</p>`,
       actions: [{ label: "Save settings", primary: true, handler: async () => {
@@ -1951,7 +1977,9 @@ export class UIController {
         const navigationLayout = this.dialog.querySelector("#navigation-layout").value;
         const appearance = this.dialog.querySelector("#appearance").value;
         const defaultBasemap = this.dialog.querySelector("#default-basemap").value;
-        const settings = { ...this.#readDisplaySettings(), insightPosition, tablePosition, navigationLayout, appearance, defaultBasemap, darkBasemapEnabled: this.dialog.querySelector("#dark-basemap-enabled").checked, highlightEnabled: this.dialog.querySelector("#highlight-enabled").checked, clickMarkerEnabled: this.dialog.querySelector("#click-marker-enabled").checked, highlightColor: this.dialog.querySelector("#highlight-color").value, highlightStyle: this.dialog.querySelector("#highlight-style").value === "outline" ? "outline" : "fill" };
+        const insightDismissMiles = Number(this.dialog.querySelector("#insight-dismiss-miles").value);
+        if (!Number.isFinite(insightDismissMiles) || insightDismissMiles < 1 || insightDismissMiles > 12450) { this.error("Choose a Map Insight distance between 1 and 12,450 miles."); return; }
+        const settings = { ...this.#readDisplaySettings(), insightDismissEnabled: this.dialog.querySelector("#insight-dismiss-enabled").checked, insightDismissMiles, insightPosition, tablePosition, navigationLayout, appearance, defaultBasemap, darkBasemapEnabled: this.dialog.querySelector("#dark-basemap-enabled").checked, highlightEnabled: this.dialog.querySelector("#highlight-enabled").checked, clickMarkerEnabled: this.dialog.querySelector("#click-marker-enabled").checked, highlightColor: this.dialog.querySelector("#highlight-color").value, highlightStyle: this.dialog.querySelector("#highlight-style").value === "outline" ? "outline" : "fill" };
         localStorage.setItem(DISPLAY_SETTINGS_KEY, JSON.stringify(settings));
         this.#applyDisplaySettings(settings);
         if (this.dialog.querySelector("#apply-default-basemap").checked) {
@@ -5863,7 +5891,8 @@ export class UIController {
           : "";
         return `<article class="insight-panel" id="insight-panel-${index}" role="tabpanel" aria-labelledby="insight-tab-${index}" ${index === 0 ? "" : "hidden"}><header><span><strong>${escapeHtml(result.layerTitle)}</strong><small>${escapeHtml(result.kind)}</small></span>${selection}</header><dl>${entries.map(([key, value]) => `<div><dt>${escapeHtml(key)}</dt><dd>${escapeHtml(formatAttributeValue(value, fieldsByName.get(key), key))}</dd></div>`).join("") || "<div><dd>No attributes returned.</dd></div>"}</dl></article>`;
       }).join("");
-    this.#renderIntelligenceContents(payload);
+    document.querySelector(".orbital-insight-details")?.remove();
+    this.#renderIntelligenceContents();
     const overlay = document.querySelector("#insights-overlay");
     overlay.setAttribute("aria-busy", "false");
     if (results.length) {
@@ -5899,7 +5928,7 @@ export class UIController {
     }
   }
 
-  #renderIntelligenceContents(payload = this.lastInsight) {
+  #renderIntelligenceContents(payload = this.intelligenceInsight) {
     const target = document.querySelector("#intelligence-content");
     if (!target) return;
     const point = payload?.point;
@@ -5922,7 +5951,11 @@ export class UIController {
       : this.aiPending ? '<div class="loading-row ai-loading"><span></span> Generating AI insights…</div>' : "";
     const html = `${loadingHtml}${locationHtml}${aiForm}${locationReportHtml}${responseHtml}`;
     target.classList.toggle("intelligence-empty", !payload);
+    // Orbital Globe embeds Map Insight here; updating Intelligence must not
+    // destroy its tabs, selection or event handlers.
+    const orbitalInsight = target.querySelector(".orbital-insight-details");
     target.innerHTML = html;
+    if (orbitalInsight) target.append(orbitalInsight);
     target.querySelector(".ai-question")?.addEventListener("submit", (event) => {
         event.preventDefault();
         const prompt = event.currentTarget.querySelector("input").value.trim();
@@ -5943,6 +5976,7 @@ export class UIController {
 
   #askAI(prompt, payload = this.lastInsight, displayQuery = prompt) {
     if (document.body.dataset.navigationLayout === "top") this.#openIntelligenceUtility();
+    this.intelligenceInsight = payload;
     this.lastAIQueryText = displayQuery;
     this.aiController.ask(prompt, payload).catch(() => {});
   }
@@ -5963,7 +5997,11 @@ export class UIController {
       const input = document.querySelector(`[data-ai-selection="${index}"]`);
       if (input) input.checked = true;
       this.#syncInsightSelection();
-      if (result?.geometry) void this.mapController.goToFeature(result).catch(() => {});
+      if (result?.geometry) {
+        this.events.publish("insight:navigation-start", {});
+        void Promise.resolve().then(() => this.mapController.goToFeature(result))
+          .catch(() => {}).finally(() => this.events.publish("insight:navigation-end", {}));
+      }
     }
     void this.mapController.highlightFeature(result, { pulse: true });
   }

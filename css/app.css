@@ -2373,3 +2373,6 @@ body.sidebar-collapsed .table-dialog { left: 14px; }
 .query-workspace { container-type: inline-size; }
 @container (max-width: 480px) { .query-grid { grid-template-columns: minmax(0, 1fr); } }
 .table-dialog .dialog__header > div { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* The game uses its existing standalone page in the shared dialog. */
+.dragon-game-frame { display:block; width:100%; height:min(72dvh, 850px); min-height:400px; border:0; border-radius:8px; background:var(--paper); }

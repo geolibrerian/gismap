@@ -8,7 +8,7 @@
 
 import { describeArcgisLayer, describeFields, isArcgisLayerUrl, summarizeArcgisField } from "./layer-insight.js?v=0.50.0";
 import { INTERFACE_SKINS } from "./skin-catalog.js?v=0.44.2";
-import { DISPLAY_SETTINGS, guideOutline, searchGuide, validateDisplaySetting } from "./app-guide.js?v=0.52.0";
+import { DISPLAY_SETTINGS, guideOutline, searchGuide, validateDisplaySetting } from "./app-guide.js?v=0.54.0-pan2";
 
 const MAX_RESULT = 6000;
 const STEP_LIMIT = 10;
@@ -58,7 +58,7 @@ export const ASSISTANT_TOOLS = Object.freeze([
     parameters: { type: "object", required: ["title", "steps"], properties: { title: { type: "string" }, notes: { type: "string", description: "Instructions, at most 500 characters." }, steps: { type: "array", maxItems: 10, items: { type: "string" } }, location: { type: "string" }, longitude: { type: "number" }, latitude: { type: "number" }, features: { type: "array", maxItems: 5, items: { type: "object", required: ["layer", "objectId"], properties: { layer: layerRef, objectId: { type: ["number", "string"] }, label: { type: "string" } } } } } },
   },
   { name: "app_help", description: "Where a menu, setting or feature of GIS Map Online is and what it does. Call it for any question about the app itself (how do I…, where is…, can I change…) before answering; never guess menu names.", parameters: { type: "object", required: ["question"], properties: { question: { type: "string" } } } },
-  { name: "get_display_settings", description: "The current display settings (Project → Layout & display…): appearance, navigation, panel positions, and map click feedback such as the selection style.", parameters: { type: "object", properties: {} } },
+  { name: "get_display_settings", description: "The current display settings (Map → Layout & display…): appearance, navigation, panel positions, and map click feedback such as the selection style.", parameters: { type: "object", properties: {} } },
   { name: "change_display_setting", description: "Change one display setting for the user, such as the selection style (highlightStyle: fill or outline), the feedback colour or dark mode.", parameters: { type: "object", required: ["setting", "value"], properties: { setting: { enum: Object.keys(DISPLAY_SETTINGS) }, value: { type: ["string", "boolean"], description: Object.entries(DISPLAY_SETTINGS).map(([key, definition]) => `${key}: ${Array.isArray(definition.values) ? definition.values.join("|") : definition.values}`).join("; ") } } } },
   { name: "set_mode", description: "Switch the app's mode: briefing (slides), tours (guided tours), tasks (field tasks) or map (the standard map).", parameters: { type: "object", required: ["mode"], properties: { mode: { enum: ["briefing", "tours", "tasks", "map"] } } } },
   { name: "set_skin", description: "Change the interface skin (the app's look, also used by the Skin basemap on MapLibre). Kept with the project.", parameters: { type: "object", required: ["skin"], properties: { skin: { enum: INTERFACE_SKINS.map(({ id }) => id), description: INTERFACE_SKINS.map(({ id, label, description }) => `${id} = ${label} (${description})`).join("; ") } } } },
@@ -402,7 +402,7 @@ export function createAssistantTools(host) {
       const checked = validateDisplaySetting(setting, value);
       if (checked instanceof Error) throw checked;
       host.setDisplaySetting(checked.key, checked.value);
-      return { [checked.key]: checked.value, where: "Project → Layout & display…" };
+      return { [checked.key]: checked.value, where: "Map → Layout & display…" };
     },
     set_mode({ mode }) {
       if (!["briefing", "tours", "tasks", "map"].includes(mode)) throw Object.assign(new Error(`Unknown mode "${mode}".`), { hint: "Use briefing, tours, tasks or map." });
