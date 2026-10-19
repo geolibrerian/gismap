@@ -1,3 +1,4 @@
+import { openMapNotesPanel } from "./map-notes-panel.js?v=0.2.1";
 import { googleMapsLinkForChapter } from "./google-maps-link.js?v=0.53.0";
 import { POPULAR_SERVICES } from "./catalog.js?v=0.18.2";
 import { MapAssistantPanel } from "./assistant-panel.js?v=0.54.0-pan2";
@@ -528,7 +529,10 @@ export class UIController {
     this.events.subscribe("map:ready", ({ zoom }) => {
       document.querySelector("#map-status").textContent = `Ready · zoom ${zoom.toFixed(1)}`;
     });
-    this.events.subscribe("map:click", () => this.#dismissWelcome());
+    this.events.subscribe("map:click", ({ mapPoint }) => {
+      this.#dismissWelcome();
+      this.mapNotePoint = Number.isFinite(mapPoint?.longitude) && Number.isFinite(mapPoint?.latitude) ? [((mapPoint.longitude + 180) % 360 + 360) % 360 - 180, mapPoint.latitude] : null;
+    });
     this.events.subscribe("view:scale-change", () => this.#updateLayerScaleIndicators());
     this.events.subscribe("view:stationary", () => {
       if (["explorer", "briefing"].includes(this.presentationState.template) && this.presentationState.scope === "extent") {
@@ -548,6 +552,7 @@ export class UIController {
       this.events.subscribe(topic, () => this.#renderLayers()),
     );
     this.events.subscribe("project:loaded", ({ project, missingFiles }) => {
+      this.mapNotePoint = null;
       if (project.application?.configured) {
         this.#applyPresentation({ template: "standard" });
         this.applicationRuntime.apply(project.application);
@@ -1134,6 +1139,9 @@ export class UIController {
           break;
         case "data-popular":
           this.#popularDataDialog();
+          break;
+        case "tools-map-notes":
+          openMapNotesPanel(this, { point: this.mapNotePoint });
           break;
         case "game-dragons":
           this.openDialog({ eyebrow: "Games", title: "Here be dragons", content: '<iframe class="dragon-game-frame" src="/dragons/" title="Here be dragons game"></iframe>' });
@@ -1827,6 +1835,9 @@ export class UIController {
    * otherwise cancel it silently.
    */
   async #switchEngine(engine) {
+    if (this.projectManager.current.notes?.length) {
+      if (!globalThis.confirm("Switching engines reloads the map without carrying Map Notes. Save or download this project first, then reopen it after switching. Continue?")) return;
+    }
     this.toast(`Opening this map with ${engine === "maplibre" ? "MapLibre" : "ArcGIS"}…`);
     const url = new URL(location.href);
     url.searchParams.delete("engine");
@@ -6023,8 +6034,8 @@ export class UIController {
     const responseHtml = this.lastAIResponseText
       ? `<section class="ai-response"><div class="ai-response__header"><span class="eyebrow">AI insights</span><span><button type="button" class="ai-response__download">Download report</button><button type="button" class="ai-response__clear">Clear insights</button></span></div><p class="ai-response__query"><strong>Query</strong><span>${escapeHtml(this.lastAIQueryText || "Map context query")}</span></p><div class="ai-response__markdown">${renderMarkdown(this.lastAIResponseText)}</div></section>`
       : "";
-    const locationReportHtml = payload && !this.lastAIResponseText
-      ? '<div class="intelligence-report-action"><button type="button" class="location-report-download">Download location report</button></div>'
+    const locationReportHtml = payload?.point
+      ? `<div class="intelligence-report-action"><button type="button" data-intelligence-note>Add a note</button>${!this.lastAIResponseText ? '<button type="button" class="location-report-download">Download location report</button>' : ""}</div>`
       : "";
     const loadingHtml = this.identifyPending
       ? '<div class="loading-row"><span></span> Inspecting location…</div>'
@@ -6051,6 +6062,7 @@ export class UIController {
       this.#renderIntelligenceContents();
     });
     target.querySelector(".ai-response__download")?.addEventListener("click", () => this.#downloadAIReport(payload));
+    target.querySelector("[data-intelligence-note]")?.addEventListener("click", () => openMapNotesPanel(this, { point: [payload.point.longitude, payload.point.latitude] }));
     target.querySelector(".location-report-download")?.addEventListener("click", () => this.#downloadAIReport(payload));
   }
 

@@ -1,3 +1,4 @@
+import { MapNotesRegistry, normalizeNotes } from "./map-notes.js?v=0.2.0";
 import { applicationToLegacyPresentation, normalizeApplicationConfig } from "./application-config.js?v=0.18.2";
 import { normalizeDataCatalog } from "./data-catalog.js?v=0.18.2";
 import { normalizeSkin, normalizeSkinColors } from "./skin-catalog.js?v=0.52.3";
@@ -42,6 +43,7 @@ export class ProjectManager {
     this.mapController = mapController;
     this.authController = authController;
     this.current = this.#blank("Untitled project");
+    this.notes = new MapNotesRegistry({ project: () => this.current, events, persist: () => this.persistCurrentIfSaved() });
   }
 
   #blank(name) {
@@ -58,6 +60,7 @@ export class ProjectManager {
       view: { type: "scene", center: [-98.5, 39.5], zoom: 4, heading: 0, tilt: 35 },
       layers: [],
       bookmarks: [],
+      notes: [],
       tools: [],
       ai: { provider: null, model: null },
       connections: [],
@@ -131,6 +134,8 @@ export class ProjectManager {
     if (!project || project.version !== 1 || !Array.isArray(project.layers)) {
       throw new Error("This is not a supported GIS Map Online project file.");
     }
+    // Validate before changing the current map or accepting an imported project.
+    const notes = normalizeNotes(project.notes ?? []);
     this.authController?.importConnections(project.connections ?? []);
     await this.mapController.clearOperationalLayers();
     this.mapController.setDefaultBasemap(project.defaultBasemap || this.mapController.getDefaultBasemapId());
@@ -179,6 +184,7 @@ export class ProjectManager {
     }
 
     this.current = structuredClone(project);
+    this.current.notes = notes;
     this.current.presentation = this.#presentation(project.presentation);
     this.current.application = project.application?.configured === true
       ? normalizeApplicationConfig(project.application)
