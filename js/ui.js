@@ -1,4 +1,5 @@
-import { openDataMapNotesPanel } from "./data-map-notes-panel.js?v=0.3.0";
+import { openDataMapNotesPanel } from "./data-map-notes-panel.js?v=0.4.0";
+import { refreshMapNoteWorkflow } from "./map-note-workflow-ui.js?v=0.1.0";
 import { noteFeatureReference } from './map-note-feature.js?v=0.1.0';
 import { openMapNotesPanel } from "./map-notes-panel.js?v=0.12.0";
 import { refreshNoteRelationships } from "./note-relationships-ui.js?v=0.1.0";
@@ -585,6 +586,9 @@ export class UIController {
     );
     ["notes:changed", "map-notes:changed", "note-relationships:changed"].forEach(topic =>
       this.events.subscribe(topic, () => refreshNoteRelationships(this)),
+    );
+    ["map-notes:changed", "note-relationships:changed", "mobile:workflow-changed"].forEach(topic =>
+      this.events.subscribe(topic, () => refreshMapNoteWorkflow(this)),
     );
     this.events.subscribe("project:loaded", ({ project, missingFiles }) => {
       this.mapNotePoint = null;

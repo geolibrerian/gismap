@@ -42,3 +42,33 @@ test('failed persistence rolls back the data registry without altering field not
   assert.throws(() => registry.create({ body: 'data', target: { type: 'dataset', datasetId: 'd' } }), /storage full/);
   assert.deepEqual(project, { notes: [{ id: 'old' }], mapNotes: [] });
 });
+
+test('project-scoped notes need no geometry or fabricated data identity and survive reload', async () => {
+  const manager = new ProjectManager(events, map); manager.mapNotes.persist = () => {};
+  const note = manager.mapNotes.create({ body: 'Review sidewalk classifications', tags: ['quality'], target: { type: 'project' } });
+  assert.equal(note.schemaVersion, '2.0');
+  assert.throws(() => normalizeDataMapNote({ ...note, schemaVersion: '1.0' }), /Unsupported/);
+  assert.deepEqual(note.target, { type: 'project' });
+  await manager.load(manager.snapshot());
+  assert.deepEqual(manager.mapNotes.get(note.id).target, { type: 'project' });
+  assert.deepEqual(manager.mapNotes.get(note.id).tags, ['quality']);
+});
+
+test('workflow status is derived from linked task statuses without changing tags or resolving notes', () => {
+  const project = { mapNotes: [], noteRelationships: [], mobile: { fieldTasks: [] } };
+  const registry = new DataMapNotesRegistry({ project: () => project });
+  const note = registry.create({ body: 'Inspect', tags: ['verified'], target: { type: 'project' } });
+  const links = ['a', 'b', 'c'].map((id, i) => ({ schemaVersion: '2.0', id: `l${i}`, source: { type: 'map-note', id: note.id }, target: { type: 'field-task', id }, relation: 'requests_verification' }));
+  project.noteRelationships = links;
+  project.mobile.fieldTasks = [{ id: 'a', status: 'returned' }, { id: 'b', status: 'completed' }, { id: 'c', status: 'in-progress' }];
+  const summary = registry.getWorkflowSummary(note.id);
+  assert.deepEqual([summary.taskCount, summary.completed, summary.returned, summary.outstanding], [3, 2, 1, 1]);
+  assert.deepEqual(summary.indicators, ['task-created', 'task-outstanding', 'awaiting-return']);
+  assert.deepEqual(registry.get(note.id).tags, ['verified']); assert.equal(registry.get(note.id).status, 'open');
+  project.mobile.fieldTasks.pop();
+  assert.equal(registry.getWorkflowSummary(note.id).missing, 1);
+  assert.ok(!registry.getWorkflowSummary(note.id).indicators.includes('task-completed'));
+  project.mobile.fieldTasks.push({ id: 'c', status: 'returned' }); project.mobile.fieldTasks[1].status = 'returned';
+  assert.deepEqual(registry.getWorkflowSummary(note.id).indicators, ['task-created', 'task-completed', 'task-returned']);
+  assert.equal(registry.get(note.id).status, 'open');
+});
