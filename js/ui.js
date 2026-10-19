@@ -25,7 +25,7 @@ import { BriefingSlides } from "./briefing-slides.js?v=0.53.0";
 import { createSlide, matchesFilter, normalizeFilter } from "./briefing-document.js?v=0.35.0";
 import { aiDescriptionPrompt, applyAiDescriptions, describeWhere, generateBriefing, readAiDescriptions, rendererTheme } from "./briefing-generator.js?v=0.36.1";
 import { briefingFileStem } from "./briefing-pdf.js?v=0.44.2";
-import { RAMPS, rampColors } from "./renderer-spec.js?v=0.29.0";
+import { RAMPS, rampColors, compileRenderer } from "./renderer-spec.js?v=0.29.1";
 import { saveEngine } from "./engine-preference.js?v=0.52.1";
 import { BASEMAPS } from "./basemap-catalog.js?v=0.53.0-gallery1";
 
@@ -312,6 +312,13 @@ export class UIController {
         this.#closeMenus();
       }),
     );
+    document.querySelectorAll("[data-panel-top-nav]").forEach((button) => button.addEventListener("click", () => {
+      const settings = { ...this.#readDisplaySettings(), navigationLayout: document.body.dataset.navigationLayout === "top" ? "side" : "top" };
+      localStorage.setItem(DISPLAY_SETTINGS_KEY, JSON.stringify(settings)); this.#applyDisplaySettings(settings); this.#closeMenus();
+    }));
+    document.querySelectorAll("[data-panel-workspace]").forEach((button) => button.addEventListener("click", () => {
+      this.utilityWorkspaceOpen = true; this.#syncUtilityPanel("workspace"); this.#closeMenus();
+    }));
     document.querySelectorAll("[data-draw]").forEach((button) =>
       button.addEventListener("click", () => this.mapController.draw(button.dataset.draw)),
     );
@@ -794,6 +801,7 @@ export class UIController {
 
   #syncUtilityPanel(preferredTab = null) {
     const tabs = [
+      ...(this.utilityWorkspaceOpen ? [{ id: "workspace", label: "Workspace" }] : []),
       ...this.#utilityWidgetTabs(),
       ...(this.utilityTasksOpen ? [{ id: "tasks", label: "Field tasks" }] : []),
       ...(this.utilityDialogOpen ? [{ id: "dialog", label: document.querySelector("#dialog-title")?.textContent || "Dialog" }] : []),
@@ -895,6 +903,11 @@ export class UIController {
         this.#openPanelUtility(id);
       });
       summary.append(button);
+      const close = document.createElement("button");
+      close.type = "button"; close.className = "panel-close"; close.textContent = "×";
+      close.setAttribute("aria-label", `Close ${label} panel`); close.title = `Close ${label} panel`;
+      close.addEventListener("click", (event) => { event.preventDefault(); event.stopPropagation(); this.#setOptionalPanelVisibility(shell.id, false); });
+      summary.append(close);
     }
   }
 
@@ -938,6 +951,7 @@ export class UIController {
   }
 
   #closeUtilityTab(tabId) {
+    if (tabId === "workspace") { this.utilityWorkspaceOpen = false; this.#syncUtilityPanel(); return; }
     if (tabId === "query") {
       this.utilityQueryOpen = false;
       document.querySelector("#utility-query-content")?.replaceChildren();
@@ -1039,6 +1053,8 @@ export class UIController {
       this.#dismissWelcome();
       this.#setInsightsOpen(false);
     }
+    const panel = document.getElementById(panelId);
+    if (panel?.classList.contains("is-sidebar-optional-hidden")) this.#setOptionalPanelVisibility(panelId, true, false);
     // null is the manager's intentional result when the active tool is toggled off.
     const activePanelId = this.mobilePanelManager ? this.mobilePanelManager.activate(panelId) : panelId;
     if (openSidebar) this.#setSidebarCollapsed(!activePanelId);
@@ -1892,6 +1908,9 @@ export class UIController {
         darkBasemapEnabled: saved.darkBasemapEnabled === true,
         bookmarksPanelVisible: saved.bookmarksPanelVisible === true,
         drawPanelVisible: saved.drawPanelVisible === true,
+        placesPanelVisible: saved.placesPanelVisible !== false,
+        intelligencePanelVisible: saved.intelligencePanelVisible !== false,
+        layersPanelVisible: saved.layersPanelVisible !== false,
       };
     } catch {
       return { insightDismissEnabled: true, insightDismissMiles: 75, insightPosition: "upper-left", defaultBasemap: "topo-3d", insightDockWidth: 420, insightDockHeight: 360, tablePosition: "overlay-bottom", tableDockWidth: 520, tableDockHeight: 420, highlightEnabled: true, clickMarkerEnabled: true, highlightColor: "#00b8d9", highlightStyle: "fill", navigationLayout: "side", utilityPanelWidth: 360, appearance: "system", darkBasemapEnabled: false, bookmarksPanelVisible: false, drawPanelVisible: false };
@@ -1915,6 +1934,10 @@ export class UIController {
     document.body.dataset.navigationLayout = settings.navigationLayout ?? "side";
     this.#setOptionalPanelVisibility("bookmarks-panel", settings.bookmarksPanelVisible, false);
     this.#setOptionalPanelVisibility("draw-panel", settings.drawPanelVisible, false);
+    this.#setOptionalPanelVisibility("places-panel", settings.placesPanelVisible !== false, false);
+    this.#setOptionalPanelVisibility("intelligence-panel", settings.intelligencePanelVisible !== false, false);
+    this.#setOptionalPanelVisibility("layers-panel", settings.layersPanelVisible !== false, false);
+    document.querySelectorAll("[data-panel-top-nav]").forEach((button) => { button.textContent = settings.navigationLayout === "top" ? "Use side navigation" : "Use top navigation"; button.setAttribute("aria-pressed", String(settings.navigationLayout === "top")); });
     if (settings.navigationLayout === "top") {
       document.querySelectorAll(".sidebar__scroll > .panel").forEach((panel) => { panel.open = false; });
     }
@@ -1938,17 +1961,23 @@ export class UIController {
     const panel = document.querySelector(`#${panelId}`);
     if (!panel) return;
     panel.classList.toggle("is-sidebar-optional-hidden", !visible);
+    const panelType = panelId.replace(/-panel$/, "");
+    if (save && !visible && (this.utilityPanelsOpen.has(panelType) || (panelType === "draw" && this.utilityDrawOpen) || (panelType === "intelligence" && this.utilityIntelligenceOpen))) this.#closeUtilityTab(panelType);
+    if (save && this.mobileMedia.matches) {
+      if (visible) this.#activateMobilePanel(panelId);
+      else if (this.mobilePanelManager?.activePanelId === panelId) this.mobilePanelManager.close();
+    }
     if (visible && !this.mobileMedia.matches) panel.open = true;
     document.querySelectorAll(`[data-sidebar-panel-toggle="${panelId}"]`).forEach((button) => {
-      const label = panelId === "bookmarks-panel" ? "Bookmarks" : "Draw";
+      const label = DOCKABLE_PANELS[panelId.replace(/-panel$/, "")] || panelId;
       button.textContent = `${visible ? "Hide" : "Add"} ${label} panel`;
       button.setAttribute("aria-pressed", String(visible));
     });
     if (!save) return;
-    const setting = panelId === "bookmarks-panel" ? "bookmarksPanelVisible" : "drawPanelVisible";
+    const setting = `${panelId.replace(/-panel$/, "")}PanelVisible`;
     const settings = { ...this.#readDisplaySettings(), [setting]: visible };
     localStorage.setItem(DISPLAY_SETTINGS_KEY, JSON.stringify(settings));
-    this.toast(`${visible ? "Added" : "Removed"} ${panelId === "bookmarks-panel" ? "Bookmarks" : "Draw"} panel.`);
+    this.toast(`${visible ? "Added" : "Removed"} ${DOCKABLE_PANELS[panelId.replace(/-panel$/, "")] || ""} panel.`);
   }
 
   #displaySettingsDialog() {
@@ -5633,7 +5662,6 @@ export class UIController {
     const currentField = renderer.field || this.mapController.getLayerConfig(layer)?.rendererSpec?.field;
     const savedSpec = this.mapController.getLayerConfig(layer)?.rendererSpec;
     let selectedSpec = savedSpec && ["simple", "categories", "choropleth", "graduated-symbols", "heatmap"].includes(savedSpec.type) ? structuredClone(savedSpec) : null;
-    const rendererMode = selectedSpec?.type === "heatmap" ? "heatmap" : selectedSpec?.type === "categories" || renderer.type === "unique-value" ? "categorized" : ["choropleth", "graduated-symbols"].includes(selectedSpec?.type) || renderer.type === "class-breaks" ? "graduated" : "simple";
     const representativeSymbol = renderer.symbol ?? renderer.classBreakInfos?.[0]?.symbol ?? renderer.uniqueValueInfos?.[0]?.symbol;
     const objectSymbol = representativeSymbol?.symbolLayers?.find((symbolLayer) => symbolLayer.type === "object" || symbolLayer.type === "extrude");
     const heightVariable = renderer.visualVariables?.find((variable) => variable.type === "size" && (variable.axis === "height" || layer.geometryType === "polygon"));
@@ -5646,7 +5674,7 @@ export class UIController {
       ? items.map((field) => `<option value="${escapeHtml(field.name)}"${field.name === selected ? " selected" : ""}>${escapeHtml(field.alias || field.name)} (${escapeHtml(field.name)})</option>`).join("")
       : `<option value="">${emptyLabel}</option>`;
     const rendererControls = fields.length
-      ? `<label class="field"><span>Style type</span><select data-style-mode><option value="simple"${rendererMode === "simple" ? " selected" : ""}>Simple</option><option value="categorized"${rendererMode === "categorized" ? " selected" : ""}>Categorized by field</option><option value="graduated"${rendererMode === "graduated" ? " selected" : ""}>Graduated by numeric field</option><option value="heatmap"${rendererMode === "heatmap" ? " selected" : ""}>Heat map</option></select></label><label class="field" data-style-field-control hidden><span>Style field</span><select data-style-field>${fieldOptions(fields, "No fields available", currentField || preferredNumericField?.name)}</select></label>`
+      ? `<label class="field"><span>What varies</span><select data-style-mode><option value="simple">Single symbol</option><option value="categorized">Category color</option><option value="color">Color by value</option><option value="graduated">Size by value</option><option value="size-color">Size and color by value</option><option value="heatmap">Heat map</option></select></label><label class="field" data-style-field-control hidden><span>Style field</span><select data-style-field>${fieldOptions(fields, "No fields available", currentField || preferredNumericField?.name)}</select></label>`
       : "";
     const polygonControls = layer.geometryType === "polygon"
       ? '<label class="opacity-row"><span>Fill opacity</span><input data-symbol-fill-opacity type="range" min="0" max="1" step="0.05" value="0.35" /><output>35%</output></label><label class="display-checkbox"><input data-symbol-no-fill type="checkbox" /><span>No fill — outline only</span></label>'
@@ -5654,13 +5682,13 @@ export class UIController {
     const extrudable = this.mapController.getEngineId() === "maplibre" ? layer.geometryType === "polygon" : ["polygon", "point", "multipoint"].includes(layer.geometryType);
     const extrusionControls = extrudable
       ? `<fieldset class="feedback-settings"><legend>3D extrusion</legend><label class="display-checkbox"><input data-extrusion-enabled type="checkbox"${extrusionEnabledByRenderer ? " checked" : ""} /><span>Extrude in 3D</span></label><div data-extrusion-options hidden><div class="field-grid"><label class="field"><span>Height source</span><select data-extrusion-source><option value="fixed"${initialExtrusionSource === "fixed" ? " selected" : ""}>Fixed height</option><option value="field"${initialExtrusionSource === "field" ? " selected" : ""}>Numeric field</option></select></label><label class="field" data-extrusion-value-control><span>Height <small>meters</small></span><input data-extrusion-value type="number" min="0" step="1" value="${Number(objectSymbol?.height ?? objectSymbol?.size) || 250}" /></label><label class="field" data-extrusion-field-control hidden><span>Height field</span><select data-extrusion-field>${fieldOptions(numericFields, "No numeric fields available", extrusionField)}</select></label><label class="field" data-extrusion-multiplier-control hidden><span>Height multiplier</span><input data-extrusion-multiplier type="number" min="0" step="0.01" value="${Number.isFinite(expressionMultiplier) ? expressionMultiplier : 1}" /></label>${layer.geometryType === "polygon" ? "" : `<label class="field"><span>Column width <small>meters</small></span><input data-extrusion-width type="number" min="1" step="50" value="${Number(objectSymbol?.width) || 650}" /></label>`}</div></div></fieldset>`
-      : "";
+      : `<fieldset class="feedback-settings"><legend>3D extrusion</legend><p class="form-note">${this.mapController.getEngineId() === "maplibre" && /point/i.test(layer.geometryType || "") ? "MapLibre point columns are not yet supported. Switch to ArcGIS for 3D columns." : "3D extrusion is not available for this layer’s geometry in the current engine."}</p></fieldset>`;
     // Ranked styles computed from the field's values (renderer-spec.js suggestRenderers).
     const canSuggest = fields.length && layer.queryable;
     const styleOptions = canSuggest
       ? `<section class="style-options" aria-label="Style options"><div class="style-options__head"><strong>Style options</strong><button type="button" class="link-button" data-suggest-styles>Suggest styles for this field</button></div><div class="field-grid"><label class="field"><span>Suggestion field</span><select data-suggestion-field>${fieldOptions(fields, "No fields available", currentField || preferredNumericField?.name)}</select></label><label class="field"><span>Colour range</span><select data-style-ramp>${Object.keys(RAMPS).map((name) => `<option value="${name}">${escapeHtml(name.replaceAll("-", " "))}</option>`).join("")}</select></label></div><div class="style-options__list" data-style-options-list aria-live="polite"></div></section>`
       : "";
-    pane.innerHTML = `<div class="workspace-tool"><p class="eyebrow">Layer presentation</p><h3>Style ${escapeHtml(layer.title || "layer")}</h3>${styleOptions}<div class="field-grid">${rendererControls}<label class="field"><span>Fill / marker / line</span><input data-symbol-color type="color" value="#1b7f6a" /></label><label class="field"><span>Outline</span><input data-symbol-outline type="color" value="#ffffff" /></label><label class="field"><span>Size / width</span><input data-symbol-size type="number" min="0.5" max="40" step="0.5" value="9" /></label></div>${polygonControls}${extrusionControls}<p class="form-note">Field styles sample up to 1,000 records matching the active layer filter. Renderer JSON is stored with the project.</p><div class="workspace-tool__actions"><button type="button" class="button--primary" data-apply-symbology>Apply symbology</button></div></div>`;
+    pane.innerHTML = `<div class="workspace-tool"><p class="eyebrow">Layer presentation</p><h3>Style ${escapeHtml(layer.title || "layer")}</h3>${styleOptions}<div class="field-grid">${rendererControls}<label class="field" data-single-color><span>Symbol color</span><input data-symbol-color type="color" value="#1b7f6a" /></label><label class="field"><span>Outline</span><input data-symbol-outline type="color" value="#ffffff" /></label><label class="field"><span>Size / width</span><input data-symbol-size type="number" min="0.5" max="40" step="0.5" value="9" /></label></div><section data-class-editor hidden><h4>Classes and colors</h4><div class="field-grid"><label class="field"><span>Palette</span><select data-class-ramp>${Object.keys(RAMPS).map((name) => `<option value="${name}">${escapeHtml(name.replaceAll("-", " "))}</option>`).join("")}</select></label><label class="display-checkbox"><input type="checkbox" data-class-reverse> Reverse palette</label></div><p class="form-note">Colors can be changed individually. Apply symbology to update the map.</p><div data-class-list aria-live="polite"></div></section>${polygonControls}${extrusionControls}<p class="form-note">Class previews use up to 20,000 loaded values matching the layer filter. Renderer settings are stored with the project.</p><div class="workspace-tool__actions"><button type="button" class="button--primary" data-apply-symbology>Apply symbology</button></div></div>`;
     const fillOpacity = pane.querySelector("[data-symbol-fill-opacity]");
     fillOpacity?.addEventListener("input", () => {
       fillOpacity.nextElementSibling.value = `${Math.round(Number(fillOpacity.value) * 100)}%`;
@@ -5670,26 +5698,73 @@ export class UIController {
     const styleField = pane.querySelector("[data-style-field]");
     const syncStyleField = () => {
       if (!styleMode || !styleFieldControl || !styleField) return;
+      pane.querySelector("[data-single-color]").hidden = ["categorized", "color", "size-color", "heatmap"].includes(styleMode.value);
       const needsField = styleMode.value !== "simple";
       styleFieldControl.hidden = !needsField;
       if (!needsField) return;
-      const available = styleMode.value === "graduated" ? numericFields : fields;
+      const numeric = ["graduated", "color", "size-color"].includes(styleMode.value);
+      const available = numeric ? numericFields : fields;
       const previous = styleField.value;
-      styleField.innerHTML = fieldOptions(available, styleMode.value === "graduated" ? "No numeric fields available" : "No fields available", available.some((item) => item.name === previous) ? previous : currentField || preferredNumericField?.name);
+      styleField.innerHTML = fieldOptions(available, numeric ? "No numeric fields available" : "No fields available", available.some((item) => item.name === previous) ? previous : currentField || preferredNumericField?.name);
       styleField.disabled = !available.length;
     };
+    if (layer.geometryType === "polygon" && styleMode) ["graduated", "size-color"].forEach((value) => { styleMode.querySelector(`option[value="${value}"]`).disabled = true; });
     styleMode?.addEventListener("change", () => {
       syncStyleField();
-      const type = styleMode.value === "categorized" ? "categories" : styleMode.value === "graduated" ? (layer.geometryType === "point" || layer.geometryType === "multipoint" ? "graduated-symbols" : "choropleth") : styleMode.value;
-      selectedSpec = { type, ...(styleMode.value !== "simple" && styleField?.value ? { field: styleField.value } : {}) };
+      const type = styleMode.value === "categorized" ? "categories" : styleMode.value === "color" ? "choropleth" : ["graduated", "size-color"].includes(styleMode.value) ? (layer.geometryType !== "polygon" ? "graduated-symbols" : "choropleth") : styleMode.value;
+      selectedSpec = { type, ...(styleMode.value !== "simple" && styleField?.value ? { field: styleField.value } : {}), ...(styleMode.value === "size-color" ? { ramp: pane.querySelector("[data-class-ramp]").value } : {}) };
+      void renderClasses();
     });
     styleField?.addEventListener("change", () => {
       if (selectedSpec && selectedSpec.field !== styleField.value) {
         selectedSpec.field = styleField.value;
         delete selectedSpec.breaks;
+        delete selectedSpec.classColors;
+        delete selectedSpec.colors;
+        void renderClasses();
       }
     });
     syncStyleField();
+    let classRequest = 0;
+    const classEditor = pane.querySelector("[data-class-editor]"), classList = pane.querySelector("[data-class-list]"), classRamp = pane.querySelector("[data-class-ramp]"), classReverse = pane.querySelector("[data-class-reverse]");
+    const renderClasses = async (resetCategoryPalette = false) => {
+      const spec = selectedSpec, request = ++classRequest;
+      const classed = spec && ["categories", "choropleth", "graduated-symbols"].includes(spec.type) && spec.field;
+      classEditor.hidden = !classed;
+      if (!classed) return;
+      classList.textContent = "Reading values…";
+      try {
+        const raw = await this.mapController.fieldValues(uid, spec.field);
+        if (request !== classRequest || selectedSpec !== spec) return;
+        const counts = new Map(); raw.filter((v) => v != null).forEach((v) => counts.set(v, (counts.get(v) || 0) + 1));
+        const values = raw.filter((v) => v != null && v !== "").map(Number).filter(Number.isFinite);
+        const rendered = compileRenderer(spec, { geometryType: layer.geometryType, values, categories: [...counts].map(([value, count]) => ({ value, count })) });
+        const entries = rendered.classBreakInfos || rendered.uniqueValueInfos || [];
+        if (resetCategoryPalette && spec.type === "categories") {
+          const colors = rampColors(classRamp.value, entries.length); if (classReverse.checked) colors.reverse();
+          spec.colors = Object.fromEntries(entries.map((entry, index) => [String(entry.value), colors[index]]));
+          entries.forEach((entry, index) => { entry.symbol.color = colors[index]; });
+        }
+        classList.innerHTML = entries.length ? entries.map((entry, index) => `<label class="style-class-row"><input type="color" data-class-color="${index}" aria-label="Color for ${escapeHtml(entry.label || entry.value)}" value="${escapeHtml(entry.symbol.color || "#1b7f6a")}"><span>${escapeHtml(entry.label || entry.value)}${spec.type === "graduated-symbols" ? ` · ${Math.round((entry.symbol.size ?? entry.symbol.width ?? 0) * 10) / 10} pt` : ""}</span></label>`).join("") : '<p class="form-note">No values available to classify.</p>';
+        classList.querySelectorAll("[data-class-color]").forEach((input, index) => input.addEventListener("input", () => {
+          entries[index].symbol.color = input.value;
+          if (spec.type === "categories") spec.colors = { ...spec.colors, [String(entries[index].value)]: input.value };
+          else spec.classColors = entries.map((entry) => entry.symbol.color);
+        }));
+      } catch (error) { if (request === classRequest) classList.textContent = `Could not preview classes: ${error.message}`; }
+    };
+    const applyPalette = () => {
+      if (!selectedSpec) return;
+      if (selectedSpec.type !== "categories") {
+        selectedSpec.ramp = classRamp.value; selectedSpec.reverseRamp = classReverse.checked; delete selectedSpec.classColors;
+        if (selectedSpec.type === "graduated-symbols" && styleMode?.value === "graduated") { styleMode.value = "size-color"; syncStyleField(); }
+      }
+      void renderClasses(selectedSpec.type === "categories");
+    };
+    classRamp.addEventListener("change", applyPalette); classReverse.addEventListener("change", applyPalette);
+    pane.querySelector("[data-symbol-color]").addEventListener("input", (event) => {
+      if (selectedSpec?.type === "graduated-symbols" && !selectedSpec.ramp) { selectedSpec.color = event.target.value; delete selectedSpec.classColors; void renderClasses(); }
+    });
     pane.querySelector("[data-suggest-styles]")?.addEventListener("click", () => {
       // With no field chosen, the most measurement-like field is used (renderer-spec.js chooseStyleField).
       const field = pane.querySelector("[data-suggestion-field]")?.value;
@@ -5719,14 +5794,15 @@ export class UIController {
     syncExtrusion();
     const populateSpec = (spec) => {
       selectedSpec = structuredClone(spec);
-      if (styleMode) styleMode.value = spec.type === "categories" ? "categorized" : ["choropleth", "graduated-symbols"].includes(spec.type) ? "graduated" : spec.type === "heatmap" ? "heatmap" : "simple";
+      if (styleMode) styleMode.value = spec.type === "categories" ? "categorized" : spec.type === "choropleth" ? "color" : spec.type === "graduated-symbols" ? (spec.ramp ? "size-color" : "graduated") : spec.type === "heatmap" ? "heatmap" : "simple";
       syncStyleField();
       if (styleField && spec.field) styleField.value = spec.field;
       if (pane.querySelector("[data-style-ramp]")) pane.querySelector("[data-style-ramp]").value = spec.ramp || "greens";
       pane.querySelector("[data-symbol-color]").value = spec.type === "choropleth" ? rampColors(spec.ramp || "greens", 5)[2] : spec.color || (spec.type === "graduated-symbols" ? "#d9951e" : "#1b7f6a");
       if (spec.outline) pane.querySelector("[data-symbol-outline]").value = spec.outline;
       if (spec.size) pane.querySelector("[data-symbol-size]").value = spec.size;
-      if (extrusionEnabled) { extrusionEnabled.checked = false; syncExtrusion(); }
+      classRamp.value = spec.ramp || "greens"; classReverse.checked = Boolean(spec.reverseRamp);
+      void renderClasses();
     };
     if (selectedSpec) populateSpec(selectedSpec);
     const applySuggestion = async (option) => {
@@ -5740,27 +5816,31 @@ export class UIController {
         syncExtrusion();
         await this.mapController.setLayerSymbology(uid, { mode: "simple", color: pane.querySelector("[data-symbol-color]").value, outline: pane.querySelector("[data-symbol-outline]").value, size: pane.querySelector("[data-symbol-size]").value, extrusionEnabled: true, extrusionSource: extrusionSource.value, extrusionField: option.heightField, extrusionValue: pane.querySelector("[data-extrusion-value]").value, extrusionMultiplier: pane.querySelector("[data-extrusion-multiplier]").value, extrusionWidth: pane.querySelector("[data-extrusion-width]")?.value });
       } else {
-        await this.mapController.applyRendererSpec(uid, option.pinnedSpec);
-        populateSpec(option.pinnedSpec);
+        const result = await this.mapController.applyRendererSpec(uid, option.pinnedSpec);
+        if (extrusionEnabled) extrusionEnabled.checked = false;
+        syncExtrusion();
+        populateSpec(result?.spec || option.pinnedSpec);
       }
     };
     pane.querySelector("[data-apply-symbology]").addEventListener("click", async () => {
       try {
         if (selectedSpec && !extrusionEnabled?.checked) {
           const spec = structuredClone(selectedSpec);
-          if (spec.type === "choropleth") spec.ramp = pane.querySelector("[data-style-ramp]")?.value || spec.ramp || "greens";
+          if (spec.type === "choropleth") spec.ramp = spec.ramp || classRamp.value || "greens";
           if (["simple", "graduated-symbols"].includes(spec.type)) spec.color = pane.querySelector("[data-symbol-color]").value;
           if (spec.type === "simple") { spec.outline = pane.querySelector("[data-symbol-outline]").value; spec.size = Number(pane.querySelector("[data-symbol-size]").value); }
           await this.mapController.applyRendererSpec(uid, spec);
           selectedSpec = spec;
+          void renderClasses();
         } else {
-          if (selectedSpec && extrusionEnabled?.checked && this.mapController.getEngineId() === "maplibre" && ["choropleth", "categories"].includes(selectedSpec.type)) {
+          if (selectedSpec && extrusionEnabled?.checked && ["choropleth", "categories"].includes(selectedSpec.type)) {
             const spec = structuredClone(selectedSpec);
-            if (spec.type === "choropleth") spec.ramp = pane.querySelector("[data-style-ramp]")?.value || spec.ramp || "greens";
+            if (spec.type === "choropleth") spec.ramp = spec.ramp || classRamp.value || "greens";
             await this.mapController.applyRendererSpec(uid, spec);
           }
           await this.mapController.setLayerSymbology(uid, {
-          mode: styleMode?.value || "simple",
+          mode: styleMode?.value === "color" || styleMode?.value === "size-color" ? "graduated" : styleMode?.value || "simple",
+          preserveClasses: Boolean(selectedSpec && ["choropleth", "categories"].includes(selectedSpec.type)),
           field: styleField?.value,
           color: pane.querySelector("[data-symbol-color]").value,
           outline: pane.querySelector("[data-symbol-outline]").value,
@@ -5815,7 +5895,7 @@ export class UIController {
     const preview = (option) => {
       const { spec, breaks } = option;
       if (!breaks?.length) return "";
-      const colors = spec.type === "choropleth" ? rampColors(list.closest(".workspace-tool").querySelector("[data-style-ramp]")?.value || spec.ramp || "greens", breaks.length) : breaks.map(() => spec.color || "#d9951e");
+      const colors = (spec.type === "choropleth" || (spec.type === "graduated-symbols" && spec.ramp)) ? rampColors(list.closest(".workspace-tool").querySelector("[data-style-ramp]")?.value || spec.ramp || "greens", breaks.length) : breaks.map(() => spec.color || "#d9951e");
       let lower = stats.min;
       return `<ol class="style-option__classes">${breaks.map((upper, index) => {
         const label = `${number(lower)} – ${number(upper)}`;
@@ -5824,10 +5904,10 @@ export class UIController {
         return `<li title="${escapeHtml(label)}"><span class="style-option__swatch${spec.type === "graduated-symbols" ? " is-symbol" : ""}" style="background:${colors[index]};width:${size}px;height:${size}px"></span>${escapeHtml(label)}</li>`;
       }).join("")}</ol>`;
     };
-    list.innerHTML = `<p class="form-note">${escapeHtml(fieldAlias)}: ${escapeHtml(summary)}</p>${options.map((option, index) => `<article class="style-option${option.recommended ? " is-recommended" : ""}" data-option-type="${escapeHtml(option.spec?.type || "3d")}"><div class="style-option__title"><strong>${escapeHtml(option.label)}</strong>${option.recommended ? '<span class="style-option__badge">Recommended</span>' : ""}</div><p>${escapeHtml(option.reason)}</p>${preview(option)}<button type="button" class="button--secondary" data-use-style-option="${index}">Use this style</button></article>`).join("")}`;
+    list.innerHTML = `<p class="form-note">${escapeHtml(fieldAlias)}: ${escapeHtml(summary)}</p>${options.map((option, index) => `<article class="style-option${option.recommended ? " is-recommended" : ""}" data-option-type="${escapeHtml(option.spec?.type || "3d")}" data-option-ramp="${option.spec?.ramp ? "true" : "false"}"><div class="style-option__title"><strong>${escapeHtml(option.label)}</strong>${option.recommended ? '<span class="style-option__badge">Recommended</span>' : ""}</div><p>${escapeHtml(option.reason)}</p>${preview(option)}<button type="button" class="button--secondary" data-use-style-option="${index}">Use this style</button></article>`).join("")}`;
     if (rampControl) rampControl.onchange = () => {
       rampControl.dataset.userSelected = "true";
-      list.querySelectorAll('[data-option-type="choropleth"]').forEach((card) => {
+      list.querySelectorAll('[data-option-type="choropleth"], [data-option-type="graduated-symbols"][data-option-ramp="true"]').forEach((card) => {
         const swatches = card.querySelectorAll(".style-option__swatch");
         const colors = rampColors(rampControl.value, swatches.length);
         swatches.forEach((swatch, index) => { swatch.style.background = colors[index]; });
@@ -5839,7 +5919,7 @@ export class UIController {
       try {
         // The pinned spec keeps these exact classes in saved projects and shared links.
         const ramp = list.closest(".workspace-tool").querySelector("[data-style-ramp]")?.value;
-        const adjusted = option.pinnedSpec?.type === "choropleth" && ramp ? { ...option, pinnedSpec: { ...option.pinnedSpec, ramp } } : option;
+        const adjusted = (option.pinnedSpec?.type === "choropleth" || option.pinnedSpec?.ramp) && ramp ? { ...option, pinnedSpec: { ...option.pinnedSpec, ramp } } : option;
         await applySuggestion(adjusted);
         list.querySelectorAll(".style-option").forEach((card, cardIndex) => card.classList.toggle("is-applied", cardIndex === Number(button.dataset.useStyleOption)));
         const persisted = this.projectManager.persistCurrentIfSaved();

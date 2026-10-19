@@ -5,7 +5,7 @@
 // out, for custom tools and the in-page API's escape hatches.
 import { parseLocalVectorFile } from "../../local-vector-import.js?v=0.54.0-vector1";
 import { arcgisMetadata } from "../../source-inspector.js?v=0.53.0";
-import { chooseStyleField, compileRenderer, resolveRendererSpec, suggestRenderers, validateRendererSpec } from "../../renderer-spec.js?v=0.29.0";
+import { chooseStyleField, compileRenderer, resolveRendererSpec, suggestRenderers, validateRendererSpec } from "../../renderer-spec.js?v=0.29.1";
 import { GisMapError } from "../../gismap-errors.js?v=0.28.0";
 import { ENGINE_CAPABILITIES, unsupported } from "../engine-interface.js?v=0.52.0";
 import { loadArcGISRuntime } from "./arcgis-loader.js?v=0.38.0";
@@ -1512,7 +1512,14 @@ export class ArcGISEngine {
     const makeSymbol = (symbolColor) => this.#styleSymbol(geometryType, { ...options, color: symbolColor }, outline);
     let renderer;
 
-    if (mode === "categorized") {
+    if (options.extrusionEnabled && options.preserveClasses && ["class-breaks", "unique-value"].includes(layer.renderer?.type)) {
+      const current = layer.renderer.toJSON?.() ?? structuredClone(layer.renderer);
+      const colorOf = (symbol) => symbol?.color ?? symbol?.symbolLayers?.[0]?.material?.color ?? color;
+      renderer = { ...current, type: layer.renderer.type };
+      if (renderer.classBreakInfos) renderer.classBreakInfos = renderer.classBreakInfos.map((item) => ({ ...item, symbol: makeSymbol(colorOf(item.symbol)) }));
+      if (renderer.uniqueValueInfos) renderer.uniqueValueInfos = renderer.uniqueValueInfos.map((item) => ({ ...item, symbol: makeSymbol(colorOf(item.symbol)) }));
+      if (renderer.defaultSymbol) renderer.defaultSymbol = makeSymbol(colorOf(renderer.defaultSymbol));
+    } else if (mode === "categorized") {
       const field = this.#requireStyleField(layer, options.field);
       const values = await this.#styleFieldValues(layer, field.name, false);
       if (!values.length) throw new Error("The active layer filter has no values for that field.");

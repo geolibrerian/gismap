@@ -123,6 +123,12 @@ export function validateRendererSpec(input, { fields = null, geometryType = null
     }
     spec.exclude = input.exclude.slice(0, 20);
   };
+  const classColors = () => {
+    if (input.classColors === undefined) return;
+    if (!Array.isArray(input.classColors) || !input.classColors.length || input.classColors.length > MAX_CLASSES || !input.classColors.every(isColor)) return problem("INVALID_SPEC", "renderer.classColors", `classColors must contain 1 to ${MAX_CLASSES} hex colours.`);
+    spec.classColors = input.classColors.slice();
+  };
+  const reverseRamp = () => { if (input.reverseRamp !== undefined) { if (typeof input.reverseRamp !== "boolean") problem("INVALID_SPEC", "renderer.reverseRamp", "reverseRamp must be true or false."); else spec.reverseRamp = input.reverseRamp; } };
   const method = () => {
     spec.method = input.method === undefined ? "natural-breaks" : input.method;
     if (!BREAK_METHODS.includes(spec.method)) problem("INVALID_SPEC", "renderer.method", `Unknown method "${input.method}".`, `Use one of: ${BREAK_METHODS.join(", ")}.`);
@@ -150,6 +156,7 @@ export function validateRendererSpec(input, { fields = null, geometryType = null
       breaks();
       spec.ramp = input.ramp === undefined ? "greens" : input.ramp;
       if (!RAMPS[spec.ramp]) problem("INVALID_SPEC", "renderer.ramp", `Unknown ramp "${input.ramp}".`, `Use one of: ${Object.keys(RAMPS).join(", ")}.`);
+      classColors(); reverseRamp();
       exclude();
       break;
     case "graduated-symbols":
@@ -158,6 +165,8 @@ export function validateRendererSpec(input, { fields = null, geometryType = null
       method();
       breaks();
       color("color", "#d9951e");
+      if (input.ramp !== undefined) { spec.ramp = input.ramp; if (!RAMPS[spec.ramp]) problem("INVALID_SPEC", "renderer.ramp", `Unknown ramp "${input.ramp}".`); }
+      classColors(); reverseRamp();
       number("minSize", { min: 2, max: 48, fallback: 6 });
       number("maxSize", { min: 4, max: 96, fallback: 28 });
       exclude();
@@ -328,7 +337,9 @@ export function compileRenderer(spec, { geometryType = "polygon", values = [], c
       const kept = values.filter((value) => Number.isFinite(value) && !exclude.includes(value));
       const { min, breaks } = classBreaks(kept, spec);
       const asSymbols = spec.type === "graduated-symbols" && !/polygon/i.test(geometryType || "");
-      const colors = asSymbols ? breaks.map(() => spec.color || "#d9951e") : rampColors(spec.ramp || "greens", breaks.length);
+      let colors = asSymbols && !spec.ramp ? breaks.map(() => spec.color || "#d9951e") : rampColors(spec.ramp || "greens", breaks.length);
+      if (spec.reverseRamp) colors.reverse();
+      if (spec.classColors) colors = colors.map((color, index) => spec.classColors[index] || color);
       const sizes = breaks.map((_, index) => (breaks.length === 1 ? spec.maxSize || 28 : (spec.minSize || 6) + (((spec.maxSize || 28) - (spec.minSize || 6)) * index) / (breaks.length - 1)));
       let lower = min;
       const classBreakInfos = breaks.map((upper, index) => {
@@ -487,6 +498,7 @@ export function suggestRenderers({ field, fieldType = "double", geometryType = "
   }));
   if (isPoint) {
     push({ id: `choropleth-${preferred.method}`, label: `Coloured points, ${METHOD_LABEL[preferred.method]}`, reason: `Points coloured by class instead of sized.${excludedNote}`, ...classed("choropleth", preferred.method) });
+    push({ id: `size-color-${preferred.method}`, label: `Sized and coloured points, ${METHOD_LABEL[preferred.method]}`, reason: `Both size and colour vary by value.${excludedNote}`, ...classed("graduated-symbols", preferred.method, { ramp: rampName }) });
     push({ id: "heatmap", label: `Heat map weighted by ${field}`, reason: "Shows where the largest values are concentrated, rather than individual points.", spec: { type: "heatmap", field }, pinnedSpec: { type: "heatmap", field }, breaks: null });
   } else if (!isPolygon) {
     push({ id: `graduated-symbols-${preferred.method}`, label: `Line widths, ${METHOD_LABEL[preferred.method]}`, reason: `Wider lines for larger values.${excludedNote}`, ...classed("graduated-symbols", preferred.method) });

@@ -135,3 +135,20 @@ test("the map resolves an auto style once, from one read of the data, and record
   assert.equal(suggestion.stats.excluded, 546);
   assert.equal(suggestion.options[0].id, "choropleth-quantile");
 });
+
+test("classified renderers retain editable colors and optional size/color ramps", () => {
+  const values = [1, 2, 3, 4, 5, 6, 7, 8, 9];
+  const input = { type: "graduated-symbols", field: "v", breaks: [3, 6, 9], ramp: "blues", reverseRamp: true, classColors: ["#123456", "#abcdef", "#987654"] };
+  const checked = validateRendererSpec(input, { geometryType: "point" });
+  assert.equal(checked.valid, true);
+  const roundTrip = JSON.parse(JSON.stringify(checked.spec));
+  const rendered = compileRenderer(roundTrip, { values, geometryType: "point" });
+  assert.deepEqual(rendered.classBreakInfos.map((c) => c.symbol.color), input.classColors);
+  assert.ok(rendered.classBreakInfos[0].symbol.size < rendered.classBreakInfos[2].symbol.size);
+  const ramp = compileRenderer({ ...roundTrip, classColors: undefined }, { values, geometryType: "point" });
+  const normal = compileRenderer({ ...roundTrip, classColors: undefined, reverseRamp: false }, { values, geometryType: "point" });
+  assert.deepEqual(ramp.classBreakInfos.map((c) => c.symbol.color), normal.classBreakInfos.map((c) => c.symbol.color).reverse());
+  assert.equal(validateRendererSpec({ ...input, classColors: ["not a color"] }).valid, false);
+  const categories = validateRendererSpec({ type: "categories", field: "kind", colors: { A: "#112233" } });
+  assert.equal(compileRenderer(categories.spec, { geometryType: "point", categories: [{ value: "A", count: 1 }] }).uniqueValueInfos[0].symbol.color, "#112233");
+});

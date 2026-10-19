@@ -75,11 +75,12 @@ test('late results after exceeding the limit do not reopen Map Insight', async (
 test('menus organize existing actions and clearly mark unimplemented tools', async () => {
   const html = await readFile(new URL('../index.html', import.meta.url), 'utf8');
   const menu = (name) => html.match(new RegExp(`<button class="menu__trigger" aria-expanded="false">${name} [\\s\\S]*?<div class="menu__content" role="menu">([\\s\\S]*?)</div>`))[1];
-  const project = menu('Project'), data = menu('Data'), map = menu('Map'), tools = menu('Tools');
+  const project = menu('Project'), data = menu('Data'), map = menu('Map'), modes = menu('Modes'), tools = menu('Tools');
   assert.doesNotMatch(project, /tools-display|tools-connections|tools-ai|tools-custom/);
   assert.doesNotMatch(data, /data-duckdb|data-postgis/);
-  assert.ok(map.indexOf('data-basemap-picker') < map.indexOf('tools-display'));
-  assert.ok(map.indexOf('data-sidebar-panel-toggle="draw-panel"') < map.indexOf('basemapGallery'));
+  assert.doesNotMatch(map, /tools-display|data-sidebar-panel-toggle/);
+  assert.match(modes, /Panels/);
+  for (const id of ['tools-display', 'places-panel', 'bookmarks-panel', 'draw-panel', 'intelligence-panel', 'layers-panel', 'data-panel-workspace', 'data-panel-top-nav']) assert.ok(modes.includes(id), id);
   for (const label of ['AI tools', 'Database tools', 'Map tools', 'Portal tools', 'Games', 'Custom tools']) assert.ok(tools.includes(label));
   for (const id of ['tools-assistant', 'tools-ai', 'data-duckdb', 'data-postgis', 'tools-connections', 'game-dragons', 'tools-custom']) assert.ok(tools.includes(id));
   assert.match(tools, /disabled[^>]*>Analysis assistant/);

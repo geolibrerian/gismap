@@ -581,7 +581,7 @@ body.mobile-workflow-open .field-task-banner { left:auto; right:calc(min(440px,1
 .sidebar__scroll::-webkit-scrollbar-track { background: transparent; }
 .sidebar__scroll::-webkit-scrollbar-thumb { border: 2px solid transparent; border-radius: 999px; background: var(--scrollbar-thumb); background-clip: padding-box; }
 .sidebar__scroll::-webkit-scrollbar-thumb:hover { background-color: var(--scrollbar-thumb-hover); }
-@media (min-width: 881px), (min-width: 641px) and (orientation: landscape) { .sidebar__scroll > .panel.is-sidebar-optional-hidden { display: none; } }
+.sidebar__scroll > .panel.is-sidebar-optional-hidden { display: none !important; }
 .panel { border-bottom: 1px solid var(--line); }
 .panel[hidden] { display: none !important; }
 .panel summary { list-style: none; position: relative; display: flex; align-items: baseline; justify-content: space-between; gap: 16px; padding: 16px 18px; cursor: pointer; user-select: none; }
@@ -594,6 +594,12 @@ body.mobile-workflow-open .field-task-banner { left:auto; right:calc(min(440px,1
 .panel summary { justify-content: flex-start; gap: 10px; padding-right: 46px; }
 .panel-dock { display: inline-grid; place-items: center; width: 30px; height: 30px; margin: -6px 0 -6px auto; padding: 0; border: 1px solid transparent; border-radius: 8px; color: var(--muted); background: transparent; cursor: pointer; align-self: center; transition: color .15s, background .15s, border-color .15s, transform .15s; }
 .panel-dock:hover, .panel-dock:focus-visible { color: var(--green); border-color: var(--line); background: var(--surface); transform: translateX(2px); }
+.panel-close { border:0; background:transparent; color:var(--muted); font-size:19px; cursor:pointer; padding:3px 5px; line-height:1; }
+.panel-close:hover, .panel-close:focus-visible { color:var(--ink); background:var(--surface-2); }
+.panel summary { padding-right:38px; }
+.style-class-row { display:flex; align-items:center; gap:10px; padding:4px 0; font-size:13px; }
+.workspace-tool .style-class-row input[type="color"] { width:38px; height:30px; min-height:30px; flex:none; }
+[data-class-editor][hidden] { display:none !important; }
 /* Dock icons: a two-tone north-arrow needle aimed where the panel will go. */
 .dock-icon { display: block; overflow: visible; }
 .dock-icon__frame { fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linejoin: round; stroke-linecap: round; }

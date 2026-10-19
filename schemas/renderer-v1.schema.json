@@ -34,6 +34,8 @@
         "method": { "$ref": "#/$defs/method" },
         "breaks": { "$ref": "#/$defs/breaks" },
         "ramp": { "$ref": "#/$defs/ramp" },
+        "reverseRamp": { "type": "boolean" },
+        "classColors": { "type": "array", "minItems": 1, "maxItems": 9, "items": { "$ref": "#/$defs/color" } },
         "normalizeBy": { "type": "string", "description": "A numeric field to divide by (for rates, such as per area or per person)." },
         "exclude": { "$ref": "#/$defs/exclude" }
       },
@@ -50,6 +52,9 @@
         "method": { "$ref": "#/$defs/method" },
         "breaks": { "$ref": "#/$defs/breaks" },
         "color": { "$ref": "#/$defs/color" },
+        "ramp": { "$ref": "#/$defs/ramp", "description": "Optional colour ramp combined with symbol sizes." },
+        "reverseRamp": { "type": "boolean" },
+        "classColors": { "type": "array", "minItems": 1, "maxItems": 9, "items": { "$ref": "#/$defs/color" } },
         "minSize": { "type": "number", "minimum": 2, "maximum": 48, "default": 6 },
         "maxSize": { "type": "number", "minimum": 4, "maximum": 96, "default": 28 },
         "exclude": { "$ref": "#/$defs/exclude" }
