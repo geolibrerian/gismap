@@ -12,6 +12,8 @@ A separate **Map Notes** workspace now creates and reviews dataset, feature, ser
 
 Project-local, typed note relationships can link a Field Note to a Map Note as related, supporting, or contradicting. They are independent records: deleting a note does not cascade-delete the link, and links to missing notes remain unresolved rather than being discarded. Both note workspaces can create, view, and remove these links; relationship views update without replacing an unfinished note draft. They persist in project snapshots, not in field-only JSON, QR links or reports; importing a field note does not automatically transfer project links. Links themselves grant no authority and do not publish or expose either note to AI.
 
+The October 2026 office-to-field addendum makes **Field Tasks** a third, distinct participant: Map Notes identify data questions, Field Tasks coordinate work, and Field Notes provide observations. The same project relationship registry now supports typed Map Note → Field Task and Field Task ↔ Field Note edges with stable IDs, timestamps and optional creator/explanation. Its bidirectional lookup derives inverse labels without storing duplicate edges. Existing v1 Map Note–Field Note records remain unchanged. This is a local foundation only: there is not yet a task-linking UI, task creation from notes, workflow audit, AI access, or portable exchange of these new edges.
+
 **Not yet delivered:** the broader shared geographic identity, provenance, attachments and access-control core, standalone Field Notes schema and independent persistence implementation, API/agent permission scopes, or migration tooling. The new registries are not exposed as an agent API. Field Notes can still reference an identified feature but do not execute edits. No new public sharing or automatic AI exposure is introduced.
 
 ## Phase 2: Field Notes MVP
@@ -21,6 +23,12 @@ Continue local field collection and existing JSON, QR and basic PDF work, then a
 ## Phase 3: Map Notes MVP
 
 Expand the initial data-review editor with richer data-target exploration and links to Field Notes. Introduce a separately validated Proposed Change entity; preview and validation must not apply edits. Check schema, permissions, conflicts, source revision, explicit approval and auditability before any eventual execution. Read-only services must not be modified; export/stage patches instead.
+
+## Cross-tool office-to-field roadmap
+
+Add canonical references for projects, datasets, features and authorized workflow actions; preserve one relationship ID per edge and support many-to-many traversal. Add Map Note → Field Task creation with minimal, sanitized geographic context and explicit confirmation, and Field Task → Field Note evidence links. Completion must not automatically resolve a Map Note. Navigation should preserve map context across desktop and mobile. A versioned geographic context package should carry stable references and a minimal fallback, not whole datasets or credentials.
+
+Add portable outbound task and return evidence packages with explicit export/import and conflict-aware merges by stable ID. Include links and history, with photos in appropriately bounded packages rather than QR payloads. Offline discovery is limited to transferred or cached records; project-local links are not cross-device synchronization. Model actor, provenance, previous/new state and reasons in an audit trail before claiming an end-to-end workflow. AI reads, proposals, approvals and execution require distinct authorization; neither a note nor a relationship grants it. Validate the full office → field → review flow only when all transport, evidence and approval pieces exist.
 
 ## Phases 4–5: AI and shared services
 

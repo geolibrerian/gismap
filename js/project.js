@@ -1,5 +1,5 @@
 import { DataMapNotesRegistry, normalizeDataMapNotes } from "./data-map-notes.js?v=0.1.0";
-import { NoteRelationshipsRegistry, normalizeNoteRelationships } from "./note-relationships.js?v=0.1.0";
+import { NoteRelationshipsRegistry, normalizeNoteRelationships } from "./note-relationships.js?v=0.2.0";
 import { MapNotesRegistry, normalizeNotes } from "./map-notes.js?v=0.3.0";
 import { applicationToLegacyPresentation, normalizeApplicationConfig } from "./application-config.js?v=0.18.2";
 import { normalizeDataCatalog } from "./data-catalog.js?v=0.18.2";

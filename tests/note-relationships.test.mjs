@@ -38,3 +38,33 @@ test('create requires existing notes and storage failures roll back even if proj
   assert.throws(() => registry.create({ mapNoteId: 'm', fieldNoteId: 'f' }), /storage failed/);
   assert.deepEqual(project.noteRelationships, []); assert.equal(emitted, 0);
 });
+
+test('workflow links support many-to-many traversal and retain old edges and IDs on reload', async () => {
+  const manager = new ProjectManager(events, map);
+  manager.fieldNotes.persist = manager.mapNotes.persist = manager.noteRelationships.persist = () => {};
+  const field = manager.fieldNotes.create({ body: 'Site observation', anchor: { geometry: { type: 'Point', coordinates: [1, 2] } } });
+  const data = manager.mapNotes.create({ body: 'Review', target: { type: 'dataset', datasetId: 'bridges' } });
+  manager.current.mobile.fieldTasks.push({ id: 'task-1', title: 'Inspect' }, { id: 'task-2', title: 'Return' });
+  const legacy = manager.noteRelationships.create({ mapNoteId: data.id, fieldNoteId: field.id, type: 'supports' });
+  const requested = manager.noteRelationships.link({ source: { type: 'map-note', id: data.id }, target: { type: 'field-task', id: 'task-1' }, relation: 'requests_verification', creator: 'Analyst', explanation: 'Check bridge' });
+  const evidence = manager.noteRelationships.link({ source: { type: 'field-task', id: 'task-1' }, target: { type: 'field-note', id: field.id }, relation: 'produced_observation' });
+  const followup = manager.noteRelationships.link({ source: { type: 'field-note', id: field.id }, target: { type: 'field-task', id: 'task-2' }, relation: 'requires_followup' });
+  const taskLinks = manager.noteRelationships.getRelated({ type: 'field-task', id: 'task-1' });
+  assert.deepEqual(taskLinks.map(item => item.label), ['investigates', 'produced_observation']);
+  assert.deepEqual(manager.noteRelationships.getRelated({ type: 'field-note', id: field.id }).map(item => item.label), ['supports', 'fulfills', 'requires_followup']);
+  assert.equal(manager.noteRelationships.getRelated({ type: 'map-note', id: data.id })[0].label, 'supported_by');
+  assert.throws(() => manager.noteRelationships.link({ source: { type: 'map-note', id: data.id }, target: { type: 'field-task', id: 'task-1' }, relation: 'requests_verification' }), /Duplicate/);
+  const snapshot = manager.snapshot(); await manager.load(snapshot);
+  assert.deepEqual(manager.noteRelationships.list().map(item => item.id), [legacy.id, requested.id, evidence.id, followup.id]);
+  assert.equal(manager.noteRelationships.getRelated({ type: 'field-task', id: 'task-1' }).length, 2);
+  assert.deepEqual(manager.noteRelationships.list({ mapNoteId: data.id }), [legacy]);
+});
+
+test('workflow links reject invalid direction, missing records and untrusted extra fields', () => {
+  const project = { mapNotes: [{ id: 'm' }], notes: [{ id: 'f' }], mobile: { fieldTasks: [{ id: 't' }] }, noteRelationships: [] };
+  const registry = new NoteRelationshipsRegistry({ project: () => project });
+  assert.throws(() => registry.link({ source: { type: 'field-task', id: 't' }, target: { type: 'map-note', id: 'm' }, relation: 'requests_verification' }), /direction/);
+  assert.throws(() => registry.link({ source: { type: 'map-note', id: 'm' }, target: { type: 'field-task', id: 'missing' }, relation: 'requests_verification' }), /Both workflow records/);
+  assert.throws(() => registry.link({ source: { type: 'map-note', id: 'm', secret: true }, target: { type: 'field-task', id: 't' }, relation: 'requests_verification' }), /reference/);
+  assert.deepEqual(registry.list(), []);
+});
