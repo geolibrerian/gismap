@@ -1,6 +1,7 @@
-import { openDataMapNotesPanel } from "./data-map-notes-panel.js?v=0.2.0";
+import { openDataMapNotesPanel } from "./data-map-notes-panel.js?v=0.3.0";
 import { noteFeatureReference } from './map-note-feature.js?v=0.1.0';
-import { openMapNotesPanel } from "./map-notes-panel.js?v=0.11.0";
+import { openMapNotesPanel } from "./map-notes-panel.js?v=0.12.0";
+import { refreshNoteRelationships } from "./note-relationships-ui.js?v=0.1.0";
 import { googleMapsLinkForChapter } from "./google-maps-link.js?v=0.53.0";
 import { POPULAR_SERVICES } from "./catalog.js?v=0.18.2";
 import { MapAssistantPanel } from "./assistant-panel.js?v=0.54.0-pan2";
@@ -581,6 +582,9 @@ export class UIController {
     });
     ["layer:added", "layer:removed", "layer:changed", "layers:reset"].forEach((topic) =>
       this.events.subscribe(topic, () => this.#renderLayers()),
+    );
+    ["notes:changed", "map-notes:changed", "note-relationships:changed"].forEach(topic =>
+      this.events.subscribe(topic, () => refreshNoteRelationships(this)),
     );
     this.events.subscribe("project:loaded", ({ project, missingFiles }) => {
       this.mapNotePoint = null;
