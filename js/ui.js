@@ -1,5 +1,5 @@
 import { refreshMapNoteFilters } from './map-note-filters.js?v=0.4.1';
-import { openDataMapNotesPanel } from "./data-map-notes-panel.js?v=0.9.0";
+import { openDataMapNotesPanel } from "./data-map-notes-panel.js?v=0.10.0";
 import { refreshMapNoteWorkflow } from "./map-note-workflow-ui.js?v=0.1.0";
 import { noteFeatureReference } from './map-note-feature.js?v=0.1.0';
 import { openMapNotesPanel } from "./map-notes-panel.js?v=0.12.0";
@@ -252,6 +252,7 @@ export class UIController {
   }
 
   #bindStaticActions() {
+    window.addEventListener("beforeunload", event => { if (this.captureDataMapNoteDraft?.() || this.dataMapNoteDraftDirty) { event.preventDefault(); event.returnValue = ""; } });
     document.querySelector("#welcome-close").addEventListener("click", () => this.#dismissWelcome());
     document.querySelector("#layers-list")?.addEventListener("click", (event) => {
       const button = event.target.closest("[data-empty-action]");
@@ -539,7 +540,7 @@ export class UIController {
       const { mapPoint } = click;
       this.#dismissWelcome();
       const point = Number.isFinite(mapPoint?.longitude) && Number.isFinite(mapPoint?.latitude) ? [((mapPoint.longitude + 180) % 360 + 360) % 360 - 180, mapPoint.latitude] : null;
-      if (this.dataMapNotesOpen && this.activeUtilityTab === "data-notes" && point) {
+      if (this.dataMapNotesOpen && this.activeUtilityTab === "data-notes" && !this.dataMapNotePaused && point) {
         const setTarget = this.setDataMapNoteTarget;
         if (!setTarget) return;
         const revision = this.dataMapNotePickRevision = (this.dataMapNotePickRevision || 0) + 1;
@@ -694,6 +695,7 @@ export class UIController {
       this.#renderIntelligenceContents();
     });
     this.events.subscribe("identify:complete", (payload) => {
+      if (this.dataMapNotesOpen && this.activeUtilityTab === "data-notes" && !this.dataMapNotePaused) { this.identifyPending = false; document.querySelector("#insights-overlay").setAttribute("aria-busy", "false"); this.#setInsightsOpen(false); return; }
       if (this.mapNotesModeActive && this.activeUtilityTab === "notes") { this.identifyPending = false; document.querySelector("#insights-overlay").setAttribute("aria-busy", "false"); this.#setInsightsOpen(false); return; }
       // Picking a feature for a field task should not cover the map with its details.
       if (this.presentationState.template === "briefing" || document.body.classList.contains("field-task-picking")) {
@@ -898,7 +900,7 @@ export class UIController {
     this.activeUtilityTab = validTabs.has(preferredTab)
       ? preferredTab
       : validTabs.has(this.activeUtilityTab) ? this.activeUtilityTab : tabs[0]?.id || null;
-    document.body.classList.toggle("map-notes-authoring", (this.mapNotesModeActive && this.activeUtilityTab === "notes") || (this.dataMapNotesOpen && this.activeUtilityTab === "data-notes"));
+    document.body.classList.toggle("map-notes-authoring", (this.mapNotesModeActive && this.activeUtilityTab === "notes") || (this.dataMapNotesOpen && this.activeUtilityTab === "data-notes" && !this.dataMapNotePaused));
     if (this.activeUtilityTab === "data-notes") this.refreshDataMapNoteMarkers();
     else if (this.activeUtilityTab === "notes") this.refreshMapNoteMarkers(this.mapNotePoint);
     else this.mapController.setMapNoteMarkers([]);
@@ -1044,7 +1046,7 @@ export class UIController {
       document.querySelector("#utility-notes-content")?.replaceChildren();
       this.#syncUtilityPanel(); return;
     }
-    if (tabId === "data-notes") { this.dataMapNotesOpen = false; this.dataMapNotePickRevision = (this.dataMapNotePickRevision || 0) + 1; this.setDataMapNoteTarget = null; this.dataMapNotePoint = null; document.querySelector("#utility-data-notes-content")?.replaceChildren(); this.#syncUtilityPanel(); return; }
+    if (tabId === "data-notes") { if (this.captureDataMapNoteDraft?.() && !globalThis.confirm(this.dataMapNoteDraftStored ? "Close Map Notes? Your unsaved draft is kept only in this browser tab session, not in the project. Save the note and project for permanent storage." : "Close Map Notes? Session storage is unavailable and your unsaved draft will be lost.")) return; this.captureDataMapNoteDraft = null; this.dataMapNotesOpen = false; this.dataMapNotePickRevision = (this.dataMapNotePickRevision || 0) + 1; this.setDataMapNoteTarget = null; this.dataMapNotePoint = null; document.querySelector("#utility-data-notes-content")?.replaceChildren(); this.#syncUtilityPanel(); return; }
     if (tabId === "workspace") { this.utilityWorkspaceOpen = false; this.#syncUtilityPanel(); return; }
     if (tabId === "query") {
       this.utilityQueryOpen = false;
@@ -1156,6 +1158,7 @@ export class UIController {
   }
 
   async #handleAction(action) {
+    if (this.dataMapNotesOpen && action?.startsWith("mode-") && action !== "mode-data-map-notes" && this.captureDataMapNoteDraft?.() && !globalThis.confirm(this.dataMapNoteDraftStored ? "Change mode? Your unsaved Map Note is kept only in this browser tab session, not in the project." : "Change mode? Session storage is unavailable and your unsaved Map Note may be lost.")) return;
     this.keepWelcomeForSharedExample = false;
     try {
       switch (action) {
@@ -6072,7 +6075,7 @@ export class UIController {
         const selection = aiEnabled
           ? `<label class="insight-ai-select"><input type="checkbox" data-ai-selection="${index}" ${index === 0 ? "checked" : ""}> Include in AI</label>`
           : "";
-        return `<article class="insight-panel" id="insight-panel-${index}" role="tabpanel" aria-labelledby="insight-tab-${index}" ${index === 0 ? "" : "hidden"}><header><span><strong>${escapeHtml(result.layerTitle)}</strong><small>${escapeHtml(result.kind)}</small></span>${selection}</header>${result.kind === "feature" && payload.point ? `<button type="button" data-feature-note="${index}">Add field observation</button><button type="button" data-feature-map-note="${index}">Add Map Note</button>` : ""}<dl>${entries.map(([key, value]) => `<div><dt>${escapeHtml(key)}</dt><dd>${escapeHtml(formatAttributeValue(value, fieldsByName.get(key), key))}</dd></div>`).join("") || "<div><dd>No attributes returned.</dd></div>"}</dl></article>`;
+        return `<article class="insight-panel" id="insight-panel-${index}" role="tabpanel" aria-labelledby="insight-tab-${index}" ${index === 0 ? "" : "hidden"}><header><span><strong>${escapeHtml(result.layerTitle)}</strong><small>${escapeHtml(result.kind)}</small></span>${selection}</header>${result.kind === "feature" && payload.point ? `<div class="insight-note-actions"><button type="button" data-feature-note="${index}">Add field observation</button><button type="button" data-feature-map-note="${index}">Add Map Note</button></div>` : ""}<dl>${entries.map(([key, value]) => `<div><dt>${escapeHtml(key)}</dt><dd>${escapeHtml(formatAttributeValue(value, fieldsByName.get(key), key))}</dd></div>`).join("") || "<div><dd>No attributes returned.</dd></div>"}</dl></article>`;
       }).join("");
     document.querySelector(".orbital-insight-details")?.remove();
     this.#renderIntelligenceContents();
@@ -6111,6 +6114,7 @@ export class UIController {
         input.addEventListener("change", () => this.#setInsightSelection(Number(input.dataset.aiSelection), input.checked)),
       );
       document.querySelectorAll("[data-feature-map-note]").forEach(button => button.addEventListener("click", () => {
+        if (this.dataMapNotesOpen && this.captureDataMapNoteDraft?.() && !globalThis.confirm("Starting a Map Note from this feature will replace the current session draft. Continue?")) return;
         const result = visibleResults[Number(button.dataset.featureMapNote)];
         const layer = result && this.mapController.getLayer(result.layerUid);
         const feature = noteFeatureReference(result, layer, layer && this.mapController.getLayerConfig(layer));
@@ -6384,6 +6388,8 @@ export class UIController {
     document.querySelector("#project-name").textContent = project.name;
     document.querySelector("#save-state").textContent = state;
   }
+
+  updateDataMapNoteCursor() { document.body.classList.toggle("map-notes-authoring", this.dataMapNotesOpen && this.activeUtilityTab === "data-notes" && !this.dataMapNotePaused); }
 
   openDataMapNotesWorkspace(content) {
     this.dataMapNotesOpen = true;

@@ -81,3 +81,20 @@ test('map selection saves location and multiple related geographic and feature r
   assert.equal(note.target.context.address, 'Main Street'); assert.equal(note.target.context.features.length, 2);
   assert.equal(note.target.context.geographies[0].value, 'Example');
 });
+
+test('session draft restores text and earlier map targets without saving a project note', () => {
+  const previous = globalThis.sessionStorage; const values = new Map();
+  globalThis.sessionStorage = { getItem: key => values.get(key) ?? null, setItem: (key, value) => values.set(key, value), removeItem: key => values.delete(key) };
+  try {
+    const project = { id: 'test-project', mapNotes: [] }; const registry = new DataMapNotesRegistry({ project: () => project });
+    const w = workspace(registry); w.ui.projectManager.current = project; openDataMapNotesPanel(w.ui);
+    w.controls.body.value = 'Unfinished thought'; w.controls.category.value = 'other'; w.controls.status.value = 'open';
+    w.ui.setDataMapNoteTarget({ type: 'location', coordinates: [-120, 37] });
+    w.ui.setDataMapNoteTarget({ type: 'location', coordinates: [-121, 38] });
+    assert.equal(registry.list().length, 0); assert.equal(w.ui.dataMapNoteDraftStored, true);
+    const snapshot = JSON.parse(values.get('gismap:map-note-draft:test-project'));
+    assert.deepEqual(snapshot.history[0].coordinates, [-120, 37]); assert.equal(snapshot.fields.body, 'Unfinished thought');
+    const reopened = workspace(registry); reopened.ui.projectManager.current = project; openDataMapNotesPanel(reopened.ui);
+    assert.equal(reopened.controls.body.value, 'Unfinished thought'); assert.deepEqual(reopened.ui.dataMapNotePoint, [-121, 38]);
+  } finally { if (previous === undefined) delete globalThis.sessionStorage; else globalThis.sessionStorage = previous; }
+});
