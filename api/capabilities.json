@@ -10,7 +10,8 @@
     "agentGuide": "/guides/ai-agents/",
     "urlParameters": "/api/url-parameters.json",
     "catalog": "/api/catalog.json",
-    "aiExamples": "/examples/ai/"
+    "aiExamples": "/examples/ai/",
+    "aiArcgisMapGuide": "/ai-arcgis-map-generator/"
   },
   "briefingSchema": "/schemas/briefing-v1.schema.json",
   "namespaces": {
@@ -519,8 +520,8 @@
     }
   ],
   "urlFragments": {
-    "map": "#map=json:<URI-encoded map-v1 JSON> (readable, at most 8,192 characters), or #map=z… (compressed map-v1 from mapSpec.createLink, or an app share link).",
-    "briefing": "#briefing=… briefing links; see inputs.briefingLink.",
+    "map": "#map=json:<URI-encoded map-v1 JSON> (readable, at most 8,192 characters), or #map=z\u2026 (compressed map-v1 from mapSpec.createLink, or an app share link).",
+    "briefing": "#briefing=\u2026 briefing links; see inputs.briefingLink.",
     "slide": "&slide=<slide id> opens a briefing at that slide."
   },
   "examples": {

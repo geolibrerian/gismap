@@ -24,6 +24,7 @@ The map in a link is one JSON object (map-v1): layers with filters and styles, b
 ## Guides
 - [GISMap Agent Skill](https://gismap.online/skills/): installable instructions, validation and implementation proposal
 - [Making maps with an AI agent](https://gismap.online/guides/ai-agents/): chat-only, code-running and browser-driving recipes
+- [AI ArcGIS map generator](https://gismap.online/ai-arcgis-map-generator/): inspect a FeatureServer, style a map, and share a working link
 - [ArcGIS FeatureServer viewer](https://gismap.online/arcgis-feature-service-viewer/)
 
 ## Worked examples
@@ -191,8 +192,8 @@ A declarative layer style. GIS Map Online compiles it to an ArcGIS renderer, com
 
 - `service`: Keep the publisher's own style (the default).
 - `simple`: One colour for every feature. Properties: color, outline, size.
-- `choropleth`: Colour features by a numeric field in classes (a choropleth for polygons). Values listed in exclude, and nulls, are drawn grey as "No data" and kept out of the classes. Properties: field, classes, method, breaks, ramp, normalizeBy, exclude.
-- `graduated-symbols`: Size point or line symbols by a numeric field. Polygon layers get a choropleth instead (with a warning). Properties: field, classes, method, breaks, color, minSize, maxSize, exclude.
+- `choropleth`: Colour features by a numeric field in classes (a choropleth for polygons). Values listed in exclude, and nulls, are drawn grey as "No data" and kept out of the classes. Properties: field, classes, method, breaks, ramp, reverseRamp, classColors, normalizeBy, exclude.
+- `graduated-symbols`: Size point or line symbols by a numeric field. Polygon layers get a choropleth instead (with a warning). Properties: field, classes, method, breaks, color, ramp, reverseRamp, classColors, minSize, maxSize, exclude.
 - `categories`: One colour per value of a field (the most common values; the rest are "Other"). Properties: field, maxCategories, colors.
 - `heatmap`: A heat map of point density, optionally weighted by a numeric field. Point layers only. Properties: field.
 - `arcgis`: Raw ArcGIS renderer JSON, for styles the other types cannot express. Properties: json.

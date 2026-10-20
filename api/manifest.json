@@ -6,7 +6,8 @@
     "runtime": "gisMapOnline.manifest()",
     "state": "gisMapOnline.state.snapshot()",
     "stateSchema": "/schemas/application-state-v1.schema.json",
-    "explorer": "/api/explorer/"
+    "explorer": "/api/explorer/",
+    "aiArcgisMapGuide": "/ai-arcgis-map-generator/"
   },
   "privacy": "The state projection excludes feature records, coordinates, source URLs, filter expressions, credentials and user-entered text.",
   "actions": [
