@@ -156,3 +156,12 @@ test('clearing filters keeps task selection intact', () => {
   openDataMapNotesPanel(w.ui); clear.click();
   assert.equal(search.value, ''); assert.equal(radius.value, ''); assert.equal(selected.checked, true);
 });
+
+test('composer keeps map context beside the editor and hides additional target types behind disclosure', () => {
+  const registry = new DataMapNotesRegistry({ project: () => ({ mapNotes: [] }) }); const w = workspace(registry);
+  openDataMapNotesPanel(w.ui);
+  assert.match(w.html(), /class="map-note-composer-grid"/);
+  assert.match(w.html(), /class="map-note-composer-context" aria-label="Map context"/);
+  assert.match(w.html(), /<details class="map-note-other-targets"/);
+  assert.doesNotMatch(w.html(), /All target types/);
+});

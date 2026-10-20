@@ -2507,3 +2507,44 @@ body.utility-panel-open .utility-panel:has([data-utility-pane="data-notes"]:not(
 .map-note-filter-actions { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
 .map-note-filter-actions p { margin: 0; }
 .map-notes-panel [data-note-review-slot] [data-note-review-open] { display: none; }
+
+/* Map Notes composer: a compact editor beside its geographic context. */
+.map-note-composer-grid { display: grid; gap: 16px; min-width: 0; align-items: start; }
+.map-note-composer-main, .map-note-composer-context { display: grid; gap: 14px; min-width: 0; }
+.map-note-composer-context { padding: 14px; border: 1px solid var(--line); border-radius: var(--ui-radius, 10px); background: var(--surface-2); }
+.map-note-context-header { display: flex; gap: 10px; align-items: flex-start; }
+.map-note-context-header > span { color: var(--green-2); font-size: 20px; line-height: 1; }
+.map-note-context-header p { margin: 3px 0 0; }
+.map-note-context { display: grid !important; gap: 8px; }
+.map-note-context-card { display: grid; gap: 4px; padding: 10px 12px; border: 1px solid var(--line); border-radius: var(--ui-radius-small, 7px); background: var(--surface); overflow-wrap: anywhere; }
+.map-note-context-card span { color: var(--muted); font-size: .75em; font-weight: 700; }
+.map-note-context-card strong { font-size: .9em; font-weight: 600; }
+.map-note-context > .form-note { margin: 0; }
+.map-note-other-targets { color: var(--muted); font-size: .85em; }
+.map-note-other-targets summary { cursor: pointer; }
+.map-note-other-targets[open] .field { margin-top: 8px; }
+.map-note-metadata { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.map-note-metadata .map-note-extra-categories { grid-column: auto; align-self: end; }
+.map-note-metadata [data-custom-category] { grid-column: 1 / -1; }
+.map-note-extra-categories { padding: 9px 12px; }
+.map-note-extra-categories summary { font-size: .85em; }
+.map-note-extra-categories[open] { grid-column: 1 / -1; }
+.map-note-extra-categories .form-note { margin: 6px 0; }
+.map-note-target-options { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0; border: 1px solid var(--line); border-radius: var(--ui-radius-small, 7px); overflow: hidden; }
+.map-notes-panel .map-note-target-options button { min-width: 0; padding: 9px 4px; border: 0; border-right: 1px solid var(--line); border-radius: 0; background: var(--surface); }
+.map-notes-panel .map-note-target-options button:last-child { border-right: 0; }
+.map-notes-panel .map-note-target-options button[aria-pressed="true"] { color: var(--ink); background: var(--surface-2); box-shadow: inset 0 -3px var(--green-2); }
+.map-notes-panel [data-data-note-form] .map-note-card__actions { border-top: 1px solid var(--line); gap: 8px; }
+.map-notes-panel button.button--primary { color: #fff; background: var(--green); border-color: var(--green); font-weight: 700; }
+.map-notes-panel button.button--primary:hover { background: var(--green-2); border-color: var(--green-2); }
+.map-note-draft-status { margin: 0; font-size: .8em; }
+@container (min-width: 720px) {
+  .map-note-composer-grid { grid-template-columns: minmax(0, 1.6fr) minmax(220px, .9fr); }
+}
+@container (max-width: 400px) {
+  .map-note-metadata { grid-template-columns: minmax(0, 1fr); }
+  .map-note-metadata [data-custom-category], .map-note-extra-categories[open] { grid-column: auto; }
+  .map-note-target-options { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .map-notes-panel .map-note-target-options button:nth-child(2) { border-right: 0; }
+  .map-notes-panel .map-note-target-options button:nth-child(-n+2) { border-bottom: 1px solid var(--line); }
+}
