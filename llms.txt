@@ -12,6 +12,13 @@ The map in a link is one JSON object (map-v1): layers with filters and styles, b
 - Inspect a service's fields first: append `?f=pjson` to the layer URL.
 - Worked example: https://gismap.online/#map=json:%7B%22version%22%3A1%2C%22basemap%22%3A%22gray-vector%22%2C%22layers%22%3A%5B%7B%22url%22%3A%22https%3A%2F%2Fservices.arcgis.com%2FP3ePLMYs2RVChkJx%2FArcGIS%2Frest%2Fservices%2FCorn%2FFeatureServer%2F0%22%2C%22renderer%22%3A%7B%22type%22%3A%22choropleth%22%2C%22field%22%3A%22CORN_SALES_IN_DOLLARS%22%2C%22method%22%3A%22auto%22%2C%22ramp%22%3A%22greens%22%2C%22exclude%22%3A%5B-1%5D%7D%7D%5D%7D
 
+## Finish and verify the map
+1. Retrieve source metadata (append ?f=pjson), inspect actual fields and query real filter values; do not guess field names. Check the publisher's null and sentinel conventions.
+2. Construct a map-v1 spec and validate it and its renderer. In code, mapSpec.prepareVerification(spec) returns a URL and an offline report; metadata, filtering, rendering and reopening remain not_checked until independently tested.
+3. Generate the canonical URL using mapSpec.createLink or URI-encoded #map=json: JSON. Return the actual URL to the user.
+4. With browser access, open it, wait for layers, check issues and verify the intended features, filter, style and camera. Reopen the share URL and check again. State explicitly what you could not check.
+5. Use precise status: prepared (constructed), validated (validator accepted, review warnings), loaded (layers loaded), verified (intended map and reopened link confirmed). A plausible URL alone is not verified. See the agent guide for tested filters and a Michigan county example.
+
 ## Contracts
 - [Map spec schema](https://gismap.online/schemas/map-v1.schema.json): layers, renderers, filters, camera, basemap
 - [Renderer schema](https://gismap.online/schemas/renderer-v1.schema.json): choropleth, graduated symbols, categories, heat map, simple

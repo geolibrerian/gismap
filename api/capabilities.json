@@ -99,6 +99,7 @@
     ],
     "mapSpec": [
       "validate",
+      "prepareVerification",
       "encode",
       "decode",
       "createLink",

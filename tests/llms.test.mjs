@@ -84,7 +84,7 @@ test("recipe 3 uses only the in-page API that capabilities.json publishes", asyn
 
 test("the error table lists every published error code", async () => {
   const capabilities = await json("api/capabilities.json");
-  const table = agentGuide({ errorCodes: capabilities.errorCodes }).sections[3].table;
+  const table = agentGuide({ errorCodes: capabilities.errorCodes }).sections.find((section) => section.heading === "4. Handling errors").table;
   assert.deepEqual(table.rows.map(([code]) => code), Object.keys(capabilities.errorCodes));
   assert.ok(table.rows.every(([, hint]) => hint.length > 10));
 });

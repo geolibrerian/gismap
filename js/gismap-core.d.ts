@@ -304,6 +304,11 @@ export const mapSpec: Readonly<{
   jsonLimit: number;
   /** The usable spec keeps every layer that can load; layers with errors are dropped and reported. */
   validate(spec: unknown, options?: { allowHttp?: boolean }): { valid: boolean; issues: SpecIssue[]; spec: MapSpec | null };
+  /** Offline checks only. not_checked means no claim of service, rendering or reopening verification. */
+  prepareVerification(spec: unknown, options?: { baseUrl?: string; compress?: boolean; allowHttp?: boolean }): Promise<{
+    version: 1; status: "validated" | "invalid"; checks: Record<string, "passed" | "failed" | "not_checked">;
+    url: string | null; warnings: SpecIssue[]; errors: SpecIssue[];
+  }>;
   /** The #map= payload: compressed ("z…") or readable ("json:…", at most jsonLimit characters, else SPEC_TOO_LONG). */
   encode(spec: MapSpec, options?: { compress?: boolean }): Promise<string>;
   decode(payload: string): Promise<MapSpec>;

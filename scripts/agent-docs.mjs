@@ -20,6 +20,8 @@ export const CORN_SPEC = Object.freeze({
 });
 export const readableLink = (spec) => `${SITE}/#map=json:${encodeURIComponent(JSON.stringify(spec))}`;
 export const CORN_LINK = readableLink(CORN_SPEC);
+export const MICHIGAN_SPEC = Object.freeze({ version: 1, title: "Michigan county health", basemap: "gray-vector", camera: { center: [-85.5, 44.6], zoom: 5.5 }, layers: [{ url: "https://services.arcgis.com/P3ePLMYs2RVChkJx/ArcGIS/rest/services/County%20Health%20Rankings%202024/FeatureServer/2", type: "feature", where: "statecode = '26'", renderer: { type: "choropleth", field: "v001_rawvalue", method: "quantile", classes: 5, ramp: "greens" } }] });
+export const MICHIGAN_LINK = readableLink(MICHIGAN_SPEC);
 export const CORN_STYLED_LAYER_LINK = `${SITE}/?layer=${encodeURIComponent(CORN_URL)}&layerType=feature&style=choropleth&field=CORN_SALES_IN_DOLLARS&method=auto&ramp=greens&exclude=-1&basemap=gray-vector`;
 
 /** Every link parameter, from share.js's own constants. */
@@ -138,6 +140,21 @@ const { url } = await gisMapOnline.mapSpec.createLink(gisMapOnline.mapSpec.fromC
         after: ["Discover the live registry with gisMapOnline.actions.list() and actions.describe(id). Execute an action with actions.execute({ id, input, expectedRevision }); the revision is optional and only detects changes in the public state projection, not all private or camera changes. Inputs are checked against the declared schema and the existing tool validator before execution; unsupported schema keywords fail closed. Tools without input schemas remain available through the legacy application.runTool but cannot be executed through actions.execute. Outputs are not yet schema-validated; action results can contain session data, so invoke explicitly in a trusted page context. The public state snapshot remains privacy-preserving. This does not provide REST or MCP endpoints."],
       },
       {
+        heading: "Verify the artifact: Michigan county health",
+        paragraphs: [
+          "Inspect the layer metadata and query actual values before choosing fields. The 2024 County Health Rankings layer 2 is polygon geometry; statecode is a string containing state FIPS, and v001_rawvalue is age-adjusted years of potential life lost per 100,000. On 2026-10-20, statecode = '26' returned 83 Michigan counties. Counts and service availability can change.",
+          "Source metadata: https://services.arcgis.com/P3ePLMYs2RVChkJx/ArcGIS/rest/services/County%20Health%20Rankings%202024/FeatureServer/2?f=pjson. Test each where clause using that layer's /query endpoint with f=json and returnCountOnly=true. A successful service query does not prove the GISMap layer loaded, rendered or reopened.",
+          "The following filters were accepted by that layer on 2026-10-20. IS NULL tests database null, not missing-value codes; inspect the publisher's metadata and sentinels before deciding which values to exclude. Do not assume other services use these names or codes.",
+          "Use mapSpec.prepareVerification(spec) in the browser or core for an offline report; not_checked means exactly that. In a browser, await mapSpec.load(spec).ready, examine issues, layer configuration and rendered features, then open the generated URL in a fresh page and verify again. Report any unavailable steps. Always provide the actual URL, not just a button label.",
+        ],
+        ...code("sql", `statecode = '26'
+v001_rawvalue > 0
+statecode = '26' AND v001_rawvalue > 0
+statecode = '26' AND v001_rawvalue IS NULL
+statecode = '26' AND v001_rawvalue IS NOT NULL`),
+        after: [`Michigan share URL (prepared; browser rendering and reopening not independently verified): ${MICHIGAN_LINK}`, "Prepared: spec or URL constructed. Validated: GISMap's validator accepted it (review warnings). Loaded: required layers loaded in the application. Verified: intended features, filter, style and camera were confirmed, including reopening the share link. Do not imply a later stage was completed when it was not."],
+      },
+      {
         heading: "4. Handling errors",
         paragraphs: ["Every error from the API is a GisMapError with a code and a hint written for agents. When a map spec opens, problems are listed in describe().state.issues instead of stopping the map."],
         table: { columns: ["Code", "What to do"], rows: Object.entries(errorCodes) },
@@ -201,6 +218,13 @@ The map in a link is one JSON object (map-v1): layers with filters and styles, b
 - Full control: \`${SITE}/#map=json:<URI-encoded map-v1 JSON>\` (at most ${MAP_SPEC_JSON_LIMIT} characters) or \`?spec=<URL of a hosted map-v1 JSON file>\`
 - Inspect a service's fields first: append \`?f=pjson\` to the layer URL.
 - Worked example: ${CORN_LINK}
+
+## Finish and verify the map
+1. Retrieve source metadata (append ?f=pjson), inspect actual fields and query real filter values; do not guess field names. Check the publisher's null and sentinel conventions.
+2. Construct a map-v1 spec and validate it and its renderer. In code, mapSpec.prepareVerification(spec) returns a URL and an offline report; metadata, filtering, rendering and reopening remain not_checked until independently tested.
+3. Generate the canonical URL using mapSpec.createLink or URI-encoded #map=json: JSON. Return the actual URL to the user.
+4. With browser access, open it, wait for layers, check issues and verify the intended features, filter, style and camera. Reopen the share URL and check again. State explicitly what you could not check.
+5. Use precise status: prepared (constructed), validated (validator accepted, review warnings), loaded (layers loaded), verified (intended map and reopened link confirmed). A plausible URL alone is not verified. See the agent guide for tested filters and a Michigan county example.
 
 ## Contracts
 - [Map spec schema](${SITE}/schemas/map-v1.schema.json): layers, renderers, filters, camera, basemap

@@ -29,7 +29,7 @@ import { SENTINEL_LABEL, detectSentinels, inspectSource } from "./source-inspect
 import { BREAK_METHODS, RAMPS, RENDERER_TYPES, chooseBreakMethod, chooseStyleField, closestField, compileRenderer, computeBreaks, describeValues, rampColors, resolveRendererSpec, suggestRenderers, validateRendererSpec } from "./renderer-spec.js?v=0.29.0";
 import { ERROR_CODES, GisMapError, toGisMapError } from "./gismap-errors.js?v=0.28.0";
 import { LAYER_TOOL_DEFINITIONS, checkToolInput } from "./layer-tools.js?v=0.29.0";
-import { MAP_SPEC_JSON_LIMIT, MAP_SPEC_VERSION, createMapSpecLink, decodeMapSpec, encodeMapSpec, mapSpecFromShareParameters, rendererSpecFromParameters, validateMapSpec } from "./map-spec.js?v=0.41.0";
+import { MAP_SPEC_JSON_LIMIT, MAP_SPEC_VERSION, createMapSpecLink, decodeMapSpec, encodeMapSpec, prepareMapVerification, mapSpecFromShareParameters, rendererSpecFromParameters, validateMapSpec } from "./map-spec.js?v=0.41.0";
 import { SHARE_BASEMAPS, SHARE_LAYER_TYPES, SHARE_LIMITS } from "./share.js?v=0.41.0";
 import {
   SMART_IMAGE_CHUNK,
@@ -124,6 +124,7 @@ export const mapSpec = Object.freeze({
   version: MAP_SPEC_VERSION,
   jsonLimit: MAP_SPEC_JSON_LIMIT,
   validate: validateMapSpec,
+  prepareVerification: prepareMapVerification,
   encode: encodeMapSpec,
   decode: decodeMapSpec,
   createLink: createMapSpecLink,

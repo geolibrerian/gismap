@@ -203,6 +203,36 @@ export async function createMapSpecLink(input, { baseUrl = "https://gismap.onlin
   return { url: url.href, payload, qr: url.href.length <= QR_SAFE_LENGTH };
 }
 
+/** Prepare a share link and report only checks actually performed. No network or map is accessed. */
+export async function prepareMapVerification(input, { baseUrl = "https://gismap.online/", compress = false, allowHttp = false } = {}) {
+  const validation = validateMapSpec(input, { allowHttp });
+  const report = {
+    version: 1,
+    status: validation.valid ? "validated" : "invalid",
+    checks: {
+      specification: validation.valid ? "passed" : "failed",
+      sourceMetadata: "not_checked", fields: "not_checked", filterAccepted: "not_checked",
+      layerLoaded: "not_checked", mapRendered: "not_checked", shareLinkReopened: "not_checked",
+      linkRoundTrip: "not_checked",
+    },
+    url: null,
+    warnings: validation.issues.filter((issue) => issue.level !== "error"),
+    errors: validation.issues.filter((issue) => issue.level === "error"),
+  };
+  if (!validation.valid || !validation.spec) return report;
+  try {
+    const link = await createMapSpecLink(validation.spec, { baseUrl, compress });
+    const decoded = await decodeMapSpec(link.payload, { allowHttp });
+    if (JSON.stringify(decoded) !== JSON.stringify(validation.spec)) throw new Error("Decoded link differs from the validated specification.");
+    report.url = link.url;
+    report.checks.linkRoundTrip = "passed";
+  } catch (error) {
+    report.checks.linkRoundTrip = "failed";
+    report.errors.push({ level: "error", code: error.code || "LINK_FAILED", path: "", message: error.message });
+  }
+  return report;
+}
+
 /**
  * One map spec from `?layer=` parameters and their index-aligned styling:
  * title, where, style (service | simple | choropleth | graduated | categories |
