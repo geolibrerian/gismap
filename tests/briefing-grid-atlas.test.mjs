@@ -23,7 +23,7 @@ test('atlas generation is atomic and preserves locator and fitted bounds through
   assert.equal(restored.slides.length,5);
   assert.deepEqual(restored.slides[1].generatedBy.bounds,[0,1,1,2]);
   assert.throws(()=>previewGridAtlas({records,rows:2,columns:2,availableSlides:3}),/slide slots/);
-  assert.throws(()=>previewGridAtlas({records:[{geometry:{type:'LineString',coordinates:[[0,0],[1,1]]}}]}),/point geometries/);
+  assert.throws(()=>previewGridAtlas({records:[{geometry:{type:'LineString',coordinates:[[0,0]]}}]}),/malformed/);
   assert.throws(()=>previewGridAtlas({records:[{geometry:{x:1,y:1,spatialReference:{wkid:3857}}}]}),/WGS84/);
 });
 
@@ -35,4 +35,42 @@ test('slide playback fits the selected cell and displays a locator',async()=>{
   await slides.showSlideMap(slide);
   assert.deepEqual(calls[0].bounds,[1,1,2,2]);
   assert.match(slides.slideHtml(slide),/Locator: row 1 of 2, column 2 of 2/);
+});
+
+
+test('lines and polygons report intersections separately from single assignment',()=>{
+  const data=[
+    {geometry:{type:'LineString',coordinates:[[0,1],[2,1]]}},
+    {geometry:{type:'Polygon',coordinates:[[[0,0],[2,0],[2,2],[0,2],[0,0]]]}},
+  ];
+  const a=previewGridAtlas({records:data,rows:2,columns:2,countMode:'intersecting'});
+  assert.deepEqual(a.cells.map(c=>c.intersecting),[2,2,2,2]);
+  assert.deepEqual(a.cells.map(c=>c.assigned),[2,0,0,0]);
+  const b=previewGridAtlas({records:data,rows:2,columns:2,skipEmpty:true,countMode:'assigned'});
+  assert.deepEqual(b.cells.map(c=>c.id),['r1-c1']);
+});
+
+test('intersection respects polygon holes and does not use feature bounding boxes as exact geometry',async()=>{
+  const {atlasGeometry,atlasIntersects}=await import('../js/briefing-grid-geometry.js');
+  const donut=atlasGeometry({type:'Polygon',coordinates:[[[0,0],[10,0],[10,10],[0,10],[0,0]],[[2,2],[8,2],[8,8],[2,8],[2,2]]]});
+  assert.equal(atlasIntersects(donut,[3,3,4,4]),false);
+  assert.equal(atlasIntersects(donut,[1,3,3,4]),true);
+  const line=atlasGeometry({type:'LineString',coordinates:[[0,0],[10,10]]});
+  assert.equal(atlasIntersects(line,[0,8,1,9]),false);
+  assert.equal(atlasIntersects(line,[4,4,5,5]),true);
+  const poly=atlasGeometry({rings:[[[0,0],[10,0],[10,10],[0,10],[0,0]],[[2,2],[8,2],[8,8],[2,8],[2,2]]],spatialReference:{wkid:4326}});
+  assert.equal(atlasIntersects(poly,[3,3,4,4]),false);
+});
+
+test('target slide count chooses a deterministic bounded grid and validates limits',()=>{
+  const p=previewGridAtlas({records,targetCells:10});
+  assert.ok(p.rows * p.columns <= 10 && p.rows*p.columns >= 6);
+  assert.deepEqual(previewGridAtlas({records,targetCells:10}).cells.map(c=>c.bounds),p.cells.map(c=>c.bounds));
+  assert.throws(()=>previewGridAtlas({records,targetCells:61}),/target/);
+});
+
+test('point boundary intersection count is distinct from unique assignment',()=>{
+  const p=previewGridAtlas({records,rows:2,columns:2,countMode:'intersecting'});
+  assert.equal(p.cells.reduce((n,c)=>n+c.assigned,0),3);
+  assert.equal(p.cells.reduce((n,c)=>n+c.intersecting,0),6);
 });
