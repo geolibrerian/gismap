@@ -1,3 +1,4 @@
+import { timelinePdfFrames, expandTimelinePdfSlides, parseTimelineFrameSelection } from "./briefing-timeline-pdf.js?v=0.1.0";
 import { renderNotesHub } from "./notes-hub.js?v=0.1.0";
 import { refreshMapNoteFilters } from './map-note-filters.js?v=0.4.1';
 import { openDataMapNotesPanel } from "./data-map-notes-panel.js?v=0.16.0";
@@ -28,7 +29,7 @@ import { featureLayerUrl, locationUrl } from "./field-task-share.js?v=0.54.0-uni
 import { dockIcon } from "./dock-icons.js?v=0.24.0";
 import { serviceNameFromUrl } from "./service-name.js?v=0.26.0";
 import { decodeQrFromImage, describeGisMapLink, gisMapLinkFrom, openGisMapLink } from "./qr-import.js?v=0.25.2";
-import { BriefingSlides } from "./briefing-slides.js?v=0.53.0-timeline2";
+import { BriefingSlides } from "./briefing-slides.js?v=0.53.0-timeline3";
 import { createSlide, matchesFilter, normalizeFilter } from "./briefing-document.js?v=0.35.0";
 import { aiDescriptionPrompt, applyAiDescriptions, describeWhere, generateBriefing, readAiDescriptions, rendererTheme } from "./briefing-generator.js?v=0.36.1";
 import { briefingFileStem } from "./briefing-pdf.js?v=0.44.2";
@@ -5000,6 +5001,7 @@ export class UIController {
       const downloads = payload.downloads || [];
       const made = new Map();
       const fileFor = (download) => {
+        if (download.cache === false) return Promise.resolve().then(() => download.create());
         if (!made.has(download)) made.set(download, Promise.resolve(download.create()).catch((error) => { made.delete(download); throw error; }));
         return made.get(download);
       };
@@ -5090,9 +5092,9 @@ export class UIController {
   }
 
   /** The briefing's PDF handout as a File (for the API; the share dialog offers the same). */
-  async briefingPdfFile({ withLink = true } = {}) {
+  async briefingPdfFile({ withLink = true, timelineFrames = "initial", selectedFrames = [] } = {}) {
     const { link, skin } = withLink ? await this.#briefingShareLink() : { link: null, skin: document.documentElement.dataset.skin };
-    return this.briefingSlides.createPdf({ link: link?.url || null, qr: link?.qr ?? false, skin });
+    return this.briefingSlides.createPdf({ link: link?.url || null, qr: link?.qr ?? false, skin, timelineFrames, selectedFrames });
   }
 
   async shareBriefing() {
@@ -5103,6 +5105,21 @@ export class UIController {
       const stem = briefingFileStem(title);
       const downloads = [];
       if (slides) downloads.push({ label: "PDF handout", create: () => this.briefingSlides.createPdf({ link: link.url, qr: link.qr, skin }) });
+      const pdfSlides = presentation.briefing?.slides || [];
+      const timelineFrames = timelinePdfFrames(pdfSlides);
+      if (timelineFrames.length) {
+        const expanded = expandTimelinePdfSlides(pdfSlides, {mode:"all"});
+        downloads.push({ label: `PDF · all timeline frames (${expanded.length + 1} pages)`, create: () => this.briefingSlides.createPdf({link:link.url, qr:link.qr, skin, timelineFrames:"all"}) });
+        downloads.push({ label: "PDF · select timeline frames…", cache: false, create: () => {
+          const listing = timelineFrames.map((frame,index) => `${index + 1}. ${frame.title}`).join("\n");
+          const answer = globalThis.prompt(`Choose timeline frames (for example 1,3-5). Other slides are included.\n\n${listing}`);
+          if (answer == null) throw new Error("PDF export cancelled.");
+          const selectedFrames = parseTimelineFrameSelection(answer, timelineFrames.length);
+          const pages = expandTimelinePdfSlides(pdfSlides, {mode:"selected", selected:selectedFrames}).length + 1;
+          if (!globalThis.confirm(`Create a PDF with ${pages} pages including the cover?`)) throw new Error("PDF export cancelled.");
+          return this.briefingSlides.createPdf({link:link.url, qr:link.qr, skin, timelineFrames:"selected", selectedFrames});
+        }});
+      }
       downloads.push({ label: "Briefing file", create: () => new File([JSON.stringify(link.payload, null, 2)], `${stem}.briefing.json`, { type: "application/json" }) });
       await this.shareMobileWorkflow("briefing", {
         url: link.url,

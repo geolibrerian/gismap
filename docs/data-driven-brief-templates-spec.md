@@ -1,4 +1,4 @@
-> **Implementation status:** Filter Series and numeric-year Timeline slide generation are in development. Previews use loaded, included features only. Timeline supports integer years and UTC date fields in multi-slide interval, cumulative, rolling and validity frames, with playback controls. Single-slide and multi-slide playback are supported; non-UTC calendar timezones, advanced statistics and narration, and Grid Atlas remain planned. Single-slide PDF export captures its initial frame. The proposed v2 structure is a future design, not a current contract.
+> **Implementation status:** Timeline supports integer-year and date fields, timezone-aware calendar boundaries, interval/cumulative/rolling/validity filters, single-slide and slide-series playback, sampled statistics, editable count-based draft descriptions, and PDF export of selected or all frames. Counts and descriptions use loaded, included features; complete-source aggregation, query caching/prefetch, charts and Grid Atlas remain planned. The proposed v2 structure is a future design, not a current contract.
 
 # GISMap.online Briefs: Data-Driven Slide Templates
 

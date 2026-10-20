@@ -22,13 +22,14 @@ import {
   SPATIAL_RELATIONSHIPS,
 } from "./briefing-document.js?v=0.35.0";
 import { compileWhere } from "./engines/maplibre/where.js?v=0.40.0-timeline";
-import { generateTimeline, previewTimeline, isYearField } from "./briefing-timeline.js?v=0.2.0";
-import { isDateField, previewDateTimeline } from "./briefing-timeline-dates.js?v=0.1.0";
-import { generateFilterSeries, seriesWhere } from "./briefing-data-series.js?v=0.3.0";
+import { generateTimeline, previewTimeline, isYearField } from "./briefing-timeline.js?v=0.3.0";
+import { isDateField, previewDateTimeline } from "./briefing-timeline-dates.js?v=0.2.0";
+import { generateFilterSeries, seriesWhere } from "./briefing-data-series.js?v=0.4.0";
 import { previewFilterSeries } from "./briefing-series-preview.js?v=0.1.0";
 import { briefingLayerRef } from "./briefing-api.js?v=0.53.0";
 import { renderMarkdown } from "./markdown.js?v=0.18.2";
-import { BriefingPlayer, slideHasMap } from "./briefing-player.js?v=0.38.0-timeline";
+import { BriefingPlayer, slideHasMap } from "./briefing-player.js?v=0.38.0-timeline3";
+import { expandTimelinePdfSlides } from "./briefing-timeline-pdf.js?v=0.1.0";
 import { briefingFileStem, briefingPdf, markdownToText } from "./briefing-pdf.js?v=0.44.2";
 import { featureId } from "./presentation-query.js?v=0.30.0";
 
@@ -338,16 +339,19 @@ export class BriefingSlides {
         </details>
         <details class="briefing-series-preview">
           <summary>Timeline · data-driven slides</summary>
-          <p class="form-note">Create a sequence using an integer year or date field. Date windows use UTC; the selected end date is inclusive. The map keeps its view and style.</p>
+          <p class="form-note">Create a sequence using an integer year or date field. Date windows use the chosen calendar timezone; the selected end date is inclusive. The map keeps its view and style.</p>
           <label class="briefing-field"><span>Temporal field</span><select data-timeline-field><option value="">Choose a field</option>${(data.fields?.fields || []).filter(field => isYearField(field) || isDateField(field)).map(field => `<option value="${escapeHtml(field.name)}" data-kind="${isDateField(field) ? "date" : "year"}">${escapeHtml(field.alias || field.name)} · ${isDateField(field) ? "date" : "year"}</option>`).join("")}</select></label>
           <div data-timeline-years><label class="briefing-field"><span>Start year</span><input data-timeline-start type="number" min="0" max="9999" step="1" placeholder="e.g. 2015"></label>
           <label class="briefing-field"><span>End year (inclusive)</span><input data-timeline-end type="number" min="0" max="9999" step="1" placeholder="e.g. 2024"></label></div>
-          <div data-timeline-dates hidden><label class="briefing-field"><span>Start date (UTC)</span><input data-timeline-date-start type="date"></label><label class="briefing-field"><span>End date (inclusive, UTC)</span><input data-timeline-date-end type="date"></label>
-          <label class="briefing-field"><span>Calendar interval</span><select data-timeline-unit><option value="day">Day</option><option value="week">Week</option><option value="month">Month</option><option value="quarter">Quarter</option><option value="year" selected>Year</option></select></label></div>
+          <div data-timeline-dates hidden><label class="briefing-field"><span>Start date</span><input data-timeline-date-start type="date"></label><label class="briefing-field"><span>End date (inclusive)</span><input data-timeline-date-end type="date"></label>
+          <label class="briefing-field"><span>Calendar timezone (IANA)</span><input data-timeline-timezone value="UTC" placeholder="America/Los_Angeles"></label><label class="briefing-field"><span>Calendar interval</span><select data-timeline-unit><option value="day">Day</option><option value="week">Week</option><option value="month">Month</option><option value="quarter">Quarter</option><option value="year" selected>Year</option></select></label></div>
           <label class="briefing-field"><span>Interval length</span><input data-timeline-step type="number" min="1" max="1000" step="1" value="1"></label>
           <label class="briefing-field"><span>Show features</span><select data-timeline-mode><option value="interval">During each interval</option><option value="cumulative">Cumulative from start</option><option value="rolling">Rolling window</option><option value="validity">Feature validity period</option></select></label>
           <label class="briefing-field" data-timeline-rolling-wrap hidden><span>Rolling window (years or selected calendar units)</span><input data-timeline-rolling type="number" min="1" max="1000" step="1" value="2"></label>
           <label class="briefing-field" data-timeline-end-field-wrap hidden><span>Exclusive end field (empty means ongoing)</span><select data-timeline-end-field><option value="">Choose an end field</option>${(data.fields?.fields || []).filter(field => isYearField(field) || isDateField(field)).map(field => `<option value="${escapeHtml(field.name)}">${escapeHtml(field.alias || field.name)}</option>`).join("")}</select></label>
+          <label class="briefing-field"><span>Additional statistic</span><select data-timeline-stat><option value="">Count only</option><option value="sum">Total</option><option value="average">Mean</option><option value="min">Minimum</option><option value="max">Maximum</option></select></label>
+          <label class="briefing-field" data-timeline-stat-field-wrap hidden><span>Numeric field</span><select data-timeline-stat-field><option value="">Choose a field</option>${(data.fields?.numeric || []).map(field => `<option value="${escapeHtml(field.name)}">${escapeHtml(field.alias || field.name)}</option>`).join("")}</select></label>
+          <label><input type="checkbox" data-timeline-narration> Add editable draft descriptions from loaded counts</label>
           <label class="briefing-field"><span>Presentation</span><select data-timeline-presentation><option value="slide-series">One slide per interval</option><option value="single-slide">Interactive timeline on one slide</option></select></label>
           <button type="button" data-timeline-preview>Preview timeline</button> <button type="button" data-timeline-create>Generate slides</button>
           <div data-timeline-results role="status" aria-live="polite"></div>
@@ -424,7 +428,7 @@ export class BriefingSlides {
           <div class="briefing-stat__row"><label><span>Only where</span><select data-stat-filter-field="${block.id}">${fieldOptions(allFields, query?.field, { empty: "All features" })}</select></label>
           <label><span>Condition</span><select data-stat-filter-op="${block.id}"${query ? "" : " disabled"}>${Object.entries(FILTER_LABELS).map(([op, label]) => `<option value="${op}"${query?.op === op ? " selected" : ""}>${label}</option>`).join("")}</select></label>
           <label><span>Value</span><input data-stat-filter-value="${block.id}" value="${escapeHtml(query?.value ?? "")}"${query && query.op !== "is_not_null" ? "" : " disabled"}></label></div>
-          <p class="briefing-stat__preview"><strong>${formatStat(result.value)}</strong> ${result.sample ? `<small>from ${result.loaded.toLocaleString()} loaded of ${Number(result.total).toLocaleString()} (a sample)</small>` : `<small>from ${result.loaded.toLocaleString()} features</small>`}</p>
+          <p class="briefing-stat__preview"><strong>${formatStat(result.value)}</strong> ${slide.dataView ? `<small>from ${result.loaded.toLocaleString()} loaded matching features; source may be incomplete</small>` : result.sample ? `<small>from ${result.loaded.toLocaleString()} loaded of ${Number(result.total).toLocaleString()} (a sample)</small>` : `<small>from ${result.loaded.toLocaleString()} features</small>`}</p>
           ${slide.blocks.filter((item) => item.type === "stat").length > 1 ? `<button type="button" class="briefing-link-button" data-stat-remove="${block.id}">Remove this number</button>` : ""}
         </fieldset>`;
       }
@@ -444,6 +448,8 @@ export class BriefingSlides {
       ${slide.template !== "key-numbers" && slide.template !== "actions" ? `<div class="briefing-field briefing-camera"><span>Map view</span><p>${escapeHtml(cameraStatus)}</p><div><button type="button" data-slide-camera>Use current map view</button>${slide.featureId ? `<button type="button" data-slide-fit>Frame the feature</button>` : ""}${slide.camera || slide.fit ? `<button type="button" data-slide-show-map>Show</button>` : ""}</div></div>` : ""}
       ${["title", "feature", "map-narrative"].includes(slide.template) ? this.#layersSection(slide, record) : ""}
       ${blocks}
+      ${slide.timeline?.frames?.length ? `<details class="briefing-field"><summary>Timeline frame details</summary><p class="form-note">Draft descriptions use loaded features; review them. A dwell time overrides playback speed for that frame.</p>${slide.timeline.frames.map((frame,index) => `<div><label class="briefing-field"><span>${escapeHtml(frame.title)} · description</span><textarea rows="2" data-frame-narrative="${index}">${escapeHtml(frame.narrative || "")}</textarea></label><label class="briefing-field"><span>Dwell in milliseconds (optional)</span><input type="number" min="250" max="60000" step="250" data-frame-dwell="${index}" value="${Number.isInteger(frame.dwellMs) ? frame.dwellMs : ""}"></label></div>`).join("")}</details>` : ""}
+      ${slide.generatedBy?.template === "timeline" && !slide.timeline ? `<label class="briefing-field"><span>Timeline dwell in milliseconds (optional)</span><input type="number" min="250" max="60000" step="250" data-slide-dwell value="${Number.isInteger(slide.generatedBy.dwellMs) ? slide.generatedBy.dwellMs : ""}"></label>` : ""}
       ${slide.template === "key-numbers" && statCount < 4 ? `<button type="button" class="briefing-link-button" data-stat-add>+ Add a number</button>` : ""}
       <label class="briefing-field"><span>Presenter notes <small>not shown on the slide</small></span><textarea rows="3" data-slide-notes>${escapeHtml(slide.notes)}</textarea></label>`;
   }
@@ -501,7 +507,7 @@ export class BriefingSlides {
       const data = this.api.data();
       const field = container.querySelector("[data-timeline-field]");
       const kind = field.selectedOptions[0]?.dataset.kind || 'year';
-      return { kind, presentationMode:container.querySelector("[data-timeline-presentation]").value, field: field.value, endField:container.querySelector("[data-timeline-end-field]").value, fields: data.fields?.fields || [], records: data.useAll ? data.visibleRecords : data.records.filter((record) => data.selectedIds.has(this.#idOf(record))), start: container.querySelector(kind === 'date' ? "[data-timeline-date-start]" : "[data-timeline-start]").value, end: container.querySelector(kind === 'date' ? "[data-timeline-date-end]" : "[data-timeline-end]").value, step: container.querySelector("[data-timeline-step]").value, unit:container.querySelector("[data-timeline-unit]").value, rolling:container.querySelector("[data-timeline-rolling]").value, mode: container.querySelector("[data-timeline-mode]").value };
+      return { kind, timeZone:container.querySelector("[data-timeline-timezone]").value.trim() || "UTC", stat:container.querySelector("[data-timeline-stat]").value, statField:container.querySelector("[data-timeline-stat-field]").value, narration:container.querySelector("[data-timeline-narration]").checked, presentationMode:container.querySelector("[data-timeline-presentation]").value, field: field.value, endField:container.querySelector("[data-timeline-end-field]").value, fields: data.fields?.fields || [], records: data.useAll ? data.visibleRecords : data.records.filter((record) => data.selectedIds.has(this.#idOf(record))), start: container.querySelector(kind === 'date' ? "[data-timeline-date-start]" : "[data-timeline-start]").value, end: container.querySelector(kind === 'date' ? "[data-timeline-date-end]" : "[data-timeline-end]").value, step: container.querySelector("[data-timeline-step]").value, unit:container.querySelector("[data-timeline-unit]").value, rolling:container.querySelector("[data-timeline-rolling]").value, mode: container.querySelector("[data-timeline-mode]").value };
     };
     const syncTimelineOptions = () => {
       const field = container.querySelector("[data-timeline-field]");
@@ -512,6 +518,7 @@ export class BriefingSlides {
       container.querySelector("[data-timeline-rolling-wrap]").hidden = mode !== 'rolling';
       container.querySelector("[data-timeline-end-field-wrap]").hidden = mode !== 'validity';
     };
+    on("[data-timeline-stat]", "change", select => { container.querySelector("[data-timeline-stat-field-wrap]").hidden = !select.value; });
     on("[data-timeline-field]", "change", syncTimelineOptions);
     on("[data-timeline-mode]", "change", syncTimelineOptions);
     on("[data-timeline-preview]", "click", () => {
@@ -555,6 +562,30 @@ export class BriefingSlides {
     });
     on("[data-slide-subtitle]", "input", (input) => this.#saveSoon((briefing) => updateSlide(briefing, slideId, { subtitle: input.value })));
     on("[data-slide-notes]", "input", (input) => this.#saveSoon((briefing) => updateSlide(briefing, slideId, { notes: input.value })));
+    const validatedDwell = input => {
+      const value = Number(input.value);
+      if (!input.value) return null;
+      if (!Number.isInteger(value) || value < 250 || value > 60000) { this.api.notify?.("Dwell time must be between 250 and 60,000 milliseconds."); return undefined; }
+      return value;
+    };
+    on("[data-frame-dwell]", "change", input => {
+      const value = validatedDwell(input); if (value === undefined) return;
+      const briefing = this.briefing, slide = briefing.slides.find(item => item.id === slideId);
+      if (!slide?.timeline?.frames) return;
+      const frames = slide.timeline.frames.map((frame,index) => index === Number(input.dataset.frameDwell) ? {...frame, dwellMs:value} : frame);
+      this.#save(updateSlide(briefing,slideId,{timeline:{...slide.timeline,frames}}), {render:false});
+    });
+    on("[data-slide-dwell]", "change", input => {
+      const value = validatedDwell(input); if (value === undefined) return;
+      const briefing = this.briefing, slide = briefing.slides.find(item => item.id === slideId);
+      if (slide?.generatedBy) this.#save(updateSlide(briefing,slideId,{generatedBy:{...slide.generatedBy,dwellMs:value}}), {render:false});
+    });
+    on("[data-frame-narrative]", "input", input => this.#saveSoon(briefing => {
+      const slide = briefing.slides.find(item => item.id === slideId);
+      if (!slide?.timeline?.frames) return briefing;
+      const frames = slide.timeline.frames.map((frame,index) => index === Number(input.dataset.frameNarrative) ? {...frame, narrative:input.value.slice(0,2000)} : frame);
+      return updateSlide(briefing, slideId, {timeline:{...slide.timeline,frames}});
+    }));
     on("[data-block-text]", "input", (input) => this.#saveSoon((briefing) => updateBlock(briefing, slideId, input.dataset.blockText, { markdown: input.value })));
     on("[data-block-list]", "input", (input) => this.#saveSoon((briefing) => updateBlock(briefing, slideId, input.dataset.blockList, { items: input.value.split("\n").map((line) => line.trim()).filter(Boolean) })));
     on("[data-block-links]", "change", (input) => {
@@ -676,6 +707,7 @@ export class BriefingSlides {
       ${slide.subtitle ? `<p class="briefing-slide__subtitle">${escapeHtml(slide.subtitle)}</p>` : ""}
       ${stats ? `<div class="briefing-slide__stats">${stats}</div>` : ""}
       ${body}
+      ${(slide.frameNarrative ?? slide.timeline?.frames?.[0]?.narrative) ? `<div class="briefing-slide__text">${renderMarkdown(slide.frameNarrative ?? slide.timeline.frames[0].narrative)}</div>` : ""}
       ${slide.featureId && !record ? `<p class="briefing-slide__warning">This slide's feature is not in the loaded data.</p>` : ""}
     </article>`;
   }
@@ -736,6 +768,8 @@ export class BriefingSlides {
         content.stats.push({ value: formatStat(result.value), label: block.label || STAT_LABELS[block.stat], sample: result.sample });
       }
     }
+    const frameNarrative = slide.frameNarrative ?? slide.timeline?.frames?.[0]?.narrative;
+    if (frameNarrative) content.paragraphs.push(markdownToText(frameNarrative));
     return content;
   }
 
@@ -752,21 +786,23 @@ export class BriefingSlides {
    * A landscape PDF handout of the visible slides, with map snapshots taken
    * from the live map. `link` is the briefing's share link for the QR code.
    */
-  async createPdf({ link = null, qr = true, skin = null, onProgress = () => {} } = {}) {
-    const slides = this.briefing.slides.filter((slide) => !slide.hidden);
+  async createPdf({ link = null, qr = true, skin = null, onProgress = () => {}, timelineFrames = "initial", selectedFrames = [] } = {}) {
+    const slides = expandTimelinePdfSlides(this.briefing.slides, {mode:timelineFrames, selected:selectedFrames});
     if (!slides.length) throw new Error("Add a visible slide before making a PDF.");
     const { mapController } = this.api;
     const targets = slides.map((slide) => this.slideTarget(slide));
     const withMaps = targets.filter(Boolean);
     const mapSlides = slides.filter((slide, index) => targets[index]);
-    const captured = withMaps.length
+    let captured;
+    try {
+      captured = withMaps.length
       ? await mapController.captureViews(withMaps, {
         aspect: 1.02,
         prepare: (index) => this.showSlideMap(mapSlides[index]),
         onProgress: (index, total) => onProgress(`Capturing map ${index + 1} of ${total}…`),
       })
       : [];
-    await this.restoreLayers();
+    } finally { await this.restoreLayers(); }
     let next = 0;
     const images = targets.map((target) => (target ? captured[next++] : null));
     onProgress("Writing PDF…");

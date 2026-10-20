@@ -90,3 +90,23 @@ test('single-slide timeline keeps frames portable without consuming a slot per f
   assert.deepEqual(slide.dataView.filter,slide.timeline.frames[0].filter);
   assert.throws(()=>generateTimeline({...options,briefing,layerRef:'layer',camera:{center:[0,0],zoom:4}}),/exceed/);
 });
+
+test('calendar boundaries use the specified timezone across daylight saving', async () => {
+  const {previewDateTimeline} = await import('../js/briefing-timeline-dates.js');
+  const opts={field:'when',fields,records:[],start:'2024-03-09',end:'2024-03-11',unit:'day',timeZone:'America/Los_Angeles'};
+  const p=previewDateTimeline(opts);
+  assert.deepEqual(p.frames.map(f => new Date(f.filter.start).toISOString()),['2024-03-09T08:00:00.000Z','2024-03-10T08:00:00.000Z','2024-03-11T07:00:00.000Z']);
+  assert.equal(p.frames[1].filter.end-p.frames[1].filter.start,23*3600000);
+  assert.throws(()=>previewDateTimeline({...opts,timeZone:'Not/AZone'}),/timezone/);
+});
+
+test('timeline generates editable, explicitly sampled descriptions and requested numeric stats', () => {
+  const extended=[...fields,{name:'cost',type:'double'}];
+  const result=generateTimeline({...options, fields:extended, briefing:{}, layerRef:'layer', camera:{center:[0,0],zoom:4}, stat:'sum',statField:'cost',narration:true});
+  const slide=result.briefing.slides[1];
+  assert.equal(slide.blocks.find(b=>b.stat==='sum').field,'cost');
+  assert.match(slide.blocks.find(b=>b.type==='text').markdown,/loaded features.*1 more feature/);
+  const single=generateTimeline({...options, briefing:{}, layerRef:'layer',camera:{center:[0,0],zoom:4},presentationMode:'single-slide',narration:true}).briefing.slides[0];
+  assert.match(single.timeline.frames[1].narrative,/loaded features/);
+  assert.throws(()=>generateTimeline({...options,briefing:{},layerRef:'layer',camera:{center:[0,0],zoom:4},stat:'sum',statField:'when'}),/numeric field/);
+});

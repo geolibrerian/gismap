@@ -1,6 +1,6 @@
 // Integer-year timeline frames. Dates and timestamps need engine-specific date
 // semantics and are intentionally not interpreted as years.
-import { previewDateTimeline } from './briefing-timeline-dates.js?v=0.1.0';
+import { previewDateTimeline } from './briefing-timeline-dates.js?v=0.2.0';
 import { MAX_SLIDES, addSlide, createSlide, normalizeBriefing } from './briefing-document.js?v=0.35.0';
 
 export function isYearField(field) {
@@ -46,20 +46,32 @@ export function generateTimeline({briefing, layerRef, camera, ...options} = {}) 
   const single = options.presentationMode === 'single-slide';
   if (original.slides.length >= MAX_SLIDES) throw new Error('No slide slots are available.');
   const preview = (options.kind === 'date' ? previewDateTimeline : previewTimeline)({...options, availableSlides: single ? MAX_SLIDES : MAX_SLIDES - original.slides.length});
+  if (options.stat && (!['sum','average','min','max'].includes(options.stat) || !options.statField || !options.fields?.some(field => field.name === options.statField && /integer|long|short|double|single|float|number/i.test(field.type || '')))) throw new Error('Choose a numeric field for the selected statistic.');
+  const descriptions = preview.frames.map((frame, index) => {
+    if (!options.narration) return '';
+    const difference = index ? frame.count - preview.frames[index - 1].count : null;
+    return `Draft based on loaded features: ${frame.count} ${frame.count === 1 ? 'feature' : 'features'} in this frame.${difference == null ? '' : ` ${difference === 0 ? 'No change' : `${Math.abs(difference)} ${difference > 0 ? 'more' : 'fewer'} features`} than the previous frame.`} Verify against the complete source.`;
+  });
+  const addStatistic = slide => {
+    if (options.stat) slide.blocks.push({id:`${slide.id}-measure`, type:'stat', stat:options.stat, field:options.statField, queryRef:null, label:`${options.stat} · ${options.statField}`});
+  };
   if (single) {
     const slide = createSlide('map-narrative', {title:`Timeline · ${options.field}`, camera});
     slide.dataView = {layer:layerRef, filter:preview.frames[0].filter};
     slide.blocks.push({id:`${slide.id}-count`, type:'stat', stat:'count', field:null, queryRef:null, label:'Features'});
-    slide.timeline = {version:1, frames:preview.frames.map(frame => ({title:frame.title, filter:frame.filter}))};
+    addStatistic(slide);
+    slide.timeline = {version:1, frames:preview.frames.map((frame,index) => ({title:frame.title, filter:frame.filter, ...(descriptions[index] ? {narrative:descriptions[index]} : {})}))};
     slide.generatedBy = {template:'timeline', version:1, group:slide.id, mode:options.mode || 'interval'};
     return {briefing:addSlide(original,slide), preview};
   }
   let result = original;
   let group = null;
-  for (const frame of preview.frames) {
+  for (const [index, frame] of preview.frames.entries()) {
     const slide = createSlide('map-narrative', {title:frame.title, camera});
     slide.dataView = {layer:layerRef, filter:frame.filter};
     slide.blocks.push({id:`${slide.id}-count`, type:'stat', stat:'count', field:null, queryRef:null, label:'Features'});
+    addStatistic(slide);
+    if (descriptions[index]) slide.blocks.find(block => block.type === 'text').markdown = descriptions[index];
     group ||= slide.id;
     slide.generatedBy = {template:'timeline', version:1, group, intervalStart:frame.intervalStart, intervalEnd:frame.intervalEnd, mode:options.mode || 'interval'};
     result = addSlide(result, slide);

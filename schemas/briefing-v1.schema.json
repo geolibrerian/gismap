@@ -751,6 +751,18 @@
                         "additionalProperties": false
                       }
                     ]
+                  },
+                  "narrative": {
+                    "type": "string",
+                    "maxLength": 2000
+                  },
+                  "dwellMs": {
+                    "type": [
+                      "integer",
+                      "null"
+                    ],
+                    "minimum": 250,
+                    "maximum": 60000
                   }
                 },
                 "additionalProperties": false

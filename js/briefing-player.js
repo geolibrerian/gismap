@@ -246,12 +246,17 @@ export class BriefingPlayer {
       if (!item || !slide.dataView) return;
       state.timelineFrame = frame;
       this.#syncTimeline();
-      const frameSlide = {...slide, dataView:{...slide.dataView, filter:item.filter}};
+      const frameSlide = {...slide, frameNarrative:item.narrative || "", dataView:{...slide.dataView, filter:item.filter}};
       if (state.compact) {
         const content = state.root.querySelector(`[data-card="${state.index}"] .briefing-card__content`);
         if (content) content.innerHTML = this.api.slideHtml(frameSlide, {index:state.index, count:state.slides.length});
       } else state.root.querySelector('.briefing-stage__panel').innerHTML = this.api.slideHtml(frameSlide, {index:state.index, count:state.slides.length});
       await this.api.showSlide(frameSlide);
+    };
+    const delay = () => {
+      const state = this.state, slide = state?.slides[state.index];
+      const value = slide?.timeline?.frames?.[state.timelineFrame || 0]?.dwellMs ?? slide?.generatedBy?.dwellMs;
+      return Number.isInteger(value) && value >= 250 && value <= 60000 ? value : Number(controls.querySelector('[data-timeline-speed]').value);
     };
     const tick = async epoch => {
       const state = this.state;
@@ -267,14 +272,14 @@ export class BriefingPlayer {
         next = next < 0 ? length - 1 : 0;
       }
       if (single) await goFrame(next); else await go(indices[next]);
-      if (this.state === state && state.timelinePlaying && state.timelineEpoch === epoch) state.timelineTimer = setTimeout(() => tick(epoch), Number(controls.querySelector('[data-timeline-speed]').value));
+      if (this.state === state && state.timelinePlaying && state.timelineEpoch === epoch) state.timelineTimer = setTimeout(() => tick(epoch), delay());
     };
     controls.querySelector('[data-timeline-play]').addEventListener('click', () => {
       if (this.state.timelinePlaying) return this.#stopTimeline();
       this.state.timelinePlaying = true;
       const epoch = this.state.timelineEpoch = (this.state.timelineEpoch || 0) + 1;
       this.#syncTimeline();
-      this.state.timelineTimer = setTimeout(() => tick(epoch), Number(controls.querySelector('[data-timeline-speed]').value));
+      this.state.timelineTimer = setTimeout(() => tick(epoch), delay());
     });
     controls.querySelector('[data-timeline-scrub]').addEventListener('input', event => {
       this.#stopTimeline();
