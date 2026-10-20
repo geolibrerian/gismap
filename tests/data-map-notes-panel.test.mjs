@@ -12,7 +12,7 @@ function workspace(registry) {
   let html = '';
   const host = { querySelector: selector => selector === '[data-data-note-form]' ? form : null, querySelectorAll: () => [] };
   const ui = { projectManager: { mapNotes: registry }, openDataMapNotesWorkspace(content) { html = content; return host; }, toast() {}, error() {} };
-  return { ui, controls, save, error, html: () => html };
+  return { ui, controls, save, error, host, html: () => html };
 }
 
 test('workspace creates a data note and displays its text safely', () => {
@@ -112,4 +112,24 @@ test('composer prioritizes note text and progressively discloses map context', (
   const html = w.html(); assert.ok(html.indexOf('<span>Note <small>') < html.indexOf('<span>Title (optional)</span>'));
   assert.ok(html.indexOf('<span>Title (optional)</span>') < html.indexOf('data-map-note-context'));
   assert.match(html, /map-note-target-details/); assert.match(html, /map-note-filter-grid/);
+});
+
+
+test('switching composer and project notes preserves the in-memory draft', () => {
+  const registry = new DataMapNotesRegistry({ project: () => ({ mapNotes: [] }) }); const w = workspace(registry);
+  const composer = {}, browser = {}, review = {};
+  const button = view => ({ dataset: { noteView: view }, setAttribute() {}, addEventListener(_type, handler) { this.click = handler; } });
+  const compose = button('compose'), browse = button('browse');
+  const original = w.host.querySelector;
+  w.host.querySelector = selector => ({ '[data-note-composer]': composer, '[data-note-browser]': browser, '[data-note-review]': review }[selector] || original(selector));
+  w.host.querySelectorAll = selector => selector === '[data-note-view]' ? [compose, browse] : [];
+  openDataMapNotesPanel(w.ui); w.controls.body.value = 'Draft survives';
+  browse.click(); assert.equal(composer.hidden, true); assert.equal(browser.hidden, false); assert.equal(w.controls.body.value, 'Draft survives');
+  compose.click(); assert.equal(composer.hidden, false); assert.equal(browser.hidden, true); assert.equal(w.controls.body.value, 'Draft survives');
+});
+
+test('composer exposes responsive workspace sizing and target choices', async () => {
+  const registry = new DataMapNotesRegistry({ project: () => ({ mapNotes: [] }) }); const w = workspace(registry); openDataMapNotesPanel(w.ui);
+  assert.match(w.html(), /data-note-width="min"/); assert.match(w.html(), /data-note-width="max"/);
+  assert.match(w.html(), /data-target-choice=/); assert.match(w.html(), /data-note-review/);
 });

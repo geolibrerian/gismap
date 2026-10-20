@@ -1,5 +1,5 @@
 import { refreshMapNoteFilters } from './map-note-filters.js?v=0.4.1';
-import { openDataMapNotesPanel } from "./data-map-notes-panel.js?v=0.11.0";
+import { openDataMapNotesPanel } from "./data-map-notes-panel.js?v=0.12.0";
 import { refreshMapNoteWorkflow } from "./map-note-workflow-ui.js?v=0.1.0";
 import { noteFeatureReference } from './map-note-feature.js?v=0.1.0';
 import { openMapNotesPanel } from "./map-notes-panel.js?v=0.12.0";
@@ -2018,7 +2018,7 @@ export class UIController {
         highlightColor: /^#[0-9a-f]{6}$/i.test(saved.highlightColor) ? saved.highlightColor : "#00b8d9",
         highlightStyle: saved.highlightStyle === "outline" ? "outline" : "fill",
         navigationLayout: saved.navigationLayout === "top" ? "top" : "side",
-        utilityPanelWidth: Number.isFinite(saved.utilityPanelWidth) ? Math.min(620, Math.max(280, saved.utilityPanelWidth)) : 360,
+        utilityPanelWidth: Number.isFinite(saved.utilityPanelWidth) ? Math.min(Math.max(280, window.innerWidth * 0.55), Math.max(280, saved.utilityPanelWidth)) : 360,
         appearance: ["system", "light", "dark"].includes(saved.appearance) ? saved.appearance : "system",
         darkBasemapEnabled: saved.darkBasemapEnabled === true,
         bookmarksPanelVisible: saved.bookmarksPanelVisible === true,
@@ -2238,12 +2238,14 @@ export class UIController {
     const handle = document.querySelector("#utility-resizer");
     const setWidth = (width, save = false) => {
       const settings = this.#readDisplaySettings();
-      settings.utilityPanelWidth = Math.min(window.innerWidth * 0.55, Math.max(280, width));
+      settings.utilityPanelWidth = Math.min(Math.max(280, window.innerWidth * 0.55), Math.max(280, width));
       document.body.style.setProperty("--utility-panel-width", `${settings.utilityPanelWidth}px`);
       if (save) localStorage.setItem(DISPLAY_SETTINGS_KEY, JSON.stringify(settings));
       requestAnimationFrame(() => this.mapController.resize());
     };
+    this.setUtilityPanelWidth = (size) => setWidth(size === "max" ? window.innerWidth * 0.55 : 280, true);
     handle.addEventListener("keydown", (event) => {
+      if (event.key === "Home" || event.key === "End") { event.preventDefault(); this.setUtilityPanelWidth(event.key === "Home" ? "min" : "max"); return; }
       const delta = ({ ArrowLeft: 20, ArrowRight: -20 })[event.key];
       if (delta == null) return;
       event.preventDefault();
