@@ -1,0 +1,203 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://gismap.online/schemas/data-map-note-v2.schema.json",
+  "title": "GISMap data-review Map Note v2",
+  "description": "A project-local data comment, never an authorization or executable instruction. Field observations use the separate legacy field bundle schema.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "kind",
+    "schemaVersion",
+    "id",
+    "title",
+    "body",
+    "category",
+    "tags",
+    "status",
+    "target",
+    "createdAt",
+    "updatedAt"
+  ],
+  "properties": {
+    "kind": {
+      "const": "map-note"
+    },
+    "schemaVersion": {
+      "const": "2.0"
+    },
+    "id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "title": {
+      "type": "string",
+      "maxLength": 240
+    },
+    "body": {
+      "type": "string",
+      "maxLength": 20000
+    },
+    "category": {
+      "enum": [
+        "classification",
+        "data-quality",
+        "editing-instruction",
+        "clarification",
+        "insight",
+        "validation",
+        "investigation",
+        "other"
+      ]
+    },
+    "tags": {
+      "type": "array",
+      "maxItems": 50,
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 80
+      }
+    },
+    "status": {
+      "enum": [
+        "open",
+        "in-review",
+        "resolved",
+        "archived"
+      ]
+    },
+    "createdAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "updatedAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "target": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type"
+      ],
+      "properties": {
+        "type": {
+          "enum": [
+            "project",
+            "feature",
+            "dataset",
+            "service",
+            "location"
+          ]
+        },
+        "datasetId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "featureId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "sourceUrl": {
+          "type": "string",
+          "format": "uri"
+        },
+        "coordinates": {
+          "type": "array",
+          "prefixItems": [
+            {
+              "type": "number",
+              "minimum": -180,
+              "maximum": 180
+            },
+            {
+              "type": "number",
+              "minimum": -90,
+              "maximum": 90
+            }
+          ],
+          "minItems": 2,
+          "maxItems": 2
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "feature"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "datasetId",
+              "featureId"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "dataset"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "datasetId"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "service"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "sourceUrl"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "location"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "coordinates"
+            ]
+          }
+        }
+      ]
+    }
+  },
+  "anyOf": [
+    {
+      "properties": {
+        "title": {
+          "pattern": "\\S"
+        }
+      }
+    },
+    {
+      "properties": {
+        "body": {
+          "pattern": "\\S"
+        }
+      }
+    }
+  ]
+}

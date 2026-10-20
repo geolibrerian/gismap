@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://gismap.online/schemas/workflow-relationship-v2.schema.json",
+  "title": "GISMap project-local workflow relationship v2",
+  "description": "A single directed link; inverse labels are derived. Records and content are not published or authority to execute actions.",
+  "type": "object", "additionalProperties": false,
+  "required": ["schemaVersion", "id", "source", "target", "relation", "createdAt"],
+  "properties": {
+    "schemaVersion": { "const": "2.0" },
+    "id": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "\\S" },
+    "source": { "$ref": "#/$defs/reference" }, "target": { "$ref": "#/$defs/reference" },
+    "relation": { "enum": ["requests_verification", "produced_observation", "requires_followup"] },
+    "createdAt": { "type": "string", "format": "date-time" },
+    "creator": { "type": "string", "maxLength": 120 }, "explanation": { "type": "string", "maxLength": 2000 }
+  },
+  "$defs": { "reference": { "type": "object", "additionalProperties": false, "required": ["type", "id"], "properties": { "type": { "enum": ["map-note", "field-note", "field-task"] }, "id": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "\\S" } } } },
+  "allOf": [
+    { "if": { "properties": { "relation": { "const": "requests_verification" } } }, "then": { "properties": { "source": { "properties": { "type": { "const": "map-note" } } }, "target": { "properties": { "type": { "const": "field-task" } } } } } },
+    { "if": { "properties": { "relation": { "const": "produced_observation" } } }, "then": { "properties": { "source": { "properties": { "type": { "const": "field-task" } } }, "target": { "properties": { "type": { "const": "field-note" } } } } } },
+    { "if": { "properties": { "relation": { "const": "requires_followup" } } }, "then": { "properties": { "source": { "properties": { "type": { "const": "field-note" } } }, "target": { "properties": { "type": { "const": "field-task" } } } } } }
+  ]
+}

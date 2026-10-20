@@ -144,6 +144,7 @@ export class MaplibreEngine {
     this.initialBasemapId = null;
     this.basemapTheme = null;
     this.highlight = { enabled: true, color: "#00b8d9", style: "fill", feature: null };
+    this.noteMarkers = [];
     this.drawings = [];
     this.drawing = null;
     this.drawPreviousCursor = null;
@@ -1529,6 +1530,19 @@ export class MaplibreEngine {
       });
     }
     return results;
+  }
+
+  setMapNoteMarkers(points = []) {
+    this.noteMarkers.forEach((marker) => marker.remove());
+    this.noteMarkers = [];
+    if (!this.map || !this.maplibregl?.Marker) return;
+    for (const point of points) {
+      if (!Number.isFinite(point.longitude) || !Number.isFinite(point.latitude)) continue;
+      const element = document.createElement("div");
+      element.className = `map-note-marker${point.draft ? " map-note-marker--draft" : ""}`;
+      element.setAttribute("aria-label", point.draft ? "New note location" : "Map note location");
+      this.noteMarkers.push(new this.maplibregl.Marker({ element, anchor: "center" }).setLngLat([point.longitude, point.latitude]).addTo(this.map));
+    }
   }
 
   /* ---------------- View ---------------- */

@@ -1,0 +1,341 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://gismap.online/schemas/map-note-v1.schema.json",
+  "title": "GISMap Map Note v1",
+  "description": "Project-owned note. Anchors use longitude/latitude. Attachments and future schema versions must not be silently discarded.",
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "id",
+    "type",
+    "title",
+    "body",
+    "tags",
+    "status",
+    "priority",
+    "createdAt",
+    "updatedAt",
+    "anchor",
+    "relationships",
+    "replies",
+    "attachments",
+    "review"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": "1.0"
+    },
+    "id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "type": {
+      "enum": [
+        "observation",
+        "issue",
+        "memory",
+        "question",
+        "idea",
+        "plan",
+        "other"
+      ]
+    },
+    "title": {
+      "type": "string",
+      "maxLength": 240
+    },
+    "body": {
+      "type": "string",
+      "maxLength": 20000
+    },
+    "tags": {
+      "type": "array",
+      "maxItems": 50,
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 80
+      }
+    },
+    "status": {
+      "enum": [
+        "open",
+        "in_progress",
+        "resolved",
+        "archived"
+      ]
+    },
+    "priority": {
+      "enum": [
+        "low",
+        "normal",
+        "high"
+      ]
+    },
+    "createdAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "updatedAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "author": {
+      "$ref": "#/$defs/author"
+    },
+    "anchor": {
+      "type": "object",
+      "required": [
+        "type",
+        "geometry",
+        "crs"
+      ],
+      "properties": {
+        "type": {
+          "enum": [
+            "point",
+            "area"
+          ]
+        },
+        "crs": {
+          "const": "EPSG:4326"
+        },
+        "geometry": {
+          "type": "object",
+          "required": [
+            "type",
+            "coordinates"
+          ],
+          "properties": {
+            "type": {
+              "enum": [
+                "Point",
+                "LineString",
+                "Polygon"
+              ]
+            },
+            "coordinates": {
+              "type": "array"
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "relationships": {
+      "type": "array",
+      "maxItems": 100,
+      "items": {
+        "type": "object",
+        "required": [
+          "type",
+          "targetType",
+          "targetId"
+        ],
+        "properties": {
+          "type": {
+            "enum": [
+              "belongs_to_project",
+              "references_dataset",
+              "references_feature",
+              "located_at",
+              "related_to_note",
+              "responds_to_note",
+              "supersedes_note",
+              "supports_note",
+              "contradicts_note"
+            ]
+          },
+          "targetType": {
+            "enum": [
+              "project",
+              "dataset",
+              "feature",
+              "location",
+              "note"
+            ]
+          },
+          "targetId": {
+            "type": "string",
+            "maxLength": 256
+          },
+          "datasetId": {
+            "type": "string",
+            "maxLength": 256
+          },
+          "featureId": {
+            "type": "string",
+            "maxLength": 256
+          },
+          "sourceUrl": {
+            "type": "string",
+            "format": "uri",
+            "maxLength": 4096
+          },
+          "datasetTitle": {
+            "type": "string",
+            "maxLength": 240
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "replies": {
+      "type": "array",
+      "maxItems": 200,
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "body",
+          "createdAt"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "body": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 10000
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "author": {
+            "$ref": "#/$defs/author"
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "attachments": {
+      "type": "array",
+      "maxItems": 0
+    },
+    "review": {
+      "type": "object",
+      "required": [
+        "status",
+        "events"
+      ],
+      "properties": {
+        "status": {
+          "enum": [
+            "unreviewed",
+            "confirmed",
+            "needs_info",
+            "rejected"
+          ]
+        },
+        "events": {
+          "type": "array",
+          "maxItems": 200,
+          "items": {
+            "type": "object",
+            "required": [
+              "id",
+              "decision",
+              "createdAt"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128
+              },
+              "decision": {
+                "enum": [
+                  "confirmed",
+                  "needs_info",
+                  "rejected"
+                ]
+              },
+              "createdAt": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "author": {
+                "$ref": "#/$defs/author"
+              }
+            },
+            "additionalProperties": false
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "fieldSessionId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "observedAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "coordinateSource": {
+      "enum": [
+        "gps",
+        "map-selected",
+        "feature-derived",
+        "manual"
+      ]
+    },
+    "accuracyMeters": {
+      "type": "number",
+      "minimum": 0
+    },
+    "revision": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "observerPosition": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "coordinates",
+        "capturedAt"
+      ],
+      "properties": {
+        "coordinates": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 3,
+          "items": {
+            "type": "number"
+          }
+        },
+        "accuracyMeters": {
+          "type": "number",
+          "minimum": 0
+        },
+        "capturedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    }
+  },
+  "$defs": {
+    "author": {
+      "type": "object",
+      "required": [
+        "displayName"
+      ],
+      "properties": {
+        "displayName": {
+          "type": "string",
+          "maxLength": 120
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

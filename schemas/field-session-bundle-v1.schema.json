@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://gismap.online/schemas/field-session-bundle-v1.schema.json",
+  "title": "GISMap portable field session bundle",
+  "type": "object",
+  "required": ["schemaVersion", "notes"],
+  "additionalProperties": false,
+  "properties": {
+    "schemaVersion": { "const": "1.0" },
+    "session": {
+      "type": "object", "additionalProperties": false,
+      "required": ["id", "title", "description", "collector", "projectId", "createdAt", "updatedAt"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "title": { "type": "string", "minLength": 1, "maxLength": 240 },
+        "description": { "type": "string", "maxLength": 10000 },
+        "collector": { "type": "string", "maxLength": 120 },
+        "projectId": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      }
+    },
+    "notes": { "type": "array", "maxItems": 5000, "items": { "$ref": "map-note-v1.schema.json" } }
+  }
+}

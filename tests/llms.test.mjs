@@ -125,7 +125,7 @@ test("llms.txt follows llmstxt.org and its links resolve to files in the site", 
 
 test("the app page, sitemap, robots and headers point agents at the docs", async () => {
   const html = await text("index.html");
-  assert.match(html, /<link rel="alternate" type="text\/markdown" href="\/llms\.txt"/);
+  assert.match(html, /<link rel="alternate" type="text\/plain" href="\/llms\.txt"/);
   assert.match(html, /<link rel="describedby" type="application\/json" href="\/api\/capabilities\.json"/);
   assert.match(html, /<link rel="help" href="\/guides\/ai-agents\/"/);
   assert.match(html, /<section class="sr-only"[^>]*>\s*<h2 id="agent-docs-title">For AI agents and developers<\/h2>/);

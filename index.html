@@ -56,11 +56,12 @@
     <link rel="apple-touch-icon" href="./assets/icons/apple-touch-icon.png" />
     <meta name="theme-color" content="#0f2921" />
     <!-- For language models and agents: a Markdown summary, the machine-readable API, and the agent guide. -->
-    <link rel="alternate" type="text/markdown" href="/llms.txt" title="GIS Map Online for language models" />
+    <link rel="alternate" type="text/plain" href="/llms.txt" title="GIS Map Online for language models" />
+    <link rel="describedby" type="text/plain" href="/llms.txt" />
     <link rel="describedby" type="application/json" href="/api/capabilities.json" />
     <link rel="help" href="/guides/ai-agents/" />
     <link rel="preconnect" href="https://js.arcgis.com" />
-    <link rel="stylesheet" href="./css/app.css?v=0.54.0-style2" />
+    <link rel="stylesheet" href="./css/app.css?v=0.54.0-fieldnotes2" />
     <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
     <script src="https://unpkg.com/@mapbox/shp-write@0.4.3/shpwrite.js"></script>
     <script src="./js/vendor/qrcode-1.5.4.js?v=1"></script>
@@ -151,6 +152,8 @@
               <button type="button" data-mobile-workflow="briefing">Briefing mode</button>
               <button type="button" data-mobile-workflow="tours">Tours mode</button>
               <button type="button" data-mobile-workflow="tasks">Field tasks</button>
+              <button type="button" data-action="mode-map-notes">Field notes</button>
+              <button type="button" data-action="mode-data-map-notes">Map notes</button>
               <hr />
               <button type="button" data-mobile-workflow="map">Standard map</button>
               <hr />
@@ -161,6 +164,7 @@
               <button type="button" data-sidebar-panel-toggle="draw-panel">Add Draw panel</button>
               <button type="button" data-sidebar-panel-toggle="intelligence-panel">Hide Intelligence panel</button>
               <button type="button" data-sidebar-panel-toggle="layers-panel">Hide Layers panel</button>
+              <button type="button" data-sidebar-panel-toggle="observations-panel">Add Notes &amp; Tasks panel</button>
               <button type="button" data-panel-workspace>Open Workspace panel</button>
               <button type="button" data-panel-top-nav>Use top navigation</button>
             </div>
@@ -250,6 +254,11 @@
             </div>
           </details>
 
+          <details id="observations-panel" class="panel is-sidebar-optional-hidden" open>
+            <summary><span>Notes &amp; Tasks</span><small id="observations-count">0 items</small></summary>
+            <div id="observations-content" class="panel__body notes-hub"></div>
+          </details>
+
           <details id="layers-panel" class="panel layers-panel" open>
             <summary><span>Layers</span><small id="layer-count">0 loaded</small></summary>
             <div class="panel__body">
@@ -283,7 +292,7 @@
             <button type="button" data-action="data-file">Open local file</button>
             <button type="button" data-action="data-popular" class="button--quiet">Try an example</button>
           </div>
-          <p class="welcome-panel__resources"><a href="/examples/">Browse public GIS examples</a> · <a href="/guides/">Read GISMap guides</a></p>
+          <p class="welcome-panel__resources"><a href="/examples/">Browse public GIS examples</a> · <a href="/guides/">Read GISMap guides</a> · <a href="/ai-arcgis-map-generator/">Create a shareable ArcGIS map with AI</a></p>
         </section>
         <aside id="atlas-chapter-overlay" class="atlas-chapter-overlay" hidden aria-live="polite">
           <div class="atlas-chapter-overlay__copy">
@@ -382,6 +391,8 @@
         <header><h2 id="utility-title">Map tools</h2><div class="utility-panel__header-actions"><button id="utility-open-modal" class="icon-button" aria-label="Open current panel as a modal" title="Open as modal">↗</button><button id="utility-close" class="icon-button" aria-label="Close current panel">×</button></div></header>
         <nav id="utility-tabs" class="utility-tabs" aria-label="Right panel tabs" hidden></nav>
         <div class="utility-panes">
+          <div id="utility-notes-content" class="utility-content workspace-tool-pane" data-utility-pane="notes" hidden></div>
+          <div id="utility-data-notes-content" class="utility-content workspace-tool-pane" data-utility-pane="data-notes" hidden></div>
           <div class="utility-content workspace-tool-pane" data-utility-pane="workspace" hidden><p class="form-note">Dock a panel or open a tool to work here.</p></div>
           <div id="utility-basemap-content" class="utility-content" data-utility-pane="basemapGallery" hidden></div>
           <div id="utility-elevation-content" class="utility-content" data-utility-pane="elevationProfile" hidden></div>
@@ -448,6 +459,7 @@
       <p>A map opens from a link: write one map-v1 JSON object after <code>#map=json:</code> in this page's address, or use <code>?layer=&lt;HTTPS service URL&gt;</code>. No key or account is needed.</p>
       <ul>
         <li><a href="/llms.txt">llms.txt: a summary for language models</a></li>
+        <li><a href="/ai-arcgis-map-generator/">Create a shareable ArcGIS map with AI</a></li>
         <li><a href="/guides/ai-agents/">Making maps with an AI agent</a></li>
         <li><a href="/schemas/map-v1.schema.json">Map spec schema (map-v1)</a></li>
         <li><a href="/api/capabilities.json">API capabilities</a> and <a href="/api/url-parameters.json">URL parameters</a></li>
@@ -455,6 +467,6 @@
       </ul>
     </section>
     <noscript>GISMap Online is a geospatial application and needs JavaScript. Without it, a map can still be described as a link: see <a href="/llms.txt">/llms.txt</a> and the <a href="/guides/ai-agents/">guide for AI agents</a>.</noscript>
-    <script type="module" src="./js/app.js?v=0.54.0-geourl1"></script>
+    <script type="module" src="./js/app.js?v=0.54.0-fieldnotes2"></script>
   </body>
 </html>

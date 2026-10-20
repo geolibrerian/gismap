@@ -24,6 +24,7 @@ The map in a link is one JSON object (map-v1): layers with filters and styles, b
 ## Guides
 - [GISMap Agent Skill](https://gismap.online/skills/): installable instructions, validation and implementation proposal
 - [Making maps with an AI agent](https://gismap.online/guides/ai-agents/): chat-only, code-running and browser-driving recipes
+- [AI ArcGIS map generator](https://gismap.online/ai-arcgis-map-generator/): inspect a FeatureServer, style a map, and share a working link
 - [ArcGIS FeatureServer viewer](https://gismap.online/arcgis-feature-service-viewer/)
 
 ## Worked examples

@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://gismap.online/schemas/note-relationship-v1.schema.json",
+  "title": "GISMap project-local note relationship v1",
+  "description": "A relationship between separate data and field notes; it grants no authority and may remain unresolved if a note is missing.",
+  "type": "object", "additionalProperties": false,
+  "required": ["schemaVersion", "id", "mapNoteId", "fieldNoteId", "type", "createdAt"],
+  "properties": {
+    "schemaVersion": { "const": "1.0" },
+    "id": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "\\S" },
+    "mapNoteId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "\\S" },
+    "fieldNoteId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "\\S" },
+    "type": { "enum": ["related", "supports", "contradicts"] },
+    "createdAt": { "type": "string", "format": "date-time" }
+  }
+}

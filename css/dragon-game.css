@@ -36,3 +36,13 @@ main{max-width:1090px;margin:auto;border:1px solid #bed3c5;border-radius:26px;ba
 .dialog-actions a.dialog-secondary{display:inline-flex;align-items:center;justify-content:center;text-decoration:none}
 
 .share-qr-card{position:relative;width:min(100%,300px);margin:auto}.share-dialog .share-qr-card #shareQr{width:100%}
+
+/* The game is embedded in a resizable GISMap dialog or workspace. Preserve the
+   standalone landing page, while making the playfield the focus of the embed. */
+.dragon-embedded body { min-height:100dvh; padding:8px; overflow-y:auto; }
+.dragon-embedded main { width:min(100%, max(300px, (100dvh - 100px) * 2)); max-width:1090px; padding:0; border:0; border-radius:0; background:transparent; box-shadow:none; }
+.dragon-embedded :is(.logo,.kicker,h1,.intro,.actions,.below) { display:none; }
+.dragon-embedded .game-controls { margin-top:8px; }
+@media (max-width:650px) {
+  .dragon-embedded main { width:min(100%, max(280px, (100dvh - 145px) * .92)); }
+}

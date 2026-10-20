@@ -55,7 +55,7 @@ test('the direct dragon page is up to date and uses the same game without a 404 
   assert.match(direct, /rel="icon" href="\/assets\/gis-map-online-mark-v2\.png" type="image\/png"/);
   assert.doesNotMatch(direct, /404 ·|couldn’t find that page|content="noindex"/);
   for (const id of ['game', 'canvas', 'start', 'flapButton', 'pauseButton']) assert.match(direct, new RegExp(`id="${id}"`));
-  assert.match(direct, /\/js\/dragon-game\.js\?v=11/);
+  assert.match(direct, /\/js\/dragon-game\.js\?v=12/);
   assert.match(direct, /download="here-be-dragons\.png"/);
   assert.doesNotMatch(direct, /id="shareQrBrand"/);
   assert.match(direct, /href="\/examples\/">See examples<\/a>/);
@@ -173,4 +173,15 @@ test('winged krakens launch on approach and their collision box follows their fl
     scope.advance(h,3); assert.ok(scope.y(h)<-150);
     const regular={...h,flying:false,flightElapsed:undefined}; scope.advance(regular,2); assert.equal(scope.y(regular),353);
   }
+});
+
+test('workspace embed uses a compact responsive game without changing the standalone page', async () => {
+  const ui = await readFile(new URL('../js/ui.js', import.meta.url), 'utf8');
+  const appCss = await readFile(new URL('../css/app.css', import.meta.url), 'utf8');
+  const gameCss = await readFile(new URL('../css/dragon-game.css', import.meta.url), 'utf8');
+  assert.match(ui, /src="\/dragons\/\?embed=1"/);
+  assert.match(code, /location\.search==='\?embed=1'/);
+  assert.match(gameCss, /\.dragon-embedded :is\(\.logo,\.kicker,h1,\.intro,\.actions,\.below\)/);
+  assert.match(appCss, /utility-panel:has\(\.dragon-game-frame\) \.utility-panes \{ grid-row:3;/);
+  assert.match(appCss, /\.app-dialog--docked \.dragon-game-frame \{ flex:1; height:100%/);
 });

@@ -1,3 +1,7 @@
+import { DataMapNotesRegistry, normalizeDataMapNotes } from "./data-map-notes.js?v=0.5.0";
+import { NoteRelationshipsRegistry, normalizeNoteRelationships } from "./note-relationships.js?v=0.2.0";
+import { previewMapNoteTasks, prepareMapNoteTasks } from "./map-note-task-planner.js?v=0.1.0";
+import { MapNotesRegistry, normalizeNotes } from "./map-notes.js?v=0.3.0";
 import { applicationToLegacyPresentation, normalizeApplicationConfig } from "./application-config.js?v=0.18.2";
 import { normalizeDataCatalog } from "./data-catalog.js?v=0.18.2";
 import { normalizeSkin, normalizeSkinColors } from "./skin-catalog.js?v=0.52.3";
@@ -42,6 +46,12 @@ export class ProjectManager {
     this.mapController = mapController;
     this.authController = authController;
     this.current = this.#blank("Untitled project");
+    // Preserve project.notes and the historical .notes API without guessing
+    // whether legacy records were intended as data or field observations.
+    this.notes = new MapNotesRegistry({ project: () => this.current, events, persist: () => this.persistCurrentIfSaved() });
+    this.fieldNotes = this.notes;
+    this.mapNotes = new DataMapNotesRegistry({ project: () => this.current, events, persist: () => this.persistCurrentIfSaved() });
+    this.noteRelationships = new NoteRelationshipsRegistry({ project: () => this.current, events, persist: () => this.persistCurrentIfSaved() });
   }
 
   #blank(name) {
@@ -58,6 +68,9 @@ export class ProjectManager {
       view: { type: "scene", center: [-98.5, 39.5], zoom: 4, heading: 0, tilt: 35 },
       layers: [],
       bookmarks: [],
+      notes: [],
+      mapNotes: [],
+      noteRelationships: [],
       tools: [],
       ai: { provider: null, model: null },
       connections: [],
@@ -121,6 +134,24 @@ export class ProjectManager {
     return true;
   }
 
+  previewTasksFromMapNotes(request) { return previewMapNoteTasks(this.current, request); }
+
+  createTasksFromMapNotes(preview) {
+    const prepared = prepareMapNoteTasks(this.current, preview);
+    const previous = { mobile: this.current.mobile, links: this.current.noteRelationships };
+    this.current.mobile = normalizeMobileWorkflow({ ...this.current.mobile, fieldTasks: [...prepared.tasks, ...(this.current.mobile?.fieldTasks || [])] });
+    this.current.noteRelationships = prepared.links;
+    try {
+      // A single atomic localStorage write for already-saved projects; unsaved
+      // projects stay in memory until the user explicitly saves them.
+      const store = this.#readStore();
+      if (store[this.current.id]) { const snapshot = this.snapshot(); store[snapshot.id] = snapshot; localStorage.setItem(STORAGE_KEY, JSON.stringify(store)); }
+    } catch (error) { this.current.mobile = previous.mobile; this.current.noteRelationships = previous.links; throw error; }
+    this.events.publish('mobile:workflow-changed', { mobile: structuredClone(this.current.mobile) });
+    this.events.publish('note-relationships:changed', { action: 'create', relationshipId: null, count: this.current.noteRelationships.length });
+    return structuredClone(prepared.tasks);
+  }
+
   async loadSaved(id) {
     const project = this.#readStore()[id];
     if (!project) throw new Error("That local project no longer exists.");
@@ -131,6 +162,10 @@ export class ProjectManager {
     if (!project || project.version !== 1 || !Array.isArray(project.layers)) {
       throw new Error("This is not a supported GIS Map Online project file.");
     }
+    // Validate before changing the current map or accepting an imported project.
+    const notes = normalizeNotes(project.notes ?? []);
+    const mapNotes = normalizeDataMapNotes(project.mapNotes ?? []);
+    const noteRelationships = normalizeNoteRelationships(project.noteRelationships ?? []);
     this.authController?.importConnections(project.connections ?? []);
     await this.mapController.clearOperationalLayers();
     this.mapController.setDefaultBasemap(project.defaultBasemap || this.mapController.getDefaultBasemapId());
@@ -179,6 +214,9 @@ export class ProjectManager {
     }
 
     this.current = structuredClone(project);
+    this.current.notes = notes;
+    this.current.mapNotes = mapNotes;
+    this.current.noteRelationships = noteRelationships;
     this.current.presentation = this.#presentation(project.presentation);
     this.current.application = project.application?.configured === true
       ? normalizeApplicationConfig(project.application)

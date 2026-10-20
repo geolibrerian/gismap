@@ -214,6 +214,7 @@ The map in a link is one JSON object (map-v1): layers with filters and styles, b
 ## Guides
 - [GISMap Agent Skill](${SITE}/skills/): installable instructions, validation and implementation proposal
 - [Making maps with an AI agent](${SITE}/guides/ai-agents/): chat-only, code-running and browser-driving recipes
+- [AI ArcGIS map generator](${SITE}/ai-arcgis-map-generator/): inspect a FeatureServer, style a map, and share a working link
 - [ArcGIS FeatureServer viewer](${SITE}/arcgis-feature-service-viewer/)
 ${examples?.items?.length ? `\n## Worked examples\n${examples.items.map((item) => `- [${item.title}](${item.url}): ${item.summary}`).join("\n")}\n` : ""}
 ## Data

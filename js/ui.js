@@ -1,3 +1,10 @@
+import { renderNotesHub } from "./notes-hub.js?v=0.1.0";
+import { refreshMapNoteFilters } from './map-note-filters.js?v=0.4.1';
+import { openDataMapNotesPanel } from "./data-map-notes-panel.js?v=0.16.0";
+import { refreshMapNoteWorkflow } from "./map-note-workflow-ui.js?v=0.1.0";
+import { noteFeatureReference } from './map-note-feature.js?v=0.1.0';
+import { openMapNotesPanel } from "./map-notes-panel.js?v=0.14.0";
+import { refreshNoteRelationships } from "./note-relationships-ui.js?v=0.1.0";
 import { googleMapsLinkForChapter } from "./google-maps-link.js?v=0.53.0";
 import { POPULAR_SERVICES } from "./catalog.js?v=0.18.2";
 import { MapAssistantPanel } from "./assistant-panel.js?v=0.54.0-geourl1";
@@ -20,7 +27,7 @@ import { PdfDocument, brandedMapImage, brandedQrCanvas, loadBrandLogo, printPale
 import { featureLayerUrl, locationUrl } from "./field-task-share.js?v=0.54.0-unified4";
 import { dockIcon } from "./dock-icons.js?v=0.24.0";
 import { serviceNameFromUrl } from "./service-name.js?v=0.26.0";
-import { decodeQrFromImage, describeGisMapLink, gisMapLinkFrom, openGisMapLink } from "./qr-import.js?v=0.25.1";
+import { decodeQrFromImage, describeGisMapLink, gisMapLinkFrom, openGisMapLink } from "./qr-import.js?v=0.25.2";
 import { BriefingSlides } from "./briefing-slides.js?v=0.53.0";
 import { createSlide, matchesFilter, normalizeFilter } from "./briefing-document.js?v=0.35.0";
 import { aiDescriptionPrompt, applyAiDescriptions, describeWhere, generateBriefing, readAiDescriptions, rendererTheme } from "./briefing-generator.js?v=0.36.1";
@@ -31,7 +38,7 @@ import { BASEMAPS } from "./basemap-catalog.js?v=0.53.0-gallery1";
 
 const BUILDINGS_3D_KEY = "gismap-online:buildings-3d:v1";
 const DISPLAY_SETTINGS_KEY = "gismap-online:display:v1";
-const DOCKABLE_PANELS = { places: "Places", bookmarks: "Bookmarks", draw: "Draw", intelligence: "Intelligence", layers: "Layers" };
+const DOCKABLE_PANELS = { places: "Places", bookmarks: "Bookmarks", draw: "Draw", intelligence: "Intelligence", layers: "Layers", observations: "Notes & Tasks" };
 const RECENT_PLACES_KEY = "gismap-online:recent-places:v1";
 const RECENT_PLACES_LIMIT = 6;
 const INSIGHT_POSITIONS = new Set(["upper-left", "lower-left", "bottom", "dock-left", "dock-right", "dock-top", "dock-bottom"]);
@@ -127,6 +134,7 @@ export class UIController {
     this.panelManager?.register("content:intelligence", document.querySelector("#intelligence-content"), { shell: document.querySelector("#intelligence-panel") });
     this.panelManager?.register("content:draw", document.querySelector(".draw-tools"), { shell: document.querySelector("#draw-panel") });
     this.#initDockablePanels();
+    this.#initNotesHub();
     this.#applyDisplaySettings(this.#readDisplaySettings());
     this.#followSkinOnMap();
     this.systemThemeMedia.addEventListener?.("change", () => {
@@ -246,6 +254,7 @@ export class UIController {
   }
 
   #bindStaticActions() {
+    window.addEventListener("beforeunload", event => { if (this.captureDataMapNoteDraft?.() || this.dataMapNoteDraftDirty) { event.preventDefault(); event.returnValue = ""; } });
     document.querySelector("#welcome-close").addEventListener("click", () => this.#dismissWelcome());
     document.querySelector("#layers-list")?.addEventListener("click", (event) => {
       const button = event.target.closest("[data-empty-action]");
@@ -334,6 +343,7 @@ export class UIController {
     document.querySelectorAll("[data-nav]").forEach((button) =>
       button.addEventListener("click", () => this.mapController.navigate(button.dataset.nav).catch((e) => this.error(e.message))),
     );
+    document.querySelectorAll("[data-mobile-workflow]").forEach((button) => button.addEventListener("click", () => { if (this.mapNotesModeActive) this.#closeUtilityTab("notes"); if (button.dataset.mobileWorkflow === "tasks") { this.notesHubTab = "tasks"; this.#showNotesHub(); } }));
     document.querySelector("#sidebar-close").addEventListener("click", () => this.#setSidebarCollapsed(true));
     document.querySelector("#sidebar-open").addEventListener("click", () => this.#setSidebarCollapsed(false));
     const toggleMobileMenu = (event) => {
@@ -528,7 +538,69 @@ export class UIController {
     this.events.subscribe("map:ready", ({ zoom }) => {
       document.querySelector("#map-status").textContent = `Ready · zoom ${zoom.toFixed(1)}`;
     });
-    this.events.subscribe("map:click", () => this.#dismissWelcome());
+    this.events.subscribe("map:click", (click) => {
+      const { mapPoint } = click;
+      this.#dismissWelcome();
+      const point = Number.isFinite(mapPoint?.longitude) && Number.isFinite(mapPoint?.latitude) ? [((mapPoint.longitude + 180) % 360 + 360) % 360 - 180, mapPoint.latitude] : null;
+      if (this.dataMapNotesOpen && this.activeUtilityTab === "data-notes" && !this.dataMapNotePaused && point) {
+        const setTarget = this.setDataMapNoteTarget;
+        if (!setTarget) return;
+        const revision = this.dataMapNotePickRevision = (this.dataMapNotePickRevision || 0) + 1;
+        this.dataMapNotePoint = point;
+        setTarget({ type: "location", coordinates: point });
+        this.refreshDataMapNoteMarkers();
+        const stillCurrent = () => this.dataMapNotesOpen && this.activeUtilityTab === "data-notes" && revision === this.dataMapNotePickRevision && setTarget === this.setDataMapNoteTarget;
+        Promise.resolve().then(() => this.mapController.identify(click)).then(results => {
+          if (!stillCurrent()) return;
+          const seen = new Set();
+          const features = (results || []).filter(item => item.kind === "feature").map(result => {
+            const layer = this.mapController.getLayer(result.layerUid);
+            const ref = noteFeatureReference(result, layer, layer && this.mapController.getLayerConfig(layer));
+            if (!ref) return null;
+            const key = `${ref.datasetId}\0${ref.featureId || ''}`;
+            if (seen.has(key)) return null;
+            seen.add(key);
+            return { datasetId: ref.datasetId, ...(ref.featureId ? { featureId: ref.featureId } : {}), ...(ref.datasetTitle ? { datasetTitle: ref.datasetTitle } : {}), ...(ref.sourceUrl ? { sourceUrl: ref.sourceUrl } : {}) };
+          }).filter(Boolean).slice(0, 50);
+          if (features.length) this.setDataMapNoteContext?.({ features });
+        }).catch(() => { /* The location remains usable if identify fails. */ });
+        Promise.resolve().then(() => this.mapController.reverseGeocode({ longitude: point[0], latitude: point[1] })).then(result => {
+          if (!stillCurrent() || !result) return;
+          const address = typeof result.address === 'string' ? result.address.trim().slice(0, 512) : '';
+          const fields = ['PlaceName', 'City', 'Region', 'State', 'County', 'CensusTract', 'CensusTractGEOID', 'CensusBlockGEOID', 'Postal', 'Country', 'CountryCode'];
+          const geographies = fields.flatMap(label => { const value = result.attributes?.[label]; return typeof value === 'string' && value.trim() ? [{ label, value: value.trim().slice(0, 256) }] : []; });
+          if (address || geographies.length) this.setDataMapNoteContext?.({ ...(address ? { address } : {}), ...(geographies.length ? { geographies } : {}) });
+        }).catch(() => { /* The location remains usable if geocoding fails. */ });
+        return;
+      }
+      if (!this.mapNotesModeActive || !this.fieldNotesEditing || this.activeUtilityTab !== "notes" || !point) { this.mapNotePoint = point; return; }
+      const pane = document.querySelector("#utility-notes-content");
+      if ([...pane.querySelectorAll('[data-note-form] [name="title"], [data-note-form] [name="body"]')].some((input) => input.value.trim())) {
+        this.toast("Save or clear the current observation before choosing another location."); return;
+      }
+      this.mapNotePoint = point;
+      const selection = this.mapNotesSelectionId = (this.mapNotesSelectionId || 0) + 1;
+      openMapNotesPanel(this, { point: this.mapNotePoint });
+      const attach = this.mapNotesAttachFeature;
+      const save = pane.querySelector('[data-note-save]');
+      const status = pane.querySelector('[data-linked-feature]');
+      if (save) save.disabled = true;
+      if (status) status.textContent = 'Checking for a feature at this location…';
+      const identify = Promise.resolve().then(() => this.mapController.identify(click));
+      const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('Feature inspection timed out.')), 10000));
+      Promise.race([identify, timeout]).then((results) => {
+        if (!this.mapNotesModeActive || selection !== this.mapNotesSelectionId || attach !== this.mapNotesAttachFeature) return;
+        const result = results?.find((item) => item.kind === "feature");
+        const layer = result && this.mapController.getLayer(result.layerUid);
+        const config = layer && this.mapController.getLayerConfig(layer);
+        attach?.(noteFeatureReference(result, layer, config));
+        if (save) save.disabled = false;
+      }).catch(() => {
+        if (!this.mapNotesModeActive || selection !== this.mapNotesSelectionId || attach !== this.mapNotesAttachFeature) return;
+        if (status) status.textContent = 'Feature inspection unavailable; this will be a location-only note.';
+        if (save) save.disabled = false;
+      });
+    });
     this.events.subscribe("view:scale-change", () => this.#updateLayerScaleIndicators());
     this.events.subscribe("view:stationary", () => {
       if (["explorer", "briefing"].includes(this.presentationState.template) && this.presentationState.scope === "extent") {
@@ -547,7 +619,16 @@ export class UIController {
     ["layer:added", "layer:removed", "layer:changed", "layers:reset"].forEach((topic) =>
       this.events.subscribe(topic, () => this.#renderLayers()),
     );
+    ["notes:changed", "map-notes:changed", "note-relationships:changed"].forEach(topic =>
+      this.events.subscribe(topic, () => refreshNoteRelationships(this)),
+    );
+    ["map-notes:changed", "note-relationships:changed", "mobile:workflow-changed"].forEach(topic =>
+      this.events.subscribe(topic, () => { refreshMapNoteWorkflow(this); refreshMapNoteFilters(this); }),
+    );
     this.events.subscribe("project:loaded", ({ project, missingFiles }) => {
+      this.mapNotePoint = null;
+      if (this.mapNotesModeActive) { this.mapNotesSessionDraft = null; this.fieldSessionController.session = null; openMapNotesPanel(this); }
+      if (this.dataMapNotesOpen) openDataMapNotesPanel(this);
       if (project.application?.configured) {
         this.#applyPresentation({ template: "standard" });
         this.applicationRuntime.apply(project.application);
@@ -616,15 +697,24 @@ export class UIController {
       this.#renderIntelligenceContents();
     });
     this.events.subscribe("identify:complete", (payload) => {
-      // Picking a feature for a field task should not cover the map with its details.
-      if (this.presentationState.template === "briefing" || document.body.classList.contains("field-task-picking")) {
+      // Intelligence is independent of the feature-details overlay, including
+      // when a notes workflow deliberately keeps that overlay out of the way.
+      this.intelligenceInsight = payload.intelligenceCurrent === false ? null : payload;
+      this.identifyPending = false;
+      document.querySelector("#insights-overlay").setAttribute("aria-busy", "false");
+      if ((this.dataMapNotesOpen && this.activeUtilityTab === "data-notes" && !this.dataMapNotePaused)
+        || (this.mapNotesModeActive && this.fieldNotesEditing && this.activeUtilityTab === "notes")) {
+        this.#renderIntelligenceContents();
         this.#setInsightsOpen(false);
         return;
       }
-      this.intelligenceInsight = payload.intelligenceCurrent === false ? null : payload;
+      // Picking a feature for a field task should not cover the map with its details.
+      if (this.presentationState.template === "briefing" || document.body.classList.contains("field-task-picking")) {
+        this.#renderIntelligenceContents();
+        this.#setInsightsOpen(false);
+        return;
+      }
       if (payload.insightCurrent === false) {
-        this.identifyPending = false;
-        document.querySelector("#insights-overlay").setAttribute("aria-busy", "false");
         this.#renderIntelligenceContents();
         return;
       }
@@ -655,7 +745,9 @@ export class UIController {
       this.#setInsightsOpen(false);
     });
     this.events.subscribe("identify:error", ({ error }) => {
+      this.identifyPending = false;
       document.querySelector("#insights-overlay").setAttribute("aria-busy", "false");
+      this.#renderIntelligenceContents();
       this.error(`Identify failed: ${error.message}`);
     });
     this.events.subscribe("ai:configured", () => this.assistant.render());
@@ -802,6 +894,8 @@ export class UIController {
   #syncUtilityPanel(preferredTab = null) {
     const tabs = [
       ...(this.utilityWorkspaceOpen ? [{ id: "workspace", label: "Workspace" }] : []),
+      ...(this.mapNotesModeActive ? [{ id: "notes", label: "Field Notes" }] : []),
+      ...(this.dataMapNotesOpen ? [{ id: "data-notes", label: "Map Notes" }] : []),
       ...this.#utilityWidgetTabs(),
       ...(this.utilityTasksOpen ? [{ id: "tasks", label: "Field tasks" }] : []),
       ...(this.utilityDialogOpen ? [{ id: "dialog", label: document.querySelector("#dialog-title")?.textContent || "Dialog" }] : []),
@@ -817,6 +911,10 @@ export class UIController {
     this.activeUtilityTab = validTabs.has(preferredTab)
       ? preferredTab
       : validTabs.has(this.activeUtilityTab) ? this.activeUtilityTab : tabs[0]?.id || null;
+    document.body.classList.toggle("map-notes-authoring", (this.mapNotesModeActive && this.fieldNotesEditing && this.activeUtilityTab === "notes") || (this.dataMapNotesOpen && this.activeUtilityTab === "data-notes" && !this.dataMapNotePaused));
+    if (this.activeUtilityTab === "data-notes") this.refreshDataMapNoteMarkers();
+    else if (this.activeUtilityTab === "notes") this.refreshMapNoteMarkers(this.mapNotePoint);
+    else this.mapController.setMapNoteMarkers([]);
     const open = tabs.length > 0;
     if (open) this.#dismissWelcome();
     if (open && this.mobileMedia.matches) this.#setSidebarCollapsed(true);
@@ -828,7 +926,7 @@ export class UIController {
     document.querySelectorAll("[data-utility-pane]").forEach((pane) => { pane.hidden = pane.dataset.utilityPane !== this.activeUtilityTab; });
     document.querySelector("#utility-title").textContent = tabs.find((tab) => tab.id === this.activeUtilityTab)?.label || "Map tools";
     const utilityModalButton = document.querySelector("#utility-open-modal");
-    if (utilityModalButton) utilityModalButton.hidden = ["presentation", "tasks"].includes(this.activeUtilityTab);
+    if (utilityModalButton) utilityModalButton.hidden = ["presentation", "tasks", "notes", "data-notes"].includes(this.activeUtilityTab);
     document.body.classList.toggle("utility-panel-open", open);
     document.body.classList.toggle("mobile-measurement-panel-open", this.mobileMedia.matches && open && this.activeUtilityTab === "measurement");
     document.body.classList.toggle("mobile-presentation-panel-open", this.mobileMedia.matches && open && this.activeUtilityTab === "presentation");
@@ -951,6 +1049,15 @@ export class UIController {
   }
 
   #closeUtilityTab(tabId) {
+    if (tabId === "notes") {
+      this.mapNotesModeActive = false; this.fieldNotesEditing = false; this.mapNotesSelectionId = (this.mapNotesSelectionId || 0) + 1;
+      this.mapNotesAttachFeature = null; this.mapNotesSessionDraft = null;
+      document.body.classList.remove("map-notes-authoring");
+      this.mapController.setMapNoteMarkers([]);
+      document.querySelector("#utility-notes-content")?.replaceChildren();
+      this.#syncUtilityPanel(); return;
+    }
+    if (tabId === "data-notes") { if (this.captureDataMapNoteDraft?.() && !globalThis.confirm(this.dataMapNoteDraftStored ? "Close Map Notes? Your unsaved draft is kept only in this browser tab session, not in the project. Save the note and project for permanent storage." : "Close Map Notes? Session storage is unavailable and your unsaved draft will be lost.")) return; this.captureDataMapNoteDraft = null; this.dataMapNotesOpen = false; this.dataMapNotePickRevision = (this.dataMapNotePickRevision || 0) + 1; this.setDataMapNoteTarget = null; this.dataMapNotePoint = null; document.querySelector("#utility-data-notes-content")?.replaceChildren(); this.#syncUtilityPanel(); return; }
     if (tabId === "workspace") { this.utilityWorkspaceOpen = false; this.#syncUtilityPanel(); return; }
     if (tabId === "query") {
       this.utilityQueryOpen = false;
@@ -1062,6 +1169,7 @@ export class UIController {
   }
 
   async #handleAction(action) {
+    if (this.dataMapNotesOpen && action?.startsWith("mode-") && action !== "mode-data-map-notes" && this.captureDataMapNoteDraft?.() && !globalThis.confirm(this.dataMapNoteDraftStored ? "Change mode? Your unsaved Map Note is kept only in this browser tab session, not in the project." : "Change mode? Session storage is unavailable and your unsaved Map Note may be lost.")) return;
     this.keepWelcomeForSharedExample = false;
     try {
       switch (action) {
@@ -1135,8 +1243,14 @@ export class UIController {
         case "data-popular":
           this.#popularDataDialog();
           break;
+        case "mode-data-map-notes":
+          openDataMapNotesPanel(this);
+          break;
+        case "mode-map-notes":
+          openMapNotesPanel(this);
+          break;
         case "game-dragons":
-          this.openDialog({ eyebrow: "Games", title: "Here be dragons", content: '<iframe class="dragon-game-frame" src="/dragons/" title="Here be dragons game"></iframe>' });
+          this.openDialog({ eyebrow: "Games", title: "Here be dragons", content: '<iframe class="dragon-game-frame" src="/dragons/?embed=1" title="Here be dragons game"></iframe>' });
           if (this.dialog.classList.contains("app-dialog--docked")) this.#reopenDialog(false);
           {
             const stopGame = () => {
@@ -1827,6 +1941,9 @@ export class UIController {
    * otherwise cancel it silently.
    */
   async #switchEngine(engine) {
+    if (this.projectManager.current.notes?.length || this.projectManager.current.mapNotes?.length) {
+      if (!globalThis.confirm("Switching engines reloads the map without carrying Map Notes or Field Notes. Save or download this project first, then reopen it after switching. Continue?")) return;
+    }
     this.toast(`Opening this map with ${engine === "maplibre" ? "MapLibre" : "ArcGIS"}…`);
     const url = new URL(location.href);
     url.searchParams.delete("engine");
@@ -1903,7 +2020,7 @@ export class UIController {
         highlightColor: /^#[0-9a-f]{6}$/i.test(saved.highlightColor) ? saved.highlightColor : "#00b8d9",
         highlightStyle: saved.highlightStyle === "outline" ? "outline" : "fill",
         navigationLayout: saved.navigationLayout === "top" ? "top" : "side",
-        utilityPanelWidth: Number.isFinite(saved.utilityPanelWidth) ? Math.min(620, Math.max(280, saved.utilityPanelWidth)) : 360,
+        utilityPanelWidth: Number.isFinite(saved.utilityPanelWidth) ? Math.min(Math.max(280, window.innerWidth * 0.55), Math.max(280, saved.utilityPanelWidth)) : 360,
         appearance: ["system", "light", "dark"].includes(saved.appearance) ? saved.appearance : "system",
         darkBasemapEnabled: saved.darkBasemapEnabled === true,
         bookmarksPanelVisible: saved.bookmarksPanelVisible === true,
@@ -1911,6 +2028,7 @@ export class UIController {
         placesPanelVisible: saved.placesPanelVisible !== false,
         intelligencePanelVisible: saved.intelligencePanelVisible !== false,
         layersPanelVisible: saved.layersPanelVisible !== false,
+        observationsPanelVisible: saved.observationsPanelVisible === true,
       };
     } catch {
       return { insightDismissEnabled: true, insightDismissMiles: 75, insightPosition: "upper-left", defaultBasemap: "topo-3d", insightDockWidth: 420, insightDockHeight: 360, tablePosition: "overlay-bottom", tableDockWidth: 520, tableDockHeight: 420, highlightEnabled: true, clickMarkerEnabled: true, highlightColor: "#00b8d9", highlightStyle: "fill", navigationLayout: "side", utilityPanelWidth: 360, appearance: "system", darkBasemapEnabled: false, bookmarksPanelVisible: false, drawPanelVisible: false };
@@ -1937,6 +2055,7 @@ export class UIController {
     this.#setOptionalPanelVisibility("places-panel", settings.placesPanelVisible !== false, false);
     this.#setOptionalPanelVisibility("intelligence-panel", settings.intelligencePanelVisible !== false, false);
     this.#setOptionalPanelVisibility("layers-panel", settings.layersPanelVisible !== false, false);
+    this.#setOptionalPanelVisibility("observations-panel", settings.observationsPanelVisible === true, false);
     document.querySelectorAll("[data-panel-top-nav]").forEach((button) => { button.textContent = settings.navigationLayout === "top" ? "Use side navigation" : "Use top navigation"; button.setAttribute("aria-pressed", String(settings.navigationLayout === "top")); });
     if (settings.navigationLayout === "top") {
       document.querySelectorAll(".sidebar__scroll > .panel").forEach((panel) => { panel.open = false; });
@@ -2123,12 +2242,14 @@ export class UIController {
     const handle = document.querySelector("#utility-resizer");
     const setWidth = (width, save = false) => {
       const settings = this.#readDisplaySettings();
-      settings.utilityPanelWidth = Math.min(window.innerWidth * 0.55, Math.max(280, width));
+      settings.utilityPanelWidth = Math.min(Math.max(280, window.innerWidth * 0.55), Math.max(280, width));
       document.body.style.setProperty("--utility-panel-width", `${settings.utilityPanelWidth}px`);
       if (save) localStorage.setItem(DISPLAY_SETTINGS_KEY, JSON.stringify(settings));
       requestAnimationFrame(() => this.mapController.resize());
     };
+    this.setUtilityPanelWidth = (size) => setWidth(size === "max" ? window.innerWidth * 0.55 : 280, true);
     handle.addEventListener("keydown", (event) => {
+      if (event.key === "Home" || event.key === "End") { event.preventDefault(); this.setUtilityPanelWidth(event.key === "Home" ? "min" : "max"); return; }
       const delta = ({ ArrowLeft: 20, ArrowRight: -20 })[event.key];
       if (delta == null) return;
       event.preventDefault();
@@ -5969,7 +6090,7 @@ export class UIController {
         const selection = aiEnabled
           ? `<label class="insight-ai-select"><input type="checkbox" data-ai-selection="${index}" ${index === 0 ? "checked" : ""}> Include in AI</label>`
           : "";
-        return `<article class="insight-panel" id="insight-panel-${index}" role="tabpanel" aria-labelledby="insight-tab-${index}" ${index === 0 ? "" : "hidden"}><header><span><strong>${escapeHtml(result.layerTitle)}</strong><small>${escapeHtml(result.kind)}</small></span>${selection}</header><dl>${entries.map(([key, value]) => `<div><dt>${escapeHtml(key)}</dt><dd>${escapeHtml(formatAttributeValue(value, fieldsByName.get(key), key))}</dd></div>`).join("") || "<div><dd>No attributes returned.</dd></div>"}</dl></article>`;
+        return `<article class="insight-panel" id="insight-panel-${index}" role="tabpanel" aria-labelledby="insight-tab-${index}" ${index === 0 ? "" : "hidden"}><header><span><strong>${escapeHtml(result.layerTitle)}</strong><small>${escapeHtml(result.kind)}</small></span>${selection}</header>${result.kind === "feature" && payload.point ? `<div class="insight-note-actions"><button type="button" data-feature-note="${index}">Add field observation</button><button type="button" data-feature-map-note="${index}">Add Map Note</button></div>` : ""}<dl>${entries.map(([key, value]) => `<div><dt>${escapeHtml(key)}</dt><dd>${escapeHtml(formatAttributeValue(value, fieldsByName.get(key), key))}</dd></div>`).join("") || "<div><dd>No attributes returned.</dd></div>"}</dl></article>`;
       }).join("");
     document.querySelector(".orbital-insight-details")?.remove();
     this.#renderIntelligenceContents();
@@ -5997,9 +6118,25 @@ export class UIController {
           this.#isolateInsightResult(Number(button.dataset.insightTab));
         }),
       );
+      document.querySelectorAll("[data-feature-note]").forEach((button) => button.addEventListener("click", () => {
+        const result = visibleResults[Number(button.dataset.featureNote)];
+        const layer = result && this.mapController.getLayer(result.layerUid);
+        const config = layer && this.mapController.getLayerConfig(layer);
+        const feature = noteFeatureReference(result, layer, config);
+        openMapNotesPanel(this, { point: [payload.point.longitude, payload.point.latitude], feature, featureUnavailable: !feature });
+      }));
       document.querySelectorAll("[data-ai-selection]").forEach((input) =>
         input.addEventListener("change", () => this.#setInsightSelection(Number(input.dataset.aiSelection), input.checked)),
       );
+      document.querySelectorAll("[data-feature-map-note]").forEach(button => button.addEventListener("click", () => {
+        if (this.dataMapNotesOpen && this.captureDataMapNoteDraft?.() && !globalThis.confirm("Starting a Map Note from this feature will replace the current session draft. Continue?")) return;
+        const result = visibleResults[Number(button.dataset.featureMapNote)];
+        const layer = result && this.mapController.getLayer(result.layerUid);
+        const feature = noteFeatureReference(result, layer, layer && this.mapController.getLayerConfig(layer));
+        const target = feature ? { type: feature.featureId ? "feature" : "dataset", datasetId: feature.datasetId, ...(feature.featureId ? { featureId: feature.featureId } : {}), ...(feature.sourceUrl ? { sourceUrl: feature.sourceUrl } : {}) } : null;
+        if (!target) this.toast("Enter a dataset or feature ID to link this Map Note.");
+        openDataMapNotesPanel(this, { target });
+      }));
       void this.mapController.highlightFeature(visibleResults[0], { pulse: false });
     } else {
       this.mapController.clearFeatureHighlight();
@@ -6023,8 +6160,8 @@ export class UIController {
     const responseHtml = this.lastAIResponseText
       ? `<section class="ai-response"><div class="ai-response__header"><span class="eyebrow">AI insights</span><span><button type="button" class="ai-response__download">Download report</button><button type="button" class="ai-response__clear">Clear insights</button></span></div><p class="ai-response__query"><strong>Query</strong><span>${escapeHtml(this.lastAIQueryText || "Map context query")}</span></p><div class="ai-response__markdown">${renderMarkdown(this.lastAIResponseText)}</div></section>`
       : "";
-    const locationReportHtml = payload && !this.lastAIResponseText
-      ? '<div class="intelligence-report-action"><button type="button" class="location-report-download">Download location report</button></div>'
+    const locationReportHtml = payload?.point
+      ? `<div class="intelligence-report-action"><button type="button" data-intelligence-note>Add a note</button>${!this.lastAIResponseText ? '<button type="button" class="location-report-download">Download location report</button>' : ""}</div>`
       : "";
     const loadingHtml = this.identifyPending
       ? '<div class="loading-row"><span></span> Inspecting location…</div>'
@@ -6051,6 +6188,7 @@ export class UIController {
       this.#renderIntelligenceContents();
     });
     target.querySelector(".ai-response__download")?.addEventListener("click", () => this.#downloadAIReport(payload));
+    target.querySelector("[data-intelligence-note]")?.addEventListener("click", () => openMapNotesPanel(this, { point: [payload.point.longitude, payload.point.latitude] }));
     target.querySelector(".location-report-download")?.addEventListener("click", () => this.#downloadAIReport(payload));
   }
 
@@ -6264,6 +6402,122 @@ export class UIController {
   #showProject(project, state = "Local") {
     document.querySelector("#project-name").textContent = project.name;
     document.querySelector("#save-state").textContent = state;
+  }
+
+  #showNotesHub() {
+    this.#setOptionalPanelVisibility("observations-panel", true, false);
+    this.#renderNotesHub();
+  }
+
+  #renderNotesHub() {
+    const host = document.querySelector("#observations-content");
+    if (!host || !this.projectManager.current) return;
+    const mapNotes = this.projectManager.mapNotes?.list() || [];
+    const fieldNotes = this.projectManager.notes?.list() || [];
+    const tasks = this.fieldTasks?.store?.snapshot()?.fieldTasks || this.projectManager.current.mobile?.fieldTasks || [];
+    const count = document.querySelector("#observations-count");
+    if (count) count.textContent = `${mapNotes.length + fieldNotes.length + tasks.length} items`;
+    host.innerHTML = renderNotesHub({ projectName: this.projectManager.current.name, mapNotes, fieldNotes, tasks, tab: this.notesHubTab });
+  }
+
+  #initNotesHub() {
+    const host = document.querySelector("#observations-content");
+    host?.addEventListener("click", event => {
+      const button = event.target.closest("[data-notes-hub]");
+      if (!button || button.disabled) return;
+      const action = button.dataset.notesHub;
+      if (action === "tab") { this.notesHubTab = button.dataset.tab; this.#renderNotesHub(); return; }
+      if (action === "projects") { this.#selectProjectDialog(); return; }
+      if (action === "qr") { this.openImagePicker(); return; }
+      if (action === "pdf") { if (!this.mapNotesModeActive) openMapNotesPanel(this); else this.#syncUtilityPanel("notes"); document.querySelector("#utility-notes-content [data-note-pdf]")?.click(); return; }
+      if (action === "workspace" || action === "item") {
+        if (this.notesHubTab === "field") {
+          if (!this.mapNotesModeActive) openMapNotesPanel(this); else this.#syncUtilityPanel("notes");
+          if (action === "item") [...document.querySelectorAll("#utility-notes-content [data-note-edit]")].find(el => el.dataset.noteEdit === button.dataset.id)?.closest(".map-note-card")?.scrollIntoView({ block: "nearest" });
+        }
+        else if (this.notesHubTab === "tasks") {
+          document.querySelector('[data-mobile-workflow="tasks"]')?.click();
+          if (action === "item") [...document.querySelectorAll("#mobile-workflow-root [data-open-task]")].find(el => el.dataset.openTask === button.dataset.id)?.click();
+        }
+        else {
+          // Reuse the existing workspace instead of replacing an unsaved composer.
+          if (!this.dataMapNotesOpen) openDataMapNotesPanel(this, { view: "browse" });
+          else { this.#syncUtilityPanel("data-notes"); document.querySelector('#utility-data-notes-content [data-note-view="browse"]')?.click(); }
+          if (action === "item") {
+            const card = [...document.querySelectorAll("#utility-data-notes-content [data-map-note-id]")].find(el => el.dataset.mapNoteId === button.dataset.id);
+            card?.querySelector("[data-note-review-open]")?.click();
+          }
+        }
+      }
+    });
+    ["notes:changed", "map-notes:changed", "mobile:workflow-changed", "project:loaded"].forEach(topic => this.events.subscribe(topic, () => this.#renderNotesHub()));
+    this.#renderNotesHub();
+  }
+
+  updateFieldNotesCursor() {
+    document.body.classList.toggle("map-notes-authoring", (this.mapNotesModeActive && this.fieldNotesEditing && this.activeUtilityTab === "notes") || (this.dataMapNotesOpen && this.activeUtilityTab === "data-notes" && !this.dataMapNotePaused));
+  }
+
+  updateDataMapNoteCursor() { document.body.classList.toggle("map-notes-authoring", this.dataMapNotesOpen && this.activeUtilityTab === "data-notes" && !this.dataMapNotePaused); }
+
+  openDataMapNotesWorkspace(content) {
+    this.notesHubTab = "map"; this.#showNotesHub();
+    this.dataMapNotesOpen = true;
+    const pane = document.querySelector("#utility-data-notes-content");
+    pane.innerHTML = content;
+    this.#syncUtilityPanel("data-notes");
+    return pane;
+  }
+
+  openMapNotesWorkspace(content) {
+    this.notesHubTab = "field"; this.#showNotesHub();
+    this.mapNotesModeActive = true;
+    const pane = document.querySelector("#utility-notes-content");
+    pane.innerHTML = content;
+    this.#syncUtilityPanel("notes");
+    return pane;
+  }
+
+  async previewSharedObservation(bundle) {
+    const note = bundle.notes[0];
+    const [longitude, latitude] = note.anchor.geometry.coordinates;
+    this.mapController.setTaskPin({ kind: "task", label: "Shared observation", longitude, latitude });
+    this.mapController.setView({ center: [longitude, latitude], zoom: 15 }, { animate: false }).catch(() => {});
+    const reference = note.relationships.find((item) => item.type === "references_feature" || item.type === "references_dataset");
+    this.openDialog({
+      eyebrow: "Field Notes · shared observation",
+      title: note.title || "Shared observation",
+      content: `<p>${escapeHtml(note.body).replaceAll("\n", "<br>")}</p><p class="form-note">${escapeHtml(bundle.session?.title || "Field observation")} · ${escapeHtml(note.type)} · ${latitude.toFixed(5)}, ${longitude.toFixed(5)}</p>${reference ? `<p class="form-note">Related dataset: ${escapeHtml(reference.datasetTitle || reference.datasetId || reference.targetId)}${reference.featureId ? ` · feature ${escapeHtml(reference.featureId)}` : ""}. The source is not automatically loaded; it may require access or reconnection.</p>` : ""}<p class="form-note">This is a preview. Importing saves the observation to this device; it does not overwrite conflicting notes.</p>`,
+      actions: [
+        { label: "Close", handler: () => this.dialog.close() },
+        { label: "Import observation", primary: true, handler: async (event) => {
+          const button = event.currentTarget; button.disabled = true;
+          try {
+            const { FieldSessionController } = await import("./field-session-store.js?v=0.4.0");
+            const field = this.fieldSessionController ||= new FieldSessionController(this.projectManager, this.events);
+            await field.importBundle(bundle);
+            this.dialog.close();
+            this.mapController.setTaskPin(null);
+            openMapNotesPanel(this, { editId: note.id });
+            this.toast("Observation imported locally.");
+          } catch (error) { button.disabled = false; this.error(`Could not import observation: ${error.message}`); }
+        } },
+      ],
+    });
+  }
+
+  refreshDataMapNoteMarkers() {
+    if (!this.dataMapNotesOpen || this.activeUtilityTab !== "data-notes") return;
+    const points = this.projectManager.mapNotes.list().filter(note => note.target.coordinates).map(note => ({ longitude: note.target.coordinates[0], latitude: note.target.coordinates[1] }));
+    if (this.dataMapNotePoint) points.push({ longitude: this.dataMapNotePoint[0], latitude: this.dataMapNotePoint[1], draft: true });
+    this.mapController.setMapNoteMarkers(points);
+  }
+
+  refreshMapNoteMarkers(draft = null) {
+    if (!this.mapNotesModeActive) return;
+    const points = this.projectManager.notes.list().filter((note) => note.anchor.geometry.type === "Point").map((note) => ({ longitude: note.anchor.geometry.coordinates[0], latitude: note.anchor.geometry.coordinates[1] }));
+    if (draft) points.push({ longitude: draft[0], latitude: draft[1], draft: true });
+    this.mapController.setMapNoteMarkers(points);
   }
 
   openDialog({ eyebrow = "GIS Map Online", title, content, actions = [], presentationSheet = false }) {
