@@ -1,3 +1,4 @@
+import { renderNotesHub } from "./notes-hub.js?v=0.1.0";
 import { refreshMapNoteFilters } from './map-note-filters.js?v=0.4.1';
 import { openDataMapNotesPanel } from "./data-map-notes-panel.js?v=0.16.0";
 import { refreshMapNoteWorkflow } from "./map-note-workflow-ui.js?v=0.1.0";
@@ -37,7 +38,7 @@ import { BASEMAPS } from "./basemap-catalog.js?v=0.53.0-gallery1";
 
 const BUILDINGS_3D_KEY = "gismap-online:buildings-3d:v1";
 const DISPLAY_SETTINGS_KEY = "gismap-online:display:v1";
-const DOCKABLE_PANELS = { places: "Places", bookmarks: "Bookmarks", draw: "Draw", intelligence: "Intelligence", layers: "Layers" };
+const DOCKABLE_PANELS = { places: "Places", bookmarks: "Bookmarks", draw: "Draw", intelligence: "Intelligence", layers: "Layers", observations: "Notes & Tasks" };
 const RECENT_PLACES_KEY = "gismap-online:recent-places:v1";
 const RECENT_PLACES_LIMIT = 6;
 const INSIGHT_POSITIONS = new Set(["upper-left", "lower-left", "bottom", "dock-left", "dock-right", "dock-top", "dock-bottom"]);
@@ -133,6 +134,7 @@ export class UIController {
     this.panelManager?.register("content:intelligence", document.querySelector("#intelligence-content"), { shell: document.querySelector("#intelligence-panel") });
     this.panelManager?.register("content:draw", document.querySelector(".draw-tools"), { shell: document.querySelector("#draw-panel") });
     this.#initDockablePanels();
+    this.#initNotesHub();
     this.#applyDisplaySettings(this.#readDisplaySettings());
     this.#followSkinOnMap();
     this.systemThemeMedia.addEventListener?.("change", () => {
@@ -341,7 +343,7 @@ export class UIController {
     document.querySelectorAll("[data-nav]").forEach((button) =>
       button.addEventListener("click", () => this.mapController.navigate(button.dataset.nav).catch((e) => this.error(e.message))),
     );
-    document.querySelectorAll("[data-mobile-workflow]").forEach((button) => button.addEventListener("click", () => { if (this.mapNotesModeActive) this.#closeUtilityTab("notes"); }));
+    document.querySelectorAll("[data-mobile-workflow]").forEach((button) => button.addEventListener("click", () => { if (this.mapNotesModeActive) this.#closeUtilityTab("notes"); if (button.dataset.mobileWorkflow === "tasks") { this.notesHubTab = "tasks"; this.#showNotesHub(); } }));
     document.querySelector("#sidebar-close").addEventListener("click", () => this.#setSidebarCollapsed(true));
     document.querySelector("#sidebar-open").addEventListener("click", () => this.#setSidebarCollapsed(false));
     const toggleMobileMenu = (event) => {
@@ -2026,6 +2028,7 @@ export class UIController {
         placesPanelVisible: saved.placesPanelVisible !== false,
         intelligencePanelVisible: saved.intelligencePanelVisible !== false,
         layersPanelVisible: saved.layersPanelVisible !== false,
+        observationsPanelVisible: saved.observationsPanelVisible === true,
       };
     } catch {
       return { insightDismissEnabled: true, insightDismissMiles: 75, insightPosition: "upper-left", defaultBasemap: "topo-3d", insightDockWidth: 420, insightDockHeight: 360, tablePosition: "overlay-bottom", tableDockWidth: 520, tableDockHeight: 420, highlightEnabled: true, clickMarkerEnabled: true, highlightColor: "#00b8d9", highlightStyle: "fill", navigationLayout: "side", utilityPanelWidth: 360, appearance: "system", darkBasemapEnabled: false, bookmarksPanelVisible: false, drawPanelVisible: false };
@@ -2052,6 +2055,7 @@ export class UIController {
     this.#setOptionalPanelVisibility("places-panel", settings.placesPanelVisible !== false, false);
     this.#setOptionalPanelVisibility("intelligence-panel", settings.intelligencePanelVisible !== false, false);
     this.#setOptionalPanelVisibility("layers-panel", settings.layersPanelVisible !== false, false);
+    this.#setOptionalPanelVisibility("observations-panel", settings.observationsPanelVisible === true, false);
     document.querySelectorAll("[data-panel-top-nav]").forEach((button) => { button.textContent = settings.navigationLayout === "top" ? "Use side navigation" : "Use top navigation"; button.setAttribute("aria-pressed", String(settings.navigationLayout === "top")); });
     if (settings.navigationLayout === "top") {
       document.querySelectorAll(".sidebar__scroll > .panel").forEach((panel) => { panel.open = false; });
@@ -6400,9 +6404,60 @@ export class UIController {
     document.querySelector("#save-state").textContent = state;
   }
 
+  #showNotesHub() {
+    this.#setOptionalPanelVisibility("observations-panel", true, false);
+    this.#renderNotesHub();
+  }
+
+  #renderNotesHub() {
+    const host = document.querySelector("#observations-content");
+    if (!host || !this.projectManager.current) return;
+    const mapNotes = this.projectManager.mapNotes?.list() || [];
+    const fieldNotes = this.projectManager.notes?.list() || [];
+    const tasks = this.fieldTasks?.store?.snapshot()?.fieldTasks || this.projectManager.current.mobile?.fieldTasks || [];
+    const count = document.querySelector("#observations-count");
+    if (count) count.textContent = `${mapNotes.length + fieldNotes.length + tasks.length} items`;
+    host.innerHTML = renderNotesHub({ projectName: this.projectManager.current.name, mapNotes, fieldNotes, tasks, tab: this.notesHubTab });
+  }
+
+  #initNotesHub() {
+    const host = document.querySelector("#observations-content");
+    host?.addEventListener("click", event => {
+      const button = event.target.closest("[data-notes-hub]");
+      if (!button || button.disabled) return;
+      const action = button.dataset.notesHub;
+      if (action === "tab") { this.notesHubTab = button.dataset.tab; this.#renderNotesHub(); return; }
+      if (action === "projects") { this.#selectProjectDialog(); return; }
+      if (action === "qr") { this.openImagePicker(); return; }
+      if (action === "pdf") { if (!this.mapNotesModeActive) openMapNotesPanel(this); else this.#syncUtilityPanel("notes"); document.querySelector("#utility-notes-content [data-note-pdf]")?.click(); return; }
+      if (action === "workspace" || action === "item") {
+        if (this.notesHubTab === "field") {
+          if (!this.mapNotesModeActive) openMapNotesPanel(this); else this.#syncUtilityPanel("notes");
+          if (action === "item") [...document.querySelectorAll("#utility-notes-content [data-note-edit]")].find(el => el.dataset.noteEdit === button.dataset.id)?.closest(".map-note-card")?.scrollIntoView({ block: "nearest" });
+        }
+        else if (this.notesHubTab === "tasks") {
+          document.querySelector('[data-mobile-workflow="tasks"]')?.click();
+          if (action === "item") [...document.querySelectorAll("#mobile-workflow-root [data-open-task]")].find(el => el.dataset.openTask === button.dataset.id)?.click();
+        }
+        else {
+          // Reuse the existing workspace instead of replacing an unsaved composer.
+          if (!this.dataMapNotesOpen) openDataMapNotesPanel(this, { view: "browse" });
+          else { this.#syncUtilityPanel("data-notes"); document.querySelector('#utility-data-notes-content [data-note-view="browse"]')?.click(); }
+          if (action === "item") {
+            const card = [...document.querySelectorAll("#utility-data-notes-content [data-map-note-id]")].find(el => el.dataset.mapNoteId === button.dataset.id);
+            card?.querySelector("[data-note-review-open]")?.click();
+          }
+        }
+      }
+    });
+    ["notes:changed", "map-notes:changed", "mobile:workflow-changed", "project:loaded"].forEach(topic => this.events.subscribe(topic, () => this.#renderNotesHub()));
+    this.#renderNotesHub();
+  }
+
   updateDataMapNoteCursor() { document.body.classList.toggle("map-notes-authoring", this.dataMapNotesOpen && this.activeUtilityTab === "data-notes" && !this.dataMapNotePaused); }
 
   openDataMapNotesWorkspace(content) {
+    this.notesHubTab = "map"; this.#showNotesHub();
     this.dataMapNotesOpen = true;
     const pane = document.querySelector("#utility-data-notes-content");
     pane.innerHTML = content;
@@ -6411,6 +6466,7 @@ export class UIController {
   }
 
   openMapNotesWorkspace(content) {
+    this.notesHubTab = "field"; this.#showNotesHub();
     this.mapNotesModeActive = true;
     document.body.classList.add("map-notes-authoring");
     const pane = document.querySelector("#utility-notes-content");
