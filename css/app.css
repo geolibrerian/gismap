@@ -2434,3 +2434,20 @@ body.utility-panel-open .utility-panel:has([data-utility-pane="data-notes"]:not(
 [data-map-note-location-history] details { margin:.75rem 0; }
 [data-note-history] { margin:.35rem .35rem 0 0; }
 @media (max-width:480px) { .map-note-mode { align-items:flex-start; flex-direction:column; } }
+
+/* Map Notes: prioritize the annotation and progressively disclose metadata. */
+.map-notes-panel [data-data-note-form] { display: grid; gap: 12px; min-width: 0; }
+.map-notes-panel [data-data-note-form] .field,
+.map-notes-panel [data-map-note-filter-panel] .field { margin: 0; min-width: 0; }
+.map-notes-panel [data-data-note-form] .field > span small { color: var(--muted); font-weight: 400; }
+.map-note-metadata { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 190px), 1fr)); align-items: start; gap: 12px; }
+.map-note-metadata [data-custom-category], .map-note-extra-categories { grid-column: 1 / -1; }
+.map-note-extra-categories, .map-note-target-details, .map-note-context__details, .map-notes-panel [data-map-note-filter-panel] > details { min-width: 0; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
+.map-note-extra-categories summary, .map-note-target-details summary, .map-note-context__details summary, .map-notes-panel [data-map-note-filter-panel] > details > summary { cursor: pointer; font-weight: 600; overflow-wrap: anywhere; }
+.map-note-target-details[open], .map-note-extra-categories[open], .map-note-context__details[open] { display: grid; gap: 10px; }
+.map-note-context:not(:empty) { display: block; margin: 0; }
+.map-note-context__details label { margin-top: 8px; }
+.map-note-filter-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 150px), 1fr)); gap: 12px; margin-top: 12px; }
+.map-notes-panel [data-map-note-error]:empty { display: none; }
+.map-notes-panel [data-map-note-error]:not(:empty) { margin: 0; color: var(--ink); }
+.map-notes-panel .map-note-mode { margin: 0; }

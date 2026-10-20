@@ -98,3 +98,18 @@ test('session draft restores text and earlier map targets without saving a proje
     assert.equal(reopened.controls.body.value, 'Unfinished thought'); assert.deepEqual(reopened.ui.dataMapNotePoint, [-121, 38]);
   } finally { if (previous === undefined) delete globalThis.sessionStorage; else globalThis.sessionStorage = previous; }
 });
+
+test('optional title is generated from the note and explicitly entered titles are preserved', () => {
+  const project = { mapNotes: [] }; const registry = new DataMapNotesRegistry({ project: () => project }); const w = workspace(registry);
+  openDataMapNotesPanel(w.ui); Object.assign(w.controls.targetType, { value: 'project' }); w.controls.body.value = 'Check the bridge. Another observation.'; w.controls.category.value = 'other'; w.controls.status.value = 'open'; w.save.click();
+  assert.equal(registry.list()[0].title, 'Check the bridge.');
+  const next = workspace(registry); openDataMapNotesPanel(next.ui); next.controls.targetType.value = 'project'; next.controls.title.value = 'Explicit title'; next.controls.category.value = 'other'; next.controls.status.value = 'open'; next.save.click();
+  assert.equal(registry.list()[1].title, 'Explicit title');
+});
+
+test('composer prioritizes note text and progressively discloses map context', () => {
+  const registry = new DataMapNotesRegistry({ project: () => ({ mapNotes: [] }) }); const w = workspace(registry); openDataMapNotesPanel(w.ui);
+  const html = w.html(); assert.ok(html.indexOf('<span>Note <small>') < html.indexOf('<span>Title (optional)</span>'));
+  assert.ok(html.indexOf('<span>Title (optional)</span>') < html.indexOf('data-map-note-context'));
+  assert.match(html, /map-note-target-details/); assert.match(html, /map-note-filter-grid/);
+});
