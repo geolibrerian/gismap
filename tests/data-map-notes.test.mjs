@@ -97,3 +97,12 @@ test('v4 contextual targets round-trip safely and reject invalid feature referen
   assert.deepEqual(note.target.coordinates, [10.12345679, 20]);
   assert.throws(() => normalizeDataMapNote({ ...note, target: { ...note.target, context: { features: [{ datasetId: 'roads', arbitrary: true }] } } }), /Unsupported/);
 });
+
+test('multiple freeform and preset categories round-trip with existing primary category', () => {
+  const project = { mapNotes: [] }; const registry = new DataMapNotesRegistry({ project: () => project });
+  const note = registry.create({ body: 'Review', category: 'validation', categories: ['validation', 'data-quality', 'Bridge repair'], target: { type: 'project' } });
+  assert.equal(note.schemaVersion, '5.0'); assert.deepEqual(normalizeDataMapNote(JSON.parse(JSON.stringify(note))), note);
+  assert.throws(() => normalizeDataMapNote({ ...note, categories: ['validation', 'validation'] }), /categories/);
+  const edited = registry.update(note.id, { category: 'insight', categories: ['insight', 'Bridge repair'] });
+  assert.deepEqual(edited.categories, ['insight', 'Bridge repair']);
+});

@@ -28,3 +28,12 @@ test('refresh updates visibility and counts without changing selections or edito
   controls.task.value = 'unavailable'; ui.projectManager.mapNotes.getWorkflowSummary = () => { throw new Error('missing'); };
   refreshMapNoteFilters(ui, root); assert.equal(card.hidden, false);
 });
+
+test('proximity and multi-category filters combine with text and handle missing locations', () => {
+  const located = { ...note, categories: ['data-quality', 'Bridge repair'], target: { ...note.target, coordinates: [-122, 37] } };
+  assert.equal(matchesMapNoteFilters(located, summary, { search: 'bridge repair', category: 'Bridge repair', center: [-122, 37], radius: '1' }), true);
+  assert.equal(matchesMapNoteFilters(located, summary, { center: [-122, 38], radius: '1' }), false);
+  assert.equal(matchesMapNoteFilters(note, summary, { center: [-122, 37], radius: '1' }), false);
+  assert.equal(matchesMapNoteFilters(located, summary, { radius: '1' }), false);
+  assert.equal(matchesMapNoteFilters({ ...located, target: { coordinates: [-179.9, 0] } }, summary, { center: [179.9, 0], radius: '20' }), true);
+});

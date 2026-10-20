@@ -1,4 +1,4 @@
-import { DataMapNotesRegistry, normalizeDataMapNotes } from "./data-map-notes.js?v=0.4.0";
+import { DataMapNotesRegistry, normalizeDataMapNotes } from "./data-map-notes.js?v=0.5.0";
 import { NoteRelationshipsRegistry, normalizeNoteRelationships } from "./note-relationships.js?v=0.2.0";
 import { previewMapNoteTasks, prepareMapNoteTasks } from "./map-note-task-planner.js?v=0.1.0";
 import { MapNotesRegistry, normalizeNotes } from "./map-notes.js?v=0.3.0";

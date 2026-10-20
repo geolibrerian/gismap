@@ -8,8 +8,8 @@ const allowed = (v, keys, what) => { if (!v || typeof v !== 'object' || Array.is
 const text = (v, name, max, required = false) => { if (typeof v !== 'string' || v.length > max || (required && !v.trim())) throw new Error(`Invalid ${name}.`); return v; };
 const timestamp = (v) => { if (typeof v !== 'string' || !/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(?:\.\d+)?(?:Z|[+-]\d\d:\d\d)$/.test(v) || !Number.isFinite(Date.parse(v))) throw new Error('Invalid Map Note timestamp.'); return v; };
 function target(value, version) {
-  allowed(value, ['type', 'datasetId', 'featureId', 'sourceUrl', 'coordinates', ...(['3.0', '4.0'].includes(version) ? ['label'] : []), ...(version === '4.0' ? ['context'] : [])], 'Map Note target');
-  if (!['project', 'feature', 'dataset', 'service', 'location', ...(['3.0', '4.0'].includes(version) ? ['custom'] : [])].includes(value.type)) throw new Error('Invalid Map Note target type.');
+  allowed(value, ['type', 'datasetId', 'featureId', 'sourceUrl', 'coordinates', ...(['3.0', '4.0', '5.0'].includes(version) ? ['label'] : []), ...(['4.0', '5.0'].includes(version) ? ['context'] : [])], 'Map Note target');
+  if (!['project', 'feature', 'dataset', 'service', 'location', ...(['3.0', '4.0', '5.0'].includes(version) ? ['custom'] : [])].includes(value.type)) throw new Error('Invalid Map Note target type.');
   const result = { type: value.type };
   if (value.type === 'custom') result.label = text(value.label, 'target label', 256, true);
   if (value.datasetId != null) result.datasetId = text(value.datasetId, 'dataset ID', 256, true);
@@ -48,13 +48,14 @@ function target(value, version) {
   return result;
 }
 export function normalizeDataMapNote(value) {
-  allowed(value, ['kind', 'schemaVersion', 'id', 'title', 'body', 'category', 'tags', 'status', 'target', 'createdAt', 'updatedAt'], 'Map Note');
-  if (value.kind !== 'map-note' || !['1.0', '2.0', '3.0', '4.0'].includes(value.schemaVersion) || (value.schemaVersion === '1.0' && value.target?.type === 'project')) throw new Error('Unsupported data Map Note version.');
+  allowed(value, ['kind', 'schemaVersion', 'id', 'title', 'body', 'category', 'tags', 'status', 'target', 'createdAt', 'updatedAt', ...(value.schemaVersion === '5.0' ? ['categories'] : [])], 'Map Note');
+  if (value.kind !== 'map-note' || !['1.0', '2.0', '3.0', '4.0', '5.0'].includes(value.schemaVersion) || (value.schemaVersion === '1.0' && value.target?.type === 'project')) throw new Error('Unsupported data Map Note version.');
   const title = text(value.title, 'title', 240), body = text(value.body, 'body', 20000);
   if (!title.trim() && !body.trim()) throw new Error('Enter a title or note.');
-  if ((['3.0', '4.0'].includes(value.schemaVersion) ? typeof value.category !== 'string' || !value.category.trim() || value.category.length > 80 : !categories.has(value.category)) || !statuses.has(value.status)) throw new Error('Invalid Map Note category or status.');
+  if ((['3.0', '4.0', '5.0'].includes(value.schemaVersion) ? typeof value.category !== 'string' || !value.category.trim() || value.category.length > 80 : !categories.has(value.category)) || !statuses.has(value.status)) throw new Error('Invalid Map Note category or status.');
+  if (value.schemaVersion === '5.0' && (!Array.isArray(value.categories) || value.categories.length < 1 || value.categories.length > 30 || value.categories.some(item => typeof item !== 'string' || !item.trim() || item.length > 80) || new Set(value.categories).size !== value.categories.length || value.categories[0] !== value.category)) throw new Error('Invalid Map Note categories.');
   if (!Array.isArray(value.tags) || value.tags.length > 50) throw new Error('Invalid Map Note tags.');
-  return { kind: 'map-note', schemaVersion: value.schemaVersion, id: text(value.id, 'ID', 128, true), title, body, category: value.category, tags: value.tags.map(t => text(t, 'tag', 80, true)), status: value.status, target: target(value.target, value.schemaVersion), createdAt: timestamp(value.createdAt), updatedAt: timestamp(value.updatedAt) };
+  return { kind: 'map-note', schemaVersion: value.schemaVersion, id: text(value.id, 'ID', 128, true), title, body, category: value.category, ...(value.schemaVersion === '5.0' ? { categories: value.categories.slice() } : {}), tags: value.tags.map(t => text(t, 'tag', 80, true)), status: value.status, target: target(value.target, value.schemaVersion), createdAt: timestamp(value.createdAt), updatedAt: timestamp(value.updatedAt) };
 }
 export function normalizeDataMapNotes(values) {
   if (!Array.isArray(values) || values.length > 5000) throw new Error('Invalid data Map Notes list.');
@@ -76,13 +77,14 @@ export class DataMapNotesRegistry {
   create(input) {
     const now = new Date().toISOString();
     const id = `mn_${globalThis.crypto?.randomUUID?.() || `${Date.now()}_${Math.random().toString(36).slice(2)}`}`;
-    const note = normalizeDataMapNote({ title: '', body: '', category: 'other', tags: [], status: 'open', ...input, kind: 'map-note', schemaVersion: input.target?.context ? '4.0' : input.target?.type === 'custom' || (input.category && !categories.has(input.category)) ? '3.0' : input.target?.type === 'project' ? '2.0' : '1.0', id, createdAt: now, updatedAt: now });
+    const note = normalizeDataMapNote({ title: '', body: '', category: 'other', tags: [], status: 'open', ...input, kind: 'map-note', schemaVersion: input.categories ? '5.0' : input.target?.context ? '4.0' : input.target?.type === 'custom' || (input.category && !categories.has(input.category)) ? '3.0' : input.target?.type === 'project' ? '2.0' : '1.0', id, createdAt: now, updatedAt: now });
     this.commit([...this.list(), note], 'create', id); return structuredClone(note);
   }
   update(id, changes) {
     const old = this.get(id); if (!old) throw new Error('Map Note not found.');
-    if (!changes || typeof changes !== 'object' || Array.isArray(changes) || Object.keys(changes).some(k => !['title', 'body', 'category', 'tags', 'status', 'target'].includes(k))) throw new Error('Unsupported Map Note changes.');
-    const note = normalizeDataMapNote({ ...old, ...changes, schemaVersion: old.schemaVersion === '4.0' || changes.target?.context ? '4.0' : old.schemaVersion === '3.0' || changes.target?.type === 'custom' || (changes.category && !categories.has(changes.category)) ? '3.0' : changes.target?.type === 'project' ? '2.0' : old.schemaVersion, updatedAt: new Date().toISOString() });
+    if (!changes || typeof changes !== 'object' || Array.isArray(changes) || Object.keys(changes).some(k => !['title', 'body', 'category', 'tags', 'status', 'target', 'categories'].includes(k))) throw new Error('Unsupported Map Note changes.');
+    if (old.schemaVersion === '5.0' && changes.category != null && changes.categories == null) changes = { ...changes, categories: [changes.category, ...old.categories.filter(item => item !== old.category && item !== changes.category)] };
+    const note = normalizeDataMapNote({ ...old, ...changes, schemaVersion: old.schemaVersion === '5.0' || changes.categories ? '5.0' : old.schemaVersion === '4.0' || changes.target?.context ? '4.0' : old.schemaVersion === '3.0' || changes.target?.type === 'custom' || (changes.category && !categories.has(changes.category)) ? '3.0' : changes.target?.type === 'project' ? '2.0' : old.schemaVersion, updatedAt: new Date().toISOString() });
     this.commit(this.list().map(item => item.id === id ? note : item), 'update', id); return structuredClone(note);
   }
   remove(id) { const notes = this.list(); if (!notes.some(n => n.id === id)) return false; this.commit(notes.filter(n => n.id !== id), 'remove', id); return true; }
