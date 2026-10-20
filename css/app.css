@@ -2642,3 +2642,10 @@ body.utility-panel-open .utility-panel:has([data-utility-pane="data-notes"]:not(
 .briefing-timeline-playback input[type="range"] { width:100px; }
 .briefing-timeline-playback select, .briefing-timeline-playback button { font:inherit; color:var(--ink); background:var(--surface-2); border:1px solid var(--line); border-radius:6px; padding:5px; }
 .briefing-cards .briefing-timeline-playback { top:calc(58px + env(safe-area-inset-top)); bottom:auto; }
+
+/* Compact, readable timeline preview at both workspace widths. */
+.timeline-preview-chart { display: grid; gap: .45rem; margin: .75rem 0; }
+.timeline-preview-chart__row { display: grid; grid-template-columns: minmax(5rem, 1fr) minmax(3rem, 2fr) auto; gap: .55rem; align-items: center; font-size: .85rem; }
+.timeline-preview-chart__row small { grid-column: 1 / -1; }
+.timeline-preview-chart__track { height: .5rem; border-radius: 1rem; background: var(--border, #aab8b4); overflow: hidden; }
+.timeline-preview-chart__track > span { display: block; height: 100%; background: var(--accent, #238a70); border-radius: inherit; }

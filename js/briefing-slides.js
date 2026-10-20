@@ -1,3 +1,4 @@
+import { createTimelineSourceCache } from "./briefing-timeline-source.js?v=0.1.0";
 // The Slides tab of the Briefing panel: build an ordered set of slides from the
 // briefing's features and data, and preview them over the live map. The slides
 // themselves are plain data (briefing-document.js); this file only draws and edits.
@@ -63,6 +64,8 @@ export class BriefingSlides {
     this.api = api;
     this.selectedSlideId = null;
     this.saveTimer = null;
+    this.timelineSourceCache = createTimelineSourceCache();
+    this.timelinePreviewEpoch = 0;
     this.player = new BriefingPlayer({
       getSlides: () => this.briefing.slides.filter((slide) => !slide.hidden),
       slideHtml: (slide, options) => this.slideHtml(slide, options),
@@ -353,6 +356,7 @@ export class BriefingSlides {
           <label class="briefing-field" data-timeline-stat-field-wrap hidden><span>Numeric field</span><select data-timeline-stat-field><option value="">Choose a field</option>${(data.fields?.numeric || []).map(field => `<option value="${escapeHtml(field.name)}">${escapeHtml(field.alias || field.name)}</option>`).join("")}</select></label>
           <label><input type="checkbox" data-timeline-narration> Add editable draft descriptions from loaded counts</label>
           <label class="briefing-field"><span>Presentation</span><select data-timeline-presentation><option value="slide-series">One slide per interval</option><option value="single-slide">Interactive timeline on one slide</option></select></label>
+          <label><input type="checkbox" data-timeline-source> Query complete ArcGIS source for preview counts and chart</label><p class="form-note">Queries the service using the layer filter; ignores the loaded selection and search. Availability depends on the service. Slide statistics and draft text still use loaded features.</p>
           <button type="button" data-timeline-preview>Preview timeline</button> <button type="button" data-timeline-create>Generate slides</button>
           <div data-timeline-results role="status" aria-live="polite"></div>
         </details>
@@ -521,13 +525,27 @@ export class BriefingSlides {
     on("[data-timeline-stat]", "change", select => { container.querySelector("[data-timeline-stat-field-wrap]").hidden = !select.value; });
     on("[data-timeline-field]", "change", syncTimelineOptions);
     on("[data-timeline-mode]", "change", syncTimelineOptions);
-    on("[data-timeline-preview]", "click", () => {
+    on("[data-timeline-preview]", "click", async () => {
       const output = container.querySelector("[data-timeline-results]");
+      const epoch = ++this.timelinePreviewEpoch;
       try {
         const options = timelineOptions();
         const preview = (options.kind === "date" ? previewDateTimeline : previewTimeline)({ ...options, availableSlides: options.presentationMode === "single-slide" && this.briefing.slides.length < MAX_SLIDES ? MAX_SLIDES : MAX_SLIDES - this.briefing.slides.length });
-        output.innerHTML = `<p><strong>${preview.frames.length} frames</strong> from ${preview.recordCount} loaded, included features.</p><ul>${preview.frames.map(frame => `<li>${escapeHtml(frame.title)} — ${frame.count} loaded feature${frame.count === 1 ? "" : "s"}</li>`).join("")}</ul>${preview.warnings.map(warning => `<p class="form-note">${escapeHtml(warning)}</p>`).join("")}`;
-      } catch (error) { output.textContent = error.message; }
+        const source = container.querySelector("[data-timeline-source]").checked;
+        let frames = preview.frames;
+        if (source) {
+          output.textContent = "Querying source for timeline statistics…";
+          const data = this.api.data();
+          const url = briefingLayerRef(this.api.mapController, data.layer);
+          if (!url) throw new Error('No source layer is available.');
+          const requests = frames.map(frame => ({ url, filter:frame.filter, fields:options.fields, baseWhere:data.layer?.where || '', stat:options.stat, statField:options.statField }));
+          const results = await this.timelineSourceCache.prefetch(requests);
+          if (epoch !== this.timelinePreviewEpoch || !container.isConnected) return;
+          frames = frames.map((frame, index) => ({ ...frame, ...results[index] }));
+        }
+        const max = Math.max(1, ...frames.map(frame => frame.count));
+        output.innerHTML = `<p><strong>${frames.length} frames</strong> · ${source ? "Complete source, with layer filter" : `${preview.recordCount} loaded, included features`}</p><div class="timeline-preview-chart" aria-label="Feature counts by timeline frame">${frames.map(frame => `<div class="timeline-preview-chart__row"><span>${escapeHtml(frame.title)}</span><span class="timeline-preview-chart__track" aria-hidden="true"><span style="width:${Math.max(0, Math.min(100, frame.count / max * 100))}%"></span></span><strong>${frame.count.toLocaleString()}</strong>${source && options.stat ? `<small>${escapeHtml(options.stat)}: ${frame.value == null ? '—' : Number(frame.value).toLocaleString()}</small>` : ''}</div>`).join("")}</div>${source ? '<p class="form-note">Source results are cached for up to one minute. Slide statistics and draft descriptions still use loaded features.</p>' : preview.warnings.map(warning => `<p class="form-note">${escapeHtml(warning)}</p>`).join("")}`;
+      } catch (error) { if (epoch === this.timelinePreviewEpoch) output.textContent = error.message; }
     });
     on("[data-timeline-create]", "click", () => {
       try {
