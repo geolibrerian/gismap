@@ -2649,3 +2649,5 @@ body.utility-panel-open .utility-panel:has([data-utility-pane="data-notes"]:not(
 .timeline-preview-chart__row small { grid-column: 1 / -1; }
 .timeline-preview-chart__track { height: .5rem; border-radius: 1rem; background: var(--border, #aab8b4); overflow: hidden; }
 .timeline-preview-chart__track > span { display: block; height: 100%; background: var(--accent, #238a70); border-radius: inherit; }
+
+.briefing-grid-locator { width: 4rem; max-height: 4rem; display: block; color: var(--accent, #238a70); margin: .5rem 0; }

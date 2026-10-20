@@ -1,3 +1,4 @@
+import { previewGridAtlas, generateGridAtlas } from "./briefing-grid-atlas.js?v=0.1.0";
 import { createTimelineSourceCache } from "./briefing-timeline-source.js?v=0.1.0";
 // The Slides tab of the Briefing panel: build an ordered set of slides from the
 // briefing's features and data, and preview them over the live map. The slides
@@ -293,7 +294,10 @@ export class BriefingSlides {
     // move (advancing quickly, a hidden map) must not leave the previous slide's layers.
     const layers = this.applySlideLayers(slide, record).catch((error) => this.api.notify?.(error.message));
     try {
-      if (slide.camera) {
+      const gridBounds = slide.generatedBy?.template === 'grid-atlas' ? slide.generatedBy.bounds : null;
+      if (Array.isArray(gridBounds) && gridBounds.length === 4 && gridBounds.every(Number.isFinite) && gridBounds[0] >= -180 && gridBounds[2] <= 180 && gridBounds[1] >= -90 && gridBounds[3] <= 90 && gridBounds[0] < gridBounds[2] && gridBounds[1] < gridBounds[3]) {
+        await mapController.setView({ bounds:gridBounds }, { animate });
+      } else if (slide.camera) {
         await mapController.setView({ center: slide.camera.center, zoom: slide.camera.zoom, heading: slide.camera.heading, tilt: slide.camera.tilt }, { animate });
       } else if (slide.fit === "feature" && record?.geometry) {
         await mapController.goToFeature(record, { animate });
@@ -335,7 +339,7 @@ export class BriefingSlides {
         ${this.api.generate ? `<div class="briefing-slides__auto"><button type="button" data-slides-generate title="Slides from the layer's style, filter and the features you included">✦ ${briefing.slides.length ? "Remake" : "Make"} from the map</button>${this.api.aiReady?.() && briefing.slides.length ? `<button type="button" data-slides-ai title="Let the configured AI describe the opening and each feature">✦ Describe with AI</button>` : ""}</div>` : ""}
         <details class="briefing-series-preview">
           <summary>Explore data-driven templates</summary>
-          <p class="form-note">Preview a Filter Series from loaded, included features. Preview does not create slides or change the map; generation adds one filtered map slide per value. Grid Atlas is planned.</p>
+          <p class="form-note">Preview a Filter Series from loaded, included features. Preview does not create slides or change the map; generation adds one filtered map slide per value. Grid Atlas starts with loaded point features.</p>
           <label class="briefing-field"><span>Group by field</span><select data-series-field><option value="">Choose a field</option>${(data.fields?.fields || []).filter(field => field?.name).map(field => `<option value="${escapeHtml(field.name)}">${escapeHtml(field.alias || field.name)}</option>`).join("")}</select></label>
           <button type="button" data-series-preview>Preview subsets</button> <button type="button" data-series-create>Generate slides</button>
           <div data-series-results role="status" aria-live="polite"></div>
@@ -359,6 +363,16 @@ export class BriefingSlides {
           <label><input type="checkbox" data-timeline-source> Query complete ArcGIS source for preview counts and chart</label><p class="form-note">Queries the service using the layer filter; ignores the loaded selection and search. Availability depends on the service. Slide statistics and draft text still use loaded features.</p>
           <button type="button" data-timeline-preview>Preview timeline</button> <button type="button" data-timeline-create>Generate slides</button>
           <div data-timeline-results role="status" aria-live="polite"></div>
+        </details>
+        <details class="briefing-series-preview">
+          <summary>Grid Atlas · point map slides</summary>
+          <p class="form-note">Divide the loaded, included point features into cells. Each point is assigned once. Counts and empty-cell removal reflect this loaded selection, not the complete source. Map features remain visible for context.</p>
+          <label class="briefing-field"><span>Rows</span><input data-grid-rows type="number" min="1" max="20" step="1" value="3"></label>
+          <label class="briefing-field"><span>Columns</span><input data-grid-columns type="number" min="1" max="20" step="1" value="3"></label>
+          <label class="briefing-field"><span>Traversal</span><select data-grid-order><option value="row-major">Row by row</option><option value="column-major">Column by column</option><option value="snake">Snake</option></select></label>
+          <label><input type="checkbox" data-grid-skip> Skip cells without loaded points</label>
+          <div><button type="button" data-grid-preview>Preview grid</button> <button type="button" data-grid-create>Generate slides</button></div>
+          <div data-grid-results role="status" aria-live="polite"></div>
         </details>
         <div class="briefing-slides__add">
           <label><span>Add a slide</span><select data-slide-template>${SLIDE_TEMPLATES.filter((template) => template.id !== "feature").map((template) => `<option value="${template.id}">${escapeHtml(template.label)}</option>`).join("")}</select></label>
@@ -505,6 +519,27 @@ export class BriefingSlides {
         this.#save(briefing);
         this.api.notify?.(`Added ${preview.subsets.length} filtered slides. Categories are based on loaded, included features.`);
       } catch (error) { container.querySelector("[data-series-results]").textContent = error.message; }
+    });
+    const gridOptions = () => {
+      const data = this.api.data();
+      return { records:data.useAll ? data.visibleRecords : data.records.filter(record => data.selectedIds.has(this.#idOf(record))), rows:container.querySelector('[data-grid-rows]').value, columns:container.querySelector('[data-grid-columns]').value, order:container.querySelector('[data-grid-order]').value, skipEmpty:container.querySelector('[data-grid-skip]').checked };
+    };
+    on('[data-grid-preview]', 'click', () => {
+      const output=container.querySelector('[data-grid-results]');
+      try {
+        const preview=previewGridAtlas({...gridOptions(),availableSlides:MAX_SLIDES-this.briefing.slides.length});
+        output.innerHTML=`<p><strong>${preview.cells.length} slides</strong> · ${preview.recordCount} loaded points</p><ol>${preview.cells.map(cell=>`<li>${escapeHtml(cell.id)} — ${cell.count} assigned</li>`).join('')}</ol>`;
+      } catch (error) { output.textContent=error.message; }
+    });
+    on('[data-grid-create]', 'click', () => {
+      try {
+        const original=this.briefing;
+        const {briefing,preview}=generateGridAtlas({...gridOptions(),briefing:original,layerRef:briefingLayerRef(this.api.mapController,this.api.data().layer),camera:this.#currentCamera()});
+        if (!preview.cells.length) throw new Error('No cells to generate.');
+        this.selectedSlideId=briefing.slides[original.slides.length].id;
+        this.#save(briefing);
+        this.api.notify?.(`Added ${preview.cells.length} Grid Atlas slides. Counts use loaded points.`);
+      } catch (error) { container.querySelector('[data-grid-results]').textContent=error.message; }
     });
     const optionsMessage = (count, presentation) => presentation === 'single-slide' ? `Added an interactive timeline with ${count} frames.` : `Added ${count} timeline slides. Counts were previewed from loaded features only.`;
     const timelineOptions = () => {
@@ -719,10 +754,14 @@ export class BriefingSlides {
       const result = this.#slideStat(slide, block, data, briefing);
       return `<div class="briefing-slide__stat"><strong>${formatStat(result.value)}</strong><span>${escapeHtml(block.label || STAT_LABELS[block.stat])}</span>${result.sample ? "<small>sample of loaded features</small>" : ""}</div>`;
     }).join("");
+    const grid = slide.generatedBy;
+    const locator = grid?.template === 'grid-atlas' && Number.isInteger(grid.rows) && Number.isInteger(grid.columns) && grid.rows > 0 && grid.rows <= 20 && grid.columns > 0 && grid.columns <= 20 && Number.isInteger(grid.row) && grid.row >= 0 && grid.row < grid.rows && Number.isInteger(grid.column) && grid.column >= 0 && grid.column < grid.columns
+      ? `<svg class="briefing-grid-locator" viewBox="0 0 ${grid.columns} ${grid.rows}" role="img" aria-label="Locator: row ${grid.row+1} of ${grid.rows}, column ${grid.column+1} of ${grid.columns}">${Array.from({length:grid.rows}, (_,row) => Array.from({length:grid.columns}, (_,column) => `<rect x="${column}" y="${row}" width="1" height="1" fill="${row === grid.row && column === grid.column ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width=".06"/>`).join('')).join('')}</svg>` : '';
     return `<article class="briefing-slide briefing-slide--${slide.template}">
       <span class="briefing-slide__eyebrow">${escapeHtml(data.title || "Briefing")} · ${index + 1} / ${count}</span>
       <h2>${escapeHtml(slide.title || "Untitled slide")}</h2>
       ${slide.subtitle ? `<p class="briefing-slide__subtitle">${escapeHtml(slide.subtitle)}</p>` : ""}
+      ${locator}
       ${stats ? `<div class="briefing-slide__stats">${stats}</div>` : ""}
       ${body}
       ${(slide.frameNarrative ?? slide.timeline?.frames?.[0]?.narrative) ? `<div class="briefing-slide__text">${renderMarkdown(slide.frameNarrative ?? slide.timeline.frames[0].narrative)}</div>` : ""}
