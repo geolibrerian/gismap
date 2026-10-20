@@ -2,7 +2,7 @@ import { buildManifest, createPublicStateApi } from "./application-manifest.js?v
 import { createActionsApi } from "./application-actions.js?v=1.0.0";
 import { events } from "./events.js?v=0.18.2";
 import { AuthController } from "./engines/arcgis/arcgis-auth.js?v=0.39.0";
-import { MapController } from "./map-controller.js?v=0.54.0-timeline2";
+import { MapController } from "./map-controller.js?v=0.54.0-filter1";
 import { listEngines } from "./engines/engine-registry.js?v=0.54.0-vector1";
 import { chooseEngine } from "./engine-preference.js?v=0.52.5";
 import { BASEMAP_IDS } from "./basemap-catalog.js?v=0.53.0-gallery1";
@@ -11,7 +11,7 @@ import { IdentifyController } from "./identify.js?v=0.54.0-pan2";
 import { AttributeTableController } from "./attribute-table.js?v=0.37.0";
 import { AIController } from "./ai.js?v=0.54.0-geourl1";
 import { ToolManager } from "./tool-manager.js?v=0.37.0";
-import { UIController } from "./ui.js?v=0.54.0-timeline3";
+import { UIController } from "./ui.js?v=0.54.0-filter1";
 import { ExportController } from "./export/export-controller.js?v=0.37.0";
 import { SHARE_BASEMAPS, parseShareParameters } from "./share.js?v=0.54.0-unified4";
 import { readShareLocation } from "./map-share.js?v=0.54.0-unified4";

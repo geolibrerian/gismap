@@ -188,3 +188,30 @@ test("an ArcGIS feature layer on MapLibre keeps its fields, IDs and service styl
     globalThis.fetch = realFetch;
   }
 });
+
+test("large service layers can be opened for filtering and share only complete results", async () => {
+  const engine = new MaplibreEngine({ publish() {} });
+  engine.map = { addSource() {}, removeSource() {}, getSource: () => ({ setData() {} }), addLayer() {}, getLayer: () => null, setFilter() {}, setLayoutProperty() {}, setPaintProperty() {}, setLayerZoomRange() {} };
+  const realFetch = globalThis.fetch;
+  const seen = [];
+  globalThis.fetch = fakeFetch([
+    [(url) => url.includes("returnCountOnly"), { count: 50001 }],
+    [(url) => url.includes("returnIdsOnly"), (url) => {
+      const where = new URL(url).searchParams.get("where"); seen.push(where);
+      return { objectIds: where === "1=1" ? Array.from({ length: 50001 }, (_, i) => i + 1) : [42] };
+    }],
+    [(url, init) => url.includes("f=geojson") || String(init.body || "").includes("f=geojson"), { type: "FeatureCollection", features: [{ type: "Feature", id: 42, geometry: { type: "Point", coordinates: [0, 0] }, properties: { OBJECTID: 42, MAG: 5 } }] }],
+    [(url) => /FeatureServer\/0\?/.test(url), { type: "Feature Layer", name: "Historical Quakes", geometryType: "esriGeometryPoint", objectIdField: "OBJECTID", fields: [{ name: "OBJECTID", type: "esriFieldTypeOID" }, { name: "MAG", type: "esriFieldTypeDouble" }], maxRecordCount: 2000, advancedQueryCapabilities: { supportsPagination: false } }],
+  ]);
+  try {
+    const layer = await engine.addService({ url: "https://x.org/FeatureServer/0", serviceType: "arcgis-auto" });
+    await assert.rejects(engine.loadLayer(layer.uid), /feature limit/);
+    assert.equal((await engine.loadLayer(layer.uid, { allowTruncated: true })).truncated, true);
+    engine.setDefinitionExpression(layer.uid, "MAG >= 5");
+    assert.equal((await engine.loadLayer(layer.uid)).truncated, false);
+    assert.ok(seen.includes("MAG >= 5"));
+    engine.setDefinitionExpression(layer.uid, null);
+    await assert.rejects(engine.loadLayer(layer.uid), /feature limit/);
+    assert.equal((await engine.loadLayer(layer.uid, { allowTruncated: true })).truncated, true);
+  } finally { globalThis.fetch = realFetch; }
+});

@@ -113,7 +113,8 @@ function layerHandle(record) {
     get maxScale() { return record.maxScale || 0; },
     get refreshInterval() { return 0; },
     get loadStatus() { return "loaded"; },
-    get loadError() { return null; },
+    get loadError() { return record.loadFailed ?? null; },
+    get truncated() { return Boolean(record.truncated); },
     get queryable() { return record.kind === "vector"; },
     get countable() { return record.kind === "vector"; },
     get objectIdQueryable() { return record.kind === "vector"; },
@@ -774,7 +775,7 @@ export class MaplibreEngine {
     if (!record || record.kind !== "vector" || record.config.local) return;
     if (record.service) {
       const loaded = await this.#loadFeatures(record.service, record.where);
-      record.features = loaded.features;
+      Object.assign(record, { features: loaded.features, truncated: loaded.truncated, serverWhere: loaded.serverWhere });
     } else if (record.url) {
       const response = await fetch(record.url);
       if (!response.ok) return;
@@ -818,12 +819,14 @@ export class MaplibreEngine {
     return record?.kind === "vector" ? record.handle : null;
   }
 
-  async loadLayer(uid) {
+  async loadLayer(uid, { allowTruncated = false } = {}) {
     const record = this.#record(uid);
     if (!record) throw new Error("The layer is no longer available.");
-    await record.loaded;
+    let pending;
+    do { pending = record.loaded; await pending; } while (pending !== record.loaded);
     if (record.loadFailed) throw record.loadFailed;
-    if (record.truncated) throw new Error(`${record.title}: the layer exceeds the feature limit; apply a narrower filter before sharing.`);
+    if (record.filterError) { const error = record.filterError; record.filterError = null; throw error; }
+    if (record.truncated && !allowTruncated) throw new Error(`${record.title}: the layer exceeds the feature limit; apply a narrower filter before sharing.`);
     return this.getLayer(uid);
   }
 
@@ -920,14 +923,31 @@ export class MaplibreEngine {
     const record = this.#requireVector(uid);
     const value = String(expression || "").trim() || null;
     compileWhere(value);
+    const previousWhere = record.where;
+    const previousConfigWhere = record.config.definitionExpression;
     record.where = value;
     if (record.serverWhere && record.service) {
-      void this.#loadFeatures(record.service, value).then((loaded) => {
-        if (record.where !== value) return;
-        record.features = loaded.features;
+      const request = record.filterRequest = (record.filterRequest || 0) + 1;
+      record.filterCommitted ??= { where: previousWhere, configWhere: previousConfigWhere };
+      record.filterError = null;
+      // Share/export callers must wait for the new subset, not the original load.
+      record.loaded = this.#loadFeatures(record.service, value).then((loaded) => {
+        if (record.filterRequest !== request || !this.#records.has(record.uid)) return;
+        Object.assign(record, { features: loaded.features, truncated: loaded.truncated, serverWhere: loaded.serverWhere });
+        record.detail?.clear();
+        record.filterCommitted = { where: value, configWhere: persist ? value : record.config.definitionExpression };
+        this.#refresh(record, { data: true });
+        if (loaded.truncated) this.events.publish("app:error", { message: `${record.title}: showing the first ${record.features.length.toLocaleString()} matching features. Narrow the filter to see all results.` });
+        this.events.publish("layer:changed", { uid: record.uid });
+      }).catch((error) => {
+        if (record.filterRequest !== request || !this.#records.has(record.uid)) return;
+        record.where = record.filterCommitted.where;
+        record.config.definitionExpression = record.filterCommitted.configWhere;
+        record.filterError = error;
         this.#refresh(record, { data: true });
         this.events.publish("layer:changed", { uid: record.uid });
-      }).catch((error) => this.events.publish("app:error", { message: `${record.title}: ${error.message}` }));
+        this.events.publish("app:error", { message: `${record.title}: ${error.message}` });
+      });
     }
     this.#refresh(record, { data: true });
     if (!persist) return expression;

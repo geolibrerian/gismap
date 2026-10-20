@@ -5634,7 +5634,7 @@ export class UIController {
           finally { button.disabled = false; }
           break;
         }
-        case "filter": await this.#filterDialog(uid); break;
+        case "filter": try { await this.#filterDialog(uid); } catch (error) { this.error(error.message); } break;
         case "export": this.#shareExportDialog(uid); break;
         case "style": this.#openSymbologyUtility(uid); break;
         case "refresh": this.#refreshDialog(uid); break;
@@ -5647,7 +5647,7 @@ export class UIController {
     if (!layer?.filterable) {
       throw new Error("This layer does not support attribute filters.");
     }
-    layer = await this.mapController.loadLayer(uid);
+    layer = await this.mapController.loadLayer(uid, { allowTruncated: true });
     const fields = (layer.fields ?? []).filter((field) => field.name);
     if (!fields.length) throw new Error("This layer does not expose fields that can be filtered.");
     const fieldOptions = (selected) => fields.map((field) =>
@@ -5663,13 +5663,16 @@ export class UIController {
       title: `Filter ${layer.title || "layer"}`,
       content: `<p class="form-note">Filter changes which features appear on the map and in the attribute table. Query data explores a separate analysis dataset and does not change this map filter.</p><div class="filter-builder"><label class="field filter-logic" data-filter-logic hidden><span>Show features that match</span><select id="filter-logic"><option value="AND">all of these conditions (AND)</option><option value="OR">any of these conditions (OR)</option></select></label><ol class="filter-conditions" data-filter-conditions></ol><button type="button" class="link-button filter-add" data-filter-add>+ Add a condition</button></div>${layer.where ? `<p class="form-note"><strong>Current filter:</strong> <code>${escapeHtml(layer.where)}</code></p>` : ''}`,
       actions: [
-        { label: "Clear filter", handler: () => {
-          this.mapController.setDefinitionExpression(uid, null);
-          this.filterConditions.delete(uid);
-          this.dialog.close();
-          this.toast("Layer filter cleared.");
+        { label: "Clear filter", handler: async () => {
+          try {
+            this.mapController.setDefinitionExpression(uid, null);
+            const updated = await this.mapController.loadLayer(uid, { allowTruncated: true });
+            this.filterConditions.delete(uid);
+            this.dialog.close();
+            this.toast(updated?.truncated ? "Filter cleared. The layer exceeds the feature limit; only the first matching features are shown." : "Layer filter cleared.");
+          } catch (error) { this.error(error.message); }
         }},
-        { label: "Apply filter", primary: true, handler: () => {
+        { label: "Apply filter", primary: true, handler: async () => {
           try {
             const rows = [...this.dialog.querySelectorAll("[data-filter-condition]")].map((row) => ({
               field: row.querySelector("[data-filter-field]").value,
@@ -5679,9 +5682,10 @@ export class UIController {
             const logic = this.dialog.querySelector("#filter-logic").value;
             const expression = combineConditions(rows.map((row) => this.#buildFilterExpression(fields.find((item) => item.name === row.field), row.operator, row.value)), logic);
             this.mapController.setDefinitionExpression(uid, expression);
+            const updated = await this.mapController.loadLayer(uid, { allowTruncated: true });
             this.filterConditions.set(uid, { rows, logic, expression });
             this.dialog.close();
-            this.toast(`Filter applied: ${expression}`);
+            this.toast(updated?.truncated ? "Filter applied, but the layer still exceeds the feature limit. Narrow it further to show all matching features." : `Filter applied: ${expression}`);
           } catch (error) { this.error(error.message); }
         }},
       ],
