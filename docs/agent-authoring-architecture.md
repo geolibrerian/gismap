@@ -3,6 +3,10 @@
 ## Status
 Proposed, partially implemented on a development branch. No project-v2 schema, REST API, MCP server, batch, persistence service, or agent parity is claimed.
 
+## Canonical workflow specification
+
+The [six canonical AI agent workflows](agent-canonical-workflows-spec.md) extend this decision record with concrete requirements for discoverable recipes, supported execution environments, artifact verification, and regression scenarios. The project owner has verified these as canonical workflow examples. Individual recipe interfaces, outputs, and regression coverage must still be checked against the current manifest and implementation before making specific availability claims.
+
 ## Existing state
 `ProjectManager` owns the persisted project-v1 snapshot, including layer configurations, presentation and mobile data. `ApplicationState` owns transient selection, filters and panel state. Briefing-v1, map-v1, guided-tour and field-task link formats are separate existing contracts. `ApplicationRuntime.tools` already registers JSON-shaped commands and exposes them via the in-page API; layer tools delegate to the same layer facade used elsewhere. Current UI/chat code also directly invokes many host methods and DOM workflows. The in-page API requires a running browser; static `api/*.json` are not endpoints.
 

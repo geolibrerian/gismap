@@ -211,6 +211,19 @@ export function buildLlmsTxt({ capabilities, examples = null }) {
 
 The map in a link is one JSON object (map-v1): layers with filters and styles, basemap, camera. Write it after #map=json: in the URL. Invalid parts are skipped and reported; the rest of the map still opens.
 
+## Choose and combine agent recipes
+
+| User asks for… | Agent selects… | Primary artifact |
+| --- | --- | --- |
+| Map this data and color it by population | [interactive-map](${SITE}/skills/#recipe-interactive-map) | Filtered, styled interactive map |
+| Create slides about these districts | [interactive-briefing](${SITE}/skills/#recipe-interactive-briefing) | Map-based briefing |
+| Show me these locations in sequence | [geographic-tour](${SITE}/skills/#recipe-geographic-tour) | Guided geographic tour |
+| Inspect this location and complete these tasks | [field-tasks](${SITE}/skills/#recipe-field-tasks) | Five-task fieldwork package |
+| Make the county heights represent acreage | [3d-extrusion](${SITE}/skills/#recipe-3d-extrusion) | 3D extruded map |
+| Make the map feel like Halloween in California | [vibe-map](${SITE}/skills/#recipe-vibe-map) | Coordinated theme and styled map |
+
+Combine recipes for one request: a 3D grape map with autumn colors, a five-slide briefing and a QR uses interactive-map, 3d-extrusion, vibe-map and interactive-briefing. Check compatibility, actual outputs and reopening; do not assume every combination is portable.
+
 ## Make a map from a URL (no code)
 - One layer: \`${SITE}/?layer=<HTTPS service URL>&layerType=feature\`
 - Styled: add \`&style=choropleth&field=<FIELD>&method=auto&ramp=greens&exclude=-1&basemap=gray-vector\` (\`method=auto\` picks the class breaks from the data)
