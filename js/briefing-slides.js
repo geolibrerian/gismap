@@ -21,6 +21,8 @@ import {
   DISTANCE_UNITS,
   SPATIAL_RELATIONSHIPS,
 } from "./briefing-document.js?v=0.35.0";
+import { generateTimeline, previewTimeline, isYearField } from "./briefing-timeline.js?v=0.1.0";
+import { generateFilterSeries, seriesWhere } from "./briefing-data-series.js?v=0.2.0";
 import { previewFilterSeries } from "./briefing-series-preview.js?v=0.1.0";
 import { briefingLayerRef } from "./briefing-api.js?v=0.53.0";
 import { renderMarkdown } from "./markdown.js?v=0.18.2";
@@ -70,6 +72,7 @@ export class BriefingSlides {
     // How the other layers looked before a slide changed them: { visible: Map(uid -> bool), filtered: Set(uid) }.
     this.layerState = null;
     this.layerToken = 0;
+    this.layerQueue = Promise.resolve();
   }
 
   /** The briefing's other loaded layers (everything but its main layer), with the reference slides store. */
@@ -87,7 +90,14 @@ export class BriefingSlides {
   }
 
   /** Puts the other layers back as they were before any slide changed them. */
-  async restoreLayers({ keep = false } = {}) {
+  restoreLayers(options = {}) {
+    const operation = this.layerQueue.then(() => this.#restoreLayersNow(options));
+    this.layerQueue = operation.catch(() => {});
+    return operation;
+  }
+
+  async #restoreLayersNow({ keep = false } = {}) {
+    if (!keep) ++this.layerToken;
     const state = this.layerState;
     if (!state) return;
     const { mapController } = this.api;
@@ -96,6 +106,10 @@ export class BriefingSlides {
       if (state.filtered.has(layer.uid)) await mapController.setFeatureFilter(layer.uid, null);
     }
     state.filtered.clear();
+    if (state.primary) {
+      await mapController.setFeatureFilter(state.primary.uid, state.primary.filter);
+      state.primary = null;
+    }
     if (!keep) this.layerState = null;
   }
 
@@ -104,15 +118,40 @@ export class BriefingSlides {
    * features related to the slide's feature: the layer's service answers the
    * relationship (spatialRel, with any distance), and only those features draw.
    */
-  async applySlideLayers(slide, record = this.#recordFor(slide)) {
+  applySlideLayers(slide, record = this.#recordFor(slide)) {
+    const operation = this.layerQueue.then(() => this.#applySlideLayersNow(slide, record));
+    this.layerQueue = operation.catch(() => {});
+    return operation;
+  }
+
+  async #applySlideLayersNow(slide, record) {
     const token = ++this.layerToken;
     const entries = Array.isArray(slide?.layers) ? slide.layers : null;
-    if (!entries && !this.layerState) return;
+    if (!entries && !slide?.dataView && !this.layerState) return;
     const { mapController } = this.api;
     this.layerState ??= { visible: new Map(this.otherLayers().map(({ layer }) => [layer.uid, layer.visible !== false])), filtered: new Set() };
-    await this.restoreLayers({ keep: true });
-    if (!entries || token !== this.layerToken) return;
-    for (const entry of entries) {
+    await this.#restoreLayersNow({ keep: true });
+    if (token !== this.layerToken) return;
+    if (slide?.dataView) {
+      try {
+        const data = this.api.data();
+        const layer = data.layer;
+        const ref = briefingLayerRef(mapController, layer);
+        if (!layer || String(ref).replace(/\/+$/, '').toLowerCase() !== String(slide.dataView.layer || '').replace(/\/+$/, '').toLowerCase()) throw new Error('The slide’s source layer is not available.');
+        const where = seriesWhere(slide.dataView.filter, data.fields?.fields || layer.fields || []);
+        const prior = await mapController.getFeatureFilter(layer.uid);
+        if (token !== this.layerToken) return;
+        // A FeatureFilter may also contain geometry, time, or objectIds. Keep those
+        // constraints while intersecting the generated attribute predicate.
+        const filter = { ...(prior || {}), where: prior?.where ? `(${prior.where}) AND (${where})` : where };
+        this.layerState.primary = { uid: layer.uid, filter: prior };
+        if (!await mapController.setFeatureFilter(layer.uid, filter)) throw new Error('The map engine cannot filter this layer.');
+        if (token !== this.layerToken) return;
+      } catch (error) {
+        this.api.notify?.(`Data-driven slide: ${error.message}`);
+      }
+    }
+    for (const entry of entries || []) {
       const layer = this.#findLayer(entry.layer);
       if (!layer) continue;
       if (!this.layerState.visible.has(layer.uid)) this.layerState.visible.set(layer.uid, layer.visible !== false);
@@ -290,10 +329,21 @@ export class BriefingSlides {
         ${this.api.generate ? `<div class="briefing-slides__auto"><button type="button" data-slides-generate title="Slides from the layer's style, filter and the features you included">✦ ${briefing.slides.length ? "Remake" : "Make"} from the map</button>${this.api.aiReady?.() && briefing.slides.length ? `<button type="button" data-slides-ai title="Let the configured AI describe the opening and each feature">✦ Describe with AI</button>` : ""}</div>` : ""}
         <details class="briefing-series-preview">
           <summary>Explore data-driven templates</summary>
-          <p class="form-note">Preview a Filter Series from loaded, included features. This preview does not create slides or change the map. Timeline and Grid Atlas are planned.</p>
+          <p class="form-note">Preview a Filter Series from loaded, included features. Preview does not create slides or change the map; generation adds one filtered map slide per value. Grid Atlas is planned.</p>
           <label class="briefing-field"><span>Group by field</span><select data-series-field><option value="">Choose a field</option>${(data.fields?.fields || []).filter(field => field?.name).map(field => `<option value="${escapeHtml(field.name)}">${escapeHtml(field.alias || field.name)}</option>`).join("")}</select></label>
-          <button type="button" data-series-preview>Preview subsets</button>
+          <button type="button" data-series-preview>Preview subsets</button> <button type="button" data-series-create>Generate slides</button>
           <div data-series-results role="status" aria-live="polite"></div>
+        </details>
+        <details class="briefing-series-preview">
+          <summary>Timeline · slides by year</summary>
+          <p class="form-note">Create one map slide per year or group of years. Use a integer year field; date and timestamp fields are not yet supported. The same map view and style are used throughout.</p>
+          <label class="briefing-field"><span>Year field</span><select data-timeline-field><option value="">Choose a integer year field</option>${(data.fields?.fields || []).filter(isYearField).map(field => `<option value="${escapeHtml(field.name)}">${escapeHtml(field.alias || field.name)}</option>`).join("")}</select></label>
+          <label class="briefing-field"><span>Start year</span><input data-timeline-start type="number" min="0" max="9999" step="1" placeholder="e.g. 2015"></label>
+          <label class="briefing-field"><span>End year (inclusive)</span><input data-timeline-end type="number" min="0" max="9999" step="1" placeholder="e.g. 2024"></label>
+          <label class="briefing-field"><span>Years per slide</span><input data-timeline-step type="number" min="1" max="10000" step="1" value="1"></label>
+          <label class="briefing-field"><span>Show features</span><select data-timeline-mode><option value="interval">During each interval</option><option value="cumulative">Cumulative from start year</option></select></label>
+          <button type="button" data-timeline-preview>Preview timeline</button> <button type="button" data-timeline-create>Generate slides</button>
+          <div data-timeline-results role="status" aria-live="polite"></div>
         </details>
         <div class="briefing-slides__add">
           <label><span>Add a slide</span><select data-slide-template>${SLIDE_TEMPLATES.filter((template) => template.id !== "feature").map((template) => `<option value="${template.id}">${escapeHtml(template.label)}</option>`).join("")}</select></label>
@@ -426,8 +476,38 @@ export class BriefingSlides {
         const data = this.api.data();
         const records = data.useAll ? data.visibleRecords : data.records.filter((record) => data.selectedIds.has(this.#idOf(record)));
         const preview = previewFilterSeries({ field: container.querySelector("[data-series-field]").value, fields: data.fields?.fields || [], records, availableSlides: MAX_SLIDES - this.briefing.slides.length });
-        output.innerHTML = `<p><strong>${preview.subsets.length} potential slides</strong> from ${preview.recordCount} loaded, included features.</p><ul>${preview.subsets.map((subset) => `<li>${escapeHtml(subset.title)} — ${subset.count} loaded feature${subset.count === 1 ? "" : "s"}</li>`).join("")}</ul>${preview.warnings.map((warning) => `<p class="form-note">${escapeHtml(warning)}</p>`).join("")}<p class="form-note">Slide generation and per-slide map filters are not yet available in this preview.</p>`;
+        output.innerHTML = `<p><strong>${preview.subsets.length} potential slides</strong> from ${preview.recordCount} loaded, included features.</p><ul>${preview.subsets.map((subset) => `<li>${escapeHtml(subset.title)} — ${subset.count} loaded feature${subset.count === 1 ? "" : "s"}</li>`).join("")}</ul>${preview.warnings.map((warning) => `<p class="form-note">${escapeHtml(warning)}</p>`).join("")}`;
       } catch (error) { output.textContent = error.message; }
+    });
+    on("[data-series-create]", "click", () => {
+      try {
+        const data = this.api.data();
+        const records = data.useAll ? data.visibleRecords : data.records.filter((record) => data.selectedIds.has(this.#idOf(record)));
+        const { briefing, preview } = generateFilterSeries({ briefing: this.briefing, field: container.querySelector("[data-series-field]").value, fields: data.fields?.fields || [], records, layerRef: briefingLayerRef(this.api.mapController, data.layer), camera: this.#currentCamera() });
+        this.selectedSlideId = briefing.slides[this.briefing.slides.length]?.id || this.selectedSlideId;
+        this.#save(briefing);
+        this.api.notify?.(`Added ${preview.subsets.length} filtered slides. Categories are based on loaded, included features.`);
+      } catch (error) { container.querySelector("[data-series-results]").textContent = error.message; }
+    });
+    const timelineOptions = () => {
+      const data = this.api.data();
+      return { field: container.querySelector("[data-timeline-field]").value, fields: data.fields?.fields || [], records: data.useAll ? data.visibleRecords : data.records.filter((record) => data.selectedIds.has(this.#idOf(record))), start: container.querySelector("[data-timeline-start]").value, end: container.querySelector("[data-timeline-end]").value, step: container.querySelector("[data-timeline-step]").value, mode: container.querySelector("[data-timeline-mode]").value };
+    };
+    on("[data-timeline-preview]", "click", () => {
+      const output = container.querySelector("[data-timeline-results]");
+      try {
+        const preview = previewTimeline({ ...timelineOptions(), availableSlides: MAX_SLIDES - this.briefing.slides.length });
+        output.innerHTML = `<p><strong>${preview.frames.length} frames</strong> from ${preview.recordCount} loaded, included features.</p><ul>${preview.frames.map(frame => `<li>${escapeHtml(frame.title)} — ${frame.count} loaded feature${frame.count === 1 ? "" : "s"}</li>`).join("")}</ul>${preview.warnings.map(warning => `<p class="form-note">${escapeHtml(warning)}</p>`).join("")}`;
+      } catch (error) { output.textContent = error.message; }
+    });
+    on("[data-timeline-create]", "click", () => {
+      try {
+        const original = this.briefing;
+        const {briefing, preview} = generateTimeline({...timelineOptions(), briefing:original, layerRef:briefingLayerRef(this.api.mapController, this.api.data().layer), camera:this.#currentCamera()});
+        this.selectedSlideId = briefing.slides[original.slides.length].id;
+        this.#save(briefing);
+        this.api.notify?.(`Added ${preview.frames.length} timeline slides. Counts were previewed from loaded features only.`);
+      } catch (error) { container.querySelector("[data-timeline-results]").textContent = error.message; }
     });
     on("[data-slides-generate]", "click", () => this.api.generate());
     on("[data-slides-ai]", "click", async (button) => {

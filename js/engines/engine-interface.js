@@ -65,7 +65,7 @@ export const ENGINE_METHODS = Object.freeze([
   // styling
   "applyRendererSpec",
   // queries
-  "queryFeatures", "queryFeatureCount", "queryObjectIds", "setFeatureFilter",
+  "queryFeatures", "queryFeatureCount", "queryObjectIds", "setFeatureFilter", "getFeatureFilter",
   // view
   "getViewState", "setView", "getViewPadding", "setViewPadding", "getContainer", "getViewExtent",
   // interaction

@@ -936,16 +936,21 @@ export class MaplibreEngine {
     return value;
   }
 
+  async getFeatureFilter(uid) {
+    const record = this.#record(uid);
+    return record?.featureFilter ? { objectIds: [...record.featureFilter] } : null;
+  }
+
   /** Draws only some features without changing the layer's filter: { objectIds } or { where }, or null for all. */
   async setFeatureFilter(uid, filter) {
     const record = this.#record(uid);
     if (!record || record.kind !== "vector" || !this.map) return false;
     if (!filter) record.featureFilter = null;
-    else if (Array.isArray(filter.objectIds)) record.featureFilter = filter.objectIds.map(Number);
     else if (filter.where) {
       const matches = compileWhere(filter.where);
-      record.featureFilter = record.features.filter((feature) => matches(feature.properties)).map((feature) => feature.id);
-    } else record.featureFilter = null;
+      record.featureFilter = record.features.filter((feature) => matches(feature.properties) && (!Array.isArray(filter.objectIds) || filter.objectIds.includes(Number(feature.id)))).map((feature) => feature.id);
+    } else if (Array.isArray(filter.objectIds)) record.featureFilter = filter.objectIds.map(Number);
+    else record.featureFilter = null;
     this.#refresh(record);
     return true;
   }

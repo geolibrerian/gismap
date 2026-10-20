@@ -1,4 +1,4 @@
-> **Implementation status:** The initial Filter Series subset preview uses loaded, included features only. It does not generate or save slides, apply map filters, or implement Timeline or Grid Atlas. Existing briefing-v1 remains unchanged; the proposed v2 structure is a future design, not a current contract.
+> **Implementation status:** Filter Series and numeric-year Timeline slide generation are in development. Previews use loaded, included features only. Timeline currently supports interval and cumulative multi-slide frames; dates, single-slide animation, autoplay, rolling windows, validity periods, and Grid Atlas remain planned. The proposed v2 structure is a future design, not a current contract.
 
 # GISMap.online Briefs: Data-Driven Slide Templates
 

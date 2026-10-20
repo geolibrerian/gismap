@@ -28,9 +28,9 @@ test('preview rejects missing fields, reports missing values, and never truncate
   assert.match(many.warnings.join(' '), /exceed/);
 });
 
-test('Briefing authoring exposes a preview and explicitly does not promise slide creation', async () => {
+test('Briefing authoring exposes preview and explicit slide generation', async () => {
   const code = await readFile(new URL('../js/briefing-slides.js',import.meta.url),'utf8');
   assert.match(code, /data-series-preview/);
   assert.match(code, /data\.fields\?\.fields/);
-  assert.match(code, /does not create slides/);
+  assert.match(code, /data-series-create/);
 });

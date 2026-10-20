@@ -18,7 +18,7 @@
         "null"
       ],
       "maxLength": 2048,
-      "description": "The layer the briefing is about. Use the layer's service URL (for example https://…/FeatureServer/0) so the document works anywhere; GISMap loads it when it is not on the map. A layer ID or title also matches a layer that is already loaded."
+      "description": "The layer the briefing is about. Use the layer's service URL (for example https://\u2026/FeatureServer/0) so the document works anywhere; GISMap loads it when it is not on the map. A layer ID or title also matches a layer that is already loaded."
     },
     "transition": {
       "enum": [
@@ -393,6 +393,83 @@
             },
             "additionalProperties": false
           }
+        },
+        "dataView": {
+          "description": "Optional layer subset used by a data-driven map slide.",
+          "type": "object",
+          "required": [
+            "layer",
+            "filter"
+          ],
+          "properties": {
+            "layer": {
+              "type": "string",
+              "minLength": 1
+            },
+            "filter": {
+              "oneOf": [
+                {
+                  "type": "object",
+                  "required": [
+                    "op",
+                    "field",
+                    "values"
+                  ],
+                  "properties": {
+                    "op": {
+                      "const": "in"
+                    },
+                    "field": {
+                      "type": "string",
+                      "pattern": "^[A-Za-z_][A-Za-z0-9_.]*$"
+                    },
+                    "values": {
+                      "type": "array",
+                      "minItems": 1,
+                      "maxItems": 1,
+                      "items": {
+                        "type": [
+                          "string",
+                          "number"
+                        ]
+                      }
+                    }
+                  },
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "required": [
+                    "op",
+                    "field",
+                    "start",
+                    "end"
+                  ],
+                  "properties": {
+                    "op": {
+                      "const": "year-range"
+                    },
+                    "field": {
+                      "type": "string",
+                      "pattern": "^[A-Za-z_][A-Za-z0-9_.]*$"
+                    },
+                    "start": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9999
+                    },
+                    "end": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 10000
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              ]
+            }
+          },
+          "additionalProperties": false
         }
       },
       "additionalProperties": true

@@ -2164,6 +2164,14 @@ export class ArcGISEngine {
     return layer.queryObjectIds(this.#query(layer, params, layerDefaults), signal ? { signal } : undefined);
   }
 
+  async getFeatureFilter(uid) {
+    const layer = this.#layer(uid);
+    if (!layer || !this.view?.whenLayerView) throw new Error('Layer filter is unavailable.');
+    const layerView = await this.view.whenLayerView(layer);
+    const filter = layerView.filter;
+    return filter ? (filter.toJSON ? filter.toJSON() : { ...filter }) : null;
+  }
+
   /**
    * Draws only some of a layer's features, without fetching again:
    * { where } or { objectIds }, or null for all of them. False when the layer cannot.
