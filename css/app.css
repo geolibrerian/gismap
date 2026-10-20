@@ -2610,3 +2610,21 @@ body.utility-panel-open .utility-panel:has([data-utility-pane="data-notes"]:not(
   .map-notes-panel select,
   .map-notes-panel textarea { font-size: 16px; }
 }
+
+/* Field Notes follows the Field Tasks overview and editor surfaces. */
+.field-notes-panel [hidden] { display: none !important; }
+.field-notes-panel [data-field-note-overview] { gap: 14px; }
+.field-notes-panel [data-field-note-overview] .mobile-workflow__subtitle { margin: 0; font-size: 12px; }
+.field-notes-panel [data-field-note-overview] .mobile-primary { width: 100%; margin: 0; min-height: 44px; background: var(--green); border-color: var(--green); color: var(--on-accent, #fff); font-weight: 700; }
+.field-notes-panel .mobile-empty, .field-notes-panel .map-note-card, .field-notes-editor__card { background: var(--surface); border-color: var(--line); }
+.field-notes-panel .mobile-empty h2 { font: 700 19px/1.15 var(--ui-heading); }
+.field-notes-editor { display: grid; gap: 12px; min-width: 0; }
+.field-notes-editor > button { justify-self: start; }
+.field-notes-editor__card { margin: 0; }
+.field-notes-editor__card .field { margin: 0; }
+.field-notes-panel .field-notes-editor__card :is(input:not([type="checkbox"]), select, textarea) { background: var(--surface-2); }
+.field-note-review-card { display: grid; gap: 6px; min-width: 0; }
+.field-note-review-card .status-pill { justify-self: start; margin-bottom: 0; font-size: 10px; }
+.field-note-review-card h3, .field-note-review-card p, .field-note-review-card .feed-card__meta { margin: 0; }
+.field-note-review-card .feed-card__actions { margin-top: 6px; }
+.field-note-review-card .feed-card__actions button:first-child[data-note-edit] { color: var(--on-accent, #fff); background: var(--green); border-color: var(--green); }

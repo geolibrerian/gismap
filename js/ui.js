@@ -3,7 +3,7 @@ import { refreshMapNoteFilters } from './map-note-filters.js?v=0.4.1';
 import { openDataMapNotesPanel } from "./data-map-notes-panel.js?v=0.16.0";
 import { refreshMapNoteWorkflow } from "./map-note-workflow-ui.js?v=0.1.0";
 import { noteFeatureReference } from './map-note-feature.js?v=0.1.0';
-import { openMapNotesPanel } from "./map-notes-panel.js?v=0.12.0";
+import { openMapNotesPanel } from "./map-notes-panel.js?v=0.14.0";
 import { refreshNoteRelationships } from "./note-relationships-ui.js?v=0.1.0";
 import { googleMapsLinkForChapter } from "./google-maps-link.js?v=0.53.0";
 import { POPULAR_SERVICES } from "./catalog.js?v=0.18.2";
@@ -573,7 +573,7 @@ export class UIController {
         }).catch(() => { /* The location remains usable if geocoding fails. */ });
         return;
       }
-      if (!this.mapNotesModeActive || this.activeUtilityTab !== "notes" || !point) { this.mapNotePoint = point; return; }
+      if (!this.mapNotesModeActive || !this.fieldNotesEditing || this.activeUtilityTab !== "notes" || !point) { this.mapNotePoint = point; return; }
       const pane = document.querySelector("#utility-notes-content");
       if ([...pane.querySelectorAll('[data-note-form] [name="title"], [data-note-form] [name="body"]')].some((input) => input.value.trim())) {
         this.toast("Save or clear the current observation before choosing another location."); return;
@@ -703,7 +703,7 @@ export class UIController {
       this.identifyPending = false;
       document.querySelector("#insights-overlay").setAttribute("aria-busy", "false");
       if ((this.dataMapNotesOpen && this.activeUtilityTab === "data-notes" && !this.dataMapNotePaused)
-        || (this.mapNotesModeActive && this.activeUtilityTab === "notes")) {
+        || (this.mapNotesModeActive && this.fieldNotesEditing && this.activeUtilityTab === "notes")) {
         this.#renderIntelligenceContents();
         this.#setInsightsOpen(false);
         return;
@@ -911,7 +911,7 @@ export class UIController {
     this.activeUtilityTab = validTabs.has(preferredTab)
       ? preferredTab
       : validTabs.has(this.activeUtilityTab) ? this.activeUtilityTab : tabs[0]?.id || null;
-    document.body.classList.toggle("map-notes-authoring", (this.mapNotesModeActive && this.activeUtilityTab === "notes") || (this.dataMapNotesOpen && this.activeUtilityTab === "data-notes" && !this.dataMapNotePaused));
+    document.body.classList.toggle("map-notes-authoring", (this.mapNotesModeActive && this.fieldNotesEditing && this.activeUtilityTab === "notes") || (this.dataMapNotesOpen && this.activeUtilityTab === "data-notes" && !this.dataMapNotePaused));
     if (this.activeUtilityTab === "data-notes") this.refreshDataMapNoteMarkers();
     else if (this.activeUtilityTab === "notes") this.refreshMapNoteMarkers(this.mapNotePoint);
     else this.mapController.setMapNoteMarkers([]);
@@ -1050,7 +1050,7 @@ export class UIController {
 
   #closeUtilityTab(tabId) {
     if (tabId === "notes") {
-      this.mapNotesModeActive = false; this.mapNotesSelectionId = (this.mapNotesSelectionId || 0) + 1;
+      this.mapNotesModeActive = false; this.fieldNotesEditing = false; this.mapNotesSelectionId = (this.mapNotesSelectionId || 0) + 1;
       this.mapNotesAttachFeature = null; this.mapNotesSessionDraft = null;
       document.body.classList.remove("map-notes-authoring");
       this.mapController.setMapNoteMarkers([]);
@@ -6454,6 +6454,10 @@ export class UIController {
     this.#renderNotesHub();
   }
 
+  updateFieldNotesCursor() {
+    document.body.classList.toggle("map-notes-authoring", (this.mapNotesModeActive && this.fieldNotesEditing && this.activeUtilityTab === "notes") || (this.dataMapNotesOpen && this.activeUtilityTab === "data-notes" && !this.dataMapNotePaused));
+  }
+
   updateDataMapNoteCursor() { document.body.classList.toggle("map-notes-authoring", this.dataMapNotesOpen && this.activeUtilityTab === "data-notes" && !this.dataMapNotePaused); }
 
   openDataMapNotesWorkspace(content) {
@@ -6468,7 +6472,6 @@ export class UIController {
   openMapNotesWorkspace(content) {
     this.notesHubTab = "field"; this.#showNotesHub();
     this.mapNotesModeActive = true;
-    document.body.classList.add("map-notes-authoring");
     const pane = document.querySelector("#utility-notes-content");
     pane.innerHTML = content;
     this.#syncUtilityPanel("notes");
