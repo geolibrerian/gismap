@@ -21,6 +21,7 @@ import {
   DISTANCE_UNITS,
   SPATIAL_RELATIONSHIPS,
 } from "./briefing-document.js?v=0.35.0";
+import { previewFilterSeries } from "./briefing-series-preview.js?v=0.1.0";
 import { briefingLayerRef } from "./briefing-api.js?v=0.53.0";
 import { renderMarkdown } from "./markdown.js?v=0.18.2";
 import { BriefingPlayer, slideHasMap } from "./briefing-player.js?v=0.37.0";
@@ -287,6 +288,13 @@ export class BriefingSlides {
     container.innerHTML = `<div class="briefing-slides">
       <div class="briefing-slides__authoring">
         ${this.api.generate ? `<div class="briefing-slides__auto"><button type="button" data-slides-generate title="Slides from the layer's style, filter and the features you included">✦ ${briefing.slides.length ? "Remake" : "Make"} from the map</button>${this.api.aiReady?.() && briefing.slides.length ? `<button type="button" data-slides-ai title="Let the configured AI describe the opening and each feature">✦ Describe with AI</button>` : ""}</div>` : ""}
+        <details class="briefing-series-preview">
+          <summary>Explore data-driven templates</summary>
+          <p class="form-note">Preview a Filter Series from loaded, included features. This preview does not create slides or change the map. Timeline and Grid Atlas are planned.</p>
+          <label class="briefing-field"><span>Group by field</span><select data-series-field><option value="">Choose a field</option>${(data.fields?.fields || []).filter(field => field?.name).map(field => `<option value="${escapeHtml(field.name)}">${escapeHtml(field.alias || field.name)}</option>`).join("")}</select></label>
+          <button type="button" data-series-preview>Preview subsets</button>
+          <div data-series-results role="status" aria-live="polite"></div>
+        </details>
         <div class="briefing-slides__add">
           <label><span>Add a slide</span><select data-slide-template>${SLIDE_TEMPLATES.filter((template) => template.id !== "feature").map((template) => `<option value="${template.id}">${escapeHtml(template.label)}</option>`).join("")}</select></label>
           <button type="button" data-slide-add>Add</button>
@@ -412,6 +420,15 @@ export class BriefingSlides {
     on("[data-slides-preview]", "click", () => this.openPlayer(this.briefing.slides.find((slide) => !slide.hidden)?.id));
     on("[data-slides-share]", "click", () => this.api.share?.());
     on("[data-slides-tour]", "click", () => this.#toTour());
+    on("[data-series-preview]", "click", () => {
+      const output = container.querySelector("[data-series-results]");
+      try {
+        const data = this.api.data();
+        const records = data.useAll ? data.visibleRecords : data.records.filter((record) => data.selectedIds.has(this.#idOf(record)));
+        const preview = previewFilterSeries({ field: container.querySelector("[data-series-field]").value, fields: data.fields?.fields || [], records, availableSlides: MAX_SLIDES - this.briefing.slides.length });
+        output.innerHTML = `<p><strong>${preview.subsets.length} potential slides</strong> from ${preview.recordCount} loaded, included features.</p><ul>${preview.subsets.map((subset) => `<li>${escapeHtml(subset.title)} — ${subset.count} loaded feature${subset.count === 1 ? "" : "s"}</li>`).join("")}</ul>${preview.warnings.map((warning) => `<p class="form-note">${escapeHtml(warning)}</p>`).join("")}<p class="form-note">Slide generation and per-slide map filters are not yet available in this preview.</p>`;
+      } catch (error) { output.textContent = error.message; }
+    });
     on("[data-slides-generate]", "click", () => this.api.generate());
     on("[data-slides-ai]", "click", async (button) => {
       button.disabled = true;
