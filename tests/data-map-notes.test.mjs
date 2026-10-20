@@ -54,6 +54,20 @@ test('project-scoped notes need no geometry or fabricated data identity and surv
   assert.deepEqual(manager.mapNotes.get(note.id).tags, ['quality']);
 });
 
+test('custom categories and targets use v3 and round trip without changing older records', async () => {
+  const manager = new ProjectManager(events, map); manager.mapNotes.persist = () => {};
+  const old = manager.mapNotes.create({ body: 'Original', target: { type: 'dataset', datasetId: 'roads' } });
+  const note = manager.mapNotes.create({ body: 'Review', category: 'Accessibility audit', target: { type: 'custom', label: 'Bus shelter' } });
+  assert.equal(note.schemaVersion, '3.0');
+  assert.deepEqual(note.target, { type: 'custom', label: 'Bus shelter' });
+  assert.throws(() => normalizeDataMapNote({ ...note, schemaVersion: '2.0' }), /category|target/i);
+  assert.throws(() => manager.mapNotes.create({ body: 'Bad', target: { type: 'custom', label: ' ' } }), /target label/);
+  await manager.load(manager.snapshot());
+  assert.equal(manager.mapNotes.get(note.id).category, 'Accessibility audit');
+  assert.equal(manager.mapNotes.get(old.id).schemaVersion, '1.0');
+  assert.equal(manager.mapNotes.update(old.id, { category: 'Custom category' }).schemaVersion, '3.0');
+});
+
 test('workflow status is derived from linked task statuses without changing tags or resolving notes', () => {
   const project = { mapNotes: [], noteRelationships: [], mobile: { fieldTasks: [] } };
   const registry = new DataMapNotesRegistry({ project: () => project });

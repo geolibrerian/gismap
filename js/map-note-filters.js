@@ -2,7 +2,7 @@
 export function matchesMapNoteFilters(note, workflow, filters = {}) {
   const term = String(filters.search || '').trim().toLocaleLowerCase();
   const text = [note.title, note.body, note.category, note.status, note.target.type,
-    note.target.datasetId, note.target.featureId, note.target.sourceUrl, ...(note.tags || [])]
+    note.target.datasetId, note.target.featureId, note.target.sourceUrl, note.target.label, ...(note.tags || [])]
     .filter(Boolean).join(' ').toLocaleLowerCase();
   if (term && !text.includes(term)) return false;
   if (filters.scope && note.target.type !== filters.scope) return false;

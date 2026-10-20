@@ -4,7 +4,7 @@ import { DataMapNotesRegistry } from '../js/data-map-notes.js';
 import { openDataMapNotesPanel } from '../js/data-map-notes-panel.js';
 
 function workspace(registry) {
-  const controls = Object.fromEntries(['targetType', 'datasetId', 'featureId', 'sourceUrl', 'longitude', 'latitude', 'category', 'title', 'body', 'tags', 'status'].map(name => [name, { value: '', addEventListener() {} }]));
+  const controls = Object.fromEntries(['targetType', 'targetLabel', 'customCategory', 'datasetId', 'featureId', 'sourceUrl', 'longitude', 'latitude', 'category', 'title', 'body', 'tags', 'status'].map(name => [name, { value: '', addEventListener() {} }]));
   const save = { disabled: false, addEventListener(_type, handler) { this.click = () => handler({ currentTarget: this }); } };
   const error = { textContent: '' };
   const target = { hidden: false };
@@ -39,4 +39,19 @@ test('location notes reject missing coordinates without writing', () => {
   const project = { mapNotes: [] }; const registry = new DataMapNotesRegistry({ project: () => project }); const w = workspace(registry);
   openDataMapNotesPanel(w.ui); w.controls.targetType.value = 'location'; w.save.click();
   assert.match(w.error.textContent, /both longitude and latitude/); assert.equal(registry.list().length, 0); assert.equal(w.save.disabled, false);
+});
+
+test('map target preserves a draft and can save a feature with its clicked location', () => {
+  const project = { mapNotes: [] }; const registry = new DataMapNotesRegistry({ project: () => project }); const w = workspace(registry);
+  openDataMapNotesPanel(w.ui); w.controls.title.value = 'Draft'; w.controls.body.value = 'Keep this text'; w.controls.category.value = 'other'; w.controls.status.value = 'open';
+  w.ui.setDataMapNoteTarget({ type: 'feature', datasetId: 'roads', featureId: '42', coordinates: [-122, 37] });
+  assert.equal(w.controls.title.value, 'Draft'); assert.equal(w.controls.body.value, 'Keep this text');
+  w.save.click(); assert.deepEqual(registry.list()[0].target, { type: 'feature', datasetId: 'roads', featureId: '42', coordinates: [-122, 37] });
+});
+
+test('custom category and target are saved as text', () => {
+  const project = { mapNotes: [] }; const registry = new DataMapNotesRegistry({ project: () => project }); const w = workspace(registry);
+  openDataMapNotesPanel(w.ui); Object.assign(w.controls.targetType, { value: 'custom' });
+  w.controls.targetLabel.value = 'Bridge deck'; w.controls.category.value = 'custom'; w.controls.customCategory.value = 'Field audit'; w.controls.body.value = 'Inspect'; w.controls.status.value = 'open';
+  w.save.click(); assert.equal(registry.list()[0].category, 'Field audit'); assert.equal(registry.list()[0].target.label, 'Bridge deck');
 });

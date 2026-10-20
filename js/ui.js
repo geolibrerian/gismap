@@ -1,5 +1,5 @@
-import { refreshMapNoteFilters } from './map-note-filters.js?v=0.1.0';
-import { openDataMapNotesPanel } from "./data-map-notes-panel.js?v=0.6.0";
+import { refreshMapNoteFilters } from './map-note-filters.js?v=0.2.0';
+import { openDataMapNotesPanel } from "./data-map-notes-panel.js?v=0.7.0";
 import { refreshMapNoteWorkflow } from "./map-note-workflow-ui.js?v=0.1.0";
 import { noteFeatureReference } from './map-note-feature.js?v=0.1.0';
 import { openMapNotesPanel } from "./map-notes-panel.js?v=0.12.0";
@@ -539,6 +539,22 @@ export class UIController {
       const { mapPoint } = click;
       this.#dismissWelcome();
       const point = Number.isFinite(mapPoint?.longitude) && Number.isFinite(mapPoint?.latitude) ? [((mapPoint.longitude + 180) % 360 + 360) % 360 - 180, mapPoint.latitude] : null;
+      if (this.dataMapNotesOpen && this.activeUtilityTab === "data-notes" && point) {
+        const setTarget = this.setDataMapNoteTarget;
+        if (!setTarget) return;
+        const revision = this.dataMapNotePickRevision = (this.dataMapNotePickRevision || 0) + 1;
+        this.dataMapNotePoint = point;
+        setTarget({ type: "location", coordinates: point });
+        this.refreshDataMapNoteMarkers();
+        Promise.resolve().then(() => this.mapController.identify(click)).then(results => {
+          if (!this.dataMapNotesOpen || this.activeUtilityTab !== "data-notes" || revision !== this.dataMapNotePickRevision || setTarget !== this.setDataMapNoteTarget) return;
+          const result = results?.find(item => item.kind === "feature");
+          const layer = result && this.mapController.getLayer(result.layerUid);
+          const feature = noteFeatureReference(result, layer, layer && this.mapController.getLayerConfig(layer));
+          if (feature) setTarget({ type: feature.featureId ? "feature" : "dataset", datasetId: feature.datasetId, ...(feature.featureId ? { featureId: feature.featureId } : {}), ...(feature.sourceUrl ? { sourceUrl: feature.sourceUrl } : {}), coordinates: point });
+        }).catch(() => { /* The location remains usable if identify fails. */ });
+        return;
+      }
       if (!this.mapNotesModeActive || this.activeUtilityTab !== "notes" || !point) { this.mapNotePoint = point; return; }
       const pane = document.querySelector("#utility-notes-content");
       if ([...pane.querySelectorAll('[data-note-form] [name="title"], [data-note-form] [name="body"]')].some((input) => input.value.trim())) {
@@ -867,7 +883,10 @@ export class UIController {
     this.activeUtilityTab = validTabs.has(preferredTab)
       ? preferredTab
       : validTabs.has(this.activeUtilityTab) ? this.activeUtilityTab : tabs[0]?.id || null;
-    document.body.classList.toggle("map-notes-authoring", this.mapNotesModeActive && this.activeUtilityTab === "notes");
+    document.body.classList.toggle("map-notes-authoring", (this.mapNotesModeActive && this.activeUtilityTab === "notes") || (this.dataMapNotesOpen && this.activeUtilityTab === "data-notes"));
+    if (this.activeUtilityTab === "data-notes") this.refreshDataMapNoteMarkers();
+    else if (this.activeUtilityTab === "notes") this.refreshMapNoteMarkers(this.mapNotePoint);
+    else this.mapController.setMapNoteMarkers([]);
     const open = tabs.length > 0;
     if (open) this.#dismissWelcome();
     if (open && this.mobileMedia.matches) this.#setSidebarCollapsed(true);
@@ -1010,7 +1029,7 @@ export class UIController {
       document.querySelector("#utility-notes-content")?.replaceChildren();
       this.#syncUtilityPanel(); return;
     }
-    if (tabId === "data-notes") { this.dataMapNotesOpen = false; document.querySelector("#utility-data-notes-content")?.replaceChildren(); this.#syncUtilityPanel(); return; }
+    if (tabId === "data-notes") { this.dataMapNotesOpen = false; this.dataMapNotePickRevision = (this.dataMapNotePickRevision || 0) + 1; this.setDataMapNoteTarget = null; this.dataMapNotePoint = null; document.querySelector("#utility-data-notes-content")?.replaceChildren(); this.#syncUtilityPanel(); return; }
     if (tabId === "workspace") { this.utilityWorkspaceOpen = false; this.#syncUtilityPanel(); return; }
     if (tabId === "query") {
       this.utilityQueryOpen = false;
@@ -6394,6 +6413,13 @@ export class UIController {
         } },
       ],
     });
+  }
+
+  refreshDataMapNoteMarkers() {
+    if (!this.dataMapNotesOpen || this.activeUtilityTab !== "data-notes") return;
+    const points = this.projectManager.mapNotes.list().filter(note => note.target.coordinates).map(note => ({ longitude: note.target.coordinates[0], latitude: note.target.coordinates[1] }));
+    if (this.dataMapNotePoint) points.push({ longitude: this.dataMapNotePoint[0], latitude: this.dataMapNotePoint[1], draft: true });
+    this.mapController.setMapNoteMarkers(points);
   }
 
   refreshMapNoteMarkers(draft = null) {
