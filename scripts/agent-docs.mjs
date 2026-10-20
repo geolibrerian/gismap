@@ -155,6 +155,28 @@ statecode = '26' AND v001_rawvalue IS NOT NULL`),
         after: [`Michigan share URL (prepared; browser rendering and reopening not independently verified): ${MICHIGAN_LINK}`, "Prepared: spec or URL constructed. Validated: GISMap's validator accepted it (review warnings). Loaded: required layers loaded in the application. Verified: intended features, filter, style and camera were confirmed, including reopening the share link. Do not imply a later stage was completed when it was not."],
       },
       {
+        heading: "Refine an existing map into multiple views",
+        paragraphs: [
+          "Choose the simplest working interface: simple ?layer= parameters for basic filtering and a supported style; map-v1 JSON for independent layers, categorized colors, camera, opacity and legends; or the in-page API for the currently open map. Do not stop at advice when a requested change can be expressed declaratively.",
+          "For an existing #map= link use mapSpec.decode(payload), which also handles supported compressed map payloads. For a simple ?layer= URL, parseShareParameters and mapSpec.fromShareParameters reconstruct the spec. For a hosted ?spec= fetch the trusted file; for an open map use gisMapOnline.mapSpec.fromCurrent(). If compressed decoding is unavailable, ask for the original JSON or an uncompressed #map=json: link rather than guessing. Preserve filters, camera and basemap, check validation warnings, and don't replace the user's source with a different one.",
+          "The example begins with a California historical fire-perimeters filter and derives two independent maps. On 2026-10-20 the layer metadata identified polygon geometry, numeric YEAR_ and GIS_ACRES fields, and its service accepted the filter. These links are prepared and statically validated; rendered styles and share-link reopening still need a browser check.",
+        ],
+        ...code("js", `import { mapSpec } from "https://gismap.online/js/gismap-core.js";
+import { parseShareParameters } from "https://gismap.online/js/share.js";
+const previous = new URL("https://gismap.online/?layer=https%3A%2F%2Fservices1.arcgis.com%2FjUJYIo9tSA7EHvfZ%2FArcGIS%2Frest%2Fservices%2FCalifornia_Historic_Fire_Perimeters%2FFeatureServer%2F0&layerType=feature&where=YEAR_%20%3E%3D%202000%20AND%20YEAR_%20%3C%3D%202010&basemap=gray-vector&center=-120%2C37.5&level=5");
+const payload = new URLSearchParams(previous.hash.slice(1)).get("map");
+const base = payload ? await mapSpec.decode(payload) : mapSpec.fromShareParameters(parseShareParameters(previous.search));
+const colors = ["#8e0152", "#d73027", "#f46d43", "#fdae61", "#fee08b", "#66a61e", "#1b9e77", "#1f78b4", "#6a3d9a", "#a6761d", "#4d4d4d"];
+const year = structuredClone(base), acres = structuredClone(base);
+year.layers[0].renderer = { type: "categories", field: "YEAR_", maxCategories: 11, colors: Object.fromEntries(colors.map((c, i) => [String(2000 + i), c])) };
+acres.layers[0].renderer = { type: "choropleth", field: "GIS_ACRES", classes: 5, method: "quantile", classColors: ["#ffffb2", "#fecc5c", "#fd8d3c", "#f03b20", "#bd0026"] };
+for (const spec of [year, acres]) {
+  const report = await mapSpec.prepareVerification(spec);
+  console.log(report.url, report.checks, report.warnings, report.errors);
+}`),
+        after: ["Inspect source fields and validate both renderers against them; then open each URL in GISMap, confirm the filter, map, legend, categories and acreage classes, and reopen it. Category and class generation can use sampled data. A generated URL alone is not verified. Numeric year-slider authoring is not defined in map-v1; treat it as an enhancement rather than claiming support.", "Prepared examples and source JSON: https://gismap.online/examples/ai/california-fire-refinement/"],
+      },
+      {
         heading: "4. Handling errors",
         paragraphs: ["Every error from the API is a GisMapError with a code and a hint written for agents. When a map spec opens, problems are listed in describe().state.issues instead of stopping the map."],
         table: { columns: ["Code", "What to do"], rows: Object.entries(errorCodes) },
@@ -238,6 +260,8 @@ Combine recipes for one request: a 3D grape map with autumn colors, a five-slide
 3. Generate the canonical URL using mapSpec.createLink or URI-encoded #map=json: JSON. Return the actual URL to the user.
 4. With browser access, open it, wait for layers, check issues and verify the intended features, filter, style and camera. Reopen the share URL and check again. State explicitly what you could not check.
 5. Use precise status: prepared (constructed), validated (validator accepted, review warnings), loaded (layers loaded), verified (intended map and reopened link confirmed). A plausible URL alone is not verified. See the agent guide for tested filters and a Michigan county example.
+
+Follow-up refinement: [derive year and acreage maps from one filtered California fire map](${SITE}/examples/ai/california-fire-refinement/). Preserve the source, filter, basemap and camera; use map-v1 when a simple URL is insufficient. The linked example reports which checks remain unverified.
 
 ## Contracts
 - [Map spec schema](${SITE}/schemas/map-v1.schema.json): layers, renderers, filters, camera, basemap

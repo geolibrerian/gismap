@@ -10,6 +10,10 @@ Choose every recipe needed for the user's request, not just one. Use **discover 
 
 <a id="interactive-briefing"></a>
 
+### Refine an existing map
+
+Do not stop at instructions if the requested style is supported. From a simple URL use `parseShareParameters` from `https://gismap.online/js/share.js` and `mapSpec.fromShareParameters`; for `#map=` use `mapSpec.decode`, including compressed payloads. In an authorized page, use `gisMapOnline.mapSpec.fromCurrent()`. If decoding is unavailable, request the original JSON or an uncompressed `#map=json:` link. Clone the base for each result, update only the requested renderer or filter, validate, and return each actual share URL. Preserve unrelated settings and disclose unperformed checks. The [California fire refinement example](https://gismap.online/examples/ai/california-fire-refinement/) includes both JSON specifications and URLs. Check categories and quantile classes against the loaded data; a numeric year slider is not specified in map-v1.
+
 ## interactive-briefing — map-based briefing
 
 **Prompt:** “Create slides about these districts.” **Inputs:** primary layer, stable feature IDs or selection, slide order, supporting layers, narratives, and desired outputs. Use [briefing-v1](https://gismap.online/schemas/briefing-v1.schema.json) and the documented `briefing` and `mapSpec` namespaces. Validate slide references and verify each slide's camera, selection and narrative in the browser. Verify spatial relationships with an actual supported query; an overlay alone does not establish containment, and sample counts are not complete counts. Test desktop/mobile navigation and link reopening, and inspect any requested PDF. See the [Philadelphia briefing](https://gismap.online/examples/ai/philadelphia-police-divisions/) (boundaries, not crime counts), [ballparks spatial briefing](https://gismap.online/examples/ai/mlb-ballparks-by-state/) and [briefing reference](briefs.md).

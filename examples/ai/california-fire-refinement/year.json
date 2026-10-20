@@ -1,0 +1,40 @@
+{
+  "version": 1,
+  "title": "Fires by year 2000–2010",
+  "basemap": "gray-vector",
+  "camera": {
+    "center": [
+      -120,
+      37.5
+    ],
+    "zoom": 5
+  },
+  "legend": true,
+  "layers": [
+    {
+      "url": "https://services1.arcgis.com/jUJYIo9tSA7EHvfZ/ArcGIS/rest/services/California_Historic_Fire_Perimeters/FeatureServer/0",
+      "type": "feature",
+      "title": "California historical fire perimeters",
+      "where": "YEAR_ >= 2000 AND YEAR_ <= 2010",
+      "opacity": 0.8,
+      "renderer": {
+        "type": "categories",
+        "field": "YEAR_",
+        "maxCategories": 11,
+        "colors": {
+          "2000": "#8e0152",
+          "2001": "#d73027",
+          "2002": "#f46d43",
+          "2003": "#fdae61",
+          "2004": "#fee08b",
+          "2005": "#66a61e",
+          "2006": "#1b9e77",
+          "2007": "#1f78b4",
+          "2008": "#6a3d9a",
+          "2009": "#a6761d",
+          "2010": "#4d4d4d"
+        }
+      }
+    }
+  ]
+}

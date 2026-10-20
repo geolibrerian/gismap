@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "title": "Historical fires 2000–2010",
+  "basemap": "gray-vector",
+  "camera": {
+    "center": [
+      -120,
+      37.5
+    ],
+    "zoom": 5
+  },
+  "legend": true,
+  "layers": [
+    {
+      "url": "https://services1.arcgis.com/jUJYIo9tSA7EHvfZ/ArcGIS/rest/services/California_Historic_Fire_Perimeters/FeatureServer/0",
+      "type": "feature",
+      "title": "California historical fire perimeters",
+      "where": "YEAR_ >= 2000 AND YEAR_ <= 2010",
+      "opacity": 0.8
+    }
+  ]
+}

@@ -6,6 +6,7 @@ import { buildManifest, PUBLIC_STATE_SCHEMA } from "../js/application-manifest.j
 import { EXAMPLE_CATEGORIES, POPULAR_SERVICES } from "../js/catalog.js";
 import { CORN_LINK, CORN_SPEC, CORN_URL, agentGuide, buildAgentOutputs, layerLink, renderGuideHtml } from "./agent-docs.mjs";
 import { AI_EXAMPLES, aiExampleLinks, aiExamplePath, aiExamplesMarkdown } from "./ai-examples.mjs";
+import { FIRE_BASE, FIRE_YEAR, FIRE_ACRES, FIRE_START_LINK, fireLink } from "./fire-refinement.mjs";
 import { WORKFLOW_EXAMPLES, workflowExampleLinks, workflowExamplePath, workflowExamplesMarkdown } from "./workflow-examples.mjs";
 
 const esc = (value = "") => String(value).replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char]);
@@ -54,11 +55,23 @@ function examplePage(item) {
 const aiExampleCard = (example) => `<article class="card"><div class="eyebrow">${esc(example.kind)}</div><h3>${esc(example.title)}</h3><p>${esc(example.description)}</p><div class="card__links"><a href="${aiExamplePath(example)}">See how it was made</a></div></article>`;
 
 function aiExampleSection() {
-  return `<section id="ai"><div class="wrap"><h2>Made with chatbots and AI agents</h2><p>For a FeatureServer-to-shareable-map walkthrough, see the <a href="/ai-arcgis-map-generator/">AI ArcGIS map generator guide</a>. Worked examples of a chatbot or an AI agent making a GIS Map Online map or briefing from public data: the prompt, the code, the finished link and QR code, and what to check. <a href="/examples/ai/">All AI examples</a> · <a href="/guides/ai-agents/">Guide for AI agents</a></p><div class="grid">${AI_EXAMPLES.map(aiExampleCard).join("")}</div></div></section>`;
+  return `<section id="ai"><div class="wrap"><h2>Made with chatbots and AI agents</h2><p>For a FeatureServer-to-shareable-map walkthrough, see the <a href="/ai-arcgis-map-generator/">AI ArcGIS map generator guide</a>. Worked examples of a chatbot or an AI agent making a GIS Map Online map or briefing from public data: the prompt, the code, the finished link and QR code, and what to check. <a href="/examples/ai/">All AI examples</a> · <a href="/guides/ai-agents/">Guide for AI agents</a></p><div class="grid">${AI_EXAMPLES.map(aiExampleCard).join("")}${fireExampleCard()}</div></div></section>`;
+}
+
+function fireExampleCard() {
+  return `<article class="card"><div class="eyebrow">AI agent · follow-up refinement</div><h3>California fires: two views from one map</h3><p>Keep a year filter while creating categorized and acreage-styled maps. Rendering still needs browser verification.</p><a href="/examples/ai/california-fire-refinement/">See the refinement recipe</a></article>`;
+}
+function fireExamplePage() {
+  const path = "/examples/ai/california-fire-refinement/";
+  const year = fireLink(FIRE_YEAR), acres = fireLink(FIRE_ACRES);
+  const body = `<main><section class="hero"><div class="wrap"><div class="eyebrow">AI agent · map refinement</div><h1>California historical fires: two views from one map</h1><p class="lede">Preserve a 2000–2010 filter while producing separate year and acreage styles.</p></div></section><section><div class="wrap prose"><h2>Prompt</h2><blockquote>Make one map colored by fire year and another map showing fire acreage with graduated colors. Keep the 2000–2010 filter and give me two links.</blockquote><h2>Prepared artifacts</h2><p>These links have passed static and round-trip checks; their rendering and browser reopening have not been independently verified for this example.</p><ul><li><a href="${esc(FIRE_START_LINK)}">Starting filtered map</a> · <a href="${path}base.json">base JSON</a></li><li><a href="${esc(year)}">Fires by year</a> · <a href="${path}year.json">year JSON</a></li><li><a href="${esc(acres)}">Fires by acreage</a> · <a href="${path}acreage.json">acreage JSON</a></li></ul><p>Copyable URLs:</p><pre><code>${esc(year)}
+
+${esc(acres)}</code></pre><h2>How to refine</h2><p>Inspect the source metadata and filter first. Start with a map-v1 specification or reconstruct a simple parameter URL; clone it, replace only the renderer, validate each clone and generate independent links. In an authorized browser use mapSpec.fromCurrent() to capture current context. The <a href="/guides/ai-agents/">agent guide</a> contains the executable recipe.</p><h2>Check before sharing</h2><p>The live public service returned 3,112 records for the filter when checked on 2026-10-20; its data can change. Category rendering depends on the data actually sampled; confirm all 11 years and legend entries in the running map. Acreage uses five quantile classes computed from available data, not fixed breakpoints. Layer opacity affects fills and outlines; the portable category renderer has no independent outline setting. No numeric year slider is specified in map-v1. Test loading, styles, legend and reopening before calling either map verified.</p><p><a href="${esc(FIRE_BASE.layers[0].url)}?f=pjson">Publisher layer metadata</a> · <a href="https://www.fire.ca.gov/what-we-do/fire-resource-assessment-program/fire-perimeters">CAL FIRE data limitations</a></p></div></section></main>`;
+  return shell({ title: "Refine California fire maps by year and acreage", description: "Derive two styled fire maps from the same filtered layer.", path, body, breadcrumbs: [{name:"Examples",path:"/examples/"},{name:"AI examples",path:"/examples/ai/"}] });
 }
 
 function aiExamplesIndex() {
-  const body = `<main><section class="hero"><div class="wrap"><div class="eyebrow">AI examples</div><h1>Maps and briefings made by chatbots and agents.</h1><p class="lede">GIS Map Online opens a map, its styles and its slides from a link. A chatbot can write that link; an agent can check the data first and build richer briefings. Each example below has the prompt, the agent's code, and the finished result to open or scan.</p><div class="actions"><a class="button" href="/guides/ai-agents/">Guide for AI agents</a><a class="button button--secondary" href="/llms.txt">llms.txt</a></div></div></section><section><div class="wrap"><div class="grid">${AI_EXAMPLES.map(aiExampleCard).join("")}</div></div></section></main>`;
+  const body = `<main><section class="hero"><div class="wrap"><div class="eyebrow">AI examples</div><h1>Maps and briefings made by chatbots and agents.</h1><p class="lede">GIS Map Online opens a map, its styles and its slides from a link. A chatbot can write that link; an agent can check the data first and build richer briefings. Each example below has the prompt, the agent's code, and the finished result to open or scan.</p><div class="actions"><a class="button" href="/guides/ai-agents/">Guide for AI agents</a><a class="button button--secondary" href="/llms.txt">llms.txt</a></div></div></section><section><div class="wrap"><div class="grid">${AI_EXAMPLES.map(aiExampleCard).join("")}${fireExampleCard()}</div></div></section></main>`;
   return shell({ title: "Maps made with chatbots and AI agents", description: "Worked examples of chatbots and AI agents making GIS Map Online maps and briefings from public data, with prompts, code, links and QR codes.", path: "/examples/ai/", breadcrumbs: [{ name: "Examples", path: "/examples/" }, { name: "AI examples", path: "/examples/ai/" }], body });
 }
 
@@ -206,6 +219,8 @@ export async function buildSiteOutputs({ readText }) {
   const workflowLinks = await workflowExampleLinks(readText);
   for (const example of WORKFLOW_EXAMPLES) outputs.set(`${workflowExamplePath(example).slice(1)}index.html`, workflowExamplePage(example, workflowLinks));
   outputs.set("examples/ai/index.html", aiExamplesIndex());
+  outputs.set("examples/ai/california-fire-refinement/index.html", fireExamplePage());
+  for (const [name, spec] of Object.entries({ base: FIRE_BASE, year: FIRE_YEAR, acreage: FIRE_ACRES })) outputs.set(`examples/ai/california-fire-refinement/${name}.json`, JSON.stringify(spec, null, 2) + "\n");
   for (const example of AI_EXAMPLES) outputs.set(`${aiExamplePath(example).slice(1)}index.html`, aiExamplePage(example, aiLinks[example.slug]));
   const examples = {
     items: [
@@ -215,7 +230,7 @@ export async function buildSiteOutputs({ readText }) {
     markdown: `${aiExamplesMarkdown(aiLinks)}\n\n${workflowExamplesMarkdown(workflowLinks)}`,
   };
   for (const [path, contents] of Object.entries(await buildAgentOutputs({ readText, examples }))) outputs.set(path, contents);
-  const urls = ["/", "/examples/", "/examples/data-connections/local-postgis/", "/guides/", ...POPULAR_SERVICES.filter((item) => item.featured).map((item) => `/examples/${item.slug}/`), ...GUIDES.map(guidePath), "/examples/ai/", ...AI_EXAMPLES.map(aiExamplePath), ...WORKFLOW_EXAMPLES.map(workflowExamplePath), "/skills/", "/api/explorer/", "/llms.txt", "/llms-full.txt", "/api/catalog.json"];
+  const urls = ["/", "/examples/", "/examples/data-connections/local-postgis/", "/guides/", ...POPULAR_SERVICES.filter((item) => item.featured).map((item) => `/examples/${item.slug}/`), ...GUIDES.map(guidePath), "/examples/ai/", ...AI_EXAMPLES.map(aiExamplePath), "/examples/ai/california-fire-refinement/", ...WORKFLOW_EXAMPLES.map(workflowExamplePath), "/skills/", "/api/explorer/", "/llms.txt", "/llms-full.txt", "/api/catalog.json"];
   outputs.set("sitemap.xml", `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls.map((path) => `  <url><loc>https://gismap.online${path}</loc>${path === "/examples/data-connections/local-postgis/" ? "<lastmod>2026-10-18</lastmod>" : ""}</url>`).join("\n")}\n</urlset>\n`);
   return outputs;
 }
