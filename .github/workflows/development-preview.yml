@@ -54,8 +54,14 @@ jobs:
           rsync -a --exclude '.git' --exclude '.github' --exclude 'development-dist' --exclude '.idea' ./ development-dist/
           printf '%s\n' "${GITHUB_SHA}" > development-dist/DEVELOPMENT_BUILD
       - name: Publish to development destination only
+        id: preview
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN_DEV }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID_DEV }}
           command: pages deploy development-dist --project-name=${{ vars.CLOUDFLARE_PAGES_PROJECT_DEV }} --branch=${{ github.ref_name }}
+
+      - name: Smoke-test the actual preview deployment
+        env:
+          PREVIEW_URL: ${{ steps.preview.outputs.deployment-url }}
+        run: node scripts/smoke-llms.mjs "$PREVIEW_URL" --match-local
