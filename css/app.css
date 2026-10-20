@@ -2574,3 +2574,39 @@ body.utility-panel-open .utility-panel:has([data-utility-pane="data-notes"]:not(
 .notes-hub button:hover:not(:disabled) { border-color:var(--green-2); }
 .notes-hub button:disabled { opacity:.5; cursor:not-allowed; }
 .notes-hub__tabs button[aria-pressed="true"] { background:var(--green); color:#fff; }
+
+/* Keep Notes aligned with the compact typography used by Layers. */
+.notes-hub,
+.map-notes-panel {
+  font: 400 12px/1.5 var(--ui-font, "DM Sans", sans-serif);
+}
+.notes-hub button,
+.map-notes-panel button,
+.map-notes-panel input:not([type="checkbox"]):not([type="radio"]),
+.map-notes-panel select,
+.map-notes-panel textarea {
+  font-family: var(--ui-font, "DM Sans", sans-serif);
+  font-size: 12px;
+  line-height: 1.4;
+}
+.notes-hub button { min-height: 38px; font-weight: 600; }
+.notes-hub__project strong,
+.notes-hub__item strong { font-size: 12px; }
+.notes-hub__empty { font-size: 12px; line-height: 1.5; }
+.map-notes-panel h3 { font: 700 16px/1.25 var(--ui-font, "DM Sans", sans-serif); }
+.map-notes-panel .map-note-workspace-head h3 { font: 600 19px/1.1 "Newsreader", Georgia, serif; }
+.map-notes-panel .field > span,
+.map-notes-panel .map-note-target-control > span { font-size: 11px; }
+.map-notes-panel button { min-height: 38px; padding: 7px 10px; font-weight: 600; }
+.map-notes-panel .map-note-size-controls button { min-height: 36px; }
+.map-notes-panel .map-note-mode strong,
+.map-notes-panel .map-note-mode p { font-size: 12px; }
+.map-notes-panel .map-note-extra-categories summary,
+.map-notes-panel .map-note-target-details summary,
+.map-notes-panel [data-map-note-filter-panel] > details > summary { font-size: 12px; }
+/* iOS zooms small editable text on focus; keep mobile editing comfortable. */
+@media (max-width: 760px) {
+  .map-notes-panel input:not([type="checkbox"]):not([type="radio"]),
+  .map-notes-panel select,
+  .map-notes-panel textarea { font-size: 16px; }
+}
