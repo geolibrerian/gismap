@@ -2548,3 +2548,8 @@ body.utility-panel-open .utility-panel:has([data-utility-pane="data-notes"]:not(
   .map-notes-panel .map-note-target-options button:nth-child(2) { border-right: 0; }
   .map-notes-panel .map-note-target-options button:nth-child(-n+2) { border-bottom: 1px solid var(--line); }
 }
+.map-note-context-card [data-draft-note-zoom] { justify-self: start; margin-top: 4px; padding: .4rem .65rem; font-size: .85em; }
+.map-note-target-fields { display: grid; gap: 10px; min-width: 0; }
+.map-note-target-fields > [hidden] { display: none; }
+.map-note-target-fields:has(> :not([hidden])) { padding: 10px 12px; border: 1px solid var(--line); border-radius: var(--ui-radius-small, 7px); background: var(--surface); }
+.map-note-target-fields .form-note { margin: 6px 0 0; }

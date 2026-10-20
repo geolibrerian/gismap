@@ -165,3 +165,47 @@ test('composer keeps map context beside the editor and hides additional target t
   assert.match(w.html(), /<details class="map-note-other-targets"/);
   assert.doesNotMatch(w.html(), /All target types/);
 });
+
+test('clearing a draft confirms, clears its session and marker, and preserves saved notes', () => {
+  const previousStore = globalThis.sessionStorage, previousConfirm = globalThis.confirm, values = new Map();
+  globalThis.sessionStorage = { getItem: k => values.get(k) ?? null, setItem: (k, v) => values.set(k, v), removeItem: k => values.delete(k) };
+  let accept = false; globalThis.confirm = () => accept;
+  try {
+    const project = { id: 'discard-test', mapNotes: [] }; const registry = new DataMapNotesRegistry({ project: () => project });
+    registry.create({ body: 'Saved note', target: { type: 'project' } });
+    const w = workspace(registry), discard = { addEventListener(_type, handler) { this.click = handler; } };
+    const query = w.host.querySelector; w.host.querySelector = selector => selector === '[data-map-note-discard]' ? discard : query(selector);
+    w.ui.projectManager.current = project; let refreshes = 0; w.ui.refreshDataMapNoteMarkers = () => refreshes++;
+    openDataMapNotesPanel(w.ui); w.controls.body.value = 'Unsaved'; w.ui.setDataMapNoteTarget({ type: 'location', coordinates: [-87, 43] }); w.ui.dataMapNotePoint = [-87, 43];
+    const revision = w.ui.dataMapNotePickRevision || 0;
+    discard.click(); assert.ok(values.has('gismap:map-note-draft:discard-test')); assert.deepEqual(w.ui.dataMapNotePoint, [-87, 43]);
+    accept = true; discard.click(); assert.equal(values.has('gismap:map-note-draft:discard-test'), false);
+    assert.equal(w.ui.dataMapNotePoint, null); assert.ok(refreshes > 0); assert.ok(w.ui.dataMapNotePickRevision > revision);
+    assert.equal(registry.list().length, 1); assert.equal(registry.list()[0].body, 'Saved note');
+  } finally { if (previousStore === undefined) delete globalThis.sessionStorage; else globalThis.sessionStorage = previousStore; if (previousConfirm === undefined) delete globalThis.confirm; else globalThis.confirm = previousConfirm; }
+});
+
+test('draft location zoom uses the selected coordinates', async () => {
+  const registry = new DataMapNotesRegistry({ project: () => ({ mapNotes: [] }) }); const w = workspace(registry);
+  let zoomHandler, actual; const zoom = { addEventListener(_type, handler) { zoomHandler = handler; } };
+  const context = { innerHTML: '', querySelector(selector) { return selector === '[data-draft-note-zoom]' ? zoom : null; }, querySelectorAll() { return []; } };
+  const form = w.host.querySelector('[data-data-note-form]'), query = form.querySelector;
+  form.querySelector = selector => selector === '[data-map-note-context]' ? context : query(selector);
+  w.ui.mapController = { async setView(view) { actual = view; } };
+  openDataMapNotesPanel(w.ui); w.ui.setDataMapNoteTarget({ type: 'location', coordinates: [-87.89899312, 43.11370322] });
+  await zoomHandler(); assert.deepEqual(actual.center, [-87.89899312, 43.11370322]); assert.equal(actual.zoom, 15);
+  assert.match(context.innerHTML, /Zoom to location/);
+});
+
+test('custom, feature, dataset and service inputs appear next to the target selector', () => {
+  const registry = new DataMapNotesRegistry({ project: () => ({ mapNotes: [] }) }); const w = workspace(registry);
+  const form = w.host.querySelector('[data-data-note-form]'), query = form.querySelector;
+  const targets = Object.fromEntries(['custom', 'dataset', 'feature', 'service', 'location'].map(name => [name, { hidden: false }]));
+  form.querySelector = selector => { const match = selector.match(/^\[data-target-(custom|dataset|feature|service|location)\]$/); return match ? targets[match[1]] : query(selector); };
+  const handlers = []; w.controls.targetType.addEventListener = (event, handler) => { if (event === 'change') handlers.push(handler); }; const changed = () => handlers.forEach(handler => handler());
+  openDataMapNotesPanel(w.ui);
+  w.controls.targetType.value = 'custom'; changed(); assert.equal(targets.custom.hidden, false); assert.equal(targets.dataset.hidden, true);
+  w.controls.targetType.value = 'feature'; changed(); assert.equal(targets.custom.hidden, true); assert.equal(targets.dataset.hidden, false); assert.equal(targets.feature.hidden, false);
+  w.controls.targetType.value = 'service'; changed(); assert.equal(targets.service.hidden, false); assert.equal(targets.feature.hidden, true);
+  const html = w.html(); assert.ok(html.indexOf('data-target-custom') < html.indexOf('<span>Note <small>')); assert.ok(html.indexOf('data-target-service') < html.indexOf('<span>Note <small>'));
+});
