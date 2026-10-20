@@ -133,3 +133,26 @@ test('composer exposes responsive workspace sizing and target choices', async ()
   assert.match(w.html(), /data-note-width="min"/); assert.match(w.html(), /data-note-width="max"/);
   assert.match(w.html(), /data-target-choice=/); assert.match(w.html(), /data-note-review/);
 });
+
+test('review shows escaped context and project tags are offered without adding them automatically', () => {
+  const project = { mapNotes: [] }; const registry = new DataMapNotesRegistry({ project: () => project });
+  registry.create({ body: 'Check this site', tags: ['survey'], target: { type: 'location', coordinates: [-87.9, 43.1], context: { address: '<Main St>', geographies: [{ label: 'County', value: 'Example' }] } } });
+  const w = workspace(registry); openDataMapNotesPanel(w.ui);
+  assert.match(w.html(), /data-suggested-tag="survey"/);
+  assert.match(w.html(), /data-note-zoom=/);
+  assert.match(w.html(), /&lt;Main St&gt;/);
+  assert.doesNotMatch(w.html(), /<Main St>/);
+  assert.equal(w.controls.tags.value, '');
+});
+
+test('clearing filters keeps task selection intact', () => {
+  const project = { mapNotes: [] }; const registry = new DataMapNotesRegistry({ project: () => project }); const w = workspace(registry);
+  const search = { value: 'bridge', addEventListener() {} }, radius = { value: '20', addEventListener() {} };
+  const clear = { addEventListener(_type, handler) { this.click = handler; } };
+  const selected = { checked: true, addEventListener() {} };
+  const query = w.host.querySelector;
+  w.host.querySelector = selector => selector === '[data-note-clear-filters]' ? clear : query(selector);
+  w.host.querySelectorAll = selector => selector === '[data-map-note-filter]' ? [search, radius] : selector === '[data-task-select]' ? [selected] : [];
+  openDataMapNotesPanel(w.ui); clear.click();
+  assert.equal(search.value, ''); assert.equal(radius.value, ''); assert.equal(selected.checked, true);
+});

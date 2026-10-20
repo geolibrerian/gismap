@@ -2496,3 +2496,14 @@ body.utility-panel-open .utility-panel:has([data-utility-pane="data-notes"]:not(
 .map-notes-panel .map-note-target-options button[aria-pressed="true"] { color: var(--ink); border-color: var(--accent); background: var(--surface-2, var(--surface)); }
 .map-note-filter-grid { margin-top: 0; }
 .map-note-list .map-note-card[hidden] { display: none; }
+.map-note-list .map-note-review-context { display: none; }
+.map-note-review-context { display: grid; gap: 6px; padding: 12px; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; overflow-wrap: anywhere; }
+.map-note-review-context p { margin: 0; color: var(--muted); font-size: .9em; }
+.map-note-review-context button { justify-self: start; }
+.map-note-review-label, .map-note-suggestions > span { font-size: .75em; font-weight: 700; color: var(--muted); }
+.map-note-tags { display: grid; gap: 8px; min-width: 0; }
+.map-note-suggestions > div { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 5px; }
+.map-notes-panel .map-note-suggestions button { border-radius: 999px; padding: .3rem .6rem; font-size: .8em; }
+.map-note-filter-actions { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.map-note-filter-actions p { margin: 0; }
+.map-notes-panel [data-note-review-slot] [data-note-review-open] { display: none; }
