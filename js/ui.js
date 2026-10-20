@@ -695,17 +695,24 @@ export class UIController {
       this.#renderIntelligenceContents();
     });
     this.events.subscribe("identify:complete", (payload) => {
-      if (this.dataMapNotesOpen && this.activeUtilityTab === "data-notes" && !this.dataMapNotePaused) { this.identifyPending = false; document.querySelector("#insights-overlay").setAttribute("aria-busy", "false"); this.#setInsightsOpen(false); return; }
-      if (this.mapNotesModeActive && this.activeUtilityTab === "notes") { this.identifyPending = false; document.querySelector("#insights-overlay").setAttribute("aria-busy", "false"); this.#setInsightsOpen(false); return; }
-      // Picking a feature for a field task should not cover the map with its details.
-      if (this.presentationState.template === "briefing" || document.body.classList.contains("field-task-picking")) {
+      // Intelligence is independent of the feature-details overlay, including
+      // when a notes workflow deliberately keeps that overlay out of the way.
+      this.intelligenceInsight = payload.intelligenceCurrent === false ? null : payload;
+      this.identifyPending = false;
+      document.querySelector("#insights-overlay").setAttribute("aria-busy", "false");
+      if ((this.dataMapNotesOpen && this.activeUtilityTab === "data-notes" && !this.dataMapNotePaused)
+        || (this.mapNotesModeActive && this.activeUtilityTab === "notes")) {
+        this.#renderIntelligenceContents();
         this.#setInsightsOpen(false);
         return;
       }
-      this.intelligenceInsight = payload.intelligenceCurrent === false ? null : payload;
+      // Picking a feature for a field task should not cover the map with its details.
+      if (this.presentationState.template === "briefing" || document.body.classList.contains("field-task-picking")) {
+        this.#renderIntelligenceContents();
+        this.#setInsightsOpen(false);
+        return;
+      }
       if (payload.insightCurrent === false) {
-        this.identifyPending = false;
-        document.querySelector("#insights-overlay").setAttribute("aria-busy", "false");
         this.#renderIntelligenceContents();
         return;
       }
@@ -736,7 +743,9 @@ export class UIController {
       this.#setInsightsOpen(false);
     });
     this.events.subscribe("identify:error", ({ error }) => {
+      this.identifyPending = false;
       document.querySelector("#insights-overlay").setAttribute("aria-busy", "false");
+      this.#renderIntelligenceContents();
       this.error(`Identify failed: ${error.message}`);
     });
     this.events.subscribe("ai:configured", () => this.assistant.render());

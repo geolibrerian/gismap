@@ -86,3 +86,22 @@ test('menus organize existing actions and clearly mark unimplemented tools', asy
   assert.match(tools, /disabled[^>]*>Analysis assistant/);
   assert.match(tools, /disabled[^>]*>Other portals/);
 });
+
+test('suppressed Map Insight overlays still complete and render Intelligence', async () => {
+  const ui = await readFile(new URL('../js/ui.js', import.meta.url), 'utf8');
+  const handler = ui.split('this.events.subscribe("identify:complete", (payload) => {').at(-1).split('this.events.subscribe("identify:cleared"')[0];
+  const assignment = handler.indexOf('this.intelligenceInsight = payload.intelligenceCurrent === false ? null : payload');
+  const reset = handler.indexOf('this.identifyPending = false');
+  const notes = handler.indexOf('this.dataMapNotesOpen');
+  assert.ok(assignment >= 0 && assignment < notes);
+  assert.ok(reset >= 0 && reset < notes);
+  assert.match(handler, /this\.mapNotesModeActive[\s\S]*?this\.#renderIntelligenceContents\(\);[\s\S]*?this\.#setInsightsOpen\(false\)/);
+  assert.match(handler, /field-task-picking[\s\S]*?this\.#renderIntelligenceContents\(\);[\s\S]*?this\.#setInsightsOpen\(false\)/);
+});
+
+test('identify errors clear the Intelligence loading indicator', async () => {
+  const ui = await readFile(new URL('../js/ui.js', import.meta.url), 'utf8');
+  const handler = ui.split('this.events.subscribe("identify:error", ({ error }) => {')[1].split('this.events.subscribe("ai:configured"')[0];
+  assert.match(handler, /this\.identifyPending = false/);
+  assert.match(handler, /this\.#renderIntelligenceContents\(\)/);
+});
