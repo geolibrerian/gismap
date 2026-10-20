@@ -55,3 +55,29 @@ test('custom category and target are saved as text', () => {
   w.controls.targetLabel.value = 'Bridge deck'; w.controls.category.value = 'custom'; w.controls.customCategory.value = 'Field audit'; w.controls.body.value = 'Inspect'; w.controls.status.value = 'open';
   w.save.click(); assert.equal(registry.list()[0].category, 'Field audit'); assert.equal(registry.list()[0].target.label, 'Bridge deck');
 });
+
+test('map coordinates display six decimals and store at most eight', () => {
+  const project = { mapNotes: [] }; const registry = new DataMapNotesRegistry({ project: () => project }); const w = workspace(registry);
+  openDataMapNotesPanel(w.ui); w.controls.body.value = 'Location'; w.controls.category.value = 'other'; w.controls.status.value = 'open';
+  const coordinates = [-84.53601837158203, 45.51043713898764]; const stored = [-84.53601837, 45.51043714];
+  w.ui.setDataMapNoteTarget({ type: 'location', coordinates });
+  assert.equal(w.controls.longitude.value, '-84.536018'); assert.equal(w.controls.latitude.value, '45.510437');
+  w.save.click(); const note = registry.list()[0]; assert.deepEqual(note.target.coordinates, stored);
+  openDataMapNotesPanel(w.ui, { editId: note.id });
+  assert.match(w.html(), /value="-84\.536018"/); assert.match(w.html(), /value="45\.510437"/);
+  Object.assign(w.controls.targetType, { value: 'location' }); w.controls.longitude.value = '-84.536018'; w.controls.latitude.value = '45.510437'; w.controls.body.value = 'Updated'; w.controls.category.value = 'other'; w.controls.status.value = 'open';
+  w.save.click(); assert.deepEqual(registry.get(note.id).target.coordinates, stored);
+  openDataMapNotesPanel(w.ui, { editId: note.id }); w.controls.longitude.value = '-84.5'; w.controls.latitude.value = '45.510437'; w.controls.targetType.value = 'location'; w.controls.body.value = 'Updated'; w.controls.category.value = 'other'; w.controls.status.value = 'open';
+  w.save.click(); assert.deepEqual(registry.get(note.id).target.coordinates, [-84.5, 45.510437]);
+});
+
+test('map selection saves location and multiple related geographic and feature references', () => {
+  const project = { mapNotes: [] }; const registry = new DataMapNotesRegistry({ project: () => project }); const w = workspace(registry);
+  openDataMapNotesPanel(w.ui); w.controls.body.value = 'Review these features'; w.controls.category.value = 'other'; w.controls.status.value = 'open';
+  w.ui.setDataMapNoteTarget({ type: 'location', coordinates: [-84.53601837158203, 45.51043713898764] });
+  w.ui.setDataMapNoteContext({ address: 'Main Street', geographies: [{ label: 'County', value: 'Example' }], features: [{ datasetId: 'roads', featureId: '1' }, { datasetId: 'parcels', featureId: '2' }] });
+  w.save.click(); const note = registry.list()[0];
+  assert.equal(note.schemaVersion, '4.0'); assert.deepEqual(note.target.coordinates, [-84.53601837, 45.51043714]);
+  assert.equal(note.target.context.address, 'Main Street'); assert.equal(note.target.context.features.length, 2);
+  assert.equal(note.target.context.geographies[0].value, 'Example');
+});

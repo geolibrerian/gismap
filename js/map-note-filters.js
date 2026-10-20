@@ -2,10 +2,10 @@
 export function matchesMapNoteFilters(note, workflow, filters = {}) {
   const term = String(filters.search || '').trim().toLocaleLowerCase();
   const text = [note.title, note.body, note.category, note.status, note.target.type,
-    note.target.datasetId, note.target.featureId, note.target.sourceUrl, note.target.label, ...(note.tags || [])]
+    note.target.datasetId, note.target.featureId, note.target.sourceUrl, note.target.label, note.target.context?.address, ...(note.target.context?.geographies || []).flatMap(item => [item.label, item.value]), ...(note.target.context?.features || []).flatMap(item => [item.datasetTitle, item.datasetId, item.featureId]), ...(note.tags || [])]
     .filter(Boolean).join(' ').toLocaleLowerCase();
   if (term && !text.includes(term)) return false;
-  if (filters.scope && note.target.type !== filters.scope) return false;
+  if (filters.scope && note.target.type !== filters.scope && !(filters.scope === 'feature' && note.target.context?.features?.some(item => item.featureId)) && !(filters.scope === 'dataset' && note.target.context?.features?.length)) return false;
   if (filters.category && note.category !== filters.category) return false;
   if (filters.review && note.status !== filters.review) return false;
   switch (filters.task) {

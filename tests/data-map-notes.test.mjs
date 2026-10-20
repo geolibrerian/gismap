@@ -86,3 +86,14 @@ test('workflow status is derived from linked task statuses without changing tags
   assert.deepEqual(registry.getWorkflowSummary(note.id).indicators, ['task-created', 'task-completed', 'task-returned']);
   assert.equal(registry.get(note.id).status, 'open');
 });
+
+
+test('v4 contextual targets round-trip safely and reject invalid feature references', () => {
+  const project = { mapNotes: [] };
+  const registry = new DataMapNotesRegistry({ project: () => project });
+  const note = registry.create({ body: 'Review', target: { type: 'location', coordinates: [10.123456789, 20], context: { address: 'Main Street', geographies: [{ label: 'County', value: 'Example' }], features: [{ datasetId: 'roads', featureId: '42' }, { datasetId: 'parcels', featureId: '7' }] } } });
+  assert.equal(note.schemaVersion, '4.0');
+  assert.deepEqual(normalizeDataMapNote(JSON.parse(JSON.stringify(note))), note);
+  assert.deepEqual(note.target.coordinates, [10.12345679, 20]);
+  assert.throws(() => normalizeDataMapNote({ ...note, target: { ...note.target, context: { features: [{ datasetId: 'roads', arbitrary: true }] } } }), /Unsupported/);
+});

@@ -1,5 +1,5 @@
 import { refreshMapNoteFilters } from './map-note-filters.js?v=0.2.0';
-import { openDataMapNotesPanel } from "./data-map-notes-panel.js?v=0.7.0";
+import { openDataMapNotesPanel } from "./data-map-notes-panel.js?v=0.8.0";
 import { refreshMapNoteWorkflow } from "./map-note-workflow-ui.js?v=0.1.0";
 import { noteFeatureReference } from './map-note-feature.js?v=0.1.0';
 import { openMapNotesPanel } from "./map-notes-panel.js?v=0.12.0";
@@ -546,13 +546,28 @@ export class UIController {
         this.dataMapNotePoint = point;
         setTarget({ type: "location", coordinates: point });
         this.refreshDataMapNoteMarkers();
+        const stillCurrent = () => this.dataMapNotesOpen && this.activeUtilityTab === "data-notes" && revision === this.dataMapNotePickRevision && setTarget === this.setDataMapNoteTarget;
         Promise.resolve().then(() => this.mapController.identify(click)).then(results => {
-          if (!this.dataMapNotesOpen || this.activeUtilityTab !== "data-notes" || revision !== this.dataMapNotePickRevision || setTarget !== this.setDataMapNoteTarget) return;
-          const result = results?.find(item => item.kind === "feature");
-          const layer = result && this.mapController.getLayer(result.layerUid);
-          const feature = noteFeatureReference(result, layer, layer && this.mapController.getLayerConfig(layer));
-          if (feature) setTarget({ type: feature.featureId ? "feature" : "dataset", datasetId: feature.datasetId, ...(feature.featureId ? { featureId: feature.featureId } : {}), ...(feature.sourceUrl ? { sourceUrl: feature.sourceUrl } : {}), coordinates: point });
+          if (!stillCurrent()) return;
+          const seen = new Set();
+          const features = (results || []).filter(item => item.kind === "feature").map(result => {
+            const layer = this.mapController.getLayer(result.layerUid);
+            const ref = noteFeatureReference(result, layer, layer && this.mapController.getLayerConfig(layer));
+            if (!ref) return null;
+            const key = `${ref.datasetId}\0${ref.featureId || ''}`;
+            if (seen.has(key)) return null;
+            seen.add(key);
+            return { datasetId: ref.datasetId, ...(ref.featureId ? { featureId: ref.featureId } : {}), ...(ref.datasetTitle ? { datasetTitle: ref.datasetTitle } : {}), ...(ref.sourceUrl ? { sourceUrl: ref.sourceUrl } : {}) };
+          }).filter(Boolean).slice(0, 50);
+          if (features.length) this.setDataMapNoteContext?.({ features });
         }).catch(() => { /* The location remains usable if identify fails. */ });
+        Promise.resolve().then(() => this.mapController.reverseGeocode({ longitude: point[0], latitude: point[1] })).then(result => {
+          if (!stillCurrent() || !result) return;
+          const address = typeof result.address === 'string' ? result.address.trim().slice(0, 512) : '';
+          const fields = ['PlaceName', 'City', 'Region', 'State', 'County', 'CensusTract', 'CensusTractGEOID', 'CensusBlockGEOID', 'Postal', 'Country', 'CountryCode'];
+          const geographies = fields.flatMap(label => { const value = result.attributes?.[label]; return typeof value === 'string' && value.trim() ? [{ label, value: value.trim().slice(0, 256) }] : []; });
+          if (address || geographies.length) this.setDataMapNoteContext?.({ ...(address ? { address } : {}), ...(geographies.length ? { geographies } : {}) });
+        }).catch(() => { /* The location remains usable if geocoding fails. */ });
         return;
       }
       if (!this.mapNotesModeActive || this.activeUtilityTab !== "notes" || !point) { this.mapNotePoint = point; return; }
