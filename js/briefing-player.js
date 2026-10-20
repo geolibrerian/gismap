@@ -9,6 +9,16 @@ const MAP_TEMPLATES = new Set(["feature", "map-narrative", "title"]);
 const hasMap = (slide) => MAP_TEMPLATES.has(slide.template) && Boolean(slide.camera || slide.fit);
 /** Whether a slide shows the map (the player, cards and PDF agree on this). */
 export const slideHasMap = hasMap;
+export function timelineIndices(slides, index) {
+  const selected = slides[index]?.generatedBy;
+  if (selected?.template !== 'timeline') return [];
+  if (selected.group) return slides.map((slide, i) => slide.generatedBy?.template === 'timeline' && slide.generatedBy.group === selected.group ? i : -1).filter(i => i >= 0);
+  // Older timeline slides had no group identifier; use their contiguous run.
+  let start = index, end = index;
+  while (start > 0 && slides[start - 1]?.generatedBy?.template === 'timeline' && !slides[start - 1].generatedBy.group) start--;
+  while (end + 1 < slides.length && slides[end + 1]?.generatedBy?.template === 'timeline' && !slides[end + 1].generatedBy.group) end++;
+  return Array.from({length:end-start+1}, (_,i) => start+i);
+}
 
 /**
  * `api`: getSlides() -> visible slides, slideHtml(slide, { index, count }),
@@ -51,6 +61,7 @@ export class BriefingPlayer {
 
   close() {
     if (!this.state) return;
+    this.#stopTimeline();
     const { root, cleanups, padding } = this.state;
     cleanups.forEach((cleanup) => cleanup());
     root?.remove();
@@ -82,11 +93,13 @@ export class BriefingPlayer {
     if (!state) return;
     const next = Math.min(state.slides.length - 1, Math.max(0, index));
     if (next === state.index && !force) return;
+    if (next !== state.index || force) state.timelineFrame = 0;
     state.index = next;
     const slide = state.slides[next];
     this.#writeHash(slide.id);
     if (state.compact) this.#syncCards();
     else this.#renderStage();
+    this.#syncTimeline();
     this.#applyPadding();
     await this.api.showSlide(slide);
   }
@@ -134,9 +147,10 @@ export class BriefingPlayer {
         <button type="button" data-stage="restart" title="Back to the first slide (Home)">Restart</button>
         <button type="button" data-stage="fullscreen" title="Fullscreen (F)">⛶</button>
         <button type="button" data-stage="exit" class="briefing-stage__exit" title="Exit (Esc)">Exit</button>
-      </nav>`;
+      </nav>${this.#timelineControls()}`;
     document.body.append(root);
     this.state.root = root;
+    this.#bindTimeline(root);
     const actions = {
       previous: () => this.#go(this.state.index - 1),
       next: () => this.#go(this.state.index + 1),
@@ -169,6 +183,105 @@ export class BriefingPlayer {
       const id = new URLSearchParams(location.hash.replace(/^#/, "")).get("slide");
       const index = this.state?.slides.findIndex((slide) => slide.id === id) ?? -1;
       if (index >= 0) this.#go(index);
+    });
+  }
+
+  #timelineControls() {
+    return `<div class="briefing-timeline-playback" data-timeline-controls hidden aria-label="Timeline playback">
+      <button type="button" data-timeline-play aria-pressed="false">Play</button>
+      <label>Frame <input type="range" data-timeline-scrub min="0" max="0" value="0" aria-label="Timeline frame"></label>
+      <span data-timeline-frame></span>
+      <label>Speed <select data-timeline-speed aria-label="Timeline playback speed"><option value="2500">Slow</option><option value="1200" selected>Normal</option><option value="500">Fast</option></select></label>
+      <label>Direction <select data-timeline-direction aria-label="Timeline playback direction"><option value="1">Forward</option><option value="-1">Reverse</option></select></label>
+      <label><input type="checkbox" data-timeline-loop> Loop</label>
+    </div>`;
+  }
+
+  #stopTimeline() {
+    if (!this.state) return;
+    clearTimeout(this.state.timelineTimer);
+    this.state.timelineTimer = null;
+    this.state.timelinePlaying = false;
+    this.state.timelineEpoch = (this.state.timelineEpoch || 0) + 1;
+    this.#syncTimeline();
+  }
+
+  #syncTimeline() {
+    const state = this.state;
+    const controls = state?.root?.querySelector('[data-timeline-controls]');
+    if (!controls) return;
+    const indices = timelineIndices(state.slides, state.index);
+    const frames = state.slides[state.index]?.timeline?.frames;
+    const single = Array.isArray(frames) && frames.length > 0;
+    controls.hidden = !indices.length;
+    if (!indices.length) {
+      clearTimeout(state.timelineTimer);
+      state.timelineTimer = null;
+      state.timelinePlaying = false;
+      state.timelineEpoch = (state.timelineEpoch || 0) + 1;
+      return;
+    }
+    const current = single ? Math.min(state.timelineFrame || 0, frames.length - 1) : indices.indexOf(state.index);
+    const length = single ? frames.length : indices.length;
+    const slider = controls.querySelector('[data-timeline-scrub]');
+    slider.max = String(length - 1);
+    slider.value = String(current);
+    controls.querySelector('[data-timeline-frame]').textContent = `${current + 1} / ${length}${single ? ` · ${frames[current].title}` : ""}`;
+    const button = controls.querySelector('[data-timeline-play]');
+    button.textContent = state.timelinePlaying ? 'Pause' : 'Play';
+    button.setAttribute('aria-pressed', String(Boolean(state.timelinePlaying)));
+    button.disabled = length < 2;
+  }
+
+  #bindTimeline(root) {
+    const controls = root.querySelector('[data-timeline-controls]');
+    const go = async index => {
+      if (this.state?.compact) this.state.root.querySelector(`[data-card="${index}"]`)?.scrollIntoView({block:'start'});
+      await this.#go(index);
+    };
+    const goFrame = async frame => {
+      const state = this.state;
+      const slide = state?.slides[state.index];
+      const item = slide?.timeline?.frames?.[frame];
+      if (!item || !slide.dataView) return;
+      state.timelineFrame = frame;
+      this.#syncTimeline();
+      const frameSlide = {...slide, dataView:{...slide.dataView, filter:item.filter}};
+      if (state.compact) {
+        const content = state.root.querySelector(`[data-card="${state.index}"] .briefing-card__content`);
+        if (content) content.innerHTML = this.api.slideHtml(frameSlide, {index:state.index, count:state.slides.length});
+      } else state.root.querySelector('.briefing-stage__panel').innerHTML = this.api.slideHtml(frameSlide, {index:state.index, count:state.slides.length});
+      await this.api.showSlide(frameSlide);
+    };
+    const tick = async epoch => {
+      const state = this.state;
+      if (!state?.timelinePlaying || state.timelineEpoch !== epoch) return;
+      const indices = timelineIndices(state.slides, state.index);
+      const direction = Number(controls.querySelector('[data-timeline-direction]').value);
+      const frames = state.slides[state.index]?.timeline?.frames;
+      const single = Array.isArray(frames) && frames.length > 0;
+      const length = single ? frames.length : indices.length;
+      let next = (single ? state.timelineFrame || 0 : indices.indexOf(state.index)) + direction;
+      if (next < 0 || next >= length) {
+        if (!controls.querySelector('[data-timeline-loop]').checked) { this.#stopTimeline(); return; }
+        next = next < 0 ? length - 1 : 0;
+      }
+      if (single) await goFrame(next); else await go(indices[next]);
+      if (this.state === state && state.timelinePlaying && state.timelineEpoch === epoch) state.timelineTimer = setTimeout(() => tick(epoch), Number(controls.querySelector('[data-timeline-speed]').value));
+    };
+    controls.querySelector('[data-timeline-play]').addEventListener('click', () => {
+      if (this.state.timelinePlaying) return this.#stopTimeline();
+      this.state.timelinePlaying = true;
+      const epoch = this.state.timelineEpoch = (this.state.timelineEpoch || 0) + 1;
+      this.#syncTimeline();
+      this.state.timelineTimer = setTimeout(() => tick(epoch), Number(controls.querySelector('[data-timeline-speed]').value));
+    });
+    controls.querySelector('[data-timeline-scrub]').addEventListener('input', event => {
+      this.#stopTimeline();
+      const indices = timelineIndices(this.state.slides, this.state.index);
+      const frames = this.state.slides[this.state.index]?.timeline?.frames;
+      if (Array.isArray(frames) && frames.length) void goFrame(Number(event.target.value));
+      else void go(indices[Number(event.target.value)]);
     });
   }
 
@@ -215,9 +328,10 @@ export class BriefingPlayer {
       </article>`).join("")}</div>
       <header class="briefing-cards__top"><span class="briefing-cards__progress" data-cards-progress></span><button type="button" data-cards-exit aria-label="Close slides">×</button></header>
       <div class="briefing-cards__hint" data-cards-hint>Swipe up for the next slide</div>
-      <button type="button" class="briefing-cards__done" data-cards-done hidden>Done exploring</button>`;
+      <button type="button" class="briefing-cards__done" data-cards-done hidden>Done exploring</button>${this.#timelineControls()}`;
     document.body.append(root);
     this.state.root = root;
+    this.#bindTimeline(root);
     const deck = root.querySelector(".briefing-cards__deck");
     root.querySelector("[data-cards-exit]").addEventListener("click", () => this.close());
     root.querySelectorAll("[data-card-explore]").forEach((button) => button.addEventListener("click", () => this.#explore(true)));

@@ -69,9 +69,12 @@ function likePattern(pattern) {
 
 function compare(left, op, right) {
   if (left == null || right == null) return false;
-  const numeric = typeof left === "number" || typeof right === "number";
-  const a = numeric ? Number(left) : String(left);
-  const b = numeric ? Number(right) : String(right);
+  const numeric = typeof left === "number" || typeof right === "number" || left instanceof Date || right instanceof Date;
+  // Date literals compile to UTC milliseconds. GeoJSON commonly stores ISO
+  // strings; compare those to a date literal as dates, not numeric strings.
+  const asNumber = (value, other) => typeof value === 'string' && other instanceof Date && /^\d{4}-\d{2}-\d{2}(?:$|T)/.test(value) ? Date.parse(value) : Number(value);
+  const a = numeric ? asNumber(left, right) : String(left);
+  const b = numeric ? asNumber(right, left) : String(right);
   if (numeric && (Number.isNaN(a) || Number.isNaN(b))) return false;
   switch (op) {
     case "=": return a === b;
@@ -120,9 +123,9 @@ export function compileWhere(where) {
     if (token.type === "keyword" && (token.value === "TRUE" || token.value === "FALSE")) return () => token.value === "TRUE";
     if (token.type === "keyword" && (token.value === "DATE" || token.value === "TIMESTAMP")) {
       const literal = expect("string").value;
-      const time = Date.parse(literal);
+      const time = Date.parse(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(literal) ? literal.replace(" ", "T") + "Z" : literal);
       if (Number.isNaN(time)) throw invalid(text, `“${literal}” is not a date`);
-      return () => time;
+      return () => new Date(time);
     }
     if (token.type === "word") {
       const fn = FUNCTIONS[token.value.toUpperCase()];

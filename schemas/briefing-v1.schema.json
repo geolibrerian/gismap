@@ -465,8 +465,296 @@
                     }
                   },
                   "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "required": [
+                    "op",
+                    "field",
+                    "start",
+                    "end",
+                    "endField"
+                  ],
+                  "properties": {
+                    "op": {
+                      "const": "year-validity"
+                    },
+                    "field": {
+                      "type": "string",
+                      "pattern": "^[A-Za-z_][A-Za-z0-9_.]*$"
+                    },
+                    "start": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9999
+                    },
+                    "end": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 10000
+                    },
+                    "endField": {
+                      "type": "string",
+                      "pattern": "^[A-Za-z_][A-Za-z0-9_.]*$"
+                    }
+                  },
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "required": [
+                    "op",
+                    "field",
+                    "start",
+                    "end"
+                  ],
+                  "properties": {
+                    "op": {
+                      "const": "date-range"
+                    },
+                    "field": {
+                      "type": "string",
+                      "pattern": "^[A-Za-z_][A-Za-z0-9_.]*$"
+                    },
+                    "start": {
+                      "type": "integer",
+                      "minimum": -59011459200000,
+                      "maximum": 253402300800000
+                    },
+                    "end": {
+                      "type": "integer",
+                      "minimum": -59011459200000,
+                      "maximum": 253402300800000
+                    }
+                  },
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "required": [
+                    "op",
+                    "field",
+                    "start",
+                    "end",
+                    "endField"
+                  ],
+                  "properties": {
+                    "op": {
+                      "const": "date-validity"
+                    },
+                    "field": {
+                      "type": "string",
+                      "pattern": "^[A-Za-z_][A-Za-z0-9_.]*$"
+                    },
+                    "start": {
+                      "type": "integer",
+                      "minimum": -59011459200000,
+                      "maximum": 253402300800000
+                    },
+                    "end": {
+                      "type": "integer",
+                      "minimum": -59011459200000,
+                      "maximum": 253402300800000
+                    },
+                    "endField": {
+                      "type": "string",
+                      "pattern": "^[A-Za-z_][A-Za-z0-9_.]*$"
+                    }
+                  },
+                  "additionalProperties": false
                 }
               ]
+            }
+          },
+          "additionalProperties": false
+        },
+        "timeline": {
+          "type": "object",
+          "required": [
+            "version",
+            "frames"
+          ],
+          "properties": {
+            "version": {
+              "const": 1
+            },
+            "frames": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 60,
+              "items": {
+                "type": "object",
+                "required": [
+                  "title",
+                  "filter"
+                ],
+                "properties": {
+                  "title": {
+                    "type": "string",
+                    "maxLength": 160
+                  },
+                  "filter": {
+                    "oneOf": [
+                      {
+                        "type": "object",
+                        "required": [
+                          "op",
+                          "field",
+                          "values"
+                        ],
+                        "properties": {
+                          "op": {
+                            "const": "in"
+                          },
+                          "field": {
+                            "type": "string",
+                            "pattern": "^[A-Za-z_][A-Za-z0-9_.]*$"
+                          },
+                          "values": {
+                            "type": "array",
+                            "minItems": 1,
+                            "maxItems": 1,
+                            "items": {
+                              "type": [
+                                "string",
+                                "number"
+                              ]
+                            }
+                          }
+                        },
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "object",
+                        "required": [
+                          "op",
+                          "field",
+                          "start",
+                          "end"
+                        ],
+                        "properties": {
+                          "op": {
+                            "const": "year-range"
+                          },
+                          "field": {
+                            "type": "string",
+                            "pattern": "^[A-Za-z_][A-Za-z0-9_.]*$"
+                          },
+                          "start": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9999
+                          },
+                          "end": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 10000
+                          }
+                        },
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "object",
+                        "required": [
+                          "op",
+                          "field",
+                          "start",
+                          "end",
+                          "endField"
+                        ],
+                        "properties": {
+                          "op": {
+                            "const": "year-validity"
+                          },
+                          "field": {
+                            "type": "string",
+                            "pattern": "^[A-Za-z_][A-Za-z0-9_.]*$"
+                          },
+                          "start": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9999
+                          },
+                          "end": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 10000
+                          },
+                          "endField": {
+                            "type": "string",
+                            "pattern": "^[A-Za-z_][A-Za-z0-9_.]*$"
+                          }
+                        },
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "object",
+                        "required": [
+                          "op",
+                          "field",
+                          "start",
+                          "end"
+                        ],
+                        "properties": {
+                          "op": {
+                            "const": "date-range"
+                          },
+                          "field": {
+                            "type": "string",
+                            "pattern": "^[A-Za-z_][A-Za-z0-9_.]*$"
+                          },
+                          "start": {
+                            "type": "integer",
+                            "minimum": -59011459200000,
+                            "maximum": 253402300800000
+                          },
+                          "end": {
+                            "type": "integer",
+                            "minimum": -59011459200000,
+                            "maximum": 253402300800000
+                          }
+                        },
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "object",
+                        "required": [
+                          "op",
+                          "field",
+                          "start",
+                          "end",
+                          "endField"
+                        ],
+                        "properties": {
+                          "op": {
+                            "const": "date-validity"
+                          },
+                          "field": {
+                            "type": "string",
+                            "pattern": "^[A-Za-z_][A-Za-z0-9_.]*$"
+                          },
+                          "start": {
+                            "type": "integer",
+                            "minimum": -59011459200000,
+                            "maximum": 253402300800000
+                          },
+                          "end": {
+                            "type": "integer",
+                            "minimum": -59011459200000,
+                            "maximum": 253402300800000
+                          },
+                          "endField": {
+                            "type": "string",
+                            "pattern": "^[A-Za-z_][A-Za-z0-9_.]*$"
+                          }
+                        },
+                        "additionalProperties": false
+                      }
+                    ]
+                  }
+                },
+                "additionalProperties": false
+              }
             }
           },
           "additionalProperties": false

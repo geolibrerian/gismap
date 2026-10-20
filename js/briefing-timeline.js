@@ -1,5 +1,6 @@
 // Integer-year timeline frames. Dates and timestamps need engine-specific date
 // semantics and are intentionally not interpreted as years.
+import { previewDateTimeline } from './briefing-timeline-dates.js?v=0.1.0';
 import { MAX_SLIDES, addSlide, createSlide, normalizeBriefing } from './briefing-document.js?v=0.35.0';
 
 export function isYearField(field) {
@@ -7,13 +8,15 @@ export function isYearField(field) {
   return Boolean(/^[A-Za-z_][\w.]*$/.test(field?.name || "") && /integer|long|short/.test(type) && !/date|time/.test(type));
 }
 
-export function previewTimeline({ field, fields, records, start, end, step = 1, mode = 'interval', availableSlides = MAX_SLIDES } = {}) {
+export function previewTimeline({ field, fields, records, start, end, step = 1, mode = 'interval', rolling = 2, endField = '', availableSlides = MAX_SLIDES } = {}) {
   if (!Array.isArray(fields) || !fields.some(item => item.name === field && isYearField(item))) throw new Error('Choose an integer year field from the current layer.');
   if (!Array.isArray(records)) throw new Error('Loaded features are unavailable.');
   if ([start, end, step].some(value => value === '' || value == null || !Number.isInteger(Number(value)))) throw new Error('Enter whole-number start, end, and interval years.');
   start = Number(start); end = Number(end); step = Number(step);
   if (start < 0 || end > 9999 || end < start || step < 1 || step > 10000) throw new Error('Choose years from 0 to 9999, with the end after the start and an interval of at least one year.');
-  if (!['interval', 'cumulative'].includes(mode)) throw new Error('Choose an interval or cumulative timeline.');
+  if (!['interval', 'cumulative', 'rolling', 'validity'].includes(mode)) throw new Error('Choose a supported timeline mode.');
+  if (mode === 'rolling' && (!Number.isInteger(Number(rolling)) || Number(rolling) < 1 || Number(rolling) > 10000)) throw new Error('Enter a positive rolling window in years.');
+  if (mode === 'validity' && (!fields.some(item => item.name === endField && isYearField(item)) || endField === field)) throw new Error('Choose a separate integer end-year field.');
   const count = Math.ceil((end - start + 1) / step);
   if (count > MAX_SLIDES || count > Math.max(0, availableSlides)) throw new Error(`${count} frames exceed the ${Math.max(0, availableSlides)} available slide slots; no slides were added.`);
   const years = records.map(record => record?.attributes?.[field]);
@@ -21,10 +24,14 @@ export function previewTimeline({ field, fields, records, start, end, step = 1, 
   const invalid = years.filter(value => value != null && value !== '' && (typeof value !== 'number' || !Number.isInteger(value) || value < 0 || value > 9999)).length;
   const frames = Array.from({length:count}, (_, index) => {
     const from = start + index * step, to = Math.min(from + step, end + 1);
-    const lower = mode === 'cumulative' ? start : from;
-    const matching = years.filter(year => typeof year === 'number' && Number.isInteger(year) && year >= lower && year < to).length;
+    const lower = mode === 'cumulative' ? start : mode === 'rolling' ? Math.max(start, to - Number(rolling)) : from;
+    const matching = records.filter(record => {
+      const year = record?.attributes?.[field], finish = record?.attributes?.[endField];
+      if (typeof year !== 'number' || !Number.isInteger(year)) return false;
+      return mode === 'validity' ? year < to && (finish == null || (typeof finish === 'number' && Number.isInteger(finish) && finish > lower)) : year >= lower && year < to;
+    }).length;
     const label = from === to - 1 ? String(from) : `${from}–${to - 1}`;
-    return { title: mode === 'cumulative' ? `${start}–${to - 1} (cumulative)` : label, count:matching, filter:{op:'year-range', field, start:lower, end:to}, intervalStart:from, intervalEnd:to };
+    return { title: mode === 'cumulative' ? `${start}–${to - 1} (cumulative)` : mode === 'rolling' ? `${lower}–${to - 1} (rolling)` : label, count:matching, filter:mode === 'validity' ? {op:'year-validity', field, endField, start:lower, end:to} : {op:'year-range', field, start:lower, end:to}, intervalStart:from, intervalEnd:to };
   });
   const warnings = ['Counts are from loaded, included features only; the full dataset may differ.', 'Empty frames are retained so the timeline has no gaps.'];
   if (missing) warnings.push(`${missing} loaded features have missing years.`);
@@ -36,12 +43,25 @@ export function generateTimeline({briefing, layerRef, camera, ...options} = {}) 
   const original = normalizeBriefing(briefing);
   if (!layerRef) throw new Error('The current layer cannot be identified for sharing.');
   if (!camera) throw new Error('A map view is needed before generating timeline slides.');
-  const preview = previewTimeline({...options, availableSlides: MAX_SLIDES - original.slides.length});
+  const single = options.presentationMode === 'single-slide';
+  if (original.slides.length >= MAX_SLIDES) throw new Error('No slide slots are available.');
+  const preview = (options.kind === 'date' ? previewDateTimeline : previewTimeline)({...options, availableSlides: single ? MAX_SLIDES : MAX_SLIDES - original.slides.length});
+  if (single) {
+    const slide = createSlide('map-narrative', {title:`Timeline · ${options.field}`, camera});
+    slide.dataView = {layer:layerRef, filter:preview.frames[0].filter};
+    slide.blocks.push({id:`${slide.id}-count`, type:'stat', stat:'count', field:null, queryRef:null, label:'Features'});
+    slide.timeline = {version:1, frames:preview.frames.map(frame => ({title:frame.title, filter:frame.filter}))};
+    slide.generatedBy = {template:'timeline', version:1, group:slide.id, mode:options.mode || 'interval'};
+    return {briefing:addSlide(original,slide), preview};
+  }
   let result = original;
+  let group = null;
   for (const frame of preview.frames) {
     const slide = createSlide('map-narrative', {title:frame.title, camera});
     slide.dataView = {layer:layerRef, filter:frame.filter};
-    slide.generatedBy = {template:'timeline', version:1, intervalStart:frame.intervalStart, intervalEnd:frame.intervalEnd, mode:options.mode || 'interval'};
+    slide.blocks.push({id:`${slide.id}-count`, type:'stat', stat:'count', field:null, queryRef:null, label:'Features'});
+    group ||= slide.id;
+    slide.generatedBy = {template:'timeline', version:1, group, intervalStart:frame.intervalStart, intervalEnd:frame.intervalEnd, mode:options.mode || 'interval'};
     result = addSlide(result, slide);
   }
   return {briefing:result, preview};

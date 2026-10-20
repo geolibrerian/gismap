@@ -39,3 +39,54 @@ test('invalid options, unsafe fields, and excess frames fail without generating'
   assert.throws(()=>seriesWhere({op:'year-range',field:'year',start:0,end:'1 OR 1=1'},fields),/invalid/);
   assert.throws(()=>generateTimeline({...options,briefing:{},layerRef:'layer'}),/map view/);
 });
+
+test('rolling and validity year windows follow distinct event and lifetime semantics', () => {
+  const data = [
+    {attributes:{year:2018,until:2020}}, {attributes:{year:2019,until:null}},
+    {attributes:{year:2020,until:2021}},
+  ];
+  const extended = [...fields,{name:'until',type:'integer'}];
+  const rolling=previewTimeline({...options,fields:extended,records:data,mode:'rolling',rolling:2});
+  assert.deepEqual(rolling.frames.map(frame=>frame.count),[1,2,2,1]);
+  const validity=previewTimeline({...options,fields:extended,records:data,mode:'validity',endField:'until'});
+  assert.deepEqual(validity.frames.map(frame=>frame.count),[1,2,2,1]);
+  const predicate=compileWhere(seriesWhere(validity.frames[2].filter,extended));
+  assert.equal(predicate(data[0].attributes),false);
+  assert.equal(predicate(data[1].attributes),true);
+});
+
+test('date windows use UTC half-open bounds, calendar anchor, and portable filters', async () => {
+  const {previewDateTimeline} = await import('../js/briefing-timeline-dates.js');
+  const fs=[{name:'observed',type:'date'},{name:'expires',type:'date'}];
+  const rs=['2020-01-31T00:00:00Z','2020-02-29T00:00:00Z','2020-03-31T00:00:00Z'].map(value=>({attributes:{observed:value,expires:null}}));
+  const opts={field:'observed',fields:fs,records:rs,start:'2020-01-31',end:'2020-04-01',unit:'month'};
+  const p=previewDateTimeline(opts);
+  assert.deepEqual(p.frames.map(f=>f.count),[1,1,1]);
+  assert.equal(new Date(p.frames[1].intervalEnd).toISOString(),'2020-03-31T00:00:00.000Z');
+  const where=seriesWhere(p.frames[1].filter,fs);
+  assert.equal(compileWhere(where)(rs[1].attributes),true);
+  assert.equal(compileWhere(where)(rs[2].attributes),false);
+  const doc=generateTimeline({...opts,kind:'date',briefing:{},layerRef:'layer',camera:{center:[0,0],zoom:3}}).briefing;
+  assert.equal(doc.slides[0].generatedBy.group,doc.slides[1].generatedBy.group);
+  assert.equal(normalizeBriefing(JSON.parse(JSON.stringify(doc))).slides[0].dataView.filter.op,'date-range');
+  assert.throws(()=>previewDateTimeline({...opts,start:'2020-02-30'}),/valid dates/);
+});
+
+test('playback only groups slides belonging to the same timeline', async () => {
+  const {timelineIndices} = await import('../js/briefing-player.js');
+  const slides=[{generatedBy:{template:'timeline',group:'a'}},{generatedBy:{template:'timeline',group:'b'}},{generatedBy:{template:'timeline',group:'a'}},{}];
+  assert.deepEqual(timelineIndices(slides,0),[0,2]);
+  assert.deepEqual(timelineIndices(slides,1),[1]);
+  assert.deepEqual(timelineIndices(slides,3),[]);
+});
+
+test('single-slide timeline keeps frames portable without consuming a slot per frame', () => {
+  const briefing={slides:Array.from({length:59},(_,i)=>({id:`s${i}`,template:'title'}))};
+  const result=generateTimeline({...options,briefing,layerRef:'layer',camera:{center:[0,0],zoom:4},presentationMode:'single-slide'});
+  assert.equal(result.briefing.slides.length,60);
+  const slide=normalizeBriefing(JSON.parse(JSON.stringify(result.briefing))).slides.at(-1);
+  assert.equal(slide.timeline.frames.length,4);
+  assert.equal(slide.timeline.frames[2].filter.start,2020);
+  assert.deepEqual(slide.dataView.filter,slide.timeline.frames[0].filter);
+  assert.throws(()=>generateTimeline({...options,briefing,layerRef:'layer',camera:{center:[0,0],zoom:4}}),/exceed/);
+});

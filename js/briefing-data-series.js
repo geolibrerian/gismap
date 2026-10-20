@@ -1,14 +1,28 @@
 // Data-driven slides store a small declarative filter, never executable SQL.
 import { MAX_SLIDES, addSlide, createSlide, normalizeBriefing } from './briefing-document.js?v=0.35.0';
 import { previewFilterSeries } from './briefing-series-preview.js?v=0.1.0';
+import { isDateField } from './briefing-timeline-dates.js?v=0.1.0';
 import { isYearField } from './briefing-timeline.js?v=0.1.0';
 
 export function seriesWhere(filter, fields) {
   if (!Array.isArray(fields) || !fields.some(f => f?.name === filter?.field) ||
       !/^[A-Za-z_][\w.]*$/.test(filter?.field || '')) throw new Error('This slide has an unsupported or unknown data filter.');
-  if (filter.op === 'year-range') {
+  if (filter.op === 'date-range' || filter.op === 'date-validity') {
+    if (!fields.some(field => field.name === filter.field && isDateField(field)) || !Number.isSafeInteger(filter.start) || !Number.isSafeInteger(filter.end) || filter.start >= filter.end || filter.start < -59011459200000 || filter.end > 253402300800000) throw new Error('This slide has an invalid date range.');
+    const literal = value => `TIMESTAMP '${new Date(value).toISOString().slice(0,19).replace('T',' ')}'`;
+    if (filter.op === 'date-validity') {
+      if (!fields.some(field => field.name === filter.endField && isDateField(field)) || filter.field === filter.endField) throw new Error('This slide needs a date end field.');
+      return `(${filter.field} < ${literal(filter.end)} AND (${filter.endField} IS NULL OR ${filter.endField} > ${literal(filter.start)}))`;
+    }
+    return `(${filter.field} >= ${literal(filter.start)} AND ${filter.field} < ${literal(filter.end)})`;
+  }
+  if (filter.op === 'year-range' || filter.op === 'year-validity') {
     if (!fields.some(field => field.name === filter.field && isYearField(field))) throw new Error('This slide needs an integer year field.');
     if (!Number.isInteger(filter.start) || !Number.isInteger(filter.end) || filter.start < 0 || filter.end > 10000 || filter.start >= filter.end) throw new Error('This slide has an invalid year range.');
+    if (filter.op === 'year-validity') {
+      if (!fields.some(field => field.name === filter.endField && isYearField(field)) || filter.field === filter.endField) throw new Error('This slide needs an integer end-year field.');
+      return `(${filter.field} < ${filter.end} AND (${filter.endField} IS NULL OR ${filter.endField} > ${filter.start}))`;
+    }
     return `(${filter.field} >= ${filter.start} AND ${filter.field} < ${filter.end})`;
   }
   if (filter.op !== 'in' || !Array.isArray(filter.values) || filter.values.length !== 1) throw new Error('This slide has an unsupported data filter.');
