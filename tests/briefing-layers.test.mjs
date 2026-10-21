@@ -130,7 +130,7 @@ test("Features offers to add the included features as slides, in the same double
   const ui = await readFile(new URL("../js/ui.js", import.meta.url), "utf8");
   assert.match(ui, /data-include-slides>Add \$\{pendingSlides\.toLocaleString\(\)\} included feature/);
   assert.match(ui, /if \(!this\.briefingSlides\.addIncluded\(\)\) return;/);
-  assert.match(ui, /document\.body\.classList\.toggle\("briefing-features-tab", !slidesTab/);
+  assert.match(ui, /document\.body\.classList\.toggle\("briefing-features-tab", !v2 && !slidesTab/);
   const css = await readFile(new URL("../css/app.css", import.meta.url), "utf8");
   assert.match(css, /body\.briefing-features-tab:not\(\.presentation-workspace-panels-open\) #app\[data-presentation="briefing"\] \{ --sidebar:clamp\(720px,58vw,980px\); \}/);
   assert.match(css, /\.mode-dashboard--briefing > \.briefing-records-fold \{ grid-column:2;/);

@@ -382,6 +382,11 @@
         </aside>
         <div id="map-status" class="map-status">Loading the map…</div>
         <button id="dashboard-settings-open" class="dashboard-settings-open" type="button" hidden aria-label="Open Dashboard Builder information" title="Dashboard Builder (account required)"><span aria-hidden="true">⚙</span> Dashboard Builder</button>
+        <section id="briefing-data-dock" class="briefing-data-dock" aria-label="Briefing data" hidden>
+          <div class="briefing-data-dock__resizer" role="separator" tabindex="0" aria-orientation="horizontal" aria-label="Resize the data panel" data-briefing-dock-resize></div>
+          <header class="briefing-data-dock__header"><strong>Data</strong><span data-briefing-dock-status></span><button type="button" class="icon-button" data-briefing-dock-toggle aria-expanded="true" aria-label="Collapse the data panel" title="Collapse">⌄</button></header>
+          <div class="briefing-data-dock__body"></div>
+        </section>
         <div id="toast-region" class="toast-region" aria-live="polite"></div>
         <div id="application-bottom-dock" class="application-dock application-dock--bottom" aria-label="Bottom application panels" hidden></div>
         <div id="application-floating-dock" class="application-dock application-dock--floating" aria-label="Floating application panels" hidden></div>
@@ -405,6 +410,7 @@
           <div id="utility-intelligence-content" class="utility-content intelligence-utility" data-utility-pane="intelligence" hidden></div>
           <div id="utility-assistant-content" class="utility-content assistant-utility" data-utility-pane="assistant" hidden></div>
           <div id="utility-presentation-content" class="utility-content presentation-utility" data-utility-pane="presentation" hidden></div>
+          <div id="utility-briefing-content" class="utility-content workspace-tool-pane briefing-inspector" data-utility-pane="briefing" hidden></div>
           <div id="utility-tasks-content" class="utility-content utility-tasks-content" data-utility-pane="tasks" hidden></div>
           <div id="utility-dialog-content" class="utility-content utility-dialog-content" data-utility-pane="dialog" hidden></div>
           <div id="utility-query-content" class="utility-content query-utility" data-utility-pane="query" hidden></div>

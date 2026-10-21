@@ -99,6 +99,9 @@ export class UIController {
     this.briefingFolds = { records: true, context: false };
     // Briefing has two tabs: Features (investigate) and Slides (author the presentation).
     this.briefingTab = "features";
+    // ?briefingLayout=2 (desktop): the Deck in the sidebar, Data docked at the bottom, an Inspector on the right.
+    this.briefingV2 = new URLSearchParams(location.search).get("briefingLayout") === "2";
+    this.briefingInspectorOpen = false;
     // The Map assistant: a chat with the configured AI model that builds maps, briefings, tours and field tasks.
     this.assistant = new MapAssistantPanel({
       ai: this.aiController,
@@ -124,6 +127,7 @@ export class UIController {
       generate: () => this.generateBriefingFromView(),
       describeWithAi: () => (this.aiController.isConfigured() ? this.#describeBriefingWithAi() : null),
       aiReady: () => this.aiController.isConfigured(),
+      openInspector: () => this.#openBriefingInspector(),
     });
     this.briefingFoldSelection = null;
     this.mobileAtlasSettingsOpen = false;
@@ -905,6 +909,7 @@ export class UIController {
 
   #syncUtilityPanel(preferredTab = null) {
     const tabs = [
+      ...(this.briefingInspectorOpen ? [{ id: "briefing", label: "Briefing inspector" }] : []),
       ...(this.utilityWorkspaceOpen ? [{ id: "workspace", label: "Workspace" }] : []),
       ...(this.mapNotesModeActive ? [{ id: "notes", label: "Field Notes" }] : []),
       ...(this.dataMapNotesOpen ? [{ id: "data-notes", label: "Map Notes" }] : []),
@@ -1061,6 +1066,7 @@ export class UIController {
   }
 
   #closeUtilityTab(tabId) {
+    if (tabId === "briefing") { this.briefingInspectorOpen = false; this.#syncUtilityPanel(); return; }
     if (tabId === "notes") {
       this.mapNotesModeActive = false; this.fieldNotesEditing = false; this.mapNotesSelectionId = (this.mapNotesSelectionId || 0) + 1;
       this.mapNotesAttachFeature = null; this.mapNotesSessionDraft = null;
@@ -3337,6 +3343,7 @@ export class UIController {
     if (!root) return;
     const template = presentation.template || "standard";
     if (template !== "briefing") {
+      this.#teardownBriefingV2();
       document.querySelector("#briefing-context-host")?.replaceChildren();
       this.briefingSlides?.closePlayer();
       document.body.classList.remove("briefing-slides-tab", "briefing-features-tab");
@@ -3821,8 +3828,14 @@ export class UIController {
       this.briefingTab = button.dataset.briefingTab;
       this.#renderBriefingWorkspace(root, presentation, layer, fields);
     }));
+    const v2 = this.#briefingV2Active();
+    if (v2) this.briefingTab = "slides";
     this.#syncBriefingTabs();
-    if (this.briefingTab === "slides") this.briefingSlides.render(slidesHost);
+    if (v2) {
+      const pane = document.querySelector("#utility-briefing-content");
+      pane.innerHTML = `<section class="briefing-inspector__feature" data-inspector-feature hidden></section><section class="briefing-inspector__slide" data-inspector-slide></section>`;
+      this.briefingSlides.render(slidesHost, { inspector: pane.querySelector("[data-inspector-slide]") });
+    } else if (this.briefingTab === "slides") this.briefingSlides.render(slidesHost);
     this.#addPresentationDockControl(root);
     this.#bindBriefingWorkspace(root, presentation, layer, fields);
     if (!this.mobileMedia.matches) this.#foldBriefingRecords(root);
@@ -3830,6 +3843,107 @@ export class UIController {
     if (context && this.mobileMedia.matches) this.#foldBriefingSheet(root, context, selected);
     else if (context) document.querySelector("#briefing-context-host")?.replaceChildren(context);
     if (selected) void this.#loadBriefingContext(root, context, selected, layer);
+    if (v2) this.#layoutBriefingV2(root, selected, layer);
+  }
+
+  #briefingV2Active() {
+    return this.briefingV2 && !this.mobileMedia.matches;
+  }
+
+  /** Data pieces move to the bottom dock and the feature context to the inspector; their bindings come with them. */
+  #layoutBriefingV2(root, selected, layer) {
+    const dock = document.querySelector("#briefing-data-dock");
+    const body = dock?.querySelector(".briefing-data-dock__body");
+    if (!dock || !body) return;
+    const records = root.querySelector(".briefing-records-fold") || root.querySelector(".briefing-records");
+    const scope = root.querySelector(".briefing-records-fold") ? null : root.querySelector(".briefing-scope");
+    const filters = document.createElement("div");
+    filters.className = "briefing-data-dock__filters";
+    filters.append(...[root.querySelector(".briefing-search"), root.querySelector(".briefing-select")].filter(Boolean));
+    const list = document.createElement("div");
+    list.className = "briefing-data-dock__records";
+    list.append(...[scope, records].filter(Boolean));
+    list.querySelector(".briefing-records-fold")?.setAttribute("open", "");
+    body.replaceChildren(filters, list);
+    dock.querySelector("[data-briefing-dock-status]").textContent = this.#briefingStatus();
+    if (dock.hidden) {
+      dock.hidden = false;
+      this.#bindBriefingDock(dock);
+    }
+    this.#applyBriefingDockPadding();
+    // The selected feature's context (moved to the map overlay host above) belongs in the inspector.
+    const featureHost = document.querySelector("#utility-briefing-content [data-inspector-feature]");
+    const context = document.querySelector("#briefing-context-host .briefing-context") || root.querySelector(".briefing-context");
+    const location = root.querySelector(".briefing-location-details");
+    if (featureHost && selected && context) {
+      featureHost.replaceChildren(context, ...(location ? [location] : []));
+      featureHost.hidden = false;
+      // Open the inspector once per newly selected feature, not on every refresh.
+      const id = featureId(selected, layer.objectIdField);
+      if (id !== this.briefingInspectorFeature) { this.briefingInspectorFeature = id; this.#openBriefingInspector(); }
+    } else {
+      this.briefingInspectorFeature = null;
+      document.querySelector("#briefing-context-host")?.replaceChildren();
+    }
+  }
+
+  #openBriefingInspector() {
+    if (!this.#briefingV2Active()) return;
+    this.briefingInspectorOpen = true;
+    this.#syncUtilityPanel("briefing");
+  }
+
+  #bindBriefingDock(dock) {
+    if (dock.dataset.bound) return;
+    dock.dataset.bound = "true";
+    const toggle = dock.querySelector("[data-briefing-dock-toggle]");
+    toggle.addEventListener("click", () => {
+      const collapsed = dock.classList.toggle("is-collapsed");
+      toggle.setAttribute("aria-expanded", String(!collapsed));
+      toggle.setAttribute("aria-label", collapsed ? "Expand the data panel" : "Collapse the data panel");
+      toggle.textContent = collapsed ? "⌃" : "⌄";
+      this.#applyBriefingDockPadding();
+    });
+    const handle = dock.querySelector("[data-briefing-dock-resize]");
+    const setHeight = (pixels) => {
+      const workspace = dock.parentElement.getBoundingClientRect().height;
+      const height = Math.round(Math.min(workspace * 0.8, Math.max(140, pixels)));
+      document.body.style.setProperty("--briefing-dock-height", `${height}px`);
+      this.#applyBriefingDockPadding();
+    };
+    handle.addEventListener("pointerdown", (event) => {
+      event.preventDefault();
+      const bottom = dock.parentElement.getBoundingClientRect().bottom;
+      const move = (moveEvent) => setHeight(bottom - moveEvent.clientY);
+      const up = () => { window.removeEventListener("pointermove", move); window.removeEventListener("pointerup", up); };
+      window.addEventListener("pointermove", move);
+      window.addEventListener("pointerup", up);
+    });
+    handle.addEventListener("keydown", (event) => {
+      if (!["ArrowUp", "ArrowDown"].includes(event.key)) return;
+      event.preventDefault();
+      setHeight(dock.getBoundingClientRect().height + (event.key === "ArrowUp" ? 40 : -40));
+    });
+  }
+
+  /** The map keeps its full height; padding keeps framed features clear of the dock. */
+  #applyBriefingDockPadding() {
+    const dock = document.querySelector("#briefing-data-dock");
+    const padding = this.mapController.getViewPadding?.() || {};
+    const bottom = dock && !dock.hidden ? Math.round(dock.getBoundingClientRect().height) : 0;
+    if ((padding.bottom || 0) !== bottom) this.mapController.setViewPadding?.({ ...padding, bottom });
+  }
+
+  #teardownBriefingV2() {
+    const dock = document.querySelector("#briefing-data-dock");
+    if (dock && !dock.hidden) {
+      dock.hidden = true;
+      dock.querySelector(".briefing-data-dock__body")?.replaceChildren();
+      this.#applyBriefingDockPadding();
+    }
+    document.body.classList.remove("briefing-v2");
+    this.briefingInspectorFeature = null;
+    if (this.briefingInspectorOpen) { this.briefingInspectorOpen = false; this.#syncUtilityPanel(); }
   }
 
   /** What the Slides tab needs from the loaded briefing data. */
@@ -3859,9 +3973,11 @@ export class UIController {
       if (button.dataset.briefingTab === "slides") button.textContent = slides ? `Slides · ${slides}` : "Slides";
     });
     document.querySelector(".mode-dashboard--briefing")?.classList.toggle("is-slides", slidesTab);
-    document.body.classList.toggle("briefing-slides-tab", slidesTab && this.presentationState?.template === "briefing");
+    const v2 = this.#briefingV2Active() && this.presentationState?.template === "briefing";
+    document.body.classList.toggle("briefing-v2", v2);
+    document.body.classList.toggle("briefing-slides-tab", !v2 && slidesTab && this.presentationState?.template === "briefing");
     // Both tabs are the same double-wide workspace on desktop, so switching keeps its size.
-    document.body.classList.toggle("briefing-features-tab", !slidesTab && this.presentationState?.template === "briefing");
+    document.body.classList.toggle("briefing-features-tab", !v2 && !slidesTab && this.presentationState?.template === "briefing");
     document.body.classList.toggle("briefing-map-select", Boolean(this.presentationState?.mapSelect) && this.presentationState?.template === "briefing");
   }
 
@@ -4587,6 +4703,7 @@ export class UIController {
   }
 
   #applyPresentation(presentation = {}) {
+    if ((presentation.template || "standard") !== "briefing") this.#teardownBriefingV2();
     const app = document.querySelector("#app");
     const template = presentation.template || "standard";
     if (template === "standard" || template !== this.presentationState.template) this.#leavePresentationMode();
@@ -4959,6 +5076,7 @@ export class UIController {
       if (route === "map") {
         const current = this.projectManager.current.presentation || {};
         if ((current.template || "standard") !== "standard") this.projectManager.setPresentation({ ...current, template: "standard" });
+        this.#teardownBriefingV2();
       }
       return;
     }

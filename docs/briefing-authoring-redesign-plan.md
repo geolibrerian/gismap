@@ -1,4 +1,4 @@
-> **Status:** Plan, 2026-10-21. Not implemented. Code pointers refer to `codex/data-driven-briefs`.
+> **Status:** 2026-10-21. Phase 0 and phase 1 shipped on `codex/data-driven-briefs`. Phase 2 is available behind `?briefingLayout=2` (desktop only): Deck in the sidebar, Data in a bottom dock, Briefing inspector as a right-panel tab. Phases 3–4 are not started.
 
 # Briefing authoring redesign
 
