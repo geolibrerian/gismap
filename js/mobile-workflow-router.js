@@ -345,6 +345,11 @@ export class MobileWorkflowRouter {
     const menuToggle = document.querySelector("#mobile-menu-toggle");
     menuToggle?.classList.remove("is-active");
     menuToggle?.setAttribute("aria-expanded", "false");
+    // Desktop: the Modes dropdown that started the navigation closes too.
+    document.querySelectorAll(".menu.is-open").forEach((menu) => menu.classList.remove("is-open"));
+    document.querySelectorAll(".menu__trigger").forEach((trigger) => trigger.setAttribute("aria-expanded", "false"));
+    document.querySelectorAll(".menu-bar.is-consolidated-open").forEach((menu) => menu.classList.remove("is-consolidated-open"));
+    document.querySelectorAll(".menu-bar__all-trigger").forEach((trigger) => trigger.setAttribute("aria-expanded", "false"));
   }
 
   async #captureTaskLocation(form) {
