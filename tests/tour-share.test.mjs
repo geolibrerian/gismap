@@ -1,3 +1,4 @@
+import test from "node:test";
 import assert from "node:assert/strict";
 import { createEmbeddedTourUrl, decodeEmbeddedTour } from "../js/tour-share.js";
 import { readFileSync } from "node:fs";
@@ -33,3 +34,16 @@ assert.match(ui, /title: title \|\| "Guided places",/, "Tour cards fall back to 
 assert.match(ui, /const safeTitle = String\(title \|\| "GIS Map Online"\)\.slice\(0, 54\)/);
 assert.match(pdf, /context\.textAlign = "left"/);
 assert.match(ui, /long-click the QR code/);
+
+test("a hand-written json: tour link decodes with defaults and the same validation", async () => {
+  const { decodeEmbeddedTour, createEmbeddedTourUrl } = await import("../js/tour-share.js");
+  const written = { title: "Two stops", autoplay: true, stops: [{ name: "Coit Tower", caption: "Telegraph Hill", lat: 37.80238, lon: -122.40583, basemap: "usgs-imagery" }, { name: "Ferry Building", lat: 37.79555, lon: -122.39347, zoom: 17, tilt: 50 }] };
+  const tour = decodeEmbeddedTour(`json:${encodeURIComponent(JSON.stringify(written))}`, new Set(["usgs-imagery"]));
+  assert.equal(tour.playbackMode, "auto");
+  assert.deepEqual(tour.chapters.map((chapter) => [chapter.title, chapter.basemapId, chapter.viewState.zoom, chapter.lingerSeconds]), [["Coit Tower", "usgs-imagery", 15, 6], ["Ferry Building", null, 17, 6]]);
+  assert.throws(() => decodeEmbeddedTour(`json:${encodeURIComponent(JSON.stringify({ stops: [{ name: "Nowhere", lat: 95, lon: 0 }] }))}`, new Set()), /invalid camera/);
+  assert.throws(() => decodeEmbeddedTour("json:{oops", new Set()), /not valid JSON/);
+  const url = createEmbeddedTourUrl({ baseUrl: "https://gismap.online/", presentation: tour, allowedBasemaps: new Set(["usgs-imagery"]), readable: true });
+  assert.match(url, /#tour=json:%7B/);
+  assert.deepEqual(decodeEmbeddedTour(new URL(url).hash.slice(6), new Set(["usgs-imagery"])).chapters.map((chapter) => chapter.title), ["Coit Tower", "Ferry Building"]);
+});

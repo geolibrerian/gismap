@@ -5,7 +5,7 @@
   "title": "Interactive geographic briefing",
   "status": "available",
   "question": "Can an AI agent build a slide briefing with one map slide per area and context from another layer?",
-  "answer": "Yes, in an open GISMap page. The agent loads the primary layer, builds a briefing-v1 document (one slide per selected feature, each with its camera, highlighted selection, narrative and contextual layers), validates it, and shares one link that opens as a desktop deck or a mobile swipe feed.",
+  "answer": "Yes. A chatbot can write the whole briefing into one link: a map-v1 JSON with a briefing-v1 document in its briefing property, after #map=json:. The link opens presenting, as a desktop deck or a mobile swipe feed. In an open GISMap page, agents can also build, generate and export briefings through the in-page API, including relations to a context layer.",
   "triggers": [
     "Create slides about these districts",
     "Build an interactive crime briefing for Philadelphia",
@@ -109,8 +109,9 @@
     },
     {
       "stage": "execute",
-      "action": "Load or generate the briefing in the open page. Slide layers with a relation query the context layer's service per slide, so counts come from the service, not from the drawing.",
+      "action": "Without code: put the briefing in map-v1 (\"briefing\": { layerId, selection, slides }) and write a #map=json: link; feature slides use the layer's OBJECTID as featureId. In an open page: load or generate the briefing. Slide layers with a relation query the context layer's service per slide, so counts come from the service, not from the drawing.",
       "interfaces": [
+        "declarative-url",
         "in-browser-api"
       ],
       "references": [
@@ -192,7 +193,7 @@
     "The shared link reopens to the same slides"
   ],
   "limitations": [
-    "Briefings need the in-page API; there is no hosted authoring endpoint.",
+    "Readable #map=json: links hold 8,192 characters, enough for roughly ten short slides; longer briefings need the in-page API (briefing.createLink) or a hosted ?briefing= file.",
     "Links hold at most 60 slides and must fit the URL budget; large documents use ?briefing=<hosted JSON>.",
     "Data-driven templates sample at most 500 features (generateTemplate coverage is 'unknown')."
   ],
@@ -201,6 +202,114 @@
     "If the link is too long, host the JSON and use ?briefing=<URL>, or export a .gmo project."
   ],
   "examples": [
+    {
+      "checkedOn": "2026-10-21",
+      "checkedVersion": "0.53.0",
+      "title": "California grape counties, written by a chatbot",
+      "prompt": "Make a four-slide briefing about California grape counties: a title, the totals, then Fresno and Napa.",
+      "dataset": [
+        {
+          "label": "USDA Census of Agriculture 2022 grape production (Esri)",
+          "url": "https://services.arcgis.com/P3ePLMYs2RVChkJx/arcgis/rest/services/USDA_Census_of_Agriculture_2022_Grape_Production/FeatureServer/0"
+        }
+      ],
+      "url": "https://gismap.online/#map=json:%7B%22version%22%3A1%2C%22title%22%3A%22California%20grape%20counties%22%2C%22basemap%22%3A%22gray-vector%22%2C%22legend%22%3Atrue%2C%22layers%22%3A%5B%7B%22url%22%3A%22https%3A%2F%2Fservices.arcgis.com%2FP3ePLMYs2RVChkJx%2Farcgis%2Frest%2Fservices%2FUSDA_Census_of_Agriculture_2022_Grape_Production%2FFeatureServer%2F0%22%2C%22type%22%3A%22feature%22%2C%22title%22%3A%22California%20grape%20acreage%20(USDA%202022)%22%2C%22where%22%3A%22STATE_ABBR%20%3D%20'CA'%20AND%20GRAPES_ACRES_BEAR_NON_BEAR_TOT%20%3E%201000%22%2C%22opacity%22%3A0.85%2C%22renderer%22%3A%7B%22type%22%3A%22choropleth%22%2C%22field%22%3A%22GRAPES_ACRES_BEAR_NON_BEAR_TOT%22%2C%22classes%22%3A5%2C%22method%22%3A%22quantile%22%2C%22ramp%22%3A%22purples%22%7D%7D%5D%2C%22briefing%22%3A%7B%22layerId%22%3A%22https%3A%2F%2Fservices.arcgis.com%2FP3ePLMYs2RVChkJx%2Farcgis%2Frest%2Fservices%2FUSDA_Census_of_Agriculture_2022_Grape_Production%2FFeatureServer%2F0%22%2C%22selection%22%3A%7B%22useAll%22%3Atrue%7D%2C%22slides%22%3A%5B%7B%22template%22%3A%22title%22%2C%22title%22%3A%22California%20grape%20country%22%2C%22subtitle%22%3A%22USDA%20Census%20of%20Agriculture%202022%22%7D%2C%7B%22template%22%3A%22key-numbers%22%2C%22title%22%3A%22At%20a%20glance%22%2C%22blocks%22%3A%5B%7B%22type%22%3A%22stat%22%2C%22stat%22%3A%22count%22%2C%22label%22%3A%22Counties%20over%201%2C000%20acres%22%7D%2C%7B%22type%22%3A%22stat%22%2C%22stat%22%3A%22sum%22%2C%22field%22%3A%22GRAPES_ACRES_BEAR_NON_BEAR_TOT%22%2C%22label%22%3A%22Grape%20acres%22%7D%5D%7D%2C%7B%22template%22%3A%22feature%22%2C%22title%22%3A%22Fresno%20County%22%2C%22featureId%22%3A%22212%22%2C%22fit%22%3A%22feature%22%2C%22blocks%22%3A%5B%7B%22type%22%3A%22facts%22%2C%22fields%22%3A%5B%22NAME%22%2C%22GRAPES_ACRES_BEAR_NON_BEAR_TOT%22%5D%7D%2C%7B%22type%22%3A%22text%22%2C%22markdown%22%3A%22The%20largest%20grape%20acreage%20in%20the%20state%3A%20160%2C324%20acres.%22%7D%5D%7D%2C%7B%22template%22%3A%22feature%22%2C%22title%22%3A%22Napa%20County%22%2C%22featureId%22%3A%22230%22%2C%22fit%22%3A%22feature%22%2C%22blocks%22%3A%5B%7B%22type%22%3A%22facts%22%2C%22fields%22%3A%5B%22NAME%22%2C%22GRAPES_ACRES_BEAR_NON_BEAR_TOT%22%5D%7D%2C%7B%22type%22%3A%22text%22%2C%22markdown%22%3A%2257%2C780%20acres%2C%20mostly%20wine%20grapes.%22%7D%5D%7D%5D%7D%7D",
+      "spec": {
+        "version": 1,
+        "title": "California grape counties",
+        "basemap": "gray-vector",
+        "legend": true,
+        "layers": [
+          {
+            "url": "https://services.arcgis.com/P3ePLMYs2RVChkJx/arcgis/rest/services/USDA_Census_of_Agriculture_2022_Grape_Production/FeatureServer/0",
+            "type": "feature",
+            "title": "California grape acreage (USDA 2022)",
+            "where": "STATE_ABBR = 'CA' AND GRAPES_ACRES_BEAR_NON_BEAR_TOT > 1000",
+            "opacity": 0.85,
+            "renderer": {
+              "type": "choropleth",
+              "field": "GRAPES_ACRES_BEAR_NON_BEAR_TOT",
+              "classes": 5,
+              "method": "quantile",
+              "ramp": "purples"
+            }
+          }
+        ],
+        "briefing": {
+          "layerId": "https://services.arcgis.com/P3ePLMYs2RVChkJx/arcgis/rest/services/USDA_Census_of_Agriculture_2022_Grape_Production/FeatureServer/0",
+          "selection": {
+            "useAll": true
+          },
+          "slides": [
+            {
+              "template": "title",
+              "title": "California grape country",
+              "subtitle": "USDA Census of Agriculture 2022"
+            },
+            {
+              "template": "key-numbers",
+              "title": "At a glance",
+              "blocks": [
+                {
+                  "type": "stat",
+                  "stat": "count",
+                  "label": "Counties over 1,000 acres"
+                },
+                {
+                  "type": "stat",
+                  "stat": "sum",
+                  "field": "GRAPES_ACRES_BEAR_NON_BEAR_TOT",
+                  "label": "Grape acres"
+                }
+              ]
+            },
+            {
+              "template": "feature",
+              "title": "Fresno County",
+              "featureId": "212",
+              "fit": "feature",
+              "blocks": [
+                {
+                  "type": "facts",
+                  "fields": [
+                    "NAME",
+                    "GRAPES_ACRES_BEAR_NON_BEAR_TOT"
+                  ]
+                },
+                {
+                  "type": "text",
+                  "markdown": "The largest grape acreage in the state: 160,324 acres."
+                }
+              ]
+            },
+            {
+              "template": "feature",
+              "title": "Napa County",
+              "featureId": "230",
+              "fit": "feature",
+              "blocks": [
+                {
+                  "type": "facts",
+                  "fields": [
+                    "NAME",
+                    "GRAPES_ACRES_BEAR_NON_BEAR_TOT"
+                  ]
+                },
+                {
+                  "type": "text",
+                  "markdown": "57,780 acres, mostly wine grapes."
+                }
+              ]
+            }
+          ]
+        }
+      },
+      "status": "rendered",
+      "checks": [
+        "Written by hand as #map=json: with an inline briefing (no code).",
+        "Opened headless: briefing mode, four slides in order, presenting from slide 1; no issues reported."
+      ]
+    },
     {
       "checkedOn": "2026-10-21",
       "checkedVersion": "0.53.0",

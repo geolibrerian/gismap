@@ -148,9 +148,31 @@ export function encodeFieldTask(task, kind = "assign") {
 
 const inRange = (lon, lat) => Number.isFinite(lon) && Number.isFinite(lat) && Math.abs(lon) <= 180 && Math.abs(lat) <= 90;
 
+/**
+ * A task a person or chatbot can write by hand: `#fieldTask=json:<URI-encoded JSON>`,
+ * { title, location, lat, lon, notes, steps: ["…"], features: [{ layerUrl, objectId, lat, lon, label }] }.
+ * Always an assignment: reports come only from the field. Null when not a json: link.
+ */
+export function readableFieldTaskPayload(value) {
+  let body = String(value || "");
+  if (!/^json(?::|%3A)/i.test(body)) return null;
+  try { body = decodeURIComponent(body); } catch { /* Already decoded. */ }
+  let task;
+  try { task = JSON.parse(body.replace(/^json:/i, "")); } catch (error) { throw new Error(`This json: field task link is not valid JSON (${error.message}).`); }
+  if (!task || typeof task !== "object" || typeof task.title !== "string") throw new Error("A json: field task needs a title.");
+  if ((task.steps || []).length > MAX_STEPS) throw new Error(`A field task holds at most ${MAX_STEPS} steps; split the work into several tasks.`);
+  const coordinate = (item, key, long) => Number(item?.[key] ?? item?.[long]);
+  return serializeFieldTask({
+    id: task.id, title: task.title, location: task.location, notes: task.notes ?? task.instructions,
+    latitude: coordinate(task, "lat", "latitude"), longitude: coordinate(task, "lon", "longitude"),
+    steps: (Array.isArray(task.steps) ? task.steps : []).map((step) => ({ text: typeof step === "string" ? step : step?.text, done: false })),
+    features: (Array.isArray(task.features) ? task.features : []).map((feature) => ({ layerUrl: feature?.layerUrl, objectId: feature?.objectId, latitude: coordinate(feature, "lat", "latitude"), longitude: coordinate(feature, "lon", "longitude"), label: feature?.label })),
+  });
+}
+
 export function decodeFieldTask(value, options = {}) {
-  let raw;
-  try { raw = JSON.parse(base64UrlDecode(value)); } catch { throw new Error("This field task link is not valid."); }
+  let raw = readableFieldTaskPayload(value);
+  if (!raw) try { raw = JSON.parse(base64UrlDecode(value)); } catch { throw new Error("This field task link is not valid."); }
   // Links made before versioned payloads held the raw task object.
   if (raw && raw.v === undefined && typeof raw.title === "string") {
     raw = { v: 1, k: "a", id: raw.id, t: raw.title, p: raw.location, n: raw.notes, s: taskSteps(raw).map((step) => step.text), x: raw.longitude, y: raw.latitude };
@@ -209,10 +231,15 @@ export function decodeFieldTask(value, options = {}) {
   return { kind: raw.k === "r" ? "return" : "assign", task };
 }
 
-export function createFieldTaskUrl({ baseUrl, task, kind = "assign" }) {
+export function createFieldTaskUrl({ baseUrl, task, kind = "assign", readable = false }) {
   const url = new URL(baseUrl);
   url.search = "";
   url.searchParams.set("workflow", "tasks");
+  if (readable && kind === "assign") {
+    const steps = taskSteps(task).map((step) => step.text);
+    url.hash = `fieldTask=json:${encodeURIComponent(JSON.stringify({ id: task.id, title: task.title, location: task.location, lat: task.latitude, lon: task.longitude, notes: task.notes, steps, features: task.features?.length ? task.features.map(({ layerUrl, objectId, latitude, longitude, label }) => ({ layerUrl, objectId, lat: latitude, lon: longitude, label })) : undefined }))}`;
+    return url.href;
+  }
   url.hash = `fieldTask=${encodeFieldTask(task, kind)}`;
   // Styles are a nicety: without them the task still works, so they go first when space runs out.
   if (url.href.length > MAX_URL_LENGTH && task.layerStyles) url.hash = `fieldTask=${encodeFieldTask({ ...task, layerStyles: null }, kind)}`;

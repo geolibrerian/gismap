@@ -5,7 +5,7 @@
   "title": "Location-based field tasks",
   "status": "available",
   "question": "Can an AI agent create a field inspection checklist for a place that someone can open on their phone?",
-  "answer": "Yes. A field task link carries the location, instructions, up to ten steps and up to five features. The agent builds it with the standalone field-task-share module; the person in the field checks in, ticks off steps and sends back a report link. No account or server is involved.",
+  "answer": "Yes, without code. A chatbot writes https://gismap.online/?workflow=tasks#fieldTask=json:<URI-encoded JSON> with the title, location, coordinates, notes and up to ten steps. The person in the field checks in, ticks off steps and sends back a report link. No account or server is involved.",
   "triggers": [
     "Make a field inspection checklist for this park",
     "Create five tasks to do on site at this address",
@@ -87,12 +87,15 @@
     },
     {
       "stage": "execute",
-      "action": "In a browser or Deno: import { createFieldTaskUrl } from \"https://gismap.online/js/field-task-share.js\" and call it with { baseUrl: \"https://gismap.online/\", task }. In Node, download the module and its share.js dependency first.",
+      "action": "Without code: write https://gismap.online/?workflow=tasks#fieldTask=json:<encodeURIComponent(JSON)> with { title, location, lat, lon, notes, steps: [\"…\"], features: [{ layerUrl, objectId, lat, lon, label }] }. With code: createFieldTaskUrl from \"https://gismap.online/js/field-task-share.js\" for a compact, QR-safe link.",
       "interfaces": [
+        "declarative-url",
         "standalone-js"
       ],
       "references": [
-        "field-task-share.js#createFieldTaskUrl"
+        "#fieldTask=json:<payload>",
+        "field-task-share.js#createFieldTaskUrl",
+        "field-task-share.js#readableFieldTaskPayload"
       ]
     },
     {
@@ -175,6 +178,23 @@
         "Coordinates from OpenStreetMap Nominatim on 2026-10-21.",
         "Opened headless: the task panel showed the title, location, five steps and check-in; screenshot inspected.",
         "No check-in or report was made: those belong to a real field visit."
+      ]
+    },
+    {
+      "checkedOn": "2026-10-21",
+      "checkedVersion": "0.53.0",
+      "title": "Mission Dolores Park inspection, readable link",
+      "prompt": "Same task, as a link a chatbot can write without code.",
+      "dataset": [
+        {
+          "label": "OpenStreetMap Nominatim (place coordinates)",
+          "url": "https://nominatim.openstreetmap.org/"
+        }
+      ],
+      "url": "https://gismap.online/?workflow=tasks#fieldTask=json:%7B%22id%22%3A%22dolores-park-inspection%22%2C%22title%22%3A%22Mission%20Dolores%20Park%20inspection%22%2C%22location%22%3A%22Mission%20Dolores%20Park%2C%20San%20Francisco%22%2C%22lat%22%3A37.75972%2C%22lon%22%3A-122.42713%2C%22notes%22%3A%22Check%20in%20on%20arrival.%20Note%20where%20each%20problem%20is%20in%20the%20report%20and%20add%20photos%20there.%20Report%20anything%20unsafe%20to%20park%20staff%20right%20away.%22%2C%22steps%22%3A%5B%22Inspect%20playground%20structures%22%2C%22Photograph%20damaged%20equipment%22%2C%22Check%20drinking%20fountains%22%2C%22Inspect%20pedestrian%20paths%22%2C%22Document%20litter%20and%20maintenance%20needs%22%5D%7D",
+      "status": "rendered",
+      "checks": [
+        "#fieldTask=json: form; opened headless from this branch (local server): task panel with five steps and check-in (screenshot inspected)."
       ]
     },
     {

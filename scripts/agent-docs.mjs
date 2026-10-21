@@ -233,6 +233,17 @@ export function buildLlmsTxt({ capabilities, examples = null }) {
 
 The map in a link is one JSON object (map-v1): layers with filters and styles, basemap, camera. Write it after #map=json: in the URL. Invalid parts are skipped and reported; the rest of the map still opens.
 
+## Links a chatbot can write (no code, no account)
+
+Every GISMap artifact can be written as one link: URI-encode the JSON (encodeURIComponent) after \`json:\`. Return the link to the user; it opens the finished result.
+
+- Map: \`https://gismap.online/#map=json:{"version":1,"layers":[{"url":"<layer URL>","where":"<filter>","renderer":{"type":"choropleth","field":"<FIELD>","ramp":"purples"}}],"basemap":"gray-vector"}\`
+- Briefing (slides): add \`"briefing":{"layerId":"<layer URL>","selection":{"useAll":true},"slides":[{"template":"title","title":"…"},{"template":"key-numbers","title":"At a glance","blocks":[{"type":"stat","stat":"count","label":"Features"}]},{"template":"feature","title":"…","featureId":"<OBJECTID>","fit":"feature","blocks":[{"type":"text","markdown":"…"}]}]}\` to the map JSON; the link opens presenting (schema: [briefing-v1](${SITE}/schemas/briefing-v1.schema.json)).
+- Guided tour: \`https://gismap.online/?tourOnly=1#tour=json:{"title":"…","autoplay":true,"stops":[{"name":"Coit Tower","caption":"…","lat":37.80238,"lon":-122.40583,"zoom":17,"tilt":55,"heading":200,"basemap":"usgs-imagery","seconds":6}]}\`
+- Field task: \`https://gismap.online/?workflow=tasks#fieldTask=json:{"title":"…","location":"…","lat":37.75972,"lon":-122.42713,"notes":"…","steps":["…","…"]}\` (up to 10 steps and 5 features: \`{"layerUrl","objectId","lat","lon","label"}\`).
+
+Readable links hold up to 8,192 characters. Inspect real fields first (\`<layer URL>?f=pjson\`) and never invent coordinates. Use \`usgs-imagery\` for aerial imagery on the default MapLibre engine. Step-by-step: [agent recipes](${SITE}/agent-recipes/).
+
 ## What can AI agents create with GISMap?
 
 Finished maps, briefings, guided tours, field task packages, 3D maps and themed maps. Each recipe gives the interface to use (a URL you write, a standalone JavaScript module, or the in-page API; never a hosted REST endpoint), how to verify the result, and its limits: [recipe pages](${SITE}/agent-recipes/) · [recipe catalog (JSON)](${SITE}/api/agent-recipes/index.json).

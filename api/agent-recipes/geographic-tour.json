@@ -5,7 +5,7 @@
   "title": "Guided geographic tour",
   "status": "available",
   "question": "Can an AI agent create a guided map tour of places in a set order?",
-  "answer": "Yes, without the app. The tour is one link: an ordered list of stops with camera, caption, basemap and pause time. An agent builds it with the standalone tour-share module and returns a QR-safe link.",
+  "answer": "Yes, without code. The tour is one link: a chatbot writes https://gismap.online/?tourOnly=1#tour=json:<URI-encoded JSON> with an ordered list of stops (name, caption, lat, lon, zoom, tilt, heading, basemap, seconds). Code-running agents can use the standalone tour-share module for a shorter, QR-safe link.",
   "triggers": [
     "Create a tour of San Francisco landmarks",
     "Show me these locations in sequence",
@@ -95,12 +95,15 @@
     },
     {
       "stage": "execute",
-      "action": "In a browser or Deno: import { createEmbeddedTourUrl } from \"https://gismap.online/js/tour-share.js\" and call it with { baseUrl, presentation, allowedBasemaps: new Set([...basemap ids]), tourOnly: true }. In Node, download the module file first.",
+      "action": "Without code: write https://gismap.online/?tourOnly=1#tour=json:<encodeURIComponent(JSON)> with { title, autoplay, stops: [{ name, caption, lat, lon, zoom, tilt, heading, basemap, seconds }] }. With code (browser or Deno): import { createEmbeddedTourUrl } from \"https://gismap.online/js/tour-share.js\" for a compact, QR-safe link.",
       "interfaces": [
+        "declarative-url",
         "standalone-js"
       ],
       "references": [
+        "#tour=json:<payload>",
         "tour-share.js#createEmbeddedTourUrl",
+        "tour-share.js#readableTourPayload",
         "tour-share.js#decodeEmbeddedTour"
       ]
     },
@@ -191,6 +194,24 @@
       "checks": [
         "Coordinates from OpenStreetMap Nominatim on 2026-10-21.",
         "Opened headless on MapLibre: chapter 1 of 5 with its caption, camera and USGS aerial imagery; screenshot inspected. Stops 2–5 were checked by decoding the link, not by stepping through them."
+      ]
+    },
+    {
+      "checkedOn": "2026-10-21",
+      "checkedVersion": "0.53.0",
+      "title": "San Francisco landmarks, readable link",
+      "prompt": "Same tour, as a link a chatbot can write without code.",
+      "dataset": [
+        {
+          "label": "OpenStreetMap Nominatim (place coordinates)",
+          "url": "https://nominatim.openstreetmap.org/"
+        }
+      ],
+      "url": "https://gismap.online/?tourOnly=1#tour=json:%7B%22v%22%3A1%2C%22title%22%3A%22San%20Francisco%20landmarks%22%2C%22skin%22%3A%22clean-light%22%2C%22play%22%3A%22manual%22%2C%22chapters%22%3A%5B%7B%22name%22%3A%22Golden%20Gate%20Bridge%22%2C%22caption%22%3A%221937%20suspension%20bridge%20across%20the%20Golden%20Gate%20strait%22%2C%22lat%22%3A37.80745%2C%22lon%22%3A-122.47596%2C%22zoom%22%3A14.8%2C%22tilt%22%3A60%2C%22heading%22%3A340%2C%22basemap%22%3A%22usgs-imagery%22%2C%22linger%22%3A6%7D%2C%7B%22name%22%3A%22Palace%20of%20Fine%20Arts%22%2C%22caption%22%3A%22Built%20for%20the%201915%20Panama-Pacific%20Exposition%22%2C%22lat%22%3A37.80292%2C%22lon%22%3A-122.4484%2C%22zoom%22%3A17%2C%22tilt%22%3A55%2C%22heading%22%3A30%2C%22basemap%22%3A%22usgs-imagery%22%2C%22linger%22%3A6%7D%2C%7B%22name%22%3A%22Coit%20Tower%22%2C%22caption%22%3A%22Art%20Deco%20tower%20on%20Telegraph%20Hill%2C%20opened%201933%22%2C%22lat%22%3A37.80238%2C%22lon%22%3A-122.40583%2C%22zoom%22%3A17%2C%22tilt%22%3A55%2C%22heading%22%3A200%2C%22basemap%22%3A%22usgs-imagery%22%2C%22linger%22%3A6%7D%2C%7B%22name%22%3A%22Ferry%20Building%22%2C%22caption%22%3A%221898%20terminal%20and%20marketplace%20on%20the%20Embarcadero%22%2C%22lat%22%3A37.79555%2C%22lon%22%3A-122.39347%2C%22zoom%22%3A17%2C%22tilt%22%3A55%2C%22heading%22%3A300%2C%22basemap%22%3A%22usgs-imagery%22%2C%22linger%22%3A6%7D%2C%7B%22name%22%3A%22Bay%20Bridge%22%2C%22caption%22%3A%22San%20Francisco%E2%80%93Oakland%20Bay%20Bridge%2C%20opened%201936%22%2C%22lat%22%3A37.81995%2C%22lon%22%3A-122.34462%2C%22zoom%22%3A14.4%2C%22tilt%22%3A55%2C%22heading%22%3A240%2C%22basemap%22%3A%22usgs-imagery%22%2C%22linger%22%3A6%7D%5D%7D",
+      "status": "rendered",
+      "checks": [
+        "#tour=json: form; opened headless from this branch (local server): chapter 1 of 5 over USGS imagery (screenshot inspected).",
+        "Longer than the compact link and not QR-safe."
       ]
     },
     {

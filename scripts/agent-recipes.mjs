@@ -37,6 +37,17 @@ export const GRAPE_3D = Object.freeze({
   } } }],
 });
 
+/** A briefing written by hand inside a map link, as a chatbot without code would. */
+export const GRAPE_BRIEFING = Object.freeze({
+  ...GRAPE_MAP, title: "California grape counties", camera: undefined,
+  briefing: { layerId: GRAPE_URL, selection: { useAll: true }, slides: [
+    { template: "title", title: "California grape country", subtitle: "USDA Census of Agriculture 2022" },
+    { template: "key-numbers", title: "At a glance", blocks: [{ type: "stat", stat: "count", label: "Counties over 1,000 acres" }, { type: "stat", stat: "sum", field: "GRAPES_ACRES_BEAR_NON_BEAR_TOT", label: "Grape acres" }] },
+    { template: "feature", title: "Fresno County", featureId: "212", fit: "feature", blocks: [{ type: "facts", fields: ["NAME", "GRAPES_ACRES_BEAR_NON_BEAR_TOT"] }, { type: "text", markdown: "The largest grape acreage in the state: 160,324 acres." }] },
+    { template: "feature", title: "Napa County", featureId: "230", fit: "feature", blocks: [{ type: "facts", fields: ["NAME", "GRAPES_ACRES_BEAR_NON_BEAR_TOT"] }, { type: "text", markdown: "57,780 acres, mostly wine grapes." }] },
+  ] },
+});
+
 export const COLLEGES_URL = "https://services2.arcgis.com/FiaPA4ga0iQKduv3/arcgis/rest/services/Colleges_and_Universities_View/FeatureServer/0";
 export const HALLOWEEN_COLLEGES = Object.freeze({
   version: 1, title: "California four-year colleges, Halloween edition", basemap: "skin", skin: "velvet-orbit", camera: CA_CAMERA, legend: true,
@@ -89,7 +100,10 @@ export function agentRecipeLinks({ phillyLink, ballparksLink, openingDayLink }) 
     fireAcres: readableLink(FIRE_ACRES),
     halloween: readableLink(HALLOWEEN_COLLEGES),
     sfTour: createEmbeddedTourUrl({ baseUrl: `${SITE}/`, presentation: SF_TOUR, allowedBasemaps: basemaps, tourOnly: true }),
+    sfTourReadable: createEmbeddedTourUrl({ baseUrl: `${SITE}/`, presentation: SF_TOUR, allowedBasemaps: basemaps, tourOnly: true, readable: true }),
     parkTask: createFieldTaskUrl({ baseUrl: `${SITE}/`, task: PARK_TASK }),
+    parkTaskReadable: createFieldTaskUrl({ baseUrl: `${SITE}/`, task: PARK_TASK, readable: true }),
+    grapeBriefing: readableLink(Object.fromEntries(Object.entries(GRAPE_BRIEFING).filter(([, value]) => value !== undefined))),
     philly: phillyLink, ballparks: ballparksLink, openingDay: openingDayLink,
   };
 }
@@ -135,7 +149,7 @@ export function agentRecipes(links) {
     {
       id: "interactive-briefing", title: "Interactive geographic briefing", status: "available",
       question: "Can an AI agent build a slide briefing with one map slide per area and context from another layer?",
-      answer: "Yes, in an open GISMap page. The agent loads the primary layer, builds a briefing-v1 document (one slide per selected feature, each with its camera, highlighted selection, narrative and contextual layers), validates it, and shares one link that opens as a desktop deck or a mobile swipe feed.",
+      answer: "Yes. A chatbot can write the whole briefing into one link: a map-v1 JSON with a briefing-v1 document in its briefing property, after #map=json:. The link opens presenting, as a desktop deck or a mobile swipe feed. In an open GISMap page, agents can also build, generate and export briefings through the in-page API, including relations to a context layer.",
       triggers: ["Create slides about these districts", "Build an interactive crime briefing for Philadelphia", "Make a presentation with one slide per county"],
       inputTypes: ["ArcGIS FeatureServer polygon layer", "Supporting point or polygon layer"],
       inputs: {
@@ -148,7 +162,7 @@ export function agentRecipes(links) {
         common.discover, common.inspectSource,
         { stage: "plan", action: "Pick stable feature IDs and the slide order. For context layers, decide the spatial relationship; an overlay alone is not evidence that points fall inside a polygon.", interfaces: ["in-browser-api"], references: [`${SITE}/schemas/briefing-v1.schema.json`, "briefing.create", "briefing.createSlide"] },
         { stage: "validate", action: "Validate the document statically before loading it.", interfaces: ["standalone-js", "in-browser-api"], references: ["briefing.validate", "briefing.migrate"] },
-        { stage: "execute", action: "Load or generate the briefing in the open page. Slide layers with a relation query the context layer's service per slide, so counts come from the service, not from the drawing.", interfaces: ["in-browser-api"], references: ["briefing.load", "briefing.generate", "briefing.generateTemplate", "briefing.addSlide", "briefing.updateSlide"] },
+        { stage: "execute", action: "Without code: put the briefing in map-v1 (\"briefing\": { layerId, selection, slides }) and write a #map=json: link; feature slides use the layer's OBJECTID as featureId. In an open page: load or generate the briefing. Slide layers with a relation query the context layer's service per slide, so counts come from the service, not from the drawing.", interfaces: ["declarative-url", "in-browser-api"], references: ["briefing.load", "briefing.generate", "briefing.generateTemplate", "briefing.addSlide", "briefing.updateSlide"] },
         { stage: "verify", action: "Step through every slide on desktop and in a narrow (mobile) viewport: selected feature, highlight, camera, context layer, narrative numbers. State whether counts are complete, filtered or sampled.", interfaces: ["in-browser-api"], references: ["briefing.get", "describe"] },
         { stage: "share", action: "Create the link, then reopen it. Optional PDF handout and QR card.", interfaces: ["in-browser-api"], references: ["briefing.createLink", "briefing.exportPdf", "briefing.exportQrCard", "briefing.exportGmo"] },
       ],
@@ -161,16 +175,17 @@ export function agentRecipes(links) {
         { format: "Project file (.gmo)", interface: "in-browser-api", interactive: true, reference: "briefing.exportGmo" },
       ],
       verification: ["Slide count matches the request", "Each slide frames and highlights the intended feature", "Context layer loaded and related by a real spatial query", "Narrative numbers match queried values", "Desktop and mobile navigation work", "The shared link reopens to the same slides"],
-      limitations: ["Briefings need the in-page API; there is no hosted authoring endpoint.", "Links hold at most 60 slides and must fit the URL budget; large documents use ?briefing=<hosted JSON>.", "Data-driven templates sample at most 500 features (generateTemplate coverage is 'unknown')."],
+      limitations: ["Readable #map=json: links hold 8,192 characters, enough for roughly ten short slides; longer briefings need the in-page API (briefing.createLink) or a hosted ?briefing= file.", "Links hold at most 60 slides and must fit the URL budget; large documents use ?briefing=<hosted JSON>.", "Data-driven templates sample at most 500 features (generateTemplate coverage is 'unknown')."],
       recovery: ["If a relation query fails, the slide notes it; show both layers and say the analysis is incomplete.", "If the link is too long, host the JSON and use ?briefing=<URL>, or export a .gmo project."],
       examples: [
+        example({ title: "California grape counties, written by a chatbot", prompt: "Make a four-slide briefing about California grape counties: a title, the totals, then Fresno and Napa.", dataset: [SOURCES.grape], url: links.grapeBriefing, spec: Object.fromEntries(Object.entries(GRAPE_BRIEFING).filter(([, value]) => value !== undefined)), status: "rendered", checks: ["Written by hand as #map=json: with an inline briefing (no code).", "Opened headless: briefing mode, four slides in order, presenting from slide 1; no issues reported."] }),
         example({ title: "Philadelphia police divisions and districts", prompt: "Build a briefing with one slide per Philadelphia police division showing the districts inside it.", dataset: [{ label: "Philadelphia Police Divisions and Districts (City of Philadelphia)", url: PHILLY_PAGE }], url: links.philly, page: PHILLY_PAGE, status: "loaded", checks: ["Opened headless: both layers loaded and the deck started at slide 1 of 9.", "Per-slide highlight, mobile swipe and PDF were not rechecked in this pass.", "The spec's crime-incident example (crime points per district) is not yet published."] }),
       ],
     },
     {
       id: "geographic-tour", title: "Guided geographic tour", status: "available",
       question: "Can an AI agent create a guided map tour of places in a set order?",
-      answer: "Yes, without the app. The tour is one link: an ordered list of stops with camera, caption, basemap and pause time. An agent builds it with the standalone tour-share module and returns a QR-safe link.",
+      answer: "Yes, without code. The tour is one link: a chatbot writes https://gismap.online/?tourOnly=1#tour=json:<URI-encoded JSON> with an ordered list of stops (name, caption, lat, lon, zoom, tilt, heading, basemap, seconds). Code-running agents can use the standalone tour-share module for a shorter, QR-safe link.",
       triggers: ["Create a tour of San Francisco landmarks", "Show me these locations in sequence", "Fly between these places with a caption at each"],
       inputTypes: ["Place names or addresses", "Coordinates", "Features of a public layer"],
       inputs: {
@@ -183,7 +198,7 @@ export function agentRecipes(links) {
         common.discover,
         { stage: "inspect", action: "Resolve every place to coordinates with a real geocoder or layer; ask when a name is ambiguous. Keep the user's order unless asked to reorder.", interfaces: ["external-adapter", "in-browser-api"], references: ["https://nominatim.openstreetmap.org/", "layers.list"] },
         { stage: "plan", action: "Write the chapters: title, caption, viewState {center:[lon,lat], zoom, tilt, heading}, basemapId, lingerSeconds, transitionMode.", interfaces: ["standalone-js"], references: ["tour-share.js#serializeEmbeddedTour"] },
-        { stage: "execute", action: "In a browser or Deno: import { createEmbeddedTourUrl } from \"https://gismap.online/js/tour-share.js\" and call it with { baseUrl, presentation, allowedBasemaps: new Set([...basemap ids]), tourOnly: true }. In Node, download the module file first.", interfaces: ["standalone-js"], references: ["tour-share.js#createEmbeddedTourUrl", "tour-share.js#decodeEmbeddedTour"] },
+        { stage: "execute", action: "Without code: write https://gismap.online/?tourOnly=1#tour=json:<encodeURIComponent(JSON)> with { title, autoplay, stops: [{ name, caption, lat, lon, zoom, tilt, heading, basemap, seconds }] }. With code (browser or Deno): import { createEmbeddedTourUrl } from \"https://gismap.online/js/tour-share.js\" for a compact, QR-safe link.", interfaces: ["declarative-url", "standalone-js"], references: ["#tour=json:<payload>", "tour-share.js#createEmbeddedTourUrl", "tour-share.js#readableTourPayload", "tour-share.js#decodeEmbeddedTour"] },
         { stage: "verify", action: "Decode the link (decodeEmbeddedTour) and compare every stop; with a browser, open it and step through each chapter's camera and basemap.", interfaces: ["standalone-js", "in-browser-api"], references: ["tour-share.js#decodeEmbeddedTour", "describe"] },
         { stage: "share", action: "Return the link; add &autoplay=1 to start playing. Longer tours export as .gmoatlas from the app.", interfaces: ["declarative-url"], references: ["#tour=<payload>", "?tourOnly=1", "&autoplay=1"] },
       ],
@@ -198,13 +213,14 @@ export function agentRecipes(links) {
       recovery: ["If the link exceeds 2,800 characters, shorten captions or split the tour, or export .gmoatlas.", "An unknown basemap id is dropped and the stop falls back to the current basemap; use ids from map-v1."],
       examples: [
         example({ title: "San Francisco landmarks", prompt: "Create a guided tour of Golden Gate Bridge, Palace of Fine Arts, Coit Tower, Ferry Building and Bay Bridge, on satellite imagery.", dataset: [SOURCES.osm, { label: "USGS The National Map orthoimagery", url: "https://basemap.nationalmap.gov/arcgis/rest/services/USGSImageryOnly/MapServer" }], url: links.sfTour, status: "rendered", checks: ["Coordinates from OpenStreetMap Nominatim on 2026-10-21.", "Opened headless on MapLibre: chapter 1 of 5 with its caption, camera and USGS aerial imagery; screenshot inspected. Stops 2–5 were checked by decoding the link, not by stepping through them."] }),
+        example({ title: "San Francisco landmarks, readable link", prompt: "Same tour, as a link a chatbot can write without code.", dataset: [SOURCES.osm], url: links.sfTourReadable, status: "rendered", checks: ["#tour=json: form; opened headless from this branch (local server): chapter 1 of 5 over USGS imagery (screenshot inspected).", "Longer than the compact link and not QR-safe."] }),
         example({ title: "Eight classic ballparks", prompt: "Make a 3D tour of the oldest major-league ballparks.", dataset: [SOURCES.mlb], url: links.ballparks, page: `${SITE}/examples/tours/classic-ballparks/`, status: "partial", checks: ["Opened headless: tour mode at Fenway Park (tilt 55, heading 40).", "Its stops ask for satellite, which the default MapLibre engine draws as a street map; open with ?engine=arcgis for imagery."] }),
       ],
     },
     {
       id: "field-tasks", title: "Location-based field tasks", status: "available",
       question: "Can an AI agent create a field inspection checklist for a place that someone can open on their phone?",
-      answer: "Yes. A field task link carries the location, instructions, up to ten steps and up to five features. The agent builds it with the standalone field-task-share module; the person in the field checks in, ticks off steps and sends back a report link. No account or server is involved.",
+      answer: "Yes, without code. A chatbot writes https://gismap.online/?workflow=tasks#fieldTask=json:<URI-encoded JSON> with the title, location, coordinates, notes and up to ten steps. The person in the field checks in, ticks off steps and sends back a report link. No account or server is involved.",
       triggers: ["Make a field inspection checklist for this park", "Create five tasks to do on site at this address", "Send someone to check these locations"],
       inputTypes: ["Address or coordinates", "Features of a public layer (by object ID)"],
       inputs: {
@@ -217,7 +233,7 @@ export function agentRecipes(links) {
         common.discover,
         { stage: "inspect", action: "Resolve the location to coordinates (or pick features by object ID from a real layer).", interfaces: ["external-adapter", "standalone-js"], references: ["https://nominatim.openstreetmap.org/", "<layer URL>/query"] },
         { stage: "plan", action: "Write the task: id, title, location, latitude, longitude, notes, steps [{ text }], optional features [{ layerUrl, objectId, latitude, longitude, label }]. Requests for more than five tasks become several packages ('… 1 of 2') with the same id prefix; never drop one.", interfaces: ["standalone-js"], references: ["field-task-share.js#serializeFieldTask", "field-task-share.js#FIELD_TASK_LIMITS"] },
-        { stage: "execute", action: "In a browser or Deno: import { createFieldTaskUrl } from \"https://gismap.online/js/field-task-share.js\" and call it with { baseUrl: \"https://gismap.online/\", task }. In Node, download the module and its share.js dependency first.", interfaces: ["standalone-js"], references: ["field-task-share.js#createFieldTaskUrl"] },
+        { stage: "execute", action: "Without code: write https://gismap.online/?workflow=tasks#fieldTask=json:<encodeURIComponent(JSON)> with { title, location, lat, lon, notes, steps: [\"…\"], features: [{ layerUrl, objectId, lat, lon, label }] }. With code: createFieldTaskUrl from \"https://gismap.online/js/field-task-share.js\" for a compact, QR-safe link.", interfaces: ["declarative-url", "standalone-js"], references: ["#fieldTask=json:<payload>", "field-task-share.js#createFieldTaskUrl", "field-task-share.js#readableFieldTaskPayload"] },
         { stage: "verify", action: "Decode the link (decodeFieldTask) and compare title, location and every step; with a browser, open it and confirm the task panel, map location and check-in button.", interfaces: ["standalone-js", "in-browser-api"], references: ["field-task-share.js#decodeFieldTask", "describe"] },
         { stage: "share", action: "Return the assignment link (QR-safe). The completed report comes back as a separate link made by the person in the field.", interfaces: ["declarative-url"], references: ["?workflow=tasks#fieldTask=<payload>"] },
       ],
@@ -232,6 +248,7 @@ export function agentRecipes(links) {
       recovery: ["If the link is too long, shorten notes and step text or split the package.", "Never fabricate a check-in, photo or completed report."],
       examples: [
         example({ title: "Mission Dolores Park inspection", prompt: "Create five inspection tasks for a city park: playground structures, damaged equipment photos, drinking fountains, pedestrian paths, litter and maintenance.", dataset: [SOURCES.osm], url: links.parkTask, status: "rendered", checks: ["Coordinates from OpenStreetMap Nominatim on 2026-10-21.", "Opened headless: the task panel showed the title, location, five steps and check-in; screenshot inspected.", "No check-in or report was made: those belong to a real field visit."] }),
+        example({ title: "Mission Dolores Park inspection, readable link", prompt: "Same task, as a link a chatbot can write without code.", dataset: [SOURCES.osm], url: links.parkTaskReadable, status: "rendered", checks: ["#fieldTask=json: form; opened headless from this branch (local server): task panel with five steps and check-in (screenshot inspected)."] }),
         example({ title: "Opening-day wayfinding check (with report)", prompt: "Send someone to check accessible entrances at the Philadelphia and Pittsburgh ballparks.", dataset: [SOURCES.mlb], url: links.openingDay, page: `${SITE}/examples/field-tasks/opening-day-wayfinding/`, status: "loaded", checks: ["Opened headless: task panel with both ballparks, steps and check-in."] }),
       ],
     },

@@ -133,3 +133,17 @@ test("the router and app wire assignments, picking and return links", async () =
   assert.match(app, /readFieldTaskHash\(location\.hash\)/);
   assert.match(app, /mobileWorkflowRouter\.openSharedTask\(shared, readFocus\(location\.hash\)\)/);
 });
+
+test("a hand-written json: field task decodes as an assignment, never a report", async () => {
+  const { decodeFieldTask, createFieldTaskUrl, readFieldTaskHash } = await import("../js/field-task-share.js");
+  const written = { title: "Park check", location: "Dolores Park", lat: 37.75972, lon: -122.42713, notes: "Check in first.", steps: ["Playground", { text: "Fountains" }], k: "r", checkIn: { lat: 1, lon: 1 } };
+  const url = `https://gismap.online/?workflow=tasks#fieldTask=json:${encodeURIComponent(JSON.stringify(written))}`;
+  const { kind, task } = decodeFieldTask(readFieldTaskHash(new URL(url).hash));
+  assert.equal(kind, "assign");
+  assert.deepEqual(task.steps.map((step) => step.text), ["Playground", "Fountains"]);
+  assert.deepEqual([task.latitude, task.longitude, task.checkIn], [37.75972, -122.42713, undefined]);
+  assert.throws(() => decodeFieldTask(`json:${encodeURIComponent(JSON.stringify({ title: "Too many", steps: Array(11).fill("x") }))}`), /at most 10 steps/);
+  const readable = createFieldTaskUrl({ baseUrl: "https://gismap.online/", task, readable: true });
+  assert.match(readable, /#fieldTask=json:%7B/);
+  assert.equal(decodeFieldTask(readFieldTaskHash(new URL(readable).hash)).task.title, "Park check");
+});
