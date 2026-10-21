@@ -115,3 +115,27 @@ export function spatialChartLayerSpecs({ chart, idPrefix, source, range = {}, vi
   });
 }
 
+
+const displayHeight = (meters) => (meters >= 1000 ? `${(meters / 1000).toLocaleString(undefined, { maximumFractionDigits: 1 })} km` : `${Math.round(meters).toLocaleString()} m`);
+
+/**
+ * What a chart's legend shows: { heights: [{ value, label, ratio }], slots: [{ label, color }], usesRendererColors }.
+ * `values` are the height field's values on the drawn features. Heights are display metres.
+ */
+export function spatialChartLegend(chart, values = []) {
+  if (!chart) return null;
+  const numbers = values.map(Number).filter((value) => Number.isFinite(value) && value > 0).sort((a, b) => a - b);
+  const meters = (value) => (chart.mode === "attribute-extrusion" ? value * chart.height.scale : Math.min(chart.height.slotMeters, Math.max(chart.height.thicknessMeters, value * chart.height.scale)));
+  const picks = numbers.length ? [...new Set([numbers.at(-1), numbers[Math.floor((numbers.length - 1) / 2)], numbers[0]])] : [];
+  const top = picks.length ? meters(picks[0]) || 1 : 1;
+  const valueText = (value) => value.toLocaleString(undefined, { maximumFractionDigits: Math.abs(value) >= 100 ? 0 : Math.abs(value) >= 1 ? 2 : 4 });
+  const heights = chart.height.field ? picks.map((value) => ({ value, label: `${valueText(value)} → ${displayHeight(meters(value))}`, ratio: Math.max(0.08, meters(value) / top) })) : [];
+  const usesRendererColors = chart.mode === "attribute-extrusion" || chart.color.strategy === "original";
+  // The highest slot is drawn on top, so the list reads top-down like the stack.
+  const slots = chart.mode === "attribute-extrusion" ? [] : chart.groups.map((value, index) => ({
+    label: `${value === "" ? "No value" : value}`,
+    color: usesRendererColors ? null : spatialChartColor(index, chart.groups.length),
+    base: index * (chart.height.slotMeters + chart.height.gapMeters),
+  })).reverse();
+  return { heights, slots, usesRendererColors };
+}

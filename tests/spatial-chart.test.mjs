@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { normalizeSpatialChart, spatialChartAxis, spatialChartLayerSpecs } from "../js/spatial-chart.js";
+import { normalizeSpatialChart, spatialChartAxis, spatialChartLayerSpecs, spatialChartLegend, spatialChartColor } from "../js/spatial-chart.js";
 import { generateSpatialChartBrief } from "../js/briefing-spatial-chart.js";
 import { normalizeBriefing } from "../js/briefing-document.js";
 import { validateMapSpec } from "../js/map-spec.js";
@@ -90,4 +90,32 @@ test("magnitude slabs are capped at their slot so they cannot cover the next gro
   assert.equal(height[2][0], "min");
   assert.equal(height[2][1], 400);
   assert.match(spatialChartAxis(chart).detail, /capped at the 400 m slot/);
+});
+
+test("the legend shows real values against display heights, and strata swatches top-first", () => {
+  const fields = [{ name:"YEAR_", type:"integer" }, { name:"RATE", type:"double" }];
+  const extrusion = normalizeSpatialChart({ type:"spatial-3d-chart", mode:"attribute-extrusion", height:{ field:"RATE", scale:1000 } }, { fields, geometryType:"polygon" });
+  const key = spatialChartLegend(extrusion, [12.5, null, 0, 3, 40, "x"]);
+  assert.deepEqual(key.heights.map((item) => item.label), ["40 → 40 km", "12.5 → 12.5 km", "3 → 3 km"]);
+  assert.equal(key.heights[0].ratio, 1);
+  assert.equal(key.usesRendererColors, true, "extrusion keeps the style's colours, so the style legend stays");
+  assert.deepEqual(key.slots, []);
+  const strata = normalizeSpatialChart({ type:"spatial-3d-chart", mode:"temporal-strata", groupBy:"YEAR_", height:{ slotMeters:400, gapMeters:100 } }, { fields, geometryType:"polygon", groupValues:[2019, 2021, 2020] });
+  const strataKey = spatialChartLegend(strata);
+  assert.equal(strataKey.usesRendererColors, false, "strata draw their own colours, replacing the style legend");
+  assert.deepEqual(strataKey.slots.map((slot) => slot.label), ["2021", "2020", "2019"]);
+  assert.equal(strataKey.slots[0].color, spatialChartColor(2, 3));
+  assert.equal(strataKey.slots[0].base, 1000);
+  assert.deepEqual(strataKey.heights, []);
+  const original = normalizeSpatialChart({ type:"spatial-3d-chart", mode:"stacked-footprints", groupBy:"YEAR_", color:{ strategy:"original" }, height:{ field:"RATE", scale:10, slotMeters:400 } }, { fields, geometryType:"polygon", groupValues:[2019] });
+  const capped = spatialChartLegend(original, [100]);
+  assert.equal(capped.usesRendererColors, true);
+  assert.equal(capped.slots[0].color, null);
+  assert.equal(capped.heights[0].label, "100 → 400 m", "slab thickness is capped at the slot");
+});
+
+test("height key values are rounded for reading", () => {
+  const fields = [{ name:"ACRES", type:"double" }];
+  const chart = normalizeSpatialChart({ type:"spatial-3d-chart", mode:"attribute-extrusion", height:{ field:"ACRES", scale:0.05 } }, { fields, geometryType:"polygon" });
+  assert.deepEqual(spatialChartLegend(chart, [16389.54, 5062.198, 1.23456]).heights.map((item) => item.label), ["16,390 → 819 m", "5,062 → 253 m", "1.23 → 0 m"]);
 });

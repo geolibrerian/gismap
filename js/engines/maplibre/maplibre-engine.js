@@ -29,7 +29,7 @@ import { MAX_FEATURES, describeArcGIS, featureServiceLayers, fetchFeatures, fetc
 import { OBJECT_ID_FIELD, boundsIntersect, boundsOf, expandBounds, geometryTypeOf, inferFields, normalizeFeatures, regroupPolygon, representativePoint } from "./geojson.js?v=0.42.0";
 import { loadMaplibre } from "./maplibre-loader.js?v=0.39.0";
 import { HILLSHADE_LAYER_ID, HILLSHADE_SOURCE_ID, MAPLIBRE_GROUNDS, TERRAIN_SOURCE_ID, hillshadeLayer, maplibreGround, terrainSource } from "./terrain.js?v=0.43.0";
-import { normalizeSpatialChart, spatialChartAxis, spatialChartLayerSpecs } from "../../spatial-chart.js?v=0.1.1";
+import { normalizeSpatialChart, spatialChartAxis, spatialChartLayerSpecs, spatialChartLegend } from "../../spatial-chart.js?v=0.1.1";
 import { SCENE3D_TYPES, normalizeScene3d, scene3dTypeFor } from "../../scene3d.js?v=0.1.0";
 import { ThreeHost, loadThree } from "../three/three-host.js?v=0.1.0";
 
@@ -1416,7 +1416,7 @@ export class MaplibreEngine {
         host.append(section);
         continue;
       }
-      const legend = legendForLayer(record, this.#dataColor());
+      let legend = legendForLayer(record, this.#dataColor());
       const axis = spatialChartAxis(record.spatialChart);
       if (axis) {
         const field = document.createElement("p");
@@ -1427,6 +1427,33 @@ export class MaplibreEngine {
         note.className = "maplibre-legend__note";
         note.textContent = axis.detail;
         section.append(note);
+        const chart = record.spatialChart;
+        const key = spatialChartLegend(chart, chart.height.field ? this.#visibleFeatures(record).map((feature) => feature.properties?.[chart.height.field]) : []);
+        const heading = (text) => { const element = document.createElement("p"); element.className = "maplibre-legend__field"; element.textContent = text; section.append(element); };
+        const row = (swatch, text) => { const entry = document.createElement("div"); entry.className = "maplibre-legend__entry"; const label = document.createElement("span"); label.textContent = text; entry.append(swatch, label); section.append(entry); };
+        if (key.heights.length) {
+          heading(chart.mode === "attribute-extrusion" ? "Height key" : "Slab thickness");
+          for (const item of key.heights) {
+            const bar = document.createElement("span");
+            bar.className = "maplibre-legend__height";
+            bar.setAttribute("aria-hidden", "true");
+            bar.style.height = `${Math.round(4 + item.ratio * 20)}px`;
+            row(bar, item.label);
+          }
+        }
+        if (key.slots.length) {
+          heading(`Stacked by ${chart.groupBy}, top slot first`);
+          for (const slot of key.slots) {
+            const swatch = document.createElement("span");
+            swatch.className = "maplibre-legend__swatch maplibre-legend__swatch--polygon";
+            swatch.setAttribute("aria-hidden", "true");
+            swatch.style.backgroundColor = slot.color || "transparent";
+            if (!slot.color) swatch.style.borderStyle = "dashed";
+            row(swatch, slot.label);
+          }
+        }
+        // Strata drawn in their own colours: the base style's classes are not on the map.
+        if (!key.usesRendererColors) legend = { ...legend, field: null, note: null, entries: [] };
       }
       if (legend.field) {
         const field = document.createElement("p");

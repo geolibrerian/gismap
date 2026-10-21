@@ -2739,3 +2739,4 @@ body.briefing-v2 .briefing-groups { display:none; }
 .briefing-data-table__toggle { border:0!important; background:none!important; padding:2px 0!important; font-size:12px!important; }
 .briefing-data-table__toggle small { color:var(--muted); }
 body.briefing-v2 .briefing-data-dock :is(.briefing-select__add-slides, .briefing-select__generate) { display:none; }
+.maplibre-legend__height { display:inline-block; flex:0 0 auto; width:12px; align-self:flex-end; border-radius:2px 2px 0 0; background:var(--green-2,var(--green)); opacity:.75; }
