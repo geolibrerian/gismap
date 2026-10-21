@@ -1,4 +1,4 @@
-> **Status:** 2026-10-21. Phase 0 and phase 1 shipped on `codex/data-driven-briefs`. Phase 2 is available behind `?briefingLayout=2` (desktop only): Deck in the sidebar, Data in a bottom dock, Briefing inspector as a right-panel tab. Phases 3–4 are not started.
+> **Status:** 2026-10-21. Phases 0–3 shipped on `codex/data-driven-briefs`. The new layout (Deck, Data dock, Briefing inspector) is the desktop default; `?briefingLayout=1` restores the previous layout. Phase 4 (mobile, keyboard, accessibility) is not started.
 
 # Briefing authoring redesign
 

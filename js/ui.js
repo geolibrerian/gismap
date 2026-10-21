@@ -99,8 +99,8 @@ export class UIController {
     this.briefingFolds = { records: true, context: false };
     // Briefing has two tabs: Features (investigate) and Slides (author the presentation).
     this.briefingTab = "features";
-    // ?briefingLayout=2 (desktop): the Deck in the sidebar, Data docked at the bottom, an Inspector on the right.
-    this.briefingV2 = new URLSearchParams(location.search).get("briefingLayout") === "2";
+    // Desktop Briefing: the Deck in the sidebar, Data docked at the bottom, an Inspector on the right (?briefingLayout=1: the previous layout).
+    this.briefingV2 = new URLSearchParams(location.search).get("briefingLayout") !== "1";
     this.briefingInspectorOpen = false;
     // The Map assistant: a chat with the configured AI model that builds maps, briefings, tours and field tasks.
     this.assistant = new MapAssistantPanel({
@@ -3843,7 +3843,7 @@ export class UIController {
     if (context && this.mobileMedia.matches) this.#foldBriefingSheet(root, context, selected);
     else if (context) document.querySelector("#briefing-context-host")?.replaceChildren(context);
     if (selected) void this.#loadBriefingContext(root, context, selected, layer);
-    if (v2) this.#layoutBriefingV2(root, selected, layer);
+    if (v2) this.#layoutBriefingV2(root, selected, layer, presentation, fields);
   }
 
   #briefingV2Active() {
@@ -3851,19 +3851,18 @@ export class UIController {
   }
 
   /** Data pieces move to the bottom dock and the feature context to the inspector; their bindings come with them. */
-  #layoutBriefingV2(root, selected, layer) {
+  #layoutBriefingV2(root, selected, layer, presentation, fields) {
     const dock = document.querySelector("#briefing-data-dock");
     const body = dock?.querySelector(".briefing-data-dock__body");
     if (!dock || !body) return;
-    const records = root.querySelector(".briefing-records-fold") || root.querySelector(".briefing-records");
-    const scope = root.querySelector(".briefing-records-fold") ? null : root.querySelector(".briefing-scope");
+    const scope = root.querySelector(".briefing-scope");
+    const records = this.#briefingDataTable(root, presentation, layer, fields);
     const filters = document.createElement("div");
     filters.className = "briefing-data-dock__filters";
     filters.append(...[root.querySelector(".briefing-search"), root.querySelector(".briefing-select")].filter(Boolean));
     const list = document.createElement("div");
     list.className = "briefing-data-dock__records";
     list.append(...[scope, records].filter(Boolean));
-    list.querySelector(".briefing-records-fold")?.setAttribute("open", "");
     body.replaceChildren(filters, list);
     dock.querySelector("[data-briefing-dock-status]").textContent = this.#briefingStatus();
     if (dock.hidden) {
@@ -3885,6 +3884,94 @@ export class UIController {
       this.briefingInspectorFeature = null;
       document.querySelector("#briefing-context-host")?.replaceChildren();
     }
+  }
+
+  /** The Data dock's feature table: columns, sorting, inclusion, and group rows that make slides. */
+  #briefingDataTable(root, presentation, layer, fields) {
+    const state = this.presentationState;
+    const idField = layer.objectIdField;
+    const labelField = state.roles?.title || fields.text[0]?.name;
+    const kind = (field) => fieldKind(field);
+    // A few informative columns: numbers and dates first, never IDs or geometry measures.
+    const columns = fields.fields.filter((field) => field.name !== labelField && field.name !== state.groupField && !isRoutineField(field, { idField }))
+      .sort((a, b) => (["number", "date"].includes(kind(b)) ? 1 : 0) - (["number", "date"].includes(kind(a)) ? 1 : 0)).slice(0, 3);
+    const limit = 400;
+    const rows = state.visibleRecords.slice(0, limit);
+    const useAll = state.briefingUseAll === true;
+    const cell = (record, field) => escapeHtml(formatAttributeValue(record.attributes?.[field.name], field, field.name));
+    const sortMark = (name) => (state.sortField === name ? (state.sortDirection === "desc" ? " ↓" : " ↑") : "");
+    const rowHtml = (record) => {
+      const id = featureId(record, idField);
+      const included = useAll || state.selectedIds.has(id);
+      return `<tr data-dt-row="${escapeHtml(id)}"${record === state.selected ? ' class="is-selected" aria-selected="true"' : ""}><td><input type="checkbox" data-dt-include="${escapeHtml(id)}" aria-label="Include ${escapeHtml(this.#recordLabel(record, fields))}"${included ? " checked" : ""}${useAll ? " disabled" : ""}></td><th scope="row">${escapeHtml(this.#recordLabel(record, fields))}</th>${columns.map((field) => `<td>${cell(record, field)}</td>`).join("")}<td><button type="button" data-dt-slide="${escapeHtml(id)}" title="Add a slide for this feature">+ Slide</button></td></tr>`;
+    };
+    let body;
+    if (state.groupField) {
+      const groupLabel = fields.fields.find((field) => field.name === state.groupField)?.alias || state.groupField;
+      const groups = new Map();
+      // Counts and group actions cover every match; only the first rows are drawn.
+      const listed = new Set(rows);
+      state.visibleRecords.forEach((record) => { const value = record.attributes?.[state.groupField]; const key = value == null || value === "" ? "" : String(value); if (!groups.has(key)) groups.set(key, []); groups.get(key).push(record); });
+      state.collapsedGroups ||= new Set();
+      body = [...groups.entries()].sort((a, b) => b[1].length - a[1].length).map(([value, members]) => {
+        const collapsed = state.collapsedGroups.has(value);
+        return `<tbody data-dt-group="${escapeHtml(value)}"><tr class="briefing-data-table__group"><td colspan="${columns.length + 2}"><button type="button" class="briefing-data-table__toggle" data-dt-group-toggle="${escapeHtml(value)}" aria-expanded="${!collapsed}">${collapsed ? "▸" : "▾"} ${escapeHtml(groupLabel)}: <strong>${escapeHtml(value || "No value")}</strong> <small>${members.length.toLocaleString()}</small></button></td><td><button type="button" data-dt-group-include="${escapeHtml(value)}" title="Include all ${members.length} in the briefing">Include all</button> <button type="button" data-dt-group-slide="${escapeHtml(value)}" title="One map slide showing only this group">+ Slide</button></td></tr>${collapsed ? "" : members.filter((record) => listed.has(record)).map(rowHtml).join("")}</tbody>`;
+      }).join("");
+    } else body = `<tbody>${rows.map(rowHtml).join("")}</tbody>`;
+    const wrap = document.createElement("div");
+    wrap.className = "briefing-data-table";
+    const groupCount = state.groupField ? new Set(state.visibleRecords.map((record) => String(record.attributes?.[state.groupField] ?? ""))).size : 0;
+    wrap.innerHTML = `${state.groupField ? `<div class="briefing-data-table__toolbar"><span>${groupCount.toLocaleString()} groups</span><button type="button" data-dt-series title="One filtered map slide per value, from the matching features">One slide per group</button></div>` : ""}
+      <table><thead><tr><th scope="col"><span class="sr-only">Include</span></th><th scope="col"><button type="button" data-dt-sort="${escapeHtml(labelField || "")}">${escapeHtml(fields.fields.find((field) => field.name === labelField)?.alias || "Feature")}${sortMark(labelField)}</button></th>${columns.map((field) => `<th scope="col"><button type="button" data-dt-sort="${escapeHtml(field.name)}">${escapeHtml(field.alias || field.name)}${sortMark(field.name)}</button></th>`).join("")}<th scope="col"><span class="sr-only">Actions</span></th></tr></thead>${body}</table>
+      ${state.visibleRecords.length > limit ? `<p class="form-note">First ${limit} of ${state.visibleRecords.length.toLocaleString()} listed; filters and group actions use all of them.</p>` : ""}${state.visibleRecords.length ? "" : '<p class="form-note">No loaded features match.</p>'}`;
+    const rerender = () => this.#renderBriefingWorkspace(root, presentation, layer, fields);
+    const recordFor = (id) => state.visibleRecords.find((record) => featureId(record, idField) === id);
+    const groupMembers = (value) => state.visibleRecords.filter((record) => String(record.attributes?.[state.groupField] ?? "") === value);
+    wrap.addEventListener("change", (event) => {
+      const input = event.target.closest("[data-dt-include]");
+      if (!input) return;
+      input.checked ? state.selectedIds.add(input.dataset.dtInclude) : state.selectedIds.delete(input.dataset.dtInclude);
+      this.#saveBriefingSelection();
+      rerender();
+    });
+    wrap.addEventListener("click", async (event) => {
+      const target = event.target;
+      const sort = target.closest("[data-dt-sort]");
+      if (sort) {
+        const name = sort.dataset.dtSort;
+        state.sortDirection = state.sortField === name && state.sortDirection === "asc" ? "desc" : "asc";
+        state.sortField = name;
+        this.#filterPresentationRecords();
+        return;
+      }
+      const toggle = target.closest("[data-dt-group-toggle]");
+      if (toggle) { const value = toggle.dataset.dtGroupToggle; state.collapsedGroups.has(value) ? state.collapsedGroups.delete(value) : state.collapsedGroups.add(value); rerender(); return; }
+      const include = target.closest("[data-dt-group-include]");
+      if (include) {
+        const members = groupMembers(include.dataset.dtGroupInclude);
+        state.briefingUseAll = false;
+        members.forEach((record) => { const id = featureId(record, idField); if (id) state.selectedIds.add(id); });
+        this.#saveBriefingSelection();
+        this.toast(`Included ${members.length} feature${members.length === 1 ? "" : "s"}.`);
+        rerender();
+        return;
+      }
+      const makeSlides = (records, done) => {
+        try { done(this.briefingSlides.addFilterSeries(state.groupField, records)); this.#openBriefingInspector(); } catch (error) { this.error(error.message); }
+      };
+      const groupSlide = target.closest("[data-dt-group-slide]");
+      if (groupSlide) { makeSlides(groupMembers(groupSlide.dataset.dtGroupSlide), () => this.toast("Added a slide for this group.")); return; }
+      if (target.closest("[data-dt-series]")) { makeSlides(state.visibleRecords, (count) => this.toast(`Added ${count} slides, one per value.`)); return; }
+      const slide = target.closest("[data-dt-slide]");
+      if (slide) { const record = recordFor(slide.dataset.dtSlide); if (record) { this.briefingSlides.addFeatureSlide(record); this.#openBriefingInspector(); } return; }
+      if (target.closest("input, button")) return;
+      const row = target.closest("[data-dt-row]");
+      const record = row && recordFor(row.dataset.dtRow);
+      if (!record) return;
+      this.#selectPresentationResult(record);
+      if (record.geometry) await this.mapController.setView({ geometry: record.geometry, zoom: this.mapController.getViewState().zoom }, { animate: false });
+    });
+    return wrap;
   }
 
   #openBriefingInspector() {

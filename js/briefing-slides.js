@@ -239,7 +239,7 @@ export class BriefingSlides {
     const slide = createSlide("feature", { title: this.api.data().label(record), featureId: id, fields: this.#defaultFacts(record) });
     this.selectedSlideId = slide.id;
     this.#save(addSlide(briefing, slide));
-    this.api.notify?.("Slide added. Open the Slides tab to edit it.");
+    this.api.notify?.("Slide added.");
   }
 
   /** Included features that do not have a slide yet (the Features tab offers to add them). */
@@ -270,6 +270,15 @@ export class BriefingSlides {
     this.#save(briefing);
     this.api.notify?.(added ? `Added ${added} feature slide${added === 1 ? "" : "s"}.` : "Every included feature already has a slide.");
     return added;
+  }
+
+  /** One filtered map slide per value of `field` among `records` (the Data table's groups); returns how many. */
+  addFilterSeries(field, records) {
+    const data = this.api.data();
+    const { briefing, preview } = generateFilterSeries({ briefing: this.briefing, field, fields: data.fields?.fields || [], records, layerRef: briefingLayerRef(this.api.mapController, data.layer), camera: this.#currentCamera() });
+    this.selectedSlideId = briefing.slides[this.briefing.slides.length]?.id || this.selectedSlideId;
+    this.#save(briefing);
+    return preview.subsets.length;
   }
 
   #addTemplate(template) {
@@ -450,36 +459,59 @@ export class BriefingSlides {
     this.#bind(scope);
   }
 
-  /** Moves the template forms and the slide editor to the inspector; returns a scope that searches both. */
+  /**
+   * One "New slides" block in the deck (blank slides, slides from the map or
+   * included features, and the data templates); the template forms, now plain
+   * sections, and the slide editor go to the inspector. Returns a scope that searches both.
+   */
   #splitInspector(container, inspector) {
-    const templates = [...container.querySelectorAll(".briefing-series-preview")];
-    const labels = ["Filter series", "3D chart", "Timeline", "Grid atlas"];
-    const row = document.createElement("div");
-    row.className = "briefing-slides__templates";
-    row.innerHTML = `<span>New slides from data</span>${templates.map((_, index) => `<button type="button" data-template-open="${index}" aria-pressed="${this.openTemplate === index}">${labels[index] || "Template"}</button>`).join("")}`;
-    container.querySelector(".briefing-slides__add")?.before(row);
+    const forms = [...container.querySelectorAll(".briefing-series-preview")].map((details) => {
+      const section = document.createElement("section");
+      section.className = "briefing-series-preview briefing-template-form";
+      const heading = document.createElement("h3");
+      heading.textContent = details.querySelector("summary")?.textContent || "Template";
+      section.append(heading, ...[...details.childNodes].filter((node) => node.nodeName !== "SUMMARY"));
+      details.replaceWith(section);
+      return section;
+    });
+    const labels = ["One slide per value", "3D chart", "Timeline", "Grid atlas"];
+    const block = document.createElement("section");
+    block.className = "briefing-new-slides";
+    block.setAttribute("aria-label", "New slides");
+    block.innerHTML = `<h3>New slides</h3>
+      <div class="briefing-new-slides__row" data-new-quick></div>
+      <div class="briefing-new-slides__row"><span>Blank</span>${SLIDE_TEMPLATES.filter((template) => template.id !== "feature").map((template) => `<button type="button" data-new-blank="${template.id}" title="${escapeHtml(template.description)}">${escapeHtml(template.label)}</button>`).join("")}</div>
+      <div class="briefing-new-slides__row briefing-slides__templates"><span>From data</span>${forms.map((_, index) => `<button type="button" data-template-open="${index}" aria-pressed="${this.openTemplate === index}">${labels[index] || "Template"}</button>`).join("")}</div>`;
+    // "Make from the map" and "Add included features" join the block; the old select goes.
+    block.querySelector("[data-new-quick]").append(...[container.querySelector(".briefing-slides__auto"), container.querySelector("[data-slides-add-included]")].filter(Boolean));
+    container.querySelector(".briefing-slides__add")?.remove();
+    container.querySelector(".briefing-slides__authoring")?.prepend(block);
     const editor = container.querySelector("[data-slide-editor]");
-    inspector.replaceChildren(...templates, editor);
-    templates.forEach((details, index) => { details.hidden = this.openTemplate !== index; details.open = true; });
-    if (Number.isInteger(this.openTemplate) && templates[this.openTemplate]) {
+    inspector.replaceChildren(...forms, editor);
+    forms.forEach((form, index) => { form.hidden = this.openTemplate !== index; });
+    if (Number.isInteger(this.openTemplate) && forms[this.openTemplate]) {
       const close = document.createElement("button");
       close.type = "button";
       close.className = "briefing-link-button";
       close.textContent = "Close template";
       close.addEventListener("click", () => { this.openTemplate = null; this.render(); });
-      templates[this.openTemplate].prepend(close);
+      forms[this.openTemplate].querySelector("h3").after(close);
     }
-    row.querySelectorAll("[data-template-open]").forEach((button) => button.addEventListener("click", () => {
+    block.querySelectorAll("[data-new-blank]").forEach((button) => button.addEventListener("click", () => {
+      this.#addTemplate(button.dataset.newBlank);
+      this.api.openInspector?.();
+    }));
+    block.querySelectorAll("[data-template-open]").forEach((button) => button.addEventListener("click", () => {
       const index = Number(button.dataset.templateOpen);
       this.openTemplate = this.openTemplate === index ? null : index;
       this.render();
       this.api.openInspector?.();
-      inspector.querySelector(".briefing-series-preview:not([hidden])")?.scrollIntoView({ block: "start" });
+      inspector.querySelector(".briefing-template-form:not([hidden])")?.scrollIntoView({ block: "start" });
     }));
     // Choosing a slide shows its settings in the inspector.
     if (!container.dataset.inspectorBound) {
       container.dataset.inspectorBound = "true";
-      container.addEventListener("click", (event) => { if (event.target.closest("[data-slide-select], [data-slide-add], [data-slide-duplicate]")) this.api.openInspector?.(); });
+      container.addEventListener("click", (event) => { if (event.target.closest("[data-slide-select], [data-slide-duplicate]")) this.api.openInspector?.(); });
     }
     return {
       querySelector: (selector) => container.querySelector(selector) || inspector.querySelector(selector),
