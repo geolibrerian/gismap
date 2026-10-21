@@ -1,0 +1,231 @@
+{
+  "$schema": "https://gismap.online/schemas/agent-recipe-v1.schema.json",
+  "schemaVersion": 1,
+  "id": "vibe-map",
+  "title": "Vibe-matched map and presentation skin",
+  "status": "available",
+  "question": "Can an AI agent make a map whose look matches the subject, like a Halloween map of California colleges?",
+  "answer": "Yes, within the preset skins. The agent picks an interface skin, draws the basemap in the skin's colors (basemap \"skin\" on MapLibre) and colors the data with its own renderer, then shares one link that keeps all three.",
+  "triggers": [
+    "Make the map feel like Halloween in California",
+    "Theme this map in team colors",
+    "Give this forest map an autumn look"
+  ],
+  "inputTypes": [
+    "Any styled layer"
+  ],
+  "inputs": {
+    "required": [
+      {
+        "name": "source",
+        "description": "The data layer."
+      },
+      {
+        "name": "theme",
+        "description": "Subject, place, season or mood."
+      }
+    ],
+    "optional": [
+      {
+        "name": "colors",
+        "description": "Preferred colors; say whether they are official, user-provided or merely inspired."
+      },
+      {
+        "name": "parts",
+        "description": "Apply skin, basemap theme and data colors together or separately."
+      }
+    ]
+  },
+  "capabilities": [
+    "basemap-themes",
+    "renderer-spec"
+  ],
+  "engines": [
+    "maplibre",
+    "arcgis"
+  ],
+  "steps": [
+    {
+      "stage": "discover",
+      "action": "Read llms.txt, this recipe and api/capabilities.json; note the engine and execution environment you actually have.",
+      "interfaces": [
+        "declarative-url"
+      ],
+      "references": [
+        "https://gismap.online/llms.txt",
+        "https://gismap.online/api/capabilities.json",
+        "https://gismap.online/api/manifest.json"
+      ]
+    },
+    {
+      "stage": "inspect",
+      "action": "Read the source metadata: geometry type, field names and types, spatial reference, extent, sentinels and query support. Query real values before filtering; never invent fields.",
+      "interfaces": [
+        "declarative-url",
+        "standalone-js",
+        "in-browser-api"
+      ],
+      "references": [
+        "<layer URL>?f=pjson",
+        "sources.inspect",
+        "sources.detectSentinels",
+        "layers.metadata"
+      ]
+    },
+    {
+      "stage": "plan",
+      "action": "Write a semantic palette (background, land, water, roads, labels, highlights, data colors, panel accent), then map it onto: a preset skin (map-v1 skin), the skin basemap, and the data renderer's colors. Check text and data contrast.",
+      "interfaces": [
+        "declarative-url"
+      ],
+      "references": [
+        "https://gismap.online/schemas/map-v1.schema.json",
+        "map-v1 skin",
+        "map-v1 basemap: skin"
+      ]
+    },
+    {
+      "stage": "validate",
+      "action": "Validate the spec; an unknown skin or basemap is reported.",
+      "interfaces": [
+        "standalone-js",
+        "in-browser-api"
+      ],
+      "references": [
+        "mapSpec.validate"
+      ]
+    },
+    {
+      "stage": "execute",
+      "action": "Write the #map=json: link with skin, basemap \"skin\" and the renderer colors.",
+      "interfaces": [
+        "declarative-url",
+        "standalone-js"
+      ],
+      "references": [
+        "mapSpec.createLink"
+      ]
+    },
+    {
+      "stage": "verify",
+      "action": "Open the link: skin applied to panels, basemap drawn in skin colors (MapLibre), symbols in the requested colors, labels readable.",
+      "interfaces": [
+        "in-browser-api"
+      ],
+      "references": [
+        "describe",
+        "mapSpec.fromCurrent"
+      ]
+    },
+    {
+      "stage": "share",
+      "action": "Return the link; say which palette parts were approximated by a preset.",
+      "interfaces": [
+        "declarative-url"
+      ],
+      "references": [
+        "mapSpec.createLink"
+      ]
+    }
+  ],
+  "artifact": {
+    "type": "map",
+    "schema": "https://gismap.online/schemas/map-v1.schema.json",
+    "structure": "map-v1 with skin, basemap (often \"skin\") and renderer colors."
+  },
+  "outputs": [
+    {
+      "format": "Themed interactive map link",
+      "interface": "declarative-url",
+      "interactive": true,
+      "reference": "mapSpec.createLink"
+    },
+    {
+      "format": "Project file with custom colors",
+      "interface": "external-adapter",
+      "interactive": true,
+      "notes": "Custom skin and basemap palettes made in the app's skin editor are saved in projects but not in links."
+    }
+  ],
+  "verification": [
+    "Skin applied",
+    "Basemap themed where supported (MapLibre skin basemap)",
+    "Data colors and legend match",
+    "Labels and data readable",
+    "Theme persists on reopening",
+    "Unsupported parts reported"
+  ],
+  "limitations": [
+    "Links carry only the 12 preset skins; exact custom panel and basemap colors are not portable yet.",
+    "The ArcGIS engine draws the skin basemap as light or dark gray.",
+    "Raster basemaps (satellite, hybrid) cannot be recolored.",
+    "Map labels are not configurable in map-v1.",
+    "Category legends show coded values; RendererSpec categories have no labels."
+  ],
+  "recovery": [
+    "If a requested color cannot be matched, choose the closest preset skin and state the difference.",
+    "On ArcGIS, switch to MapLibre for a themed basemap or accept the gray canvas."
+  ],
+  "examples": [
+    {
+      "checkedOn": "2026-10-21",
+      "checkedVersion": "0.53.0",
+      "title": "Halloween California colleges",
+      "prompt": "Create a Halloween-themed map of California colleges: midnight purple background, pumpkin orange accents, amber college symbols, green highlights, and a matching skin.",
+      "dataset": [
+        {
+          "label": "Colleges and Universities (HIFLD / IPEDS)",
+          "url": "https://services2.arcgis.com/FiaPA4ga0iQKduv3/arcgis/rest/services/Colleges_and_Universities_View/FeatureServer/0"
+        }
+      ],
+      "url": "https://gismap.online/#map=json:%7B%22version%22%3A1%2C%22title%22%3A%22California%20four-year%20colleges%2C%20Halloween%20edition%22%2C%22basemap%22%3A%22skin%22%2C%22skin%22%3A%22velvet-orbit%22%2C%22camera%22%3A%7B%22center%22%3A%5B-120.2%2C37.4%5D%2C%22zoom%22%3A5.4%7D%2C%22legend%22%3Atrue%2C%22layers%22%3A%5B%7B%22url%22%3A%22https%3A%2F%2Fservices2.arcgis.com%2FFiaPA4ga0iQKduv3%2Farcgis%2Frest%2Fservices%2FColleges_and_Universities_View%2FFeatureServer%2F0%22%2C%22type%22%3A%22feature%22%2C%22title%22%3A%22Four-year%20colleges%20and%20universities%22%2C%22where%22%3A%22STABBR%20%3D%20'CA'%20AND%20ICLEVEL%20%3D%201%22%2C%22renderer%22%3A%7B%22type%22%3A%22categories%22%2C%22field%22%3A%22CONTROL%22%2C%22colors%22%3A%7B%221%22%3A%22%23ffb000%22%2C%222%22%3A%22%23ff7518%22%2C%223%22%3A%22%237cfc00%22%7D%7D%7D%5D%7D",
+      "spec": {
+        "version": 1,
+        "title": "California four-year colleges, Halloween edition",
+        "basemap": "skin",
+        "skin": "velvet-orbit",
+        "camera": {
+          "center": [
+            -120.2,
+            37.4
+          ],
+          "zoom": 5.4
+        },
+        "legend": true,
+        "layers": [
+          {
+            "url": "https://services2.arcgis.com/FiaPA4ga0iQKduv3/arcgis/rest/services/Colleges_and_Universities_View/FeatureServer/0",
+            "type": "feature",
+            "title": "Four-year colleges and universities",
+            "where": "STABBR = 'CA' AND ICLEVEL = 1",
+            "renderer": {
+              "type": "categories",
+              "field": "CONTROL",
+              "colors": {
+                "1": "#ffb000",
+                "2": "#ff7518",
+                "3": "#7cfc00"
+              }
+            }
+          }
+        ]
+      },
+      "status": "rendered",
+      "checks": [
+        "Opened headless on MapLibre: 288 four-year colleges loaded; Velvet Orbit skin and the midnight-purple skin basemap (applied a few seconds after load); amber, pumpkin and green symbols by CONTROL; screenshot inspected.",
+        "The legend lists the coded values (1 Public, 2 Private not-for-profit, 3 Private for-profit) rather than their names.",
+        "Midnight purple and pumpkin orange come from the preset skin; exact custom colors and green label highlights are not expressible in links."
+      ]
+    }
+  ],
+  "lastTestedVersion": "0.53.0",
+  "resultStatuses": [
+    "prepared",
+    "validated",
+    "loaded",
+    "rendered",
+    "verified",
+    "partial",
+    "failed"
+  ]
+}

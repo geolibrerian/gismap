@@ -80,6 +80,16 @@ export async function smokeLlms(base, { matchLocal = false, fetcher = fetch } = 
   assert.equal(new URL(alias.response.headers.get('location') || '', origin).href, new URL('/llms.txt', origin).href, 'The alias must point to the canonical endpoint on the same origin');
   const missing = await request('/__gismap_nonexistent_documentation_smoke_test__.txt');
   assert.equal(missing.response.status, 404, 'Missing documents must return a real 404');
+  // Edge bot rules act on the user agent before robots.txt. Search and user-initiated
+  // readers must get through; training crawlers are reported, since blocking them may be deliberate.
+  // A spoofed user agent cannot prove what a verified crawler (checked by IP) receives.
+  const crawlers = { required: ['bingbot/2.0', 'Googlebot/2.1', 'OAI-SearchBot/1.0', 'ChatGPT-User/1.0', 'Claude-User/1.0', 'Claude-SearchBot/1.0', 'PerplexityBot/1.0'], reported: ['ClaudeBot/1.0', 'GPTBot/1.0', 'CCBot/2.0', 'Amazonbot/0.1'] };
+  for (const [group, agents] of Object.entries(crawlers)) for (const agent of agents) for (const path of ['/skills/', '/llms.txt']) {
+    const response = await fetcher(new URL(path, origin), { redirect: 'manual', signal: AbortSignal.timeout(30000), headers: { 'User-Agent': agent } });
+    await response.arrayBuffer();
+    console.log(`${path} as ${agent}: HTTP ${response.status}`);
+    if (group === 'required') assert.equal(response.status, 200, `${path} is blocked for ${agent}; check Cloudflare bot rules`);
+  }
   console.log('Documentation smoke test passed.');
 }
 

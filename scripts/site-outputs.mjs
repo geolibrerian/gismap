@@ -8,6 +8,7 @@ import { CORN_LINK, CORN_SPEC, CORN_URL, agentGuide, buildAgentOutputs, layerLin
 import { AI_EXAMPLES, aiExampleLinks, aiExamplePath, aiExamplesMarkdown } from "./ai-examples.mjs";
 import { FIRE_BASE, FIRE_YEAR, FIRE_ACRES, FIRE_START_LINK, fireLink } from "./fire-refinement.mjs";
 import { WORKFLOW_EXAMPLES, workflowExampleLinks, workflowExamplePath, workflowExamplesMarkdown } from "./workflow-examples.mjs";
+import { AGENT_RECIPE_SCHEMA, agentRecipeLinks, agentRecipes } from "./agent-recipes.mjs";
 
 const esc = (value = "") => String(value).replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char]);
 const appLink = (item) => `/?example=${encodeURIComponent(item.slug || item.id)}`;
@@ -55,7 +56,7 @@ function examplePage(item) {
 const aiExampleCard = (example) => `<article class="card"><div class="eyebrow">${esc(example.kind)}</div><h3>${esc(example.title)}</h3><p>${esc(example.description)}</p><div class="card__links"><a href="${aiExamplePath(example)}">See how it was made</a></div></article>`;
 
 function aiExampleSection() {
-  return `<section id="ai"><div class="wrap"><h2>Made with chatbots and AI agents</h2><p>For a FeatureServer-to-shareable-map walkthrough, see the <a href="/ai-arcgis-map-generator/">AI ArcGIS map generator guide</a>. Worked examples of a chatbot or an AI agent making a GIS Map Online map or briefing from public data: the prompt, the code, the finished link and QR code, and what to check. <a href="/examples/ai/">All AI examples</a> · <a href="/guides/ai-agents/">Guide for AI agents</a></p><div class="grid">${AI_EXAMPLES.map(aiExampleCard).join("")}${fireExampleCard()}</div></div></section>`;
+  return `<section id="ai"><div class="wrap"><h2>Made with chatbots and AI agents</h2><p>For a FeatureServer-to-shareable-map walkthrough, see the <a href="/ai-arcgis-map-generator/">AI ArcGIS map generator guide</a>. Worked examples of a chatbot or an AI agent making a GIS Map Online map or briefing from public data: the prompt, the code, the finished link and QR code, and what to check. <a href="/examples/ai/">All AI examples</a> · <a href="/guides/ai-agents/">Guide for AI agents</a> · <a href="/agent-recipes/">What AI agents can create</a></p><div class="grid">${AI_EXAMPLES.map(aiExampleCard).join("")}${fireExampleCard()}</div></div></section>`;
 }
 
 function fireExampleCard() {
@@ -193,7 +194,7 @@ const guidePath = (guide) => guide.path || `/${guide.slug}/`;
 
 function guidePage(guide, html = guide.html) {
   const item = POPULAR_SERVICES.find((entry) => entry.id === guide.example);
-  const guideContent = (html || guide.sections.map(([heading, copy]) => `<h2>${esc(heading)}</h2><p>${esc(copy)}</p>`).join("")) + (guide.slug === "arcgis-feature-service-viewer" ? '<div class="callout"><strong>Create and share with AI.</strong> <a href="/ai-arcgis-map-generator/">Make a styled FeatureServer map from an AI-generated link</a>.</div>' : "") + (guide.slug === "ai-agents" ? '<p><a href="/ai-arcgis-map-generator/">Step-by-step: create and share an ArcGIS FeatureServer map with AI</a>.</p>' : "");
+  const guideContent = (html || guide.sections.map(([heading, copy]) => `<h2>${esc(heading)}</h2><p>${esc(copy)}</p>`).join("")) + (guide.slug === "arcgis-feature-service-viewer" ? '<div class="callout"><strong>Create and share with AI.</strong> <a href="/ai-arcgis-map-generator/">Make a styled FeatureServer map from an AI-generated link</a>.</div>' : "") + (guide.slug === "ai-agents" ? '<p><a href="/ai-arcgis-map-generator/">Step-by-step: create and share an ArcGIS FeatureServer map with AI</a>.</p><h2>What can AI agents create with GISMap?</h2><p>Maps, briefings, guided tours, field task packages, 3D maps and themed maps: see the <a href="/agent-recipes/">agent recipes</a> (also as <a href="/api/agent-recipes/index.json">JSON</a>), each with its interface, a checked example and its limits.</p>' : "");
   const body = `<main><section class="hero"><div class="wrap"><div class="eyebrow">${esc(guide.eyebrow)}</div><h1>${esc(guide.title)}</h1>${guide.question ? `<h2>${esc(guide.question)}</h2><p>${esc(guide.answer)}</p>` : ""}<p class="lede">${esc(guide.intro)}</p><div class="actions"><a class="button" href="${guide.cta ? esc(guide.cta.href) : item ? appLink(item) : "/"}">${guide.cta ? esc(guide.cta.label) : item ? `Try ${esc(item.title)}` : "Open GISMap"}</a><a class="button button--secondary" href="/examples/">Browse examples</a></div></div></section><section><div class="wrap prose">${guideContent}<div class="callout"><strong>Privacy by design.</strong> GISMap runs in the browser. Remote services are requested from their publishers, and local files stay on the device unless you choose to export or share them elsewhere.</div><h2>Continue exploring</h2><p>Use the <a href="/examples/">public GIS examples catalog</a> to open a working dataset, or return to the <a href="/">GISMap viewer</a> to add your own source.</p></div></section></main>`;
   return shell({ title: guide.title, description: guide.description, path: guidePath(guide), breadcrumbs: [{ name: "Guides", path: "/guides/" }, { name: guide.title, path: guidePath(guide) }], body });
 }
@@ -203,6 +204,40 @@ function guidesIndex() {
   return shell({ title: "GIS viewer guides", description: "Practical guides for viewing ArcGIS REST services, FeatureServers, MapServers, GeoJSON, and 3D GIS data in a browser.", path: "/guides/", breadcrumbs: [{ name: "Guides", path: "/guides/" }], body });
 }
 
+
+const INTERFACE_LABELS = { "declarative-url": "Declarative URL", "standalone-js": "Standalone JavaScript", "in-browser-api": "In-browser API", "external-adapter": "Outside GISMap" };
+const STATUS_NOTE = { available: "Available", experimental: "Experimental", planned: "Planned" };
+export const agentRecipePath = (recipe) => `/agent-recipes/${recipe.id}/`;
+
+/** One page per recipe: readable without running the map application. */
+function agentRecipePage(recipe) {
+  const list = (items) => `<ul>${items.map((item) => `<li>${esc(item)}</li>`).join("")}</ul>`;
+  const inputs = (items) => items.map((item) => `<li><code>${esc(item.name)}</code>: ${esc(item.description)}</li>`).join("");
+  const steps = recipe.steps.map((step) => `<li><strong>${esc(step.stage)}</strong>: ${esc(step.action)} <small>(${step.interfaces.map((id) => INTERFACE_LABELS[id]).join(", ")}${step.references?.length ? `; ${step.references.map((ref) => `<code>${esc(ref)}</code>`).join(", ")}` : ""})</small></li>`).join("");
+  const outputs = recipe.outputs.map((item) => `<li>${esc(item.format)} · ${INTERFACE_LABELS[item.interface]}${item.interactive ? "" : " · static"}${item.notes ? `. ${esc(item.notes)}` : ""}</li>`).join("");
+  const examples = recipe.examples.map((item) => `<article class="card"><div class="eyebrow">Example · ${esc(item.status)}${item.checkedOn ? ` · checked ${esc(item.checkedOn)}` : ""}</div><h3>${esc(item.title)}</h3><p><strong>Prompt:</strong> “${esc(item.prompt)}”</p><p><strong>Data:</strong> ${item.dataset.map((source) => `<a href="${esc(source.url)}">${esc(source.label)}</a>`).join(", ")}</p>${item.url ? `<p><a class="button" href="${esc(item.url)}">Open the result</a>${item.page ? ` <a class="button button--secondary" href="${esc(item.page)}">Worked example</a>` : ""}</p>` : item.page ? `<p><a href="${esc(item.page)}">Reference</a></p>` : ""}${item.spec ? `<details><summary>map-v1 JSON</summary><pre><code class="language-json">${esc(JSON.stringify(item.spec, null, 2))}</code></pre></details>` : ""}<p><strong>What was checked:</strong></p>${list(item.checks)}</article>`).join("");
+  const body = `<main><section class="hero"><div class="wrap"><div class="eyebrow">Agent recipe · ${esc(STATUS_NOTE[recipe.status])} · tested on ${esc(recipe.lastTestedVersion)}</div><h1>${esc(recipe.title)}</h1><h2>${esc(recipe.question)}</h2><p class="lede">${esc(recipe.answer)}</p><div class="actions"><a class="button" href="/api/agent-recipes/${esc(recipe.id)}.json">Machine-readable recipe</a><a class="button button--secondary" href="/agent-recipes/">All recipes</a></div></div></section><section><div class="wrap prose"><h2>Ask for it like this</h2>${list(recipe.triggers.map((text) => `“${text}”`))}<h2>Inputs</h2><p>Accepts: ${esc(recipe.inputTypes.join(", "))}. Engines: ${esc(recipe.engines.join(", "))}.</p><ul>${inputs(recipe.inputs.required)}</ul>${recipe.inputs.optional.length ? `<p>Optional:</p><ul>${inputs(recipe.inputs.optional)}</ul>` : ""}<h2>Steps</h2><p>Discover → inspect → plan → validate → execute → verify → share. Each step names where it runs; none is a hosted REST endpoint.</p><ol>${steps}</ol><h2>Result</h2><p>${esc(recipe.artifact.structure)}${recipe.artifact.schema ? ` Schema: <a href="${esc(recipe.artifact.schema)}">${esc(recipe.artifact.schema.replace("https://gismap.online", ""))}</a>.` : ""}</p><ul>${outputs}</ul><h2>Verify before reporting success</h2>${list(recipe.verification)}<p>Report <code>prepared</code>, <code>validated</code>, <code>loaded</code>, <code>rendered</code> and <code>verified</code> separately, and <code>partial</code> or <code>failed</code> when they apply. A generated link alone is only prepared.</p><h2>Limitations</h2>${list(recipe.limitations)}<h2>If something goes wrong</h2>${list(recipe.recovery)}</div></section><section><div class="wrap"><h2>Examples</h2><div class="grid">${examples}</div></div></section></main>`;
+  const structuredData = { "@type": "HowTo", name: recipe.title, description: recipe.answer, step: recipe.steps.map((step, index) => ({ "@type": "HowToStep", position: index + 1, name: step.stage, text: step.action })) };
+  return shell({ title: recipe.title, description: `${recipe.question} ${recipe.answer}`.slice(0, 300), path: agentRecipePath(recipe), breadcrumbs: [{ name: "Agent recipes", path: "/agent-recipes/" }, { name: recipe.title, path: agentRecipePath(recipe) }], body, structuredData });
+}
+
+function agentRecipesIndex(recipes) {
+  const body = `<main><section class="hero"><div class="wrap"><div class="eyebrow">For AI agents</div><h1>What can AI agents create with GISMap?</h1><p class="lede">Finished, shareable geographic artifacts: styled maps, slide briefings, guided tours, field task packages, 3D maps and themed maps. Each recipe says which existing interface to use, how to verify the result, and what it cannot do. No account or hosted API is required.</p><div class="actions"><a class="button" href="/api/agent-recipes/index.json">Recipe catalog (JSON)</a><a class="button button--secondary" href="/skills/">Agent skill</a></div></div></section><section><div class="wrap"><div class="grid">${recipes.map((recipe) => `<article class="card"><div class="eyebrow">${esc(STATUS_NOTE[recipe.status])}</div><h3>${esc(recipe.title)}</h3><p>${esc(recipe.question)}</p><div class="card__links"><a href="${agentRecipePath(recipe)}">Read the recipe</a><a href="/api/agent-recipes/${esc(recipe.id)}.json">JSON</a></div></article>`).join("")}</div><p>Every recipe follows <a href="/schemas/agent-recipe-v1.schema.json">agent-recipe-v1</a>. See also <a href="/llms.txt">llms.txt</a> and <a href="/guides/ai-agents/">Making maps with an AI agent</a>.</p></div></section></main>`;
+  return shell({ title: "What can AI agents create with GISMap?", description: "Agent recipes for interactive maps, briefings, guided tours, field tasks, 3D extrusion and themed maps, with exact interfaces, verification and limitations.", path: "/agent-recipes/", breadcrumbs: [{ name: "Agent recipes", path: "/agent-recipes/" }], body });
+}
+
+/** The recipe catalog, one JSON document per recipe, and their pages. */
+async function agentRecipeOutputs(readText, workflowLinks) {
+  const links = agentRecipeLinks({ phillyLink: (await readText("examples/ai/philadelphia-police-divisions/link.txt")).trim(), ballparksLink: workflowLinks["classic-ballparks/link.txt"], openingDayLink: workflowLinks["opening-day-wayfinding/assignment.txt"] });
+  const recipes = agentRecipes(links);
+  const outputs = { "agent-recipes/index.html": agentRecipesIndex(recipes) };
+  outputs["api/agent-recipes/index.json"] = `${JSON.stringify({ $schema: AGENT_RECIPE_SCHEMA, description: "GISMap agent recipes. Each step names its interface: declarative URL, standalone JavaScript, in-browser API (globalThis.gisMapOnline) or an outside tool. None is a hosted REST endpoint.", lifecycle: ["discover", "inspect", "plan", "validate", "execute", "verify", "share"], resultStatuses: recipes[0].resultStatuses, recipes: recipes.map((recipe) => ({ id: recipe.id, title: recipe.title, status: recipe.status, question: recipe.question, triggers: recipe.triggers, artifact: recipe.artifact.type, engines: recipe.engines, lastTestedVersion: recipe.lastTestedVersion, url: `https://gismap.online/api/agent-recipes/${recipe.id}.json`, page: `https://gismap.online${agentRecipePath(recipe)}` })) }, null, 2)}\n`;
+  for (const recipe of recipes) {
+    outputs[`api/agent-recipes/${recipe.id}.json`] = `${JSON.stringify(recipe, null, 2)}\n`;
+    outputs[`${agentRecipePath(recipe).slice(1)}index.html`] = agentRecipePage(recipe);
+  }
+  return { outputs, recipes };
+}
 
 /** All generated files. `readText(path)` returns a repository file's text. */
 export async function buildSiteOutputs({ readText }) {
@@ -218,6 +253,8 @@ export async function buildSiteOutputs({ readText }) {
   const aiLinks = await aiExampleLinks(readText);
   const workflowLinks = await workflowExampleLinks(readText);
   for (const example of WORKFLOW_EXAMPLES) outputs.set(`${workflowExamplePath(example).slice(1)}index.html`, workflowExamplePage(example, workflowLinks));
+  const { outputs: recipeOutputs, recipes } = await agentRecipeOutputs(readText, workflowLinks);
+  for (const [path, contents] of Object.entries(recipeOutputs)) outputs.set(path, contents);
   outputs.set("examples/ai/index.html", aiExamplesIndex());
   outputs.set("examples/ai/california-fire-refinement/index.html", fireExamplePage());
   for (const [name, spec] of Object.entries({ base: FIRE_BASE, year: FIRE_YEAR, acreage: FIRE_ACRES })) outputs.set(`examples/ai/california-fire-refinement/${name}.json`, JSON.stringify(spec, null, 2) + "\n");
@@ -230,7 +267,7 @@ export async function buildSiteOutputs({ readText }) {
     markdown: `${aiExamplesMarkdown(aiLinks)}\n\n${workflowExamplesMarkdown(workflowLinks)}`,
   };
   for (const [path, contents] of Object.entries(await buildAgentOutputs({ readText, examples }))) outputs.set(path, contents);
-  const urls = ["/", "/examples/", "/examples/data-connections/local-postgis/", "/guides/", ...POPULAR_SERVICES.filter((item) => item.featured).map((item) => `/examples/${item.slug}/`), ...GUIDES.map(guidePath), "/examples/ai/", ...AI_EXAMPLES.map(aiExamplePath), "/examples/ai/california-fire-refinement/", ...WORKFLOW_EXAMPLES.map(workflowExamplePath), "/skills/", "/api/explorer/", "/llms.txt", "/llms-full.txt", "/api/catalog.json"];
+  const urls = ["/", "/examples/", "/examples/data-connections/local-postgis/", "/guides/", ...POPULAR_SERVICES.filter((item) => item.featured).map((item) => `/examples/${item.slug}/`), ...GUIDES.map(guidePath), "/examples/ai/", ...AI_EXAMPLES.map(aiExamplePath), "/examples/ai/california-fire-refinement/", ...WORKFLOW_EXAMPLES.map(workflowExamplePath), "/agent-recipes/", ...recipes.map(agentRecipePath), "/skills/", "/api/explorer/", "/llms.txt", "/llms-full.txt", "/api/catalog.json"];
   outputs.set("sitemap.xml", `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls.map((path) => `  <url><loc>https://gismap.online${path}</loc>${path === "/examples/data-connections/local-postgis/" ? "<lastmod>2026-10-18</lastmod>" : ""}</url>`).join("\n")}\n</urlset>\n`);
   return outputs;
 }

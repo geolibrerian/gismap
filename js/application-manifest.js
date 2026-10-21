@@ -29,7 +29,7 @@ export function buildManifest({ tools = [...LAYER_TOOL_DEFINITIONS, ...AUTHORING
     manifestVersion: MANIFEST_VERSION,
     scope: 'in-page',
     description: 'GISMap browser API. Runtime registry may contain additional tools and panels.',
-    discovery: { runtime: 'gisMapOnline.manifest()', state: 'gisMapOnline.state.snapshot()', stateSchema: '/schemas/application-state-v1.schema.json', explorer: '/api/explorer/', aiArcgisMapGuide: '/ai-arcgis-map-generator/' },
+    discovery: { runtime: 'gisMapOnline.manifest()', state: 'gisMapOnline.state.snapshot()', stateSchema: '/schemas/application-state-v1.schema.json', explorer: '/api/explorer/', aiArcgisMapGuide: '/ai-arcgis-map-generator/', agentRecipes: '/api/agent-recipes/index.json', agentRecipeSchema: '/schemas/agent-recipe-v1.schema.json' },
     privacy: 'The state projection excludes feature records, coordinates, source URLs, filter expressions, credentials and user-entered text.',
     actions: tools.map(describeAction),
     panels: panels.map((p) => ({ type: p.type, displayName: p.displayName, category: p.category, placements: p.placements, status: p.status, multiple: p.multiple })),

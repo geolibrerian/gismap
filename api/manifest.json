@@ -7,7 +7,9 @@
     "state": "gisMapOnline.state.snapshot()",
     "stateSchema": "/schemas/application-state-v1.schema.json",
     "explorer": "/api/explorer/",
-    "aiArcgisMapGuide": "/ai-arcgis-map-generator/"
+    "aiArcgisMapGuide": "/ai-arcgis-map-generator/",
+    "agentRecipes": "/api/agent-recipes/index.json",
+    "agentRecipeSchema": "/schemas/agent-recipe-v1.schema.json"
   },
   "privacy": "The state projection excludes feature records, coordinates, source URLs, filter expressions, credentials and user-entered text.",
   "actions": [

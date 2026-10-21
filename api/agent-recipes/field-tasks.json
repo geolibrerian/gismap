@@ -1,0 +1,209 @@
+{
+  "$schema": "https://gismap.online/schemas/agent-recipe-v1.schema.json",
+  "schemaVersion": 1,
+  "id": "field-tasks",
+  "title": "Location-based field tasks",
+  "status": "available",
+  "question": "Can an AI agent create a field inspection checklist for a place that someone can open on their phone?",
+  "answer": "Yes. A field task link carries the location, instructions, up to ten steps and up to five features. The agent builds it with the standalone field-task-share module; the person in the field checks in, ticks off steps and sends back a report link. No account or server is involved.",
+  "triggers": [
+    "Make a field inspection checklist for this park",
+    "Create five tasks to do on site at this address",
+    "Send someone to check these locations"
+  ],
+  "inputTypes": [
+    "Address or coordinates",
+    "Features of a public layer (by object ID)"
+  ],
+  "inputs": {
+    "required": [
+      {
+        "name": "location",
+        "description": "Verified coordinates or an address."
+      },
+      {
+        "name": "title",
+        "description": "Task package title."
+      },
+      {
+        "name": "tasks",
+        "description": "The things to do; five per package by default."
+      }
+    ],
+    "optional": [
+      {
+        "name": "instructions",
+        "description": "Notes for the person (up to 500 characters)."
+      },
+      {
+        "name": "features",
+        "description": "Up to five features to visit, by layer URL and object ID."
+      }
+    ]
+  },
+  "capabilities": [
+    "view-2d",
+    "query"
+  ],
+  "engines": [
+    "maplibre",
+    "arcgis"
+  ],
+  "steps": [
+    {
+      "stage": "discover",
+      "action": "Read llms.txt, this recipe and api/capabilities.json; note the engine and execution environment you actually have.",
+      "interfaces": [
+        "declarative-url"
+      ],
+      "references": [
+        "https://gismap.online/llms.txt",
+        "https://gismap.online/api/capabilities.json",
+        "https://gismap.online/api/manifest.json"
+      ]
+    },
+    {
+      "stage": "inspect",
+      "action": "Resolve the location to coordinates (or pick features by object ID from a real layer).",
+      "interfaces": [
+        "external-adapter",
+        "standalone-js"
+      ],
+      "references": [
+        "https://nominatim.openstreetmap.org/",
+        "<layer URL>/query"
+      ]
+    },
+    {
+      "stage": "plan",
+      "action": "Write the task: id, title, location, latitude, longitude, notes, steps [{ text }], optional features [{ layerUrl, objectId, latitude, longitude, label }]. Requests for more than five tasks become several packages ('… 1 of 2') with the same id prefix; never drop one.",
+      "interfaces": [
+        "standalone-js"
+      ],
+      "references": [
+        "field-task-share.js#serializeFieldTask",
+        "field-task-share.js#FIELD_TASK_LIMITS"
+      ]
+    },
+    {
+      "stage": "execute",
+      "action": "In a browser or Deno: import { createFieldTaskUrl } from \"https://gismap.online/js/field-task-share.js\" and call it with { baseUrl: \"https://gismap.online/\", task }. In Node, download the module and its share.js dependency first.",
+      "interfaces": [
+        "standalone-js"
+      ],
+      "references": [
+        "field-task-share.js#createFieldTaskUrl"
+      ]
+    },
+    {
+      "stage": "verify",
+      "action": "Decode the link (decodeFieldTask) and compare title, location and every step; with a browser, open it and confirm the task panel, map location and check-in button.",
+      "interfaces": [
+        "standalone-js",
+        "in-browser-api"
+      ],
+      "references": [
+        "field-task-share.js#decodeFieldTask",
+        "describe"
+      ]
+    },
+    {
+      "stage": "share",
+      "action": "Return the assignment link (QR-safe). The completed report comes back as a separate link made by the person in the field.",
+      "interfaces": [
+        "declarative-url"
+      ],
+      "references": [
+        "?workflow=tasks#fieldTask=<payload>"
+      ]
+    }
+  ],
+  "artifact": {
+    "type": "field-task",
+    "structure": "One task package: title, location, coordinates, notes, steps (checklist), features to visit; returned reports add check-in, steps done, notes, who and when."
+  },
+  "outputs": [
+    {
+      "format": "Assignment link (#fieldTask=)",
+      "interface": "standalone-js",
+      "interactive": true,
+      "reference": "field-task-share.js#createFieldTaskUrl"
+    },
+    {
+      "format": "QR code",
+      "interface": "external-adapter",
+      "interactive": false,
+      "notes": "Links are kept under 2,800 characters; the app's Share dialog draws one."
+    },
+    {
+      "format": "Completion report link",
+      "interface": "declarative-url",
+      "interactive": true,
+      "notes": "Created by the field worker in the app, never by the agent."
+    }
+  ],
+  "verification": [
+    "Correct location on the map",
+    "All requested tasks present, five per package",
+    "Steps, title and notes decode unchanged",
+    "Mobile task panel opens with check-in and steps"
+  ],
+  "limitations": [
+    "Each task is a checklist step: steps have text only, not separate IDs, evidence types or completion rules.",
+    "Photos stay on the field device and go into the PDF report; links never carry them. A check-in records place and time, not proof that the work was done.",
+    "Up to 10 steps, 5 features and 500 characters of notes per package; progress persists only in the report link the worker sends back."
+  ],
+  "recovery": [
+    "If the link is too long, shorten notes and step text or split the package.",
+    "Never fabricate a check-in, photo or completed report."
+  ],
+  "examples": [
+    {
+      "checkedOn": "2026-10-21",
+      "checkedVersion": "0.53.0",
+      "title": "Mission Dolores Park inspection",
+      "prompt": "Create five inspection tasks for a city park: playground structures, damaged equipment photos, drinking fountains, pedestrian paths, litter and maintenance.",
+      "dataset": [
+        {
+          "label": "OpenStreetMap Nominatim (place coordinates)",
+          "url": "https://nominatim.openstreetmap.org/"
+        }
+      ],
+      "url": "https://gismap.online/?workflow=tasks#fieldTask=eyJ2IjoxLCJrIjoiYSIsImlkIjoiZG9sb3Jlcy1wYXJrLWluc3BlY3Rpb24iLCJ0IjoiTWlzc2lvbiBEb2xvcmVzIFBhcmsgaW5zcGVjdGlvbiIsInAiOiJNaXNzaW9uIERvbG9yZXMgUGFyaywgU2FuIEZyYW5jaXNjbyIsIm4iOiJDaGVjayBpbiBvbiBhcnJpdmFsLiBOb3RlIHdoZXJlIGVhY2ggcHJvYmxlbSBpcyBpbiB0aGUgcmVwb3J0IGFuZCBhZGQgcGhvdG9zIHRoZXJlLiBSZXBvcnQgYW55dGhpbmcgdW5zYWZlIHRvIHBhcmsgc3RhZmYgcmlnaHQgYXdheS4iLCJzIjpbIkluc3BlY3QgcGxheWdyb3VuZCBzdHJ1Y3R1cmVzIiwiUGhvdG9ncmFwaCBkYW1hZ2VkIGVxdWlwbWVudCIsIkNoZWNrIGRyaW5raW5nIGZvdW50YWlucyIsIkluc3BlY3QgcGVkZXN0cmlhbiBwYXRocyIsIkRvY3VtZW50IGxpdHRlciBhbmQgbWFpbnRlbmFuY2UgbmVlZHMiXSwieCI6LTEyMi40MjcxMywieSI6MzcuNzU5NzJ9",
+      "status": "rendered",
+      "checks": [
+        "Coordinates from OpenStreetMap Nominatim on 2026-10-21.",
+        "Opened headless: the task panel showed the title, location, five steps and check-in; screenshot inspected.",
+        "No check-in or report was made: those belong to a real field visit."
+      ]
+    },
+    {
+      "checkedOn": "2026-10-21",
+      "checkedVersion": "0.53.0",
+      "title": "Opening-day wayfinding check (with report)",
+      "prompt": "Send someone to check accessible entrances at the Philadelphia and Pittsburgh ballparks.",
+      "dataset": [
+        {
+          "label": "Major League Baseball Stadiums",
+          "url": "https://services.arcgis.com/P3ePLMYs2RVChkJx/arcgis/rest/services/Major_League_Baseball_Stadiums/FeatureServer/0"
+        }
+      ],
+      "url": "https://gismap.online/?workflow=tasks#fieldTask=eyJ2IjoxLCJrIjoiYSIsImlkIjoib3BlbmluZy1kYXktcGEiLCJ0IjoiT3BlbmluZy1kYXkgd2F5ZmluZGluZyBjaGVjayIsInAiOiJQaGlsYWRlbHBoaWEgYW5kIFBpdHRzYnVyZ2ggYmFsbHBhcmtzIiwibiI6IkJlZm9yZSB0aGUgZ2F0ZXMgb3BlbiwgY2hlY2sgZWFjaCBiYWxscGFyaydzIGFjY2Vzc2libGUgZW50cmFuY2VzIGFuZCB3YXlmaW5kaW5nIGZyb20gdGhlIG5lYXJlc3QgdHJhbnNpdCBzdG9wLiBNYXJrIGVhY2ggYmFsbHBhcmsgZG9uZSBhbmQgYWRkIHdoYXQgeW91IGZvdW5kLiIsInMiOlsiQWNjZXNzaWJsZSBlbnRyYW5jZXMgb3BlbiBhbmQgc2lnbmVkIiwiV2F5ZmluZGluZyBzaWducyByZWFkYWJsZSBmcm9tIHRoZSB0cmFuc2l0IHN0b3AiLCJQaG90byBvZiB0aGUgbWFpbiBnYXRlIHRha2VuIl0sIkwiOlsiaHR0cHM6Ly9zZXJ2aWNlcy5hcmNnaXMuY29tL1AzZVBMTVlzMlJWQ2hrSngvYXJjZ2lzL3Jlc3Qvc2VydmljZXMvTWFqb3JfTGVhZ3VlX0Jhc2ViYWxsX1N0YWRpdW1zL0ZlYXR1cmVTZXJ2ZXIvMCJdLCJmIjpbeyJsaSI6MCwibyI6MywieCI6LTc1LjE2NjQ3LCJ5IjozOS45MDYxOCwibCI6IkNpdGl6ZW5zIEJhbmsgUGFyayJ9LHsibGkiOjAsIm8iOjE3LCJ4IjotODAuMDA2MTYsInkiOjQwLjQ0NzA1LCJsIjoiUE5DIFBhcmsifV0sIngiOi03Ny41OCwieSI6NDAuMTd9",
+      "page": "https://gismap.online/examples/field-tasks/opening-day-wayfinding/",
+      "status": "loaded",
+      "checks": [
+        "Opened headless: task panel with both ballparks, steps and check-in."
+      ]
+    }
+  ],
+  "lastTestedVersion": "0.53.0",
+  "resultStatuses": [
+    "prepared",
+    "validated",
+    "loaded",
+    "rendered",
+    "verified",
+    "partial",
+    "failed"
+  ]
+}

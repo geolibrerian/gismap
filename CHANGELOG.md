@@ -6,6 +6,14 @@ All notable changes to GIS Map Online are documented here. This project follows
 
 ## [Unreleased]
 
+### Agent recipes
+
+- Publish the canonical agent recipes as `agent-recipe-v1` JSON (`/api/agent-recipes/`) and one page each (`/agent-recipes/`), linked from llms.txt, the skill, the agent guide, examples, capabilities and the manifest. Each example records what was actually checked.
+- Document the standalone `tour-share.js` and `field-task-share.js` encoders so agents can create tour and field-task links without the app; add San Francisco tour, park inspection, California grape (2D and 3D) and Halloween colleges examples and six regression scenarios.
+- Warn when a map spec asks for imagery that the engine replaces with a street map (satellite on MapLibre), and fix an exception when a map spec opens the MapLibre legend.
+- Fix timeline frames for date-only values stored at UTC midnight (now a preview warning), reject spatial charts with more than 40 groups instead of dropping them, and cap magnitude slabs at their slot.
+- The documentation smoke test now reports which crawler user agents the edge blocks.
+
 ### 3D spatial charts and Briefs
 
 - Add MapLibre polygon charts for attribute extrusion, temporal strata, source-footprint stacks and exploded timelines, with explicit virtual-Z legends and portable `spatialChart` state in projects, map specs and share links.

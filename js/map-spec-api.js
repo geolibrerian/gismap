@@ -4,6 +4,7 @@
 // will not load) are collected so describe() and the issues panel can show them.
 import { MAP_SPEC_VERSION, createMapSpecLink, decodeMapSpec, encodeMapSpec, prepareMapVerification, validateMapSpec } from "./map-spec.js?v=0.54.0-unified4";
 import { GisMapError, toGisMapError } from "./gismap-errors.js?v=0.28.0";
+import { basemapEntry, basemapLabel, basemapOnEngine } from "./basemap-catalog.js?v=0.53.0-gallery1";
 
 const within = (promise, seconds) => Promise.race([promise, new Promise((resolve) => setTimeout(resolve, seconds * 1000))]);
 
@@ -26,7 +27,15 @@ export function createMapSpecApi({ layers, camera, mapController, host = {}, iss
     const ready = (async () => {
       if (!spec) throw new GisMapError("INVALID_SPEC", found[0]?.message || "The map spec cannot be used.", { details: { issues: found } });
       if (replace) layers.list().forEach((layer) => layers.remove(layer.id));
-      if (spec.basemap) host.setBasemap?.(spec.basemap);
+      if (spec.basemap) {
+        host.setBasemap?.(spec.basemap);
+        // Vector stand-ins are close enough; imagery replaced by a street map is not.
+        const engineId = mapController?.getEngineId?.();
+        const shown = engineId ? basemapOnEngine(spec.basemap, engineId) : spec.basemap;
+        if (basemapEntry(spec.basemap)?.group === "Imagery" && basemapEntry(shown)?.group !== "Imagery") {
+          issues.push({ level: "warning", code: "INVALID_SPEC", path: "basemap", message: `${basemapLabel(spec.basemap)} imagery is not available on the ${engineId} engine; ${basemapLabel(shown)} is shown instead.`, hint: engineId === "maplibre" ? "Use usgs-imagery for aerial imagery in the United States, or open the link with ?engine=arcgis." : undefined });
+        }
+      }
       if (spec.skin) host.applySkin?.(spec.skin);
       if (spec.title) host.setTitle?.(spec.title);
       const loaded = [];

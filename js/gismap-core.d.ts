@@ -329,6 +329,8 @@ export const mapSpec: Readonly<{
   encode(spec: MapSpec, options?: { compress?: boolean }): Promise<string>;
   decode(payload: string): Promise<MapSpec>;
   createLink(spec: MapSpec, options?: { baseUrl?: string; compress?: boolean }): Promise<{ url: string; payload: string; qr: boolean }>;
+  /** The spec behind a simple ?layer= link: pass parseShareParameters(url.search) from /js/share.js. */
+  fromShareParameters(shared: unknown): MapSpec;
 }>;
 
 export type MapSpecApi = typeof mapSpec & {

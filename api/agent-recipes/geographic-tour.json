@@ -1,0 +1,226 @@
+{
+  "$schema": "https://gismap.online/schemas/agent-recipe-v1.schema.json",
+  "schemaVersion": 1,
+  "id": "geographic-tour",
+  "title": "Guided geographic tour",
+  "status": "available",
+  "question": "Can an AI agent create a guided map tour of places in a set order?",
+  "answer": "Yes, without the app. The tour is one link: an ordered list of stops with camera, caption, basemap and pause time. An agent builds it with the standalone tour-share module and returns a QR-safe link.",
+  "triggers": [
+    "Create a tour of San Francisco landmarks",
+    "Show me these locations in sequence",
+    "Fly between these places with a caption at each"
+  ],
+  "inputTypes": [
+    "Place names or addresses",
+    "Coordinates",
+    "Features of a public layer"
+  ],
+  "inputs": {
+    "required": [
+      {
+        "name": "title",
+        "description": "Tour title (up to 120 characters)."
+      },
+      {
+        "name": "stops",
+        "description": "Ordered places with verified coordinates."
+      }
+    ],
+    "optional": [
+      {
+        "name": "captions",
+        "description": "Up to 80 characters per stop."
+      },
+      {
+        "name": "camera",
+        "description": "Zoom, tilt and heading per stop."
+      },
+      {
+        "name": "basemap",
+        "description": "A basemap id: usgs-imagery for aerial imagery on MapLibre (United States), satellite on ArcGIS."
+      },
+      {
+        "name": "linger",
+        "description": "Seconds per stop (1–120)."
+      },
+      {
+        "name": "autoplay",
+        "description": "Start playing on open."
+      }
+    ]
+  },
+  "capabilities": [
+    "view-3d",
+    "basemaps"
+  ],
+  "engines": [
+    "maplibre",
+    "arcgis"
+  ],
+  "steps": [
+    {
+      "stage": "discover",
+      "action": "Read llms.txt, this recipe and api/capabilities.json; note the engine and execution environment you actually have.",
+      "interfaces": [
+        "declarative-url"
+      ],
+      "references": [
+        "https://gismap.online/llms.txt",
+        "https://gismap.online/api/capabilities.json",
+        "https://gismap.online/api/manifest.json"
+      ]
+    },
+    {
+      "stage": "inspect",
+      "action": "Resolve every place to coordinates with a real geocoder or layer; ask when a name is ambiguous. Keep the user's order unless asked to reorder.",
+      "interfaces": [
+        "external-adapter",
+        "in-browser-api"
+      ],
+      "references": [
+        "https://nominatim.openstreetmap.org/",
+        "layers.list"
+      ]
+    },
+    {
+      "stage": "plan",
+      "action": "Write the chapters: title, caption, viewState {center:[lon,lat], zoom, tilt, heading}, basemapId, lingerSeconds, transitionMode.",
+      "interfaces": [
+        "standalone-js"
+      ],
+      "references": [
+        "tour-share.js#serializeEmbeddedTour"
+      ]
+    },
+    {
+      "stage": "execute",
+      "action": "In a browser or Deno: import { createEmbeddedTourUrl } from \"https://gismap.online/js/tour-share.js\" and call it with { baseUrl, presentation, allowedBasemaps: new Set([...basemap ids]), tourOnly: true }. In Node, download the module file first.",
+      "interfaces": [
+        "standalone-js"
+      ],
+      "references": [
+        "tour-share.js#createEmbeddedTourUrl",
+        "tour-share.js#decodeEmbeddedTour"
+      ]
+    },
+    {
+      "stage": "verify",
+      "action": "Decode the link (decodeEmbeddedTour) and compare every stop; with a browser, open it and step through each chapter's camera and basemap.",
+      "interfaces": [
+        "standalone-js",
+        "in-browser-api"
+      ],
+      "references": [
+        "tour-share.js#decodeEmbeddedTour",
+        "describe"
+      ]
+    },
+    {
+      "stage": "share",
+      "action": "Return the link; add &autoplay=1 to start playing. Longer tours export as .gmoatlas from the app.",
+      "interfaces": [
+        "declarative-url"
+      ],
+      "references": [
+        "#tour=<payload>",
+        "?tourOnly=1",
+        "&autoplay=1"
+      ]
+    }
+  ],
+  "artifact": {
+    "type": "tour",
+    "structure": "A camera-only tour: { title, skin, playbackMode, chapters[{ title, body, viewState, basemapId, lingerSeconds, transitionMode }] } carried in #tour=."
+  },
+  "outputs": [
+    {
+      "format": "Tour link (#tour=, optionally tour-only)",
+      "interface": "standalone-js",
+      "interactive": true,
+      "reference": "tour-share.js#createEmbeddedTourUrl"
+    },
+    {
+      "format": "QR code",
+      "interface": "external-adapter",
+      "interactive": false,
+      "notes": "Links are kept under 2,800 characters so any QR encoder can carry them; the app's Share tour dialog also draws one."
+    },
+    {
+      "format": ".gmoatlas file",
+      "interface": "external-adapter",
+      "interactive": true,
+      "notes": "Exported in the app (Export guided tour) when a tour is too long for a link."
+    }
+  ],
+  "verification": [
+    "Every stop present in the requested order",
+    "Coordinates match the geocoded places",
+    "Camera (zoom, tilt, heading) and basemap per stop",
+    "Back/Next and Play work",
+    "Decoded link equals the authored tour"
+  ],
+  "limitations": [
+    "A tour moves the camera only; it carries no data layers (use a briefing for data).",
+    "A flyover is not road routing and gives no travel times.",
+    "Captions are cut to 80 characters and links to 2,800 characters.",
+    "On the MapLibre engine (the default), satellite and hybrid are drawn as an OpenFreeMap street map; usgs-imagery is real aerial imagery for the United States."
+  ],
+  "recovery": [
+    "If the link exceeds 2,800 characters, shorten captions or split the tour, or export .gmoatlas.",
+    "An unknown basemap id is dropped and the stop falls back to the current basemap; use ids from map-v1."
+  ],
+  "examples": [
+    {
+      "checkedOn": "2026-10-21",
+      "checkedVersion": "0.53.0",
+      "title": "San Francisco landmarks",
+      "prompt": "Create a guided tour of Golden Gate Bridge, Palace of Fine Arts, Coit Tower, Ferry Building and Bay Bridge, on satellite imagery.",
+      "dataset": [
+        {
+          "label": "OpenStreetMap Nominatim (place coordinates)",
+          "url": "https://nominatim.openstreetmap.org/"
+        },
+        {
+          "label": "USGS The National Map orthoimagery",
+          "url": "https://basemap.nationalmap.gov/arcgis/rest/services/USGSImageryOnly/MapServer"
+        }
+      ],
+      "url": "https://gismap.online/?tourOnly=1#tour=eyJ2IjoxLCJ0aXRsZSI6IlNhbiBGcmFuY2lzY28gbGFuZG1hcmtzIiwic2tpbiI6ImNsZWFuLWxpZ2h0IiwicGxheSI6Im1hbnVhbCIsImNoYXB0ZXJzIjpbeyJuYW1lIjoiR29sZGVuIEdhdGUgQnJpZGdlIiwiY2FwdGlvbiI6IjE5Mzcgc3VzcGVuc2lvbiBicmlkZ2UgYWNyb3NzIHRoZSBHb2xkZW4gR2F0ZSBzdHJhaXQiLCJsYXQiOjM3LjgwNzQ1LCJsb24iOi0xMjIuNDc1OTYsInpvb20iOjE0LjgsInRpbHQiOjYwLCJoZWFkaW5nIjozNDAsImJhc2VtYXAiOiJ1c2dzLWltYWdlcnkiLCJsaW5nZXIiOjZ9LHsibmFtZSI6IlBhbGFjZSBvZiBGaW5lIEFydHMiLCJjYXB0aW9uIjoiQnVpbHQgZm9yIHRoZSAxOTE1IFBhbmFtYS1QYWNpZmljIEV4cG9zaXRpb24iLCJsYXQiOjM3LjgwMjkyLCJsb24iOi0xMjIuNDQ4NCwiem9vbSI6MTcsInRpbHQiOjU1LCJoZWFkaW5nIjozMCwiYmFzZW1hcCI6InVzZ3MtaW1hZ2VyeSIsImxpbmdlciI6Nn0seyJuYW1lIjoiQ29pdCBUb3dlciIsImNhcHRpb24iOiJBcnQgRGVjbyB0b3dlciBvbiBUZWxlZ3JhcGggSGlsbCwgb3BlbmVkIDE5MzMiLCJsYXQiOjM3LjgwMjM4LCJsb24iOi0xMjIuNDA1ODMsInpvb20iOjE3LCJ0aWx0Ijo1NSwiaGVhZGluZyI6MjAwLCJiYXNlbWFwIjoidXNncy1pbWFnZXJ5IiwibGluZ2VyIjo2fSx7Im5hbWUiOiJGZXJyeSBCdWlsZGluZyIsImNhcHRpb24iOiIxODk4IHRlcm1pbmFsIGFuZCBtYXJrZXRwbGFjZSBvbiB0aGUgRW1iYXJjYWRlcm8iLCJsYXQiOjM3Ljc5NTU1LCJsb24iOi0xMjIuMzkzNDcsInpvb20iOjE3LCJ0aWx0Ijo1NSwiaGVhZGluZyI6MzAwLCJiYXNlbWFwIjoidXNncy1pbWFnZXJ5IiwibGluZ2VyIjo2fSx7Im5hbWUiOiJCYXkgQnJpZGdlIiwiY2FwdGlvbiI6IlNhbiBGcmFuY2lzY2_igJNPYWtsYW5kIEJheSBCcmlkZ2UsIG9wZW5lZCAxOTM2IiwibGF0IjozNy44MTk5NSwibG9uIjotMTIyLjM0NDYyLCJ6b29tIjoxNC40LCJ0aWx0Ijo1NSwiaGVhZGluZyI6MjQwLCJiYXNlbWFwIjoidXNncy1pbWFnZXJ5IiwibGluZ2VyIjo2fV19",
+      "status": "rendered",
+      "checks": [
+        "Coordinates from OpenStreetMap Nominatim on 2026-10-21.",
+        "Opened headless on MapLibre: chapter 1 of 5 with its caption, camera and USGS aerial imagery; screenshot inspected. Stops 2–5 were checked by decoding the link, not by stepping through them."
+      ]
+    },
+    {
+      "checkedOn": "2026-10-21",
+      "checkedVersion": "0.53.0",
+      "title": "Eight classic ballparks",
+      "prompt": "Make a 3D tour of the oldest major-league ballparks.",
+      "dataset": [
+        {
+          "label": "Major League Baseball Stadiums",
+          "url": "https://services.arcgis.com/P3ePLMYs2RVChkJx/arcgis/rest/services/Major_League_Baseball_Stadiums/FeatureServer/0"
+        }
+      ],
+      "url": "https://gismap.online/?tourOnly=1#tour=eyJ2IjoxLCJ0aXRsZSI6IkVpZ2h0IGNsYXNzaWMgYmFsbHBhcmtzIiwic2tpbiI6ImNsZWFuLWxpZ2h0IiwicGxheSI6ImF1dG8iLCJjaGFwdGVycyI6W3sibmFtZSI6IkZlbndheSBQYXJrIiwiY2FwdGlvbiI6IkJvc3RvbiBSZWQgU294IMK3IG9wZW5lZCAxOTEyLCB0aGUgb2xkZXN0IGJhbGxwYXJrIGluIHRoZSBtYWpvcnMiLCJsYXQiOjQyLjM0NjIyLCJsb24iOi03MS4wOTc3MSwiem9vbSI6MTYuNiwidGlsdCI6NTUsImhlYWRpbmciOjQwLCJiYXNlbWFwIjoic2F0ZWxsaXRlIiwibGluZ2VyIjo2fSx7Im5hbWUiOiJXcmlnbGV5IEZpZWxkIiwiY2FwdGlvbiI6IkNoaWNhZ28gQ3VicyDCtyBvcGVuZWQgMTkxNCwgaXZ5IG9uIHRoZSBvdXRmaWVsZCB3YWxscyIsImxhdCI6NDEuOTQ4MDYsImxvbiI6LTg3LjY1NTY1LCJ6b29tIjoxNi42LCJ0aWx0Ijo1NSwiaGVhZGluZyI6MCwiYmFzZW1hcCI6InNhdGVsbGl0ZSIsImxpbmdlciI6Nn0seyJuYW1lIjoiRG9kZ2VyIFN0YWRpdW0iLCJjYXB0aW9uIjoiTG9zIEFuZ2VsZXMgRG9kZ2VycyDCtyBvcGVuZWQgMTk2MiBpbiBDaGF2ZXogUmF2aW5lIiwibGF0IjozNC4wNzM4OCwibG9uIjotMTE4LjIzOTk1LCJ6b29tIjoxNi42LCJ0aWx0Ijo1NSwiaGVhZGluZyI6MzAsImJhc2VtYXAiOiJzYXRlbGxpdGUiLCJsaW5nZXIiOjZ9LHsibmFtZSI6Ik9yaW9sZSBQYXJrIGF0IENhbWRlbiBZYXJkcyIsImNhcHRpb24iOiJCYWx0aW1vcmUgT3Jpb2xlcyDCtyBvcGVuZWQgMTk5MiBiZXNpZGUgdGhlIEImTyB3YXJlaG91c2UiLCJsYXQiOjM5LjI4Mzk1LCJsb24iOi03Ni42MjE1Niwiem9vbSI6MTYuNiwidGlsdCI6NTUsImhlYWRpbmciOjMwMCwiYmFzZW1hcCI6InNhdGVsbGl0ZSIsImxpbmdlciI6Nn0seyJuYW1lIjoiQ29vcnMgRmllbGQiLCJjYXB0aW9uIjoiQ29sb3JhZG8gUm9ja2llcyDCtyBvcGVuZWQgMTk5NSwgYSBtaWxlIGFib3ZlIHNlYSBsZXZlbCIsImxhdCI6MzkuNzU2MzUsImxvbiI6LTEwNC45OTQxNCwiem9vbSI6MTYuNiwidGlsdCI6NTUsImhlYWRpbmciOjAsImJhc2VtYXAiOiJzYXRlbGxpdGUiLCJsaW5nZXIiOjZ9LHsibmFtZSI6Ik9yYWNsZSBQYXJrIiwiY2FwdGlvbiI6IlNhbiBGcmFuY2lzY28gR2lhbnRzIMK3IG9wZW5lZCAyMDAwIG9uIHRoZSBiYXkiLCJsYXQiOjM3Ljc3ODQsImxvbiI6LTEyMi4zODk2OSwiem9vbSI6MTYuNiwidGlsdCI6NTUsImhlYWRpbmciOjkwLCJiYXNlbWFwIjoic2F0ZWxsaXRlIiwibGluZ2VyIjo2fSx7Im5hbWUiOiJQTkMgUGFyayIsImNhcHRpb24iOiJQaXR0c2J1cmdoIFBpcmF0ZXMgwrcgb3BlbmVkIDIwMDEgZmFjaW5nIGRvd250b3duIiwibGF0Ijo0MC40NDcwNSwibG9uIjotODAuMDA2MTYsInpvb20iOjE2LjYsInRpbHQiOjU1LCJoZWFkaW5nIjoxNTAsImJhc2VtYXAiOiJzYXRlbGxpdGUiLCJsaW5nZXIiOjZ9LHsibmFtZSI6IlBldGNvIFBhcmsiLCJjYXB0aW9uIjoiU2FuIERpZWdvIFBhZHJlcyDCtyBvcGVuZWQgMjAwNCBpbiB0aGUgR2FzbGFtcCBRdWFydGVyIiwibGF0IjozMi43MDc1NywibG9uIjotMTE3LjE1NzA0LCJ6b29tIjoxNi42LCJ0aWx0Ijo1NSwiaGVhZGluZyI6MCwiYmFzZW1hcCI6InNhdGVsbGl0ZSIsImxpbmdlciI6Nn1dfQ",
+      "page": "https://gismap.online/examples/tours/classic-ballparks/",
+      "status": "partial",
+      "checks": [
+        "Opened headless: tour mode at Fenway Park (tilt 55, heading 40).",
+        "Its stops ask for satellite, which the default MapLibre engine draws as a street map; open with ?engine=arcgis for imagery."
+      ]
+    }
+  ],
+  "lastTestedVersion": "0.53.0",
+  "resultStatuses": [
+    "prepared",
+    "validated",
+    "loaded",
+    "rendered",
+    "verified",
+    "partial",
+    "failed"
+  ]
+}

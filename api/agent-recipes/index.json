@@ -1,0 +1,156 @@
+{
+  "$schema": "https://gismap.online/schemas/agent-recipe-v1.schema.json",
+  "description": "GISMap agent recipes. Each step names its interface: declarative URL, standalone JavaScript, in-browser API (globalThis.gisMapOnline) or an outside tool. None is a hosted REST endpoint.",
+  "lifecycle": [
+    "discover",
+    "inspect",
+    "plan",
+    "validate",
+    "execute",
+    "verify",
+    "share"
+  ],
+  "resultStatuses": [
+    "prepared",
+    "validated",
+    "loaded",
+    "rendered",
+    "verified",
+    "partial",
+    "failed"
+  ],
+  "recipes": [
+    {
+      "id": "interactive-map",
+      "title": "Interactive map with filtering, symbology and sharing",
+      "status": "available",
+      "question": "Can an AI agent turn a public dataset into a filtered, styled map I can share?",
+      "triggers": [
+        "Map this data and color it by population",
+        "Filter these counties and make a choropleth I can share",
+        "Make one map colored by year and another by acreage, and give me two links"
+      ],
+      "artifact": "map",
+      "engines": [
+        "maplibre",
+        "arcgis"
+      ],
+      "lastTestedVersion": "0.53.0",
+      "url": "https://gismap.online/api/agent-recipes/interactive-map.json",
+      "page": "https://gismap.online/agent-recipes/interactive-map/"
+    },
+    {
+      "id": "interactive-briefing",
+      "title": "Interactive geographic briefing",
+      "status": "available",
+      "question": "Can an AI agent build a slide briefing with one map slide per area and context from another layer?",
+      "triggers": [
+        "Create slides about these districts",
+        "Build an interactive crime briefing for Philadelphia",
+        "Make a presentation with one slide per county"
+      ],
+      "artifact": "briefing",
+      "engines": [
+        "maplibre",
+        "arcgis"
+      ],
+      "lastTestedVersion": "0.53.0",
+      "url": "https://gismap.online/api/agent-recipes/interactive-briefing.json",
+      "page": "https://gismap.online/agent-recipes/interactive-briefing/"
+    },
+    {
+      "id": "geographic-tour",
+      "title": "Guided geographic tour",
+      "status": "available",
+      "question": "Can an AI agent create a guided map tour of places in a set order?",
+      "triggers": [
+        "Create a tour of San Francisco landmarks",
+        "Show me these locations in sequence",
+        "Fly between these places with a caption at each"
+      ],
+      "artifact": "tour",
+      "engines": [
+        "maplibre",
+        "arcgis"
+      ],
+      "lastTestedVersion": "0.53.0",
+      "url": "https://gismap.online/api/agent-recipes/geographic-tour.json",
+      "page": "https://gismap.online/agent-recipes/geographic-tour/"
+    },
+    {
+      "id": "field-tasks",
+      "title": "Location-based field tasks",
+      "status": "available",
+      "question": "Can an AI agent create a field inspection checklist for a place that someone can open on their phone?",
+      "triggers": [
+        "Make a field inspection checklist for this park",
+        "Create five tasks to do on site at this address",
+        "Send someone to check these locations"
+      ],
+      "artifact": "field-task",
+      "engines": [
+        "maplibre",
+        "arcgis"
+      ],
+      "lastTestedVersion": "0.53.0",
+      "url": "https://gismap.online/api/agent-recipes/field-tasks.json",
+      "page": "https://gismap.online/agent-recipes/field-tasks/"
+    },
+    {
+      "id": "3d-extrusion",
+      "title": "Numeric or fixed-height 3D extrusion",
+      "status": "available",
+      "question": "Can an AI agent make a 3D map where each area's height shows a number?",
+      "triggers": [
+        "Make a 3D map of grape production in California",
+        "Make the county heights represent acreage",
+        "Extrude these buildings by height"
+      ],
+      "artifact": "map",
+      "engines": [
+        "maplibre",
+        "arcgis"
+      ],
+      "lastTestedVersion": "0.53.0",
+      "url": "https://gismap.online/api/agent-recipes/3d-extrusion.json",
+      "page": "https://gismap.online/agent-recipes/3d-extrusion/"
+    },
+    {
+      "id": "spatial-3d-chart",
+      "title": "3D spatial chart (strata, footprint stacks)",
+      "status": "experimental",
+      "question": "Can an AI agent separate overlapping events by year in 3D?",
+      "triggers": [
+        "Separate overlapping fire perimeters by year",
+        "Stack these events in 3D by year",
+        "Make a five-part 3D brief of fire history"
+      ],
+      "artifact": "map",
+      "engines": [
+        "maplibre"
+      ],
+      "lastTestedVersion": "0.53.0",
+      "url": "https://gismap.online/api/agent-recipes/spatial-3d-chart.json",
+      "page": "https://gismap.online/agent-recipes/spatial-3d-chart/"
+    },
+    {
+      "id": "vibe-map",
+      "title": "Vibe-matched map and presentation skin",
+      "status": "available",
+      "question": "Can an AI agent make a map whose look matches the subject, like a Halloween map of California colleges?",
+      "triggers": [
+        "Make the map feel like Halloween in California",
+        "Theme this map in team colors",
+        "Give this forest map an autumn look"
+      ],
+      "artifact": "map",
+      "engines": [
+        "maplibre",
+        "arcgis"
+      ],
+      "lastTestedVersion": "0.53.0",
+      "url": "https://gismap.online/api/agent-recipes/vibe-map.json",
+      "page": "https://gismap.online/agent-recipes/vibe-map/"
+    }
+  ]
+}

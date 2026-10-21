@@ -6442,7 +6442,8 @@ export class UIController {
   }
 
   async showLegendWidget() {
-    if (!this.mapController.widgetOpen("legend")) await this.mapController.toggleWidget("legend").catch(() => {});
+    // MapLibre's toggleWidget is synchronous; ArcGIS's returns a promise.
+    if (!this.mapController.widgetOpen("legend")) await Promise.resolve().then(() => this.mapController.toggleWidget("legend")).catch(() => {});
   }
 
   /** Lists what a map spec or link could not do, so a person (or an agent reading describe()) can fix it. */

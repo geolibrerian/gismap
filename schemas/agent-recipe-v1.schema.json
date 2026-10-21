@@ -1,0 +1,105 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://gismap.online/schemas/agent-recipe-v1.schema.json",
+  "title": "GISMap agent recipe",
+  "description": "A reference workflow an AI agent follows to create a finished GISMap artifact. Recipes describe existing interfaces; they are not a separate tool system, and no step is a hosted REST endpoint.",
+  "type": "object",
+  "required": ["$schema", "schemaVersion", "id", "title", "status", "question", "answer", "triggers", "inputTypes", "inputs", "capabilities", "engines", "steps", "artifact", "outputs", "verification", "limitations", "recovery", "examples", "lastTestedVersion"],
+  "properties": {
+    "$schema": { "const": "https://gismap.online/schemas/agent-recipe-v1.schema.json" },
+    "schemaVersion": { "const": 1 },
+    "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$" },
+    "title": { "type": "string", "maxLength": 120 },
+    "status": { "enum": ["available", "experimental", "planned"], "description": "available: every step uses a shipped interface; experimental: shipped but limited or changing; planned: not executable yet." },
+    "question": { "type": "string", "description": "The task question a person asks, as it appears on the recipe page." },
+    "answer": { "type": "string", "description": "A concise, accurate answer to the question." },
+    "triggers": { "type": "array", "minItems": 1, "items": { "type": "string" }, "description": "Natural-language requests that should select this recipe." },
+    "inputTypes": { "type": "array", "minItems": 1, "items": { "type": "string" } },
+    "inputs": {
+      "type": "object",
+      "required": ["required", "optional"],
+      "properties": {
+        "required": { "type": "array", "items": { "$ref": "#/$defs/input" } },
+        "optional": { "type": "array", "items": { "$ref": "#/$defs/input" } }
+      },
+      "additionalProperties": false
+    },
+    "capabilities": { "type": "array", "items": { "type": "string" }, "description": "Engine capabilities (api/manifest.json) or in-page namespaces (api/capabilities.json) the recipe needs." },
+    "engines": { "type": "array", "minItems": 1, "items": { "enum": ["maplibre", "arcgis"] } },
+    "steps": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/step" } },
+    "artifact": {
+      "type": "object",
+      "required": ["type", "structure"],
+      "properties": {
+        "type": { "enum": ["map", "briefing", "tour", "field-task", "project"] },
+        "schema": { "type": "string", "description": "Schema URL when the artifact has one." },
+        "structure": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "outputs": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["format", "interface", "interactive"],
+        "properties": {
+          "format": { "type": "string" },
+          "interface": { "$ref": "#/$defs/interface" },
+          "interactive": { "type": "boolean", "description": "False for static outputs such as PDFs and images, which never retain live GIS interaction." },
+          "reference": { "type": "string" },
+          "notes": { "type": "string" }
+        },
+        "additionalProperties": false
+      }
+    },
+    "verification": { "type": "array", "minItems": 1, "items": { "type": "string" } },
+    "limitations": { "type": "array", "minItems": 1, "items": { "type": "string" } },
+    "recovery": { "type": "array", "minItems": 1, "items": { "type": "string" } },
+    "examples": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/example" } },
+    "lastTestedVersion": { "type": "string", "description": "The application version (api/capabilities.json apiVersion) of the most recent recorded example check." },
+    "resultStatuses": { "type": "array", "items": { "$ref": "#/$defs/status" } }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "interface": {
+      "enum": ["declarative-url", "standalone-js", "in-browser-api", "external-adapter"],
+      "description": "declarative-url: a link the agent writes; standalone-js: a pure module from https://gismap.online/js/ that runs without the app; in-browser-api: globalThis.gisMapOnline in an open GISMap page; external-adapter: an optional tool outside GISMap. None is a hosted REST endpoint."
+    },
+    "status": { "enum": ["prepared", "validated", "loaded", "rendered", "verified", "partial", "failed"] },
+    "input": {
+      "type": "object",
+      "required": ["name", "description"],
+      "properties": { "name": { "type": "string" }, "description": { "type": "string" } },
+      "additionalProperties": false
+    },
+    "step": {
+      "type": "object",
+      "required": ["stage", "action", "interfaces"],
+      "properties": {
+        "stage": { "enum": ["discover", "inspect", "plan", "validate", "execute", "verify", "share"] },
+        "action": { "type": "string" },
+        "interfaces": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/interface" } },
+        "references": { "type": "array", "items": { "type": "string" }, "description": "Exact API members (namespace.method), module exports (module.js#export), schemas or URLs." }
+      },
+      "additionalProperties": false
+    },
+    "example": {
+      "type": "object",
+      "required": ["title", "prompt", "dataset", "status", "checks"],
+      "properties": {
+        "title": { "type": "string" },
+        "prompt": { "type": "string" },
+        "dataset": { "type": "array", "items": { "type": "object", "required": ["label", "url"], "properties": { "label": { "type": "string" }, "url": { "type": "string" } }, "additionalProperties": false } },
+        "url": { "type": "string", "description": "The finished artifact link." },
+        "page": { "type": "string" },
+        "spec": { "type": "object", "description": "The map-v1 (or other) document behind the link, when it is JSON." },
+        "status": { "$ref": "#/$defs/status" },
+        "checks": { "type": "array", "items": { "type": "string" }, "description": "What was actually observed, and what was not." },
+        "checkedOn": { "type": "string", "format": "date" },
+        "checkedVersion": { "type": "string" }
+      },
+      "additionalProperties": false
+    }
+  }
+}

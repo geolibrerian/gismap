@@ -1,0 +1,235 @@
+{
+  "$schema": "https://gismap.online/schemas/agent-recipe-v1.schema.json",
+  "schemaVersion": 1,
+  "id": "interactive-briefing",
+  "title": "Interactive geographic briefing",
+  "status": "available",
+  "question": "Can an AI agent build a slide briefing with one map slide per area and context from another layer?",
+  "answer": "Yes, in an open GISMap page. The agent loads the primary layer, builds a briefing-v1 document (one slide per selected feature, each with its camera, highlighted selection, narrative and contextual layers), validates it, and shares one link that opens as a desktop deck or a mobile swipe feed.",
+  "triggers": [
+    "Create slides about these districts",
+    "Build an interactive crime briefing for Philadelphia",
+    "Make a presentation with one slide per county"
+  ],
+  "inputTypes": [
+    "ArcGIS FeatureServer polygon layer",
+    "Supporting point or polygon layer"
+  ],
+  "inputs": {
+    "required": [
+      {
+        "name": "primaryLayer",
+        "description": "The layer whose features become slides."
+      },
+      {
+        "name": "selection",
+        "description": "Feature IDs, a filter, or 'all', plus the slide order."
+      }
+    ],
+    "optional": [
+      {
+        "name": "contextLayer",
+        "description": "A second layer shown and related per slide (spatialRel, distance)."
+      },
+      {
+        "name": "narrative",
+        "description": "Titles and text grounded in inspected data."
+      },
+      {
+        "name": "skin",
+        "description": "Presentation look."
+      },
+      {
+        "name": "template",
+        "description": "filter-series, timeline, grid-atlas or spatial-3d-chart for data-driven slides."
+      }
+    ]
+  },
+  "capabilities": [
+    "briefing",
+    "layers-arcgis",
+    "query",
+    "highlight"
+  ],
+  "engines": [
+    "maplibre",
+    "arcgis"
+  ],
+  "steps": [
+    {
+      "stage": "discover",
+      "action": "Read llms.txt, this recipe and api/capabilities.json; note the engine and execution environment you actually have.",
+      "interfaces": [
+        "declarative-url"
+      ],
+      "references": [
+        "https://gismap.online/llms.txt",
+        "https://gismap.online/api/capabilities.json",
+        "https://gismap.online/api/manifest.json"
+      ]
+    },
+    {
+      "stage": "inspect",
+      "action": "Read the source metadata: geometry type, field names and types, spatial reference, extent, sentinels and query support. Query real values before filtering; never invent fields.",
+      "interfaces": [
+        "declarative-url",
+        "standalone-js",
+        "in-browser-api"
+      ],
+      "references": [
+        "<layer URL>?f=pjson",
+        "sources.inspect",
+        "sources.detectSentinels",
+        "layers.metadata"
+      ]
+    },
+    {
+      "stage": "plan",
+      "action": "Pick stable feature IDs and the slide order. For context layers, decide the spatial relationship; an overlay alone is not evidence that points fall inside a polygon.",
+      "interfaces": [
+        "in-browser-api"
+      ],
+      "references": [
+        "https://gismap.online/schemas/briefing-v1.schema.json",
+        "briefing.create",
+        "briefing.createSlide"
+      ]
+    },
+    {
+      "stage": "validate",
+      "action": "Validate the document statically before loading it.",
+      "interfaces": [
+        "standalone-js",
+        "in-browser-api"
+      ],
+      "references": [
+        "briefing.validate",
+        "briefing.migrate"
+      ]
+    },
+    {
+      "stage": "execute",
+      "action": "Load or generate the briefing in the open page. Slide layers with a relation query the context layer's service per slide, so counts come from the service, not from the drawing.",
+      "interfaces": [
+        "in-browser-api"
+      ],
+      "references": [
+        "briefing.load",
+        "briefing.generate",
+        "briefing.generateTemplate",
+        "briefing.addSlide",
+        "briefing.updateSlide"
+      ]
+    },
+    {
+      "stage": "verify",
+      "action": "Step through every slide on desktop and in a narrow (mobile) viewport: selected feature, highlight, camera, context layer, narrative numbers. State whether counts are complete, filtered or sampled.",
+      "interfaces": [
+        "in-browser-api"
+      ],
+      "references": [
+        "briefing.get",
+        "describe"
+      ]
+    },
+    {
+      "stage": "share",
+      "action": "Create the link, then reopen it. Optional PDF handout and QR card.",
+      "interfaces": [
+        "in-browser-api"
+      ],
+      "references": [
+        "briefing.createLink",
+        "briefing.exportPdf",
+        "briefing.exportQrCard",
+        "briefing.exportGmo"
+      ]
+    }
+  ],
+  "artifact": {
+    "type": "briefing",
+    "schema": "https://gismap.online/schemas/briefing-v1.schema.json",
+    "structure": "A briefing-v1 document: layerId, selection, ordered slides (template, camera, blocks, layers with relations, optional dataView/timeline/spatialChart), shared with the map's layers, styles and skin."
+  },
+  "outputs": [
+    {
+      "format": "Interactive briefing link (#briefing=)",
+      "interface": "in-browser-api",
+      "interactive": true,
+      "reference": "briefing.createLink"
+    },
+    {
+      "format": "Desktop deck and mobile swipe feed",
+      "interface": "declarative-url",
+      "interactive": true,
+      "notes": "The same document; the layout follows the screen."
+    },
+    {
+      "format": "PDF handout",
+      "interface": "in-browser-api",
+      "interactive": false,
+      "reference": "briefing.exportPdf"
+    },
+    {
+      "format": "QR card (PNG)",
+      "interface": "in-browser-api",
+      "interactive": false,
+      "reference": "briefing.exportQrCard"
+    },
+    {
+      "format": "Project file (.gmo)",
+      "interface": "in-browser-api",
+      "interactive": true,
+      "reference": "briefing.exportGmo"
+    }
+  ],
+  "verification": [
+    "Slide count matches the request",
+    "Each slide frames and highlights the intended feature",
+    "Context layer loaded and related by a real spatial query",
+    "Narrative numbers match queried values",
+    "Desktop and mobile navigation work",
+    "The shared link reopens to the same slides"
+  ],
+  "limitations": [
+    "Briefings need the in-page API; there is no hosted authoring endpoint.",
+    "Links hold at most 60 slides and must fit the URL budget; large documents use ?briefing=<hosted JSON>.",
+    "Data-driven templates sample at most 500 features (generateTemplate coverage is 'unknown')."
+  ],
+  "recovery": [
+    "If a relation query fails, the slide notes it; show both layers and say the analysis is incomplete.",
+    "If the link is too long, host the JSON and use ?briefing=<URL>, or export a .gmo project."
+  ],
+  "examples": [
+    {
+      "checkedOn": "2026-10-21",
+      "checkedVersion": "0.53.0",
+      "title": "Philadelphia police divisions and districts",
+      "prompt": "Build a briefing with one slide per Philadelphia police division showing the districts inside it.",
+      "dataset": [
+        {
+          "label": "Philadelphia Police Divisions and Districts (City of Philadelphia)",
+          "url": "https://gismap.online/examples/ai/philadelphia-police-divisions/"
+        }
+      ],
+      "url": "https://gismap.online/#briefing=zzVbbbts4EP0VgY-BLIuUqNubkThtFk7WiIsWi6IwKImyCOtikHRSN_B39b1ftkPZbm0r2Cx2gcIQbGo4M5w5hzOkXtATSrCNlihBqRS8EM0C2UiDOG0rkXHrRjwJJdpGwbSC6VIsyme2AakGqWFPYsE06Ac5k8uBl4MiQ8mL-fs8CKmDvTiMbS92Yuri4IuNvkFA4oQ2KlHiBW4XjPiOv7XRBHxe0NpE0XqlkuFQcfkEWSiHyWwhlJO19XDq8enk_i9FHj9el8s_vg5HMnt3NxtKrvRPh-G0FBXLebUqBZtfS1Hz-T1bzT_dTvDwljO9lnwGtlwOMaS8gZjFbhak5nX40uDSmxUHtRL1qjK2alOnbXWk4UqK2e3M8NBWLfh89ogdYhvjyPZ9IKBd60o0_NxlcuyCaWQffoRS8HoWuQbGsIMJhah6Ux15ziDZHG3P5m8P89tu6_DW_v3kkn8mV2kpMv1_yHXt7vm3vAbAaUhtHMVnvP4HTluUuE5It7DKCl5tlJrYCtRcdZUMdgBmkBNOSUYj01gckDFtltNCdxh34-v9tk4P2sA611s_vlt_ZrpNubQwtS3iksAgZTWXrOtA3mguj9vQpy6lIabevh89H0c-wXFAQtOYbVt3vemHrhe5BMOCJA486FTOcnMwJB4Fvzgi2AtCGoZRZNKvdg3shbBySKkXuq4fAz1p1WbLHRH7_dD8qzYHB5wUeftsCuFDya2arSxVts_Kuro6B3l15aDtF1O4ey6jLHAJz-JTLpd8M2jWNVChjhgdaYtZi4o1meG5n47SzKTTDQmUyLoxYsVSXr22Hyd5BF4RpZji0zx-Vfkhh-vpDUj7-Tvja1wKoU-s-7kVbNcWheBVbjRoOn68ux9_GD_C7M3dx_nD6H4Mr7P3o-l4PuHduT0r2YrP5yPJ2S_J6KDEu-yPN-IED8dZ5BZR-BaecQ8PuUg8RQyV6_n8LTwPfUDeRQLyA5_HLntzgx4-9QD5FwmooFlAo_Ssk_uAZj089CLxxHGYBRnN38TT36DgIgHBOQt3QHDWQpDE_nb6WXHgaSnNV8piTW6pdi3hG-FVCBVc-OgoKNzXS2O5G43h4fS9YZolvTsPTNfSqH_nJww2tJjHRsx8Rf0N",
+      "page": "https://gismap.online/examples/ai/philadelphia-police-divisions/",
+      "status": "loaded",
+      "checks": [
+        "Opened headless: both layers loaded and the deck started at slide 1 of 9.",
+        "Per-slide highlight, mobile swipe and PDF were not rechecked in this pass.",
+        "The spec's crime-incident example (crime points per district) is not yet published."
+      ]
+    }
+  ],
+  "lastTestedVersion": "0.53.0",
+  "resultStatuses": [
+    "prepared",
+    "validated",
+    "loaded",
+    "rendered",
+    "verified",
+    "partial",
+    "failed"
+  ]
+}

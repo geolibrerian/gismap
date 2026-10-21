@@ -11,7 +11,9 @@
     "urlParameters": "/api/url-parameters.json",
     "catalog": "/api/catalog.json",
     "aiExamples": "/examples/ai/",
-    "aiArcgisMapGuide": "/ai-arcgis-map-generator/"
+    "aiArcgisMapGuide": "/ai-arcgis-map-generator/",
+    "agentRecipes": "/api/agent-recipes/index.json",
+    "agentRecipePages": "/agent-recipes/"
   },
   "briefingSchema": "/schemas/briefing-v1.schema.json",
   "namespaces": {
@@ -103,6 +105,7 @@
       "prepareVerification",
       "encode",
       "decode",
+      "fromShareParameters",
       "createLink",
       "load",
       "fromCurrent",
@@ -146,7 +149,8 @@
   "schemas": {
     "briefing": "/schemas/briefing-v1.schema.json",
     "renderer": "/schemas/renderer-v1.schema.json",
-    "map": "/schemas/map-v1.schema.json"
+    "map": "/schemas/map-v1.schema.json",
+    "agentRecipe": "/schemas/agent-recipe-v1.schema.json"
   },
   "inPage": {
     "ready": {

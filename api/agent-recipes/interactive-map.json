@@ -1,0 +1,377 @@
+{
+  "$schema": "https://gismap.online/schemas/agent-recipe-v1.schema.json",
+  "schemaVersion": 1,
+  "id": "interactive-map",
+  "title": "Interactive map with filtering, symbology and sharing",
+  "status": "available",
+  "question": "Can an AI agent turn a public dataset into a filtered, styled map I can share?",
+  "answer": "Yes. The agent inspects the source, writes one map-v1 JSON object with the filter, renderer, basemap and camera, validates it, and returns a #map=json: link that opens the finished map. No account or server call is needed.",
+  "triggers": [
+    "Map this data and color it by population",
+    "Filter these counties and make a choropleth I can share",
+    "Make one map colored by year and another by acreage, and give me two links"
+  ],
+  "inputTypes": [
+    "ArcGIS FeatureServer/MapServer layer",
+    "GeoJSON",
+    "WMS",
+    "WFS",
+    "KML"
+  ],
+  "inputs": {
+    "required": [
+      {
+        "name": "source",
+        "description": "HTTPS URL of a public layer (or a sublayer index)."
+      }
+    ],
+    "optional": [
+      {
+        "name": "where",
+        "description": "Read-only SQL attribute filter on real field names."
+      },
+      {
+        "name": "renderer",
+        "description": "RendererSpec: simple, categories, choropleth, graduated-symbols, heatmap, or auto."
+      },
+      {
+        "name": "basemap",
+        "description": "One of the map-v1 basemap ids."
+      },
+      {
+        "name": "camera",
+        "description": "Center, zoom, tilt, heading, or fit to layers."
+      },
+      {
+        "name": "outputs",
+        "description": "Link, QR card, Smart Map PNG, PDF."
+      }
+    ]
+  },
+  "capabilities": [
+    "layers-arcgis",
+    "query",
+    "renderer-spec",
+    "legend",
+    "mapSpec",
+    "smartImages"
+  ],
+  "engines": [
+    "maplibre",
+    "arcgis"
+  ],
+  "steps": [
+    {
+      "stage": "discover",
+      "action": "Read llms.txt, this recipe and api/capabilities.json; note the engine and execution environment you actually have.",
+      "interfaces": [
+        "declarative-url"
+      ],
+      "references": [
+        "https://gismap.online/llms.txt",
+        "https://gismap.online/api/capabilities.json",
+        "https://gismap.online/api/manifest.json"
+      ]
+    },
+    {
+      "stage": "inspect",
+      "action": "Read the source metadata: geometry type, field names and types, spatial reference, extent, sentinels and query support. Query real values before filtering; never invent fields.",
+      "interfaces": [
+        "declarative-url",
+        "standalone-js",
+        "in-browser-api"
+      ],
+      "references": [
+        "<layer URL>?f=pjson",
+        "sources.inspect",
+        "sources.detectSentinels",
+        "layers.metadata"
+      ]
+    },
+    {
+      "stage": "plan",
+      "action": "Choose the simplest level that can express the request: a ?layer= URL for one layer with a basic style; a map-v1 spec for categories, class breaks, colors, camera or several layers; the in-page API only to change a map already open. Keep attribute filters (where) separate from spatial ones.",
+      "interfaces": [
+        "declarative-url",
+        "standalone-js",
+        "in-browser-api"
+      ],
+      "references": [
+        "https://gismap.online/schemas/map-v1.schema.json",
+        "https://gismap.online/api/url-parameters.json",
+        "renderers.suggest",
+        "layers.suggestStyles"
+      ]
+    },
+    {
+      "stage": "validate",
+      "action": "Validate the spec and renderer against the real fields. Treat warnings as unfinished work.",
+      "interfaces": [
+        "standalone-js",
+        "in-browser-api"
+      ],
+      "references": [
+        "mapSpec.validate",
+        "renderers.validate",
+        "mapSpec.prepareVerification"
+      ]
+    },
+    {
+      "stage": "execute",
+      "action": "Write the link: https://gismap.online/#map=json:<URI-encoded map-v1>. For follow-ups, decode the existing link (mapSpec.decode or mapSpec.fromShareParameters), clone it, change only what was asked, and write a new link per variant.",
+      "interfaces": [
+        "declarative-url",
+        "standalone-js",
+        "in-browser-api"
+      ],
+      "references": [
+        "mapSpec.createLink",
+        "mapSpec.decode",
+        "mapSpec.fromShareParameters",
+        "mapSpec.load"
+      ]
+    },
+    {
+      "stage": "verify",
+      "action": "Open the link, wait for gisMapOnline.ready and the layers, then check describe().state.issues, layers.list() (loaded, feature count, renderer, where) and mapSpec.fromCurrent().",
+      "interfaces": [
+        "in-browser-api"
+      ],
+      "references": [
+        "ready",
+        "describe",
+        "layers.list",
+        "mapSpec.fromCurrent",
+        "mapSpec.issues"
+      ]
+    },
+    {
+      "stage": "share",
+      "action": "Return the actual link. Optional: a Smart Map PNG (smartImages.downloadCurrent) or the app's Map PDF and QR card (Share & export, in the UI).",
+      "interfaces": [
+        "declarative-url",
+        "in-browser-api"
+      ],
+      "references": [
+        "mapSpec.createLink",
+        "smartImages.createShareLink",
+        "smartImages.downloadCurrent"
+      ]
+    }
+  ],
+  "artifact": {
+    "type": "map",
+    "schema": "https://gismap.online/schemas/map-v1.schema.json",
+    "structure": "One map-v1 object: layers (url, where, renderer, opacity), basemap, skin, camera, legend."
+  },
+  "outputs": [
+    {
+      "format": "Interactive map link (#map=json: or compressed #map=)",
+      "interface": "declarative-url",
+      "interactive": true,
+      "reference": "mapSpec.createLink"
+    },
+    {
+      "format": "Smart Map PNG (image with the project embedded)",
+      "interface": "in-browser-api",
+      "interactive": false,
+      "reference": "smartImages.downloadCurrent",
+      "notes": "Keep the original file: image services and messengers can strip the embedded data. Remote layers are referenced, not embedded."
+    },
+    {
+      "format": "Map PDF and QR card",
+      "interface": "external-adapter",
+      "interactive": false,
+      "notes": "Made in the app with Share & export (no in-page method yet). A PDF is a static picture of the map."
+    }
+  ],
+  "verification": [
+    "Source loaded with a nonzero feature count",
+    "Filter applied (layer where matches)",
+    "Renderer type and field applied; legend shown",
+    "Camera and basemap as requested",
+    "Share link reopens to the same spec (mapSpec.fromCurrent)",
+    "Each requested export exists"
+  ],
+  "limitations": [
+    "Readable #map=json: links are limited to 8,192 characters; use mapSpec.createLink for compressed links.",
+    "A year slider is not part of map-v1; use a timeline briefing for year-by-year playback.",
+    "Map PDF and map QR card have no in-page API; briefing.exportPdf and briefing.exportQrCard cover briefings."
+  ],
+  "recovery": [
+    "If a field is missing, re-read ?f=pjson and use the exact name and case.",
+    "If validation warns about a renderer, the service style is used; fix the renderer rather than shipping the warning.",
+    "If a compressed link cannot be decoded in your environment, ask for the original JSON or a #map=json: link."
+  ],
+  "examples": [
+    {
+      "checkedOn": "2026-10-21",
+      "checkedVersion": "0.53.0",
+      "title": "California grape production (purple choropleth)",
+      "prompt": "Create a California grape production map, counties over 1,000 acres, with a purple choropleth, and give me a link.",
+      "dataset": [
+        {
+          "label": "USDA Census of Agriculture 2022 grape production (Esri)",
+          "url": "https://services.arcgis.com/P3ePLMYs2RVChkJx/arcgis/rest/services/USDA_Census_of_Agriculture_2022_Grape_Production/FeatureServer/0"
+        }
+      ],
+      "url": "https://gismap.online/#map=json:%7B%22version%22%3A1%2C%22title%22%3A%22California%20grape%20production%2C%20counties%20over%201%2C000%20acres%22%2C%22basemap%22%3A%22gray-vector%22%2C%22camera%22%3A%7B%22center%22%3A%5B-120.2%2C37.4%5D%2C%22zoom%22%3A5.4%7D%2C%22legend%22%3Atrue%2C%22layers%22%3A%5B%7B%22url%22%3A%22https%3A%2F%2Fservices.arcgis.com%2FP3ePLMYs2RVChkJx%2Farcgis%2Frest%2Fservices%2FUSDA_Census_of_Agriculture_2022_Grape_Production%2FFeatureServer%2F0%22%2C%22type%22%3A%22feature%22%2C%22title%22%3A%22California%20grape%20acreage%20(USDA%202022)%22%2C%22where%22%3A%22STATE_ABBR%20%3D%20'CA'%20AND%20GRAPES_ACRES_BEAR_NON_BEAR_TOT%20%3E%201000%22%2C%22opacity%22%3A0.85%2C%22renderer%22%3A%7B%22type%22%3A%22choropleth%22%2C%22field%22%3A%22GRAPES_ACRES_BEAR_NON_BEAR_TOT%22%2C%22classes%22%3A5%2C%22method%22%3A%22quantile%22%2C%22ramp%22%3A%22purples%22%7D%7D%5D%7D",
+      "spec": {
+        "version": 1,
+        "title": "California grape production, counties over 1,000 acres",
+        "basemap": "gray-vector",
+        "camera": {
+          "center": [
+            -120.2,
+            37.4
+          ],
+          "zoom": 5.4
+        },
+        "legend": true,
+        "layers": [
+          {
+            "url": "https://services.arcgis.com/P3ePLMYs2RVChkJx/arcgis/rest/services/USDA_Census_of_Agriculture_2022_Grape_Production/FeatureServer/0",
+            "type": "feature",
+            "title": "California grape acreage (USDA 2022)",
+            "where": "STATE_ABBR = 'CA' AND GRAPES_ACRES_BEAR_NON_BEAR_TOT > 1000",
+            "opacity": 0.85,
+            "renderer": {
+              "type": "choropleth",
+              "field": "GRAPES_ACRES_BEAR_NON_BEAR_TOT",
+              "classes": 5,
+              "method": "quantile",
+              "ramp": "purples"
+            }
+          }
+        ]
+      },
+      "status": "rendered",
+      "checks": [
+        "Opened headless on the branch preview: 26 counties loaded, filter and choropleth on GRAPES_ACRES_BEAR_NON_BEAR_TOT applied, camera and basemap as specified, screenshot inspected.",
+        "PDF, QR card and Smart Map PNG were not generated for this example."
+      ]
+    },
+    {
+      "checkedOn": "2026-10-21",
+      "checkedVersion": "0.53.0",
+      "title": "Fires by year (follow-up refinement, map A)",
+      "prompt": "Make one map colored by fire year and another showing fire acreage with graduated colors. Keep the 2000–2010 filter and give me two links.",
+      "dataset": [
+        {
+          "label": "California historic fire perimeters (CAL FIRE)",
+          "url": "https://services1.arcgis.com/jUJYIo9tSA7EHvfZ/ArcGIS/rest/services/California_Historic_Fire_Perimeters/FeatureServer/0"
+        }
+      ],
+      "url": "https://gismap.online/#map=json:%7B%22version%22%3A1%2C%22title%22%3A%22Fires%20by%20year%202000%E2%80%932010%22%2C%22basemap%22%3A%22gray-vector%22%2C%22camera%22%3A%7B%22center%22%3A%5B-120%2C37.5%5D%2C%22zoom%22%3A5%7D%2C%22legend%22%3Atrue%2C%22layers%22%3A%5B%7B%22url%22%3A%22https%3A%2F%2Fservices1.arcgis.com%2FjUJYIo9tSA7EHvfZ%2FArcGIS%2Frest%2Fservices%2FCalifornia_Historic_Fire_Perimeters%2FFeatureServer%2F0%22%2C%22type%22%3A%22feature%22%2C%22title%22%3A%22California%20historical%20fire%20perimeters%22%2C%22where%22%3A%22YEAR_%20%3E%3D%202000%20AND%20YEAR_%20%3C%3D%202010%22%2C%22opacity%22%3A0.8%2C%22renderer%22%3A%7B%22type%22%3A%22categories%22%2C%22field%22%3A%22YEAR_%22%2C%22maxCategories%22%3A11%2C%22colors%22%3A%7B%222000%22%3A%22%238e0152%22%2C%222001%22%3A%22%23d73027%22%2C%222002%22%3A%22%23f46d43%22%2C%222003%22%3A%22%23fdae61%22%2C%222004%22%3A%22%23fee08b%22%2C%222005%22%3A%22%2366a61e%22%2C%222006%22%3A%22%231b9e77%22%2C%222007%22%3A%22%231f78b4%22%2C%222008%22%3A%22%236a3d9a%22%2C%222009%22%3A%22%23a6761d%22%2C%222010%22%3A%22%234d4d4d%22%7D%7D%7D%5D%7D",
+      "spec": {
+        "version": 1,
+        "title": "Fires by year 2000–2010",
+        "basemap": "gray-vector",
+        "camera": {
+          "center": [
+            -120,
+            37.5
+          ],
+          "zoom": 5
+        },
+        "legend": true,
+        "layers": [
+          {
+            "url": "https://services1.arcgis.com/jUJYIo9tSA7EHvfZ/ArcGIS/rest/services/California_Historic_Fire_Perimeters/FeatureServer/0",
+            "type": "feature",
+            "title": "California historical fire perimeters",
+            "where": "YEAR_ >= 2000 AND YEAR_ <= 2010",
+            "opacity": 0.8,
+            "renderer": {
+              "type": "categories",
+              "field": "YEAR_",
+              "maxCategories": 11,
+              "colors": {
+                "2000": "#8e0152",
+                "2001": "#d73027",
+                "2002": "#f46d43",
+                "2003": "#fdae61",
+                "2004": "#fee08b",
+                "2005": "#66a61e",
+                "2006": "#1b9e77",
+                "2007": "#1f78b4",
+                "2008": "#6a3d9a",
+                "2009": "#a6761d",
+                "2010": "#4d4d4d"
+              }
+            }
+          }
+        ]
+      },
+      "page": "https://gismap.online/examples/ai/california-fire-refinement/",
+      "status": "loaded",
+      "checks": [
+        "Opened headless: 3,112 features loaded with the 2000–2010 filter; categories on YEAR_ applied; camera and basemap preserved (read from map state, no screenshot).",
+        "Opening the legend threw an exception on MapLibre; fixed on this branch."
+      ]
+    },
+    {
+      "checkedOn": "2026-10-21",
+      "checkedVersion": "0.53.0",
+      "title": "Fires by acreage (follow-up refinement, map B)",
+      "prompt": "Same request, second link.",
+      "dataset": [
+        {
+          "label": "California historic fire perimeters (CAL FIRE)",
+          "url": "https://services1.arcgis.com/jUJYIo9tSA7EHvfZ/ArcGIS/rest/services/California_Historic_Fire_Perimeters/FeatureServer/0"
+        }
+      ],
+      "url": "https://gismap.online/#map=json:%7B%22version%22%3A1%2C%22title%22%3A%22Fire%20acreage%202000%E2%80%932010%22%2C%22basemap%22%3A%22gray-vector%22%2C%22camera%22%3A%7B%22center%22%3A%5B-120%2C37.5%5D%2C%22zoom%22%3A5%7D%2C%22legend%22%3Atrue%2C%22layers%22%3A%5B%7B%22url%22%3A%22https%3A%2F%2Fservices1.arcgis.com%2FjUJYIo9tSA7EHvfZ%2FArcGIS%2Frest%2Fservices%2FCalifornia_Historic_Fire_Perimeters%2FFeatureServer%2F0%22%2C%22type%22%3A%22feature%22%2C%22title%22%3A%22California%20historical%20fire%20perimeters%22%2C%22where%22%3A%22YEAR_%20%3E%3D%202000%20AND%20YEAR_%20%3C%3D%202010%22%2C%22opacity%22%3A0.8%2C%22renderer%22%3A%7B%22type%22%3A%22choropleth%22%2C%22field%22%3A%22GIS_ACRES%22%2C%22classes%22%3A5%2C%22method%22%3A%22quantile%22%2C%22classColors%22%3A%5B%22%23ffffb2%22%2C%22%23fecc5c%22%2C%22%23fd8d3c%22%2C%22%23f03b20%22%2C%22%23bd0026%22%5D%7D%7D%5D%7D",
+      "spec": {
+        "version": 1,
+        "title": "Fire acreage 2000–2010",
+        "basemap": "gray-vector",
+        "camera": {
+          "center": [
+            -120,
+            37.5
+          ],
+          "zoom": 5
+        },
+        "legend": true,
+        "layers": [
+          {
+            "url": "https://services1.arcgis.com/jUJYIo9tSA7EHvfZ/ArcGIS/rest/services/California_Historic_Fire_Perimeters/FeatureServer/0",
+            "type": "feature",
+            "title": "California historical fire perimeters",
+            "where": "YEAR_ >= 2000 AND YEAR_ <= 2010",
+            "opacity": 0.8,
+            "renderer": {
+              "type": "choropleth",
+              "field": "GIS_ACRES",
+              "classes": 5,
+              "method": "quantile",
+              "classColors": [
+                "#ffffb2",
+                "#fecc5c",
+                "#fd8d3c",
+                "#f03b20",
+                "#bd0026"
+              ]
+            }
+          }
+        ]
+      },
+      "page": "https://gismap.online/examples/ai/california-fire-refinement/",
+      "status": "loaded",
+      "checks": [
+        "Opened headless: 3,112 features loaded; quantile choropleth on GIS_ACRES applied; filter, camera and basemap preserved (read from map state, no screenshot)."
+      ]
+    }
+  ],
+  "lastTestedVersion": "0.53.0",
+  "resultStatuses": [
+    "prepared",
+    "validated",
+    "loaded",
+    "rendered",
+    "verified",
+    "partial",
+    "failed"
+  ]
+}

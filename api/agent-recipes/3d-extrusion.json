@@ -1,0 +1,326 @@
+{
+  "$schema": "https://gismap.online/schemas/agent-recipe-v1.schema.json",
+  "schemaVersion": 1,
+  "id": "3d-extrusion",
+  "title": "Numeric or fixed-height 3D extrusion",
+  "status": "available",
+  "question": "Can an AI agent make a 3D map where each area's height shows a number?",
+  "answer": "Yes. The agent checks that the layer has polygons and a numeric field, then writes a map-v1 spec whose ArcGIS renderer extrudes each polygon by $feature[\"FIELD\"] × a multiplier (or a fixed height), with a tilted camera. The link reopens the same 3D view.",
+  "triggers": [
+    "Make a 3D map of grape production in California",
+    "Make the county heights represent acreage",
+    "Extrude these buildings by height"
+  ],
+  "inputTypes": [
+    "Polygon FeatureServer layer",
+    "Polygon GeoJSON"
+  ],
+  "inputs": {
+    "required": [
+      {
+        "name": "source",
+        "description": "A polygon layer."
+      },
+      {
+        "name": "height",
+        "description": "A numeric field with a multiplier, or a fixed height in meters."
+      }
+    ],
+    "optional": [
+      {
+        "name": "where",
+        "description": "Filter."
+      },
+      {
+        "name": "color",
+        "description": "Uniform, categories or class breaks."
+      },
+      {
+        "name": "camera",
+        "description": "Tilt 45–65° and a heading."
+      },
+      {
+        "name": "basemap",
+        "description": "A *-3d basemap."
+      }
+    ]
+  },
+  "capabilities": [
+    "view-3d",
+    "renderer-native"
+  ],
+  "engines": [
+    "maplibre",
+    "arcgis"
+  ],
+  "steps": [
+    {
+      "stage": "discover",
+      "action": "Read llms.txt, this recipe and api/capabilities.json; note the engine and execution environment you actually have.",
+      "interfaces": [
+        "declarative-url"
+      ],
+      "references": [
+        "https://gismap.online/llms.txt",
+        "https://gismap.online/api/capabilities.json",
+        "https://gismap.online/api/manifest.json"
+      ]
+    },
+    {
+      "stage": "inspect",
+      "action": "Read the source metadata: geometry type, field names and types, spatial reference, extent, sentinels and query support. Query real values before filtering; never invent fields.",
+      "interfaces": [
+        "declarative-url",
+        "standalone-js",
+        "in-browser-api"
+      ],
+      "references": [
+        "<layer URL>?f=pjson",
+        "sources.inspect",
+        "sources.detectSentinels",
+        "layers.metadata"
+      ]
+    },
+    {
+      "stage": "plan",
+      "action": "Confirm polygon geometry and a numeric field; check nulls, negatives, sentinels and outliers. Source units are not meters: pick a multiplier so the tallest feature is readable, and say so.",
+      "interfaces": [
+        "standalone-js"
+      ],
+      "references": [
+        "sources.inspect",
+        "renderers.describeValues"
+      ]
+    },
+    {
+      "stage": "validate",
+      "action": "Validate the spec; an unsupported extrusion expression is reported, not ignored.",
+      "interfaces": [
+        "standalone-js",
+        "in-browser-api"
+      ],
+      "references": [
+        "mapSpec.validate"
+      ]
+    },
+    {
+      "stage": "execute",
+      "action": "Use renderer { type: \"arcgis\", json } with PolygonSymbol3D Extrude symbols and visualVariables [{ type: \"sizeInfo\", valueExpression: '$feature[\"FIELD\"] * k' }] (or a fixed Extrude size), plus a camera with tilt.",
+      "interfaces": [
+        "declarative-url",
+        "standalone-js"
+      ],
+      "references": [
+        "https://gismap.online/schemas/map-v1.schema.json",
+        "mapSpec.createLink"
+      ]
+    },
+    {
+      "stage": "verify",
+      "action": "Open the link and confirm the extrusion is drawn (MapLibre fill-extrusion or ArcGIS SceneView), the colors and the tilted camera.",
+      "interfaces": [
+        "in-browser-api"
+      ],
+      "references": [
+        "layers.list",
+        "mapSpec.fromCurrent"
+      ]
+    },
+    {
+      "stage": "share",
+      "action": "Return the link; a Smart Map PNG keeps a picture with the project.",
+      "interfaces": [
+        "declarative-url",
+        "in-browser-api"
+      ],
+      "references": [
+        "mapSpec.createLink",
+        "smartImages.downloadCurrent"
+      ]
+    }
+  ],
+  "artifact": {
+    "type": "map",
+    "schema": "https://gismap.online/schemas/map-v1.schema.json",
+    "structure": "map-v1 with an ArcGIS renderer using Extrude symbol layers and a sizeInfo expression, and a tilted camera."
+  },
+  "outputs": [
+    {
+      "format": "Interactive 3D map link",
+      "interface": "declarative-url",
+      "interactive": true,
+      "reference": "mapSpec.createLink"
+    },
+    {
+      "format": "Smart Map PNG",
+      "interface": "in-browser-api",
+      "interactive": false,
+      "reference": "smartImages.downloadCurrent"
+    }
+  ],
+  "verification": [
+    "Polygon geometry confirmed",
+    "Height = field × multiplier (or fixed) on the drawn features",
+    "Colors match the legend",
+    "Camera tilted",
+    "Settings survive the share link"
+  ],
+  "limitations": [
+    "MapLibre supports only $feature[\"FIELD\"] * number expressions; other Arcade is refused with an error.",
+    "Heights are display meters, not the data's units; label the multiplier.",
+    "Points become columns only in some engines; polygon extrusion is the portable case."
+  ],
+  "recovery": [
+    "If the extrusion is refused, simplify the expression to field × number.",
+    "If tall outliers hide the rest, lower the multiplier or filter outliers and say so."
+  ],
+  "examples": [
+    {
+      "checkedOn": "2026-10-21",
+      "checkedVersion": "0.53.0",
+      "title": "California grape acreage in 3D",
+      "prompt": "Use county grape production, filter to California counties over 1,000 acres, extrude by acres × 0.01 with a purple ramp, tilt the camera, and give me a link.",
+      "dataset": [
+        {
+          "label": "USDA Census of Agriculture 2022 grape production (Esri)",
+          "url": "https://services.arcgis.com/P3ePLMYs2RVChkJx/arcgis/rest/services/USDA_Census_of_Agriculture_2022_Grape_Production/FeatureServer/0"
+        }
+      ],
+      "url": "https://gismap.online/#map=json:%7B%22version%22%3A1%2C%22title%22%3A%22California%20grape%20acreage%20in%203D%20(acres%20%C3%97%200.01%20m)%22%2C%22basemap%22%3A%22gray-3d%22%2C%22camera%22%3A%7B%22center%22%3A%5B-120.1%2C36.3%5D%2C%22zoom%22%3A7.2%2C%22tilt%22%3A60%2C%22heading%22%3A20%7D%2C%22legend%22%3Atrue%2C%22layers%22%3A%5B%7B%22url%22%3A%22https%3A%2F%2Fservices.arcgis.com%2FP3ePLMYs2RVChkJx%2Farcgis%2Frest%2Fservices%2FUSDA_Census_of_Agriculture_2022_Grape_Production%2FFeatureServer%2F0%22%2C%22type%22%3A%22feature%22%2C%22title%22%3A%22California%20grape%20acreage%20(USDA%202022)%22%2C%22where%22%3A%22STATE_ABBR%20%3D%20'CA'%20AND%20GRAPES_ACRES_BEAR_NON_BEAR_TOT%20%3E%201000%22%2C%22opacity%22%3A0.9%2C%22renderer%22%3A%7B%22type%22%3A%22arcgis%22%2C%22json%22%3A%7B%22type%22%3A%22classBreaks%22%2C%22field%22%3A%22GRAPES_ACRES_BEAR_NON_BEAR_TOT%22%2C%22classBreakInfos%22%3A%5B%7B%22minValue%22%3A1000%2C%22maxValue%22%3A5000%2C%22label%22%3A%221%2C000%E2%80%935%2C000%20acres%22%2C%22symbol%22%3A%7B%22type%22%3A%22PolygonSymbol3D%22%2C%22symbolLayers%22%3A%5B%7B%22type%22%3A%22Extrude%22%2C%22material%22%3A%7B%22color%22%3A%22%23dadaeb%22%7D%7D%5D%7D%7D%2C%7B%22minValue%22%3A5000%2C%22maxValue%22%3A15000%2C%22label%22%3A%225%2C000%E2%80%9315%2C000%20acres%22%2C%22symbol%22%3A%7B%22type%22%3A%22PolygonSymbol3D%22%2C%22symbolLayers%22%3A%5B%7B%22type%22%3A%22Extrude%22%2C%22material%22%3A%7B%22color%22%3A%22%23bcbddc%22%7D%7D%5D%7D%7D%2C%7B%22minValue%22%3A15000%2C%22maxValue%22%3A40000%2C%22label%22%3A%2215%2C000%E2%80%9340%2C000%20acres%22%2C%22symbol%22%3A%7B%22type%22%3A%22PolygonSymbol3D%22%2C%22symbolLayers%22%3A%5B%7B%22type%22%3A%22Extrude%22%2C%22material%22%3A%7B%22color%22%3A%22%239e9ac8%22%7D%7D%5D%7D%7D%2C%7B%22minValue%22%3A40000%2C%22maxValue%22%3A80000%2C%22label%22%3A%2240%2C000%E2%80%9380%2C000%20acres%22%2C%22symbol%22%3A%7B%22type%22%3A%22PolygonSymbol3D%22%2C%22symbolLayers%22%3A%5B%7B%22type%22%3A%22Extrude%22%2C%22material%22%3A%7B%22color%22%3A%22%236a51a3%22%7D%7D%5D%7D%7D%2C%7B%22minValue%22%3A80000%2C%22maxValue%22%3A170000%2C%22label%22%3A%2280%2C000%E2%80%93170%2C000%20acres%22%2C%22symbol%22%3A%7B%22type%22%3A%22PolygonSymbol3D%22%2C%22symbolLayers%22%3A%5B%7B%22type%22%3A%22Extrude%22%2C%22material%22%3A%7B%22color%22%3A%22%234a1486%22%7D%7D%5D%7D%7D%5D%2C%22visualVariables%22%3A%5B%7B%22type%22%3A%22sizeInfo%22%2C%22valueExpression%22%3A%22%24feature%5B%5C%22GRAPES_ACRES_BEAR_NON_BEAR_TOT%5C%22%5D%20*%200.01%22%7D%5D%7D%7D%7D%5D%7D",
+      "spec": {
+        "version": 1,
+        "title": "California grape acreage in 3D (acres × 0.01 m)",
+        "basemap": "gray-3d",
+        "camera": {
+          "center": [
+            -120.1,
+            36.3
+          ],
+          "zoom": 7.2,
+          "tilt": 60,
+          "heading": 20
+        },
+        "legend": true,
+        "layers": [
+          {
+            "url": "https://services.arcgis.com/P3ePLMYs2RVChkJx/arcgis/rest/services/USDA_Census_of_Agriculture_2022_Grape_Production/FeatureServer/0",
+            "type": "feature",
+            "title": "California grape acreage (USDA 2022)",
+            "where": "STATE_ABBR = 'CA' AND GRAPES_ACRES_BEAR_NON_BEAR_TOT > 1000",
+            "opacity": 0.9,
+            "renderer": {
+              "type": "arcgis",
+              "json": {
+                "type": "classBreaks",
+                "field": "GRAPES_ACRES_BEAR_NON_BEAR_TOT",
+                "classBreakInfos": [
+                  {
+                    "minValue": 1000,
+                    "maxValue": 5000,
+                    "label": "1,000–5,000 acres",
+                    "symbol": {
+                      "type": "PolygonSymbol3D",
+                      "symbolLayers": [
+                        {
+                          "type": "Extrude",
+                          "material": {
+                            "color": "#dadaeb"
+                          }
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "minValue": 5000,
+                    "maxValue": 15000,
+                    "label": "5,000–15,000 acres",
+                    "symbol": {
+                      "type": "PolygonSymbol3D",
+                      "symbolLayers": [
+                        {
+                          "type": "Extrude",
+                          "material": {
+                            "color": "#bcbddc"
+                          }
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "minValue": 15000,
+                    "maxValue": 40000,
+                    "label": "15,000–40,000 acres",
+                    "symbol": {
+                      "type": "PolygonSymbol3D",
+                      "symbolLayers": [
+                        {
+                          "type": "Extrude",
+                          "material": {
+                            "color": "#9e9ac8"
+                          }
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "minValue": 40000,
+                    "maxValue": 80000,
+                    "label": "40,000–80,000 acres",
+                    "symbol": {
+                      "type": "PolygonSymbol3D",
+                      "symbolLayers": [
+                        {
+                          "type": "Extrude",
+                          "material": {
+                            "color": "#6a51a3"
+                          }
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "minValue": 80000,
+                    "maxValue": 170000,
+                    "label": "80,000–170,000 acres",
+                    "symbol": {
+                      "type": "PolygonSymbol3D",
+                      "symbolLayers": [
+                        {
+                          "type": "Extrude",
+                          "material": {
+                            "color": "#4a1486"
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ],
+                "visualVariables": [
+                  {
+                    "type": "sizeInfo",
+                    "valueExpression": "$feature[\"GRAPES_ACRES_BEAR_NON_BEAR_TOT\"] * 0.01"
+                  }
+                ]
+              }
+            }
+          }
+        ]
+      },
+      "status": "rendered",
+      "checks": [
+        "Opened headless on MapLibre: 26 counties loaded with purple class breaks; at the tilted camera the extrusion walls are visible on the tallest counties (screenshot inspected). At acres × 0.01 the tallest is about 1.6 km, so zoom in to see the relief.",
+        "ArcGIS SceneView was not checked in this pass."
+      ]
+    }
+  ],
+  "lastTestedVersion": "0.53.0",
+  "resultStatuses": [
+    "prepared",
+    "validated",
+    "loaded",
+    "rendered",
+    "verified",
+    "partial",
+    "failed"
+  ]
+}

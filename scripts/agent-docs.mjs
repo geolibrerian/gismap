@@ -233,7 +233,10 @@ export function buildLlmsTxt({ capabilities, examples = null }) {
 
 The map in a link is one JSON object (map-v1): layers with filters and styles, basemap, camera. Write it after #map=json: in the URL. Invalid parts are skipped and reported; the rest of the map still opens.
 
-## Choose and combine agent recipes
+## What can AI agents create with GISMap?
+
+Finished maps, briefings, guided tours, field task packages, 3D maps and themed maps. Each recipe gives the interface to use (a URL you write, a standalone JavaScript module, or the in-page API; never a hosted REST endpoint), how to verify the result, and its limits: [recipe pages](${SITE}/agent-recipes/) · [recipe catalog (JSON)](${SITE}/api/agent-recipes/index.json).
+
 
 | User asks for… | Agent selects… | Primary artifact |
 | --- | --- | --- |
@@ -268,6 +271,8 @@ Follow-up refinement: [derive year and acreage maps from one filtered California
 - [Map spec schema](${SITE}/schemas/map-v1.schema.json): layers, renderers, filters, camera, basemap
 - [Renderer schema](${SITE}/schemas/renderer-v1.schema.json): choropleth, graduated symbols, categories, heat map, simple
 - [Briefing schema](${SITE}/schemas/briefing-v1.schema.json): slides that present a map
+- [Agent recipe schema](${SITE}/schemas/agent-recipe-v1.schema.json): the format of /api/agent-recipes/*.json
+- Tours and field tasks without the app: \`createEmbeddedTourUrl\` from [tour-share.js](${SITE}/js/tour-share.js) and \`createFieldTaskUrl\` from [field-task-share.js](${SITE}/js/field-task-share.js) build their links (see the [tour](${SITE}/agent-recipes/geographic-tour/) and [field task](${SITE}/agent-recipes/field-tasks/) recipes)
 - [URL parameters](${SITE}/api/url-parameters.json): every query and fragment parameter
 - [Capabilities](${SITE}/api/capabilities.json): in-page API, tools, error codes, limits
 - [Application manifest](${SITE}/api/manifest.json) and [API explorer](${SITE}/api/explorer/): privacy-safe state and live registry discovery
