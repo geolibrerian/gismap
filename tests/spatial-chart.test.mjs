@@ -74,3 +74,20 @@ test("Brief playback restores the chart that was active before the presentation"
   assert.equal(current.mode, "attribute-extrusion");
 });
 
+
+test("more than 40 groups is an explicit error, never a silent slice", () => {
+  const fields = [{ name:"YEAR_", type:"integer" }];
+  const groupValues = Array.from({ length:41 }, (_, i) => 1980 + i);
+  assert.throws(() => normalizeSpatialChart({ type:"spatial-3d-chart", mode:"temporal-strata", groupBy:"YEAR_" }, { fields, geometryType:"polygon", groupValues }), /41 distinct values/);
+});
+
+test("magnitude slabs are capped at their slot so they cannot cover the next group", () => {
+  const fields = [{ name:"YEAR_", type:"integer" }, { name:"ACRES", type:"double" }];
+  const chart = normalizeSpatialChart({ type:"spatial-3d-chart", mode:"stacked-footprints", groupBy:"YEAR_", height:{ field:"ACRES", slotMeters:400, gapMeters:100, scale:10 } }, { fields, geometryType:"polygon", groupValues:[2019, 2020] });
+  const [, second] = spatialChartLayerSpecs({ chart, idPrefix:"x", source:"x", polygonFilter:true });
+  const height = second.paint["fill-extrusion-height"];
+  assert.equal(height[1], 500);
+  assert.equal(height[2][0], "min");
+  assert.equal(height[2][1], 400);
+  assert.match(spatialChartAxis(chart).detail, /capped at the 400 m slot/);
+});

@@ -60,7 +60,7 @@ export async function smokeLlms(base, { matchLocal = false, fetcher = fetch } = 
   assert.equal(skillPage.response.status, 200, 'Skill page must be served directly');
   assert.match(skillPage.response.headers.get('content-type') || '', /^text\/html(?:\s*;|$)/i, 'Skill page must be HTML');
   assert.match(skillPage.content, /<h1>GISMap Online Agent Skill<\/h1>/, 'Skill page must not be a fallback or challenge');
-  for (const id of ['interactive-map', 'interactive-briefing', 'geographic-tour', 'field-tasks', '3d-extrusion', 'vibe-map']) assert.ok(skillPage.content.includes(`recipe-${id}`), `Skill page missing ${id}`);
+  for (const id of ['interactive-map', 'interactive-briefing', 'geographic-tour', 'field-tasks', '3d-extrusion', 'spatial-3d-chart', 'vibe-map']) assert.ok(skillPage.content.includes(`recipe-${id}`), `Skill page missing ${id}`);
   if (matchLocal) assert.equal(skillPage.content, await readFile(new URL('../skills/index.html', import.meta.url), 'utf8'), 'Skill page differs from checkout (stale cache or wrong deployment)');
   for (const [path, heading] of [['/skills/gismap/SKILL.md', /^---\r?\nname: gismap\r?\n/], ['/skills/gismap/references/agent-recipes.md', /^# Seven composable agent recipes\r?\n/]]) {
     const { response, content } = await request(path);

@@ -25,9 +25,9 @@ import {
 } from "./briefing-document.js?v=0.35.0";
 import { compileWhere } from "./engines/maplibre/where.js?v=0.40.0-timeline";
 import { generateTimeline, previewTimeline, isYearField } from "./briefing-timeline.js?v=0.4.0";
-import { isDateField, previewDateTimeline } from "./briefing-timeline-dates.js?v=0.2.0";
+import { isDateField, previewDateTimeline } from "./briefing-timeline-dates.js?v=0.2.1";
 import { generateFilterSeries, seriesWhere } from "./briefing-data-series.js?v=0.5.0";
-import { generateSpatialChartBrief } from "./briefing-spatial-chart.js?v=0.1.0";
+import { generateSpatialChartBrief } from "./briefing-spatial-chart.js?v=0.1.1";
 import { previewFilterSeries, formatSeriesTitle } from "./briefing-series-preview.js?v=0.2.0";
 import { briefingLayerRef } from "./briefing-api.js?v=0.53.0-temporal1";
 import { renderMarkdown } from "./markdown.js?v=0.18.2";

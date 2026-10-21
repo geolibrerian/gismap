@@ -77,5 +77,8 @@ export function previewDateTimeline({field, endField = '', fields, records, star
   const warnings=[`Calendar intervals use ${timeZone}; filters store UTC instants. Counts use loaded, included features only; the complete source may differ.`,'Empty frames are retained. End dates of validity periods are exclusive; an empty end is ongoing.'];
   if (missing) warnings.push(`${missing} loaded features have missing dates.`);
   if (invalid) warnings.push(`${invalid} loaded features have invalid or timezone-ambiguous dates.`);
+  // Date-only values are commonly stored as UTC midnight; local boundaries would shift day-1 events into the previous frame.
+  const times = raw.map(timeValue).filter(Number.isFinite);
+  if (timeZone !== 'UTC' && times.length && times.every(time => time % DAY === 0)) warnings.push(`Every loaded ${field} value is exactly midnight UTC, which usually means a date-only value. ${timeZone} boundaries would move events on the first day of a frame into the previous frame; use timeZone "UTC" for date-only data.`);
   return {frames,warnings,missing,invalid,recordCount:records.length};
 }

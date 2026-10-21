@@ -26,8 +26,12 @@ const comparable = (a, b) => {
   if (Number.isFinite(na) && Number.isFinite(nb) && a !== "" && b !== "") return na - nb;
   return String(a).localeCompare(String(b), undefined, { numeric: true, sensitivity: "base" });
 };
-const uniqueValues = (values = []) => [...new Map(values.filter((value) => value !== null && value !== undefined && value !== "").map((value) => [`${typeof value}:${String(value)}`, value])).values()]
-  .sort(comparable).slice(0, MAX_SPATIAL_CHART_GROUPS);
+// Too many groups is an error, not a silent slice: dropped groups would vanish from the map.
+const uniqueValues = (values = [], field = "") => {
+  const unique = [...new Map(values.filter((value) => value !== null && value !== undefined && value !== "").map((value) => [`${typeof value}:${String(value)}`, value])).values()].sort(comparable);
+  if (unique.length > MAX_SPATIAL_CHART_GROUPS) throw new Error(`${field || "The group field"} has ${unique.length} distinct values; 3D spatial charts support at most ${MAX_SPATIAL_CHART_GROUPS}. Filter the layer or group by a coarser field.`);
+  return unique;
+};
 const numericType = (type) => /integer|single|double|long|number|float|decimal/i.test(String(type || ""));
 
 /** Validate and bound a chart configuration. Throws before anything is rendered. */
@@ -42,7 +46,7 @@ export function normalizeSpatialChart(input, { fields = [], geometryType = "poly
   if (mode !== "attribute-extrusion" && (!groupBy || !byName.has(groupBy))) throw new Error("Choose a valid field for the chart's vertical groups.");
   if (mode === "attribute-extrusion" && (!heightField || !numericType(byName.get(heightField)?.type))) throw new Error("Choose a numeric height field for attribute extrusion.");
   if (heightField && (!byName.has(heightField) || !numericType(byName.get(heightField)?.type))) throw new Error("The chart height field must be numeric.");
-  const groups = mode === "attribute-extrusion" ? [] : uniqueValues(input.groups?.length ? input.groups : groupValues);
+  const groups = mode === "attribute-extrusion" ? [] : uniqueValues(input.groups?.length ? input.groups : groupValues, groupBy);
   if (mode !== "attribute-extrusion" && !groups.length) throw new Error(`No values were found in ${groupBy}.`);
   const heightMode = mode === "attribute-extrusion" ? "field" : heightField ? "magnitude" : "fixed-slot";
   return {
@@ -82,7 +86,7 @@ export function spatialChartAxis(chart) {
   if (!chart) return null;
   if (chart.mode === "attribute-extrusion") return { label: `Height: ${chart.height.field}`, detail: `Value × ${chart.height.scale.toLocaleString()} display meters` };
   const separation = chart.mode === "exploded-timeline" ? "exploded chronological slots" : chart.mode === "temporal-strata" ? "equal chronological slots" : "ordered event slots";
-  const thickness = chart.height.field ? `; thickness: ${chart.height.field} × ${chart.height.scale.toLocaleString()}` : "";
+  const thickness = chart.height.field ? `; thickness: ${chart.height.field} × ${chart.height.scale.toLocaleString()}, capped at the ${chart.height.slotMeters.toLocaleString()} m slot` : "";
   return { label: `Z order: ${chart.groupBy}`, detail: `${separation}${thickness}. Heights are display offsets, not physical altitude.` };
 }
 
@@ -90,7 +94,8 @@ export function spatialChartAxis(chart) {
 export function spatialChartLayerSpecs({ chart, idPrefix, source, range = {}, visibility = "visible", opacity = 0.75, polygonFilter, featureFilter = null, originalColor = "#1b7f6a" }) {
   if (!chart) return [];
   const baseFilter = featureFilter ? ["all", polygonFilter, featureFilter] : polygonFilter;
-  const fieldHeight = (base = 0) => ["+", base, ["max", chart.height.thicknessMeters, ["*", ["max", 0, ["to-number", ["get", chart.height.field], 0]], chart.height.scale]]];
+  // A magnitude slab never grows past its slot, so it cannot cover the next group's slot.
+  const fieldHeight = (base = 0) => ["+", base, ["min", chart.height.slotMeters, ["max", chart.height.thicknessMeters, ["*", ["max", 0, ["to-number", ["get", chart.height.field], 0]], chart.height.scale]]]];
   const paint = (base, height, color) => ({
     "fill-extrusion-color": color,
     "fill-extrusion-base": base,

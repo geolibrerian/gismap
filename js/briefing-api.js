@@ -1,8 +1,8 @@
 import { generateFilterSeries } from "./briefing-data-series.js?v=0.5.0";
-import { isDateField } from "./briefing-timeline-dates.js?v=0.2.0";
+import { isDateField } from "./briefing-timeline-dates.js?v=0.2.1";
 import { generateTimeline } from "./briefing-timeline.js?v=0.4.0";
 import { generateGridAtlas } from "./briefing-grid-atlas.js?v=0.2.0";
-import { generateSpatialChartBrief } from "./briefing-spatial-chart.js?v=0.1.0";
+import { generateSpatialChartBrief } from "./briefing-spatial-chart.js?v=0.1.1";
 import core, { normalizeBriefing, updateSlide, validateBriefingDocument } from "./gismap-core.js?v=0.53.0-templates1";
 import { createShareLink } from "./map-share.js?v=0.53.0";
 import { GisMapError, layerLoadError, toGisMapError } from "./gismap-errors.js?v=0.28.0";

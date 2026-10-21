@@ -110,3 +110,15 @@ test('timeline generates editable, explicitly sampled descriptions and requested
   assert.match(single.timeline.frames[1].narrative,/loaded features/);
   assert.throws(()=>generateTimeline({...options,briefing:{},layerRef:'layer',camera:{center:[0,0],zoom:4},stat:'sum',statField:'when'}),/numeric field/);
 });
+test('date-only values stored as UTC midnight warn when a local timezone is chosen', async () => {
+  const { previewDateTimeline } = await import('../js/briefing-timeline-dates.js');
+  const dateFields = [{name:'when',type:'esriFieldTypeDate'}];
+  const midnight = [Date.UTC(2021,0,1), Date.UTC(2021,1,1)].map(when=>({attributes:{when}}));
+  const base = {field:'when', fields:dateFields, records:midnight, start:'2021-01-01', end:'2021-02-28', unit:'month'};
+  const local = previewDateTimeline({...base, timeZone:'America/Los_Angeles'});
+  assert.deepEqual(local.frames.map(frame=>frame.count), [1,0]); // Feb 1 shifts into January; Jan 1 falls before the window
+  assert.ok(local.warnings.some(text=>/midnight UTC/.test(text)));
+  const utc = previewDateTimeline({...base, timeZone:'UTC'});
+  assert.deepEqual(utc.frames.map(frame=>frame.count), [1,1]);
+  assert.ok(!utc.warnings.some(text=>/midnight UTC/.test(text)));
+});
