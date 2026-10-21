@@ -13,6 +13,8 @@ export async function loadSharedLayer(mapController, config) {
     await Promise.all(added.map((layer) => mapController.loadLayer(layer)));
     if (config.renderer && added.length !== 1) throw new Error("A shared renderer cannot be applied to multiple service layers.");
     if (config.renderer) mapController.restoreRenderer(added[0], config.renderer);
+    if (config.spatialChart && added.length !== 1) throw new Error("A shared 3D spatial chart cannot be applied to multiple service layers.");
+    if (config.spatialChart) await mapController.setSpatialChart(added[0], config.spatialChart);
     return added;
   }
   const added = await mapController.addService(config);
@@ -21,6 +23,7 @@ export async function loadSharedLayer(mapController, config) {
     mapController.restoreRenderer(added, config.renderer);
     if (!mapController.getLayerConfig(added)?.renderer) throw new Error("The requested layer style could not be restored.");
   }
+  if (config.spatialChart) await mapController.setSpatialChart(added, config.spatialChart);
   if (config.definitionExpression && mapController.getLayerConfig(added)?.definitionExpression !== config.definitionExpression) throw new Error("The requested layer filter could not be restored.");
   return [added];
 }

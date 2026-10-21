@@ -2,8 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
-const ids = ['interactive-map', 'interactive-briefing', 'geographic-tour', 'field-tasks', '3d-extrusion', 'vibe-map'];
-test('the six composable recipes are discoverable from llms and both skill surfaces', async () => {
+const ids = ['interactive-map', 'interactive-briefing', 'geographic-tour', 'field-tasks', '3d-extrusion', 'spatial-3d-chart', 'vibe-map'];
+test('the seven composable recipes are discoverable from llms and both skill surfaces', async () => {
   const [llms, html, skill, reference] = await Promise.all(['llms.txt', 'skills/index.html', 'skills/gismap/SKILL.md', 'skills/gismap/references/agent-recipes.md'].map(path => readFile(new URL(`../${path}`, import.meta.url), 'utf8')));
   for (const id of ids) {
     assert.ok(llms.includes(`/skills/#recipe-${id}`), `llms ${id}`);

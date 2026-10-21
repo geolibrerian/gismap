@@ -20,6 +20,7 @@ export const MAP_SPEC_JSON_LIMIT = 8192;
 export const QR_SAFE_LENGTH = 2800;
 const MAX_LAYERS = 10;
 const MAX_RENDERER = 60000;
+const MAX_SPATIAL_CHART = 12000;
 const MAX_SELECTION = 300;
 const KINDS = new Set(["map", "briefing"]);
 
@@ -37,7 +38,7 @@ function prune(value) {
   if (Array.isArray(value)) return value.map(prune);
   if (!value || typeof value !== "object") return value;
   return Object.fromEntries(Object.entries(value)
-    .map(([key, item]) => [key, key === "r" ? item : prune(item)])
+    .map(([key, item]) => [key, key === "r" || key === "q" ? item : prune(item)])
     .filter(([, item]) => item !== null && item !== undefined && item !== "" && item !== false && !(Array.isArray(item) && !item.length)));
 }
 
@@ -59,12 +60,15 @@ export function packLayer(config = {}) {
   const wanted = config.styled === true || !json.includes('"imageData"');
   if (config.styled === true && json.length > MAX_RENDERER) throw new Error("A custom renderer is too large to share without losing its style. Export a project instead.");
   const renderer = config.renderer && wanted && json.length <= MAX_RENDERER ? config.renderer : null;
+  const chartJson = config.spatialChart ? JSON.stringify(config.spatialChart) : "";
+  if (chartJson.length > MAX_SPATIAL_CHART) throw new Error("A 3D spatial chart is too large to share. Reduce its groups or export a project instead.");
   return prune({
     u: config.url,
     y: SHARE_LAYER_TYPES.has(config.sourceType) ? config.sourceType : "arcgis-auto",
     n: text(config.title, 120),
     w: hasDataFilter(config.definitionExpression) ? text(config.definitionExpression, 2000) : null,
     r: renderer,
+    q: chartJson ? config.spatialChart : null,
     o: Number.isFinite(config.opacity) && config.opacity < 1 ? round(config.opacity, 2) : null,
     h: config.visible === false ? 1 : null,
     s: config.ignoreServiceScaleRange ? 1 : null,
@@ -74,12 +78,14 @@ export function packLayer(config = {}) {
 function unpackLayer(layer, options) {
   if (!layer || typeof layer !== "object") throw new Error("A shared layer is missing.");
   const renderer = layer.r && typeof layer.r === "object" && JSON.stringify(layer.r).length <= MAX_RENDERER ? layer.r : null;
+  const spatialChart = layer.q && typeof layer.q === "object" && JSON.stringify(layer.q).length <= MAX_SPATIAL_CHART ? layer.q : null;
   return {
     url: sanitizeSharedResourceUrl(layer.u, options),
     serviceType: SHARE_LAYER_TYPES.has(layer.y) ? layer.y : "arcgis-auto",
     title: text(layer.n, 120) || undefined,
     definitionExpression: text(layer.w, 2000) || undefined,
     renderer,
+    spatialChart,
     opacity: Number.isFinite(layer.o) ? Math.min(1, Math.max(0, layer.o)) : undefined,
     visible: layer.h !== 1,
     ignoreServiceScaleRange: layer.s === 1,

@@ -105,6 +105,8 @@ const pdf = await api.briefing.exportPdf(); // File
 const qrCard = await api.briefing.exportQrCard(); // branded PNG File
 ```
 
+The experimental in-page `briefing.generateTemplate` API previews or appends Filter Series, Timeline, Grid Atlas, and 3D Spatial Chart slides from an already loaded layer. It queries at most 500 features and reports coverage as unknown; its statistics are not guaranteed complete. Set `previewOnly: true` to avoid saving. It is not a standalone core or HTTP API. See [data-driven briefing API](https://gismap.online/skills/gismap/references/briefs.md) for options, geometry limits, and verification guidance.
+
 A briefing document can say which data it is about: `layerId` is best given as the layer's service URL, which GISMap loads if it is not already on the map, and `selection.ids` lists the chosen features. Host a document as JSON (CORS-enabled) and link to it as `https://gismap.online/?briefing=<file URL>`; GISMap opens it on that layer and starts presenting. The file may be a briefing document, a project that contains one, or the briefing file the share dialog downloads.
 
 Headless agents can import the pure core without opening the app:

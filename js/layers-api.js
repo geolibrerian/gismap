@@ -64,6 +64,7 @@ export function createLayersApi({ mapController, loadLayer, state = null, events
       opacity: layer.opacity,
       where: config.definitionExpression || null,
       renderer: config.rendererSpec || (config.styled ? { type: "arcgis", json: config.renderer } : { type: "service" }),
+      spatialChart: config.spatialChart || null,
       visibleAtCurrentScale: scale.visibleAtCurrentScale,
       minScale: scale.serviceMinScale,
       maxScale: scale.serviceMaxScale,
@@ -98,6 +99,7 @@ export function createLayersApi({ mapController, loadLayer, state = null, events
       const { spec } = await mapController.applyRendererSpec(uid, options.renderer, { sentinels: metadataFor(layer)?.sentinels || [] });
       state?.dispatch?.("layer:style", { layerId: uid, style: spec }, { undoable: false });
     }
+    if (options.spatialChart !== undefined) await mapController.setSpatialChart(uid, options.spatialChart);
   }
 
   // Layers added any way (dialog, link, project) get a feature count in the background.
@@ -135,7 +137,7 @@ export function createLayersApi({ mapController, loadLayer, state = null, events
     if (!layer) throw new GisMapError("LAYER_LOAD_FAILED", "The service did not provide a layer to add.", { details: { url: clean } });
     if (options.signal?.aborted) { mapController.removeLayer(layer.uid); throw new DOMException("The layer was not added.", "AbortError"); }
     try {
-      await applyOptions(layer, { outFields: options.outFields, renderer: options.renderer }, { adding: true });
+      await applyOptions(layer, { outFields: options.outFields, renderer: options.renderer, spatialChart: options.spatialChart }, { adding: true });
     } catch (error) {
       // Adding is all or nothing: a layer whose style failed is taken off again.
       (added || []).forEach((item) => mapController.removeLayer(item.uid));

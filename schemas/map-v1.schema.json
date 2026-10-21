@@ -60,6 +60,22 @@
         "title": { "type": "string", "maxLength": 160, "description": "The name shown in the Layers panel and legend." },
         "where": { "type": "string", "maxLength": 2000, "description": "A read-only SQL filter on the layer's fields, such as \"CORN_SALES_IN_DOLLARS >= 0\" or \"STATE = 'Iowa'\". No statements, comments or semicolons." },
         "renderer": { "$ref": "https://gismap.online/schemas/renderer-v1.schema.json", "description": "The style. Field names must match the service exactly; a misspelled field keeps the service's own style and is reported." },
+        "spatialChart": {
+          "type": "object",
+          "required": ["type", "mode", "height"],
+          "description": "MapLibre 3D spatial chart settings. Z values are display offsets, never physical altitude. source-footprints/none is the fast display strategy and does not calculate exact polygon overlaps.",
+          "properties": {
+            "type": { "const": "spatial-3d-chart" },
+            "mode": { "enum": ["attribute-extrusion", "temporal-strata", "stacked-footprints", "exploded-timeline"] },
+            "groupBy": { "type": "string", "pattern": "^[A-Za-z_][A-Za-z0-9_.]*$" },
+            "groups": { "type": "array", "maxItems": 40, "items": { "type": ["string", "number"] } },
+            "height": { "type": "object" },
+            "color": { "type": "object" },
+            "geometry": { "type": "object" },
+            "interaction": { "type": "object" }
+          },
+          "additionalProperties": false
+        },
         "opacity": { "type": "number", "minimum": 0, "maximum": 1, "default": 1, "description": "0 is transparent, 1 is opaque." },
         "visible": { "type": "boolean", "default": true, "description": "Whether the layer starts switched on." },
         "ignoreServiceScaleRange": { "type": "boolean", "default": false, "description": "Draw at every zoom level, even where the publisher hides the layer (its minScale/maxScale)." },

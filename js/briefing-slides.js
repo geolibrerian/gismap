@@ -27,6 +27,7 @@ import { compileWhere } from "./engines/maplibre/where.js?v=0.40.0-timeline";
 import { generateTimeline, previewTimeline, isYearField } from "./briefing-timeline.js?v=0.3.0";
 import { isDateField, previewDateTimeline } from "./briefing-timeline-dates.js?v=0.2.0";
 import { generateFilterSeries, seriesWhere } from "./briefing-data-series.js?v=0.4.0";
+import { generateSpatialChartBrief } from "./briefing-spatial-chart.js?v=0.1.0";
 import { previewFilterSeries } from "./briefing-series-preview.js?v=0.1.0";
 import { briefingLayerRef } from "./briefing-api.js?v=0.53.0";
 import { renderMarkdown } from "./markdown.js?v=0.18.2";
@@ -117,6 +118,7 @@ export class BriefingSlides {
       await mapController.setFeatureFilter(state.primary.uid, state.primary.filter);
       state.primary = null;
     }
+    if (state.spatialChart) await mapController.setSpatialChart(state.spatialChart.uid, state.spatialChart.chart);
     if (!keep) this.layerState = null;
   }
 
@@ -134,11 +136,18 @@ export class BriefingSlides {
   async #applySlideLayersNow(slide, record) {
     const token = ++this.layerToken;
     const entries = Array.isArray(slide?.layers) ? slide.layers : null;
-    if (!entries && !slide?.dataView && !this.layerState) return;
+    if (!entries && !slide?.dataView && !(slide && Object.hasOwn(slide, "spatialChart")) && !this.layerState) return;
     const { mapController } = this.api;
     this.layerState ??= { visible: new Map(this.otherLayers().map(({ layer }) => [layer.uid, layer.visible !== false])), filtered: new Set() };
     await this.#restoreLayersNow({ keep: true });
     if (token !== this.layerToken) return;
+    if (slide && Object.hasOwn(slide, "spatialChart")) {
+      const layer = this.api.data().layer;
+      if (!layer) throw new Error("The spatial chart's source layer is not available.");
+      this.layerState.spatialChart ??= { uid: layer.uid, chart: mapController.getLayerConfig(layer)?.spatialChart || null };
+      await mapController.setSpatialChart(layer.uid, slide.spatialChart);
+      if (token !== this.layerToken) return;
+    }
     if (slide?.dataView) {
       try {
         const data = this.api.data();
@@ -345,6 +354,15 @@ export class BriefingSlides {
           <div data-series-results role="status" aria-live="polite"></div>
         </details>
         <details class="briefing-series-preview">
+          <summary>3D Spatial Chart · five-scene Brief</summary>
+          <p class="form-note">Build Overview, Magnitude, History, Accumulation and Conclusion scenes from polygon features. MapLibre preserves source footprints and uses virtual Z slots; this fast display does not calculate exact overlap partitions.</p>
+          <label class="briefing-field"><span>Chronological / group field</span><select data-spatial-brief-group><option value="">Choose a field</option>${(data.fields?.fields || []).filter(field => field?.name).map(field => `<option value="${escapeHtml(field.name)}">${escapeHtml(field.alias || field.name)}</option>`).join("")}</select></label>
+          <label class="briefing-field"><span>Magnitude field</span><select data-spatial-brief-height><option value="">Choose a numeric field</option>${(data.fields?.numeric || []).map(field => `<option value="${escapeHtml(field.name)}">${escapeHtml(field.alias || field.name)}</option>`).join("")}</select></label>
+          <div class="field-grid"><label class="briefing-field"><span>Slot separation</span><input data-spatial-brief-slot type="number" min="1" step="50" value="400"></label><label class="briefing-field"><span>Gap</span><input data-spatial-brief-gap type="number" min="0" step="25" value="100"></label><label class="briefing-field"><span>Magnitude multiplier</span><input data-spatial-brief-scale type="number" min="0" step="0.01" value="1"></label></div>
+          <button type="button" data-spatial-brief-preview>Preview scenes</button> <button type="button" data-spatial-brief-create>Generate Brief</button>
+          <div data-spatial-brief-results role="status" aria-live="polite"></div>
+        </details>
+        <details class="briefing-series-preview">
           <summary>Timeline · data-driven slides</summary>
           <p class="form-note">Create a sequence using an integer year or date field. Date windows use the chosen calendar timezone; the selected end date is inclusive. The map keeps its view and style.</p>
           <label class="briefing-field"><span>Temporal field</span><select data-timeline-field><option value="">Choose a field</option>${(data.fields?.fields || []).filter(field => isYearField(field) || isDateField(field)).map(field => `<option value="${escapeHtml(field.name)}" data-kind="${isDateField(field) ? "date" : "year"}">${escapeHtml(field.alias || field.name)} · ${isDateField(field) ? "date" : "year"}</option>`).join("")}</select></label>
@@ -522,6 +540,41 @@ export class BriefingSlides {
         this.#save(briefing);
         this.api.notify?.(`Added ${preview.subsets.length} filtered slides. Categories are based on loaded, included features.`);
       } catch (error) { container.querySelector("[data-series-results]").textContent = error.message; }
+    });
+    const spatialBriefOptions = () => {
+      const data = this.api.data();
+      return {
+        briefing:this.briefing,
+        layerRef:briefingLayerRef(this.api.mapController, data.layer),
+        camera:this.#currentCamera(),
+        fields:data.fields?.fields || [],
+        records:data.useAll ? data.visibleRecords : data.records.filter((record) => data.selectedIds.has(this.#idOf(record))),
+        geometryType:data.layer?.geometryType,
+        groupBy:container.querySelector("[data-spatial-brief-group]").value,
+        heightField:container.querySelector("[data-spatial-brief-height]").value,
+        slotMeters:container.querySelector("[data-spatial-brief-slot]").value,
+        gapMeters:container.querySelector("[data-spatial-brief-gap]").value,
+        scale:container.querySelector("[data-spatial-brief-scale]").value,
+      };
+    };
+    on("[data-spatial-brief-preview]", "click", () => {
+      const output = container.querySelector("[data-spatial-brief-results]");
+      try {
+        if (!this.api.mapController.getCapabilities().includes("spatial-chart-3d")) throw new Error("Switch to the MapLibre engine to create 3D spatial chart scenes.");
+        const { preview } = generateSpatialChartBrief(spatialBriefOptions());
+        output.innerHTML = `<p><strong>5 scenes</strong> · ${preview.groups} vertical groups · source-footprint fast display</p><ol><li>Overview — flat geography</li><li>Magnitude — attribute height</li><li>History — equal chronological slots</li><li>Accumulation — ordered footprint slabs</li><li>Conclusion — return to geography</li></ol>`;
+      } catch (error) { output.textContent = error.message; }
+    });
+    on("[data-spatial-brief-create]", "click", () => {
+      const output = container.querySelector("[data-spatial-brief-results]");
+      try {
+        if (!this.api.mapController.getCapabilities().includes("spatial-chart-3d")) throw new Error("Switch to the MapLibre engine to create 3D spatial chart scenes.");
+        const original = this.briefing;
+        const { briefing, preview } = generateSpatialChartBrief(spatialBriefOptions());
+        this.selectedSlideId = briefing.slides[original.slides.length].id;
+        this.#save(briefing);
+        this.api.notify?.(`Added ${preview.slides} 3D Spatial Chart scenes. Review the virtual-Z legend before sharing.`);
+      } catch (error) { output.textContent = error.message; }
     });
     const gridOptions = () => {
       const data = this.api.data();

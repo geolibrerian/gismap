@@ -31,6 +31,7 @@
       "captureCamera",
       "saveCurrentCamera",
       "generate",
+      "generateTemplate",
       "exportPdf",
       "exportQrCard",
       "encode",
@@ -131,6 +132,7 @@
   "requiresApp": [
     "briefing.load (layer loading and presenting)",
     "briefing.generate",
+    "briefing.generateTemplate",
     "briefing.exportPdf",
     "briefing.exportQrCard",
     "smartImages.createShareLink",
@@ -208,6 +210,10 @@
     "mapSpec": {
       "stability": "stable",
       "description": "load(spec) applies a map-v1 spec (returns { valid, issues, spec, ready }); fromCurrent() exports the map as one. Issues also appear in describe().state.issues."
+    },
+    "briefing.generateTemplate": {
+      "stability": "experimental",
+      "description": "Generate or preview filter-series, timeline, grid-atlas, or spatial-3d-chart briefing slides from up to 500 queried features on an already loaded layer. Browser session only; coverage is not guaranteed. Spatial charts currently use MapLibre polygon fast display, not analytical overlap aggregation. See /skills/gismap/references/briefs.md."
     }
   },
   "errorCodes": {
@@ -521,8 +527,8 @@
     }
   ],
   "urlFragments": {
-    "map": "#map=json:<URI-encoded map-v1 JSON> (readable, at most 8,192 characters), or #map=z\u2026 (compressed map-v1 from mapSpec.createLink, or an app share link).",
-    "briefing": "#briefing=\u2026 briefing links; see inputs.briefingLink.",
+    "map": "#map=json:<URI-encoded map-v1 JSON> (readable, at most 8,192 characters), or #map=z… (compressed map-v1 from mapSpec.createLink, or an app share link).",
+    "briefing": "#briefing=… briefing links; see inputs.briefingLink.",
     "slide": "&slide=<slide id> opens a briefing at that slide."
   },
   "examples": {

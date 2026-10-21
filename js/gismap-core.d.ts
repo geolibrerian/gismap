@@ -17,6 +17,17 @@ export type BriefingCamera = {
   tilt: number;
 };
 
+export type SpatialChart = {
+  type: "spatial-3d-chart";
+  mode: "attribute-extrusion" | "temporal-strata" | "stacked-footprints" | "exploded-timeline";
+  groupBy?: string;
+  groups?: Array<string | number>;
+  height: { mode?: "field" | "fixed-slot" | "magnitude"; field?: string; slotMeters?: number; gapMeters?: number; thicknessMeters?: number; scale?: number };
+  color?: { field?: string | null; strategy?: "original" | "sequential" };
+  geometry?: { strategy: "source-footprints"; aggregation: "none" };
+  interaction?: { hover?: boolean; select?: boolean; explode?: boolean; scrubTimeline?: boolean };
+};
+
 export type BriefingBlock = {
   id: string;
   type: string;
@@ -36,6 +47,8 @@ export type BriefingSlide = {
   hidden: boolean;
   /** The briefing's other layers on this slide; without it the slide changes no other layer. */
   layers?: BriefingSlideLayer[];
+  /** 3D chart state for the primary layer; null returns this slide to flat geography. */
+  spatialChart?: SpatialChart | null;
   [key: string]: unknown;
 };
 
@@ -158,6 +171,7 @@ export type AddLayerOptions = {
   where?: string | null;
   outFields?: string[];
   renderer?: RendererSpec;
+  spatialChart?: SpatialChart | null;
   opacity?: number;
   visible?: boolean;
   /** Draw at every zoom level, ignoring the publisher's scale range (kept in projects and links). */
@@ -178,6 +192,7 @@ export type LayerInfo = {
   opacity: number;
   where: string | null;
   renderer: RendererSpec;
+  spatialChart: SpatialChart | null;
   visibleAtCurrentScale: boolean;
   minScale: number;
   maxScale: number;
@@ -197,6 +212,7 @@ export type MapSpecLayer = {
   title?: string;
   where?: string;
   renderer?: RendererSpec;
+  spatialChart?: SpatialChart;
   opacity?: number;
   visible?: boolean;
   ignoreServiceScaleRange?: boolean;
@@ -352,6 +368,18 @@ export type InPageBriefingApi = typeof briefing & {
   saveCurrentCamera(slideId: string): BriefingDocument;
   /** Slides from the map as it looks: style, filter, Features-tab choices; optional AI descriptions. */
   generate(options?: { layerId?: string; ai?: boolean; share?: boolean }): Promise<BriefingDocument>;
+  /** Browser session only. Preview does not save; statistics use a bounded sample. */
+  generateTemplate(options: {
+    template: "filter-series" | "timeline" | "grid-atlas" | "spatial-3d-chart"; layerId?: string; previewOnly?: boolean;
+    field?: string; kind?: "date" | "year"; start?: string | number; end?: string | number;
+    step?: number; unit?: "day" | "week" | "month" | "quarter" | "year"; timeZone?: string;
+    mode?: "interval" | "cumulative" | "rolling" | "validity"; rolling?: number; endField?: string;
+    stat?: "sum" | "average" | "min" | "max"; statField?: string; narration?: boolean;
+    presentationMode?: "single-slide" | "slide-series"; rows?: number; columns?: number;
+    targetCells?: number; order?: "row-major" | "column-major" | "snake"; skipEmpty?: boolean;
+    countMode?: "assigned" | "intersecting";
+    groupBy?: string; heightField?: string; slotMeters?: number; gapMeters?: number; scale?: number;
+  }): Promise<{ document: BriefingDocument; preview: unknown; saved: boolean; coverage: { returned: number; limit: number; exceededTransferLimit: boolean; completeness: "unknown"; note: string } }>;
   /** The landscape PDF handout, with a QR code back to the live briefing. */
   exportPdf(options?: { withLink?: boolean }): Promise<File>;
   /** A branded PNG card whose QR opens the complete live briefing. */

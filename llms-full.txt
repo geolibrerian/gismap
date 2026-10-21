@@ -13,9 +13,10 @@ The map in a link is one JSON object (map-v1): layers with filters and styles, b
 | Show me these locations in sequence | [geographic-tour](https://gismap.online/skills/#recipe-geographic-tour) | Guided geographic tour |
 | Inspect this location and complete these tasks | [field-tasks](https://gismap.online/skills/#recipe-field-tasks) | Five-task fieldwork package |
 | Make the county heights represent acreage | [3d-extrusion](https://gismap.online/skills/#recipe-3d-extrusion) | 3D extruded map |
+| Separate overlapping events by year and height | [spatial-3d-chart](https://gismap.online/skills/#recipe-spatial-3d-chart) | 3D spatial chart and five-scene Brief |
 | Make the map feel like Halloween in California | [vibe-map](https://gismap.online/skills/#recipe-vibe-map) | Coordinated theme and styled map |
 
-Combine recipes for one request: a 3D grape map with autumn colors, a five-slide briefing and a QR uses interactive-map, 3d-extrusion, vibe-map and interactive-briefing. Check compatibility, actual outputs and reopening; do not assume every combination is portable.
+Combine recipes for one request: a 3D fire-history map with chronological strata, a five-slide briefing and a QR uses interactive-map, spatial-3d-chart and interactive-briefing. Check compatibility, virtual-Z semantics, actual outputs and reopening; do not assume every combination is portable.
 
 ## Make a map from a URL (no code)
 - One layer: `https://gismap.online/?layer=<HTTPS service URL>&layerType=feature`
@@ -252,6 +253,7 @@ Layer properties:
 - `layers[].title`: The name shown in the Layers panel and legend.
 - `layers[].where`: A read-only SQL filter on the layer's fields, such as "CORN_SALES_IN_DOLLARS >= 0" or "STATE = 'Iowa'". No statements, comments or semicolons.
 - `layers[].renderer`: The style. Field names must match the service exactly; a misspelled field keeps the service's own style and is reported.
+- `layers[].spatialChart`: MapLibre 3D spatial chart settings. Z values are display offsets, never physical altitude. source-footprints/none is the fast display strategy and does not calculate exact polygon overlaps.
 - `layers[].opacity`: 0 is transparent, 1 is opaque.
 - `layers[].visible`: Whether the layer starts switched on.
 - `layers[].ignoreServiceScaleRange`: Draw at every zoom level, even where the publisher hides the layer (its minScale/maxScale).
@@ -375,6 +377,8 @@ await api.briefing.generate({ layerId: "https://…/FeatureServer/0", ai: true }
 const pdf = await api.briefing.exportPdf(); // File
 const qrCard = await api.briefing.exportQrCard(); // branded PNG File
 ```
+
+The experimental in-page `briefing.generateTemplate` API previews or appends Filter Series, Timeline, Grid Atlas, and 3D Spatial Chart slides from an already loaded layer. It queries at most 500 features and reports coverage as unknown; its statistics are not guaranteed complete. Set `previewOnly: true` to avoid saving. It is not a standalone core or HTTP API. See [data-driven briefing API](https://gismap.online/skills/gismap/references/briefs.md) for options, geometry limits, and verification guidance.
 
 A briefing document can say which data it is about: `layerId` is best given as the layer's service URL, which GISMap loads if it is not already on the map, and `selection.ids` lists the chosen features. Host a document as JSON (CORS-enabled) and link to it as `https://gismap.online/?briefing=<file URL>`; GISMap opens it on that layer and starts presenting. The file may be a briefing document, a project that contains one, or the briefing file the share dialog downloads.
 

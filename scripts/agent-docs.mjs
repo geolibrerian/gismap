@@ -242,9 +242,10 @@ The map in a link is one JSON object (map-v1): layers with filters and styles, b
 | Show me these locations in sequence | [geographic-tour](${SITE}/skills/#recipe-geographic-tour) | Guided geographic tour |
 | Inspect this location and complete these tasks | [field-tasks](${SITE}/skills/#recipe-field-tasks) | Five-task fieldwork package |
 | Make the county heights represent acreage | [3d-extrusion](${SITE}/skills/#recipe-3d-extrusion) | 3D extruded map |
+| Separate overlapping events by year and height | [spatial-3d-chart](${SITE}/skills/#recipe-spatial-3d-chart) | 3D spatial chart and five-scene Brief |
 | Make the map feel like Halloween in California | [vibe-map](${SITE}/skills/#recipe-vibe-map) | Coordinated theme and styled map |
 
-Combine recipes for one request: a 3D grape map with autumn colors, a five-slide briefing and a QR uses interactive-map, 3d-extrusion, vibe-map and interactive-briefing. Check compatibility, actual outputs and reopening; do not assume every combination is portable.
+Combine recipes for one request: a 3D fire-history map with chronological strata, a five-slide briefing and a QR uses interactive-map, spatial-3d-chart and interactive-briefing. Check compatibility, virtual-Z semantics, actual outputs and reopening; do not assume every combination is portable.
 
 ## Make a map from a URL (no code)
 - One layer: \`${SITE}/?layer=<HTTPS service URL>&layerType=feature\`

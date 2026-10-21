@@ -1,4 +1,9 @@
-import core, { normalizeBriefing, updateSlide, validateBriefingDocument } from "./gismap-core.js?v=0.53.0";
+import { generateFilterSeries } from "./briefing-data-series.js?v=0.4.0";
+import { isDateField } from "./briefing-timeline-dates.js?v=0.2.0";
+import { generateTimeline } from "./briefing-timeline.js?v=0.3.0";
+import { generateGridAtlas } from "./briefing-grid-atlas.js?v=0.2.0";
+import { generateSpatialChartBrief } from "./briefing-spatial-chart.js?v=0.1.0";
+import core, { normalizeBriefing, updateSlide, validateBriefingDocument } from "./gismap-core.js?v=0.53.0-templates1";
 import { createShareLink } from "./map-share.js?v=0.53.0";
 import { GisMapError, layerLoadError, toGisMapError } from "./gismap-errors.js?v=0.28.0";
 import { featureLayerUrl } from "./field-task-share.js?v=0.41.0";
@@ -128,6 +133,51 @@ export function createBriefingApi({ projectManager, mapController, host = null, 
     /** The briefing's PDF handout (landscape, one page per slide, QR back to the live briefing) as a File. */
     async exportPdf(options = {}) {
       return needHost("createPdf")(options);
+    },
+    /** Generate a data-driven template in the active browser session.
+     * Results describe a bounded source sample, not complete-source statistics.
+     * Preview builds a candidate without changing the current project.
+     */
+    async generateTemplate(options = {}) {
+      const { template, layerId, previewOnly = false } = options;
+      if (typeof previewOnly !== "boolean") throw new GisMapError("INVALID_SPEC", "previewOnly must be a boolean.");
+      if (options.kind != null && !["date", "year"].includes(options.kind)) throw new GisMapError("INVALID_SPEC", "Timeline kind must be date or year.");
+      if (options.presentationMode != null && !["single-slide", "slide-series"].includes(options.presentationMode)) throw new GisMapError("INVALID_SPEC", "Choose single-slide or slide-series.");
+      if (!["filter-series", "timeline", "grid-atlas", "spatial-3d-chart"].includes(template)) throw new GisMapError("INVALID_SPEC", "Choose filter-series, timeline, grid-atlas, or spatial-3d-chart.");
+      const selected = layerId || projectManager.current?.presentation?.primaryLayerId || current().layerId;
+      const layer = findBriefingLayer(mapController, selected);
+      if (!layer) throw new GisMapError("NOT_FOUND", "Choose a queryable layer already loaded on the map.");
+      const ref = briefingLayerRef(mapController, layer);
+      if (!ref) throw new GisMapError("INVALID_SPEC", "The layer has no shareable reference.");
+      const original = current();
+      const originalState = JSON.stringify(original);
+      const originalWhere = layer.where ?? null;
+      if (original.slides.length && original.layerId && trimUrl(original.layerId) !== trimUrl(ref) && findBriefingLayer(mapController, original.layerId)?.uid !== layer.uid) throw new GisMapError("INVALID_SPEC", "The current briefing refers to a different layer; start a new briefing before generating this template.");
+      const fields = layer.fields || [];
+      if (!Array.isArray(fields) || !fields.length) throw new GisMapError("NOT_READY", "The layer does not expose its fields yet.");
+      const limit = 500;
+      const response = await mapController.queryFeatures(layer.uid, { outFields:["*"], returnGeometry:true, outSpatialReference:{wkid:4326}, num:limit });
+      if (!Array.isArray(response?.features)) throw new GisMapError("NOT_READY", "The layer did not return features.");
+      const records = response.features.slice(0, limit);
+      const camera = api.captureCamera();
+      const input = { briefing:{...original, layerId:ref, selection:{ids:[],useAll:true}}, layerRef:ref, camera, fields, records };
+      let result;
+      try {
+        if (template === "filter-series") result = generateFilterSeries({...input, field:options.field});
+        else if (template === "timeline") {
+          const allowed = ["field","kind","start","end","step","unit","timeZone","mode","rolling","endField","stat","statField","narration","presentationMode"];
+          result = generateTimeline({...input, kind:isDateField(fields.find(field => field.name === options.field)) ? "date" : "year", ...Object.fromEntries(allowed.filter(key => options[key] !== undefined).map(key => [key, options[key]]))});
+        } else if (template === "grid-atlas") {
+          const allowed = ["rows","columns","targetCells","order","skipEmpty","countMode"];
+          result = generateGridAtlas({...input, ...Object.fromEntries(allowed.filter(key => options[key] !== undefined).map(key => [key, options[key]]))});
+        } else {
+          result = generateSpatialChartBrief({ ...input, geometryType:layer.geometryType, groupBy:options.groupBy, heightField:options.heightField, slotMeters:options.slotMeters, gapMeters:options.gapMeters, scale:options.scale });
+        }
+      } catch (error) { throw new GisMapError("INVALID_SPEC", error.message); }
+      if (template === "grid-atlas" && !result.preview.cells.length) throw new GisMapError("INVALID_SPEC", "No grid cells were generated.");
+      if (!previewOnly && (JSON.stringify(current()) !== originalState || (findBriefingLayer(mapController, layer.uid)?.where ?? null) !== originalWhere || !findBriefingLayer(mapController, layer.uid))) throw new GisMapError("INVALID_SPEC", "The briefing or source layer changed while generating; retry to avoid overwriting newer work.");
+      const document = previewOnly ? result.briefing : save(result.briefing);
+      return { document:clone(document), preview:clone(result.preview), coverage:{returned:records.length, limit, exceededTransferLimit:response.exceededTransferLimit === true, completeness:"unknown", note:"Generated from at most 500 queried features; completeness is not guaranteed. Counts and categories are samples."}, saved:!previewOnly };
     },
     /** A branded PNG card whose QR opens the live briefing. */
     async exportQrCard(document = current(), options = {}) {

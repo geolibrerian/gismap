@@ -18,6 +18,7 @@ import { GisMapError } from "../gismap-errors.js?v=0.28.0";
 export const ENGINE_CAPABILITIES = Object.freeze([
   "view-2d", // a flat map
   "view-3d", // a globe or scene: tilt, heading, elevation
+  "spatial-chart-3d", // derived 3D chart layers with explicit virtual-Z semantics
   "basemaps", // setBasemap(id)
   "basemap-themes", // setBasemapTheme(theme): the "skin" basemap drawn in the skin's colours
   "ground", // setGround(id): terrain elevation
@@ -85,7 +86,7 @@ export const MAP_CONTROLLER_METHODS = Object.freeze([
   "native", "setInitialBasemap", "setDefaultBasemap", "getDefaultBasemapId", "setGround", "getGroundId",
   "addLocalFile", "discoverFeatureServiceLayers", "getQueryableLayer", "getAllLayerConfigs",
   "setTitle", "setOutFields", "setRefreshInterval", "refreshLayer", "ignoreScaleRange", "scaleState", "layerMetadata", "getLocalAsset",
-  "suggestRenderers", "restoreRenderer", "setRenderer", "recordRendererSpec", "setLayerSymbology", "distinctValues", "fieldValues",
+  "suggestRenderers", "restoreRenderer", "setRenderer", "recordRendererSpec", "setLayerSymbology", "setSpatialChart", "distinctValues", "fieldValues",
   "getCamera", "getScale", "getViewpoint", "getCurrentExtentDetails", "restoreView", "navigate", "viewExtentFilter",
   "goToLayer", "goToLayers", "goToLayerOnInitialLoad", "layerExtent", "dataBounds", "goToFeature", "goToFeatures", "goToSearchResult", "goToTaskPlaces",
   "highlightFeature", "clearFeatureHighlight", "configureInteractionFeedback", "clearClickMarker", "locateUser", "geographicCoordinates",
@@ -98,7 +99,7 @@ export const MAP_CONTROLLER_METHODS = Object.freeze([
 export const METHOD_CAPABILITIES = Object.freeze({
   native: "native", setGround: "ground", getGroundId: "ground",
   addLocalFile: "layers-files", discoverFeatureServiceLayers: "layers-arcgis", getQueryableLayer: "query",
-  suggestRenderers: "renderer-spec", restoreRenderer: "renderer-native", setRenderer: "renderer-native", setLayerSymbology: "renderer-native",
+  suggestRenderers: "renderer-spec", restoreRenderer: "renderer-native", setRenderer: "renderer-native", setLayerSymbology: "renderer-native", setSpatialChart: "spatial-chart-3d",
   distinctValues: "query", fieldValues: "query", navigate: "view-2d", viewExtentFilter: "spatial-query",
   goToLayer: "query", goToLayers: "query", goToLayerOnInitialLoad: "query", layerExtent: "query", dataBounds: "query",
   highlightFeature: "highlight", clearFeatureHighlight: "highlight", configureInteractionFeedback: "highlight", clearClickMarker: "highlight", locateUser: "view-2d",

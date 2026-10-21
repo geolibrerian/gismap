@@ -5801,17 +5801,20 @@ export class UIController {
       ?? numericFields[0];
     const renderer = layer.renderer ?? {};
     // Styles with excluded codes draw from an expression, so the recorded RendererSpec names the field.
-    const currentField = renderer.field || this.mapController.getLayerConfig(layer)?.rendererSpec?.field;
-    const savedSpec = this.mapController.getLayerConfig(layer)?.rendererSpec;
+    const layerConfig = this.mapController.getLayerConfig(layer) || {};
+    const currentField = renderer.field || layerConfig.rendererSpec?.field;
+    const savedSpec = layerConfig.rendererSpec;
+    const savedChart = layerConfig.spatialChart || null;
     let selectedSpec = savedSpec && ["simple", "categories", "choropleth", "graduated-symbols", "heatmap"].includes(savedSpec.type) ? structuredClone(savedSpec) : null;
     const representativeSymbol = renderer.symbol ?? renderer.classBreakInfos?.[0]?.symbol ?? renderer.uniqueValueInfos?.[0]?.symbol;
     const objectSymbol = representativeSymbol?.symbolLayers?.find((symbolLayer) => symbolLayer.type === "object" || symbolLayer.type === "extrude");
     const heightVariable = renderer.visualVariables?.find((variable) => variable.type === "size" && (variable.axis === "height" || layer.geometryType === "polygon"));
     const expressionField = String(heightVariable?.valueExpression || "").match(/\$feature\[(?:"([^"]+)"|'([^']+)')\]/)?.slice(1).find(Boolean);
     const expressionMultiplier = Number(String(heightVariable?.valueExpression || "").match(/\*\s*([0-9]+(?:\.[0-9]+)?)/)?.[1]);
-    const extrusionEnabledByRenderer = Boolean(objectSymbol && (heightVariable || Number(objectSymbol.height ?? objectSymbol.size) > 1));
-    const initialExtrusionSource = heightVariable ? "field" : "fixed";
-    const extrusionField = heightVariable?.field || expressionField || preferredNumericField?.name || "";
+    const extrusionEnabledByRenderer = Boolean(savedChart || (objectSymbol && (heightVariable || Number(objectSymbol.height ?? objectSymbol.size) > 1)));
+    const initialExtrusionSource = (savedChart?.height?.field || heightVariable) ? "field" : "fixed";
+    const extrusionField = savedChart?.height?.field || heightVariable?.field || expressionField || preferredNumericField?.name || "";
+    const chartGroupField = savedChart?.groupBy || fields.find((field) => /year|date|time|period/i.test(`${field.name} ${field.alias || ""}`))?.name || fields[0]?.name || "";
     const fieldOptions = (items, emptyLabel, selected = "") => items.length
       ? items.map((field) => `<option value="${escapeHtml(field.name)}"${field.name === selected ? " selected" : ""}>${escapeHtml(field.alias || field.name)} (${escapeHtml(field.name)})</option>`).join("")
       : `<option value="">${emptyLabel}</option>`;
@@ -5823,7 +5826,7 @@ export class UIController {
       : "";
     const extrudable = this.mapController.getEngineId() === "maplibre" ? layer.geometryType === "polygon" : ["polygon", "point", "multipoint"].includes(layer.geometryType);
     const extrusionControls = extrudable
-      ? `<fieldset class="feedback-settings"><legend>3D extrusion</legend><label class="display-checkbox"><input data-extrusion-enabled type="checkbox"${extrusionEnabledByRenderer ? " checked" : ""} /><span>Extrude in 3D</span></label><div data-extrusion-options hidden><div class="field-grid"><label class="field"><span>Height source</span><select data-extrusion-source><option value="fixed"${initialExtrusionSource === "fixed" ? " selected" : ""}>Fixed height</option><option value="field"${initialExtrusionSource === "field" ? " selected" : ""}>Numeric field</option></select></label><label class="field" data-extrusion-value-control><span>Height <small>meters</small></span><input data-extrusion-value type="number" min="0" step="1" value="${Number(objectSymbol?.height ?? objectSymbol?.size) || 250}" /></label><label class="field" data-extrusion-field-control hidden><span>Height field</span><select data-extrusion-field>${fieldOptions(numericFields, "No numeric fields available", extrusionField)}</select></label><label class="field" data-extrusion-multiplier-control hidden><span>Height multiplier</span><input data-extrusion-multiplier type="number" min="0" step="0.01" value="${Number.isFinite(expressionMultiplier) ? expressionMultiplier : 1}" /></label>${layer.geometryType === "polygon" ? "" : `<label class="field"><span>Column width <small>meters</small></span><input data-extrusion-width type="number" min="1" step="50" value="${Number(objectSymbol?.width) || 650}" /></label>`}</div></div></fieldset>`
+      ? `<fieldset class="feedback-settings"><legend>3D visualization</legend><label class="display-checkbox"><input data-extrusion-enabled type="checkbox"${extrusionEnabledByRenderer ? " checked" : ""} /><span>Show as a 3D chart</span></label><div data-extrusion-options hidden><div class="field-grid"><label class="field"><span>Visualization type</span><select data-spatial-chart-mode><option value="attribute-extrusion">Attribute extrusion</option><option value="temporal-strata">Temporal strata</option><option value="stacked-footprints">Stacked footprints</option><option value="exploded-timeline">Exploded timeline</option></select></label><label class="field" data-spatial-group-control hidden><span>Vertical group field</span><select data-spatial-group-field>${fieldOptions(fields, "No fields available", chartGroupField)}</select></label><label class="field"><span>Height source</span><select data-extrusion-source><option value="fixed"${initialExtrusionSource === "fixed" ? " selected" : ""}>Fixed slab</option><option value="field"${initialExtrusionSource === "field" ? " selected" : ""}>Numeric field</option></select></label><label class="field" data-extrusion-value-control><span>Slab thickness <small>display meters</small></span><input data-extrusion-value type="number" min="1" step="1" value="${savedChart?.height?.thicknessMeters || Number(objectSymbol?.height ?? objectSymbol?.size) || 250}" /></label><label class="field" data-extrusion-field-control hidden><span>Height / thickness field</span><select data-extrusion-field>${fieldOptions(numericFields, "No numeric fields available", extrusionField)}</select></label><label class="field" data-extrusion-multiplier-control hidden><span>Height multiplier</span><input data-extrusion-multiplier type="number" min="0" step="0.01" value="${savedChart?.height?.scale ?? (Number.isFinite(expressionMultiplier) ? expressionMultiplier : 1)}" /></label><label class="field" data-spatial-slot-control hidden><span>Slot separation <small>display meters</small></span><input data-spatial-slot type="number" min="1" step="50" value="${savedChart?.height?.slotMeters || 400}" /></label><label class="field" data-spatial-gap-control hidden><span>Gap <small>display meters</small></span><input data-spatial-gap type="number" min="0" step="25" value="${savedChart?.height?.gapMeters ?? 100}" /></label>${layer.geometryType === "polygon" ? "" : `<label class="field"><span>Column width <small>meters</small></span><input data-extrusion-width type="number" min="1" step="50" value="${Number(objectSymbol?.width) || 650}" /></label>`}</div><p class="form-note" data-spatial-chart-note>Virtual Z is separate from terrain elevation. The legend labels what height and vertical position mean.</p></div></fieldset>`
       : `<fieldset class="feedback-settings"><legend>3D extrusion</legend><p class="form-note">${this.mapController.getEngineId() === "maplibre" && /point/i.test(layer.geometryType || "") ? "MapLibre point columns are not yet supported. Switch to ArcGIS for 3D columns." : "3D extrusion is not available for this layer’s geometry in the current engine."}</p></fieldset>`;
     // Ranked styles computed from the field's values (renderer-spec.js suggestRenderers).
     const canSuggest = fields.length && layer.queryable;
@@ -5923,16 +5926,31 @@ export class UIController {
     const extrusionValueControl = pane.querySelector("[data-extrusion-value-control]");
     const extrusionFieldControl = pane.querySelector("[data-extrusion-field-control]");
     const extrusionMultiplierControl = pane.querySelector("[data-extrusion-multiplier-control]");
+    const spatialChartMode = pane.querySelector("[data-spatial-chart-mode]");
+    const spatialGroupControl = pane.querySelector("[data-spatial-group-control]");
+    const spatialSlotControl = pane.querySelector("[data-spatial-slot-control]");
+    const spatialGapControl = pane.querySelector("[data-spatial-gap-control]");
+    if (spatialChartMode && savedChart?.mode) spatialChartMode.value = savedChart.mode;
     const syncExtrusion = () => {
       if (!extrusionEnabled || !extrusionOptions) return;
       extrusionOptions.hidden = !extrusionEnabled.checked;
+      const grouped = spatialChartMode && spatialChartMode.value !== "attribute-extrusion";
+      if (spatialGroupControl) spatialGroupControl.hidden = !grouped;
+      if (spatialSlotControl) spatialSlotControl.hidden = !grouped;
+      if (spatialGapControl) spatialGapControl.hidden = !grouped;
+      if (extrusionSource && !grouped) extrusionSource.value = "field";
       const usingField = extrusionSource?.value === "field";
       if (extrusionValueControl) extrusionValueControl.hidden = usingField;
       if (extrusionFieldControl) extrusionFieldControl.hidden = !usingField;
       if (extrusionMultiplierControl) extrusionMultiplierControl.hidden = !usingField;
+      const note = pane.querySelector("[data-spatial-chart-note]");
+      if (note) note.textContent = grouped
+        ? "Vertical position is a display slot, not physical altitude. Source footprints are preserved; this fast display does not calculate exact overlap partitions."
+        : "Height is a display value, separate from terrain or physical altitude.";
     };
     extrusionEnabled?.addEventListener("change", syncExtrusion);
     extrusionSource?.addEventListener("change", syncExtrusion);
+    spatialChartMode?.addEventListener("change", syncExtrusion);
     syncExtrusion();
     const populateSpec = (spec) => {
       selectedSpec = structuredClone(spec);
@@ -5953,10 +5971,12 @@ export class UIController {
         if (styleMode) styleMode.value = "simple";
         syncStyleField();
         extrusionEnabled.checked = true;
+        if (spatialChartMode) spatialChartMode.value = "attribute-extrusion";
         extrusionSource.value = option.heightField ? "field" : "fixed";
         if (option.heightField) pane.querySelector("[data-extrusion-field]").value = option.heightField;
         syncExtrusion();
-        await this.mapController.setLayerSymbology(uid, { mode: "simple", color: pane.querySelector("[data-symbol-color]").value, outline: pane.querySelector("[data-symbol-outline]").value, size: pane.querySelector("[data-symbol-size]").value, extrusionEnabled: true, extrusionSource: extrusionSource.value, extrusionField: option.heightField, extrusionValue: pane.querySelector("[data-extrusion-value]").value, extrusionMultiplier: pane.querySelector("[data-extrusion-multiplier]").value, extrusionWidth: pane.querySelector("[data-extrusion-width]")?.value });
+        if (option.heightField && this.mapController.getCapabilities().includes("spatial-chart-3d")) await this.mapController.setSpatialChart(uid, { type:"spatial-3d-chart", mode:"attribute-extrusion", height:{ field:option.heightField, scale:Number(pane.querySelector("[data-extrusion-multiplier]").value) || 1 }, color:{ field:option.heightField, strategy:"original" }, geometry:{ strategy:"source-footprints", aggregation:"none" } });
+        else await this.mapController.setLayerSymbology(uid, { mode: "simple", color: pane.querySelector("[data-symbol-color]").value, outline: pane.querySelector("[data-symbol-outline]").value, size: pane.querySelector("[data-symbol-size]").value, extrusionEnabled: true, extrusionSource: extrusionSource.value, extrusionField: option.heightField, extrusionValue: pane.querySelector("[data-extrusion-value]").value, extrusionMultiplier: pane.querySelector("[data-extrusion-multiplier]").value, extrusionWidth: pane.querySelector("[data-extrusion-width]")?.value });
       } else {
         const result = await this.mapController.applyRendererSpec(uid, option.pinnedSpec);
         if (extrusionEnabled) extrusionEnabled.checked = false;
@@ -5972,6 +5992,7 @@ export class UIController {
           if (["simple", "graduated-symbols"].includes(spec.type)) spec.color = pane.querySelector("[data-symbol-color]").value;
           if (spec.type === "simple") { spec.outline = pane.querySelector("[data-symbol-outline]").value; spec.size = Number(pane.querySelector("[data-symbol-size]").value); }
           await this.mapController.applyRendererSpec(uid, spec);
+          if (this.mapController.getCapabilities().includes("spatial-chart-3d")) await this.mapController.setSpatialChart(uid, null);
           selectedSpec = spec;
           void renderClasses();
         } else {
@@ -5980,7 +6001,7 @@ export class UIController {
             if (spec.type === "choropleth") spec.ramp = spec.ramp || classRamp.value || "greens";
             await this.mapController.applyRendererSpec(uid, spec);
           }
-          await this.mapController.setLayerSymbology(uid, {
+          const symbology = {
           mode: styleMode?.value === "color" || styleMode?.value === "size-color" ? "graduated" : styleMode?.value || "simple",
           preserveClasses: Boolean(selectedSpec && ["choropleth", "categories"].includes(selectedSpec.type)),
           field: styleField?.value,
@@ -5995,7 +6016,25 @@ export class UIController {
           extrusionField: pane.querySelector("[data-extrusion-field]")?.value,
           extrusionMultiplier: pane.querySelector("[data-extrusion-multiplier]")?.value,
           extrusionWidth: pane.querySelector("[data-extrusion-width]")?.value,
-          });
+          };
+          if (extrusionEnabled?.checked && this.mapController.getCapabilities().includes("spatial-chart-3d")) {
+            const grouped = spatialChartMode.value !== "attribute-extrusion";
+            await this.mapController.setSpatialChart(uid, {
+              type: "spatial-3d-chart",
+              mode: spatialChartMode.value,
+              ...(grouped ? { groupBy: pane.querySelector("[data-spatial-group-field]").value } : {}),
+              height: {
+                ...(extrusionSource.value === "field" ? { field: pane.querySelector("[data-extrusion-field]").value } : {}),
+                scale: Number(pane.querySelector("[data-extrusion-multiplier]")?.value) || 1,
+                thicknessMeters: Number(pane.querySelector("[data-extrusion-value]")?.value) || 120,
+                slotMeters: Number(pane.querySelector("[data-spatial-slot]")?.value) || 400,
+                gapMeters: Number(pane.querySelector("[data-spatial-gap]")?.value) || 0,
+              },
+              color: { field: grouped ? pane.querySelector("[data-spatial-group-field]").value : pane.querySelector("[data-extrusion-field]").value, strategy: grouped ? "sequential" : "original" },
+              geometry: { strategy: "source-footprints", aggregation: "none" },
+              interaction: { hover:true, select:true, explode:spatialChartMode.value === "exploded-timeline", scrubTimeline:["temporal-strata","exploded-timeline"].includes(spatialChartMode.value) },
+            });
+          } else await this.mapController.setLayerSymbology(uid, symbology);
         }
         const persisted = this.projectManager.persistCurrentIfSaved();
         this.toast(`Updated ${layer.title || "layer"} symbology${persisted ? " and saved it" : ""}.`);

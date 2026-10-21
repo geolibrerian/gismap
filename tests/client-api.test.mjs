@@ -137,3 +137,23 @@ test("the in-page Smart Image API returns an image and equivalent live map for a
   assert.deepEqual(output.share.payload.c.c, [-98.5, 39.5]);
   assert.equal((await api.smartImages.downloadCurrent()).options.download, true);
 });
+
+test('data-driven briefing API previews and generates each supported template without hiding sample coverage', async () => {
+  const layer={uid:'u',id:'layer',url:'https://example.org/FeatureServer/0',queryable:true,geometryType:'polygon',fields:[{name:'kind',type:'string'},{name:'year',type:'integer'},{name:'acres',type:'double'}]};
+  const features=[{attributes:{kind:'A',year:2020,acres:10},geometry:{type:'Polygon',coordinates:[[[0,0],[1,0],[1,1],[0,1],[0,0]]]}},{attributes:{kind:'B',year:2021,acres:20},geometry:{type:'Polygon',coordinates:[[[2,2],[3,2],[3,3],[2,3],[2,2]]]}}];
+  const mapController={getLayers:()=>[layer],getLayerConfig:()=>({url:layer.url}),getViewState:()=>({center:[1,1],zoom:4}),queryFeatures:async(_uid,params)=>{assert.equal(params.num,500);return {features,exceededTransferLimit:true}}};
+  const projectManager={current:{presentation:{briefing:{slides:[]}}},patchPresentation(value){this.current.presentation={...this.current.presentation,...value};}};
+  const api=createClientApi({projectManager,mapController});
+  const preview=await api.briefing.generateTemplate({template:'filter-series',field:'kind',previewOnly:true});
+  assert.equal(preview.saved,false); assert.equal(preview.document.slides.length,2); assert.equal(api.briefing.get().slides.length,0);
+  assert.equal(preview.coverage.completeness,'unknown'); assert.equal(preview.coverage.exceededTransferLimit,true);
+  const result=await api.briefing.generateTemplate({template:'timeline',field:'year',start:2020,end:2021,presentationMode:'single-slide'});
+  assert.equal(result.saved,true); assert.equal(api.briefing.get().slides[0].timeline.frames.length,2);
+  const grid=await api.briefing.generateTemplate({template:'grid-atlas',rows:2,columns:2,previewOnly:true});
+  assert.equal(grid.document.slides.length,5); assert.equal(api.briefing.get().slides.length,1);
+  const spatial=await api.briefing.generateTemplate({template:'spatial-3d-chart',groupBy:'year',heightField:'acres',previewOnly:true});
+  assert.equal(spatial.document.slides.length,6); assert.equal(spatial.preview.groups,2); assert.equal(spatial.document.slides.at(-3).spatialChart.mode,'temporal-strata');
+  await assert.rejects(api.briefing.generateTemplate({template:'not-supported'}),/Choose filter-series/);
+  await assert.rejects(api.briefing.generateTemplate({template:'grid-atlas',rows:0}),/rows/);
+  assert.equal(api.briefing.get().slides.length,1);
+});

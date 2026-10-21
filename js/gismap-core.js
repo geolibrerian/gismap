@@ -47,6 +47,7 @@ export const GISMAP_CORE_VERSION = APP_VERSION;
 export const capabilities = Object.freeze({
   apiVersion: GISMAP_CORE_VERSION,
   briefingSchemaVersion: BRIEFING_SCHEMA_VERSION,
+  briefingTemplateGeneration: { scope: "in-page", stability: "experimental", method: "briefing.generateTemplate", templates: ["filter-series", "timeline", "grid-atlas", "spatial-3d-chart"], maxQueriedFeatures: 500, completeSourceGuaranteed: false },
   briefingSchema: "https://gismap.online/schemas/briefing-v1.schema.json",
   execution: "client",
   authoringCommands: AUTHORING_TOOL_DEFINITIONS,

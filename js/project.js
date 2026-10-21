@@ -234,6 +234,7 @@ export class ProjectManager {
     // A service's own style loads with the layer; only styles set in GISMap are restored.
     if (config.renderer && config.styled !== false) this.mapController.restoreRenderer(layer.uid, config.renderer);
     if (config.rendererSpec) this.mapController.recordRendererSpec(layer.uid, config.rendererSpec);
+    if (config.spatialChart) await this.mapController.setSpatialChart(layer.uid, config.spatialChart);
     if (config.definitionExpression != null) {
       this.mapController.setDefinitionExpression(layer.uid, config.definitionExpression);
     }

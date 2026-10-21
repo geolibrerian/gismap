@@ -419,6 +419,26 @@ test("MapLibre polygon extrusion supports fixed and field heights and survives r
   assert.deepEqual(extrusion.paint["fill-extrusion-height"], ["max", 0, ["*", ["to-number", ["get", "HEIGHT"], 0], 0.01]]);
 });
 
+test("MapLibre spatial charts rebuild derived strata and persist the portable configuration", async () => {
+  const engine = new MaplibreEngine({ publish() {} });
+  engine.map = fakeMap();
+  const previous = globalThis.fetch;
+  globalThis.fetch = async () => ({ ok:true, json:async () => ({ type:"FeatureCollection", features:[
+    { type:"Feature", geometry:{ type:"Polygon", coordinates:[[[0,0],[1,0],[1,1],[0,0]]] }, properties:{ YEAR_:2019, ACRES:10 } },
+    { type:"Feature", geometry:{ type:"Polygon", coordinates:[[[0,0],[2,0],[2,2],[0,0]]] }, properties:{ YEAR_:2022, ACRES:20 } },
+  ] }) });
+  let layer;
+  try { layer = await engine.addService({ url:"https://example.org/fire-history.geojson" }); } finally { globalThis.fetch = previous; }
+  const chart = await engine.setSpatialChart(layer.uid, { type:"spatial-3d-chart", mode:"temporal-strata", groupBy:"YEAR_", height:{ slotMeters:400, gapMeters:100, thicknessMeters:120 } });
+  assert.deepEqual(chart.groups, [2019, 2022]);
+  assert.equal(engine.map.layers.get(`gismap-${layer.uid}-fill`).layout.visibility, "none");
+  assert.equal(engine.map.layers.get(`gismap-${layer.uid}-spatial-chart-1`).paint["fill-extrusion-base"], 500);
+  assert.deepEqual(engine.getLayerConfig(layer).spatialChart, chart);
+  await engine.setSpatialChart(layer.uid, null);
+  assert.equal(engine.map.layers.has(`gismap-${layer.uid}-spatial-chart-0`), false);
+  assert.equal(engine.map.layers.get(`gismap-${layer.uid}-fill`).layout.visibility, "visible");
+});
+
 test("views persist in GIS Map zoom levels (one above MapLibre's)", async () => {
   const engine = new MaplibreEngine({ publish() {} });
   engine.map = fakeMap();

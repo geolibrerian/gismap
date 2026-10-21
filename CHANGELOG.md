@@ -6,6 +6,12 @@ All notable changes to GIS Map Online are documented here. This project follows
 
 ## [Unreleased]
 
+### 3D spatial charts and Briefs
+
+- Add MapLibre polygon charts for attribute extrusion, temporal strata, source-footprint stacks and exploded timelines, with explicit virtual-Z legends and portable `spatialChart` state in projects, map specs and share links.
+- Add a five-scene 3D Spatial Chart Brief template—Overview, Magnitude, History, Accumulation and Conclusion—to the Brief authoring panel and experimental `briefing.generateTemplate` API.
+- Add the `spatial-3d-chart` agent recipe and skill guidance. The first renderer is deliberately fast display: it preserves source footprints and does not claim exact overlap partitioning, unique affected area or analytical spatial columns.
+
 ### Briefing v2 (in development)
 
 - Preserve more briefing state in full links, await shared layer readiness, and report unsupported styles instead of silently using a fallback. See `docs/briefing-v2-status.md` for known gaps.

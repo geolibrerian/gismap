@@ -29,8 +29,9 @@ import { MAX_FEATURES, describeArcGIS, featureServiceLayers, fetchFeatures, fetc
 import { OBJECT_ID_FIELD, boundsIntersect, boundsOf, expandBounds, geometryTypeOf, inferFields, normalizeFeatures, regroupPolygon, representativePoint } from "./geojson.js?v=0.42.0";
 import { loadMaplibre } from "./maplibre-loader.js?v=0.39.0";
 import { HILLSHADE_LAYER_ID, HILLSHADE_SOURCE_ID, MAPLIBRE_GROUNDS, TERRAIN_SOURCE_ID, hillshadeLayer, maplibreGround, terrainSource } from "./terrain.js?v=0.43.0";
+import { normalizeSpatialChart, spatialChartAxis, spatialChartLayerSpecs } from "../../spatial-chart.js?v=0.1.0";
 
-export const MAPLIBRE_CAPABILITIES = Object.freeze(["view-2d", "view-3d", "basemaps", "basemap-themes", "ground", "layers-arcgis", "layers-files", "query", "feature-filter", "renderer-spec", "renderer-native", "identify", "highlight", "capture", "geocode", "buildings-3d", "draw", "measurement", "legend", "native"]);
+export const MAPLIBRE_CAPABILITIES = Object.freeze(["view-2d", "view-3d", "spatial-chart-3d", "basemaps", "basemap-themes", "ground", "layers-arcgis", "layers-files", "query", "feature-filter", "renderer-spec", "renderer-native", "identify", "highlight", "capture", "geocode", "buildings-3d", "draw", "measurement", "legend", "native"]);
 
 const ZOOM_OFFSET = 1;
 const SCALE_AT_ZOOM_0 = 591657527.591555;
@@ -109,6 +110,7 @@ function layerHandle(record) {
     get where() { return record.where || null; },
     get rendererSpec() { return record.rendererSpec; },
     get renderer() { return record.renderer ?? record.serviceRenderer ?? null; },
+    get spatialChart() { return record.spatialChart ?? null; },
     get minScale() { return record.minScale || 0; },
     get maxScale() { return record.maxScale || 0; },
     get refreshInterval() { return 0; },
@@ -492,18 +494,28 @@ export class MaplibreEngine {
     const match = expression.match(/^\$feature\[("(?:[^"\\]|\\.)*")\]\s*\*\s*((?:\d+\.?\d*|\.\d+)(?:e[+-]?\d+)?)$/i);
     const field = variable?.field || (match ? JSON.parse(match[1]) : null);
     const height = field ? ["max", 0, ["*", ["to-number", ["get", field], 0], match ? Number(match[2]) : 1]] : Math.max(0, Number(extrusion?.size) || 0);
-    const fillVisibility = extrusion ? "none" : visibility;
-    return [
+    const chart = record.spatialChart;
+    const fillVisibility = extrusion || chart ? "none" : visibility;
+    const specs = [
       { id: `${source}-fill`, type: "fill", source, ...range, filter: filtered(["Polygon", "MultiPolygon"]), layout: { visibility: fillVisibility }, paint: fill },
-      { id: `${source}-extrusion`, type: "fill-extrusion", source, ...range, filter: filtered(["Polygon", "MultiPolygon"]), layout: { visibility: extrusion ? visibility : "none" }, paint: { "fill-extrusion-color": fill["fill-color"], "fill-extrusion-height": height, "fill-extrusion-base": 0, "fill-extrusion-opacity": opacity } },
+      { id: `${source}-extrusion`, type: "fill-extrusion", source, ...range, filter: filtered(["Polygon", "MultiPolygon"]), layout: { visibility: extrusion && !chart ? visibility : "none" }, paint: { "fill-extrusion-color": fill["fill-color"], "fill-extrusion-height": height, "fill-extrusion-base": 0, "fill-extrusion-opacity": opacity } },
       { id: `${source}-outline`, type: "line", source, ...range, filter: filtered(["Polygon", "MultiPolygon"]), layout: { visibility }, paint: outline },
       { id: `${source}-line`, type: "line", source, ...range, filter: filtered(["LineString", "MultiLineString"]), layout: { visibility, "line-cap": "round", "line-join": "round" }, paint: line },
       { id: `${source}-circle`, type: "circle", source, ...range, filter: filtered(["Point", "MultiPoint"]), layout: { visibility }, paint: circle },
     ];
+    if (chart) specs.push(...spatialChartLayerSpecs({ chart, idPrefix: source, source, range, visibility, opacity, polygonFilter: ["match", ["geometry-type"], ["Polygon", "MultiPolygon"], true, false], featureFilter, originalColor: fill["fill-color"] }));
+    return specs;
   }
 
   #layerIds(record) {
-    return record.kind === "raster" ? [`${this.#sourceId(record)}-raster`] : ["fill", "extrusion", "outline", "line", "circle"].map((suffix) => `${this.#sourceId(record)}-${suffix}`);
+    return record.renderLayerIds?.length ? [...record.renderLayerIds] : record.kind === "raster" ? [`${this.#sourceId(record)}-raster`] : ["fill", "extrusion", "outline", "line", "circle"].map((suffix) => `${this.#sourceId(record)}-${suffix}`);
+  }
+
+  #rebuildRecordLayers(record) {
+    for (const id of this.#layerIds(record)) if (this.map?.getLayer(id)) this.map.removeLayer(id);
+    const specs = this.#layerSpecs(record);
+    for (const spec of specs) this.map.addLayer(spec);
+    record.renderLayerIds = specs.map((spec) => spec.id);
   }
 
   /** Redraws a layer after its data, filter, range or style changed. */
@@ -540,6 +552,8 @@ export class MaplibreEngine {
       opacity: 1,
       where: null,
       featureFilter: null,
+      spatialChart: null,
+      renderLayerIds: [],
       rendererSpec: null,
       renderer: null,
       serviceRenderer: null,
@@ -561,7 +575,9 @@ export class MaplibreEngine {
     }
     this.#records.set(record.uid, record);
     this.map.addSource(this.#sourceId(record), this.#sourceSpec(record));
-    for (const spec of this.#layerSpecs(record)) this.map.addLayer(spec);
+    const specs = this.#layerSpecs(record);
+    for (const spec of specs) this.map.addLayer(spec);
+    record.renderLayerIds = specs.map((spec) => spec.id);
     record.handle = layerHandle(record);
     this.#renderLegend();
     this.events.publish("layer:added", { layer: record.handle, config: this.getLayerConfig(record) });
@@ -867,6 +883,7 @@ export class MaplibreEngine {
       // True when the style was set in GIS Map (or arrived with a shared map), not the service's own.
       styled: Boolean(record.renderer),
       rendererSpec: record.rendererSpec,
+      spatialChart: record.spatialChart ? structuredClone(record.spatialChart) : null,
       ignoreServiceScaleRange: record.ignoreScaleRange,
     };
   }
@@ -1042,6 +1059,10 @@ export class MaplibreEngine {
   /** Apply the editor's 3D polygon settings using a portable ArcGIS renderer. */
   async setLayerSymbology(uid, options = {}) {
     const record = this.#requireVector(uid);
+    if (record.spatialChart) {
+      record.spatialChart = null;
+      this.#rebuildRecordLayers(record);
+    }
     if (!options.extrusionEnabled) {
       const type = options.mode === "categorized" ? "categories" : options.mode === "graduated" ? (record.geometryType === "polygon" ? "choropleth" : "graduated-symbols") : "simple";
       return this.applyRendererSpec(uid, { type, ...(type === "simple" ? { color: options.color, outline: options.outline, size: Number(options.size) || 9 } : { field: options.field }) });
@@ -1062,6 +1083,18 @@ export class MaplibreEngine {
     record.rendererSpec = null;
     this.#refresh(record);
     this.events.publish("layer:changed", { uid: record.uid });
+  }
+
+  /** Apply a portable 3D spatial chart using derived MapLibre layers. */
+  async setSpatialChart(uid, input = null) {
+    const record = this.#requireVector(uid);
+    const groupBy = String(input?.groupBy || "");
+    const groupValues = groupBy ? this.#visibleFeatures(record).map((feature) => feature.properties?.[groupBy]) : [];
+    record.spatialChart = normalizeSpatialChart(input, { fields: this.#styleFields(record), geometryType: record.geometryType, groupValues });
+    this.#rebuildRecordLayers(record);
+    this.#renderLegend();
+    this.events.publish("layer:changed", { uid: record.uid });
+    return record.spatialChart ? structuredClone(record.spatialChart) : null;
   }
 
   /** Ranked style options for one field, from the values matching the layer's filter (renderer-spec.js). */
@@ -1316,6 +1349,17 @@ export class MaplibreEngine {
         section.append(note);
       }
       const legend = legendForLayer(record, this.#dataColor());
+      const axis = spatialChartAxis(record.spatialChart);
+      if (axis) {
+        const field = document.createElement("p");
+        field.className = "maplibre-legend__field";
+        field.textContent = axis.label;
+        section.append(field);
+        const note = document.createElement("p");
+        note.className = "maplibre-legend__note";
+        note.textContent = axis.detail;
+        section.append(note);
+      }
       if (legend.field) {
         const field = document.createElement("p");
         field.className = "maplibre-legend__field";

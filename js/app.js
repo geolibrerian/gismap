@@ -23,7 +23,7 @@ import { ApplicationRuntime } from "./application-runtime.js?v=0.54.0-agent1";
 import { PanelManager } from "./panel-manager.js?v=0.18.2";
 import { MobilePanelManager } from "./mobile-panel-manager.js?v=0.18.2";
 import { MobileWorkflowRouter } from "./mobile-workflow-router.js?v=0.53.0";
-import { createClientApi } from "./briefing-api.js?v=0.53.0";
+import { createClientApi } from "./briefing-api.js?v=0.53.0-templates1";
 import { registerAuthoringTools } from "./agent-authoring-tools.js?v=0.53.0";
 import { createCameraApi, createLayersApi } from "./layers-api.js?v=0.54.0-unified4";
 import { registerLayerTools } from "./layer-tools.js?v=0.29.0";
@@ -107,6 +107,7 @@ async function start() {
     if (config.visible !== undefined) mapController.setVisibility(result.layer.uid, config.visible !== false);
     if (Number.isFinite(config.opacity)) mapController.setOpacity(result.layer.uid, config.opacity);
     if (config.definitionExpression) mapController.setDefinitionExpression(result.layer.uid, config.definitionExpression);
+    if (config.spatialChart) await mapController.setSpatialChart(result.layer.uid, config.spatialChart);
     return [result.layer];
   };
   // Briefing documents can name a service URL as their layer; it loads like a shared layer.

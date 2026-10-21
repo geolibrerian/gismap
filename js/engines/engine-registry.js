@@ -18,7 +18,7 @@ export function registerEngine(definition) {
 registerEngine({
   id: "arcgis",
   label: "ArcGIS",
-  capabilities: ENGINE_CAPABILITIES.filter((name) => name !== "view-2d" && name !== "basemap-themes" && name !== "buildings-3d"),
+  capabilities: ENGINE_CAPABILITIES.filter((name) => !["view-2d", "spatial-chart-3d", "basemap-themes", "buildings-3d"].includes(name)),
   load: async ({ events, authController }) => {
     const { ArcGISEngine } = await import("./arcgis/arcgis-engine.js?v=0.54.0-series2");
     return new ArcGISEngine(events, authController);
@@ -29,7 +29,7 @@ registerEngine({
   id: "maplibre",
   label: "MapLibre (preview)",
   // Kept in step with MAPLIBRE_CAPABILITIES in maplibre-engine.js (a test checks).
-  capabilities: ["view-2d", "view-3d", "basemaps", "basemap-themes", "ground", "layers-arcgis", "layers-files", "query", "feature-filter", "renderer-spec", "renderer-native", "identify", "highlight", "capture", "geocode", "buildings-3d", "draw", "measurement", "legend", "native"],
+  capabilities: ["view-2d", "view-3d", "spatial-chart-3d", "basemaps", "basemap-themes", "ground", "layers-arcgis", "layers-files", "query", "feature-filter", "renderer-spec", "renderer-native", "identify", "highlight", "capture", "geocode", "buildings-3d", "draw", "measurement", "legend", "native"],
   load: async ({ events }) => {
     const { MaplibreEngine } = await import("./maplibre/maplibre-engine.js?v=0.54.0-filter1");
     return new MaplibreEngine(events);

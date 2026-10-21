@@ -18,7 +18,7 @@ export const MAP_SPEC_SCHEMA = "https://gismap.online/schemas/map-v1.schema.json
 export { MAP_SPEC_JSON_LIMIT };
 
 const TOP_LEVEL = new Set(["$schema", "version", "title", "description", "basemap", "skin", "camera", "layers", "legend", "briefing"]);
-const LAYER_KEYS = new Set(["url", "type", "title", "where", "renderer", "opacity", "visible", "ignoreServiceScaleRange", "popup", "outFields", "refreshInterval"]);
+const LAYER_KEYS = new Set(["url", "type", "title", "where", "renderer", "spatialChart", "opacity", "visible", "ignoreServiceScaleRange", "popup", "outFields", "refreshInterval"]);
 const SKINS = new Set(INTERFACE_SKINS.map(({ id }) => id));
 const READ_ONLY_WHERE = /;|--|\/\*|\b(drop|delete|insert|update|alter|exec|execute|merge|truncate|create)\b/i;
 const text = (value, max) => String(value ?? "").trim().slice(0, max);
@@ -111,6 +111,12 @@ export function validateMapSpec(input, { allowHttp = false } = {}) {
       styleIssues.forEach((item) => issue(item.level === "error" ? "warning" : item.level, item.code, `${path}.${item.path}`, `${item.message}${item.level === "error" ? " The service's own style is used." : ""}`, item.hint));
       if (valid) layer.renderer = renderer;
     }
+    if (raw.spatialChart !== undefined) {
+      const chart = raw.spatialChart;
+      const modes = ["attribute-extrusion", "temporal-strata", "stacked-footprints", "exploded-timeline"];
+      if (!chart || typeof chart !== "object" || chart.type !== "spatial-3d-chart" || !modes.includes(chart.mode) || JSON.stringify(chart).length > 12000) issue("warning", "INVALID_SPEC", `${path}.spatialChart`, "spatialChart must be a bounded spatial-3d-chart configuration; it was ignored.");
+      else layer.spatialChart = structuredClone(chart);
+    }
     if (raw.opacity !== undefined) {
       const opacity = Number(raw.opacity);
       if (Number.isFinite(opacity) && opacity >= 0 && opacity <= 1) layer.opacity = opacity;
@@ -163,6 +169,7 @@ export function mapSpecFromSharePayload(payload, options = {}) {
       ...(layer.title ? { title: layer.title } : {}),
       ...(layer.definitionExpression ? { where: layer.definitionExpression } : {}),
       ...(layer.renderer ? { renderer: { type: "arcgis", json: layer.renderer } } : {}),
+      ...(layer.spatialChart ? { spatialChart: layer.spatialChart } : {}),
       ...(Number.isFinite(layer.opacity) ? { opacity: layer.opacity } : {}),
       ...(layer.visible === false ? { visible: false } : {}),
       ...(layer.ignoreServiceScaleRange ? { ignoreServiceScaleRange: true } : {}),

@@ -62,7 +62,7 @@ export async function smokeLlms(base, { matchLocal = false, fetcher = fetch } = 
   assert.match(skillPage.content, /<h1>GISMap Online Agent Skill<\/h1>/, 'Skill page must not be a fallback or challenge');
   for (const id of ['interactive-map', 'interactive-briefing', 'geographic-tour', 'field-tasks', '3d-extrusion', 'vibe-map']) assert.ok(skillPage.content.includes(`recipe-${id}`), `Skill page missing ${id}`);
   if (matchLocal) assert.equal(skillPage.content, await readFile(new URL('../skills/index.html', import.meta.url), 'utf8'), 'Skill page differs from checkout (stale cache or wrong deployment)');
-  for (const [path, heading] of [['/skills/gismap/SKILL.md', /^---\r?\nname: gismap\r?\n/], ['/skills/gismap/references/agent-recipes.md', /^# Six composable agent recipes\r?\n/]]) {
+  for (const [path, heading] of [['/skills/gismap/SKILL.md', /^---\r?\nname: gismap\r?\n/], ['/skills/gismap/references/agent-recipes.md', /^# Seven composable agent recipes\r?\n/]]) {
     const { response, content } = await request(path);
     assert.equal(response.status, 200, `${path} must be served directly`);
     assert.match(response.headers.get('content-type') || '', /^text\/plain\s*;\s*charset\s*=\s*utf-8\s*$/i, `${path} must be UTF-8 plain text`);

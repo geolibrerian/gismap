@@ -1,4 +1,4 @@
-# Six composable agent recipes
+# Seven composable agent recipes
 
 Choose every recipe needed for the user's request, not just one. Use **discover → inspect → plan → validate → execute → verify → share**. Inspect the [capabilities](https://gismap.online/api/capabilities.json), [manifest](https://gismap.online/api/manifest.json), schemas and current engine first. Static HTTP documents, declarative URLs, standalone JavaScript utilities and an active, authorized `gisMapOnline` browser session are different execution environments; none implies a hosted authoring API. Report unavailable capabilities rather than inventing an API or silently substituting an output.
 
@@ -35,6 +35,29 @@ Do not stop at instructions if the requested style is supported. From a simple U
 ## 3d-extrusion — 3D extruded map
 
 **Prompt:** “Make the county heights represent acreage.” **Inputs:** polygon source, verified numeric field or fixed height, height scaling and units, colors, engine and 3D camera. Inspect geometry, field type, nulls, sentinels, negatives and outliers. Use only the actual engine's supported renderer and 3D settings; do not invent a portable field or assume source units are meters. Verify visible heights and camera in the selected engine, and test whether the shared artifact restores them. Clearly report unsupported settings or dropped height configuration. See [styling and 3D](map-styling.md) and the [3D examples](https://gismap.online/examples/air-quality-pm25-3d-columns/).
+
+<a id="spatial-3d-chart"></a>
+
+## spatial-3d-chart — height, chronological strata and footprint stacks
+
+**Prompt:** “Separate these overlapping fire perimeters by year and make a five-part 3D Brief.” **Inputs:** polygon source; verified group/time field; optional nonnegative magnitude field and scale; slot, gap and slab sizes; MapLibre engine; camera; and whether to create a Brief. Inspect real geometry, field types, nulls, sentinels and group cardinality first. Apply a `spatialChart` with `type: "spatial-3d-chart"` and one of `attribute-extrusion`, `temporal-strata`, `stacked-footprints`, or `exploded-timeline`. Keep actual elevation, display Z offset and extrusion thickness separate, and include the Z-axis meaning in the narrative and legend.
+
+Use `geometry: { strategy: "source-footprints", aggregation: "none" }` for the current fast-display renderer. It preserves original polygons and creates derived MapLibre extrusion layers; it does not partition overlaps, calculate unique affected area, or make an event-area sum equivalent to a geographic union. Do not call this analytical cumulative stacking. Limit generated strata to 40 distinct values and disclose when the source sample may omit groups. For a five-scene presentation, call the experimental in-page API only after the layer is loaded:
+
+```js
+await gisMapOnline.briefing.generateTemplate({
+  template: "spatial-3d-chart",
+  layerId: "your-loaded-layer-id",
+  groupBy: "YEAR_",
+  heightField: "GIS_ACRES",
+  slotMeters: 400,
+  gapMeters: 100,
+  scale: 1,
+  previewOnly: true
+});
+```
+
+Review the preview, then repeat with `previewOnly: false`. Verify the flat overview, attribute height, equal chronological slots, footprint-stack display, Z legend, tilted cameras, source-event identify, saved project, shared link and restoration after the Brief closes. The current implementation is MapLibre polygon fast display; spatial columns, exact polygon-overlay partitions, gridded analytical aggregation, mobile performance tuning and ArcGIS/Cesium parity are not implemented.
 
 <a id="vibe-map"></a>
 
