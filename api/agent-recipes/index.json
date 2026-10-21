@@ -134,6 +134,25 @@
       "page": "https://gismap.online/agent-recipes/spatial-3d-chart/"
     },
     {
+      "id": "lidar-and-3d-models",
+      "title": "LiDAR point clouds and 3D models (utility and vegetation data)",
+      "status": "experimental",
+      "question": "Can an AI agent put a LiDAR point cloud or a CAD model on a shareable 3D map?",
+      "triggers": [
+        "Show this LiDAR LAZ file on a map",
+        "Show only vegetation and conductor wires from this point cloud",
+        "Place this glTF transmission tower model at these coordinates",
+        "Put the CAD model of this substation on the map in 3D"
+      ],
+      "artifact": "map",
+      "engines": [
+        "maplibre"
+      ],
+      "lastTestedVersion": "0.53.0",
+      "url": "https://gismap.online/api/agent-recipes/lidar-and-3d-models.json",
+      "page": "https://gismap.online/agent-recipes/lidar-and-3d-models/"
+    },
+    {
       "id": "vibe-map",
       "title": "Vibe-matched map and presentation skin",
       "status": "available",

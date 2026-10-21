@@ -10,6 +10,7 @@ import { MAP_SPEC_JSON_LIMIT, QR_SAFE_LENGTH, readShare } from "./map-share.js?v
 import { SHARE_BASEMAPS, SHARE_LAYER_TYPES, SHARE_LIMITS, sanitizeSharedResourceUrl } from "./share.js?v=0.54.0-unified4";
 import { validateRendererSpec } from "./renderer-spec.js?v=0.29.0";
 import { normalizeBriefing, validateBriefing } from "./briefing-document.js?v=0.35.0";
+import { SCENE3D_TYPES, normalizeScene3d, scene3dTypeFor } from "./scene3d.js?v=0.1.0";
 import { INTERFACE_SKINS } from "./skin-catalog.js?v=0.44.2";
 import { GisMapError } from "./gismap-errors.js?v=0.28.0";
 
@@ -18,7 +19,7 @@ export const MAP_SPEC_SCHEMA = "https://gismap.online/schemas/map-v1.schema.json
 export { MAP_SPEC_JSON_LIMIT };
 
 const TOP_LEVEL = new Set(["$schema", "version", "title", "description", "basemap", "skin", "camera", "layers", "legend", "briefing"]);
-const LAYER_KEYS = new Set(["url", "type", "title", "where", "renderer", "spatialChart", "opacity", "visible", "ignoreServiceScaleRange", "popup", "outFields", "refreshInterval"]);
+const LAYER_KEYS = new Set(["url", "type", "title", "where", "renderer", "spatialChart", "scene3d", "opacity", "visible", "ignoreServiceScaleRange", "popup", "outFields", "refreshInterval"]);
 const SKINS = new Set(INTERFACE_SKINS.map(({ id }) => id));
 const READ_ONLY_WHERE = /;|--|\/\*|\b(drop|delete|insert|update|alter|exec|execute|merge|truncate|create)\b/i;
 const text = (value, max) => String(value ?? "").trim().slice(0, max);
@@ -117,6 +118,13 @@ export function validateMapSpec(input, { allowHttp = false } = {}) {
       if (!chart || typeof chart !== "object" || chart.type !== "spatial-3d-chart" || !modes.includes(chart.mode) || JSON.stringify(chart).length > 12000) issue("warning", "INVALID_SPEC", `${path}.spatialChart`, "spatialChart must be a bounded spatial-3d-chart configuration; it was ignored.");
       else layer.spatialChart = structuredClone(chart);
     }
+    if (raw.scene3d !== undefined) {
+      const kind = SCENE3D_TYPES.includes(type) ? type : scene3dTypeFor(raw.url);
+      try {
+        if (!kind) throw new Error("scene3d applies to pointcloud and model layers.");
+        layer.scene3d = normalizeScene3d(raw.scene3d, kind);
+      } catch (error) { issue("warning", "INVALID_SPEC", `${path}.scene3d`, `${error.message} The 3D options were ignored.`); }
+    }
     if (raw.opacity !== undefined) {
       const opacity = Number(raw.opacity);
       if (Number.isFinite(opacity) && opacity >= 0 && opacity <= 1) layer.opacity = opacity;
@@ -170,6 +178,7 @@ export function mapSpecFromSharePayload(payload, options = {}) {
       ...(layer.definitionExpression ? { where: layer.definitionExpression } : {}),
       ...(layer.renderer ? { renderer: { type: "arcgis", json: layer.renderer } } : {}),
       ...(layer.spatialChart ? { spatialChart: layer.spatialChart } : {}),
+      ...(layer.scene3d ? { scene3d: layer.scene3d } : {}),
       ...(Number.isFinite(layer.opacity) ? { opacity: layer.opacity } : {}),
       ...(layer.visible === false ? { visible: false } : {}),
       ...(layer.ignoreServiceScaleRange ? { ignoreServiceScaleRange: true } : {}),

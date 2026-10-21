@@ -5295,7 +5295,17 @@ export class UIController {
           openDuckdbQueryWorkspace(this, this.applicationRuntime.duckdb, { selectedRelation: result.relation, message: "This Parquet file has no recognized GeoParquet geometry metadata. It was loaded as a table, not a map layer." });
           continue;
         }
-        const layer = result?.layer || await this.mapController.addLocalFile(file);
+        let layer = result?.layer;
+        if (!layer) {
+          try { layer = await this.mapController.addLocalFile(file); } catch (error) {
+            // Point clouds without a CRS (XYZ, some LAS) can be placed once the person names it.
+            if (!/which coordinate system/.test(error.message)) throw error;
+            const crs = globalThis.prompt?.(`${file.name} does not say which coordinate system it uses. Enter it, such as EPSG:26910 (UTM 10N) or EPSG:2992 (Oregon Lambert, ft):`);
+            if (!crs) throw error;
+            layer = await this.mapController.addLocalFile(file, null, { scene3d: { crs: crs.trim() } });
+          }
+        }
+        if (layer.type === "pointcloud" || layer.type === "model") { this.toast(`${layer.title} added in 3D. Tilt the map to see it.`); await this.mapController.goToLayer(layer).catch(() => {}); continue; }
         this.toast(result?.truncated ? `Showing the first ${result.limit} features; SQL can query the full source. Local files require a project package for restoration.` : `${layer.title} added.${result ? " Local files require a project package for restoration." : ""}`);
         await this.mapController.goToLayerOnInitialLoad(layer).catch(() => {});
       } catch (error) {

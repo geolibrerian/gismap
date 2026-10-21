@@ -48,6 +48,10 @@ export const GRAPE_BRIEFING = Object.freeze({
   ] },
 });
 
+export const AUTZEN_LAS = "https://raw.githubusercontent.com/PDAL/PDAL/master/test/data/las/autzen_trim.las";
+export const LIDAR_MAP = Object.freeze({ version: 1, title: "Autzen Stadium LiDAR", basemap: "gray-vector", legend: true, layers: [{ url: AUTZEN_LAS, type: "pointcloud", title: "Autzen Stadium LiDAR (PDAL sample)", scene3d: { colorBy: "rgb", pointSize: 2 } }] });
+export const LIDAR_GROUND = Object.freeze({ version: 1, title: "Autzen ground surface", basemap: "gray-vector", legend: true, layers: [{ url: AUTZEN_LAS, type: "pointcloud", title: "Ground returns (class 2)", scene3d: { classes: [2], colorBy: "elevation", pointSize: 3, animate: { type: "reveal", durationMs: 6000, loop: true } } }] });
+
 export const COLLEGES_URL = "https://services2.arcgis.com/FiaPA4ga0iQKduv3/arcgis/rest/services/Colleges_and_Universities_View/FeatureServer/0";
 export const HALLOWEEN_COLLEGES = Object.freeze({
   version: 1, title: "California four-year colleges, Halloween edition", basemap: "skin", skin: "velvet-orbit", camera: CA_CAMERA, legend: true,
@@ -83,6 +87,7 @@ const SOURCES = {
   colleges: { label: "Colleges and Universities (HIFLD / IPEDS)", url: COLLEGES_URL },
   mlb: { label: "Major League Baseball Stadiums", url: MLB },
   osm: { label: "OpenStreetMap Nominatim (place coordinates)", url: "https://nominatim.openstreetmap.org/" },
+  autzen: { label: "PDAL sample LiDAR: Autzen Stadium, Eugene, Oregon (LAS 1.2, RGB)", url: AUTZEN_LAS },
 };
 
 const common = {
@@ -103,6 +108,8 @@ export function agentRecipeLinks({ phillyLink, ballparksLink, openingDayLink }) 
     sfTourReadable: createEmbeddedTourUrl({ baseUrl: `${SITE}/`, presentation: SF_TOUR, allowedBasemaps: basemaps, tourOnly: true, readable: true }),
     parkTask: createFieldTaskUrl({ baseUrl: `${SITE}/`, task: PARK_TASK }),
     parkTaskReadable: createFieldTaskUrl({ baseUrl: `${SITE}/`, task: PARK_TASK, readable: true }),
+    lidar: readableLink(LIDAR_MAP),
+    lidarGround: readableLink(LIDAR_GROUND),
     grapeBriefing: readableLink(Object.fromEntries(Object.entries(GRAPE_BRIEFING).filter(([, value]) => value !== undefined))),
     philly: phillyLink, ballparks: ballparksLink, openingDay: openingDayLink,
   };
@@ -307,6 +314,37 @@ export function agentRecipes(links) {
       limitations: ["MapLibre only.", "Fast display: no exact overlap partition or unique-area totals.", "At most 40 groups."],
       recovery: ["Filter the layer or use a coarser group field when there are more than 40 values."],
       examples: [example({ title: "See the skill reference", prompt: "Separate these overlapping fire perimeters by year.", dataset: [SOURCES.fires], page: `${SITE}/skills/gismap/references/briefs.md`, status: "prepared", checks: ["No published link yet."] })],
+    },
+    {
+      id: "lidar-and-3d-models", title: "LiDAR point clouds and 3D models (utility and vegetation data)", status: "experimental",
+      question: "Can an AI agent put a LiDAR point cloud or a CAD model on a shareable 3D map?",
+      answer: "Yes, on the MapLibre engine. A pointcloud layer reads LAS or LAZ (with its CRS) or XYZ text; a model layer reads glTF/GLB, OBJ or PLY placed at an anchor or from projected coordinates. Both draw with three.js on the map and travel in a #map=json: link, colored by RGB, ASPRS class, elevation or intensity, with a class filter for wires, towers and vegetation.",
+      triggers: ["Show this LiDAR LAZ file on a map", "Show only vegetation and conductor wires from this point cloud", "Place this glTF transmission tower model at these coordinates", "Put the CAD model of this substation on the map in 3D"],
+      inputTypes: ["LAS 1.0–1.4 (point formats 0–10)", "LAZ (LASzip)", "XYZ / PTS text", "glTF / GLB", "OBJ", "PLY"],
+      inputs: {
+        required: [{ name: "source", description: "HTTPS URL of the file (the host must allow browser access, CORS), or a local file added in the app." }],
+        optional: [{ name: "crs", description: "EPSG:<code>, proj4 or WKT; needed when the file carries none (XYZ, some LAS, CAD in projected coordinates)." }, { name: "classes", description: "ASPRS classes to show, such as [3, 4, 5] vegetation, [13, 14] wires, [15] towers." }, { name: "colorBy", description: "auto, rgb, classification, elevation or intensity." }, { name: "anchor", description: "Model placement [lon, lat, altitude]; heading, scale and upAxis adjust it." }, { name: "heightReference", description: "ground (default, set on the terrain) or absolute (surveyed elevations)." }, { name: "animate", description: "{ type: \"reveal\" } shows points from low to high on the shared clock." }],
+      },
+      capabilities: ["three-3d", "view-3d"],
+      engines: ["maplibre"],
+      steps: [
+        common.discover,
+        { stage: "inspect", action: "Check the file type, size and that its host allows browser access. For LAS/LAZ the header gives the point count and usually the CRS; ask for the CRS when it is missing rather than guessing.", interfaces: ["declarative-url", "standalone-js"], references: ["pointcloud-las.js#readLasHeader", "pointcloud-las.js#lasCrs"] },
+        { stage: "plan", action: "Choose colorBy and classes for the question (vegetation encroachment: classes 3–5 with 13–14; structures: 6, 15), a point size, and for models an anchor or the CRS of their coordinates.", interfaces: ["declarative-url"], references: [MAP_SCHEMA] },
+        { stage: "validate", action: "Validate the spec; bad scene3d options are reported and ignored.", interfaces: ["standalone-js", "in-browser-api"], references: ["mapSpec.validate"] },
+        { stage: "execute", action: "Write #map=json: with layers [{ url, type: \"pointcloud\" | \"model\", scene3d: {...} }], or call layers.add(url, { type, scene3d }) in an open page.", interfaces: ["declarative-url", "in-browser-api"], references: ["mapSpec.createLink", "layers.add"] },
+        { stage: "verify", action: "Open the link on the MapLibre engine: the legend reports points shown of total, CRS and colour mode; tilt the map to see heights.", interfaces: ["in-browser-api"], references: ["layers.list", "mapSpec.fromCurrent"] },
+        { stage: "share", action: "Return the link. Local files need a project package (.gmop); links only reference public URLs.", interfaces: ["declarative-url"], references: ["mapSpec.createLink"] },
+      ],
+      artifact: { type: "map", schema: MAP_SCHEMA, structure: "map-v1 with pointcloud or model layers and their scene3d options." },
+      outputs: [{ format: "Interactive 3D map link", interface: "declarative-url", interactive: true, reference: "mapSpec.createLink" }, { format: "Project with local LiDAR or CAD files (.gmop)", interface: "external-adapter", interactive: true, notes: "Made in the app; local files never go into links." }],
+      verification: ["Points or model visible where expected on the basemap", "Legend: points shown of total, CRS, colour mode", "Class filter and colours as requested", "Heights plausible when tilted"],
+      limitations: ["MapLibre engine only, flat (Mercator) map; the globe and the ArcGIS engine do not draw these layers.", "Whole files load into the browser: large clouds are thinned to maxPoints (default 1.5 million). Streaming formats (COPC, EPT, 3D Tiles) are not supported yet.", "No point picking, clearance measurement or IFC/DWG/DXF yet; convert CAD to glTF.", "LAZ decoding loads laz-perf (WebAssembly) and reprojection loads proj4; unknown EPSG codes are looked up on epsg.io."],
+      recovery: ["\"does not say which coordinate system\": add scene3d.crs.", "Points in the wrong place: check the CRS and its units (US survey feet vs metres).", "Nothing visible: open with ?engine=maplibre and switch off the globe."],
+      examples: [
+        example({ title: "Autzen Stadium LiDAR (true colour)", prompt: "Show this LAS file on a 3D map: https://raw.githubusercontent.com/PDAL/PDAL/master/test/data/las/autzen_trim.las", dataset: [SOURCES.autzen], url: links.lidar, spec: LIDAR_MAP, status: "rendered", checks: ["Opened headless from this branch (local server): 110,000 points reprojected from the file's WKT (Oregon Lambert, international feet) to Eugene, Oregon; true-colour trees and ground visible when tilted (screenshot inspected).", "Placed on the terrain at the cloud's ground level."] }),
+        example({ title: "Ground returns only, revealed by height", prompt: "Show only the ground points, coloured by elevation, and animate them.", dataset: [SOURCES.autzen], url: links.lidarGround, spec: LIDAR_GROUND, status: "loaded", checks: ["Loaded through layers.add with classes [2] and the reveal animation running on the shared clock (mid-reveal screenshot).", "This sample has only unclassified and ground classes; vegetation and wire classes need a classified utility survey."] }),
+      ],
     },
     {
       id: "vibe-map", title: "Vibe-matched map and presentation skin", status: "available",

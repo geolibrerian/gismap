@@ -52,6 +52,7 @@ export function createMapSpecApi({ layers, camera, mapController, host = {}, iss
             ignoreServiceScaleRange: entry.ignoreServiceScaleRange,
             refreshInterval: entry.refreshInterval,
             spatialChart: entry.spatialChart,
+            scene3d: entry.scene3d,
             zoomTo: false,
           });
         } catch (error) {
@@ -111,6 +112,7 @@ export function createMapSpecApi({ layers, camera, mapController, host = {}, iss
       ...(layer.where ? { where: layer.where } : {}),
       ...(layer.renderer && layer.renderer.type !== "service" ? { renderer: layer.renderer } : {}),
       ...(layer.spatialChart ? { spatialChart: layer.spatialChart } : {}),
+      ...(layer.scene3d ? { scene3d: layer.scene3d } : {}),
       ...(layer.opacity < 1 ? { opacity: layer.opacity } : {}),
       ...(layer.visible === false ? { visible: false } : {}),
       ...(layer.ignoreServiceScaleRange ? { ignoreServiceScaleRange: true } : {}),

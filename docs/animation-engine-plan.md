@@ -1,4 +1,4 @@
-> **Status:** Plan, 2026-10-20. Nothing in this document is implemented. Do not advertise any field, template or capability below in `skills/`, `llms*.txt` or `api/` until it ships with tests (see SPEC §9.9 in the data-driven briefs agent pack).
+> **Status:** Plan, 2026-10-20; updated 2026-10-21. Built so far: the GISMap-owned clock (`js/animation-clock.js`), the MapLibre + three.js host (`js/engines/three/three-host.js`) with a per-layer `update(time)` hook, and one clock-driven effect (point-cloud reveal). The rest of this document is not implemented. Do not advertise any field, template or capability below in `skills/`, `llms*.txt` or `api/` until it ships with tests (see SPEC §9.9 in the data-driven briefs agent pack).
 
 # GISMap Animation Engine — next phase plan
 

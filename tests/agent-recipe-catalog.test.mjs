@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import * as tourShare from "../js/tour-share.js";
 import * as fieldTaskShare from "../js/field-task-share.js";
+import * as pointcloudLas from "../js/pointcloud-las.js";
 
 const text = (path) => readFile(new URL(`../${path}`, import.meta.url), "utf8");
 const json = async (path) => JSON.parse(await text(path));
@@ -50,7 +51,7 @@ test("the catalog lists the six canonical recipes, each published and schema-val
 });
 
 test("recipe steps reference real API members and module exports, never a hosted endpoint", () => {
-  const modules = { "tour-share.js": tourShare, "field-task-share.js": fieldTaskShare };
+  const modules = { "tour-share.js": tourShare, "field-task-share.js": fieldTaskShare, "pointcloud-las.js": pointcloudLas };
   const namespaces = capabilities.namespaces;
   for (const recipe of recipes) for (const step of recipe.steps) for (const reference of step.references || []) {
     const member = /^([a-zA-Z]+)\.([a-zA-Z]+)$/.exec(reference);

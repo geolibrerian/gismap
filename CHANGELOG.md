@@ -6,7 +6,15 @@ All notable changes to GIS Map Online are documented here. This project follows
 
 ## [Unreleased]
 
+### three.js 3D layers
+
+- Add `pointcloud` (LAS 1.0–1.4, LAZ via laz-perf, XYZ) and `model` (glTF/GLB, OBJ, PLY) layers on the MapLibre engine, drawn by a shared three.js custom layer. Point clouds reproject from the file's CRS (GeoTIFF keys or WKT; proj4, epsg.io for unknown codes), convert foot units, colour by RGB, ASPRS class, elevation or intensity, and filter classes for wires, towers and vegetation. Models are placed by anchor or from projected CAD coordinates.
+- Portable `scene3d` options in map-v1, share links and projects; local LiDAR and CAD files from Add data; a 3D legend; zoom-to-layer lifts the camera onto the terrain.
+- Add the GISMap animation clock and a point-cloud reveal effect as the first piece of the animation engine.
+- Add the `lidar-and-3d-models` agent recipe and the 3D data skill reference.
+
 ### Agent recipes
+
 
 - Publish the canonical agent recipes as `agent-recipe-v1` JSON (`/api/agent-recipes/`) and one page each (`/agent-recipes/`), linked from llms.txt, the skill, the agent guide, examples, capabilities and the manifest. Each example records what was actually checked.
 - Document the standalone `tour-share.js` and `field-task-share.js` encoders so agents can create tour and field-task links without the app; add San Francisco tour, park inspection, California grape (2D and 3D) and Halloween colleges examples and six regression scenarios.

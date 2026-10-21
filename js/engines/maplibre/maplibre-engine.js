@@ -30,8 +30,10 @@ import { OBJECT_ID_FIELD, boundsIntersect, boundsOf, expandBounds, geometryTypeO
 import { loadMaplibre } from "./maplibre-loader.js?v=0.39.0";
 import { HILLSHADE_LAYER_ID, HILLSHADE_SOURCE_ID, MAPLIBRE_GROUNDS, TERRAIN_SOURCE_ID, hillshadeLayer, maplibreGround, terrainSource } from "./terrain.js?v=0.43.0";
 import { normalizeSpatialChart, spatialChartAxis, spatialChartLayerSpecs } from "../../spatial-chart.js?v=0.1.1";
+import { SCENE3D_TYPES, normalizeScene3d, scene3dTypeFor } from "../../scene3d.js?v=0.1.0";
+import { ThreeHost, loadThree } from "../three/three-host.js?v=0.1.0";
 
-export const MAPLIBRE_CAPABILITIES = Object.freeze(["view-2d", "view-3d", "spatial-chart-3d", "basemaps", "basemap-themes", "ground", "layers-arcgis", "layers-files", "query", "feature-filter", "renderer-spec", "renderer-native", "identify", "highlight", "capture", "geocode", "buildings-3d", "draw", "measurement", "legend", "native"]);
+export const MAPLIBRE_CAPABILITIES = Object.freeze(["view-2d", "view-3d", "spatial-chart-3d", "three-3d", "basemaps", "basemap-themes", "ground", "layers-arcgis", "layers-files", "query", "feature-filter", "renderer-spec", "renderer-native", "identify", "highlight", "capture", "geocode", "buildings-3d", "draw", "measurement", "legend", "native"]);
 
 const ZOOM_OFFSET = 1;
 const SCALE_AT_ZOOM_0 = 591657527.591555;
@@ -111,6 +113,8 @@ function layerHandle(record) {
     get rendererSpec() { return record.rendererSpec; },
     get renderer() { return record.renderer ?? record.serviceRenderer ?? null; },
     get spatialChart() { return record.spatialChart ?? null; },
+    get scene3d() { return record.scene3d ?? null; },
+    get scene3dInfo() { return record.scene3dInfo ?? null; },
     get minScale() { return record.minScale || 0; },
     get maxScale() { return record.maxScale || 0; },
     get refreshInterval() { return 0; },
@@ -396,13 +400,13 @@ export class MaplibreEngine {
     // A style still loading cannot be diffed (MapLibre would rebuild from scratch); wait for it.
     if (this.map && !this.map.isStyleLoaded()) await new Promise((resolve) => { this.map.once("style.load", resolve); setTimeout(resolve, 10000); });
     if (token !== this.#styleToken || !this.map) return;
-    this.map.once?.("style.load", () => { if (token === this.#styleToken) void this.#applyGround({ styleReady: true }); });
+    this.map.once?.("style.load", () => { if (token === this.#styleToken) { void this.#applyGround({ styleReady: true }); this.three?.attach(); } });
     this.map.setStyle(style, {
       diff: true,
       transformStyle: (_previous, incoming) => ({
         ...incoming,
-        sources: { ...incoming.sources, [HIGHLIGHT_SOURCE]: this.#highlightSource(), [DRAW_SOURCE]: this.#drawingSource(), ...(this.measurement ? { [MEASURE_SOURCE]: this.#measureSource() } : {}), ...Object.fromEntries([...this.#records.values()].map((record) => [this.#sourceId(record), this.#sourceSpec(record)])) },
-        layers: [...incoming.layers, ...[...this.#records.values()].flatMap((record) => this.#layerSpecs(record)), ...this.#drawingSpecs(), ...(this.measurement ? this.#measureSpecs() : []), ...this.#highlightSpecs()],
+        sources: { ...incoming.sources, [HIGHLIGHT_SOURCE]: this.#highlightSource(), [DRAW_SOURCE]: this.#drawingSource(), ...(this.measurement ? { [MEASURE_SOURCE]: this.#measureSource() } : {}), ...Object.fromEntries([...this.#records.values()].filter((record) => record.kind !== "three").map((record) => [this.#sourceId(record), this.#sourceSpec(record)])) },
+        layers: [...incoming.layers, ...[...this.#records.values()].filter((record) => record.kind !== "three").flatMap((record) => this.#layerSpecs(record)), ...this.#drawingSpecs(), ...(this.measurement ? this.#measureSpecs() : []), ...this.#highlightSpecs()],
       }),
     });
   }
@@ -508,6 +512,7 @@ export class MaplibreEngine {
   }
 
   #layerIds(record) {
+    if (record.kind === "three") return [];
     return record.renderLayerIds?.length ? [...record.renderLayerIds] : record.kind === "raster" ? [`${this.#sourceId(record)}-raster`] : ["fill", "extrusion", "outline", "line", "circle"].map((suffix) => `${this.#sourceId(record)}-${suffix}`);
   }
 
@@ -520,6 +525,11 @@ export class MaplibreEngine {
 
   /** Redraws a layer after its data, filter, range or style changed. */
   #refresh(record, { data = false } = {}) {
+    if (record.kind === "three") {
+      this.three?.set(record.uid, { visible: record.visible, opacity: record.opacity });
+      this.#renderLegend();
+      return;
+    }
     if (!this.map?.getSource(this.#sourceId(record))) return;
     if (data && record.kind === "vector") this.map.getSource(this.#sourceId(record)).setData(this.#sourceSpec(record).data);
     for (const spec of this.#layerSpecs(record)) {
@@ -574,10 +584,13 @@ export class MaplibreEngine {
       record.config.definitionExpression = record.where;
     }
     this.#records.set(record.uid, record);
-    this.map.addSource(this.#sourceId(record), this.#sourceSpec(record));
-    const specs = this.#layerSpecs(record);
-    for (const spec of specs) this.map.addLayer(spec);
-    record.renderLayerIds = specs.map((spec) => spec.id);
+    // three.js layers draw through the shared custom layer, not MapLibre sources.
+    if (record.kind !== "three") {
+      this.map.addSource(this.#sourceId(record), this.#sourceSpec(record));
+      const specs = this.#layerSpecs(record);
+      for (const spec of specs) this.map.addLayer(spec);
+      record.renderLayerIds = specs.map((spec) => spec.id);
+    }
     record.handle = layerHandle(record);
     this.#renderLegend();
     this.events.publish("layer:added", { layer: record.handle, config: this.getLayerConfig(record) });
@@ -597,6 +610,8 @@ export class MaplibreEngine {
     const url = String(config.url || "").trim().replace(/\/$/, "");
     if (!url) throw new Error("A service URL is required.");
     const type = config.serviceType || "arcgis-auto";
+    const scene3dType = SCENE3D_TYPES.includes(type) ? type : type === "arcgis-auto" ? scene3dTypeFor(url) : null;
+    if (scene3dType) return this.#addScene3d({ ...config, url }, scene3dType);
     if (type === "geojson" || (type === "arcgis-auto" && isGeoJsonUrl(url))) {
       const response = await fetch(url);
       if (!response.ok) throw new Error(`The GeoJSON could not be read (HTTP ${response.status}).`);
@@ -765,7 +780,34 @@ export class MaplibreEngine {
     return this.#addRecord({ ...this.#common(config), title, url: base, kind: "raster", type: "wms", tiles: { urls: [getMap.href.replace("BBOX=BBOX", "BBOX={bbox-epsg-3857}")], tileSize: 512 }, config: { sourceType: "wms", url } });
   }
 
+  /** A point cloud or model drawn with three.js (js/engines/three/). */
+  async #addScene3d(config, type, { file = null, projectPath = null } = {}) {
+    const options = normalizeScene3d(config.scene3d, type);
+    const THREE = await loadThree();
+    this.three ??= new ThreeHost({ map: this.map, THREE, notify: (message) => this.events.publish("app:error", { message }) });
+    const { buildPointCloud } = type === "pointcloud" ? await import("../three/point-cloud.js?v=0.1.0") : {};
+    const { buildModel } = type === "model" ? await import("../three/model.js?v=0.1.0") : {};
+    const built = await (type === "pointcloud" ? buildPointCloud : buildModel)(THREE, file ? { file } : { url: config.url }, options);
+    const handle = this.#addRecord({
+      ...this.#common(config), kind: "three", type, title: config.title?.trim() || (file ? file.name : titleFromUrl(config.url)), url: config.url || null,
+      bounds: built.bounds, scene3d: options, scene3dInfo: built.info, asset: file,
+      config: { sourceType: type, url: config.url ?? null, fileName: file?.name ?? null, projectPath: file ? projectPath || `data/${file.name}` : null, local: Boolean(file) },
+    });
+    const record = this.#record(handle);
+    this.three.add(record.uid, built.item);
+    this.three.set(record.uid, { visible: record.visible, opacity: record.opacity });
+    if (built.item.animated) this.three.clock.play();
+    return handle;
+  }
+
   async addLocalFile(file, projectPath = null, options = {}) {
+    const scene3dType = scene3dTypeFor(file?.name);
+    if (scene3dType) {
+      // A model dropped on the map without placement stands at the map centre.
+      const center = this.map.getCenter();
+      const scene3d = scene3dType === "model" && !options.scene3d?.anchor && !options.scene3d?.crs ? { ...options.scene3d, anchor: [center.lng, center.lat, 0] } : options.scene3d;
+      return this.#addScene3d({ scene3d }, scene3dType, { file, projectPath });
+    }
     const parsed = await parseLocalVectorFile(file);
     const parts = options.collectionKey != null ? parsed.collections.filter((part) => part.key === options.collectionKey) : parsed.collections;
     if (!parts.length) throw new Error("The requested shapefile was not found in the archive.");
@@ -805,6 +847,7 @@ export class MaplibreEngine {
   removeLayer(uid) {
     const record = this.#record(uid);
     if (!record) return;
+    if (record.kind === "three") this.three?.remove(record.uid);
     for (const id of this.#layerIds(record)) if (this.map?.getLayer(id)) this.map.removeLayer(id);
     if (this.map?.getSource(this.#sourceId(record))) this.map.removeSource(this.#sourceId(record));
     this.#records.delete(record.uid);
@@ -814,6 +857,7 @@ export class MaplibreEngine {
 
   async clearOperationalLayers() {
     for (const record of [...this.#records.values()]) {
+      if (record.kind === "three") this.three?.remove(record.uid);
       for (const id of this.#layerIds(record)) if (this.map?.getLayer(id)) this.map.removeLayer(id);
       if (this.map?.getSource(this.#sourceId(record))) this.map.removeSource(this.#sourceId(record));
     }
@@ -884,6 +928,7 @@ export class MaplibreEngine {
       styled: Boolean(record.renderer),
       rendererSpec: record.rendererSpec,
       spatialChart: record.spatialChart ? structuredClone(record.spatialChart) : null,
+      scene3d: record.scene3d ? structuredClone(record.scene3d) : null,
       ignoreServiceScaleRange: record.ignoreScaleRange,
     };
   }
@@ -1348,6 +1393,29 @@ export class MaplibreEngine {
         note.textContent = "Not visible at this scale.";
         section.append(note);
       }
+      if (record.kind === "three") {
+        const info = record.scene3dInfo || {};
+        const note = document.createElement("p");
+        note.className = "maplibre-legend__note";
+        note.textContent = info.kind === "pointcloud"
+          ? `${info.points.toLocaleString()} of ${info.total.toLocaleString()} points${info.step > 1 ? ` (every ${info.step}th)` : ""} · ${info.crs} · coloured by ${info.colorMode}`
+          : `3D model · ${(info.vertices || 0).toLocaleString()} vertices · ${info.size?.join(" × ")} m · placed by ${info.placement}`;
+        section.append(note);
+        for (const entry of info.legend || []) {
+          const row = document.createElement("div");
+          row.className = "maplibre-legend__entry";
+          const swatch = document.createElement("span");
+          swatch.className = "maplibre-legend__swatch maplibre-legend__swatch--point";
+          swatch.setAttribute("aria-hidden", "true");
+          swatch.style.backgroundColor = entry.color;
+          const label = document.createElement("span");
+          label.textContent = entry.label;
+          row.append(swatch, label);
+          section.append(row);
+        }
+        host.append(section);
+        continue;
+      }
       const legend = legendForLayer(record, this.#dataColor());
       const axis = spatialChartAxis(record.spatialChart);
       if (axis) {
@@ -1803,7 +1871,13 @@ export class MaplibreEngine {
 
   /** [west, south, east, north] of the layers' filtered data (all data layers when none are given), or null. */
   async dataBounds(layers = null) {
-    const records = (layers ? layers.map((ref) => this.#record(ref)) : [...this.#records.values()]).filter((record) => record?.kind === "vector");
+    const chosen = layers ? layers.map((ref) => this.#record(ref)) : [...this.#records.values()];
+    const scenes = chosen.filter((record) => record?.kind === "three").map((record) => record.bounds);
+    if (scenes.length) {
+      const vector = chosen.some((record) => record?.kind === "vector") ? await this.dataBounds(chosen.filter((record) => record?.kind === "vector").map((record) => record.uid)) : null;
+      return [...scenes, ...(vector ? [vector] : [])].reduce((a, b) => [Math.min(a[0], b[0]), Math.min(a[1], b[1]), Math.max(a[2], b[2]), Math.max(a[3], b[3])]);
+    }
+    const records = chosen.filter((record) => record?.kind === "vector");
     await Promise.all(records.map((record) => record.loaded));
     const geometries = records.flatMap((record) => this.#visibleFeatures(record).map((feature) => feature.geometry));
     const full = boundsOf(geometries);
@@ -1828,6 +1902,8 @@ export class MaplibreEngine {
     const bounds = await this.dataBounds(layers);
     if (!bounds) return false;
     await this.#fit(expandBounds(bounds, 1.08), { animate, padding: 24, tilt: 0 });
+    // With 3D terrain the camera centre stays at sea level; lift it to the ground so the data is centred.
+    if (this.map?.getTerrain?.() && this.map.setCenterElevation) this.map.setCenterElevation(this.map.queryTerrainElevation?.(this.map.getCenter()) || 0);
     return true;
   }
 

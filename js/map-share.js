@@ -38,7 +38,7 @@ function prune(value) {
   if (Array.isArray(value)) return value.map(prune);
   if (!value || typeof value !== "object") return value;
   return Object.fromEntries(Object.entries(value)
-    .map(([key, item]) => [key, key === "r" || key === "q" ? item : prune(item)])
+    .map(([key, item]) => [key, key === "r" || key === "q" || key === "v" ? item : prune(item)])
     .filter(([, item]) => item !== null && item !== undefined && item !== "" && item !== false && !(Array.isArray(item) && !item.length)));
 }
 
@@ -69,6 +69,7 @@ export function packLayer(config = {}) {
     w: hasDataFilter(config.definitionExpression) ? text(config.definitionExpression, 2000) : null,
     r: renderer,
     q: chartJson ? config.spatialChart : null,
+    v: config.scene3d && JSON.stringify(config.scene3d).length <= MAX_SPATIAL_CHART ? config.scene3d : null,
     o: Number.isFinite(config.opacity) && config.opacity < 1 ? round(config.opacity, 2) : null,
     h: config.visible === false ? 1 : null,
     s: config.ignoreServiceScaleRange ? 1 : null,
@@ -86,6 +87,7 @@ function unpackLayer(layer, options) {
     definitionExpression: text(layer.w, 2000) || undefined,
     renderer,
     spatialChart,
+    scene3d: layer.v && typeof layer.v === "object" && !Array.isArray(layer.v) && JSON.stringify(layer.v).length <= MAX_SPATIAL_CHART ? layer.v : undefined,
     opacity: Number.isFinite(layer.o) ? Math.min(1, Math.max(0, layer.o)) : undefined,
     visible: layer.h !== 1,
     ignoreServiceScaleRange: layer.s === 1,

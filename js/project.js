@@ -188,7 +188,7 @@ export class ProjectManager {
             missingFiles.push(layer.fileName);
             continue;
           }
-          const added = await this.mapController.addLocalFile(packaged, layer.projectPath, { collectionKey: layer.collectionKey });
+          const added = await this.mapController.addLocalFile(packaged, layer.projectPath, { collectionKey: layer.collectionKey, scene3d: layer.scene3d });
           await this.#restoreLayerPresentation(added, layer);
         } else if (layer.url) {
           const added = await this.mapController.addService({

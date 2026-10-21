@@ -11,6 +11,7 @@ Every GISMap artifact can be written as one link: URI-encode the JSON (encodeURI
 - Map: `https://gismap.online/#map=json:{"version":1,"layers":[{"url":"<layer URL>","where":"<filter>","renderer":{"type":"choropleth","field":"<FIELD>","ramp":"purples"}}],"basemap":"gray-vector"}`
 - Briefing (slides): add `"briefing":{"layerId":"<layer URL>","selection":{"useAll":true},"slides":[{"template":"title","title":"…"},{"template":"key-numbers","title":"At a glance","blocks":[{"type":"stat","stat":"count","label":"Features"}]},{"template":"feature","title":"…","featureId":"<OBJECTID>","fit":"feature","blocks":[{"type":"text","markdown":"…"}]}]}` to the map JSON; the link opens presenting (schema: [briefing-v1](https://gismap.online/schemas/briefing-v1.schema.json)).
 - Guided tour: `https://gismap.online/?tourOnly=1#tour=json:{"title":"…","autoplay":true,"stops":[{"name":"Coit Tower","caption":"…","lat":37.80238,"lon":-122.40583,"zoom":17,"tilt":55,"heading":200,"basemap":"usgs-imagery","seconds":6}]}`
+- LiDAR or 3D model (MapLibre engine): a map layer with `"type":"pointcloud"` (LAS, LAZ, XYZ) or `"type":"model"` (glTF/GLB, OBJ, PLY) and `"scene3d":{"crs":"EPSG:26910","classes":[3,4,5,14],"colorBy":"classification"}` or, for models, `"scene3d":{"anchor":[lon,lat,0],"heading":0,"scale":1}`.
 - Field task: `https://gismap.online/?workflow=tasks#fieldTask=json:{"title":"…","location":"…","lat":37.75972,"lon":-122.42713,"notes":"…","steps":["…","…"]}` (up to 10 steps and 5 features: `{"layerUrl","objectId","lat","lon","label"}`).
 
 Readable links hold up to 8,192 characters. Inspect real fields first (`<layer URL>?f=pjson`) and never invent coordinates. Use `usgs-imagery` for aerial imagery on the default MapLibre engine. Step-by-step: [agent recipes](https://gismap.online/agent-recipes/).
@@ -28,6 +29,7 @@ Finished maps, briefings, guided tours, field task packages, 3D maps and themed 
 | Inspect this location and complete these tasks | [field-tasks](https://gismap.online/skills/#recipe-field-tasks) | Five-task fieldwork package |
 | Make the county heights represent acreage | [3d-extrusion](https://gismap.online/skills/#recipe-3d-extrusion) | 3D extruded map |
 | Separate overlapping events by year and height | [spatial-3d-chart](https://gismap.online/skills/#recipe-spatial-3d-chart) | 3D spatial chart and five-scene Brief |
+| Show this LiDAR or CAD model in 3D | [lidar-and-3d-models](https://gismap.online/skills/#recipe-lidar-and-3d-models) | Point cloud or 3D model map |
 | Make the map feel like Halloween in California | [vibe-map](https://gismap.online/skills/#recipe-vibe-map) | Coordinated theme and styled map |
 
 Combine recipes for one request: a 3D fire-history map with chronological strata, a five-slide briefing and a QR uses interactive-map, spatial-3d-chart and interactive-briefing. Check compatibility, virtual-Z semantics, actual outputs and reopening; do not assume every combination is portable.

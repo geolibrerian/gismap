@@ -1,4 +1,4 @@
-# Seven composable agent recipes
+# Eight composable agent recipes
 
 Choose every recipe needed for the user's request, not just one. Use **discover → inspect → plan → validate → execute → verify → share**. Inspect the [capabilities](https://gismap.online/api/capabilities.json), [manifest](https://gismap.online/api/manifest.json), schemas and current engine first. Static HTTP documents, declarative URLs, standalone JavaScript utilities and an active, authorized `gisMapOnline` browser session are different execution environments; none implies a hosted authoring API. Report unavailable capabilities rather than inventing an API or silently substituting an output. Each recipe is also published as JSON at `https://gismap.online/api/agent-recipes/<id>.json` with its steps, interfaces, verification, limitations and checked examples; the catalog is `https://gismap.online/api/agent-recipes/index.json`.
 
@@ -58,6 +58,12 @@ await gisMapOnline.briefing.generateTemplate({
 ```
 
 Review the preview, then repeat with `previewOnly: false`. Verify the flat overview, attribute height, equal chronological slots, footprint-stack display, Z legend, tilted cameras, source-event identify, saved project, shared link and restoration after the Brief closes. The current implementation is MapLibre polygon fast display; spatial columns, exact polygon-overlay partitions, gridded analytical aggregation, mobile performance tuning and ArcGIS/Cesium parity are not implemented.
+
+<a id="lidar-and-3d-models"></a>
+
+## lidar-and-3d-models — point clouds and CAD in 3D
+
+**Prompt:** “Show only vegetation and conductor wires from this LAZ file.” **Inputs:** an HTTPS (CORS-enabled) LAS, LAZ or XYZ file, or a glTF/GLB, OBJ or PLY model; the CRS when the file has none; ASPRS classes; colour mode; for models an anchor or the CRS of their coordinates. Add a layer with `"type": "pointcloud"` or `"type": "model"` and `scene3d` options to a map-v1 link, or call `layers.add(url, { type, scene3d })` in an open page. This uses the MapLibre engine with three.js on the flat map. Large clouds are thinned to `maxPoints`; COPC/EPT streaming, picking, clearance analysis and IFC/DWG are not available yet. See [3D data](3d-data.md).
 
 <a id="vibe-map"></a>
 

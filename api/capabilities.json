@@ -243,7 +243,9 @@
     "geojson",
     "wms",
     "wfs",
-    "kml"
+    "kml",
+    "pointcloud",
+    "model"
   ],
   "rendererTypes": [
     "service",

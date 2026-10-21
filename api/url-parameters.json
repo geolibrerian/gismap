@@ -30,7 +30,9 @@
         "geoparquet",
         "wms",
         "wfs",
-        "kml"
+        "kml",
+        "pointcloud",
+        "model"
       ],
       "default": "arcgis-auto"
     },

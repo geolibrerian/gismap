@@ -19,6 +19,7 @@ export const ENGINE_CAPABILITIES = Object.freeze([
   "view-2d", // a flat map
   "view-3d", // a globe or scene: tilt, heading, elevation
   "spatial-chart-3d", // derived 3D chart layers with explicit virtual-Z semantics
+  "three-3d", // three.js point clouds (LAS, LAZ, XYZ) and models (glTF, OBJ, PLY)
   "basemaps", // setBasemap(id)
   "basemap-themes", // setBasemapTheme(theme): the "skin" basemap drawn in the skin's colours
   "ground", // setGround(id): terrain elevation

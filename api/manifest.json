@@ -427,6 +427,7 @@
         "view-2d",
         "view-3d",
         "spatial-chart-3d",
+        "three-3d",
         "basemaps",
         "basemap-themes",
         "ground",

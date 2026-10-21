@@ -3,6 +3,7 @@
 // links (loadLayer), and change layers only through the map controller, so the
 // project, share links and Smart images all see the result.
 import { SHARE_LAYER_TYPES, SHARE_LIMITS, sanitizeSharedResourceUrl } from "./share.js?v=0.54.0-unified4";
+import { SCENE3D_TYPES, normalizeScene3d, scene3dTypeFor } from "./scene3d.js?v=0.1.0";
 import { GisMapError, layerLoadError, toGisMapError } from "./gismap-errors.js?v=0.28.0";
 import { featureLayerUrl } from "./field-task-share.js?v=0.54.0-unified4";
 
@@ -65,6 +66,7 @@ export function createLayersApi({ mapController, loadLayer, state = null, events
       where: config.definitionExpression || null,
       renderer: config.rendererSpec || (config.styled ? { type: "arcgis", json: config.renderer } : { type: "service" }),
       spatialChart: config.spatialChart || null,
+      scene3d: config.scene3d || null,
       visibleAtCurrentScale: scale.visibleAtCurrentScale,
       minScale: scale.serviceMinScale,
       maxScale: scale.serviceMaxScale,
@@ -112,6 +114,9 @@ export function createLayersApi({ mapController, loadLayer, state = null, events
     let clean;
     try { clean = sanitizeSharedResourceUrl(url, { allowHttp }); } catch (error) { throw toGisMapError(error, "INVALID_URL", { url: String(url) }); }
     const where = checkWhere(options.where);
+    const scene3dType = SCENE3D_TYPES.includes(type) ? type : type === "arcgis-auto" ? scene3dTypeFor(clean) : null;
+    if (scene3dType && !mapController.getCapabilities?.().includes("three-3d")) throw new GisMapError("UNSUPPORTED_LAYER_TYPE", "Point clouds and 3D models draw on the MapLibre engine. Open the map with ?engine=maplibre.", { details: { type: scene3dType } });
+    if (scene3dType) try { normalizeScene3d(options.scene3d, scene3dType); } catch (error) { throw new GisMapError("INVALID_SPEC", error.message); }
     return { clean, type, where };
   }
 
@@ -129,6 +134,7 @@ export function createLayersApi({ mapController, loadLayer, state = null, events
         visible: options.visible,
         ignoreServiceScaleRange: options.ignoreServiceScaleRange === true,
         refreshInterval: Number(options.refreshInterval) || 0,
+        ...(options.scene3d ? { scene3d: options.scene3d } : {}),
       });
     } catch (error) {
       throw layerLoadError(error, { url: clean });

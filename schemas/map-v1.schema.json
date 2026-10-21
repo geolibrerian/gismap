@@ -56,10 +56,31 @@
       "required": ["url"],
       "properties": {
         "url": { "type": "string", "format": "uri", "pattern": "^https://", "description": "HTTPS URL of an ArcGIS REST layer or service (FeatureServer/0, MapServer, ImageServer), a GeoJSON file, or a WMS/WFS/KML service. Public only: no tokens or keys. The service must allow browser (CORS) access. Append ?f=pjson to an ArcGIS URL to see its fields." },
-        "type": { "enum": ["arcgis-auto", "feature", "map-image", "imagery", "geojson", "geoparquet", "wms", "wfs", "kml"], "default": "arcgis-auto", "description": "The layer type; arcgis-auto detects it from the service." },
+        "type": { "enum": ["arcgis-auto", "feature", "map-image", "imagery", "geojson", "geoparquet", "wms", "wfs", "kml", "pointcloud", "model"], "default": "arcgis-auto", "description": "The layer type; arcgis-auto detects it from the service, and from .las/.laz/.xyz (pointcloud) or .glb/.gltf/.obj/.ply (model) file extensions. pointcloud and model draw with three.js on the MapLibre engine." },
         "title": { "type": "string", "maxLength": 160, "description": "The name shown in the Layers panel and legend." },
         "where": { "type": "string", "maxLength": 2000, "description": "A read-only SQL filter on the layer's fields, such as \"CORN_SALES_IN_DOLLARS >= 0\" or \"STATE = 'Iowa'\". No statements, comments or semicolons." },
         "renderer": { "$ref": "https://gismap.online/schemas/renderer-v1.schema.json", "description": "The style. Field names must match the service exactly; a misspelled field keeps the service's own style and is reported." },
+        "scene3d": {
+          "type": "object",
+          "description": "Options for pointcloud and model layers (MapLibre engine, drawn with three.js). Elevations are real heights in metres after unit conversion, not virtual Z.",
+          "properties": {
+            "crs": { "type": "string", "maxLength": 6000, "description": "The data's coordinate system: EPSG:<code>, a proj4 string or WKT. LAS/LAZ files usually carry it; XYZ files and CAD models in projected coordinates need it." },
+            "colorBy": { "enum": ["auto", "rgb", "classification", "elevation", "intensity"], "description": "Point colours; auto uses RGB, then ASPRS classification, then elevation." },
+            "pointSize": { "type": "number", "minimum": 1, "maximum": 12, "description": "Point size in screen pixels." },
+            "maxPoints": { "type": "integer", "minimum": 1000, "maximum": 5000000, "description": "Larger clouds are thinned evenly to this many points." },
+            "classes": { "type": "array", "maxItems": 64, "items": { "type": "integer", "minimum": 0, "maximum": 255 }, "description": "Show only these ASPRS classes, such as [5, 14] for high vegetation and conductor wires." },
+            "animate": { "type": "object", "properties": { "type": { "const": "reveal" }, "durationMs": { "type": "number", "minimum": 1000, "maximum": 120000 }, "loop": { "type": "boolean" } }, "description": "Reveal the points from lowest to highest on the shared animation clock." },
+            "anchor": { "type": "array", "minItems": 2, "maxItems": 3, "items": { "type": "number" }, "description": "Model placement: [longitude, latitude, altitude in metres]." },
+            "heading": { "type": "number", "minimum": -360, "maximum": 360, "description": "Model rotation clockwise from north, in degrees." },
+            "scale": { "type": "number", "minimum": 0.000001, "maximum": 1000000, "description": "Model units to metres." },
+            "upAxis": { "enum": ["y", "z"], "description": "glTF is Y-up; many CAD exports are Z-up." },
+            "color": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$", "description": "A colour for untextured models." },
+            "heightReference": { "enum": ["ground", "absolute"], "description": "ground (default): heights above the data's own ground level, placed on the terrain; absolute: surveyed elevations as they are." },
+            "zOffset": { "type": "number", "minimum": -10000, "maximum": 10000, "description": "Metres added to every height." },
+            "verticalExaggeration": { "type": "number", "minimum": 0.1, "maximum": 20 }
+          },
+          "additionalProperties": false
+        },
         "spatialChart": {
           "type": "object",
           "required": ["type", "mode", "height"],
