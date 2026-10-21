@@ -4,9 +4,31 @@
 [![Tests](https://github.com/geolibrerian/gismap/actions/workflows/test.yml/badge.svg)](https://github.com/geolibrerian/gismap/actions/workflows/test.yml)
 [![License](https://img.shields.io/github/license/geolibrerian/gismap)](LICENSE)
 
-GISMap Online is a free browser-based geospatial application for exploring and analyzing data, creating maps, briefings, tours and field tasks, and sharing results. It supports MapLibre (the default) and the ArcGIS Maps SDK, with native ES modules, local browser project storage and portable project packages—no application login or database required.
+**[GISMap.online](https://gismap.online/) makes interactive web maps and map briefings from one link.** It's free and open source and runs in the browser: no account, API key or server. People build in the app; AI assistants write the link.
 
-The interface uses a layered globe-and-analysis mark with an editable HTML wordmark and the descriptor “Spatial intelligence studio.”
+| Make | From | Example |
+| --- | --- | --- |
+| Styled, filtered web map | ArcGIS REST, GeoJSON, WMS, KML, GeoParquet, PMTiles, local files | [California grape production](https://gismap.online/agent-recipes/interactive-map/) |
+| Map briefing (slides on a live map) | The same layers, one slide per area or time | [Philadelphia police divisions](https://gismap.online/examples/ai/philadelphia-police-divisions/) |
+| Guided map tour | Places in order, with camera and captions | [San Francisco landmarks](https://gismap.online/agent-recipes/geographic-tour/) |
+| Field task with check-in and report | A location and a checklist | [Park inspection](https://gismap.online/agent-recipes/field-tasks/) |
+| 3D: extrusions, LiDAR, CAD models | Polygons; LAS/LAZ; glTF, OBJ, PLY | [LiDAR and 3D models](https://gismap.online/agent-recipes/lidar-and-3d-models/) |
+
+### For AI assistants and agents
+
+Every result is one link with readable JSON after `json:`. A chatbot can write it without running code:
+
+```text
+https://gismap.online/#map=json:{"version":1,"layers":[{"url":"<layer URL>","renderer":{"type":"choropleth","field":"<FIELD>"}}]}
+https://gismap.online/?tourOnly=1#tour=json:{"title":"…","stops":[{"name":"…","lat":37.8,"lon":-122.4}]}
+https://gismap.online/?workflow=tasks#fieldTask=json:{"title":"…","lat":37.76,"lon":-122.43,"steps":["…"]}
+```
+
+Briefings go inside the map JSON (`"briefing": {...}`). Start with [llms.txt](https://gismap.online/llms.txt), the [agent skill](https://gismap.online/skills/) (Claude Code, Codex), the [agent recipes](https://gismap.online/agent-recipes/) ([JSON](https://gismap.online/api/agent-recipes/index.json)) and the [map-v1 schema](https://gismap.online/schemas/map-v1.schema.json). In an open page, `globalThis.gisMapOnline` is the [in-page API](#agent-api).
+
+### Under the hood
+
+GISMap supports MapLibre (the default, with three.js for point clouds and models) and the ArcGIS Maps SDK. It uses native ES modules, local browser project storage and portable project packages; no application login or database is required. The interface uses a layered globe-and-analysis mark with an editable HTML wordmark and the descriptor “Spatial intelligence studio.”
 
 ## Explore and learn
 
