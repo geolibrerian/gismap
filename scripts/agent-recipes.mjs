@@ -302,7 +302,7 @@ export function agentRecipes(links) {
         optional: [{ name: "heightField", description: "Nonnegative numeric field." }, { name: "slotMeters", description: "Slot height." }, { name: "gapMeters", description: "Gap between slots." }],
       },
       capabilities: ["spatial-chart-3d"],
-      engines: ["maplibre"],
+      engines: ["maplibre", "arcgis"],
       steps: [
         common.discover, common.inspectSource,
         { stage: "execute", action: "Add spatialChart to the map-v1 layer, or call briefing.generateTemplate({ template: \"spatial-3d-chart\" }) in the page.", interfaces: ["declarative-url", "in-browser-api"], references: [MAP_SCHEMA, "briefing.generateTemplate"] },
@@ -311,7 +311,7 @@ export function agentRecipes(links) {
       artifact: { type: "map", schema: MAP_SCHEMA, structure: "map-v1 layer.spatialChart, or briefing slides with spatialChart." },
       outputs: [{ format: "Interactive map or briefing link", interface: "declarative-url", interactive: true }],
       verification: ["Z legend states the meaning", "Groups ordered", "Restored after the briefing closes"],
-      limitations: ["MapLibre only.", "Fast display: no exact overlap partition or unique-area totals.", "At most 40 groups."],
+      limitations: ["MapLibre and ArcGIS engines; the ArcGIS SceneView draws extrude symbols with a meters size variable and Decode() base heights.", "Fast display: no exact overlap partition or unique-area totals.", "At most 40 groups."],
       recovery: ["Filter the layer or use a coarser group field when there are more than 40 values."],
       examples: [example({ title: "See the skill reference", prompt: "Separate these overlapping fire perimeters by year.", dataset: [SOURCES.fires], page: `${SITE}/skills/gismap/references/briefs.md`, status: "prepared", checks: ["No published link yet."] })],
     },

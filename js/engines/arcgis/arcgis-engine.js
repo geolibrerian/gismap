@@ -10,6 +10,8 @@ import { GisMapError } from "../../gismap-errors.js?v=0.28.0";
 import { ENGINE_CAPABILITIES, unsupported } from "../engine-interface.js?v=0.52.0";
 import { loadArcGISRuntime } from "./arcgis-loader.js?v=0.38.0";
 import { basemapOnEngine, basemapsForEngine } from "../../basemap-catalog.js?v=0.53.0-gallery1";
+import { normalizeSpatialChart } from "../../spatial-chart.js?v=0.1.1";
+import { spatialChartArcgis } from "../../spatial-chart-arcgis.js?v=0.1.0";
 
 const ARCGIS_WORLD_GEOCODER =
   "https://geocode.arcgis.com/arcgis/rest/services/World/GeocodeServer";
@@ -342,7 +344,8 @@ export class ArcGISEngine {
   }
 
   getCapabilities() {
-    return ENGINE_CAPABILITIES.filter((name) => name !== "view-2d" && name !== "basemap-themes" && name !== "buildings-3d");
+    // Point clouds and models (three.js) are MapLibre-only; spatial charts draw with SceneView symbols.
+    return ENGINE_CAPABILITIES.filter((name) => !["view-2d", "basemap-themes", "buildings-3d", "three-3d"].includes(name));
   }
 
   /**
@@ -1117,8 +1120,10 @@ export class ArcGISEngine {
       definitionExpression: layer.definitionExpression || source.definitionExpression || null,
       wfsName: source.wfsName ?? layer.name ?? null,
       customParameters: source.customParameters ?? layer.customParameters ?? null,
-      elevationInfo: layer.elevationInfo?.toJSON?.() ?? source.elevationInfo ?? null,
-      renderer: layer.renderer?.toJSON?.() ?? null,
+      // While a spatial chart is drawn, projects and links keep the style it was made from, plus the chart.
+      elevationInfo: source.spatialChart ? source.chartRestore?.elevationInfo?.toJSON?.() ?? null : layer.elevationInfo?.toJSON?.() ?? source.elevationInfo ?? null,
+      renderer: source.spatialChart ? source.chartRestore?.renderer?.toJSON?.() ?? null : layer.renderer?.toJSON?.() ?? null,
+      spatialChart: source.spatialChart ? structuredClone(source.spatialChart) : null,
       // True when the style was set in GISMap (or arrived with a shared map), not the service's own.
       styled: Boolean(source.renderer),
       rendererSpec: source.rendererSpec ?? null,
@@ -1237,6 +1242,7 @@ export class ArcGISEngine {
     if (!layer) throw new GisMapError("NOT_FOUND", "That layer is not on the map.");
     await layer.load();
     if (!("renderer" in layer)) throw new GisMapError("UNSUPPORTED_LAYER_TYPE", `${layer.title || "This layer"} is drawn by its service and cannot be restyled.`);
+    this.#dropSpatialChart(layer);
     const fields = (layer.fields || []).map((field) => ({ name: field.name, alias: field.alias, type: field.type }));
     const { valid, issues, spec: validated } = validateRendererSpec(input, { fields, geometryType: layer.geometryType });
     if (!valid) {
@@ -1467,6 +1473,7 @@ export class ArcGISEngine {
   restoreRenderer(ref, rendererJson) {
     const layer = this.#layer(ref);
     if (!layer || !("renderer" in layer) || !rendererJson) return;
+    this.#dropSpatialChart(layer);
     // renderer.toJSON() produces WebMap JSON names such as `classBreaks`,
     // `PolygonSymbol3D`, `Extrude`, and `sizeInfo`. Convert that serialized
     // form back into live SDK objects before assigning it. Direct autocasting
@@ -1511,6 +1518,7 @@ export class ArcGISEngine {
     const layer = this.#layer(uid);
     if (!layer || !("renderer" in layer)) throw new Error("This layer does not support client-side renderers.");
     await layer.load();
+    this.#dropSpatialChart(layer);
     const color = options.color || "#1b7f6a";
     const outline = options.outline || "#ffffff";
     const geometryType = layer.geometryType;
@@ -1577,6 +1585,57 @@ export class ArcGISEngine {
     config.rendererSpec = null;
     this.layerConfigs.set(uid, config);
     this.events.publish("layer:changed", { uid });
+  }
+
+  /**
+   * A portable 3D spatial chart (js/spatial-chart.js) drawn with SceneView
+   * extrusion symbols and per-group elevation; null returns to the layer's style.
+   */
+  async setSpatialChart(uid, input = null) {
+    const layer = this.#layer(uid);
+    if (!layer || !("renderer" in layer)) throw new GisMapError("UNSUPPORTED_LAYER_TYPE", "3D spatial charts need a feature layer.");
+    await layer.load();
+    const config = this.layerConfigs.get(layer.uid) ?? {};
+    this.layerConfigs.set(layer.uid, config);
+    if (!input) {
+      this.#dropSpatialChart(layer);
+      this.events.publish("layer:changed", { uid: layer.uid });
+      return null;
+    }
+    const groupBy = String(input.groupBy || "");
+    const groupValues = groupBy ? await this.#styleFieldValues(layer, groupBy, false) : [];
+    const fields = (layer.fields || []).map((field) => ({ name: field.name, alias: field.alias, type: field.type }));
+    const chart = normalizeSpatialChart(input, { fields, geometryType: layer.geometryType, groupValues });
+    // The style the chart was made from is kept, so removing the chart (or saving the project) returns to it.
+    config.chartRestore ??= { renderer: layer.renderer?.clone?.() ?? null, elevationInfo: layer.elevationInfo?.clone?.() ?? null };
+    const { renderer, elevationInfo } = spatialChartArcgis(chart, this.#rendererPalette(config.chartRestore.renderer));
+    layer.renderer = renderer;
+    layer.elevationInfo = elevationInfo;
+    config.spatialChart = chart;
+    this.events.publish("layer:changed", { uid: layer.uid });
+    return structuredClone(chart);
+  }
+
+  #dropSpatialChart(layer) {
+    const config = this.layerConfigs.get(layer.uid);
+    if (!config?.spatialChart) return;
+    const { renderer, elevationInfo } = config.chartRestore || {};
+    if (renderer) layer.renderer = renderer;
+    layer.elevationInfo = elevationInfo || { mode: "on-the-ground" };
+    config.spatialChart = null;
+    config.chartRestore = null;
+  }
+
+  /** The current style's classes and colours (live SDK renderer), for extruding without losing them. */
+  #rendererPalette(renderer) {
+    const colorOf = (symbol) => {
+      const color = symbol?.color ?? symbol?.symbolLayers?.getItemAt?.(0)?.material?.color ?? symbol?.symbolLayers?.[0]?.material?.color;
+      return color?.toRgba?.() ?? color ?? null;
+    };
+    const otherVariables = (renderer?.visualVariables || []).filter((variable) => variable.type !== "size").map((variable) => variable.toJSON?.() ?? variable);
+    if (renderer?.type === "class-breaks") return { type: "class-breaks", field: renderer.field, classBreaks: renderer.classBreakInfos.map((info) => ({ minValue: info.minValue, maxValue: info.maxValue, label: info.label, color: colorOf(info.symbol) })), defaultColor: colorOf(renderer.defaultSymbol), defaultLabel: renderer.defaultLabel, visualVariables: otherVariables };
+    if (renderer?.type === "unique-value" && renderer.field) return { type: "unique-value", field: renderer.field, uniqueValues: renderer.uniqueValueInfos.map((info) => ({ value: info.value, label: info.label, color: colorOf(info.symbol) })), defaultColor: colorOf(renderer.defaultSymbol), defaultLabel: renderer.defaultLabel, visualVariables: otherVariables };
+    return { type: "simple", defaultColor: colorOf(renderer?.symbol) || "#1b7f6a", visualVariables: otherVariables };
   }
 
   async setSimpleSymbology(uid, options) {

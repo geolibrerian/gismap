@@ -217,7 +217,7 @@
     },
     "briefing.generateTemplate": {
       "stability": "experimental",
-      "description": "Generate or preview filter-series, timeline, grid-atlas, or spatial-3d-chart briefing slides from up to 500 queried features on an already loaded layer. Browser session only; coverage is not guaranteed. Spatial charts currently use MapLibre polygon fast display, not analytical overlap aggregation. See /skills/gismap/references/briefs.md."
+      "description": "Generate or preview filter-series, timeline, grid-atlas, or spatial-3d-chart briefing slides from up to 500 queried features on an already loaded layer. Browser session only; coverage is not guaranteed. Spatial charts draw on MapLibre (derived extrusion layers) and ArcGIS (SceneView extrude symbols) as fast display, not analytical overlap aggregation. See /skills/gismap/references/briefs.md."
     }
   },
   "errorCodes": {

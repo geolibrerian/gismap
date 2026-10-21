@@ -51,7 +51,8 @@ export function createMapSpecApi({ layers, camera, mapController, host = {}, iss
             visible: entry.visible,
             ignoreServiceScaleRange: entry.ignoreServiceScaleRange,
             refreshInterval: entry.refreshInterval,
-            spatialChart: entry.spatialChart,
+            // A chart goes on after the style (below): restyling a layer ends its chart on some engines.
+            spatialChart: entry.renderer ? undefined : entry.spatialChart,
             scene3d: entry.scene3d,
             zoomTo: false,
           });
@@ -67,6 +68,12 @@ export function createMapSpecApi({ layers, camera, mapController, host = {}, iss
           } catch (error) {
             const problem = toGisMapError(error, "INVALID_SPEC");
             issues.push({ level: "error", code: problem.code, path: `${path}.renderer`, message: `${problem.message} The service's own style is shown instead.`, hint: problem.hint });
+          }
+          if (entry.spatialChart) {
+            try { info = await layers.update(info.id, { spatialChart: entry.spatialChart }); } catch (error) {
+              const problem = toGisMapError(error, "INVALID_SPEC");
+              issues.push({ level: "warning", code: problem.code, path: `${path}.spatialChart`, message: `${problem.message} The 3D chart was not drawn.` });
+            }
           }
         }
         if (entry.popup) popups.set(info.id, entry.popup);

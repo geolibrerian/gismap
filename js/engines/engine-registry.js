@@ -18,9 +18,9 @@ export function registerEngine(definition) {
 registerEngine({
   id: "arcgis",
   label: "ArcGIS",
-  capabilities: ENGINE_CAPABILITIES.filter((name) => !["view-2d", "spatial-chart-3d", "three-3d", "basemap-themes", "buildings-3d"].includes(name)),
+  capabilities: ENGINE_CAPABILITIES.filter((name) => !["view-2d", "three-3d", "basemap-themes", "buildings-3d"].includes(name)),
   load: async ({ events, authController }) => {
-    const { ArcGISEngine } = await import("./arcgis/arcgis-engine.js?v=0.54.0-series2");
+    const { ArcGISEngine } = await import("./arcgis/arcgis-engine.js?v=0.55.0-chart1");
     return new ArcGISEngine(events, authController);
   },
 });

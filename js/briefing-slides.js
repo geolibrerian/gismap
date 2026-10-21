@@ -669,7 +669,7 @@ export class BriefingSlides {
     on("[data-spatial-brief-preview]", "click", () => {
       const output = container.querySelector("[data-spatial-brief-results]");
       try {
-        if (!this.api.mapController.getCapabilities().includes("spatial-chart-3d")) throw new Error("Switch to the MapLibre engine to create 3D spatial chart scenes.");
+        if (!this.api.mapController.getCapabilities().includes("spatial-chart-3d")) throw new Error("Switch to the MapLibre or ArcGIS engine to create 3D spatial chart scenes.");
         const { preview } = generateSpatialChartBrief(spatialBriefOptions());
         output.innerHTML = `<p><strong>5 scenes</strong> · ${preview.groups} vertical groups · source-footprint fast display</p><ol><li>Overview — flat geography</li><li>Magnitude — attribute height</li><li>History — equal chronological slots</li><li>Accumulation — ordered footprint slabs</li><li>Conclusion — return to geography</li></ol>`;
       } catch (error) { output.textContent = error.message; }
@@ -677,7 +677,7 @@ export class BriefingSlides {
     on("[data-spatial-brief-create]", "click", () => {
       const output = container.querySelector("[data-spatial-brief-results]");
       try {
-        if (!this.api.mapController.getCapabilities().includes("spatial-chart-3d")) throw new Error("Switch to the MapLibre engine to create 3D spatial chart scenes.");
+        if (!this.api.mapController.getCapabilities().includes("spatial-chart-3d")) throw new Error("Switch to the MapLibre or ArcGIS engine to create 3D spatial chart scenes.");
         const original = this.briefing;
         const { briefing, preview } = generateSpatialChartBrief(spatialBriefOptions());
         this.selectedSlideId = briefing.slides[original.slides.length].id;

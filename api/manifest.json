@@ -397,6 +397,7 @@
       "label": "ArcGIS",
       "capabilities": [
         "view-3d",
+        "spatial-chart-3d",
         "basemaps",
         "ground",
         "layers-arcgis",

@@ -84,7 +84,7 @@
         "spatialChart": {
           "type": "object",
           "required": ["type", "mode", "height"],
-          "description": "MapLibre 3D spatial chart settings. Z values are display offsets, never physical altitude. source-footprints/none is the fast display strategy and does not calculate exact polygon overlaps.",
+          "description": "3D spatial chart settings (MapLibre and ArcGIS engines). Z values are display offsets, never physical altitude. source-footprints/none is the fast display strategy and does not calculate exact polygon overlaps.",
           "properties": {
             "type": { "const": "spatial-3d-chart" },
             "mode": { "enum": ["attribute-extrusion", "temporal-strata", "stacked-footprints", "exploded-timeline"] },

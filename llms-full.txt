@@ -272,7 +272,7 @@ Layer properties:
 - `layers[].where`: A read-only SQL filter on the layer's fields, such as "CORN_SALES_IN_DOLLARS >= 0" or "STATE = 'Iowa'". No statements, comments or semicolons.
 - `layers[].renderer`: The style. Field names must match the service exactly; a misspelled field keeps the service's own style and is reported.
 - `layers[].scene3d`: Options for pointcloud and model layers (MapLibre engine, drawn with three.js). Elevations are real heights in metres after unit conversion, not virtual Z.
-- `layers[].spatialChart`: MapLibre 3D spatial chart settings. Z values are display offsets, never physical altitude. source-footprints/none is the fast display strategy and does not calculate exact polygon overlaps.
+- `layers[].spatialChart`: 3D spatial chart settings (MapLibre and ArcGIS engines). Z values are display offsets, never physical altitude. source-footprints/none is the fast display strategy and does not calculate exact polygon overlaps.
 - `layers[].opacity`: 0 is transparent, 1 is opaque.
 - `layers[].visible`: Whether the layer starts switched on.
 - `layers[].ignoreServiceScaleRange`: Draw at every zoom level, even where the publisher hides the layer (its minScale/maxScale).

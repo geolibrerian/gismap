@@ -127,7 +127,8 @@
       ],
       "artifact": "map",
       "engines": [
-        "maplibre"
+        "maplibre",
+        "arcgis"
       ],
       "lastTestedVersion": "0.53.0",
       "url": "https://gismap.online/api/agent-recipes/spatial-3d-chart.json",

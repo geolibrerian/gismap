@@ -44,7 +44,8 @@
     "spatial-chart-3d"
   ],
   "engines": [
-    "maplibre"
+    "maplibre",
+    "arcgis"
   ],
   "steps": [
     {
@@ -115,7 +116,7 @@
     "Restored after the briefing closes"
   ],
   "limitations": [
-    "MapLibre only.",
+    "MapLibre and ArcGIS engines; the ArcGIS SceneView draws extrude symbols with a meters size variable and Decode() base heights.",
     "Fast display: no exact overlap partition or unique-area totals.",
     "At most 40 groups."
   ],

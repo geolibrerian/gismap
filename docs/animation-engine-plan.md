@@ -8,7 +8,7 @@ Goal: FireTrace-style cinematic stories (3D terrain, a growing glowing perimeter
 
 | | MapLibre + three.js | ArcGIS Maps SDK 5.0 (SceneView) |
 |---|---|---|
-| Already in GISMap | Default engine; keyless terrain (`terrain.js`, Mapterhorn DEM); `spatial-chart-3d` and `buildings-3d` exist only here | Full engine adapter; `spatial-chart-3d` is excluded |
+| Already in GISMap | Default engine; keyless terrain (`terrain.js`, Mapterhorn DEM); `buildings-3d` exists only here; `spatial-chart-3d` as derived extrusion layers | Full engine adapter; `spatial-chart-3d` as SceneView extrude symbols (since 2026-10-21) |
 | Time | No native model; we own the clock (we want that anyway) | Native `timeExtent` and `FeatureFilter.timeExtent` |
 | Custom effects | Custom layer shares MapLibre's WebGL context; three.js renders into it | `RenderNode` (replaces the external renderer); heavier and less documented |
 | Camera | `flyTo`/`easeTo`/`FreeCameraOptions`; orbit by bearing | `view.goTo(Camera)`, very good |
@@ -28,7 +28,7 @@ Goal: FireTrace-style cinematic stories (3D terrain, a growing glowing perimeter
 Issues to settle **before** building on top:
 1. Date-only values stored at UTC midnight (CAL FIRE `ALARM_DATE` is 100% 00:00 UTC) shift day-1 events into the previous frame under a local timezone. This branch now warns; the animation clock should go further, with a `dateSemantics: "instant" | "civil-date"` option on the time config.
 2. MapLibre playback filters **loaded** features, and service loads are capped (`truncated`). Animation must load the whole time range once (or tile it) and fail visibly when truncated, not animate a partial history.
-3. ArcGIS shows nothing for `spatialChart` slides today; the player should show a visible "3D chart needs MapLibre" note there (SPEC §2: degrade visibly).
+3. ~~ArcGIS shows nothing for `spatialChart` slides.~~ Done 2026-10-21: ArcGIS draws them with extrude symbols (`js/spatial-chart-arcgis.js`).
 
 ## 3. Architecture
 
