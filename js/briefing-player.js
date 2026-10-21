@@ -9,14 +9,18 @@ const MAP_TEMPLATES = new Set(["feature", "map-narrative", "title"]);
 const hasMap = (slide) => MAP_TEMPLATES.has(slide.template) && Boolean(slide.camera || slide.fit);
 /** Whether a slide shows the map (the player, cards and PDF agree on this). */
 export const slideHasMap = hasMap;
-export function timelineIndices(slides, index) {
-  const selected = slides[index]?.generatedBy;
-  if (selected?.template !== 'timeline') return [];
-  if (selected.group) return slides.map((slide, i) => slide.generatedBy?.template === 'timeline' && slide.generatedBy.group === selected.group ? i : -1).filter(i => i >= 0);
-  // Older timeline slides had no group identifier; use their contiguous run.
+export function timelineIndices(slides, index, fields = []) {
+  const slide = slides[index], selected = slide?.generatedBy;
+  const filter = slide?.dataView?.filter;
+  const temporalSeries = selected?.template === 'filter-series' && (selected.temporal === true || fields.some(field => field.name === filter?.field && /date|timestamp/i.test(field.type || '')));
+  if (selected?.template !== 'timeline' && !temporalSeries) return [];
+  const matches = item => item?.generatedBy?.template === selected.template &&
+    (selected.template === 'timeline' || (item.dataView?.layer === slide.dataView?.layer && item.dataView?.filter?.field === filter?.field));
+  if (selected.group) return slides.map((item, i) => matches(item) && item.generatedBy.group === selected.group ? i : -1).filter(i => i >= 0);
+  // Previously generated sequences have no group: only join their contiguous run.
   let start = index, end = index;
-  while (start > 0 && slides[start - 1]?.generatedBy?.template === 'timeline' && !slides[start - 1].generatedBy.group) start--;
-  while (end + 1 < slides.length && slides[end + 1]?.generatedBy?.template === 'timeline' && !slides[end + 1].generatedBy.group) end++;
+  while (start > 0 && matches(slides[start - 1]) && !slides[start - 1].generatedBy.group) start--;
+  while (end + 1 < slides.length && matches(slides[end + 1]) && !slides[end + 1].generatedBy.group) end++;
   return Array.from({length:end-start+1}, (_,i) => start+i);
 }
 
@@ -210,7 +214,7 @@ export class BriefingPlayer {
     const state = this.state;
     const controls = state?.root?.querySelector('[data-timeline-controls]');
     if (!controls) return;
-    const indices = timelineIndices(state.slides, state.index);
+    const indices = timelineIndices(state.slides, state.index, this.api.fields?.() || []);
     const frames = state.slides[state.index]?.timeline?.frames;
     const single = Array.isArray(frames) && frames.length > 0;
     controls.hidden = !indices.length;
@@ -226,7 +230,7 @@ export class BriefingPlayer {
     const slider = controls.querySelector('[data-timeline-scrub]');
     slider.max = String(length - 1);
     slider.value = String(current);
-    controls.querySelector('[data-timeline-frame]').textContent = `${current + 1} / ${length}${single ? ` · ${frames[current].title}` : ""}`;
+    controls.querySelector('[data-timeline-frame]').textContent = `${current + 1} / ${length} · ${single ? frames[current].title : (this.api.slideTitle?.(state.slides[state.index]) || state.slides[state.index].title || "")}`;
     const button = controls.querySelector('[data-timeline-play]');
     button.textContent = state.timelinePlaying ? 'Pause' : 'Play';
     button.setAttribute('aria-pressed', String(Boolean(state.timelinePlaying)));
@@ -261,7 +265,7 @@ export class BriefingPlayer {
     const tick = async epoch => {
       const state = this.state;
       if (!state?.timelinePlaying || state.timelineEpoch !== epoch) return;
-      const indices = timelineIndices(state.slides, state.index);
+      const indices = timelineIndices(state.slides, state.index, this.api.fields?.() || []);
       const direction = Number(controls.querySelector('[data-timeline-direction]').value);
       const frames = state.slides[state.index]?.timeline?.frames;
       const single = Array.isArray(frames) && frames.length > 0;
@@ -283,7 +287,7 @@ export class BriefingPlayer {
     });
     controls.querySelector('[data-timeline-scrub]').addEventListener('input', event => {
       this.#stopTimeline();
-      const indices = timelineIndices(this.state.slides, this.state.index);
+      const indices = timelineIndices(this.state.slides, this.state.index, this.api.fields?.() || []);
       const frames = this.state.slides[this.state.index]?.timeline?.frames;
       if (Array.isArray(frames) && frames.length) void goFrame(Number(event.target.value));
       else void go(indices[Number(event.target.value)]);
@@ -314,7 +318,7 @@ export class BriefingPlayer {
     root.querySelector('[data-stage="next"]').disabled = index === slides.length - 1;
     root.querySelector("[data-stage-notes-body]").innerHTML = slide.notes ? escapeHtml(slide.notes).replaceAll("\n", "<br>") : "<p class=\"form-note\">No notes for this slide.</p>";
     const thumbs = root.querySelector(".briefing-stage__thumbs");
-    thumbs.innerHTML = slides.map((item, position) => `<button type="button" class="briefing-thumb${position === index ? " is-current" : ""}" data-thumb="${position}" aria-current="${position === index}"><span>${position + 1}</span><strong>${escapeHtml(item.title || "Untitled slide")}</strong></button>`).join("");
+    thumbs.innerHTML = slides.map((item, position) => `<button type="button" class="briefing-thumb${position === index ? " is-current" : ""}" data-thumb="${position}" aria-current="${position === index}"><span>${position + 1}</span><strong>${escapeHtml(this.api.slideTitle?.(item) || item.title || "Untitled slide")}</strong></button>`).join("");
     thumbs.querySelectorAll("[data-thumb]").forEach((button) => button.addEventListener("click", () => this.#go(Number(button.dataset.thumb))));
     if (!thumbs.hidden) thumbs.querySelector(".is-current")?.scrollIntoView({ block: "nearest", inline: "center" });
   }

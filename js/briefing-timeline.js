@@ -40,6 +40,8 @@ export function previewTimeline({ field, fields, records, start, end, step = 1, 
 }
 
 export function generateTimeline({briefing, layerRef, camera, ...options} = {}) {
+  const cameraPolicy = options.cameraPolicy ?? 'fit-features';
+  if (!['fit-features', 'fixed'].includes(cameraPolicy)) throw new Error('Choose a supported map view policy.');
   const original = normalizeBriefing(briefing);
   if (!layerRef) throw new Error('The current layer cannot be identified for sharing.');
   if (!camera) throw new Error('A map view is needed before generating timeline slides.');
@@ -61,7 +63,7 @@ export function generateTimeline({briefing, layerRef, camera, ...options} = {}) 
     slide.blocks.push({id:`${slide.id}-count`, type:'stat', stat:'count', field:null, queryRef:null, label:'Features'});
     addStatistic(slide);
     slide.timeline = {version:1, frames:preview.frames.map((frame,index) => ({title:frame.title, filter:frame.filter, ...(descriptions[index] ? {narrative:descriptions[index]} : {})}))};
-    slide.generatedBy = {template:'timeline', version:1, group:slide.id, mode:options.mode || 'interval'};
+    slide.generatedBy = {template:'timeline', version:1, group:slide.id, cameraPolicy, mode:options.mode || 'interval'};
     return {briefing:addSlide(original,slide), preview};
   }
   let result = original;
@@ -73,7 +75,7 @@ export function generateTimeline({briefing, layerRef, camera, ...options} = {}) 
     addStatistic(slide);
     if (descriptions[index]) slide.blocks.find(block => block.type === 'text').markdown = descriptions[index];
     group ||= slide.id;
-    slide.generatedBy = {template:'timeline', version:1, group, intervalStart:frame.intervalStart, intervalEnd:frame.intervalEnd, mode:options.mode || 'interval'};
+    slide.generatedBy = {template:'timeline', version:1, group, cameraPolicy, intervalStart:frame.intervalStart, intervalEnd:frame.intervalEnd, mode:options.mode || 'interval'};
     result = addSlide(result, slide);
   }
   return {briefing:result, preview};

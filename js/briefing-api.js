@@ -1,6 +1,6 @@
-import { generateFilterSeries } from "./briefing-data-series.js?v=0.4.0";
+import { generateFilterSeries } from "./briefing-data-series.js?v=0.5.0";
 import { isDateField } from "./briefing-timeline-dates.js?v=0.2.0";
-import { generateTimeline } from "./briefing-timeline.js?v=0.3.0";
+import { generateTimeline } from "./briefing-timeline.js?v=0.4.0";
 import { generateGridAtlas } from "./briefing-grid-atlas.js?v=0.2.0";
 import { generateSpatialChartBrief } from "./briefing-spatial-chart.js?v=0.1.0";
 import core, { normalizeBriefing, updateSlide, validateBriefingDocument } from "./gismap-core.js?v=0.53.0-templates1";
@@ -142,6 +142,7 @@ export function createBriefingApi({ projectManager, mapController, host = null, 
       const { template, layerId, previewOnly = false } = options;
       if (typeof previewOnly !== "boolean") throw new GisMapError("INVALID_SPEC", "previewOnly must be a boolean.");
       if (options.kind != null && !["date", "year"].includes(options.kind)) throw new GisMapError("INVALID_SPEC", "Timeline kind must be date or year.");
+      if (options.cameraPolicy != null && !["fit-features", "fixed"].includes(options.cameraPolicy)) throw new GisMapError("INVALID_SPEC", "Choose fit-features or fixed for the map view.");
       if (options.presentationMode != null && !["single-slide", "slide-series"].includes(options.presentationMode)) throw new GisMapError("INVALID_SPEC", "Choose single-slide or slide-series.");
       if (!["filter-series", "timeline", "grid-atlas", "spatial-3d-chart"].includes(template)) throw new GisMapError("INVALID_SPEC", "Choose filter-series, timeline, grid-atlas, or spatial-3d-chart.");
       const selected = layerId || projectManager.current?.presentation?.primaryLayerId || current().layerId;
@@ -163,9 +164,9 @@ export function createBriefingApi({ projectManager, mapController, host = null, 
       const input = { briefing:{...original, layerId:ref, selection:{ids:[],useAll:true}}, layerRef:ref, camera, fields, records };
       let result;
       try {
-        if (template === "filter-series") result = generateFilterSeries({...input, field:options.field});
+        if (template === "filter-series") result = generateFilterSeries({...input, field:options.field, ...(options.cameraPolicy ? {cameraPolicy:options.cameraPolicy} : {})});
         else if (template === "timeline") {
-          const allowed = ["field","kind","start","end","step","unit","timeZone","mode","rolling","endField","stat","statField","narration","presentationMode"];
+          const allowed = ["field","kind","start","end","step","unit","timeZone","mode","rolling","endField","stat","statField","narration","presentationMode","cameraPolicy"];
           result = generateTimeline({...input, kind:isDateField(fields.find(field => field.name === options.field)) ? "date" : "year", ...Object.fromEntries(allowed.filter(key => options[key] !== undefined).map(key => [key, options[key]]))});
         } else if (template === "grid-atlas") {
           const allowed = ["rows","columns","targetCells","order","skipEmpty","countMode"];

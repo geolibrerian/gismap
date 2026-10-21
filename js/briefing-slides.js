@@ -1,5 +1,5 @@
 import { previewGridAtlas, generateGridAtlas } from "./briefing-grid-atlas.js?v=0.2.0";
-import { createTimelineSourceCache } from "./briefing-timeline-source.js?v=0.1.0";
+import { createTimelineSourceCache } from "./briefing-timeline-source.js?v=0.2.0";
 // The Slides tab of the Briefing panel: build an ordered set of slides from the
 // briefing's features and data, and preview them over the live map. The slides
 // themselves are plain data (briefing-document.js); this file only draws and edits.
@@ -24,14 +24,14 @@ import {
   SPATIAL_RELATIONSHIPS,
 } from "./briefing-document.js?v=0.35.0";
 import { compileWhere } from "./engines/maplibre/where.js?v=0.40.0-timeline";
-import { generateTimeline, previewTimeline, isYearField } from "./briefing-timeline.js?v=0.3.0";
+import { generateTimeline, previewTimeline, isYearField } from "./briefing-timeline.js?v=0.4.0";
 import { isDateField, previewDateTimeline } from "./briefing-timeline-dates.js?v=0.2.0";
-import { generateFilterSeries, seriesWhere } from "./briefing-data-series.js?v=0.4.0";
+import { generateFilterSeries, seriesWhere } from "./briefing-data-series.js?v=0.5.0";
 import { generateSpatialChartBrief } from "./briefing-spatial-chart.js?v=0.1.0";
-import { previewFilterSeries } from "./briefing-series-preview.js?v=0.1.0";
-import { briefingLayerRef } from "./briefing-api.js?v=0.53.0";
+import { previewFilterSeries, formatSeriesTitle } from "./briefing-series-preview.js?v=0.2.0";
+import { briefingLayerRef } from "./briefing-api.js?v=0.53.0-temporal1";
 import { renderMarkdown } from "./markdown.js?v=0.18.2";
-import { BriefingPlayer, slideHasMap } from "./briefing-player.js?v=0.38.0-timeline3";
+import { BriefingPlayer, slideHasMap } from "./briefing-player.js?v=0.38.0-timeline4";
 import { expandTimelinePdfSlides } from "./briefing-timeline-pdf.js?v=0.1.0";
 import { briefingFileStem, briefingPdf, markdownToText } from "./briefing-pdf.js?v=0.44.2";
 import { featureId } from "./presentation-query.js?v=0.30.0";
@@ -75,11 +75,14 @@ export class BriefingSlides {
       mapController: api.mapController,
       compact: () => api.compact?.() ?? false,
       title: () => api.data().title,
+      fields: () => api.data().fields?.fields || api.data().layer?.fields || [],
+      slideTitle: slide => formatSeriesTitle(slide, api.data().fields?.fields || api.data().layer?.fields || []),
       onClose: () => void this.restoreLayers(),
     });
     // How the other layers looked before a slide changed them: { visible: Map(uid -> bool), filtered: Set(uid) }.
     this.layerState = null;
     this.layerToken = 0;
+    this.mapViewToken = 0;
     this.layerQueue = Promise.resolve();
   }
 
@@ -99,6 +102,7 @@ export class BriefingSlides {
 
   /** Puts the other layers back as they were before any slide changed them. */
   restoreLayers(options = {}) {
+    ++this.mapViewToken;
     const operation = this.layerQueue.then(() => this.#restoreLayersNow(options));
     this.layerQueue = operation.catch(() => {});
     return operation;
@@ -297,6 +301,7 @@ export class BriefingSlides {
   async showSlideMap(slide) {
     const { mapController } = this.api;
     const record = this.#recordFor(slide);
+    const viewToken = ++this.mapViewToken;
     // A "cut" briefing jumps between views; slides far apart would otherwise fly out and back in.
     const animate = this.briefing.transition !== "cut";
     // Other layers change alongside the camera move, not after it: an interrupted or slow
@@ -306,11 +311,37 @@ export class BriefingSlides {
       const gridBounds = slide.generatedBy?.template === 'grid-atlas' ? slide.generatedBy.bounds : null;
       if (Array.isArray(gridBounds) && gridBounds.length === 4 && gridBounds.every(Number.isFinite) && gridBounds[0] >= -180 && gridBounds[2] <= 180 && gridBounds[1] >= -90 && gridBounds[3] <= 90 && gridBounds[0] < gridBounds[2] && gridBounds[1] < gridBounds[3]) {
         await mapController.setView({ bounds:gridBounds }, { animate });
+      } else if (slide.dataView && ['timeline', 'filter-series'].includes(slide.generatedBy?.template) && slide.generatedBy?.cameraPolicy !== 'fixed') {
+        const data = this.api.data(), layer = data.layer;
+        const ref = briefingLayerRef(mapController, layer);
+        const fields = data.fields?.fields || layer?.fields || [];
+        if (!layer || !ref || String(ref).replace(/\/+$/, '').toLowerCase() !== String(slide.dataView.layer || '').replace(/\/+$/, '').toLowerCase()) throw new Error('Cannot frame this slide: its source layer is unavailable.');
+        const where = seriesWhere(slide.dataView.filter, fields);
+        const predicate = compileWhere(where);
+        const included = data.useAll ? (data.visibleRecords || data.records || []) : (data.records || []).filter(item => data.selectedIds?.has(this.#idOf(item)));
+        let matching = included.filter(item => item.geometry && predicate(item.attributes || {}));
+        // A loaded sample may not contain this interval. Query the source only when
+        // there is no explicit feature selection, and retain the layer's base filter.
+        if (!matching.length && data.useAll && mapController.queryFeatures) {
+          try {
+            const base = layer.where;
+            const result = await mapController.queryFeatures(layer.uid, {where:base ? `(${base}) AND (${where})` : where, outFields:['*'], returnGeometry:true, outSpatialReference:{wkid:4326}, num:500}, {layerDefaults:false});
+            matching = (result?.features || []).filter(item => item.geometry);
+          } catch (error) { if (viewToken === this.mapViewToken) this.api.notify?.(`Could not find features to frame: ${error.message}`); }
+        }
+        if (viewToken !== this.mapViewToken) return;
+        if (matching.length === 1) await mapController.goToFeature(matching[0], {animate});
+        else if (matching.length) await mapController.goToFeatures(matching, {animate});
+        else if (slide.camera) {
+          await mapController.setView({center:slide.camera.center, zoom:slide.camera.zoom, heading:slide.camera.heading, tilt:slide.camera.tilt}, {animate});
+          this.api.notify?.('No matching feature geometry is available for this frame; showing its saved map view.');
+        }
       } else if (slide.camera) {
         await mapController.setView({ center: slide.camera.center, zoom: slide.camera.zoom, heading: slide.camera.heading, tilt: slide.camera.tilt }, { animate });
       } else if (slide.fit === "feature" && record?.geometry) {
         await mapController.goToFeature(record, { animate });
       }
+      if (viewToken !== this.mapViewToken) return;
       if (record) await mapController.highlightFeature?.(record, { pulse: false });
       else mapController.clearFeatureHighlight?.();
     } catch (error) {
@@ -364,7 +395,7 @@ export class BriefingSlides {
         </details>
         <details class="briefing-series-preview">
           <summary>Timeline · data-driven slides</summary>
-          <p class="form-note">Create a sequence using an integer year or date field. Date windows use the chosen calendar timezone; the selected end date is inclusive. The map keeps its view and style.</p>
+          <p class="form-note">Create a sequence using an integer year or date field. Date windows use the chosen calendar timezone; the selected end date is inclusive. Each frame follows its matching features; use the slide settings to keep a fixed map view instead. Matching uses included loaded features and may be incomplete.</p>
           <label class="briefing-field"><span>Temporal field</span><select data-timeline-field><option value="">Choose a field</option>${(data.fields?.fields || []).filter(field => isYearField(field) || isDateField(field)).map(field => `<option value="${escapeHtml(field.name)}" data-kind="${isDateField(field) ? "date" : "year"}">${escapeHtml(field.alias || field.name)} · ${isDateField(field) ? "date" : "year"}</option>`).join("")}</select></label>
           <div data-timeline-years><label class="briefing-field"><span>Start year</span><input data-timeline-start type="number" min="0" max="9999" step="1" placeholder="e.g. 2015"></label>
           <label class="briefing-field"><span>End year (inclusive)</span><input data-timeline-end type="number" min="0" max="9999" step="1" placeholder="e.g. 2024"></label></div>
@@ -485,6 +516,7 @@ export class BriefingSlides {
       ${["title", "map-narrative", "key-numbers"].includes(slide.template) ? `<label class="briefing-field"><span>Subtitle</span><input data-slide-subtitle value="${escapeHtml(slide.subtitle)}" maxlength="160"></label>` : ""}
       ${slide.template === "feature" ? `<p class="form-note">${record ? `Feature: <strong>${escapeHtml(data.label(record))}</strong>` : "This slide's feature is not in the loaded data."}</p>` : ""}
       ${slide.template !== "key-numbers" && slide.template !== "actions" ? `<div class="briefing-field briefing-camera"><span>Map view</span><p>${escapeHtml(cameraStatus)}</p><div><button type="button" data-slide-camera>Use current map view</button>${slide.featureId ? `<button type="button" data-slide-fit>Frame the feature</button>` : ""}${slide.camera || slide.fit ? `<button type="button" data-slide-show-map>Show</button>` : ""}</div></div>` : ""}
+      ${slide.dataView && ["timeline", "filter-series"].includes(slide.generatedBy?.template) ? `<label class="briefing-field"><span>Data-driven map view</span><select data-slide-camera-policy><option value="fit-features"${slide.generatedBy.cameraPolicy !== "fixed" ? " selected" : ""}>Frame matching features</option><option value="fixed"${slide.generatedBy.cameraPolicy === "fixed" ? " selected" : ""}>Keep saved map view</option></select><small>Framing uses included loaded features; source results may be incomplete.</small></label>` : ""}
       ${["title", "feature", "map-narrative"].includes(slide.template) ? this.#layersSection(slide, record) : ""}
       ${blocks}
       ${slide.timeline?.frames?.length ? `<details class="briefing-field"><summary>Timeline frame details</summary><p class="form-note">Draft descriptions use loaded features; review them. A dwell time overrides playback speed for that frame.</p>${slide.timeline.frames.map((frame,index) => `<div><label class="briefing-field"><span>${escapeHtml(frame.title)} · description</span><textarea rows="2" data-frame-narrative="${index}">${escapeHtml(frame.narrative || "")}</textarea></label><label class="briefing-field"><span>Dwell in milliseconds (optional)</span><input type="number" min="250" max="60000" step="250" data-frame-dwell="${index}" value="${Number.isInteger(frame.dwellMs) ? frame.dwellMs : ""}"></label></div>`).join("")}</details>` : ""}
@@ -714,8 +746,14 @@ export class BriefingSlides {
     on("[data-slide-camera]", "click", () => {
       const camera = this.#currentCamera();
       if (!camera) return this.api.notify?.("The map is not ready yet.");
-      this.#save(updateSlide(this.briefing, slideId, { camera, fit: null }));
+      const slide = this.briefing.slides.find(item => item.id === slideId);
+      const generatedBy = slide?.dataView && ["timeline", "filter-series"].includes(slide.generatedBy?.template) ? {...slide.generatedBy, cameraPolicy:"fixed"} : slide?.generatedBy;
+      this.#save(updateSlide(this.briefing, slideId, { camera, fit: null, ...(generatedBy ? {generatedBy} : {}) }));
       this.api.notify?.("Saved the current map view to this slide.");
+    });
+    on("[data-slide-camera-policy]", "change", (event) => {
+      const slide = this.briefing.slides.find(item => item.id === slideId);
+      if (slide?.generatedBy) this.#save(updateSlide(this.briefing, slideId, {generatedBy:{...slide.generatedBy, cameraPolicy:event.target.value}}));
     });
     // Other layers: any change records every row, so the slide says exactly what shows.
     const saveLayers = () => {
@@ -816,7 +854,7 @@ export class BriefingSlides {
       ? `<svg class="briefing-grid-locator" viewBox="0 0 ${grid.columns} ${grid.rows}" role="img" aria-label="Locator: row ${grid.row+1} of ${grid.rows}, column ${grid.column+1} of ${grid.columns}">${Array.from({length:grid.rows}, (_,row) => Array.from({length:grid.columns}, (_,column) => `<rect x="${column}" y="${row}" width="1" height="1" fill="${row === grid.row && column === grid.column ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width=".06"/>`).join('')).join('')}</svg>` : '';
     return `<article class="briefing-slide briefing-slide--${slide.template}">
       <span class="briefing-slide__eyebrow">${escapeHtml(data.title || "Briefing")} · ${index + 1} / ${count}</span>
-      <h2>${escapeHtml(slide.title || "Untitled slide")}</h2>
+      <h2>${escapeHtml(formatSeriesTitle(slide, data.fields?.fields || data.layer?.fields || []))}</h2>
       ${slide.subtitle ? `<p class="briefing-slide__subtitle">${escapeHtml(slide.subtitle)}</p>` : ""}
       ${locator}
       ${stats ? `<div class="briefing-slide__stats">${stats}</div>` : ""}

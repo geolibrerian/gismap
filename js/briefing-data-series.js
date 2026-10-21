@@ -1,8 +1,8 @@
 // Data-driven slides store a small declarative filter, never executable SQL.
 import { MAX_SLIDES, addSlide, createSlide, normalizeBriefing } from './briefing-document.js?v=0.35.0';
-import { previewFilterSeries } from './briefing-series-preview.js?v=0.1.0';
+import { previewFilterSeries } from './briefing-series-preview.js?v=0.2.0';
 import { isDateField } from './briefing-timeline-dates.js?v=0.2.0';
-import { isYearField } from './briefing-timeline.js?v=0.3.0';
+import { isYearField } from './briefing-timeline.js?v=0.4.0';
 
 export function seriesWhere(filter, fields) {
   if (!Array.isArray(fields) || !fields.some(f => f?.name === filter?.field) ||
@@ -31,18 +31,22 @@ export function seriesWhere(filter, fields) {
   return `${filter.field} = ${typeof value === 'number' ? value : "'" + value.replaceAll("'", "''") + "'"}`;
 }
 
-export function generateFilterSeries({ briefing, field, fields, records, layerRef, camera } = {}) {
+export function generateFilterSeries({ briefing, field, fields, records, layerRef, camera, cameraPolicy = 'fit-features' } = {}) {
+  if (!['fit-features', 'fixed'].includes(cameraPolicy)) throw new Error('Choose a supported map view policy.');
   const original = normalizeBriefing(briefing);
   if (!layerRef) throw new Error('The current layer cannot be identified for sharing.');
   const preview = previewFilterSeries({ field, fields, records, availableSlides: MAX_SLIDES - original.slides.length });
   if (!preview.subsets.length) throw new Error('No nonempty values were found in the loaded features.');
   if (preview.subsets.length > MAX_SLIDES - original.slides.length) throw new Error('There are more subsets than available slide slots; no slides were added.');
   let result = original;
+  let group = null;
+  const temporal = fields.some(item => item.name === field && isDateField(item));
   for (const subset of preview.subsets) {
     seriesWhere(subset.filter, fields);
     const slide = createSlide('map-narrative', { title: subset.title, camera });
     slide.dataView = { layer: layerRef, filter: subset.filter };
-    slide.generatedBy = { template: 'filter-series', version: 1 };
+    group ||= slide.id;
+    slide.generatedBy = { template: 'filter-series', version: 1, group, temporal, cameraPolicy };
     result = addSlide(result, slide);
   }
   return { briefing: result, preview };

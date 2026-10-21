@@ -1,6 +1,6 @@
 // Bounded, short-lived source queries for timeline previews. Never substitute a
 // loaded map sample for a service result or persist remote counts in a project.
-import { seriesWhere } from './briefing-data-series.js?v=0.4.0';
+import { seriesWhere } from './briefing-data-series.js?v=0.5.0';
 
 export function createTimelineSourceCache({ fetchImpl = globalThis.fetch, ttl = 60000, maxEntries = 128, now = () => Date.now() } = {}) {
   const cache = new Map();
