@@ -110,6 +110,19 @@
       "load",
       "fromCurrent",
       "issues"
+    ],
+    "layerStyles": [
+      "list",
+      "get",
+      "capture",
+      "save",
+      "remove",
+      "apply",
+      "toMapSpec",
+      "createLink",
+      "toBriefing",
+      "export",
+      "import"
     ]
   },
   "outputs": [
@@ -150,7 +163,8 @@
     "briefing": "/schemas/briefing-v1.schema.json",
     "renderer": "/schemas/renderer-v1.schema.json",
     "map": "/schemas/map-v1.schema.json",
-    "agentRecipe": "/schemas/agent-recipe-v1.schema.json"
+    "agentRecipe": "/schemas/agent-recipe-v1.schema.json",
+    "layerStyle": "/schemas/layer-style-v1.schema.json"
   },
   "inPage": {
     "ready": {
@@ -214,6 +228,10 @@
     "mapSpec": {
       "stability": "stable",
       "description": "load(spec) applies a map-v1 spec (returns { valid, issues, spec, ready }); fromCurrent() exports the map as one. Issues also appear in describe().state.issues."
+    },
+    "layerStyles": {
+      "stability": "experimental",
+      "description": "Reusable 2D and 3D layer styles (schemas/layer-style-v1.schema.json), as made in Tools › Cartography Lab: capture(layer) records a layer's renderer, 3D chart, filter and opacity; save(style) keeps it with the project and in the browser's style library; apply(layer, id) draws a layer with it; toMapSpec(id) and createLink(id) make a map-v1 spec and #map=json: link; toBriefing(id) makes title, flat-map and 3D slides."
     },
     "briefing.generateTemplate": {
       "stability": "experimental",

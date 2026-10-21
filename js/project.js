@@ -78,6 +78,8 @@ export class ProjectManager {
       application: null,
       dataCatalog: normalizeDataCatalog(),
       mobile: normalizeMobileWorkflow(),
+      // Saved Cartography Lab styles (schemas/layer-style-v1.schema.json).
+      layerStyles: [],
     };
   }
 
@@ -223,6 +225,7 @@ export class ProjectManager {
       : null;
     this.current.dataCatalog = normalizeDataCatalog(project.dataCatalog);
     this.current.mobile = normalizeMobileWorkflow(project.mobile);
+    this.current.layerStyles = Array.isArray(project.layerStyles) ? project.layerStyles.slice(0, 200) : [];
     await this.mapController.restoreView(project.view);
     this.events.publish("project:loaded", { project: this.current, missingFiles });
     return { project: this.current, missingFiles };

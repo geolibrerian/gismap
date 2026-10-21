@@ -6,12 +6,12 @@ import { MapController } from "./map-controller.js?v=0.54.0-filter1";
 import { listEngines } from "./engines/engine-registry.js?v=0.54.0-vector1";
 import { chooseEngine } from "./engine-preference.js?v=0.52.5";
 import { BASEMAP_IDS } from "./basemap-catalog.js?v=0.53.0-gallery1";
-import { ProjectManager } from "./project.js?v=0.54.0-note-filter1";
+import { ProjectManager } from "./project.js?v=0.55.0-lab1";
 import { IdentifyController } from "./identify.js?v=0.54.0-pan2";
 import { AttributeTableController } from "./attribute-table.js?v=0.37.0";
 import { AIController } from "./ai.js?v=0.54.0-geourl1";
 import { ToolManager } from "./tool-manager.js?v=0.37.0";
-import { UIController } from "./ui.js?v=0.54.0-temporal1";
+import { UIController } from "./ui.js?v=0.55.0-lab1";
 import { ExportController } from "./export/export-controller.js?v=0.37.0";
 import { SHARE_BASEMAPS, parseShareParameters } from "./share.js?v=0.54.0-unified4";
 import { readShareLocation } from "./map-share.js?v=0.54.0-unified4";
@@ -28,6 +28,7 @@ import { registerAuthoringTools } from "./agent-authoring-tools.js?v=0.53.0";
 import { createCameraApi, createLayersApi } from "./layers-api.js?v=0.54.0-unified4";
 import { registerLayerTools } from "./layer-tools.js?v=0.29.0";
 import { createMapSpecApi } from "./map-spec-api.js?v=0.54.0-unified4";
+import { createLayerStylesApi } from "./layer-styles-api.js?v=0.1.0";
 import { mapSpecFromShareParameters } from "./map-spec.js?v=0.54.0-unified4";
 import { GisMapError, ERROR_CODES } from "./gismap-errors.js?v=0.28.0";
 
@@ -148,6 +149,19 @@ async function start() {
       getBriefing: () => projectManager.current?.presentation?.briefing || null,
     },
   });
+  const layerStylesApi = createLayerStylesApi({
+    layers: layersApi,
+    camera: cameraApi,
+    mapSpec: mapSpecApi,
+    events,
+    spatialCharts: () => mapController.getCapabilities().includes("spatial-chart-3d"),
+    basemap: () => mapController.getBasemapId?.() || null,
+    project: {
+      get: () => projectManager.current?.layerStyles || [],
+      set: (styles) => { projectManager.current.layerStyles = styles; projectManager.persistCurrentIfSaved(); },
+    },
+  });
+  uiController.layerStyles = layerStylesApi;
   const describeTool = (tool) => ({ id: tool.id, displayName: tool.displayName, description: tool.description, inputSchema: tool.inputSchema });
   const describe = () => {
     let camera = null;
@@ -185,6 +199,8 @@ async function start() {
     camera: cameraApi,
     /** Whole maps as one JSON object (schemas/map-v1.schema.json): validate, encode, decode, createLink, load, fromCurrent. */
     mapSpec: mapSpecApi,
+    /** Saved layer styles (schemas/layer-style-v1.schema.json): list, capture, save, apply, toMapSpec, createLink, toBriefing, export, import. */
+    layerStyles: layerStylesApi,
     GisMapError,
     events,
     /** Experimental escape hatches: the ArcGIS Map and SceneView. Prefer layers.* and camera.*. */

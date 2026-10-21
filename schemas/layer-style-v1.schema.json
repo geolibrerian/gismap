@@ -1,0 +1,85 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://gismap.online/schemas/layer-style-v1.schema.json",
+  "title": "GIS Map Online layer style",
+  "description": "A reusable layer file made in the Cartography Lab (Tools › Cartography Lab): how one layer is drawn — colour (a RendererSpec), optional 3D height (a spatialChart), a filter and opacity — apart from any map. GISMap saves styles with the project and in the browser's style library; a style downloads as a .gismap-style.json file. In the page: gisMapOnline.layerStyles.save(style), .apply(layer, id), .toMapSpec(id) (a map-v1 spec), .createLink(id) and .toBriefing(id).",
+  "type": "object",
+  "required": ["type", "version", "name", "source"],
+  "properties": {
+    "$schema": { "type": "string" },
+    "type": { "const": "gismap-layer-style" },
+    "version": { "const": 1 },
+    "id": { "type": "string", "pattern": "^[\\w-]{1,60}$", "description": "Assigned when saved; keep it to update a saved style." },
+    "name": { "type": "string", "minLength": 1, "maxLength": 120 },
+    "description": { "type": "string", "maxLength": 1000 },
+    "source": {
+      "type": "object",
+      "description": "The layer the style was made for. Saved styles are listed for layers with the same service URL; a style can be applied to another layer with the same fields.",
+      "required": ["url"],
+      "properties": {
+        "url": { "type": "string", "maxLength": 2048 },
+        "title": { "type": "string", "maxLength": 160 },
+        "geometryType": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "dimension": { "enum": ["2d", "3d"], "description": "3d when the style has a spatialChart." },
+    "renderer": {
+      "description": "The colour or size style, or null for the service's own style.",
+      "oneOf": [{ "type": "null" }, { "$ref": "https://gismap.online/schemas/renderer-v1.schema.json" }]
+    },
+    "spatialChart": {
+      "description": "3D height: the map-v1 layers[].spatialChart object (attribute-extrusion, temporal-strata, stacked-footprints or exploded-timeline), without groups, which are read from the data when applied. Polygons only; MapLibre and ArcGIS engines.",
+      "oneOf": [{ "type": "null" }, { "type": "object", "required": ["mode"], "properties": { "type": { "const": "spatial-3d-chart" }, "mode": { "enum": ["attribute-extrusion", "temporal-strata", "stacked-footprints", "exploded-timeline"] } } }]
+    },
+    "filter": {
+      "description": "The filter as Lab conditions, so it can be edited again. `where` is what is applied.",
+      "oneOf": [{ "type": "null" }, {
+        "type": "object",
+        "required": ["conditions"],
+        "properties": {
+          "logic": { "enum": ["and", "or"] },
+          "conditions": {
+            "type": "array",
+            "maxItems": 10,
+            "items": {
+              "type": "object",
+              "required": ["field", "op"],
+              "properties": {
+                "field": { "type": "string" },
+                "op": { "enum": ["eq", "neq", "in", "contains", "starts_with", "gt", "gte", "lt", "lte", "between", "on", "before", "after", "is_null", "is_not_null"] },
+                "value": {},
+                "value2": {}
+              }
+            }
+          }
+        }
+      }]
+    },
+    "where": { "type": ["string", "null"], "maxLength": 4000, "description": "A read-only SQL where clause, as in map-v1 layers[].where." },
+    "opacity": { "type": "number", "minimum": 0, "maximum": 1, "default": 1 },
+    "camera": {
+      "type": "object",
+      "description": "The tilt and heading to view a 3D style from.",
+      "properties": { "tilt": { "type": "number", "minimum": 0, "maximum": 90 }, "heading": { "type": "number" } },
+      "additionalProperties": false
+    },
+    "createdAt": { "type": "string", "format": "date-time" },
+    "updatedAt": { "type": "string", "format": "date-time" }
+  },
+  "examples": [
+    {
+      "type": "gismap-layer-style",
+      "version": 1,
+      "name": "Large fires by acres, in 3D",
+      "source": { "url": "https://services1.arcgis.com/jUJYIo9tSA7EHvfZ/ArcGIS/rest/services/California_Historic_Fire_Perimeters/FeatureServer/0", "title": "California fire perimeters" },
+      "dimension": "3d",
+      "renderer": { "type": "choropleth", "field": "GIS_ACRES", "ramp": "oranges", "classes": 5, "method": "natural-breaks" },
+      "spatialChart": { "type": "spatial-3d-chart", "mode": "attribute-extrusion", "height": { "field": "GIS_ACRES", "scale": 0.02 }, "color": { "field": "GIS_ACRES", "strategy": "original" } },
+      "filter": { "logic": "and", "conditions": [{ "field": "YEAR_", "op": "gte", "value": "2019" }] },
+      "where": "YEAR_ >= 2019",
+      "opacity": 1,
+      "camera": { "tilt": 60, "heading": 0 }
+    }
+  ]
+}

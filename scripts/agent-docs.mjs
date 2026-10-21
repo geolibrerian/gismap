@@ -284,6 +284,7 @@ Follow-up refinement: [derive year and acreage maps from one filtered California
 - [Map spec schema](${SITE}/schemas/map-v1.schema.json): layers, renderers, filters, camera, basemap
 - [Renderer schema](${SITE}/schemas/renderer-v1.schema.json): choropleth, graduated symbols, categories, heat map, simple
 - [Briefing schema](${SITE}/schemas/briefing-v1.schema.json): slides that present a map
+- [Layer style schema](${SITE}/schemas/layer-style-v1.schema.json): a reusable 2D or 3D layer file from the Cartography Lab (colour, 3D height, filter, opacity); \`gisMapOnline.layerStyles\` saves, applies and turns it into a map link or briefing
 - [Agent recipe schema](${SITE}/schemas/agent-recipe-v1.schema.json): the format of /api/agent-recipes/*.json
 - Tours and field tasks without the app: \`createEmbeddedTourUrl\` from [tour-share.js](${SITE}/js/tour-share.js) and \`createFieldTaskUrl\` from [field-task-share.js](${SITE}/js/field-task-share.js) build their links (see the [tour](${SITE}/agent-recipes/geographic-tour/) and [field task](${SITE}/agent-recipes/field-tasks/) recipes)
 - [URL parameters](${SITE}/api/url-parameters.json): every query and fragment parameter

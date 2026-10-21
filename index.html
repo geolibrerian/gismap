@@ -61,7 +61,7 @@
     <link rel="describedby" type="application/json" href="/api/capabilities.json" />
     <link rel="help" href="/guides/ai-agents/" />
     <link rel="preconnect" href="https://js.arcgis.com" />
-    <link rel="stylesheet" href="./css/app.css?v=0.54.0-grid1" />
+    <link rel="stylesheet" href="./css/app.css?v=0.55.0-lab1" />
     <!-- three.js for point clouds, models and 3D animation; loaded only when a 3D layer is added. -->
     <script type="importmap">{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.min.js", "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/" } }</script>
     <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
@@ -174,6 +174,9 @@
           <div class="menu">
             <button class="menu__trigger" aria-expanded="false">Tools <span>⌄</span></button>
             <div class="menu__content" role="menu">
+              <span class="menu__label">Cartography</span>
+              <button data-action="tools-cartography-lab">Cartography Lab</button>
+              <hr />
               <span class="menu__label">AI tools</span>
               <button data-action="tools-assistant">Map assistant</button>
               <button type="button" disabled title="Coming soon">Analysis assistant · coming soon</button>
@@ -406,6 +409,7 @@
           <div id="utility-legend-content" class="utility-content" data-utility-pane="legend" hidden></div>
           <div id="utility-measurement-content" class="utility-content" data-utility-pane="measurement" hidden></div>
           <div id="utility-draw-content" class="utility-content workspace-tool-pane" data-utility-pane="draw" hidden></div>
+          <div id="utility-lab-content" class="utility-content workspace-tool-pane" data-utility-pane="lab" hidden></div>
           <div id="utility-style-content" class="utility-content workspace-tool-pane" data-utility-pane="style" hidden></div>
           <div id="utility-intelligence-content" class="utility-content intelligence-utility" data-utility-pane="intelligence" hidden></div>
           <div id="utility-assistant-content" class="utility-content assistant-utility" data-utility-pane="assistant" hidden></div>
@@ -475,6 +479,6 @@
       </ul>
     </section>
     <noscript>GISMap Online is a geospatial application and needs JavaScript. Without it, a map can still be described as a link: see <a href="/llms.txt">/llms.txt</a> and the <a href="/guides/ai-agents/">guide for AI agents</a>.</noscript>
-    <script type="module" src="./js/app.js?v=0.54.0-temporal1"></script>
+    <script type="module" src="./js/app.js?v=0.55.0-lab1"></script>
   </body>
 </html>

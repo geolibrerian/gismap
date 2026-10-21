@@ -6,6 +6,13 @@ All notable changes to GIS Map Online are documented here. This project follows
 
 ## [Unreleased]
 
+### Cartography Lab
+
+- Add Tools › Cartography Lab: one panel that combines a layer's colour (single, categories, classes, size, heat map), 3D height (the four spatial chart modes) and a filter, with a live preview, on the MapLibre and ArcGIS engines.
+- Save the combinations as reusable layer styles (`schemas/layer-style-v1.schema.json`): kept with the project and in the browser's style library, downloaded and imported as `.gismap-style.json` files.
+- Make an interactive map link, briefing slides (title, flat map, 3D) or a tour of the top features from a style; add `gisMapOnline.layerStyles` for agents. Vector tile export is planned.
+- Draw 3D spatial charts on the ArcGIS SceneView engine (extrude symbols, a meters size variable for height and `Decode()` base heights).
+
 ### three.js 3D layers
 
 - Add `pointcloud` (LAS 1.0–1.4, LAZ via laz-perf, XYZ) and `model` (glTF/GLB, OBJ, PLY) layers on the MapLibre engine, drawn by a shared three.js custom layer. Point clouds reproject from the file's CRS (GeoTIFF keys or WKT; proj4, epsg.io for unknown codes), convert foot units, colour by RGB, ASPRS class, elevation or intensity, and filter classes for wires, towers and vegetation. Models are placed by anchor or from projected CAD coordinates.

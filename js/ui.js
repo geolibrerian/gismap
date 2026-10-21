@@ -29,7 +29,7 @@ import { featureLayerUrl, locationUrl } from "./field-task-share.js?v=0.54.0-uni
 import { dockIcon } from "./dock-icons.js?v=0.24.0";
 import { serviceNameFromUrl } from "./service-name.js?v=0.26.0";
 import { decodeQrFromImage, describeGisMapLink, gisMapLinkFrom, openGisMapLink } from "./qr-import.js?v=0.25.2";
-import { BriefingSlides } from "./briefing-slides.js?v=0.53.0-temporal1";
+import { BriefingSlides } from "./briefing-slides.js?v=0.55.0-chart1";
 import { createSlide, isRoutineField, matchesFilter, normalizeFilter } from "./briefing-document.js?v=0.35.0";
 import { conditionComplete, conditionLabel, conditionToFilter } from "./briefing-conditions.js?v=0.1.0";
 import { createFilterBuilder } from "./filter-builder.js?v=0.1.0";
@@ -39,6 +39,7 @@ import { briefingFileStem } from "./briefing-pdf.js?v=0.44.2";
 import { RAMPS, rampColors, compileRenderer } from "./renderer-spec.js?v=0.29.1";
 import { saveEngine } from "./engine-preference.js?v=0.52.1";
 import { BASEMAPS } from "./basemap-catalog.js?v=0.53.0-gallery1";
+import { CartographyLab } from "./cartography-lab.js?v=0.1.0";
 
 const BUILDINGS_3D_KEY = "gismap-online:buildings-3d:v1";
 const DISPLAY_SETTINGS_KEY = "gismap-online:display:v1";
@@ -691,6 +692,8 @@ export class UIController {
     this.events.subscribe("export:cancelled", () => this.toast("Data export cancelled."));
     this.events.subscribe("bookmarks:changed", () => this.#renderBookmarks());
     // Data added from an empty Briefing becomes its dataset straight away.
+    // The Lab's layer list follows the map's layers.
+    for (const name of ["layer:added", "layer:removed"]) this.events.subscribe(name, () => { if (this.cartographyLabOpen) this.cartographyLab?.render(document.querySelector("#utility-lab-content")); });
     this.events.subscribe("layer:added", ({ layer }) => {
       const current = this.projectManager.current.presentation || {};
       if (current.template !== "briefing" || current.primaryLayerId || !layer?.queryable) return;
@@ -919,6 +922,7 @@ export class UIController {
       ...(this.utilityQueryOpen ? [{ id: "query", label: "Query data" }] : []),
       ...[...this.utilityPanelsOpen].map((id) => ({ id, label: DOCKABLE_PANELS[id] })),
       ...(this.utilityDrawOpen ? [{ id: "draw", label: "Draw" }] : []),
+      ...(this.cartographyLabOpen ? [{ id: "lab", label: "Cartography Lab" }] : []),
       ...(this.utilityStyleLayerUid ? [{ id: "style", label: `Style: ${this.mapController.getLayer(this.utilityStyleLayerUid)?.title || "Layer"}` }] : []),
       ...(this.utilityIntelligenceOpen ? [{ id: "intelligence", label: "Intelligence" }] : []),
       ...(this.utilityAssistantOpen ? [{ id: "assistant", label: "Map assistant" }] : []),
@@ -1144,6 +1148,12 @@ export class UIController {
       this.#syncUtilityPanel();
       return;
     }
+    if (tabId === "lab") {
+      this.cartographyLabOpen = false;
+      document.querySelector("#utility-lab-content")?.replaceChildren();
+      this.#syncUtilityPanel();
+      return;
+    }
     if (tabId === "style") {
       this.utilityStyleLayerUid = null;
       document.querySelector("#utility-style-content").replaceChildren();
@@ -1290,6 +1300,9 @@ export class UIController {
           break;
         case "tools-assistant":
           this.openAssistant();
+          break;
+        case "tools-cartography-lab":
+          this.openCartographyLab();
           break;
         case "tools-display":
           this.#displaySettingsDialog();
@@ -1727,6 +1740,26 @@ export class UIController {
         return { layerUrl: info.url, objectId: feature.attributes?.[layer.objectIdField] ?? objectId, latitude: point?.latitude, longitude: point?.longitude, label: String(name).slice(0, 80) };
       },
     };
+  }
+
+  /** Tools › Cartography Lab: colour, 3D height and filter for one layer, saved as reusable layer styles. */
+  openCartographyLab(uid = null) {
+    this.cartographyLab ??= new CartographyLab({
+      mapController: this.mapController,
+      layers: globalThis.gisMapOnline.layers,
+      camera: globalThis.gisMapOnline.camera,
+      layerStyles: this.layerStyles,
+      filterMemory: (this.filterConditions ??= new Map()),
+      toast: (message) => this.toast(message),
+      error: (message) => this.error(message),
+      getBriefing: () => this.projectManager.current.presentation?.briefing || null,
+      openBriefing: (briefing) => this.openBriefingDocument(briefing),
+      createTour: (places, options) => this.createTourFromPlaces(places, options),
+    });
+    this.cartographyLabOpen = true;
+    this.#closeMenus();
+    this.cartographyLab.render(document.querySelector("#utility-lab-content"), uid);
+    this.#syncUtilityPanel("lab");
   }
 
   createTourFromPlaces(places = [], { title = "", open = true } = {}) {
