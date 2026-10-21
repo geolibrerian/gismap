@@ -837,6 +837,8 @@ body.briefing-slides-tab #briefing-context-host { display:none; }
 .briefing-condition { display:grid; grid-template-columns:minmax(0,1.2fr) minmax(0,.8fr) minmax(0,1fr) 28px; gap:5px; align-items:center; }
 .briefing-condition :is(select,input) { min-width:0; min-height:30px; font-size:12px; }
 .briefing-condition > button { height:30px; border:1px solid var(--line); background:var(--surface-2); }
+.briefing-condition__range { display:flex; gap:4px; align-items:center; min-width:0; font-size:11px; color:var(--muted); }
+.briefing-condition__range input { flex:1 1 0; min-width:0; }
 .briefing-groups { display:flex; flex-wrap:wrap; gap:5px; max-height:96px; overflow:auto; }
 .briefing-group { display:inline-flex; border:1px solid var(--line); border-radius:999px; overflow:hidden; background:var(--surface-2); font-size:12px; }
 .briefing-group button { padding:4px 8px; border:0; background:transparent; color:var(--ink); }
@@ -942,6 +944,19 @@ body.briefing-presenting :is(.sidebar,.sidebar__open,.utility-panel,.welcome-pan
 .briefing-stage__frame .briefing-slide h2 { font-size:clamp(24px, 2.6vw, 40px); }
 .briefing-stage__frame .briefing-slide--title h2 { font-size:clamp(30px, 3.6vw, 56px); }
 .briefing-stage__frame.is-full .briefing-slide__stat strong { font-size:clamp(28px, 3.4vw, 52px); }
+.briefing-insight { position:absolute; z-index:2; top:18px; right:18px; width:min(340px, calc(100vw - 36px)); max-height:min(60vh, 520px); overflow:auto; border:1px solid var(--line); border-radius:var(--ui-radius,12px); background:var(--surface); color:var(--ink); box-shadow:var(--shadow); pointer-events:auto; }
+.briefing-insight header { display:flex; justify-content:space-between; gap:10px; padding:12px 14px 8px; border-bottom:1px solid var(--line); }
+.briefing-insight header > span { display:grid; gap:2px; min-width:0; }
+.briefing-insight small { color:var(--amber); font-size:11px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; }
+.briefing-insight strong { font-size:16px; }
+.briefing-insight header span span { color:var(--muted); font-size:12px; }
+.briefing-insight header button { align-self:start; width:30px; height:30px; border:1px solid var(--line); border-radius:999px; background:var(--surface-2); }
+.briefing-insight dl { display:grid; gap:6px; margin:0; padding:10px 14px; }
+.briefing-insight dl div { display:grid; grid-template-columns:minmax(90px,40%) 1fr; gap:8px; font-size:13px; }
+.briefing-insight dt { color:var(--muted); }
+.briefing-insight dd { margin:0; overflow-wrap:anywhere; }
+.briefing-insight p { margin:0; padding:0 14px 12px; color:var(--muted); font-size:12px; }
+body.briefing-presenting--cards .briefing-insight { top:auto; left:12px; right:12px; bottom:calc(84px + env(safe-area-inset-bottom)); width:auto; max-height:40vh; }
 .briefing-stage__controls { position:absolute; left:50%; bottom:18px; display:flex; align-items:center; gap:6px; padding:6px; border:1px solid var(--line); border-radius:999px; background:var(--surface); box-shadow:var(--shadow); transform:translateX(-50%); }
 .briefing-stage__controls button { min-width:38px; height:36px; padding:0 12px; border:1px solid var(--line); border-radius:999px; color:var(--ink); background:var(--surface); font-weight:700; cursor:pointer; }
 .briefing-stage__controls button[aria-pressed="true"] { border-color:var(--green); color:var(--green-2); background:var(--surface-2); }

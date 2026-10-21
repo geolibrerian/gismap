@@ -78,6 +78,28 @@ export class BriefingPlayer {
     this.api.onClose?.();
   }
 
+  /**
+   * A compact Map Insight while presenting: { title, subtitle, rows: [[label, value]], note }.
+   * Clicks on the map pass through the slide frame, so details stay one click away.
+   */
+  showInsight(insight) {
+    const state = this.state;
+    if (!state?.root) return;
+    this.hideInsight();
+    const card = document.createElement("aside");
+    card.className = "briefing-insight";
+    card.setAttribute("aria-live", "polite");
+    card.setAttribute("aria-label", "Map insight");
+    const rows = (insight.rows || []).map(([label, value]) => `<div><dt>${escapeHtml(label)}</dt><dd>${escapeHtml(value)}</dd></div>`).join("");
+    card.innerHTML = `<header><span><small>Map insight</small><strong>${escapeHtml(insight.title || "Location")}</strong>${insight.subtitle ? `<span>${escapeHtml(insight.subtitle)}</span>` : ""}</span><button type="button" data-insight-close aria-label="Close map insight" title="Close (Esc)">×</button></header>${rows ? `<dl>${rows}</dl>` : ""}${insight.note ? `<p>${escapeHtml(insight.note)}</p>` : ""}`;
+    card.querySelector("[data-insight-close]").addEventListener("click", () => this.hideInsight());
+    state.root.append(card);
+  }
+
+  hideInsight() {
+    this.state?.root?.querySelector(".briefing-insight")?.remove();
+  }
+
   #listen(target, type, handler, options) {
     target.addEventListener(type, handler, options);
     this.state.cleanups.push(() => target.removeEventListener(type, handler, options));
@@ -98,6 +120,7 @@ export class BriefingPlayer {
     const next = Math.min(state.slides.length - 1, Math.max(0, index));
     if (next === state.index && !force) return;
     if (next !== state.index || force) state.timelineFrame = 0;
+    if (next !== state.index) this.hideInsight();
     state.index = next;
     const slide = state.slides[next];
     this.#writeHash(slide.id);
@@ -175,6 +198,7 @@ export class BriefingPlayer {
       else if (["ArrowLeft", "PageUp"].includes(key)) { event.preventDefault(); actions.previous(); }
       else if (key === "Home") actions.restart();
       else if (key === "End") this.#go(this.state.slides.length - 1);
+      else if (key === "Escape" && this.state.root.querySelector(".briefing-insight")) this.hideInsight();
       else if (key === "Escape" && !document.fullscreenElement) actions.exit();
       else if (key.toLowerCase() === "f") actions.fullscreen();
       else if (key.toLowerCase() === "t") actions.thumbs();
@@ -382,6 +406,7 @@ export class BriefingPlayer {
     state.root.querySelector("[data-cards-done]").hidden = !on;
     this.#applyPadding();
     if (!on) {
+      this.hideInsight();
       state.root.querySelector(`[data-card="${state.index}"]`)?.scrollIntoView({ block: "start" });
       void this.api.showSlide(state.slides[state.index]);
     }

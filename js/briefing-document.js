@@ -259,7 +259,9 @@ export function matchesFilter(filter, attributes = {}, id = null) {
   if (!filter) return true;
   const value = attributes[filter.field];
   const comparable = (left, right) => {
-    const a = Number(left);
+    // Date conditions compare timestamps; GeoJSON often stores dates as ISO text.
+    const time = (value, other) => (typeof value === "string" && typeof other === "number" && /^\d{4}-\d{2}-\d{2}/.test(value) ? Date.parse(value.length === 10 ? `${value}T00:00:00Z` : value) : Number(value));
+    const a = time(left, right);
     const b = Number(right);
     return Number.isFinite(a) && Number.isFinite(b) && left !== "" && right !== "" ? [a, b] : [String(left ?? "").toLowerCase(), String(right ?? "").toLowerCase()];
   };

@@ -30,7 +30,8 @@ import { dockIcon } from "./dock-icons.js?v=0.24.0";
 import { serviceNameFromUrl } from "./service-name.js?v=0.26.0";
 import { decodeQrFromImage, describeGisMapLink, gisMapLinkFrom, openGisMapLink } from "./qr-import.js?v=0.25.2";
 import { BriefingSlides } from "./briefing-slides.js?v=0.53.0-temporal1";
-import { createSlide, matchesFilter, normalizeFilter } from "./briefing-document.js?v=0.35.0";
+import { createSlide, isRoutineField, matchesFilter, normalizeFilter } from "./briefing-document.js?v=0.35.0";
+import { conditionComplete, conditionLabel, conditionToFilter, defaultOperator, operatorsFor } from "./briefing-conditions.js?v=0.1.0";
 import { aiDescriptionPrompt, applyAiDescriptions, describeWhere, generateBriefing, readAiDescriptions, rendererTheme } from "./briefing-generator.js?v=0.36.1";
 import { briefingFileStem } from "./briefing-pdf.js?v=0.44.2";
 import { RAMPS, rampColors, compileRenderer } from "./renderer-spec.js?v=0.29.1";
@@ -709,10 +710,18 @@ export class UIController {
         this.#setInsightsOpen(false);
         return;
       }
-      // Picking a feature for a field task should not cover the map with its details.
-      if (this.presentationState.template === "briefing" || document.body.classList.contains("field-task-picking")) {
+      // Picking features (for a briefing or a field task) should not cover the map with details;
+      // otherwise Briefing keeps Map Insight like any other mode.
+      if ((this.presentationState.template === "briefing" && this.presentationState.mapSelect) || document.body.classList.contains("field-task-picking")) {
         this.#renderIntelligenceContents();
         this.#setInsightsOpen(false);
+        return;
+      }
+      // While slides are presented the panels are hidden: the player shows a compact insight.
+      const player = this.briefingSlides?.player;
+      if (player?.isOpen) {
+        this.#renderIntelligenceContents();
+        if (payload.insightCurrent !== false) player.showInsight(this.#presentationInsight(payload));
         return;
       }
       if (payload.insightCurrent === false) {
@@ -1565,8 +1574,9 @@ export class UIController {
       const records = narrowed ? state.visibleRecords : state.records;
       const config = this.mapController.getLayerConfig(layer);
       const alias = (name) => fields.fields.find((field) => field.name === name)?.alias || name;
+      const kindOf = (name) => fieldKind(fields.fields.find((field) => field.name === name));
       const scopeText = [
-        ...(state.conditions || []).filter((item) => item.field && (item.op === "is_not_null" || String(item.value ?? "") !== "")).map((item) => `${alias(item.field)} ${({ eq: "is", neq: "is not", contains: "contains", starts_with: "starts with", gt: "over", gte: "at least", lt: "under", lte: "at most", is_not_null: "has a value" })[item.op] || item.op}${item.op === "is_not_null" ? "" : ` ${item.value}`}`),
+        ...(state.conditions || []).filter((item) => conditionComplete(item, kindOf(item.field))).map((item) => conditionLabel(item, kindOf(item.field), alias(item.field))),
         state.scope === "extent" ? "in the map view" : "",
       ].filter(Boolean).join(" and ");
       // "In view" has no attribute filter to replay, so the view's features are carried by ID.
@@ -3113,9 +3123,40 @@ export class UIController {
   }
 
   /** The Features tab's attribute conditions as one briefing filter (all must match), or null. */
-  #briefingConditionFilter() {
-    const conditions = (this.presentationState.conditions || []).filter((item) => item.field && (item.op === "is_not_null" || String(item.value ?? "").trim() !== ""));
-    return conditions.length ? normalizeFilter({ op: "and", args: conditions.map(({ field, op, value }) => ({ field, op, value })) }) : null;
+  /** Map Insight condensed for the slide player: the first feature here, or the address. */
+  #presentationInsight(payload) {
+    const point = payload.point;
+    const coordinates = Number.isFinite(point?.latitude) && Number.isFinite(point?.longitude) ? `${point.latitude.toFixed(5)}, ${point.longitude.toFixed(5)}` : "";
+    const address = typeof payload.address?.address === "string" ? payload.address.address.trim() : "";
+    const results = payload.results || [];
+    const [result] = results;
+    if (!result) return { title: address || "Location", subtitle: address ? coordinates : "", rows: [], note: address ? "" : coordinates };
+    const layer = this.mapController.getLayer(result.layerUid);
+    const fields = new Map((layer?.fields || []).map((field) => [field.name, field]));
+    const rows = Object.entries(result.attributes || {})
+      .filter(([key, value]) => value != null && value !== "" && !key.startsWith("_") && !isRoutineField(fields.get(key) || key, { idField: layer?.objectIdField }))
+      .slice(0, 8)
+      .map(([key, value]) => [fields.get(key)?.alias || key, formatAttributeValue(value, fields.get(key), key)]);
+    const others = results.length - 1;
+    return { title: result.layerTitle || "Feature", subtitle: [address, coordinates].filter(Boolean).join(" · "), rows, note: others > 0 ? `${others} more ${others === 1 ? "feature" : "features"} here. Exit the slides for full Map Insight.` : "" };
+  }
+
+  /** One line for the list: what matches, how much of the source is loaded, and what the briefing includes. */
+  #briefingStatus() {
+    const state = this.presentationState;
+    const shown = state.visibleRecords.length, loaded = state.records.length, total = state.totalCount;
+    const included = state.briefingUseAll ? shown : state.selectedIds.size;
+    const matching = shown === loaded ? `${loaded.toLocaleString()} features` : `${shown.toLocaleString()} of ${loaded.toLocaleString()} match`;
+    const partial = Number.isFinite(total) && total > loaded ? ` · first ${loaded.toLocaleString()} of ${total.toLocaleString()} loaded` : "";
+    return `${matching}${state.scope === "extent" ? " in view" : ""}${partial} · ${included.toLocaleString()} included`;
+  }
+
+  /** The briefing list's attribute conditions as one filter; `skip(condition)` leaves some out. */
+  #briefingConditionFilter(skip = () => false) {
+    const fields = this.mapController.getLayer(this.presentationState.layerUid)?.fields || [];
+    const kindOf = (name) => fieldKind(fields.find((field) => field.name === name));
+    const args = (this.presentationState.conditions || []).filter((item) => !skip(item)).map((item) => conditionToFilter(item, kindOf(item.field))).filter(Boolean);
+    return args.length ? normalizeFilter({ op: "and", args }) : null;
   }
 
   #toRecord(feature, layer) {
@@ -3621,11 +3662,7 @@ export class UIController {
     state.conditions ||= [];
     const idField = layer.objectIdField;
     const kindOf = (name) => fieldKind(fields.fields.find((field) => field.name === name));
-    const OPS = {
-      text: [["eq", "is"], ["neq", "is not"], ["contains", "contains"], ["starts_with", "starts with"], ["is_not_null", "has a value"]],
-      number: [["eq", "="], ["neq", "≠"], ["gt", ">"], ["gte", "≥"], ["lt", "<"], ["lte", "≤"], ["is_not_null", "has a value"]],
-    };
-    const opsFor = (name) => OPS[kindOf(name) === "number" ? "number" : "text"];
+    const opsFor = (name) => operatorsFor(kindOf(name));
     const fieldOptions = (selectedName) => fields.fields.map((field) => `<option value="${escapeHtml(field.name)}"${field.name === selectedName ? " selected" : ""}>${escapeHtml(field.alias || field.name)}</option>`).join("");
     const distinct = (name, limit = 40) => {
       const counts = new Map();
@@ -3636,7 +3673,7 @@ export class UIController {
     const groupable = fields.fields.filter((field) => { const values = distinct(field.name, 61).length; return values > 1 && values <= (kindOf(field.name) === "number" ? 12 : 60); });
     if (state.groupField && !groupable.some((field) => field.name === state.groupField)) state.groupField = null;
     // Groups are counted against every other condition, so choosing one group keeps the others in view.
-    const others = normalizeFilter({ op: "and", args: state.conditions.filter((item) => !(item.field === state.groupField && item.op === "eq") && item.field && (item.op === "is_not_null" || String(item.value ?? "") !== "")) });
+    const others = this.#briefingConditionFilter((item) => item.field === state.groupField && item.op === "eq");
     const inView = state.scope === "extent" ? this.mapController.viewExtentFilter() : null;
     const groupBase = state.groupField ? state.records.filter((record) => (!others || matchesFilter(others, record.attributes || {})) && (!inView || inView(record.geometry))) : [];
     const groups = state.groupField ? (() => {
@@ -3646,8 +3683,14 @@ export class UIController {
     })() : [];
     const activeGroup = state.conditions.find((item) => item.field === state.groupField && item.op === "eq")?.value;
     const conditionRows = state.conditions.map((condition, index) => {
-      const values = kindOf(condition.field) === "number" ? [] : distinct(condition.field);
-      return `<div class="briefing-condition"><select data-cond-field="${index}" aria-label="Field">${fieldOptions(condition.field)}</select><select data-cond-op="${index}" aria-label="Condition">${opsFor(condition.field).map(([op, label]) => `<option value="${op}"${op === condition.op ? " selected" : ""}>${label}</option>`).join("")}</select>${condition.op === "is_not_null" ? "<span></span>" : `<input data-cond-value="${index}" aria-label="Value" value="${escapeHtml(condition.value ?? "")}" ${kindOf(condition.field) === "number" ? 'type="number" step="any"' : `list="cond-values-${index}"`} placeholder="Value">${values.length ? `<datalist id="cond-values-${index}">${values.map(([value]) => `<option value="${escapeHtml(value)}"></option>`).join("")}</datalist>` : ""}`}<button type="button" data-cond-remove="${index}" aria-label="Remove condition">×</button></div>`;
+      const values = kindOf(condition.field) === "text" ? distinct(condition.field) : [];
+      const kind = kindOf(condition.field);
+      const inputType = kind === "number" ? 'type="number" step="any"' : kind === "date" ? 'type="date"' : `list="cond-values-${index}"`;
+      const input = (key, label, value, placeholder) => `<input data-cond-${key}="${index}" aria-label="${label}" value="${escapeHtml(value ?? "")}" ${inputType} placeholder="${placeholder}">`;
+      const valueControls = ["is_null", "is_not_null"].includes(condition.op) ? "<span></span>"
+        : condition.op === "between" ? `<span class="briefing-condition__range">${input("value", "From", condition.value, "From")}<span aria-hidden="true">and</span>${input("value2", "To", condition.value2, "To")}</span>`
+        : `${input("value", "Value", condition.value, condition.op === "in" ? "A, B, C" : "Value")}${values.length ? `<datalist id="cond-values-${index}">${values.map(([value]) => `<option value="${escapeHtml(value)}"></option>`).join("")}</datalist>` : ""}`;
+      return `<div class="briefing-condition"><select data-cond-field="${index}" aria-label="Field">${fieldOptions(condition.field)}</select><select data-cond-op="${index}" aria-label="Condition">${opsFor(condition.field).map(([op, label]) => `<option value="${op}"${op === condition.op ? " selected" : ""}>${label}</option>`).join("")}</select>${valueControls}<button type="button" data-cond-remove="${index}" aria-label="Remove condition">×</button></div>`;
     }).join("");
     const tools = document.createElement("section");
     tools.className = "briefing-select";
@@ -3661,7 +3704,7 @@ export class UIController {
       </div>
       ${conditionRows ? `<div class="briefing-conditions">${conditionRows}</div>` : ""}
       ${groups.length ? `<div class="briefing-groups">${groups.map(([value, count]) => `<span class="briefing-group${activeGroup != null && String(activeGroup) === value ? " is-active" : ""}"><button type="button" data-group-filter="${escapeHtml(value)}" title="Show only this group">${escapeHtml(value || "No value")} <b>${count}</b></button><button type="button" data-group-include="${escapeHtml(value)}" title="Include all ${count} in the briefing" aria-label="Include all ${escapeHtml(value || "no value")}">+</button></span>`).join("")}</div>` : ""}
-      <div class="briefing-select__bulk"><span>${state.visibleRecords.length.toLocaleString()} shown${state.scope === "extent" ? " in view" : ""} · ${state.selectedIds.size.toLocaleString()} included</span><button type="button" data-include-shown${state.visibleRecords.length ? "" : " disabled"}>Include shown</button><button type="button" data-include-clear${state.selectedIds.size ? "" : " disabled"}>Clear</button></div>
+      <div class="briefing-select__bulk"><span data-briefing-status>${this.#briefingStatus()}</span><button type="button" data-include-shown${state.visibleRecords.length ? "" : " disabled"}>Include shown</button><button type="button" data-include-clear${state.selectedIds.size ? "" : " disabled"}>Clear</button></div>
       ${pendingSlides ? `<button type="button" class="briefing-select__add-slides" data-include-slides>Add ${pendingSlides.toLocaleString()} included feature${pendingSlides === 1 ? "" : "s"} as slides</button>` : ""}
       <button type="button" class="briefing-select__generate" data-generate-briefing data-mobile-bar data-bar-label="Make briefing" title="Build slides from the map's style, filter and these features">✦ Make a briefing from this view</button>`;
     const refresh = () => { state.page = 1; this.#saveBriefingSelection(); this.#filterPresentationRecords(); };
@@ -3686,19 +3729,21 @@ export class UIController {
     on("[data-cond-add]", "click", () => {
       const field = state.groupField || fields.text[0]?.name || fields.fields[0]?.name;
       if (!field) return;
-      state.conditions.push({ field, op: kindOf(field) === "number" ? "gte" : "eq", value: "" });
+      state.conditions.push({ field, op: defaultOperator(kindOf(field)), value: "" });
       this.#renderBriefingWorkspace(root, presentation, layer, fields);
       root.querySelector(`[data-cond-value="${state.conditions.length - 1}"]`)?.focus();
     });
     on("[data-cond-field]", "change", (select) => {
       const condition = state.conditions[Number(select.dataset.condField)];
       condition.field = select.value;
-      condition.op = kindOf(select.value) === "number" ? "gte" : "eq";
+      condition.op = defaultOperator(kindOf(select.value));
       condition.value = "";
+      delete condition.value2;
       refresh();
     });
     on("[data-cond-op]", "change", (select) => { state.conditions[Number(select.dataset.condOp)].op = select.value; refresh(); });
     on("[data-cond-value]", "change", (input) => { state.conditions[Number(input.dataset.condValue)].value = input.value; refresh(); });
+    on("[data-cond-value2]", "change", (input) => { state.conditions[Number(input.dataset.condValue2)].value2 = input.value; refresh(); });
     on("[data-cond-remove]", "click", (button) => { state.conditions.splice(Number(button.dataset.condRemove), 1); refresh(); });
     on("[data-select-group]", "change", (select) => {
       state.conditions = state.conditions.filter((item) => !(item.field === state.groupField && item.op === "eq"));
@@ -3748,7 +3793,7 @@ export class UIController {
     if (records) {
       const scope = document.createElement("div");
       scope.className = "briefing-scope";
-      scope.innerHTML = `<label><input type="checkbox" data-briefing-use-all${useAll ? " checked" : ""}> Use all matching features</label><span>${useAll ? `${state.visibleRecords.length} included` : `${state.selectedIds.size} selected for briefing`}</span>`;
+      scope.innerHTML = `<label><input type="checkbox" data-briefing-use-all${useAll ? " checked" : ""}> Use all matching features</label>`;
       records.before(scope);
       records.querySelectorAll("[data-mode-record-id]").forEach((button) => {
         const id = button.dataset.modeRecordId;
@@ -4406,7 +4451,7 @@ export class UIController {
     const fold = document.createElement("details");
     fold.className = "briefing-records-fold";
     fold.open = this.briefingRecordsOpen !== false;
-    fold.innerHTML = `<summary>Features <small>${shown.toLocaleString()} shown${shown > 400 ? " · first 400 listed" : ""}</small></summary>`;
+    fold.innerHTML = `<summary>Features${shown > 400 ? " <small>first 400 listed</small>" : ""}</summary>`;
     (scope || records).before(fold);
     fold.append(...[scope, records].filter(Boolean));
     fold.addEventListener("toggle", () => {
