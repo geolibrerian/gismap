@@ -38,14 +38,13 @@ test("filter conditions combine with AND or OR, each parenthesised", () => {
 
 test("the filter dialog builds several conditions; Map Insight pins the tabs, not the title", async () => {
   const ui = await text("js/ui.js");
-  assert.match(ui, /<select id="filter-logic"><option value="AND">all of these conditions \(AND\)<\/option><option value="OR">any of these conditions \(OR\)<\/option><\/select>/);
-  assert.match(ui, /data-filter-add>\+ Add a condition/);
-  assert.match(ui, /combineConditions\(rows\.map/);
-  assert.match(ui, /this\.filterConditions\.set\(uid, \{ rows, logic, expression \}\)/);
+  // The layer filter dialog uses the shared builder and compiles through filter-sql.
+  assert.match(ui, /host: this\.dialog\.querySelector\("\[data-layer-filter-builder\]"\)/);
+  assert.match(ui, /const expression = conditionsToWhere\(conditions, logic, fields\)/);
+  assert.match(ui, /this\.filterConditions\.set\(uid, \{ conditions, logic, expression \}\)/);
   const css = await text("css/app.css");
   assert.doesNotMatch(css, /\.insights-overlay > header \{ position: sticky/);
   assert.match(css, /#insights-content > \.insight-tabs \{ position: sticky; top: 0;/);
-  assert.match(css, /\.filter-builder \[hidden\] \{ display: none !important; \}/);
 });
 
 test("filter values: coded domains by name, distinct service values sorted, a sample when distinct fails", async () => {
@@ -66,6 +65,9 @@ test("filter values: coded domains by name, distinct service values sorted, a sa
   assert.deepEqual((await map.distinctValues(noDistinct, "kind")).values.map((item) => item.value), ["a", "b"]);
   assert.deepEqual(await map.distinctValues(layer([{ name: "when", type: "date" }], () => ({ features: [] })), "when"), { values: [], complete: true });
   const ui = await text("js/ui.js");
-  assert.match(ui, /<input data-filter-value autocomplete="off" list="\$\{listId\}" placeholder="Type or pick a value" \/><datalist id="\$\{listId\}"><\/datalist>/);
+  // Values reach the shared builder as a type-to-search list labelled with domain names and counts.
+  const builder = await text("js/filter-builder.js");
+  assert.match(builder, /list="fb-\$\{id\}-values-\$\{index\}"/);
+  assert.match(builder, /label="\$\{escapeHtml\(label\)\}"/);
   assert.match(ui, /this\.mapController\.distinctValues\(layer, name\)/);
 });

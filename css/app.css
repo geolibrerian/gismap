@@ -837,6 +837,24 @@ body.briefing-slides-tab #briefing-context-host { display:none; }
 .briefing-condition { display:grid; grid-template-columns:minmax(0,1.2fr) minmax(0,.8fr) minmax(0,1fr) 28px; gap:5px; align-items:center; }
 .briefing-condition :is(select,input) { min-width:0; min-height:30px; font-size:12px; }
 .briefing-condition > button { height:30px; border:1px solid var(--line); background:var(--surface-2); }
+.condition-builder { display:grid; gap:6px; container-type:inline-size; }
+@container (max-width: 440px) {
+  .condition-builder .condition-builder__row { grid-template-columns:minmax(0,1fr) minmax(0,.8fr) 28px; }
+  .condition-builder .condition-builder__values { grid-column:1 / -1; grid-row:2; }
+}
+.condition-builder__logic { display:flex; align-items:center; gap:6px; color:var(--muted); font-size:12px; }
+.condition-builder__logic select { min-height:28px; font-size:12px; }
+.condition-builder__rows { display:grid; gap:6px; margin:0; padding:0; list-style:none; }
+.condition-builder__row { display:grid; grid-template-columns:minmax(0,1.1fr) minmax(0,.8fr) minmax(0,1.3fr) 28px; gap:5px; align-items:center; }
+.condition-builder__row :is(select,input) { min-width:0; width:100%; min-height:30px; font-size:12px; }
+.condition-builder__row.is-incomplete :is(input) { border-style:dashed; }
+.condition-builder__values { display:flex; min-width:0; }
+.condition-builder__range { display:flex; flex:1; gap:4px; align-items:center; min-width:0; font-size:11px; color:var(--muted); }
+.condition-builder__range input { flex:1 1 0; }
+.condition-builder__row > button { height:30px; border:1px solid var(--line); border-radius:var(--ui-radius-small,8px); background:var(--surface-2); color:var(--ink); }
+.condition-builder__add { justify-self:start; padding:4px 0; border:0; background:none; color:var(--green-2,var(--green)); font-weight:700; font-size:12px; cursor:pointer; }
+.condition-builder__add:hover { text-decoration:underline; }
+.explorer-conditions { margin:8px 0; }
 .briefing-condition__range { display:flex; gap:4px; align-items:center; min-width:0; font-size:11px; color:var(--muted); }
 .briefing-condition__range input { flex:1 1 0; min-width:0; }
 .briefing-groups { display:flex; flex-wrap:wrap; gap:5px; max-height:96px; overflow:auto; }

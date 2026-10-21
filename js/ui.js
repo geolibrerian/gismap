@@ -18,7 +18,7 @@ import { createEmbeddedTourUrl } from "./tour-share.js?v=0.54.0-unified4";
 import { markdownToPlainText, renderMarkdown } from "./markdown.js?v=0.18.2";
 import { formatAttributeValue } from "./attribute-format.js?v=0.18.2";
 import { normalizeApplicationConfig, presetApplication } from "./application-config.js?v=0.18.2";
-import { combineConditions, featureFilterFor, featureId, fieldKind, filterRecords, histogram, requestGuard, sortRecords } from "./presentation-query.js?v=0.30.0";
+import { featureFilterFor, featureId, fieldKind, filterRecords, histogram, requestGuard, sortRecords } from "./presentation-query.js?v=0.30.0";
 import { DEFAULT_SKIN, INTERFACE_SKINS, applyInterfaceSkin, normalizeSkin, skinIsDark, skinOptionsMarkup } from "./skin-catalog.js?v=0.52.3";
 import { applyMapColors, MAP_COLOR_COMPONENTS, SKIN_BASEMAP, themeFromComputedStyle } from "./basemap-themes.js?v=0.53.0-mapcolors1";
 import { compactMedia } from "./viewport.js?v=0.18.2";
@@ -31,7 +31,9 @@ import { serviceNameFromUrl } from "./service-name.js?v=0.26.0";
 import { decodeQrFromImage, describeGisMapLink, gisMapLinkFrom, openGisMapLink } from "./qr-import.js?v=0.25.2";
 import { BriefingSlides } from "./briefing-slides.js?v=0.53.0-temporal1";
 import { createSlide, isRoutineField, matchesFilter, normalizeFilter } from "./briefing-document.js?v=0.35.0";
-import { conditionComplete, conditionLabel, conditionToFilter, defaultOperator, operatorsFor } from "./briefing-conditions.js?v=0.1.0";
+import { conditionComplete, conditionLabel, conditionToFilter } from "./briefing-conditions.js?v=0.1.0";
+import { createFilterBuilder } from "./filter-builder.js?v=0.1.0";
+import { conditionsToWhere } from "./filter-sql.js?v=0.1.0";
 import { aiDescriptionPrompt, applyAiDescriptions, describeWhere, generateBriefing, readAiDescriptions, rendererTheme } from "./briefing-generator.js?v=0.36.1";
 import { briefingFileStem } from "./briefing-pdf.js?v=0.44.2";
 import { RAMPS, rampColors, compileRenderer } from "./renderer-spec.js?v=0.29.1";
@@ -1575,8 +1577,9 @@ export class UIController {
       const config = this.mapController.getLayerConfig(layer);
       const alias = (name) => fields.fields.find((field) => field.name === name)?.alias || name;
       const kindOf = (name) => fieldKind(fields.fields.find((field) => field.name === name));
+      const labels = (state.conditions || []).filter((item) => conditionComplete(item, kindOf(item.field))).map((item) => conditionLabel(item, kindOf(item.field), alias(item.field)));
       const scopeText = [
-        ...(state.conditions || []).filter((item) => conditionComplete(item, kindOf(item.field))).map((item) => conditionLabel(item, kindOf(item.field), alias(item.field))),
+        labels.join(state.conditionLogic === "or" ? " or " : " and "),
         state.scope === "extent" ? "in the map view" : "",
       ].filter(Boolean).join(" and ");
       // "In view" has no attribute filter to replay, so the view's features are carried by ID.
@@ -3055,7 +3058,7 @@ export class UIController {
     const prior = this.presentationState.template === presentation.template ? this.presentationState : {};
     this.briefingRequest.cancel();
     const sameLayer = prior.layerUid && prior.layerUid === layer?.uid;
-    this.presentationState = { ...prior, conditions: sameLayer ? prior.conditions || [] : [], groupField: sameLayer ? prior.groupField || null : null, mapSelect: false, template: presentation.template, layerUid: layer?.uid || null, records: [], visibleRecords: [], selected: null, selectedIds: new Set(), search: "", searchField: "*", searchOperator: "contains", chartField: null, scope: "all", rangeMin: null, rangeMax: null, totalCount: null, sortField: null, sortDirection: "asc", page: 1, pageSize: 25, binCount: 12, fetchedAt: new Date().toISOString() };
+    this.presentationState = { ...prior, conditions: sameLayer ? prior.conditions || [] : [], conditionLogic: sameLayer ? prior.conditionLogic || "and" : "and", groupField: sameLayer ? prior.groupField || null : null, mapSelect: false, template: presentation.template, layerUid: layer?.uid || null, records: [], visibleRecords: [], selected: null, selectedIds: new Set(), search: "", searchField: "*", searchOperator: "contains", chartField: null, scope: "all", rangeMin: null, rangeMax: null, totalCount: null, sortField: null, sortDirection: "asc", page: 1, pageSize: 25, binCount: 12, fetchedAt: new Date().toISOString() };
     if (!layer) return this.#renderPresentationDashboard(presentation);
     try {
       const query = { where: layer.where || "1=1", outFields: ["*"], returnGeometry: true, num: 500 };
@@ -3107,7 +3110,7 @@ export class UIController {
     const available = new Set(this.presentationState.records.map((record) => featureId(record, layer.objectIdField)).filter(Boolean));
     this.presentationState.selectedIds = new Set(saved.ids.filter((id) => available.has(id)));
     this.presentationState.briefingUseAll = saved.useAll === true;
-    if (Array.isArray(saved.conditions) && !this.presentationState.conditions?.length) this.presentationState.conditions = saved.conditions;
+    if (Array.isArray(saved.conditions) && !this.presentationState.conditions?.length) Object.assign(this.presentationState, { conditions: saved.conditions, conditionLogic: saved.conditionLogic === "or" ? "or" : "and" });
   }
 
   #saveBriefingSelection() {
@@ -3116,7 +3119,7 @@ export class UIController {
     const layer = this.mapController.getLayer(state.layerUid);
     const briefing = this.projectManager.current.presentation?.briefing || {};
     this.projectManager.patchPresentation({
-      briefingSelection: { layerId: state.layerUid, ids: [...state.selectedIds], useAll: state.briefingUseAll === true, conditions: state.conditions || [] },
+      briefingSelection: { layerId: state.layerUid, ids: [...state.selectedIds], useAll: state.briefingUseAll === true, conditions: state.conditions || [], conditionLogic: state.conditionLogic || "and" },
       // The briefing document carries its layer and selection too (portable: the layer by its service URL).
       briefing: { ...briefing, layerId: briefingLayerRef(this.mapController, layer), selection: { ids: [...state.selectedIds], useAll: state.briefingUseAll === true } },
     });
@@ -3156,7 +3159,7 @@ export class UIController {
     const fields = this.mapController.getLayer(this.presentationState.layerUid)?.fields || [];
     const kindOf = (name) => fieldKind(fields.find((field) => field.name === name));
     const args = (this.presentationState.conditions || []).filter((item) => !skip(item)).map((item) => conditionToFilter(item, kindOf(item.field))).filter(Boolean);
-    return args.length ? normalizeFilter({ op: "and", args }) : null;
+    return args.length ? normalizeFilter({ op: this.presentationState.conditionLogic === "or" ? "or" : "and", args }) : null;
   }
 
   #toRecord(feature, layer) {
@@ -3584,13 +3587,6 @@ export class UIController {
     return fields.filter(predicate).map((field) => `<option value="${escapeHtml(field.name)}"${field.name === selected ? " selected" : ""}>${escapeHtml(field.alias || field.name)}</option>`).join("");
   }
 
-  #searchOperatorOptions(field) {
-    const kind = fieldKind(field);
-    const options = kind === "number"
-      ? [["equals", "Equals"], ["gt", "Greater than"], ["lt", "Less than"], ["missing", "Is missing"]]
-      : [["contains", "Contains"], ["equals", "Equals"], ["starts", "Starts with"], ["missing", "Is missing"]];
-    return options.map(([value, label]) => `<option value="${value}"${this.presentationState.searchOperator === value ? " selected" : ""}>${label}</option>`).join("");
-  }
 
   #renderExplorerWorkspace(root, presentation, layer, fields) {
     const state = this.presentationState;
@@ -3612,9 +3608,10 @@ export class UIController {
       <header class="presentation-compact-header"><span class="eyebrow">Dataset explorer</span><h2>${escapeHtml(presentation.title || layer.title || "Explore records")}</h2><label class="compact-dataset"><span>Dataset</span><select data-mode-dataset>${this.mapController.getLayers().filter((item) => item.queryable).map((item) => `<option value="${escapeHtml(item.uid)}"${item.uid === layer.uid ? " selected" : ""}>${escapeHtml(item.title || "Untitled layer")}</option>`).join("")}</select></label></header>
       <div class="explorer-counts"><button data-coverage-open><b>${Number.isFinite(total) ? total.toLocaleString() : "—"}</b><span>Total${Number.isFinite(total) ? "" : " unknown"}</span></button><button data-coverage-open><b>${loaded.toLocaleString()}</b><span>Available locally</span></button><button data-mode-zoom><b>${state.visibleRecords.length.toLocaleString()}</b><span>Match filters</span></button><button data-selection-zoom><b>${state.selectedIds.size}</b><span>Selected</span></button></div>
       <p class="explorer-coverage ${incomplete ? "is-partial" : ""}">${incomplete ? `Working with ${loaded.toLocaleString()} locally available records out of ${total.toLocaleString()} reported by the service.` : `Working with ${loaded.toLocaleString()} records available to this browser.`}</p>
-      <section class="explorer-toolbar"><div class="explorer-search-grid"><label class="field"><span>Search field</span><select data-search-field><option value="*"${state.searchField === "*" ? " selected" : ""}>All searchable text fields</option>${this.#fieldOptions(fields.fields, state.searchField)}</select></label><label class="field"><span>Match</span><select data-search-operator>${this.#searchOperatorOptions(searchField)}</select></label><label class="field explorer-search-input"><span>Search records</span><input data-mode-search list="presentation-search-values" value="${escapeHtml(state.search)}" placeholder="Search ${escapeHtml(searchField?.alias || "text fields")}" /><datalist id="presentation-search-values">${state.searchField && state.searchField !== "*" ? [...new Set(state.records.map((record) => record.attributes?.[state.searchField]).filter((value) => value != null && value !== "").map(String))].slice(0, 60).map((value) => `<option value="${escapeHtml(value)}"></option>`).join("") : ""}</datalist></label></div>
+      <section class="explorer-toolbar"><div class="explorer-search-grid"><label class="field"><span>Search field</span><select data-search-field><option value="*"${state.searchField === "*" ? " selected" : ""}>All searchable text fields</option>${this.#fieldOptions(fields.fields, state.searchField)}</select></label><label class="field explorer-search-input"><span>Search records</span><input data-mode-search list="presentation-search-values" value="${escapeHtml(state.search)}" placeholder="Search ${escapeHtml(searchField?.alias || "text fields")}" /><datalist id="presentation-search-values">${state.searchField && state.searchField !== "*" ? [...new Set(state.records.map((record) => record.attributes?.[state.searchField]).filter((value) => value != null && value !== "").map(String))].slice(0, 60).map((value) => `<option value="${escapeHtml(value)}"></option>`).join("") : ""}</datalist></label></div>
+      <div class="explorer-conditions" data-explorer-conditions></div>
       <label class="scope-toggle"><input type="checkbox" data-mode-extent${state.scope === "extent" ? " checked" : ""}/> Limit to current map extent</label>
-      <div class="filter-chips">${state.search ? `<button data-clear-search>${escapeHtml(searchField?.alias || "All text")}: ${escapeHtml(state.search)} ×</button>` : ""}${activeRange ? `<button data-clear-range>${escapeHtml(chartLabel)}: ${state.rangeMin ?? "−∞"}–${state.rangeMax ?? "+∞"} ×</button>` : ""}${state.scope === "extent" ? `<button data-clear-extent>Current extent ×</button>` : ""}${!state.search && !activeRange && state.scope !== "extent" ? "<span>No active filters</span>" : ""}</div><div class="explorer-actions"><button data-mode-zoom>Zoom to results</button><button class="button--quiet" data-mode-clear>Clear all</button></div></section>
+      <div class="filter-chips">${state.search ? `<button data-clear-search>${escapeHtml(searchField?.alias || "All text")}: ${escapeHtml(state.search)} ×</button>` : ""}${activeRange ? `<button data-clear-range>${escapeHtml(chartLabel)}: ${state.rangeMin ?? "−∞"}–${state.rangeMax ?? "+∞"} ×</button>` : ""}${state.scope === "extent" ? `<button data-clear-extent>Current extent ×</button>` : ""}${!state.search && !activeRange && state.scope !== "extent" && !this.#briefingConditionFilter() ? "<span>No active filters</span>" : ""}</div><div class="explorer-actions"><button data-mode-zoom>Zoom to results</button><button class="button--quiet" data-mode-clear>Clear all</button></div></section>
       <section class="explorer-distribution"><div class="chart-controls"><label class="field"><span>Chart field</span><select data-chart-field>${this.#fieldOptions(fields.numeric, state.chartField)}</select></label><label class="field"><span>Bins</span><select data-chart-bins>${[8,12,16,24].map((count) => `<option${count === state.binCount ? " selected" : ""}>${count}</option>`).join("")}</select></label></div><strong>${escapeHtml(chartLabel)}</strong><div class="chart-axis"><span>${chart.min == null ? "No numeric values" : this.#formatExplorerNumber(chart.min)}</span><span>${chart.max == null ? "" : this.#formatExplorerNumber(chart.max)}</span></div><div class="explorer-histogram" style="grid-template-columns:repeat(${chart.bins.length || 1},1fr)" aria-label="Histogram of ${escapeHtml(chartLabel)}">${chart.bins.map((bin) => `<button data-range-bin-min="${bin.min}" data-range-bin-max="${bin.max}" title="${this.#formatExplorerNumber(bin.min)}–${this.#formatExplorerNumber(bin.max)}: ${bin.count}"><span style="height:${Math.max(3, bin.count / maxBin * 100)}%"></span></button>`).join("")}</div><p class="chart-caption">${chart.bins.length} bins · ${chart.missing} missing value${chart.missing === 1 ? "" : "s"}. Clicking a bin filters every view. <button type="button" class="link-button" data-style-chart>Style map by this field</button></p></section>
       <section class="explorer-results-table"><header><strong>Results</strong><span>${state.visibleRecords.length.toLocaleString()} local matches</span><label>Sort <select data-sort-field>${this.#fieldOptions(fields.fields, state.sortField)}</select></label><button data-sort-direction aria-label="Reverse sort">${state.sortDirection === "asc" ? "↑" : "↓"}</button></header><div class="results-table" role="table"><div class="results-row results-row--head" role="row"><span>Name</span><span>${escapeHtml(chartLabel)}</span><span>ID</span></div>${pageRecords.map((record) => { const id = featureId(record, idField); return `<button class="results-row${state.selectedIds.has(id) ? " is-selected" : ""}" data-mode-record-id="${escapeHtml(id)}"><span>${escapeHtml(this.#recordLabel(record, fields))}</span><span>${escapeHtml(this.#formatExplorerNumber(record.attributes?.[state.chartField]))}</span><span>${escapeHtml(id || "—")}</span></button>`; }).join("") || "<p class=\"form-note\">No locally available records match.</p>"}</div><footer><button data-page-prev${state.page <= 1 ? " disabled" : ""}>Previous</button><span>Page ${state.page} of ${pageCount}</span><button data-page-next${state.page >= pageCount ? " disabled" : ""}>Next</button></footer></section>
       <aside class="mode-details explorer-details"><span class="eyebrow">Selected record</span>${selected ? `<h3>${escapeHtml(this.#recordLabel(selected, fields))}</h3><div class="detail-actions"><button data-selection-zoom>Zoom</button><button data-filter-selected>Filter to selected</button><button data-selection-clear>Clear</button></div><dl>${Object.entries(selected.attributes || {}).filter(([, value]) => value != null && value !== "").slice(0, 8).map(([key, value]) => `<div><dt>${escapeHtml(fields.fields.find((field) => field.name === key)?.alias || key)}</dt><dd>${escapeHtml(formatAttributeValue(value, fields.fields.find((field) => field.name === key), key))}</dd></div>`).join("")}</dl><details><summary>All attributes</summary><dl>${Object.entries(selected.attributes || {}).map(([key,value]) => `<div><dt>${escapeHtml(key)}</dt><dd>${escapeHtml(value)}</dd></div>`).join("")}</dl></details>` : "<p>Select a table row or mapped feature. Selection is independent from filtering.</p>"}</aside>
@@ -3630,7 +3627,20 @@ export class UIController {
       this.#loadPresentationRecords({ ...presentation, primaryLayerId: event.target.value });
     });
     root.querySelector("[data-search-field]")?.addEventListener("change", (event) => { state.searchField = event.target.value; state.searchOperator = "contains"; state.page = 1; refresh(); });
-    root.querySelector("[data-search-operator]")?.addEventListener("change", (event) => { state.searchOperator = event.target.value; refresh(); });
+    // Structured filters use the same builder as Briefing and layer filters; the search box stays a plain search.
+    createFilterBuilder({
+      host: root.querySelector("[data-explorer-conditions]"),
+      fields: fields.fields,
+      conditions: state.conditions || [],
+      logic: state.conditionLogic,
+      addLabel: "Add filter",
+      valuesFor: (name) => {
+        const counts = new Map();
+        state.records.forEach((record) => { const value = record.attributes?.[name]; if (value != null && value !== "") counts.set(String(value), (counts.get(String(value)) || 0) + 1); });
+        return [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 200).map(([value, count]) => ({ value, count }));
+      },
+      onChange: ({ conditions, logic }) => { state.conditions = conditions; state.conditionLogic = logic; state.page = 1; refresh(); },
+    });
     root.querySelector("[data-mode-search]")?.addEventListener("input", (event) => { state.search = event.target.value; state.page = 1; clearTimeout(this.presentationSearchTimer); this.presentationSearchTimer = setTimeout(refresh, 180); });
     root.querySelector("[data-mode-extent]")?.addEventListener("change", (event) => { state.scope = event.target.checked ? "extent" : "all"; state.page = 1; refresh(); });
     root.querySelector("[data-chart-field]")?.addEventListener("change", (event) => { state.chartField = event.target.value; state.rangeMin = null; state.rangeMax = null; refresh(); });
@@ -3641,11 +3651,11 @@ export class UIController {
     root.querySelector("[data-clear-search]")?.addEventListener("click", () => { state.search = ""; refresh(); });
     root.querySelector("[data-clear-range]")?.addEventListener("click", () => { state.rangeMin = null; state.rangeMax = null; refresh(); });
     root.querySelector("[data-clear-extent]")?.addEventListener("click", () => { state.scope = "all"; refresh(); });
-    root.querySelector("[data-mode-clear]")?.addEventListener("click", () => { Object.assign(state, { search: "", searchOperator: "contains", scope: "all", rangeMin: null, rangeMax: null, page: 1 }); refresh(); });
+    root.querySelector("[data-mode-clear]")?.addEventListener("click", () => { Object.assign(state, { search: "", searchOperator: "contains", scope: "all", rangeMin: null, rangeMax: null, conditions: [], conditionLogic: "and", page: 1 }); refresh(); });
     root.querySelectorAll("[data-mode-zoom]").forEach((button) => button.addEventListener("click", async () => { const features = state.visibleRecords.filter((record) => record.geometry); if (features.length) await this.mapController.goToFeatures(features, { padding: { left: 36, right: 360, bottom: 230 } }); }));
     root.querySelectorAll("[data-selection-zoom]").forEach((button) => button.addEventListener("click", async () => { if (state.selected?.geometry) await this.mapController.setView({ geometry: state.selected.geometry }, { padding: 100 }); }));
     root.querySelector("[data-selection-clear]")?.addEventListener("click", () => { state.selected = null; state.selectedIds.clear(); this.mapController.clearFeatureHighlight(); this.#renderExplorerWorkspace(root, presentation, layer, fields); });
-    root.querySelector("[data-filter-selected]")?.addEventListener("click", () => { if (!state.selected) return; state.searchField = layer.objectIdField; state.searchOperator = "equals"; state.search = String(state.selected.attributes?.[layer.objectIdField] ?? ""); refresh(); });
+    root.querySelector("[data-filter-selected]")?.addEventListener("click", () => { if (!state.selected) return; state.conditions = [...(state.conditions || []).filter((item) => item.field !== layer.objectIdField), { field: layer.objectIdField, op: "eq", value: String(state.selected.attributes?.[layer.objectIdField] ?? "") }]; state.page = 1; refresh(); });
     root.querySelector("[data-style-chart]")?.addEventListener("click", () => { const roles = { ...state.roles, metric: state.chartField }; const values = state.records.map((record) => Number(record.attributes?.[state.chartField])).filter(Number.isFinite); state.metricMin = values.length ? Math.min(...values) : null; state.metricMax = values.length ? Math.max(...values) : null; this.#applyExplorerMetricRenderer(layer, roles, presentation); this.toast(`Map styled by ${fields.fields.find((field) => field.name === state.chartField)?.alias || state.chartField}.`); });
     root.querySelector("[data-coverage-open]")?.addEventListener("click", () => this.openDialog({ eyebrow: "Dataset coverage", title: layer.title || "Coverage details", content: `<dl class="coverage-details"><div><dt>Service total</dt><dd>${Number.isFinite(state.totalCount) ? state.totalCount.toLocaleString() : "Not reported"}</dd></div><div><dt>Available locally</dt><dd>${state.records.length.toLocaleString()}</dd></div><div><dt>Completeness</dt><dd>${Number.isFinite(state.totalCount) ? `${Math.min(100, state.records.length / state.totalCount * 100).toFixed(1)}%` : "Unknown"}</dd></div><div><dt>Fetched</dt><dd>${escapeHtml(this.#formatExplorerTime(state.fetchedAt))}</dd></div><div><dt>Source</dt><dd>${escapeHtml(layer.url || "Local/project layer")}</dd></div></dl><p class="form-note">Search, charts, statistics, and the results table operate on records available locally. Refresh requests the source again; load-more support depends on the service.</p>`, actions: [{ label: "Close", handler: () => this.dialog.close() }, { label: "Refresh", primary: true, handler: () => { this.mapController.refreshLayer(layer.uid); this.dialog.close(); this.#loadPresentationRecords(presentation); } }] }));
     root.querySelector("[data-page-prev]")?.addEventListener("click", () => { state.page -= 1; this.#renderExplorerWorkspace(root, presentation, layer, fields); });
@@ -3662,8 +3672,6 @@ export class UIController {
     state.conditions ||= [];
     const idField = layer.objectIdField;
     const kindOf = (name) => fieldKind(fields.fields.find((field) => field.name === name));
-    const opsFor = (name) => operatorsFor(kindOf(name));
-    const fieldOptions = (selectedName) => fields.fields.map((field) => `<option value="${escapeHtml(field.name)}"${field.name === selectedName ? " selected" : ""}>${escapeHtml(field.alias || field.name)}</option>`).join("");
     const distinct = (name, limit = 40) => {
       const counts = new Map();
       state.records.forEach((record) => { const value = record.attributes?.[name]; if (value != null && value !== "") counts.set(String(value), (counts.get(String(value)) || 0) + 1); });
@@ -3682,16 +3690,6 @@ export class UIController {
       return [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 24);
     })() : [];
     const activeGroup = state.conditions.find((item) => item.field === state.groupField && item.op === "eq")?.value;
-    const conditionRows = state.conditions.map((condition, index) => {
-      const values = kindOf(condition.field) === "text" ? distinct(condition.field) : [];
-      const kind = kindOf(condition.field);
-      const inputType = kind === "number" ? 'type="number" step="any"' : kind === "date" ? 'type="date"' : `list="cond-values-${index}"`;
-      const input = (key, label, value, placeholder) => `<input data-cond-${key}="${index}" aria-label="${label}" value="${escapeHtml(value ?? "")}" ${inputType} placeholder="${placeholder}">`;
-      const valueControls = ["is_null", "is_not_null"].includes(condition.op) ? "<span></span>"
-        : condition.op === "between" ? `<span class="briefing-condition__range">${input("value", "From", condition.value, "From")}<span aria-hidden="true">and</span>${input("value2", "To", condition.value2, "To")}</span>`
-        : `${input("value", "Value", condition.value, condition.op === "in" ? "A, B, C" : "Value")}${values.length ? `<datalist id="cond-values-${index}">${values.map(([value]) => `<option value="${escapeHtml(value)}"></option>`).join("")}</datalist>` : ""}`;
-      return `<div class="briefing-condition"><select data-cond-field="${index}" aria-label="Field">${fieldOptions(condition.field)}</select><select data-cond-op="${index}" aria-label="Condition">${opsFor(condition.field).map(([op, label]) => `<option value="${op}"${op === condition.op ? " selected" : ""}>${label}</option>`).join("")}</select>${valueControls}<button type="button" data-cond-remove="${index}" aria-label="Remove condition">×</button></div>`;
-    }).join("");
     const tools = document.createElement("section");
     tools.className = "briefing-select";
     // Included features without a slide yet: the same action as on the Slides tab, where it is first needed.
@@ -3699,10 +3697,10 @@ export class UIController {
     tools.innerHTML = `<div class="briefing-select__modes">
         <button type="button" data-select-view aria-pressed="${state.scope === "extent"}" title="Only list features in the current map view">◱ In view</button>
         <button type="button" data-select-map aria-pressed="${Boolean(state.mapSelect)}" title="Click features on the map to include or remove them">⊕ Pick on map</button>
-        <button type="button" data-cond-add title="Filter by attribute">+ Filter${state.conditions.length ? ` · ${state.conditions.length}` : ""}</button>
+        <button type="button" data-cond-add title="Filter by attribute">+ Filter</button>
         <label class="briefing-select__group"><span class="sr-only">Group by</span><select data-select-group aria-label="Group by"><option value="">Group by…</option>${groupable.map((field) => `<option value="${escapeHtml(field.name)}"${field.name === state.groupField ? " selected" : ""}>${escapeHtml(field.alias || field.name)}</option>`).join("")}</select></label>
       </div>
-      ${conditionRows ? `<div class="briefing-conditions">${conditionRows}</div>` : ""}
+      <div class="briefing-conditions" data-briefing-conditions${state.conditions.length ? "" : " hidden"}></div>
       ${groups.length ? `<div class="briefing-groups">${groups.map(([value, count]) => `<span class="briefing-group${activeGroup != null && String(activeGroup) === value ? " is-active" : ""}"><button type="button" data-group-filter="${escapeHtml(value)}" title="Show only this group">${escapeHtml(value || "No value")} <b>${count}</b></button><button type="button" data-group-include="${escapeHtml(value)}" title="Include all ${count} in the briefing" aria-label="Include all ${escapeHtml(value || "no value")}">+</button></span>`).join("")}</div>` : ""}
       <div class="briefing-select__bulk"><span data-briefing-status>${this.#briefingStatus()}</span><button type="button" data-include-shown${state.visibleRecords.length ? "" : " disabled"}>Include shown</button><button type="button" data-include-clear${state.selectedIds.size ? "" : " disabled"}>Clear</button></div>
       ${pendingSlides ? `<button type="button" class="briefing-select__add-slides" data-include-slides>Add ${pendingSlides.toLocaleString()} included feature${pendingSlides === 1 ? "" : "s"} as slides</button>` : ""}
@@ -3726,25 +3724,21 @@ export class UIController {
       this.toast(state.mapSelect ? "Click features on the map to include or remove them." : "Pick on map is off.");
       this.#renderBriefingWorkspace(root, presentation, layer, fields);
     });
+    // The shared builder edits the conditions; the list refreshes when one is complete or removed.
+    const conditionHost = tools.querySelector("[data-briefing-conditions]");
+    const builder = createFilterBuilder({
+      host: conditionHost,
+      fields: fields.fields,
+      conditions: state.conditions,
+      logic: state.conditionLogic,
+      valuesFor: (name) => distinct(name, 200).map(([value, count]) => ({ value, count })),
+      onChange: ({ conditions, logic }) => { state.conditions = conditions; state.conditionLogic = logic; refresh(); },
+    });
     on("[data-cond-add]", "click", () => {
-      const field = state.groupField || fields.text[0]?.name || fields.fields[0]?.name;
-      if (!field) return;
-      state.conditions.push({ field, op: defaultOperator(kindOf(field)), value: "" });
-      this.#renderBriefingWorkspace(root, presentation, layer, fields);
-      root.querySelector(`[data-cond-value="${state.conditions.length - 1}"]`)?.focus();
+      conditionHost.hidden = false;
+      builder.addCondition(state.groupField || fields.text[0]?.name || fields.fields[0]?.name);
+      state.conditions = builder.conditions;
     });
-    on("[data-cond-field]", "change", (select) => {
-      const condition = state.conditions[Number(select.dataset.condField)];
-      condition.field = select.value;
-      condition.op = defaultOperator(kindOf(select.value));
-      condition.value = "";
-      delete condition.value2;
-      refresh();
-    });
-    on("[data-cond-op]", "change", (select) => { state.conditions[Number(select.dataset.condOp)].op = select.value; refresh(); });
-    on("[data-cond-value]", "change", (input) => { state.conditions[Number(input.dataset.condValue)].value = input.value; refresh(); });
-    on("[data-cond-value2]", "change", (input) => { state.conditions[Number(input.dataset.condValue2)].value2 = input.value; refresh(); });
-    on("[data-cond-remove]", "click", (button) => { state.conditions.splice(Number(button.dataset.condRemove), 1); refresh(); });
     on("[data-select-group]", "change", (select) => {
       state.conditions = state.conditions.filter((item) => !(item.field === state.groupField && item.op === "eq"));
       state.groupField = select.value || null;
@@ -5703,20 +5697,17 @@ export class UIController {
       throw new Error("This layer does not support attribute filters.");
     }
     layer = await this.mapController.loadLayer(uid, { allowTruncated: true });
-    const fields = (layer.fields ?? []).filter((field) => field.name);
+    const fields = (layer.fields ?? []).filter((field) => field.name && !/geometry|blob|raster/i.test(field.type || ""));
     if (!fields.length) throw new Error("This layer does not expose fields that can be filtered.");
-    const fieldOptions = (selected) => fields.map((field) =>
-      `<option value="${escapeHtml(field.name)}" data-field-type="${escapeHtml(field.type || "string")}"${field.name === selected ? " selected" : ""}>${escapeHtml(field.alias || field.name)}</option>`,
-    ).join("");
     // Conditions are remembered per layer, so reopening the dialog shows the filter as built.
     this.filterConditions ??= new Map();
     const saved = this.filterConditions.get(uid);
     const savedMatches = saved && saved.expression === (layer.where || null);
-    const MAX_CONDITIONS = 10;
+    let builder = null;
     this.openDialog({
       eyebrow: "Map layer filter",
       title: `Filter ${layer.title || "layer"}`,
-      content: `<p class="form-note">Filter changes which features appear on the map and in the attribute table. Query data explores a separate analysis dataset and does not change this map filter.</p><div class="filter-builder"><label class="field filter-logic" data-filter-logic hidden><span>Show features that match</span><select id="filter-logic"><option value="AND">all of these conditions (AND)</option><option value="OR">any of these conditions (OR)</option></select></label><ol class="filter-conditions" data-filter-conditions></ol><button type="button" class="link-button filter-add" data-filter-add>+ Add a condition</button></div>${layer.where ? `<p class="form-note"><strong>Current filter:</strong> <code>${escapeHtml(layer.where)}</code></p>` : ''}`,
+      content: `<p class="form-note">Filter changes which features appear on the map and in the attribute table. Query data explores a separate analysis dataset and does not change this map filter.</p><div data-layer-filter-builder></div>${layer.where ? `<p class="form-note"><strong>Current filter:</strong> <code>${escapeHtml(layer.where)}</code></p>` : ''}`,
       actions: [
         { label: "Clear filter", handler: async () => {
           try {
@@ -5729,117 +5720,26 @@ export class UIController {
         }},
         { label: "Apply filter", primary: true, handler: async () => {
           try {
-            const rows = [...this.dialog.querySelectorAll("[data-filter-condition]")].map((row) => ({
-              field: row.querySelector("[data-filter-field]").value,
-              operator: row.querySelector("[data-filter-operator]").value,
-              value: row.querySelector("[data-filter-value]").value,
-            }));
-            const logic = this.dialog.querySelector("#filter-logic").value;
-            const expression = combineConditions(rows.map((row) => this.#buildFilterExpression(fields.find((item) => item.name === row.field), row.operator, row.value)), logic);
+            const { conditions, logic } = builder;
+            const expression = conditionsToWhere(conditions, logic, fields);
+            if (!expression) throw new Error("Complete a condition first, or choose Clear filter.");
             this.mapController.setDefinitionExpression(uid, expression);
             const updated = await this.mapController.loadLayer(uid, { allowTruncated: true });
-            this.filterConditions.set(uid, { rows, logic, expression });
+            this.filterConditions.set(uid, { conditions, logic, expression });
             this.dialog.close();
             this.toast(updated?.truncated ? "Filter applied, but the layer still exceeds the feature limit. Narrow it further to show all matching features." : `Filter applied: ${expression}`);
           } catch (error) { this.error(error.message); }
         }},
       ],
     });
-
-    const list = this.dialog.querySelector("[data-filter-conditions]");
-    const logicControl = this.dialog.querySelector("[data-filter-logic]");
-    const addButton = this.dialog.querySelector("[data-filter-add]");
-    const sync = () => {
-      const rows = list.querySelectorAll("[data-filter-condition]");
-      logicControl.hidden = rows.length < 2;
-      addButton.hidden = rows.length >= MAX_CONDITIONS;
-      rows.forEach((row) => { row.querySelector("[data-filter-remove]").hidden = rows.length < 2; });
-    };
-    // Each field's values, looked up once per dialog, offered as a type-to-search list.
-    const valueLists = new Map();
-    const valuesFor = (name) => {
-      if (!valueLists.has(name)) valueLists.set(name, this.mapController.distinctValues(layer, name).catch(() => ({ values: [], complete: true })));
-      return valueLists.get(name);
-    };
-    const addRow = ({ field = fields[0].name, operator = null, value = "" } = {}) => {
-      const listId = `filter-values-${this.filterListId = (this.filterListId || 0) + 1}`;
-      const row = document.createElement("li");
-      row.className = "filter-condition";
-      row.dataset.filterCondition = "";
-      row.innerHTML = `<label class="field"><span>Field</span><select data-filter-field>${fieldOptions(field)}</select></label><label class="field"><span>Operator</span><select data-filter-operator></select></label><label class="field" data-filter-value-field><span>Value</span><input data-filter-value autocomplete="off" list="${listId}" placeholder="Type or pick a value" /><datalist id="${listId}"></datalist><small class="filter-value-hint" data-filter-value-hint></small></label><button type="button" class="icon-button filter-remove" data-filter-remove aria-label="Remove this condition" title="Remove this condition">×</button>`;
-      const fieldSelect = row.querySelector("[data-filter-field]");
-      const operatorSelect = row.querySelector("[data-filter-operator]");
-      const valueField = row.querySelector("[data-filter-value-field]");
-      const valueInput = row.querySelector("[data-filter-value]");
-      const valueList = row.querySelector("datalist");
-      const valueHint = row.querySelector("[data-filter-value-hint]");
-      const loadValues = async () => {
-        const name = fieldSelect.value;
-        valueList.replaceChildren();
-        valueHint.textContent = "";
-        const { values, complete } = await valuesFor(name);
-        if (fieldSelect.value !== name || !values.length) return;
-        valueList.innerHTML = values.map((item) => `<option value="${escapeHtml(item.value)}"${item.label !== String(item.value) ? ` label="${escapeHtml(item.label)}"` : ""}></option>`).join("");
-        valueHint.textContent = complete
-          ? `${values.length.toLocaleString()} value${values.length === 1 ? "" : "s"}: pick one or type to search`
-          : `First ${values.length.toLocaleString()} values: type to search`;
-      };
-      const updateOperators = () => {
-        const selected = fields.find((item) => item.name === fieldSelect.value);
-        const type = String(selected?.type || "string").toLowerCase();
-        const comparable = !type.includes("string") && !type.includes("guid") && !type.includes("global-id");
-        const operators = comparable
-          ? [["eq", "equals"], ["ne", "does not equal"], ["gt", "is greater than"], ["gte", "is at least"], ["lt", "is less than"], ["lte", "is at most"], ["null", "is empty"], ["not-null", "is not empty"]]
-          : [["eq", "equals"], ["ne", "does not equal"], ["contains", "contains"], ["starts", "starts with"], ["null", "is empty"], ["not-null", "is not empty"]];
-        operatorSelect.innerHTML = operators.map(([key, label]) => `<option value="${key}">${label}</option>`).join("");
-        // Numbers stay text inputs so the value list works in every browser; the filter checks they are numbers.
-        valueInput.type = type.includes("date") ? "date" : "text";
-        valueInput.inputMode = comparable && !type.includes("date") ? "decimal" : "text";
-        valueInput.value = "";
-        valueField.hidden = false;
-        void loadValues();
-      };
-      fieldSelect.addEventListener("change", updateOperators);
-      operatorSelect.addEventListener("change", () => { valueField.hidden = ["null", "not-null"].includes(operatorSelect.value); });
-      row.querySelector("[data-filter-remove]").addEventListener("click", () => { row.remove(); sync(); });
-      updateOperators();
-      if (operator && [...operatorSelect.options].some((option) => option.value === operator)) {
-        operatorSelect.value = operator;
-        valueField.hidden = ["null", "not-null"].includes(operator);
-      }
-      valueInput.value = value;
-      list.append(row);
-      sync();
-      return row;
-    };
-    addButton.addEventListener("click", () => addRow().querySelector("[data-filter-field]").focus());
-    if (savedMatches) {
-      this.dialog.querySelector("#filter-logic").value = saved.logic;
-      saved.rows.forEach(addRow);
-    } else {
-      addRow();
-    }
-  }
-
-  #buildFilterExpression(field, operator, rawValue) {
-    if (!field?.name) throw new Error("Choose a field to filter.");
-    if (operator === "null") return `${field.name} IS NULL`;
-    if (operator === "not-null") return `${field.name} IS NOT NULL`;
-    const value = String(rawValue ?? "").trim();
-    if (!value) throw new Error("Enter a filter value.");
-    const type = String(field.type || "string").toLowerCase();
-    let literal;
-    if (type.includes("date")) literal = `DATE '${value.replaceAll("'", "''")}'`;
-    else if (!type.includes("string") && !type.includes("guid") && !type.includes("global-id")) {
-      const number = Number(value);
-      if (!Number.isFinite(number)) throw new Error("Enter a valid numeric value.");
-      literal = String(number);
-    } else literal = `'${value.replaceAll("'", "''")}'`;
-    const comparisons = { eq: "=", ne: "<>", gt: ">", gte: ">=", lt: "<", lte: "<=" };
-    if (comparisons[operator]) return `${field.name} ${comparisons[operator]} ${literal}`;
-    if (operator === "contains") return `${field.name} LIKE '%${value.replaceAll("'", "''")}%'`;
-    if (operator === "starts") return `${field.name} LIKE '${value.replaceAll("'", "''")}%'`;
-    throw new Error("Choose a valid filter operator.");
+    // The same builder as Briefing and the Dataset explorer; values come from the service.
+    builder = createFilterBuilder({
+      host: this.dialog.querySelector("[data-layer-filter-builder]"),
+      fields,
+      conditions: savedMatches ? saved.conditions : [{ field: fields[0].name, op: fieldKind(fields[0]) === "number" ? "gte" : fieldKind(fields[0]) === "date" ? "after" : "eq", value: "" }],
+      logic: savedMatches ? saved.logic : "and",
+      valuesFor: async (name) => (await this.mapController.distinctValues(layer, name).catch(() => ({ values: [] }))).values || [],
+    });
   }
 
   #openSymbologyUtility(uid) {

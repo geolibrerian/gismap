@@ -77,10 +77,15 @@ export function createLayersApi({ mapController, loadLayer, state = null, events
       error: errors.get(layer.uid) || (status === "failed" ? toGisMapError(layer.loadError?.message || "The layer failed to load.", "LAYER_LOAD_FAILED").toJSON() : null),
     };
   };
+  // The filter each count was made with, so a filter changed anywhere (the filter dialog, say) is recounted.
+  const countedWhere = new Map();
   const countFeatures = async (layer) => {
     if (!layer.countable) return;
+    const where = layer.where || null;
+    countedWhere.set(layer.uid, where);
     try {
-      counts.set(layer.uid, await mapController.queryFeatureCount(layer.uid, { where: layer.where || "1=1" }));
+      const count = await mapController.queryFeatureCount(layer.uid, { where: where || "1=1" });
+      if (countedWhere.get(layer.uid) === where) counts.set(layer.uid, count);
     } catch { /* Counts are optional. */ }
   };
 
@@ -106,7 +111,11 @@ export function createLayersApi({ mapController, loadLayer, state = null, events
 
   // Layers added any way (dialog, link, project) get a feature count in the background.
   events?.subscribe?.("layer:added", ({ layer }) => { if (layer) void countFeatures(layer); });
-  events?.subscribe?.("layer:removed", ({ uid }) => { metadata.delete(uid); counts.delete(uid); errors.delete(uid); });
+  events?.subscribe?.("layer:removed", ({ uid }) => { metadata.delete(uid); counts.delete(uid); errors.delete(uid); countedWhere.delete(uid); });
+  events?.subscribe?.("layer:changed", ({ uid } = {}) => {
+    const layer = uid && mapController.getLayer(uid);
+    if (layer && countedWhere.has(uid) && (layer.where || null) !== countedWhere.get(uid)) { counts.delete(uid); void countFeatures(layer); }
+  });
 
   function validateLayerInput(url, options) {
     const type = options.type || "arcgis-auto";
