@@ -41,6 +41,7 @@ import { RAMPS, rampColors, compileRenderer } from "./renderer-spec.js?v=0.29.1"
 import { saveEngine } from "./engine-preference.js?v=0.52.1";
 import { BASEMAPS } from "./basemap-catalog.js?v=0.53.0-gallery1";
 import { CartographyLab } from "./cartography-lab.js?v=0.55.0-fieldwork1";
+import { CONTEXT_ACTIONS, deriveWorkspace } from "./contextual-workspace.js?v=1";
 
 const BUILDINGS_3D_KEY = "gismap-online:buildings-3d:v1";
 const DISPLAY_SETTINGS_KEY = "gismap-online:display:v1";
@@ -141,6 +142,7 @@ export class UIController {
   }
 
   initialize() {
+    this.#initContextualWorkspace();
     this.panelManager?.register("content:intelligence", document.querySelector("#intelligence-content"), { shell: document.querySelector("#intelligence-panel") });
     this.panelManager?.register("content:draw", document.querySelector(".draw-tools"), { shell: document.querySelector("#draw-panel") });
     this.#initDockablePanels();
@@ -204,6 +206,64 @@ export class UIController {
         this.#applyDisplaySettings(settings);
       },
     });
+  }
+
+  #initContextualWorkspace() {
+    const host = document.createElement("section");
+    host.className = "context-workspace";
+    host.setAttribute("aria-label", "Suggested next steps");
+    host.hidden = true;
+    document.querySelector("#map-status")?.before(host);
+    const dismissed = new Set();
+    let featureSelected = false;
+    const render = () => {
+      if (!this.mapController.isReady()) return;
+      const state = this.applicationRuntime.state.value;
+      const context = deriveWorkspace({ layers: this.mapController.getLayers(), activeLayerId: state.activeLayerId,
+        capabilities: this.mapController.getCapabilities(), selection: featureSelected ? state.selection : null });
+      const key = `${context.rule}:${context.layer?.uid || "empty"}`;
+      const suppressed = featureSelected || document.body.classList.contains("field-task-picking") || this.mapNotesModeActive || this.dataMapNotesOpen || this.presentationState.template !== "standard" || this.applicationRuntime.currentConfig?.mode === "present";
+      host.hidden = suppressed || !context.actions.length || dismissed.has(key);
+      if (new URLSearchParams(location.search).has("contextDebug")) {
+        globalThis.gisMapContextDebug = { rule: context.rule, profile: context.profile, actions: context.actions, dismissed: [...dismissed], suppressed };
+      }
+      if (host.hidden) return;
+      host.replaceChildren();
+      const header = document.createElement("div");
+      header.className = "context-workspace__header";
+      const heading = document.createElement("div");
+      const eyebrow = document.createElement("span");
+      eyebrow.className = "context-workspace__eyebrow";
+      eyebrow.textContent = context.layer ? "NEXT STEPS" : "START EXPLORING";
+      const title = document.createElement("strong");
+      title.textContent = context.layer?.title || "Make this map yours";
+      heading.append(eyebrow, title);
+      const close = document.createElement("button");
+      close.type = "button"; close.className = "context-workspace__close";
+      close.setAttribute("aria-label", "Dismiss suggestions"); close.textContent = "×";
+      close.addEventListener("click", () => { dismissed.add(key); host.hidden = true; });
+      header.append(heading, close);
+      const actions = document.createElement("div");
+      actions.className = "context-workspace__actions";
+      context.actions.slice(0, 3).forEach((id) => {
+        const action = CONTEXT_ACTIONS[id];
+        const button = document.createElement("button");
+        button.type = "button"; button.textContent = action.label; button.title = action.description;
+        button.addEventListener("click", () => {
+          if (id === "add-data") void this.#handleAction("data-arcgis");
+          else if (id === "try-example") void this.#handleAction("data-popular");
+          else if (id === "view-table") this.events.publish("table:open", { uid: context.layer.uid });
+          else this.openCartographyLab(context.layer.uid);
+        });
+        actions.append(button);
+      });
+      host.append(header, actions);
+    };
+    ["map:ready", "layer:added", "layer:removed", "layer:changed", "layers:reset", "project:loaded", "mobile:workflow-changed", "presentation:changed", "application:changed"].forEach((topic) => this.events.subscribe(topic, () => queueMicrotask(render)));
+    this.applicationRuntime.state.subscribe(render, (state) => state.activeLayerId);
+    this.events.subscribe("identify:complete", ({ results = [] }) => { featureSelected = results.length > 0; render(); });
+    ["identify:cleared", "insight:distance-exceeded"].forEach((topic) => this.events.subscribe(topic, () => { featureSelected = false; render(); }));
+    document.querySelector("#insights-close")?.addEventListener("click", () => { featureSelected = false; render(); });
   }
 
   #buildMobileMenu() {
