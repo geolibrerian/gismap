@@ -16,8 +16,9 @@ test('empty map retains layer shortcuts and creative suggestions live over the m
   assert.doesNotMatch(css, /empty-state--layers \.empty-state__actions\s*\{\s*display:\s*none/);
   assert.match(ui, /querySelector\("#map-status"\)\?\.before\(host\)/);
   assert.match(appCss, /\.context-workspace\s*\{[^}]*left:50%; top:16px/);
+  assert.doesNotMatch(workspace, /\+ Add layer/);
   for (const source of ['data-file', 'data-arcgis', 'data-geojson', 'data-popular']) {
-    assert.ok(workspace.includes(`data-studio-source="${source}"`));
-    assert.ok(html.includes(`data-empty-action="${source}"`), 'fallback remains available outside desktop fieldwork');
+    assert.ok(html.includes(`data-empty-action="${source}"`), 'empty layer shortcuts remain available');
+    assert.ok(html.includes(`data-action="${source}"`), 'Data menu remains available after a layer is added');
   }
 });

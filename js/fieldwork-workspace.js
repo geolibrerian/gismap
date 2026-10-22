@@ -46,21 +46,8 @@ export function initializeFieldworkWorkspace({ ui, action, showSidebar, theme })
   sidebar.append(resizer);
   const layerActions = document.createElement('div');
   layerActions.className = 'workspace-layer-actions';
-  layerActions.innerHTML = '<span>Your map layers</span><button type="button" class="button--primary">+ Add layer</button>';
+  layerActions.innerHTML = '<span>Your map layers</span>';
   document.querySelector('#layers-panel > .panel__body').prepend(layerActions);
-  layerActions.querySelector('button').addEventListener('click', () => {
-    ui.openDialog({ eyebrow: 'Data', title: 'Add a layer', content: `<div class="studio-sources">
-      <button type="button" data-studio-source="data-file"><strong>Local file</strong><span>GeoJSON, shapefile, KML & more</span></button>
-      <button type="button" data-studio-source="data-arcgis"><strong>ArcGIS service</strong><span>Feature, map or imagery URL</span></button>
-      <button type="button" data-studio-source="data-geojson"><strong>Geo URL</strong><span>GeoJSON or GeoParquet</span></button>
-      <button type="button" data-studio-source="data-popular"><strong>Data catalog</strong><span>Browse public datasets</span></button>
-    </div>` });
-    ui.dialog.querySelectorAll('[data-studio-source]').forEach(button => button.addEventListener('click', () => {
-      const source = button.dataset.studioSource;
-      ui.dialog.close();
-      action(source);
-    }));
-  });
   const basemaps = document.createElement('section');
   basemaps.className = 'workspace-basemaps';
   basemaps.innerHTML = '<label class="field"><span>Basemap</span><select aria-label="Basemap"></select></label>';
