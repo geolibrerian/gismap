@@ -1,4 +1,4 @@
-import { initializeFieldworkWorkspace } from "./fieldwork-workspace.js?v=0.56.0-context2";
+import { initializeFieldworkWorkspace } from "./fieldwork-workspace.js?v=0.56.0-context4";
 import { timelinePdfFrames, expandTimelinePdfSlides, parseTimelineFrameSelection } from "./briefing-timeline-pdf.js?v=0.1.0";
 import { renderNotesHub } from "./notes-hub.js?v=0.55.0-fieldwork1";
 import { refreshMapNoteFilters } from './map-note-filters.js?v=0.4.1';
@@ -41,7 +41,7 @@ import { RAMPS, rampColors, compileRenderer } from "./renderer-spec.js?v=0.29.1"
 import { saveEngine } from "./engine-preference.js?v=0.52.1";
 import { BASEMAPS } from "./basemap-catalog.js?v=0.53.0-gallery1";
 import { CartographyLab } from "./cartography-lab.js?v=0.55.0-fieldwork1";
-import { CONTEXT_ACTIONS, createSuggestionPreferences, deriveWorkspace, suggestionKey, summarizeFeature } from "./contextual-workspace.js?v=3";
+import { CONTEXT_ACTIONS, createSuggestionPreferences, deriveWorkspace, executeContextAction, suggestionKey, summarizeFeature } from "./contextual-workspace.js?v=4";
 
 const BUILDINGS_3D_KEY = "gismap-online:buildings-3d:v1";
 const DISPLAY_SETTINGS_KEY = "gismap-online:display:v1";
@@ -236,14 +236,22 @@ export class UIController {
           .then(({ features }) => { if (this.mapController.getLayer(layer.uid) === layer && samples.has(layer.uid)) { samples.set(layer.uid, features.slice(0, 100)); render(); } })
           .catch(() => { /* Metadata remains usable if sampling fails. */ });
       }
+      const workflow = document.body.classList.contains("field-task-picking") ? "field-task"
+        : this.mapNotesModeActive || this.dataMapNotesOpen ? "notes"
+        : this.presentationState.template === "briefing" ? "briefing"
+        : this.presentationState.template !== "standard" || this.applicationRuntime.currentConfig?.mode === "present" ? "presentation"
+        : document.body.classList.contains("fieldwork-desktop") && document.querySelector("#sidebar")?.dataset.workspace === "draw" ? "draw" : "explore";
       const context = deriveWorkspace({ layers, activeLayerId: state.activeLayerId,
-        capabilities: this.mapController.getCapabilities(), selection: featureSelected ? state.selection : null, sample: layer ? samples.get(layer.uid) : null });
+        capabilities: this.mapController.getCapabilities(), selection: featureSelected ? state.selection : null, sample: layer ? samples.get(layer.uid) : null,
+        workflow, viewport: this.mobileMedia.matches ? "mobile" : "desktop" });
       const key = suggestionKey(this.projectManager.current.id, context.rule, config);
-      const suppressed = featureSelected || document.body.classList.contains("field-task-picking") || this.mapNotesModeActive || this.dataMapNotesOpen || this.presentationState.template !== "standard" || this.applicationRuntime.currentConfig?.mode === "present";
+      // The empty Layers panel already provides data entry points. Suggestions
+      // become useful once there is a layer to act on.
+      const suppressed = !layers.length || featureSelected || workflow !== "explore";
       const dismissed = preferences.has(key);
       host.hidden = suppressed || !context.actions.length;
       if (new URLSearchParams(location.search).has("contextDebug")) {
-        globalThis.gisMapContextDebug = { rule: context.rule, profile: context.profile, actions: context.actions, suppressedActions: context.suppressed, dismissed, surfaceSuppressed: suppressed };
+        globalThis.gisMapContextDebug = { rule: context.rule, workflow, viewport: this.mobileMedia.matches ? "mobile" : "desktop", engine: this.mapController.getEngineId(), activeLayerId: layer?.uid || null, layerCount: layers.length, selection: state.selection, layout: this.fieldworkWorkspace?.layout() || null, profile: context.profile, actions: context.actions, suppressedActions: context.suppressed, dismissed, surfaceSuppressed: suppressed };
       }
       if (host.hidden) return;
       host.replaceChildren();
@@ -277,14 +285,14 @@ export class UIController {
         const button = document.createElement("button");
         button.type = "button"; button.textContent = action.label; button.title = action.description;
         button.addEventListener("click", () => {
-          if (id === "add-data") void this.#handleAction("data-arcgis");
-          else if (id === "try-example") void this.#handleAction("data-popular");
-          else if (id === "view-table") this.events.publish("table:open", { uid: context.layer.uid });
-          else {
-            this.openCartographyLab(context.layer.uid);
-            if (id === "explore-3d") requestAnimationFrame(() => document.querySelector('#utility-lab-content [data-lab-dimension="3d"]')?.focus());
-            if (id === "filter-layer") this.cartographyLab?.styleTabs?.select("filter", true);
-          }
+          const lab = () => this.openCartographyLab(context.layer.uid);
+          executeContextAction(id, context, {
+            addData: () => this.#handleAction("data-arcgis"), browseExamples: () => this.#handleAction("data-popular"),
+            table: () => this.events.publish("table:open", { uid: context.layer.uid }), style: lab,
+            threeDimensional: () => { lab(); requestAnimationFrame(() => document.querySelector('#utility-lab-content [data-lab-dimension="3d"]')?.focus()); },
+            filter: () => { lab(); this.cartographyLab?.styleTabs?.select("filter", true); },
+            time: () => { lab(); this.cartographyLab?.styleTabs?.select("filter", true); const builder = this.cartographyLab?.builder; if (builder && !builder.conditions.length) builder.addCondition(context.profile.fields.temporal[0]); },
+          });
         });
         return button;
       };
@@ -309,7 +317,7 @@ export class UIController {
         diagnostic.append(summary, data); host.append(diagnostic);
       }
     };
-    ["map:ready", "layer:added", "layer:removed", "layer:changed", "layers:reset", "project:loaded", "mobile:workflow-changed", "presentation:changed", "application:changed"].forEach((topic) => this.events.subscribe(topic, () => queueMicrotask(render)));
+    ["map:ready", "layer:added", "layer:removed", "layer:changed", "layers:reset", "project:loaded", "mobile:workflow-changed", "presentation:changed", "application:changed", "context:workspace-changed"].forEach((topic) => this.events.subscribe(topic, () => queueMicrotask(render)));
     this.applicationRuntime.state.subscribe(render, (state) => state.activeLayerId);
     this.events.subscribe("identify:complete", ({ results = [] }) => { featureSelected = results.length > 0; render(); });
     this.events.subscribe("layer:removed", ({ uid }) => samples.delete(uid));
@@ -6495,7 +6503,7 @@ export class UIController {
         const selection = aiEnabled
           ? `<label class="insight-ai-select"><input type="checkbox" data-ai-selection="${index}" ${index === 0 ? "checked" : ""}> Include in AI</label>`
           : "";
-        return `<article class="insight-panel" id="insight-panel-${index}" role="tabpanel" aria-labelledby="insight-tab-${index}" ${index === 0 ? "" : "hidden"}><header><span><strong>${escapeHtml(feature.title)}</strong><small>${escapeHtml(result.layerTitle)}</small></span>${selection}</header>${result.kind === "feature" && payload.point ? `<div class="insight-note-actions"><button type="button" data-feature-note="${index}">+ Field observation</button><button type="button" data-feature-map-note="${index}">+ Map Note</button></div>` : ""}<dl>${rows(feature.summary) || "<div><dd>No attributes returned.</dd></div>"}</dl>${feature.remaining.length ? `<details class="insight-attributes"><summary>View all attributes (${feature.summary.length + feature.remaining.length})</summary><dl>${rows(feature.remaining)}</dl></details>` : ""}</article>`;
+        return `<article class="insight-panel" id="insight-panel-${index}" role="tabpanel" aria-labelledby="insight-tab-${index}" ${index === 0 ? "" : "hidden"}><header><span><strong>${escapeHtml(feature.title)}</strong><small>${escapeHtml(result.layerTitle)}</small></span>${selection}</header>${result.kind === "feature" ? `<div class="insight-note-actions">${result.geometry ? `<button type="button" data-feature-zoom="${index}">Zoom to feature</button>` : ""}${payload.point ? `<button type="button" data-feature-note="${index}">+ Field observation</button><button type="button" data-feature-map-note="${index}">+ Map Note</button>` : ""}</div>` : ""}<dl>${rows(feature.summary) || "<div><dd>No attributes returned.</dd></div>"}</dl>${feature.remaining.length ? `<details class="insight-attributes"><summary>View all attributes (${feature.summary.length + feature.remaining.length})</summary><dl>${rows(feature.remaining)}</dl></details>` : ""}</article>`;
       }).join("");
     document.querySelector(".orbital-insight-details")?.remove();
     this.#renderIntelligenceContents();
@@ -6517,6 +6525,10 @@ export class UIController {
       document.querySelectorAll("[data-insight-tab]").forEach((button) =>
         button.addEventListener("click", () => this.#activateInsightTab(Number(button.dataset.insightTab), true)),
       );
+      document.querySelectorAll("[data-feature-zoom]").forEach((button) => button.addEventListener("click", () => {
+        const result = visibleResults[Number(button.dataset.featureZoom)];
+        if (result) void Promise.resolve().then(() => this.mapController.goToFeature(result)).catch((error) => this.error(error.message || "Could not zoom to this feature."));
+      }));
       document.querySelectorAll("[data-insight-tab]").forEach((button) =>
         button.addEventListener("dblclick", (event) => {
           event.preventDefault();

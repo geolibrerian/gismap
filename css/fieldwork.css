@@ -98,6 +98,15 @@ button:disabled { cursor: not-allowed; opacity: .5; }
 .workspace-basemaps { margin-top: 20px; padding-top: 0; }
 .workspace-basemaps .field { margin: 0; }
 .workspace-basemaps p { margin: 8px 0 0; }
+.workspace-layout-controls, .workspace-pin { display:none; }
+body.fieldwork-desktop .workspace-layout-controls { display:block; flex:none; padding:7px 16px; border-top:1px solid var(--border-subtle); color:var(--text-muted); font-size:11px; }
+body.fieldwork-desktop .workspace-layout-controls summary { cursor:pointer; font-weight:600; }
+body.fieldwork-desktop .workspace-layout-controls p { margin:8px 0; }
+body.fieldwork-desktop .workspace-layout-controls button { margin:0 6px 4px 0; padding:6px 8px; border:1px solid var(--border-subtle); border-radius:6px; color:var(--text-primary); background:var(--surface-panel); font-size:11px; cursor:pointer; }
+body.fieldwork-desktop .workspace-pin { display:inline-block; padding:4px 6px; border:1px solid var(--border-subtle); border-radius:6px; color:var(--text-muted); background:var(--surface-panel); font:600 10px var(--ui-font); cursor:pointer; }
+body.fieldwork-desktop .workspace-pin[aria-pressed="true"] { color:var(--green-2); background:var(--surface-2); }
+/* The Add layer control above the empty state opens the same source choices. */
+body.fieldwork-desktop .empty-state--layers .empty-state__actions { display:none; }
 @media (min-width: 881px), (min-width: 641px) and (orientation: landscape) {
   body.fieldwork-desktop { padding-top: 56px; }
   body.fieldwork-desktop #app.app-shell { --sidebar: var(--workspace-width, 372px); grid-template-columns: var(--sidebar) minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); }

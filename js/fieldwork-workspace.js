@@ -1,4 +1,5 @@
 import { basemapsForEngine, basemapEntry } from './basemap-catalog.js?v=0.53.0-gallery1';
+import { createWorkspacePreferences } from './workspace-preferences.js?v=2';
 
 // One icon family for the shell; all icon-only buttons also have accessible names.
 const paths = {
@@ -75,8 +76,35 @@ export function initializeFieldworkWorkspace({ ui, action, showSidebar, theme })
   rail.querySelector('.workspace-rail__settings').addEventListener('click', () => action('tools-display'));
   tabs.querySelector('.workspace-collapse').addEventListener('click', () => showSidebar(false));
   document.body.append(header, rail);
-  let selected = read('gismap:workspace', 'layers');
-  if (!workspacePanels[selected]) selected = 'layers';
+  let storage = null;
+  try { storage = globalThis.localStorage; } catch { /* Session-only layout. */ }
+  const preferences = createWorkspacePreferences(storage, read('gismap:workspace', 'layers'));
+  let selected = preferences.snapshot().selected;
+  const layoutControls = document.createElement('details');
+  layoutControls.className = 'workspace-layout-controls';
+  layoutControls.innerHTML = '<summary>Workspace layout</summary><p>Pin panels to keep them visible as you switch workspaces.</p><button type="button" data-layout-restore>Previous workspace</button><button type="button" data-layout-reset>Reset workspace</button>';
+  sidebar.querySelector('.sidebar__footer').before(layoutControls);
+  const pinButtons = new Map();
+  sidebar.querySelectorAll('.sidebar__scroll > .panel').forEach(panel => {
+    const summary = panel.querySelector(':scope > summary');
+    if (!summary || !Object.values(workspacePanels).flat().includes(panel.id)) return;
+    const pin = document.createElement('button');
+    pin.type = 'button'; pin.className = 'workspace-pin'; pin.textContent = 'Pin';
+    pin.addEventListener('click', event => {
+      event.preventDefault(); event.stopPropagation();
+      const pinned = preferences.snapshot().pinned.includes(panel.id);
+      preferences.pin(panel.id, !pinned);
+      if (!pinned) panel.open = true;
+      syncPanels();
+    });
+    summary.append(pin); pinButtons.set(panel.id, pin);
+  });
+  layoutControls.querySelector('[data-layout-restore]').addEventListener('click', () => {
+    if (preferences.restore()) { selected = preferences.snapshot().selected; showSidebar(true); syncPanels(); }
+  });
+  layoutControls.querySelector('[data-layout-reset]').addEventListener('click', () => {
+    preferences.reset(); selected = preferences.snapshot().selected; showSidebar(true); syncPanels();
+  });
   const select = id => {
     if (id === 'ai') { action('tools-assistant'); return; }
     if (id === 'briefs' || id === 'tours') {
@@ -86,7 +114,7 @@ export function initializeFieldworkWorkspace({ ui, action, showSidebar, theme })
     if (!workspacePanels[id]) return;
     // Return from a narrative workspace through its existing router.
     if (app.dataset.presentation && app.dataset.presentation !== 'standard') document.querySelector('.desktop-workflows-menu [data-mobile-workflow="map"]')?.click();
-    selected = id; save('gismap:workspace', id);
+    preferences.select(id); selected = preferences.snapshot().selected; save('gismap:workspace', selected);
     showSidebar(true);
     syncPanels();
     if (id === 'explore') document.querySelector('#place-query')?.focus();
@@ -96,12 +124,22 @@ export function initializeFieldworkWorkspace({ ui, action, showSidebar, theme })
     const active = document.body.classList.contains('fieldwork-desktop');
     if (active) document.body.dataset.navigationLayout = 'studio';
     const standard = !app.dataset.presentation || app.dataset.presentation === 'standard';
+    const layout = preferences.snapshot();
     sidebar.dataset.workspace = selected;
     sidebar.querySelectorAll('.sidebar__scroll > .panel').forEach(panel => {
-      const visible = workspacePanels[selected].includes(panel.id);
+      const visible = workspacePanels[selected].includes(panel.id) || layout.pinned.includes(panel.id);
       panel.classList.toggle('workspace-hidden', active && standard && !visible);
       if (active && standard && visible) { panel.classList.remove('is-sidebar-optional-hidden'); panel.open = true; }
     });
+    pinButtons.forEach((button, id) => {
+      const pinned = layout.pinned.includes(id);
+      const label = sidebar.querySelector(`#${id} > summary > span`)?.textContent || 'panel';
+      button.textContent = pinned ? 'Pinned' : 'Pin'; button.setAttribute('aria-pressed', String(pinned));
+      button.setAttribute('aria-label', `${pinned ? 'Unpin' : 'Pin'} ${label}`);
+      button.title = `${pinned ? 'Unpin' : 'Pin'} ${label}`;
+    });
+    layoutControls.querySelector('[data-layout-restore]').disabled = !layout.previous;
+    ui.events.publish('context:workspace-changed', { workspace: selected, pinnedPanels: layout.pinned });
     const currentWorkspace = standard ? selected : app.dataset.presentation === 'briefing' ? 'briefs' : app.dataset.presentation === 'atlas' ? 'tours' : '';
     [rail,tabs].forEach(nav => nav.querySelectorAll('[data-workspace]').forEach(button => button.setAttribute('aria-pressed', String(button.dataset.workspace === currentWorkspace))));
   }
@@ -146,5 +184,5 @@ export function initializeFieldworkWorkspace({ ui, action, showSidebar, theme })
   dimension.addEventListener('click', () => ui.mapController.setView({ tilt: (ui.mapController.getViewState()?.tilt || 0) > 5 ? 0 : 55 }, { animate: !matchMedia('(prefers-reduced-motion: reduce)').matches }).catch(error => ui.error(error.message)));
   ['view:stationary','map:ready'].forEach(event => ui.events.subscribe(event, syncDimension));
   syncProject(); syncTheme(); sync();
-  return { select, syncPanels };
+  return { select, syncPanels, layout: () => preferences.snapshot() };
 }
