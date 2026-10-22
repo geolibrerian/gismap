@@ -1,3 +1,4 @@
+import { initializeStudioTabs } from "./studio-tabs.js?v=0.55.0-fieldwork1";
 // The existing GISMap dialog is dockable on desktop and a sheet on mobile.
 // These panels never serialize runtime objects, file contents, or credentials.
 import { ConnectionRegistry, connectionUrl, resolveRemoteParquetUrl, discoverOgcCollections, filterOgcCollections, inspectOgcSpatial, fetchOgcItems, validateOgcGeometry, ogcHasLocalBounds } from './data-connections.js?v=0.54.0-parquet1';
@@ -150,21 +151,34 @@ export function openPostgisPanel(ui) {
 }
 
 export function openDuckdbPanel(ui, client) {
-  ui.openDialog({ eyebrow: 'Data connections', title: 'Connect DuckDB', content: `
-    <div class="connection-panel">
-    <p class="form-note">DuckDB-Wasm runs in a worker on this device. Files are not uploaded. Local data must be re-imported after a reload. Large files may exhaust browser memory, especially on mobile.</p>
-    <div class="connection-actions"><button class="button--primary" type="button" data-connection-start>Start DuckDB</button><button type="button" data-connection-stop>Stop</button><button type="button" data-connection-spatial>Check spatial extension</button><button type="button" data-connection-query>Query Data</button></div>
-    <section class="connection-group" aria-labelledby="duckdb-local-title"><h3 id="duckdb-local-title">Local file</h3>
-    <label class="field"><span>Local CSV, JSON, Parquet or GeoParquet</span><input type="file" data-connection-file accept=".csv,.json,.geojson,.parquet,.geoparquet"></label>
-    <label class="field"><span>Table name</span><input data-connection-name value="local_data" autocomplete="off"></label>
-    <div class="connection-actions"><button type="button" data-connection-import>Import and preview</button></div></section>
-    <section class="connection-group" aria-labelledby="duckdb-remote-title"><h3 id="duckdb-remote-title">Remote file</h3>
-    <label class="field"><span>Remote Parquet / GeoParquet HTTPS URL</span><input type="url" data-connection-url placeholder="https://example.com/data.parquet"></label>
-    <div class="connection-actions"><button type="button" data-connection-remote>Load remote Parquet and preview</button></div></section>
-    <p class="form-note" role="status" data-connection-status>Stopped. DuckDB is loaded only when started.</p>
-    <pre class="connection-browser__preview" data-connection-results></pre>
-    <p class="form-note">Use the direct file URL, not its catalog page. Remote Parquet requires provider CORS and HTTP range requests. Source Cooperative file-page links are converted to their data URL. To map GeoParquet, use Data → Add local spatial file or Add Geo URL. Mapped results are bounded; WKB geometry in WGS84 (EPSG:4326 or CRS84) is required.</p></div>` });
-  status(client.connection ? 'Ready: browser DuckDB is running.' : 'Stopped. DuckDB is loaded only when started.');
+  ui.openDialog({ eyebrow: 'DuckDB', title: 'Connect data', content: `
+    <div class="connection-panel" data-duckdb-connect>
+      <p class="form-note">Explore data on this device. Local files stay in your browser.</p>
+      <nav class="studio-tabs" role="tablist" aria-label="Data source">
+        <button type="button" data-studio-tab="local">Local file</button>
+        <button type="button" data-studio-tab="remote">Remote URL</button>
+        <button type="button" data-studio-tab="advanced">Advanced</button>
+      </nav>
+      <section class="connection-group" data-studio-pane="local">
+        <label class="field"><span>CSV, JSON, Parquet or GeoParquet</span><input type="file" data-connection-file accept=".csv,.json,.geojson,.parquet,.geoparquet"></label>
+        <p class="form-note">Local tables are cleared when you reload.</p>
+        <div class="connection-actions"><button class="button--primary" type="button" data-connection-import>Import and preview</button></div>
+      </section>
+      <section class="connection-group" data-studio-pane="remote" hidden>
+        <label class="field"><span>Parquet or GeoParquet URL</span><input type="url" data-connection-url placeholder="https://example.com/data.parquet"></label>
+        <div class="connection-actions"><button class="button--primary" type="button" data-connection-remote>Load and preview</button></div>
+      </section>
+      <section class="connection-group" data-studio-pane="advanced" hidden>
+        <label class="field"><span>Table name</span><input data-connection-name value="local_data" autocomplete="off"></label>
+        <div class="connection-actions"><button type="button" data-connection-start>Start DuckDB</button><button type="button" data-connection-stop>Stop</button><button type="button" data-connection-spatial>Check spatial extension</button><button type="button" data-connection-query>Query Data</button></div>
+        <p class="form-note">DuckDB starts when you import or load data. Large files may exceed browser memory. Stopping clears in-memory tables.</p>
+        <p class="form-note">Use a direct file URL. Remote files require CORS and HTTP range requests. Source Cooperative links are resolved automatically. To map GeoParquet, use Data → Add local spatial file or Add Geo URL. Mapped results are bounded; geometry must use WGS84.</p>
+      </section>
+      <p class="form-note" role="status" data-connection-status></p>
+      <pre class="connection-browser__preview" data-connection-results></pre>
+    </div>` });
+  initializeStudioTabs(document.querySelector('[data-duckdb-connect]'), { id: 'duckdb' });
+  status(client.connection ? 'Ready to query.' : 'Choose a file or URL to begin.');
   bind('query', () => openDuckdbQueryWorkspace(ui, client));
   bind('start', async () => { status('Starting DuckDB locally…'); await client.initialize(); status('Ready: browser DuckDB is running.'); });
   bind('stop', async () => { if (client.initializing) throw new Error('Wait for initialization to finish before stopping.'); await client.close(); field('results').textContent = ''; status('Stopped; in-memory tables were cleared.'); });

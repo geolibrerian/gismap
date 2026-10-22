@@ -6,7 +6,7 @@ import { normalizeApplicationConfig, presetApplication } from "./application-con
 import { DuckDBBrowserClient } from "./duckdb-client.js?v=0.54.0-analysis1";
 import { normalizeDataCatalog, planNaturalLanguageQuery, validateReadOnlySQL } from "./data-catalog.js?v=0.18.2";
 import { PanelManager } from "./panel-manager.js?v=0.18.2";
-import { applyInterfaceSkin } from "./skin-catalog.js?v=0.52.3";
+import { applyInterfaceSkin } from "./skin-catalog.js?v=0.55.0-fieldwork1";
 
 const STATIC_PANELS = {
   places: "places-panel",

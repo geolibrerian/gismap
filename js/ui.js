@@ -1,7 +1,8 @@
+import { initializeFieldworkWorkspace } from "./fieldwork-workspace.js?v=0.55.0-fieldwork1";
 import { timelinePdfFrames, expandTimelinePdfSlides, parseTimelineFrameSelection } from "./briefing-timeline-pdf.js?v=0.1.0";
-import { renderNotesHub } from "./notes-hub.js?v=0.1.0";
+import { renderNotesHub } from "./notes-hub.js?v=0.55.0-fieldwork1";
 import { refreshMapNoteFilters } from './map-note-filters.js?v=0.4.1';
-import { openDataMapNotesPanel } from "./data-map-notes-panel.js?v=0.16.0";
+import { openDataMapNotesPanel } from "./data-map-notes-panel.js?v=0.55.0-fieldwork1";
 import { refreshMapNoteWorkflow } from "./map-note-workflow-ui.js?v=0.1.0";
 import { noteFeatureReference } from './map-note-feature.js?v=0.1.0';
 import { openMapNotesPanel } from "./map-notes-panel.js?v=0.14.0";
@@ -19,7 +20,7 @@ import { markdownToPlainText, renderMarkdown } from "./markdown.js?v=0.18.2";
 import { formatAttributeValue } from "./attribute-format.js?v=0.18.2";
 import { normalizeApplicationConfig, presetApplication } from "./application-config.js?v=0.18.2";
 import { featureFilterFor, featureId, fieldKind, filterRecords, histogram, requestGuard, sortRecords } from "./presentation-query.js?v=0.30.0";
-import { DEFAULT_SKIN, INTERFACE_SKINS, applyInterfaceSkin, normalizeSkin, skinIsDark, skinOptionsMarkup } from "./skin-catalog.js?v=0.52.3";
+import { DEFAULT_SKIN, INTERFACE_SKINS, applyInterfaceSkin, normalizeSkin, skinIsDark, skinOptionsMarkup } from "./skin-catalog.js?v=0.55.0-fieldwork1";
 import { applyMapColors, MAP_COLOR_COMPONENTS, SKIN_BASEMAP, themeFromComputedStyle } from "./basemap-themes.js?v=0.53.0-mapcolors1";
 import { compactMedia } from "./viewport.js?v=0.18.2";
 import { APP_VERSION } from "./version.js?v=0.53.0";
@@ -29,7 +30,7 @@ import { featureLayerUrl, locationUrl } from "./field-task-share.js?v=0.54.0-uni
 import { dockIcon } from "./dock-icons.js?v=0.24.0";
 import { serviceNameFromUrl } from "./service-name.js?v=0.26.0";
 import { decodeQrFromImage, describeGisMapLink, gisMapLinkFrom, openGisMapLink } from "./qr-import.js?v=0.25.2";
-import { BriefingSlides } from "./briefing-slides.js?v=0.55.0-chart1";
+import { BriefingSlides } from "./briefing-slides.js?v=0.55.0-fieldwork1";
 import { createSlide, isRoutineField, matchesFilter, normalizeFilter } from "./briefing-document.js?v=0.35.0";
 import { conditionComplete, conditionLabel, conditionToFilter } from "./briefing-conditions.js?v=0.1.0";
 import { createFilterBuilder } from "./filter-builder.js?v=0.1.0";
@@ -39,7 +40,7 @@ import { briefingFileStem } from "./briefing-pdf.js?v=0.44.2";
 import { RAMPS, rampColors, compileRenderer } from "./renderer-spec.js?v=0.29.1";
 import { saveEngine } from "./engine-preference.js?v=0.52.1";
 import { BASEMAPS } from "./basemap-catalog.js?v=0.53.0-gallery1";
-import { CartographyLab } from "./cartography-lab.js?v=0.1.0";
+import { CartographyLab } from "./cartography-lab.js?v=0.55.0-fieldwork1";
 
 const BUILDINGS_3D_KEY = "gismap-online:buildings-3d:v1";
 const DISPLAY_SETTINGS_KEY = "gismap-online:display:v1";
@@ -192,6 +193,17 @@ export class UIController {
     this.#renderLayers();
     document.querySelector("#insights-ai").hidden = !this.aiController.isConfigured();
     this.#renderIntelligenceContents();
+    this.fieldworkWorkspace = initializeFieldworkWorkspace({
+      ui: this,
+      action: action => this.#handleAction(action),
+      showSidebar: open => this.#setSidebarCollapsed(!open),
+      theme: () => {
+        const settings = { ...this.#readDisplaySettings(), appearance: document.documentElement.dataset.theme === "dark" ? "light" : "dark" };
+        this.applySkinChoice("gismap");
+        try { localStorage.setItem(DISPLAY_SETTINGS_KEY, JSON.stringify(settings)); } catch { /* Session-only appearance. */ }
+        this.#applyDisplaySettings(settings);
+      },
+    });
   }
 
   #buildMobileMenu() {
@@ -922,7 +934,7 @@ export class UIController {
       ...(this.utilityQueryOpen ? [{ id: "query", label: "Query data" }] : []),
       ...[...this.utilityPanelsOpen].map((id) => ({ id, label: DOCKABLE_PANELS[id] })),
       ...(this.utilityDrawOpen ? [{ id: "draw", label: "Draw" }] : []),
-      ...(this.cartographyLabOpen ? [{ id: "lab", label: "Cartography Lab" }] : []),
+      ...(this.cartographyLabOpen ? [{ id: "lab", label: "Style layer" }] : []),
       ...(this.utilityStyleLayerUid ? [{ id: "style", label: `Style: ${this.mapController.getLayer(this.utilityStyleLayerUid)?.title || "Layer"}` }] : []),
       ...(this.utilityIntelligenceOpen ? [{ id: "intelligence", label: "Intelligence" }] : []),
       ...(this.utilityAssistantOpen ? [{ id: "assistant", label: "Map assistant" }] : []),
@@ -1244,17 +1256,17 @@ export class UIController {
           this.#serviceDialog("wfs");
           break;
         case "data-pmtiles": {
-          const { openPmtilesPanel } = await import("./data-connections-panel.js?v=0.54.0-geourl1");
+          const { openPmtilesPanel } = await import("./data-connections-panel.js?v=0.55.0-fieldwork1");
           openPmtilesPanel(this, this.mapController, (engine) => this.#switchEngine(engine));
           break;
         }
         case "data-duckdb": {
-          const { openDuckdbPanel } = await import("./data-connections-panel.js?v=0.54.0-geourl1");
+          const { openDuckdbPanel } = await import("./data-connections-panel.js?v=0.55.0-fieldwork1");
           openDuckdbPanel(this, this.applicationRuntime.duckdb);
           break;
         }
         case "data-postgis": {
-          const { openPostgisPanel } = await import("./data-connections-panel.js?v=0.54.0-geourl1");
+          const { openPostgisPanel } = await import("./data-connections-panel.js?v=0.55.0-fieldwork1");
           openPostgisPanel(this);
           break;
         }
@@ -2074,7 +2086,7 @@ export class UIController {
         highlightStyle: saved.highlightStyle === "outline" ? "outline" : "fill",
         navigationLayout: saved.navigationLayout === "top" ? "top" : "side",
         utilityPanelWidth: Number.isFinite(saved.utilityPanelWidth) ? Math.min(Math.max(280, window.innerWidth * 0.55), Math.max(280, saved.utilityPanelWidth)) : 360,
-        appearance: ["system", "light", "dark"].includes(saved.appearance) ? saved.appearance : "system",
+        appearance: ["system", "light", "dark"].includes(saved.appearance) ? saved.appearance : "light",
         darkBasemapEnabled: saved.darkBasemapEnabled === true,
         bookmarksPanelVisible: saved.bookmarksPanelVisible === true,
         drawPanelVisible: saved.drawPanelVisible === true,
@@ -2084,7 +2096,7 @@ export class UIController {
         observationsPanelVisible: saved.observationsPanelVisible === true,
       };
     } catch {
-      return { insightDismissEnabled: true, insightDismissMiles: 75, insightPosition: "upper-left", defaultBasemap: "topo-3d", insightDockWidth: 420, insightDockHeight: 360, tablePosition: "overlay-bottom", tableDockWidth: 520, tableDockHeight: 420, highlightEnabled: true, clickMarkerEnabled: true, highlightColor: "#00b8d9", highlightStyle: "fill", navigationLayout: "side", utilityPanelWidth: 360, appearance: "system", darkBasemapEnabled: false, bookmarksPanelVisible: false, drawPanelVisible: false };
+      return { insightDismissEnabled: true, insightDismissMiles: 75, insightPosition: "upper-left", defaultBasemap: "topo-3d", insightDockWidth: 420, insightDockHeight: 360, tablePosition: "overlay-bottom", tableDockWidth: 520, tableDockHeight: 420, highlightEnabled: true, clickMarkerEnabled: true, highlightColor: "#00b8d9", highlightStyle: "fill", navigationLayout: "side", utilityPanelWidth: 360, appearance: "light", darkBasemapEnabled: false, bookmarksPanelVisible: false, drawPanelVisible: false };
     }
   }
 
@@ -2126,6 +2138,7 @@ export class UIController {
     }
     this.mapController.configureInteractionFeedback(settings);
     this.events.publish("display:insight-dismiss-distance", { miles: settings.insightDismissEnabled ? settings.insightDismissMiles : null });
+    this.fieldworkWorkspace?.syncPanels();
     requestAnimationFrame(() => this.mapController.resize());
   }
 
@@ -2472,10 +2485,11 @@ export class UIController {
       title,
       content: `<label class="field"><span>${isGeoJson ? "GeoJSON or GeoParquet URL" : isWfs ? "WFS endpoint or GetFeature URL" : "Service URL"}</span><input id="service-url" type="url" placeholder="${placeholder}" /></label>
         <label class="field"><span>Layer title <small>optional</small></span><input id="service-title" /></label>
+        <details class="studio-disclosure"><summary>Advanced settings</summary>
         ${isWfs ? '<label class="field"><span>Feature type <small>optional when included as TYPENAME in the URL</small></span><input id="wfs-name" placeholder="workspace:layer_name" /></label>' : ""}
         ${isWms || isWfs || isGeoJson ? "" : `<label class="field"><span>Service type</span><select id="service-type"><option value="arcgis-auto">Detect automatically</option><option value="feature">Feature service / layer</option><option value="map-image">Map service</option><option value="imagery">Image service</option></select></label>`}
-        <label class="field"><span>Refresh every <small>minutes; 0 disables</small></span><input id="service-refresh" type="number" min="0" step="0.5" value="0" /></label><p class="form-note" role="status" id="service-status"></p>
-        <p class="form-note">${isGeoJson ? "Use a direct GeoJSON or GeoParquet file URL. The provider must permit CORS; GeoParquet also requires byte-range requests. Large GeoParquet files are shown as a bounded snapshot. Refresh settings apply to GeoJSON feeds, not GeoParquet snapshots." : isWfs ? "Requires WFS 2.0, GeoJSON output advertised by the server, and browser CORS access. Full GetFeature URLs are reduced to the service endpoint and their TYPENAME is detected automatically." : "Layer URLs and FeatureServer /query URLs are supported. Query URLs apply their where and outFields parameters; geometry is projected into the map automatically. The remote server must allow cross-origin browser requests (CORS)."}</p>`,
+        <label class="field"><span>Refresh every <small>minutes; 0 disables</small></span><input id="service-refresh" type="number" min="0" step="0.5" value="0" /></label>
+        <p class="form-note">${isGeoJson ? "Use a direct GeoJSON or GeoParquet file URL. The provider must permit CORS; GeoParquet also requires byte-range requests. Large GeoParquet files are shown as a bounded snapshot. Refresh settings apply to GeoJSON feeds, not GeoParquet snapshots." : isWfs ? "Requires WFS 2.0, GeoJSON output advertised by the server, and browser CORS access. Full GetFeature URLs are reduced to the service endpoint and their TYPENAME is detected automatically." : "Layer URLs and FeatureServer /query URLs are supported. Query URLs apply their where and outFields parameters; geometry is projected into the map automatically. The remote server must allow cross-origin browser requests (CORS)."}</p></details><p class="form-note" role="status" id="service-status"></p>`,
       actions: [{ label: isGeoJson ? "Add data" : isWfs ? "Add WFS layer" : "Add service", primary: true, handler: async () => {
         const button = this.dialog.querySelector(".button--primary");
         button.disabled = true;
@@ -3400,7 +3414,7 @@ export class UIController {
       const playing = Boolean(this.presentationState.atlasPlaying);
       const playbackMode = presentation.playbackMode === "manual" ? "manual" : "auto";
       const skinOptions = INTERFACE_SKINS.map(({ id, label }) => [id, label]);
-      root.innerHTML = `<section class="mode-dashboard mode-dashboard--atlas"><header><span class="eyebrow">Tour · ${this.presentationState.atlasPresent ? "present" : "edit"} mode</span><h2>${escapeHtml(presentation.title || "Guided places")}</h2><p>Capture exact map views, descriptions, media, and layer states as a shareable guided tour.</p></header><label class="atlas-skin-control"><span>Look &amp; feel</span><select data-atlas-skin>${skinOptions.map(([value,label]) => `<option value="${value}"${presentation.skin === value ? " selected" : ""}>${label}</option>`).join("")}</select></label><div class="atlas-present-action"><button type="button" data-atlas-mode>${this.presentationState.atlasPresent ? "Edit chapters" : "Present tour"}</button></div><label class="atlas-playback-mode"><span>Playback</span><select data-atlas-playback><option value="auto"${playbackMode === "auto" ? " selected" : ""}>Auto · use linger time</option><option value="manual"${playbackMode === "manual" ? " selected" : ""}>Manual · use Back and Next</option></select></label><div class="atlas-actions"><button type="button" data-atlas-capture ${this.presentationState.atlasPresent ? "hidden" : ""}>Add another chapter</button><button type="button" data-atlas-share>Share tour</button><button type="button" data-atlas-export>Export tour</button></div><div class="mode-records">${chapters.map((chapter, index) => `<article class="atlas-chapter"><button type="button" data-atlas-go="${index}"><span>${index + 1}</span><strong>${escapeHtml(chapter.title || `Chapter ${index + 1}`)}</strong><small>${escapeHtml(chapter.reverseAddress || chapter.body || "Saved map view")}${chapter.basemapId ? ` · ${escapeHtml(this.#basemapLabel(chapter.basemapId))}` : ""}${playbackMode === "auto" && chapter.lingerSeconds ? ` · ${chapter.lingerSeconds}s` : ""}</small></button>${this.presentationState.atlasPresent ? "" : `<div><button type="button" data-atlas-rename="${index}">Edit</button><button type="button" data-atlas-delete="${index}">Delete</button></div>`}</article>`).join("") || `<p class="atlas-empty">No chapters yet. Move the map to the first place in your story, then choose <strong>Add</strong> to save it as chapter 1.</p>`}</div></section>`;
+      root.innerHTML = `<section class="mode-dashboard mode-dashboard--atlas"><header><span class="eyebrow">Tour · ${this.presentationState.atlasPresent ? "present" : "edit"} mode</span><h2>${escapeHtml(presentation.title || "Guided places")}</h2><p>Turn saved map views into a guided tour.</p></header><label class="atlas-skin-control"><span>Look &amp; feel</span><select data-atlas-skin>${skinOptions.map(([value,label]) => `<option value="${value}"${presentation.skin === value ? " selected" : ""}>${label}</option>`).join("")}</select></label><div class="atlas-present-action"><button type="button" data-atlas-mode>${this.presentationState.atlasPresent ? "Edit chapters" : "Present tour"}</button></div><label class="atlas-playback-mode"><span>Playback</span><select data-atlas-playback><option value="auto"${playbackMode === "auto" ? " selected" : ""}>Auto · use linger time</option><option value="manual"${playbackMode === "manual" ? " selected" : ""}>Manual · use Back and Next</option></select></label><div class="atlas-actions"><button type="button" data-atlas-capture ${this.presentationState.atlasPresent ? "hidden" : ""}>Add another chapter</button><button type="button" data-atlas-share>Share tour</button><button type="button" data-atlas-export>Export tour</button></div><div class="mode-records">${chapters.map((chapter, index) => `<article class="atlas-chapter"><button type="button" data-atlas-go="${index}"><span>${index + 1}</span><strong>${escapeHtml(chapter.title || `Chapter ${index + 1}`)}</strong><small>${escapeHtml(chapter.reverseAddress || chapter.body || "Saved map view")}${chapter.basemapId ? ` · ${escapeHtml(this.#basemapLabel(chapter.basemapId))}` : ""}${playbackMode === "auto" && chapter.lingerSeconds ? ` · ${chapter.lingerSeconds}s` : ""}</small></button>${this.presentationState.atlasPresent ? "" : `<div><button type="button" data-atlas-rename="${index}">Edit</button><button type="button" data-atlas-delete="${index}">Delete</button></div>`}</article>`).join("") || `<p class="atlas-empty">Move to your first place, then add a chapter.</p>`}</div></section>`;
       if (!this.presentationState.atlasPresent) {
         const titleControl = document.createElement("label");
         titleControl.className = "atlas-title-control";
@@ -5860,7 +5874,7 @@ export class UIController {
           <div class="layer-scale-note" data-layer-scale-note ${scaleMessage ? "" : "hidden"}><span data-scale-text>${escapeHtml(scaleMessage || "")}</span><button type="button" data-layer-action="ignore-scale" title="Draw this layer at every zoom level">Show anyway</button></div>
           <label class="opacity-row"><span>Opacity</span><input data-layer-opacity type="range" min="0" max="1" step="0.05" value="${layer.opacity}" /><output>${Math.round(layer.opacity * 100)}%</output></label>
           <div class="layer-card__actions layer-card__primary"><button data-layer-action="zoom">Zoom</button><button data-layer-action="table">Table</button><button data-layer-action="style">Style</button></div>
-          <details class="layer-card__more" ${this.expandedLayerCards.has(layer.uid) ? "open" : ""}><summary>More layer tools</summary><div class="layer-card__actions"><button data-layer-action="filter" title="Show only matching features on the map">Filter map</button>${(config.local || config.sourceType === "geoparquet") && layer.queryable ? '<button data-layer-action="query-duckdb" title="Explore or join a separate analysis dataset">Query data</button>' : ''}<button data-layer-action="export" title="Share this map, make a PDF or briefing, or download data">Share</button><button data-layer-action="refresh">Refresh</button></div></details>
+          <details class="layer-card__more" ${this.expandedLayerCards.has(layer.uid) ? "open" : ""}><summary>More layer tools</summary><div class="layer-card__actions"><button data-layer-action="filter" title="Show only matching features on the map">Filter map</button>${(config.local || config.sourceType === "geoparquet") && layer.queryable ? '<button data-layer-action="query-duckdb" title="Explore or join a separate analysis dataset">Query data</button>' : ''}<button data-layer-action="export" title="Share this map, make a PDF or briefing, or download data">Share</button><button data-layer-action="refresh">Refresh</button><button data-layer-action="advanced-style">Advanced style</button></div></details>
         </article>`;
       }).join("")
       : '<div class="empty-state empty-state--layers"><p>No layers yet. Add data to start.</p><div class="empty-state__actions"><button type="button" data-empty-action="data-arcgis">ArcGIS service</button><button type="button" data-empty-action="data-geojson">Geo URL</button><button type="button" data-empty-action="data-file">Local file</button><button type="button" data-empty-action="data-popular">Try an example</button></div></div>';
@@ -5923,7 +5937,11 @@ export class UIController {
         }
         case "filter": try { await this.#filterDialog(uid); } catch (error) { this.error(error.message); } break;
         case "export": this.#shareExportDialog(uid); break;
-        case "style": this.#openSymbologyUtility(uid); break;
+        case "style":
+          if (layer?.queryable && layer.fields?.length) this.openCartographyLab(uid);
+          else this.#openSymbologyUtility(uid);
+          break;
+        case "advanced-style": this.#openSymbologyUtility(uid); break;
         case "refresh": this.#refreshDialog(uid); break;
       }
     }));
@@ -6681,6 +6699,11 @@ export class UIController {
       if (!button || button.disabled) return;
       const action = button.dataset.notesHub;
       if (action === "tab") { this.notesHubTab = button.dataset.tab; this.#renderNotesHub(); return; }
+      if (action === "new") {
+        if (!this.dataMapNotesOpen) openDataMapNotesPanel(this);
+        else { this.#syncUtilityPanel("data-notes"); document.querySelector('#utility-data-notes-content [data-note-view="compose"]')?.click(); }
+        return;
+      }
       if (action === "projects") { this.#selectProjectDialog(); return; }
       if (action === "qr") { this.openImagePicker(); return; }
       if (action === "pdf") { if (!this.mapNotesModeActive) openMapNotesPanel(this); else this.#syncUtilityPanel("notes"); document.querySelector("#utility-notes-content [data-note-pdf]")?.click(); return; }

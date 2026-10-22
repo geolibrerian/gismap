@@ -4,7 +4,7 @@ import { previewMapNoteTasks, prepareMapNoteTasks } from "./map-note-task-planne
 import { MapNotesRegistry, normalizeNotes } from "./map-notes.js?v=0.3.0";
 import { applicationToLegacyPresentation, normalizeApplicationConfig } from "./application-config.js?v=0.18.2";
 import { normalizeDataCatalog } from "./data-catalog.js?v=0.18.2";
-import { normalizeSkin, normalizeSkinColors } from "./skin-catalog.js?v=0.52.3";
+import { normalizeSkin, normalizeSkinColors } from "./skin-catalog.js?v=0.55.0-fieldwork1";
 import { normalizeMapColors } from "./basemap-themes.js?v=0.53.0-mapcolors1";
 import { normalizeMobileWorkflow } from "./mobile-feed-store.js?v=0.18.7";
 import { normalizeBriefing } from "./briefing-document.js?v=0.35.0";

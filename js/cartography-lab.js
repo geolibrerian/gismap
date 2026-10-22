@@ -1,3 +1,4 @@
+import { initializeStudioTabs } from "./studio-tabs.js?v=0.55.0-fieldwork1";
 // The Cartography Lab (Tools › Cartography Lab): one panel that combines a
 // layer's colour, 3D height and filter, previews them on the map, saves the
 // combination as a reusable layer style (js/layer-style.js), and makes an
@@ -65,7 +66,7 @@ export class CartographyLab {
     const layer = candidates.find((item) => item.uid === uid) || candidates.find((item) => item.uid === this.uid) || candidates[0];
     this.uid = layer?.uid || null;
     if (!layer) {
-      pane.innerHTML = `<div class="workspace-tool cartography-lab"><p class="eyebrow">Cartography Lab</p><h3>Design a layer style</h3><p class="form-note">Add a feature layer (Data › Add data) to start. The Lab styles layers whose features can be queried: ArcGIS feature services, GeoJSON, GeoParquet and similar.</p></div>`;
+      pane.innerHTML = `<div class="workspace-tool cartography-lab"><p class="form-note">Add a feature layer to start styling.</p></div>`;
       return;
     }
     const info = this.host.layers.get(layer.uid) || {};
@@ -88,9 +89,6 @@ export class CartographyLab {
     // A grouped chart may have no height field (equal slabs); keep it that way.
     const heightField = chart ? chart.height?.field || "" : (["choropleth", "graduated-symbols"].includes(renderer.type) && isNumeric(fields.find((field) => field.name === renderer.field)) ? renderer.field : "") || preferred;
     pane.innerHTML = `<div class="workspace-tool cartography-lab" data-lab>
-      <p class="eyebrow">Cartography Lab</p>
-      <h3>Design a layer style</h3>
-      <p class="form-note cartography-lab__intro">Combine colour, 3D height and a filter, see them on the map, and save the combination as a reusable style for this layer.</p>
       <div class="field-grid">
         <label class="field"><span>Layer</span><select data-lab-layer>${candidates.map((item) => option(item.uid, item.title || item.uid, layer.uid)).join("")}</select></label>
         <div class="field"><span>View</span><div class="segmented cartography-lab__dimension" role="group" aria-label="2D or 3D">
@@ -100,7 +98,13 @@ export class CartographyLab {
       </div>
       ${can3d ? "" : `<p class="form-note">${polygon ? "This map engine does not draw 3D charts. Open the map with the MapLibre or ArcGIS engine." : "3D charts need polygon features; this layer has " + escapeHtml(String(layer.geometryType || "other").toLowerCase()) + " features."}</p>`}
 
-      <section class="cartography-lab__step" aria-labelledby="lab-colour">
+      <nav class="studio-tabs" role="tablist" aria-label="Layer style">
+        <button type="button" data-studio-tab="color">Color</button>
+        <button type="button" data-studio-tab="height"${chart ? "" : " disabled"} title="Switch to 3D chart to edit height">Height</button>
+        <button type="button" data-studio-tab="filter">Filter</button>
+        <button type="button" data-studio-tab="effects">Effects</button>
+      </nav>
+      <section class="cartography-lab__step" data-studio-pane="color" aria-labelledby="lab-colour">
         <h4 id="lab-colour"><span>1</span> Colour</h4>
         <div class="field-grid">
           <label class="field"><span>Colour by</span><select data-lab-color-mode>${COLOR_MODES.filter(([value]) => (value !== "size" || !polygon) && (value !== "heatmap" || point)).map(([value, label]) => option(value, label, colorMode)).join("")}</select></label>
@@ -114,7 +118,7 @@ export class CartographyLab {
         </div>
       </section>
 
-      <section class="cartography-lab__step" data-lab-3d aria-labelledby="lab-height"${chart ? "" : " hidden"}>
+      <section class="cartography-lab__step" data-studio-pane="height" data-lab-3d aria-labelledby="lab-height"${chart ? "" : " hidden"}>
         <h4 id="lab-height"><span>2</span> Height <small>3D</small></h4>
         <div class="field-grid">
           <label class="field"><span>Chart</span><select data-lab-chart-mode>${CHART_MODES.map(([value, label]) => option(value, label, chart?.mode || "attribute-extrusion")).join("")}</select></label>
@@ -124,23 +128,22 @@ export class CartographyLab {
           <label class="field" data-lab-when-chart="grouped"><span>Slot height <small>m</small></span><input type="number" min="1" step="50" data-lab-slot value="${escapeHtml(chart?.height?.slotMeters ?? 400)}"></label>
           <label class="field" data-lab-when-chart="grouped"><span>Gap <small>m</small></span><input type="number" min="0" step="25" data-lab-gap value="${escapeHtml(chart?.height?.gapMeters ?? 100)}"></label>
           <label class="field" data-lab-when-chart="grouped"><span>Slab thickness <small>m</small></span><input type="number" min="1" step="10" data-lab-thickness value="${escapeHtml(chart?.height?.thicknessMeters ?? 120)}"></label>
-          <label class="field" data-lab-when-chart="grouped"><span>Slab colours</span><select data-lab-chart-color>${option("sequential", "One colour per group", chart?.color?.strategy || "sequential")}${option("original", "Keep the colours from step 1", chart?.color?.strategy || "sequential")}</select></label>
+          <label class="field" data-lab-when-chart="grouped"><span>Slab colours</span><select data-lab-chart-color>${option("sequential", "One colour per group", chart?.color?.strategy || "sequential")}${option("original", "Keep the layer colors", chart?.color?.strategy || "sequential")}</select></label>
         </div>
         <p class="form-note" data-lab-height-note></p>
       </section>
 
-      <section class="cartography-lab__step" aria-labelledby="lab-filter">
+      <section class="cartography-lab__step" data-studio-pane="filter" aria-labelledby="lab-filter">
         <h4 id="lab-filter"><span data-lab-filter-step>2</span> Filter</h4>
         ${this.keptWhere ? `<p class="form-note cartography-lab__kept">Layer filter: <code>${escapeHtml(this.keptWhere)}</code> <button type="button" class="link-button" data-lab-clear-where>Remove</button></p>` : ""}
         <div data-lab-filter></div>
       </section>
 
-      <section class="cartography-lab__step" aria-labelledby="lab-look">
+      <section class="cartography-lab__step" data-studio-pane="effects" aria-labelledby="lab-look">
         <h4 id="lab-look"><span data-lab-look-step>3</span> Look</h4>
         <label class="opacity-row"><span>Opacity</span><input type="range" min="0.1" max="1" step="0.05" data-lab-opacity value="${escapeHtml(info.opacity ?? 1)}"><output>${Math.round((info.opacity ?? 1) * 100)}%</output></label>
-        <label class="display-checkbox"><input type="checkbox" data-lab-live checked> Update the map as I change settings</label>
       </section>
-      <div class="cartography-lab__actions"><button type="button" class="button--primary" data-lab-apply>Show on map</button><span class="form-note" data-lab-status aria-live="polite"></span></div>
+      <div class="cartography-lab__actions"><label class="display-checkbox"><input type="checkbox" data-lab-live checked> Live preview</label><button type="button" class="button--primary" data-lab-apply>Apply style</button><span class="form-note" data-lab-status aria-live="polite"></span></div>
 
       <section class="cartography-lab__step" aria-labelledby="lab-saved">
         <h4 id="lab-saved">Saved styles <small>for this layer</small></h4>
@@ -149,8 +152,7 @@ export class CartographyLab {
         <label class="link-button cartography-lab__import">Import a style file…<input type="file" accept=".json,application/json" data-lab-import hidden></label>
       </section>
 
-      <section class="cartography-lab__step" aria-labelledby="lab-make">
-        <h4 id="lab-make">Make from this style</h4>
+      <details class="studio-disclosure"><summary>Create &amp; share</summary>
         <div class="cartography-lab__outputs">
           <button type="button" class="button--secondary" data-lab-make="map">Interactive map link</button>
           <button type="button" class="button--secondary" data-lab-make="briefing">Briefing slides</button>
@@ -158,7 +160,7 @@ export class CartographyLab {
           <button type="button" class="button--secondary" disabled title="Coming soon">2D / 3D vector tiles · coming soon</button>
         </div>
         <div class="cartography-lab__result" data-lab-result aria-live="polite"></div>
-      </section>
+      </details>
     </div>`;
     this.fields = fields;
     this.layer = layer;
@@ -171,6 +173,7 @@ export class CartographyLab {
       valuesFor: async (name) => (await this.host.mapController.distinctValues(layer, name).catch(() => ({ values: [] }))).values || [],
       onChange: () => this.#scheduleLive(),
     });
+    this.styleTabs = initializeStudioTabs(pane, { id: "layer-style" });
     this.#bind();
     this.#sync();
     this.#renderStyles();
@@ -232,7 +235,8 @@ export class CartographyLab {
     [...fieldSelect.options].forEach((item) => { item.disabled = numericOnly && !isNumeric(this.fields.find((field) => field.name === item.value)); });
     if (fieldSelect.selectedOptions[0]?.disabled) fieldSelect.value = [...fieldSelect.options].find((item) => !item.disabled)?.value || "";
     const is3d = this.#dimension() === "3d";
-    this.#el("[data-lab-3d]").hidden = !is3d;
+    this.#el('[data-studio-tab="height"]').disabled = !is3d;
+    this.styleTabs?.refresh();
     this.#el("[data-lab-filter-step]").textContent = is3d ? "3" : "2";
     this.#el("[data-lab-look-step]").textContent = is3d ? "4" : "3";
     const chartMode = this.#el("[data-lab-chart-mode]").value;

@@ -61,7 +61,8 @@
     <link rel="describedby" type="application/json" href="/api/capabilities.json" />
     <link rel="help" href="/guides/ai-agents/" />
     <link rel="preconnect" href="https://js.arcgis.com" />
-    <link rel="stylesheet" href="./css/app.css?v=0.55.0-lab1" />
+    <link rel="stylesheet" href="./css/app.css?v=0.55.0-fieldwork1" />
+    <link rel="stylesheet" href="./css/fieldwork.css?v=0.55.0-fieldwork1" />
     <!-- three.js for point clouds, models and 3D animation; loaded only when a 3D layer is added. -->
     <script type="importmap">{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.min.js", "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/" } }</script>
     <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
@@ -255,7 +256,7 @@
           <details id="intelligence-panel" class="panel" open>
             <summary><span>Intelligence</span><small>Click the map</small></summary>
             <div id="intelligence-content" class="panel__body intelligence-empty">
-              Click a location to inspect its address, coordinates, and available context.
+              Click the map to inspect a place or feature.
             </div>
           </details>
 
@@ -289,8 +290,8 @@
           <button id="welcome-close" class="welcome-panel__close" type="button" aria-label="Dismiss introduction">×</button>
           <div class="welcome-brand"><img src="./assets/gis-map-online-mark-v2.png" alt="" /><strong>GIS MAP <span>ONLINE</span></strong></div>
           <span class="eyebrow">Free, open-source browser GIS</span>
-          <h1 id="welcome-title">Free browser-based GIS maps</h1>
-          <p>GISMap.online is a free, open-source, browser-based GIS workspace for people and AI agents. Open ArcGIS REST services, Geo URLs such as GeoJSON and GeoParquet, or local files; inspect, style and share interactive 2D and 3D maps without installing desktop GIS software. Remote services must allow browser access, and supported features depend on the source and map engine.</p>
+          <h1 id="welcome-title">A world of possibilities.</h1>
+          <p>GISMap.online is a free, open-source, browser-based GIS workspace. Explore places, style your data, and share your map.</p>
           <div class="welcome-panel__actions">
             <button type="button" data-action="data-arcgis">Add ArcGIS REST service</button>
             <button type="button" data-action="data-geojson">Add Geo URL</button>
@@ -360,14 +361,27 @@
         </nav>
         <div class="map-nav-shell">
           <div id="map-navigation" class="map-nav" aria-label="Map navigation">
-            <button data-nav="home" title="Default extent">⌂</button>
-            <button data-nav="locate" title="My location">◎</button>
-            <button data-nav="in" title="Zoom in">+</button>
-            <button data-nav="out" title="Zoom out">−</button>
-            <button data-nav="rotate-left" title="Rotate left">↶</button>
-            <button data-nav="rotate-right" title="Rotate right">↷</button>
-            <button data-nav="tilt-up" title="Tilt camera up">▲</button>
-            <button data-nav="tilt-down" title="Tilt camera down">▼</button>
+            <button type="button" data-nav="north" title="Reset north" aria-label="Reset north"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 6 17-6-4-6 4Z"/></svg></button>
+            <div class="map-nav__zoom" role="group" aria-label="Zoom">
+              <button type="button" data-nav="in" title="Zoom in" aria-label="Zoom in">+</button>
+              <button type="button" data-nav="out" title="Zoom out" aria-label="Zoom out">−</button>
+            </div>
+            <button type="button" data-camera-dimension title="Switch to 3D view" aria-label="Switch to 3D view" aria-pressed="false">3D</button>
+            <details class="map-camera-menu">
+              <summary title="Camera & map tools" aria-label="Camera & map tools"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 17h16"/><circle cx="8" cy="7" r="3"/><circle cx="16" cy="17" r="3"/></svg></summary>
+              <div class="map-camera-menu__content">
+                <strong>Camera &amp; map tools</strong>
+                <div class="map-camera-menu__grid">
+                  <button type="button" data-nav="home" title="Default extent">⌂ <span>Home</span></button>
+                  <button type="button" data-nav="locate" title="My location">◎ <span>Locate me</span></button>
+                  <button type="button" data-nav="rotate-left" title="Rotate left">↶ <span>Rotate left</span></button>
+                  <button type="button" data-nav="rotate-right" title="Rotate right">↷ <span>Rotate right</span></button>
+                  <button type="button" data-nav="tilt-up" title="Tilt camera up">↑ <span>Tilt up</span></button>
+                  <button type="button" data-nav="tilt-down" title="Tilt camera down">↓ <span>Tilt down</span></button>
+                </div>
+                <button type="button" data-widget="basemapGallery">Basemaps</button>
+              </div>
+            </details>
           </div>
           <button id="map-navigation-toggle" class="map-nav__toggle" type="button" aria-label="Hide map tools" aria-controls="map-navigation" aria-expanded="true">⌄</button>
         </div>
@@ -479,6 +493,6 @@
       </ul>
     </section>
     <noscript>GISMap Online is a geospatial application and needs JavaScript. Without it, a map can still be described as a link: see <a href="/llms.txt">/llms.txt</a> and the <a href="/guides/ai-agents/">guide for AI agents</a>.</noscript>
-    <script type="module" src="./js/app.js?v=0.55.0-lab1"></script>
+    <script type="module" src="./js/app.js?v=0.55.0-fieldwork1"></script>
   </body>
 </html>

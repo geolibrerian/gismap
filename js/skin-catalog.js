@@ -10,7 +10,7 @@
 export const DEFAULT_SKIN = "gismap";
 
 export const INTERFACE_SKINS = Object.freeze([
-  Object.freeze({ id: "gismap", label: "GISMap", description: "Field green · follows light/dark setting", tone: "auto" }),
+  Object.freeze({ id: "gismap", label: "Fieldwork / Observatory", description: "Chalk and pine · light / dark studio", tone: "auto" }),
   Object.freeze({ id: "clean-light", label: "Clean Light", description: "Modern analytical workspace", tone: "light" }),
   Object.freeze({ id: "dark-analytical", label: "Midnight", description: "Quiet professional night interface", tone: "dark" }),
   Object.freeze({ id: "tidal-95", label: "Pacific ’94", description: "Classic digital cartography", tone: "light" }),

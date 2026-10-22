@@ -109,7 +109,7 @@ test('optional title is generated from the note and explicitly entered titles ar
 
 test('composer prioritizes note text and progressively discloses map context', () => {
   const registry = new DataMapNotesRegistry({ project: () => ({ mapNotes: [] }) }); const w = workspace(registry); openDataMapNotesPanel(w.ui);
-  const html = w.html(); assert.ok(html.indexOf('<span>Note <small>') < html.indexOf('<span>Title (optional)</span>'));
+  const html = w.html(); assert.ok(html.indexOf('<span>Note</span>') < html.indexOf('<span>Title (optional)</span>'));
   assert.ok(html.indexOf('<span>Title (optional)</span>') < html.indexOf('data-map-note-context'));
   assert.match(html, /map-note-target-details/); assert.match(html, /map-note-filter-grid/);
 });
@@ -128,9 +128,11 @@ test('switching composer and project notes preserves the in-memory draft', () =>
   compose.click(); assert.equal(composer.hidden, false); assert.equal(browser.hidden, true); assert.equal(w.controls.body.value, 'Draft survives');
 });
 
-test('composer exposes responsive workspace sizing and target choices', async () => {
+test('composer puts target and note before optional metadata', async () => {
   const registry = new DataMapNotesRegistry({ project: () => ({ mapNotes: [] }) }); const w = workspace(registry); openDataMapNotesPanel(w.ui);
-  assert.match(w.html(), /data-note-width="min"/); assert.match(w.html(), /data-note-width="max"/);
+  assert.match(w.html(), /<details class="studio-disclosure map-note-details"><summary>Details/);
+  assert.ok(w.html().indexOf('name="body"') < w.html().indexOf('map-note-details'));
+  assert.doesNotMatch(w.html(), /map-note-workspace-head/);
   assert.match(w.html(), /data-target-choice=/); assert.match(w.html(), /data-note-review/);
 });
 
@@ -157,11 +159,11 @@ test('clearing filters keeps task selection intact', () => {
   assert.equal(search.value, ''); assert.equal(radius.value, ''); assert.equal(selected.checked, true);
 });
 
-test('composer keeps map context beside the editor and hides additional target types behind disclosure', () => {
+test('composer progressively discloses map context and additional target types', () => {
   const registry = new DataMapNotesRegistry({ project: () => ({ mapNotes: [] }) }); const w = workspace(registry);
   openDataMapNotesPanel(w.ui);
   assert.match(w.html(), /class="map-note-composer-grid"/);
-  assert.match(w.html(), /class="map-note-composer-context" aria-label="Map context"/);
+  assert.match(w.html(), /<details class="map-note-composer-context studio-disclosure"><summary>Map context<\/summary>/);
   assert.match(w.html(), /<details class="map-note-other-targets"/);
   assert.doesNotMatch(w.html(), /All target types/);
 });
@@ -207,5 +209,5 @@ test('custom, feature, dataset and service inputs appear next to the target sele
   w.controls.targetType.value = 'custom'; changed(); assert.equal(targets.custom.hidden, false); assert.equal(targets.dataset.hidden, true);
   w.controls.targetType.value = 'feature'; changed(); assert.equal(targets.custom.hidden, true); assert.equal(targets.dataset.hidden, false); assert.equal(targets.feature.hidden, false);
   w.controls.targetType.value = 'service'; changed(); assert.equal(targets.service.hidden, false); assert.equal(targets.feature.hidden, true);
-  const html = w.html(); assert.ok(html.indexOf('data-target-custom') < html.indexOf('<span>Note <small>')); assert.ok(html.indexOf('data-target-service') < html.indexOf('<span>Note <small>'));
+  const html = w.html(); assert.ok(html.indexOf('data-target-custom') < html.indexOf('<span>Note</span>')); assert.ok(html.indexOf('data-target-service') < html.indexOf('<span>Note</span>'));
 });
