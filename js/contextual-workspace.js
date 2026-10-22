@@ -2,18 +2,33 @@
 const numericType = /^(?:small-integer|integer|single|double|long|number|float|decimal|int(?:16|32|64)?|esriFieldType(?:SmallInteger|Integer|Single|Double|BigInteger))$/i;
 const technical = /^(?:objectid|oid|fid|globalid|shape|shape_length|shape_area)$/i;
 
-export function profileLayer(layer, capabilities = []) {
+export function profileLayer(layer, capabilities = [], sample = null) {
   const fields = (layer?.fields || []).filter((field) => field?.name && !technical.test(field.name));
   const numeric = fields.filter((field) => numericType.test(field.type || "")).map((field) => field.name);
   const temporal = fields.filter((field) => /date|time/i.test(field.type || "") || /(?:^|_|[a-z])(?:year|yr)$/i.test(field.name)).map((field) => field.name);
   const categorical = fields.filter((field) => /string|text/i.test(field.type || "") || field.domain?.type === "codedValue").map((field) => field.name);
   const geometryType = String(layer?.geometryType || "unknown").replace(/^esriGeometry/i, "").toLowerCase();
+  const records = Array.isArray(sample) ? sample.slice(0, 100) : null;
+  const statistics = {};
+  if (records) for (const field of fields) {
+    const values = records.map((record) => record?.attributes?.[field.name]);
+    const present = values.filter((value) => value !== null && value !== undefined && value !== "");
+    const numbers = numeric.includes(field.name) ? present.filter((value) => typeof value === "number" && Number.isFinite(value)) : [];
+    statistics[field.name] = {
+      nullCount: values.length - present.length,
+      ...(numbers.length ? { min: Math.min(...numbers), max: Math.max(...numbers) } : {}),
+      ...(categorical.includes(field.name) ? { distinctInSample: new Set(present.map(String)).size } : {}),
+    };
+  }
   return {
-    layerId: layer?.uid || null, geometryType, profileStatus: fields.length ? "metadata" : "unavailable",
+    layerId: layer?.uid || null, geometryType, profileStatus: records ? "sampled" : fields.length ? "metadata" : "unavailable",
     fields: { numeric, temporal, categorical },
+    coverage: records ? { scope: "local-sample", sampleSize: records.length, complete: false } : { scope: "metadata", complete: false },
+    statistics,
     capabilities: {
       table: !!layer?.queryable,
       style: !!layer?.queryable && fields.length > 0,
+      filter: !!layer?.queryable && !!layer?.filterable && fields.length > 0,
       extrusion: !!layer?.queryable && fields.length > 0 && geometryType === "polygon" && capabilities.includes("spatial-chart-3d"),
     },
   };
@@ -33,18 +48,46 @@ export const CONTEXT_ACTIONS = Object.freeze({
   "add-data": { label: "Add a service", description: "Connect an ArcGIS REST service", category: "explore" },
   "try-example": { label: "Browse examples", description: "Explore a public data service", category: "explore" },
   "style-layer": { label: "Style layer", description: "Open this layer in Cartography Lab", category: "style" },
+  "filter-layer": { label: "Filter layer", description: "Choose conditions in Cartography Lab", category: "filter" },
   "explore-3d": { label: "3D options", description: "Open Cartography Lab to configure a 3D view", category: "visualize" },
   "view-table": { label: "View table", description: "Inspect layer records", category: "inspect" },
 });
 
-export function deriveWorkspace({ layers = [], activeLayerId = null, capabilities = [], selection = null } = {}) {
+export function deriveWorkspace({ layers = [], activeLayerId = null, capabilities = [], selection = null, sample = null } = {}) {
   const layer = layers.find((item) => item.uid === activeLayerId) || layers[0] || null;
-  const profile = layer ? profileLayer(layer, capabilities) : null;
-  if (selection?.features?.length) return { rule: "selected-feature", layer, profile, actions: [] };
-  if (!layer) return { rule: "empty-project", layer, profile, actions: ["add-data", "try-example"] };
+  const profile = layer ? profileLayer(layer, capabilities, sample) : null;
+  if (selection?.features?.length) return { rule: "selected-feature", layer, profile, actions: [], suppressed: [{ id: "layer-actions", reason: "Feature inspection is active." }] };
+  if (!layer) return { rule: "empty-project", layer, profile, actions: ["add-data", "try-example"], suppressed: [] };
   const actions = [];
+  const suppressed = [];
   if (profile.capabilities.style) actions.push("style-layer");
+  else suppressed.push({ id: "style-layer", reason: "A queryable layer with known fields is required." });
   if (profile.capabilities.extrusion) actions.push("explore-3d");
+  else suppressed.push({ id: "explore-3d", reason: "A styleable polygon layer and a compatible engine are required." });
   if (profile.capabilities.table) actions.push("view-table");
-  return { rule: "active-layer", layer, profile, actions };
+  else suppressed.push({ id: "view-table", reason: "The layer is not queryable." });
+  if (profile.capabilities.filter) actions.push("filter-layer");
+  else suppressed.push({ id: "filter-layer", reason: "A filterable layer with known fields is required." });
+  return { rule: "active-layer", layer, profile, actions, suppressed };
+}
+
+// Persist opaque, bounded keys rather than service URLs, which can contain tokens.
+export function suggestionKey(projectId, rule, config = {}) {
+  const source = [projectId || "", rule || "", String(config.url || "").split("?")[0], config.fileName || "", config.projectPath || "", config.collectionKey || "", !config.url && !config.fileName && !config.projectPath ? config.uid || "" : ""].join("\u0000");
+  let hash = 2166136261;
+  for (let i = 0; i < source.length; i++) hash = Math.imul(hash ^ source.charCodeAt(i), 16777619);
+  return (hash >>> 0).toString(36);
+}
+
+export function createSuggestionPreferences(storage) {
+  const key = "gismap-online:dismissed-context:v1";
+  let dismissed;
+  try { const value = JSON.parse(storage?.getItem(key) || "[]"); dismissed = new Set(Array.isArray(value) ? value.filter((item) => typeof item === "string").slice(-200) : []); }
+  catch { dismissed = new Set(); }
+  const save = () => { try { storage?.setItem(key, JSON.stringify([...dismissed].slice(-200))); } catch { /* Continue in memory. */ } };
+  return {
+    has: (id) => dismissed.has(id),
+    dismiss: (id) => { dismissed.delete(id); dismissed.add(id); while (dismissed.size > 200) dismissed.delete(dismissed.values().next().value); save(); },
+    restore: (id) => { dismissed.delete(id); save(); },
+  };
 }

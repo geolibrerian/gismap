@@ -43,6 +43,17 @@
 .context-workspace__actions button { min-height:36px; padding:7px 10px; border:1px solid var(--line); border-radius:var(--ui-radius-small, 7px); color:var(--ink); background:var(--surface-2); font-size:12px; font-weight:700; cursor:pointer; }
 .context-workspace button:hover { color:var(--green-2); border-color:var(--green-2); }
 .context-workspace button:focus-visible { outline:2px solid var(--green-2); outline-offset:2px; }
+.context-workspace__more { position:relative; }
+.context-workspace__more summary { display:flex; align-items:center; min-height:36px; padding:7px 10px; border:1px solid var(--line); border-radius:var(--ui-radius-small, 7px); background:var(--surface-2); font-size:12px; font-weight:700; cursor:pointer; list-style:none; }
+.context-workspace__more summary::-webkit-details-marker { display:none; }
+.context-workspace__more[open] { display:flex; flex-wrap:wrap; gap:6px; }
+.context-workspace__coverage { margin:10px 0 0; color:var(--muted); font-size:10px; }
+.context-workspace--dismissed { padding:0; border:0; background:transparent; box-shadow:none; }
+.context-workspace__restore { padding:5px 0; border:0; color:var(--muted); background:transparent; font-size:11px; cursor:pointer; }
+.context-workspace__restore:hover { text-decoration:underline; }
+.context-workspace__diagnostics { margin-top:10px; color:var(--muted); font-size:11px; }
+.context-workspace__diagnostics summary { cursor:pointer; }
+.context-workspace__diagnostics pre { max-height:200px; overflow:auto; white-space:pre-wrap; overflow-wrap:anywhere; font-size:10px; }
 .sidebar .context-workspace { position:static; width:auto; margin:14px 0; box-shadow:none; }
 body.table-open .map-workspace > .context-workspace { display:none; }
 body:has(#welcome-panel:not([hidden])) .map-workspace > .context-workspace { display:none; }
