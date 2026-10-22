@@ -89,7 +89,8 @@ export function initializeFieldworkWorkspace({ ui, action, showSidebar, theme })
     const summary = panel.querySelector(':scope > summary');
     if (!summary || !Object.values(workspacePanels).flat().includes(panel.id)) return;
     const pin = document.createElement('button');
-    pin.type = 'button'; pin.className = 'workspace-pin'; pin.textContent = 'Pin';
+    pin.type = 'button'; pin.className = 'workspace-pin';
+    pin.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path class="workspace-pin__head" d="M16 3 21 8l-3 1-3 5v3l-2 2-8-8 2-2h3l5-3z"/><path d="m9 15-5 5"/></svg>';
     pin.addEventListener('click', event => {
       event.preventDefault(); event.stopPropagation();
       const pinned = preferences.snapshot().pinned.includes(panel.id);
@@ -134,7 +135,7 @@ export function initializeFieldworkWorkspace({ ui, action, showSidebar, theme })
     pinButtons.forEach((button, id) => {
       const pinned = layout.pinned.includes(id);
       const label = sidebar.querySelector(`#${id} > summary > span`)?.textContent || 'panel';
-      button.textContent = pinned ? 'Pinned' : 'Pin'; button.setAttribute('aria-pressed', String(pinned));
+      button.setAttribute('aria-pressed', String(pinned));
       button.setAttribute('aria-label', `${pinned ? 'Unpin' : 'Pin'} ${label}`);
       button.title = `${pinned ? 'Unpin' : 'Pin'} ${label}`;
     });

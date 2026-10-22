@@ -103,8 +103,12 @@ body.fieldwork-desktop .workspace-layout-controls { display:block; flex:none; pa
 body.fieldwork-desktop .workspace-layout-controls summary { cursor:pointer; font-weight:600; }
 body.fieldwork-desktop .workspace-layout-controls p { margin:8px 0; }
 body.fieldwork-desktop .workspace-layout-controls button { margin:0 6px 4px 0; padding:6px 8px; border:1px solid var(--border-subtle); border-radius:6px; color:var(--text-primary); background:var(--surface-panel); font-size:11px; cursor:pointer; }
-body.fieldwork-desktop .workspace-pin { display:inline-block; padding:4px 6px; border:1px solid var(--border-subtle); border-radius:6px; color:var(--text-muted); background:var(--surface-panel); font:600 10px var(--ui-font); cursor:pointer; }
-body.fieldwork-desktop .workspace-pin[aria-pressed="true"] { color:var(--green-2); background:var(--surface-2); }
+body.fieldwork-desktop .workspace-pin { display:inline-grid; place-items:center; flex:0 0 28px; width:28px; height:28px; align-self:center; padding:5px; border:1px solid transparent; border-radius:6px; color:var(--text-muted); background:transparent; cursor:pointer; }
+body.fieldwork-desktop .workspace-pin svg { width:16px; height:16px; fill:none; stroke:currentColor; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; }
+body.fieldwork-desktop .workspace-pin:is(:hover,:focus-visible) { color:var(--text-primary); border-color:var(--border-subtle); background:var(--surface-raised); }
+body.fieldwork-desktop .workspace-pin:focus-visible { outline:2px solid var(--focus-ring); outline-offset:2px; }
+body.fieldwork-desktop .workspace-pin[aria-pressed="true"] { color:var(--green-2); border-color:var(--border-subtle); background:var(--surface-2); }
+body.fieldwork-desktop .workspace-pin[aria-pressed="true"] .workspace-pin__head { fill:currentColor; }
 @media (min-width: 881px), (min-width: 641px) and (orientation: landscape) {
   body.fieldwork-desktop { padding-top: 56px; }
   body.fieldwork-desktop #app.app-shell { --sidebar: var(--workspace-width, 372px); grid-template-columns: var(--sidebar) minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); }
@@ -121,6 +125,8 @@ body.fieldwork-desktop .workspace-pin[aria-pressed="true"] { color:var(--green-2
   body.fieldwork-desktop #app .sidebar__scroll > .panel.workspace-hidden { display: none !important; }
   body.fieldwork-desktop #app .sidebar__scroll > .panel:not(.workspace-hidden):not([data-presentation-hidden]) { position: static; width: auto; min-width: 0; border-radius: 0; box-shadow: none; }
   body.fieldwork-desktop #app .sidebar__scroll > .panel > summary { padding: 20px 16px 12px; font-size: 20px; }
+  body.fieldwork-desktop #app .sidebar__scroll > .panel > summary { gap:6px; }
+  body.fieldwork-desktop #app .sidebar__scroll > .panel > summary > span { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   body.fieldwork-desktop #app .sidebar__scroll > .panel > summary span { font-size: 21px; }
   body.fieldwork-desktop #app .sidebar__scroll > .panel > summary small { font-size: 10px; }
   body.fieldwork-desktop #app .sidebar__scroll > .panel > .panel__body { display: block; padding: 4px 16px 20px; }

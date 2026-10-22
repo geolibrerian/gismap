@@ -1,4 +1,4 @@
-import { initializeFieldworkWorkspace } from "./fieldwork-workspace.js?v=0.56.0-context4";
+import { initializeFieldworkWorkspace } from "./fieldwork-workspace.js?v=0.56.0-context8";
 import { timelinePdfFrames, expandTimelinePdfSlides, parseTimelineFrameSelection } from "./briefing-timeline-pdf.js?v=0.1.0";
 import { renderNotesHub } from "./notes-hub.js?v=0.55.0-fieldwork1";
 import { refreshMapNoteFilters } from './map-note-filters.js?v=0.4.1';
