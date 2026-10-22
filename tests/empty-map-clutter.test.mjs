@@ -2,18 +2,20 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
-test('empty desktop map has one data entry point without duplicate suggestions', async () => {
-  const [html, ui, css, workspace] = await Promise.all([
+test('empty map retains layer shortcuts and creative suggestions live over the map', async () => {
+  const [html, ui, css, workspace, appCss] = await Promise.all([
     readFile(new URL('../index.html', import.meta.url), 'utf8'),
     readFile(new URL('../js/ui.js', import.meta.url), 'utf8'),
     readFile(new URL('../css/fieldwork.css', import.meta.url), 'utf8'),
     readFile(new URL('../js/fieldwork-workspace.js', import.meta.url), 'utf8'),
+    readFile(new URL('../css/app.css', import.meta.url), 'utf8'),
   ]);
   const welcome = html.match(/<section id="welcome-panel"[\s\S]*?<\/section>/)?.[0];
   assert.ok(welcome);
   assert.doesNotMatch(welcome, /data-action="data-/);
-  assert.match(ui, /const suppressed = !layers\.length \|\| featureSelected/);
-  assert.match(css, /body\.fieldwork-desktop \.empty-state--layers \.empty-state__actions\s*\{\s*display:\s*none/);
+  assert.doesNotMatch(css, /empty-state--layers \.empty-state__actions\s*\{\s*display:\s*none/);
+  assert.match(ui, /querySelector\("#map-status"\)\?\.before\(host\)/);
+  assert.match(appCss, /\.context-workspace\s*\{[^}]*left:50%; top:16px/);
   for (const source of ['data-file', 'data-arcgis', 'data-geojson', 'data-popular']) {
     assert.ok(workspace.includes(`data-studio-source="${source}"`));
     assert.ok(html.includes(`data-empty-action="${source}"`), 'fallback remains available outside desktop fieldwork');

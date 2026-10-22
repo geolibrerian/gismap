@@ -41,7 +41,7 @@ import { RAMPS, rampColors, compileRenderer } from "./renderer-spec.js?v=0.29.1"
 import { saveEngine } from "./engine-preference.js?v=0.52.1";
 import { BASEMAPS } from "./basemap-catalog.js?v=0.53.0-gallery1";
 import { CartographyLab } from "./cartography-lab.js?v=0.55.0-fieldwork1";
-import { CONTEXT_ACTIONS, createSuggestionPreferences, deriveWorkspace, executeContextAction, suggestionKey, summarizeFeature } from "./contextual-workspace.js?v=4";
+import { CONTEXT_ACTIONS, createSuggestionPreferences, deriveWorkspace, executeContextAction, suggestionKey, summarizeFeature } from "./contextual-workspace.js?v=5";
 
 const BUILDINGS_3D_KEY = "gismap-online:buildings-3d:v1";
 const DISPLAY_SETTINGS_KEY = "gismap-online:display:v1";
@@ -213,10 +213,7 @@ export class UIController {
     host.className = "context-workspace";
     host.setAttribute("aria-label", "Suggested next steps");
     host.hidden = true;
-    const placeHost = () => {
-      if (!this.mobileMedia.matches) document.querySelector("#layers-list")?.after(host);
-      else document.querySelector("#map-status")?.before(host);
-    };
+    const placeHost = () => document.querySelector("#map-status")?.before(host);
     placeHost();
     this.mobileMedia.addEventListener?.("change", placeHost);
     let storage = null;
@@ -245,9 +242,7 @@ export class UIController {
         capabilities: this.mapController.getCapabilities(), selection: featureSelected ? state.selection : null, sample: layer ? samples.get(layer.uid) : null,
         workflow, viewport: this.mobileMedia.matches ? "mobile" : "desktop" });
       const key = suggestionKey(this.projectManager.current.id, context.rule, config);
-      // The empty Layers panel already provides data entry points. Suggestions
-      // become useful once there is a layer to act on.
-      const suppressed = !layers.length || featureSelected || workflow !== "explore";
+      const suppressed = featureSelected || workflow !== "explore";
       const dismissed = preferences.has(key);
       host.hidden = suppressed || !context.actions.length;
       if (new URLSearchParams(location.search).has("contextDebug")) {
@@ -269,9 +264,9 @@ export class UIController {
       const heading = document.createElement("div");
       const eyebrow = document.createElement("span");
       eyebrow.className = "context-workspace__eyebrow";
-      eyebrow.textContent = context.layer ? "NEXT STEPS" : "START EXPLORING";
+      eyebrow.textContent = "START EXPLORING";
       const title = document.createElement("strong");
-      title.textContent = context.layer?.title || "Make this map yours";
+      title.textContent = context.layer ? `Create with ${context.layer.title || "your data"}` : "What will you make?";
       heading.append(eyebrow, title);
       const close = document.createElement("button");
       close.type = "button"; close.className = "context-workspace__close";
@@ -287,7 +282,7 @@ export class UIController {
         button.addEventListener("click", () => {
           const lab = () => this.openCartographyLab(context.layer.uid);
           executeContextAction(id, context, {
-            addData: () => this.#handleAction("data-arcgis"), browseExamples: () => this.#handleAction("data-popular"),
+            briefing: () => this.openMobileWorkflow("briefing"), tour: () => this.openMobileWorkflow("tours"), skins: () => this.#handleAction("map-presentation"),
             table: () => this.events.publish("table:open", { uid: context.layer.uid }), style: lab,
             threeDimensional: () => { lab(); requestAnimationFrame(() => document.querySelector('#utility-lab-content [data-lab-dimension="3d"]')?.focus()); },
             filter: () => { lab(); this.cartographyLab?.styleTabs?.select("filter", true); },

@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { createSuggestionPreferences, deriveWorkspace, executeContextAction, profileLayer, suggestionKey, summarizeFeature } from "../js/contextual-workspace.js";
 
 test("empty project offers discovery without a layer", () => {
-  assert.deepEqual(deriveWorkspace().actions, ["add-data", "try-example"]);
+  assert.deepEqual(deriveWorkspace().actions, ["create-briefing", "create-tour", "presentation-skins"]);
 });
 
 test("metadata profile is conservative and ignores identifiers", () => {
@@ -16,7 +16,7 @@ test("metadata profile is conservative and ignores identifiers", () => {
   assert.deepEqual(profile.fields.temporal, ["FireYear"]);
   assert.deepEqual(profile.fields.categorical, ["FireType"]);
   assert.equal(profile.profileStatus, "metadata");
-  assert.deepEqual(deriveWorkspace({ layers: [layer], capabilities: ["spatial-chart-3d"] }).actions, ["style-layer", "explore-3d", "view-table"]);
+  assert.deepEqual(deriveWorkspace({ layers: [layer], capabilities: ["spatial-chart-3d"] }).actions, ["create-briefing", "create-tour", "explore-3d", "presentation-skins", "style-layer", "view-table"]);
   assert.equal(profileLayer(layer, []).capabilities.extrusion, false);
   assert.equal(profileLayer({ ...layer, geometryType: "point" }, ["spatial-chart-3d"]).capabilities.extrusion, false);
 });
@@ -28,7 +28,7 @@ test("feature selection defers to the existing inspector", () => {
 });
 
 test("missing schema does not promise styling", () => {
-  assert.deepEqual(deriveWorkspace({ layers: [{ uid: "a", queryable: true }] }).actions, ["view-table"]);
+  assert.deepEqual(deriveWorkspace({ layers: [{ uid: "a", queryable: true }] }).actions, ["create-briefing", "create-tour", "presentation-skins", "view-table"]);
 });
 
 test("feature summaries favor a readable label and retain technical attributes", () => {
@@ -46,7 +46,7 @@ test("local statistics are explicitly sampled and bounded", () => {
   assert.deepEqual(profile.coverage, { scope: "local-sample", sampleSize: 100, complete: false });
   assert.deepEqual(profile.statistics.amount, { nullCount: 1, nullRate: 0.01, min: 1, max: 99 });
   assert.equal(profile.statistics.kind.distinctInSample, 2);
-  assert.deepEqual(deriveWorkspace({ layers: [layer] }).actions, ["style-layer", "view-table", "filter-layer"]);
+  assert.deepEqual(deriveWorkspace({ layers: [layer] }).actions, ["create-briefing", "create-tour", "presentation-skins", "style-layer", "view-table", "filter-layer"]);
   assert.equal(deriveWorkspace({ layers: [layer] }).suppressed.some(({ id }) => id === "explore-3d"), true);
 });
 
@@ -60,7 +60,7 @@ test("sampled time ranges retain explicit units and ignore invalid values", () =
 
 test("time suggestions require an actual filterable temporal field", () => {
   const layer = { uid: "fires", queryable: true, filterable: true, geometryType: "polygon", fields: [{ name: "FireYear", type: "integer" }] };
-  assert.deepEqual(deriveWorkspace({ layers: [layer], capabilities: ["spatial-chart-3d"] }).actions, ["style-layer", "explore-time", "explore-3d", "view-table", "filter-layer"]);
+  assert.deepEqual(deriveWorkspace({ layers: [layer], capabilities: ["spatial-chart-3d"] }).actions, ["create-briefing", "create-tour", "explore-time", "explore-3d", "presentation-skins", "style-layer", "view-table", "filter-layer"]);
   assert.equal(deriveWorkspace({ layers: [{ ...layer, filterable: false }] }).actions.includes("explore-time"), false);
 });
 
@@ -91,7 +91,7 @@ test("editing workflows suppress incompatible layer suggestions", () => {
 
 test("action execution only calls a registered and currently offered command", () => {
   const context = deriveWorkspace();
-  assert.equal(executeContextAction("add-data", context, { addData: () => "opened" }), "opened");
+  assert.equal(executeContextAction("create-tour", context, { tour: () => "opened" }), "opened");
   assert.throws(() => executeContextAction("view-table", context, { table: () => {} }), /unavailable/);
   assert.throws(() => executeContextAction("toString", context, {}), /unavailable/);
 });

@@ -59,12 +59,13 @@ export function summarizeFeature(attributes = {}, layer = {}) {
 }
 
 export const CONTEXT_ACTIONS = Object.freeze({
-  "add-data": { label: "Add a service", description: "Connect an ArcGIS REST service", category: "explore", command: "addData", mutatesProject: false },
-  "try-example": { label: "Browse examples", description: "Explore a public data service", category: "explore", command: "browseExamples", mutatesProject: false },
+  "create-briefing": { label: "Create a briefing", description: "Open the briefing workspace", category: "create", command: "briefing", mutatesProject: true },
+  "create-tour": { label: "Create a tour", description: "Open the guided tour workspace", category: "create", command: "tour", mutatesProject: true },
+  "presentation-skins": { label: "Presentation skins", description: "Choose a look for your map or presentation", category: "create", command: "skins", mutatesProject: false },
   "style-layer": { label: "Style layer", description: "Open this layer in Cartography Lab", category: "style", command: "style", mutatesProject: false },
   "filter-layer": { label: "Filter layer", description: "Choose conditions in Cartography Lab", category: "filter", command: "filter", mutatesProject: false },
-  "explore-time": { label: "Filter by time", description: "Choose a date or year condition in Cartography Lab", category: "filter", command: "time", mutatesProject: false },
-  "explore-3d": { label: "3D options", description: "Open Cartography Lab to configure a 3D view", category: "visualize", command: "threeDimensional", mutatesProject: false },
+  "explore-time": { label: "Explore change over time", description: "Choose a date or year condition in Cartography Lab", category: "filter", command: "time", mutatesProject: false },
+  "explore-3d": { label: "Make a 3D map", description: "Open Cartography Lab to configure a 3D view", category: "visualize", command: "threeDimensional", mutatesProject: false },
   "view-table": { label: "View table", description: "Inspect layer records", category: "inspect", command: "table", mutatesProject: false },
 });
 
@@ -79,15 +80,16 @@ export function deriveWorkspace({ layers = [], activeLayerId = null, capabilitie
   const profile = layer ? profileLayer(layer, capabilities, sample) : null;
   if (["draw", "notes", "field-task", "briefing", "presentation"].includes(workflow)) return { rule: `workflow:${workflow}`, layer, profile, viewport, actions: [], suppressed: [{ id: "layer-actions", reason: `The ${workflow} workflow has priority.` }] };
   if (selection?.features?.length) return { rule: "selected-feature", layer, profile, actions: [], suppressed: [{ id: "layer-actions", reason: "Feature inspection is active." }] };
-  if (!layer) return { rule: "empty-project", layer, profile, actions: ["add-data", "try-example"], suppressed: [] };
-  const actions = [];
+  if (!layer) return { rule: "empty-project", layer, profile, actions: ["create-briefing", "create-tour", "presentation-skins"], suppressed: [] };
+  const actions = ["create-briefing", "create-tour"];
   const suppressed = [];
-  if (profile.capabilities.style) actions.push("style-layer");
-  else suppressed.push({ id: "style-layer", reason: "A queryable layer with known fields is required." });
   if (profile.capabilities.timeFilter) actions.push("explore-time");
   else suppressed.push({ id: "explore-time", reason: "A filterable layer with a date or year field is required." });
   if (profile.capabilities.extrusion) actions.push("explore-3d");
   else suppressed.push({ id: "explore-3d", reason: "A styleable polygon layer and a compatible engine are required." });
+  actions.push("presentation-skins");
+  if (profile.capabilities.style) actions.push("style-layer");
+  else suppressed.push({ id: "style-layer", reason: "A queryable layer with known fields is required." });
   if (profile.capabilities.table) actions.push("view-table");
   else suppressed.push({ id: "view-table", reason: "The layer is not queryable." });
   if (profile.capabilities.filter) actions.push("filter-layer");
