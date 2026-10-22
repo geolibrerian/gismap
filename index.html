@@ -64,8 +64,8 @@
     <link rel="preconnect" href="https://js.arcgis.com" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link rel="stylesheet" href="./css/app.css?v=0.55.0-context1" />
-    <link rel="stylesheet" href="./css/fieldwork.css?v=0.56.0-fieldwork2" />
+    <link rel="stylesheet" href="./css/app.css?v=0.56.0-context2" />
+    <link rel="stylesheet" href="./css/fieldwork.css?v=0.56.0-context2" />
     <!-- three.js for point clouds, models and 3D animation; loaded only when a 3D layer is added. -->
     <script type="importmap">{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.min.js", "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/" } }</script>
     <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
@@ -279,7 +279,7 @@
         </div>
 
         <footer class="sidebar__footer">
-          <span id="project-name">Untitled project</span>
+          <button type="button" id="project-name" data-action="project-details" title="Project details and export">Untitled project</button>
           <span id="save-state" class="status-dot">Local</span>
         </footer>
       </aside>
@@ -496,6 +496,6 @@
       </ul>
     </section>
     <noscript>GISMap Online is a geospatial application and needs JavaScript. Without it, a map can still be described as a link: see <a href="/llms.txt">/llms.txt</a> and the <a href="/guides/ai-agents/">guide for AI agents</a>.</noscript>
-    <script type="module" src="./js/app.js?v=0.55.0-context1"></script>
+    <script type="module" src="./js/app.js?v=0.56.0-context2"></script>
   </body>
 </html>

@@ -559,7 +559,7 @@ export class MaplibreEngine {
       displayField: null,
       geometryType: null,
       visible: true,
-      opacity: 1,
+      opacity: 0.9,
       where: null,
       featureFilter: null,
       spatialChart: null,
@@ -601,7 +601,7 @@ export class MaplibreEngine {
   #common(config) {
     return {
       visible: config.visible !== false,
-      opacity: Number.isFinite(config.opacity) ? Math.max(0, Math.min(1, config.opacity)) : 1,
+      opacity: Number.isFinite(config.opacity) ? Math.max(0, Math.min(1, config.opacity)) : 0.9,
       ignoreScaleRange: config.ignoreServiceScaleRange === true,
     };
   }

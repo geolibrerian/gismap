@@ -43,7 +43,10 @@
 .context-workspace__actions button { min-height:36px; padding:7px 10px; border:1px solid var(--line); border-radius:var(--ui-radius-small, 7px); color:var(--ink); background:var(--surface-2); font-size:12px; font-weight:700; cursor:pointer; }
 .context-workspace button:hover { color:var(--green-2); border-color:var(--green-2); }
 .context-workspace button:focus-visible { outline:2px solid var(--green-2); outline-offset:2px; }
-@media (max-width: 700px) { .context-workspace { left:12px; bottom:58px; width:min(340px, calc(100% - 24px)); padding:12px; } .context-workspace__actions button { min-height:44px; } }
+.sidebar .context-workspace { position:static; width:auto; margin:14px 0; box-shadow:none; }
+body.table-open .map-workspace > .context-workspace { display:none; }
+body:has(#welcome-panel:not([hidden])) .map-workspace > .context-workspace { display:none; }
+@media (max-width: 640px), (max-width: 880px) and (orientation: portrait) { .context-workspace { left:12px; bottom:136px; width:min(340px, calc(100% - 24px)); padding:12px; } .context-workspace__actions button { min-height:44px; } }
 :root[data-skin="dark-analytical"] { --ink:#edf4f7; --muted:#9baab3; --paper:#0c1217; --surface:#121a20; --surface-2:#19242c; --green:#176b77; --green-2:#52c4d1; --amber:#d7a64c; --line:#2a3942; --danger:#ef777c; --shadow:0 20px 48px rgb(0 0 0 / 42%); --ui-radius:10px; --ui-radius-small:6px; --ui-font:"DM Sans",system-ui,sans-serif; --ui-heading:"DM Sans",system-ui,sans-serif; --ui-border-width:1px; --ui-panel-shadow:0 20px 48px rgb(0 0 0 / 42%); color-scheme:dark; }
 :root[data-skin="tidal-95"] { --ink:#073b3a; --muted:#476f6a; --paper:#f4efd9; --surface:#fffaf0; --surface-2:#c7e7dc; --green:#006d6b; --green-2:#159b8c; --amber:#ef6f61; --line:#438a80; --shadow:5px 5px 0 rgb(0 72 70 / 24%); --ui-radius:6px; --ui-radius-small:3px; --ui-font:"DM Sans",system-ui,sans-serif; --ui-heading:"DM Sans",system-ui,sans-serif; --ui-border-width:2px; --ui-panel-shadow:5px 5px 0 rgb(0 72 70 / 24%); color-scheme:light; }
 :root[data-skin="portolan"] { --ink:#33251d; --muted:#705e4d; --paper:#e9ddbd; --surface:#f6edcf; --surface-2:#eadbb5; --green:#4b3a2b; --green-2:#8a5934; --amber:#9b742c; --line:#806c48; --shadow:inset 0 0 0 3px rgb(128 108 72 / 13%),0 12px 30px rgb(53 36 20 / 18%); --ui-radius:2px; --ui-radius-small:1px; --ui-font:"DM Sans",system-ui,sans-serif; --ui-heading:"Newsreader",Georgia,serif; --ui-border-width:3px; --ui-panel-shadow:inset 0 0 0 3px rgb(128 108 72 / 13%),0 12px 30px rgb(53 36 20 / 18%); color-scheme:light; }
@@ -729,6 +732,10 @@ body.mobile-workflow-open .field-task-banner { left:auto; right:calc(min(440px,1
 .ai-response__markdown td { overflow-wrap: anywhere; }
 
 .sidebar__footer { display: flex; justify-content: space-between; gap: 12px; padding: 11px 16px; border-top: 1px solid var(--line); background: var(--surface); font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; }
+.sidebar__footer #project-name { min-width:0; padding:0; overflow:hidden; border:0; color:inherit; background:transparent; font:inherit; text-align:left; text-overflow:ellipsis; text-transform:inherit; white-space:nowrap; cursor:pointer; }
+.sidebar__footer #project-name:hover { color:var(--green-2); text-decoration:underline; }
+.layer-card__title { display:block; max-width:100%; padding:0; overflow:hidden; border:0; color:var(--ink); background:transparent; font:600 12px var(--ui-font); text-align:left; text-overflow:ellipsis; white-space:nowrap; cursor:pointer; }
+.layer-card__title:hover { color:var(--green-2); text-decoration:underline; }
 .status-dot { color: var(--green-2); }
 .status-dot::before { content: ""; display: inline-block; width: 6px; height: 6px; margin-right: 5px; border-radius: 50%; background: currentColor; }
 
@@ -2469,6 +2476,8 @@ body.utility-panel-open .utility-panel:has([data-utility-pane="data-notes"]:not(
 /* Map Note tools and insight actions share the rest of the application's controls. */
 .insight-note-actions { display:flex; flex-wrap:wrap; gap:.5rem; padding:0 10px 10px; }
 .insight-note-actions button, .map-note-mode button, [data-note-history] { appearance:none; border:1px solid var(--line); border-radius:8px; background:var(--surface); color:var(--ink); padding:.55rem .8rem; font:inherit; cursor:pointer; }
+.insight-note-actions button { padding:4px 7px; border-color:transparent; color:var(--muted); font-size:11px; font-weight:600; }
+.insight-attributes summary { padding:0 10px 10px; color:var(--green-2); font-size:11px; font-weight:600; cursor:pointer; }
 .insight-note-actions button:hover, .map-note-mode button:hover, [data-note-history]:hover { border-color:var(--accent); color:var(--accent); }
 .map-note-mode { display:flex; align-items:center; justify-content:space-between; gap:.75rem; padding:.85rem; margin:1rem 0; border:1px solid var(--line); border-radius:10px; background:var(--surface); }
 .map-note-mode p { margin:.25rem 0 0; }

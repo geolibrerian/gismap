@@ -29,7 +29,7 @@ export function initializeFieldworkWorkspace({ ui, action, showSidebar, theme })
   const header = document.createElement('header');
   header.className = 'studio-header';
   header.setAttribute('aria-label', 'GISMap workspace');
-  header.innerHTML = '<div class="studio-header__search"></div><div class="studio-header__project" title="Current project"></div><button type="button" class="studio-theme" title="Switch to Observatory" aria-label="Switch to Observatory">' + workspaceIcon('moon') + '</button><button type="button" class="studio-share button--primary">Share</button>';
+  header.innerHTML = '<div class="studio-header__search"></div><button type="button" class="studio-header__project" title="Project details and export"></button><button type="button" class="studio-theme" title="Switch to Observatory" aria-label="Switch to Observatory">' + workspaceIcon('moon') + '</button><button type="button" class="studio-share button--primary">Share</button>';
   const rail = document.createElement('nav');
   rail.className = 'workspace-rail';
   rail.setAttribute('aria-label', 'Workspaces');
@@ -62,7 +62,7 @@ export function initializeFieldworkWorkspace({ ui, action, showSidebar, theme })
   });
   const basemaps = document.createElement('section');
   basemaps.className = 'workspace-basemaps';
-  basemaps.innerHTML = '<label class="field"><span>Basemap</span><select aria-label="Basemap"></select></label><p class="form-note">The backdrop for your data.</p>';
+  basemaps.innerHTML = '<label class="field"><span>Basemap</span><select aria-label="Basemap"></select></label>';
   document.querySelector('#layers-panel > .panel__body').append(basemaps);
   const basemapSelect = basemaps.querySelector('select');
   for (const item of basemapsForEngine(ui.mapController.getEngineId())) basemapSelect.add(new Option(item.label, item.id));
@@ -70,6 +70,7 @@ export function initializeFieldworkWorkspace({ ui, action, showSidebar, theme })
   const syncBasemap = () => { const id = ui.mapController.getBasemapId(); const entry = basemapEntry(id); basemapSelect.value = [...basemapSelect.options].some(option => option.value === id) ? id : entry?.[ui.mapController.getEngineId()] || ''; };
   ['map:ready','map:basemap-changed'].forEach(event => ui.events.subscribe(event, syncBasemap));
   header.querySelector('.studio-share').addEventListener('click', () => action('share-export'));
+  header.querySelector('.studio-header__project').addEventListener('click', () => action('project-details'));
   header.querySelector('.studio-theme').addEventListener('click', theme);
   rail.querySelector('.workspace-rail__settings').addEventListener('click', () => action('tools-display'));
   tabs.querySelector('.workspace-collapse').addEventListener('click', () => showSidebar(false));

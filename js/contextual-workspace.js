@@ -19,6 +19,16 @@ export function profileLayer(layer, capabilities = []) {
   };
 }
 
+// Prefer a readable name and useful attributes, but retain every returned field.
+export function summarizeFeature(attributes = {}, layer = {}) {
+  const entries = Object.entries(attributes).filter(([, value]) => value !== null && value !== "");
+  const name = layer.displayField && entries.find(([key, value]) => key === layer.displayField && typeof value === "string" && value.trim());
+  const guessed = entries.find(([key, value]) => /(?:^|_)(?:name|title|county|incident)(?:$|_)/i.test(key) && typeof value === "string" && value.trim());
+  const title = name?.[1] || guessed?.[1] || layer.title || "Feature";
+  const ordered = [...entries].sort(([a], [b]) => Number(technical.test(a)) - Number(technical.test(b)));
+  return { title: String(title), summary: ordered.slice(0, 5), remaining: ordered.slice(5) };
+}
+
 export const CONTEXT_ACTIONS = Object.freeze({
   "add-data": { label: "Add a service", description: "Connect an ArcGIS REST service", category: "explore" },
   "try-example": { label: "Browse examples", description: "Explore a public data service", category: "explore" },

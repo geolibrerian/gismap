@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { deriveWorkspace, profileLayer } from "../js/contextual-workspace.js";
+import { deriveWorkspace, profileLayer, summarizeFeature } from "../js/contextual-workspace.js";
 
 test("empty project offers discovery without a layer", () => {
   assert.deepEqual(deriveWorkspace().actions, ["add-data", "try-example"]);
@@ -29,4 +29,12 @@ test("feature selection defers to the existing inspector", () => {
 
 test("missing schema does not promise styling", () => {
   assert.deepEqual(deriveWorkspace({ layers: [{ uid: "a", queryable: true }] }).actions, ["view-table"]);
+});
+
+test("feature summaries favor a readable label and retain technical attributes", () => {
+  const feature = summarizeFeature({ OBJECTID: 107, county: "Lander County", STATE: "NV", value: 9, another: 3, extra: 4, GlobalID: "abc" }, { title: "Counties" });
+  assert.equal(feature.title, "Lander County");
+  assert.equal(feature.summary.some(([key]) => key === "OBJECTID"), false);
+  assert.deepEqual(feature.remaining.map(([key]) => key), ["OBJECTID", "GlobalID"]);
+  assert.equal(summarizeFeature({ label: "Named" }, { displayField: "label" }).title, "Named");
 });

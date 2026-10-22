@@ -75,7 +75,8 @@ button:disabled { cursor: not-allowed; opacity: .5; }
 .studio-header .search-row { gap: 0; border: 1px solid var(--border-subtle); border-radius: 8px; background: var(--surface-app); }
 .studio-header .search-row input { height: 34px; min-width: 0; padding: 8px 12px; border: 0; background: transparent; font-size: 12px; }
 .studio-header .search-row button { flex: 0 0 36px; width: 36px; height: 34px; border: 0; color: var(--text-muted); background: transparent; box-shadow: none; }
-.studio-header__project { max-width: 170px; margin-left: auto; color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; }
+.studio-header__project { max-width: 170px; margin-left: auto; padding: 8px; border: 0; border-radius: 6px; background: transparent; color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; cursor: pointer; }
+.studio-header__project:hover { color: var(--text-primary); background: var(--surface-raised); }
 .studio-theme { display: grid; place-items: center; width: 40px; height: 40px; flex: 0 0 40px; border: 0; border-radius: 8px; background: transparent; color: var(--text-muted); cursor: pointer; }
 .studio-theme:hover { background: var(--surface-raised); }
 .workspace-rail { position: fixed; z-index: 30; top: 56px; bottom: 0; left: 0; width: 52px; display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 12px 5px; border-right: 1px solid var(--border-subtle); background: var(--surface-panel); }
@@ -94,7 +95,7 @@ button:disabled { cursor: not-allowed; opacity: .5; }
 .workspace-resizer:hover, .workspace-resizer:focus-visible { background: color-mix(in srgb, var(--action-primary) 20%, transparent); }
 .workspace-layer-actions { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin: 0 0 16px; }
 .workspace-layer-actions > span { color: var(--text-muted); font-size: 11px; }
-.workspace-basemaps { margin-top: 24px; padding-top: 20px; border-top: 1px solid var(--border-subtle); }
+.workspace-basemaps { margin-top: 20px; padding-top: 0; }
 .workspace-basemaps .field { margin: 0; }
 .workspace-basemaps p { margin: 8px 0 0; }
 @media (min-width: 881px), (min-width: 641px) and (orientation: landscape) {

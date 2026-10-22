@@ -1,4 +1,4 @@
-import { initializeFieldworkWorkspace } from "./fieldwork-workspace.js?v=0.55.0-fieldwork1";
+import { initializeFieldworkWorkspace } from "./fieldwork-workspace.js?v=0.56.0-context2";
 import { timelinePdfFrames, expandTimelinePdfSlides, parseTimelineFrameSelection } from "./briefing-timeline-pdf.js?v=0.1.0";
 import { renderNotesHub } from "./notes-hub.js?v=0.55.0-fieldwork1";
 import { refreshMapNoteFilters } from './map-note-filters.js?v=0.4.1';
@@ -41,7 +41,7 @@ import { RAMPS, rampColors, compileRenderer } from "./renderer-spec.js?v=0.29.1"
 import { saveEngine } from "./engine-preference.js?v=0.52.1";
 import { BASEMAPS } from "./basemap-catalog.js?v=0.53.0-gallery1";
 import { CartographyLab } from "./cartography-lab.js?v=0.55.0-fieldwork1";
-import { CONTEXT_ACTIONS, deriveWorkspace } from "./contextual-workspace.js?v=1";
+import { CONTEXT_ACTIONS, deriveWorkspace, summarizeFeature } from "./contextual-workspace.js?v=2";
 
 const BUILDINGS_3D_KEY = "gismap-online:buildings-3d:v1";
 const DISPLAY_SETTINGS_KEY = "gismap-online:display:v1";
@@ -213,7 +213,12 @@ export class UIController {
     host.className = "context-workspace";
     host.setAttribute("aria-label", "Suggested next steps");
     host.hidden = true;
-    document.querySelector("#map-status")?.before(host);
+    const placeHost = () => {
+      if (!this.mobileMedia.matches) document.querySelector("#layers-list")?.after(host);
+      else document.querySelector("#map-status")?.before(host);
+    };
+    placeHost();
+    this.mobileMedia.addEventListener?.("change", placeHost);
     const dismissed = new Set();
     let featureSelected = false;
     const render = () => {
@@ -253,7 +258,10 @@ export class UIController {
           if (id === "add-data") void this.#handleAction("data-arcgis");
           else if (id === "try-example") void this.#handleAction("data-popular");
           else if (id === "view-table") this.events.publish("table:open", { uid: context.layer.uid });
-          else this.openCartographyLab(context.layer.uid);
+          else {
+            this.openCartographyLab(context.layer.uid);
+            if (id === "explore-3d") requestAnimationFrame(() => document.querySelector('#utility-lab-content [data-lab-dimension="3d"]')?.focus());
+          }
         });
         actions.append(button);
       });
@@ -1282,6 +1290,9 @@ export class UIController {
         case "project-save":
           this.#saveProjectDialog();
           break;
+        case "project-details":
+          this.#projectDetailsDialog();
+          break;
         case "project-export":
           this.#projectDownloadDialog();
           break;
@@ -1454,6 +1465,23 @@ export class UIController {
         this.projectManager.save(this.dialog.querySelector("#save-project-name").value);
         this.dialog.close();
       }}],
+    });
+  }
+
+  #projectDetailsDialog() {
+    const applyName = () => {
+      const name = this.dialog.querySelector("#project-details-name").value.trim() || "Untitled project";
+      this.setProjectTitle(name);
+      return name;
+    };
+    this.openDialog({
+      eyebrow: "Current project", title: "Project details",
+      content: `<label class="field"><span>Project name</span><input id="project-details-name" maxlength="160" value="${escapeHtml(this.projectManager.current.name)}" /></label><p class="form-note">Save this project in your browser, download it, or share the map as a link and QR code.</p>`,
+      actions: [
+        { label: "Save locally", primary: true, handler: () => { this.projectManager.save(applyName()); this.dialog.close(); } },
+        { label: "Download project", handler: () => { applyName(); this.#projectDownloadDialog(); } },
+        { label: "Share / QR", handler: () => { applyName(); void this.shareMap().catch(error => this.error(error.message)); } },
+      ],
     });
   }
 
@@ -5930,7 +5958,7 @@ export class UIController {
         const edited = this.mapController.layerMetadata?.(layer)?.dataLastEditDate;
         const dataDate = edited ? new Date(edited).toLocaleDateString(undefined, { year: "numeric", month: "short" }) : "";
         return `<article class="layer-card" data-layer-uid="${escapeHtml(layer.uid)}">
-          <div class="layer-card__head"><label class="layer-toggle"><input type="checkbox" data-layer-visible ${layer.visible ? "checked" : ""} /><span></span></label><div><strong title="${escapeHtml(layer.title)}">${escapeHtml(layer.title)}</strong><small>${escapeHtml(config.sourceType === "geoparquet" ? "GeoParquet" : config.sourceType)}${config.definitionExpression ? " · Filtered" : ""}${config.refreshInterval ? ` · ${config.refreshInterval}m refresh` : ""}${dataDate ? ` · <span title="When the publisher last edited the data">Data ${escapeHtml(dataDate)}</span>` : ""}</small></div><button data-layer-action="remove" title="Remove layer">×</button></div>
+          <div class="layer-card__head"><label class="layer-toggle"><input type="checkbox" data-layer-visible ${layer.visible ? "checked" : ""} /><span></span></label><div><button type="button" class="layer-card__title" data-layer-action="style" title="Style ${escapeHtml(layer.title)}">${escapeHtml(layer.title)}</button><small>${escapeHtml(config.sourceType === "geoparquet" ? "GeoParquet" : config.sourceType)}${config.definitionExpression ? " · Filtered" : ""}${config.refreshInterval ? ` · ${config.refreshInterval}m refresh` : ""}${dataDate ? ` · <span title="When the publisher last edited the data">Data ${escapeHtml(dataDate)}</span>` : ""}</small></div><button data-layer-action="remove" title="Remove layer">×</button></div>
           <div class="layer-scale-note" data-layer-scale-note ${scaleMessage ? "" : "hidden"}><span data-scale-text>${escapeHtml(scaleMessage || "")}</span><button type="button" data-layer-action="ignore-scale" title="Draw this layer at every zoom level">Show anyway</button></div>
           <label class="opacity-row"><span>Opacity</span><input data-layer-opacity type="range" min="0" max="1" step="0.05" value="${layer.opacity}" /><output>${Math.round(layer.opacity * 100)}%</output></label>
           <div class="layer-card__actions layer-card__primary"><button data-layer-action="zoom">Zoom</button><button data-layer-action="table">Table</button><button data-layer-action="style">Style</button></div>
@@ -5972,6 +6000,7 @@ export class UIController {
     });
     card.querySelectorAll("[data-layer-action]").forEach((button) => button.addEventListener("click", async () => {
       const layer = this.mapController.getLayer(uid);
+      if (layer) this.applicationRuntime.state.dispatch("layer:activate", { layerId: uid }, { undoable: false });
       switch (button.dataset.layerAction) {
         case "remove": this.mapController.removeLayer(uid); break;
         case "ignore-scale":
@@ -6417,11 +6446,12 @@ export class UIController {
     const resultHtml = visibleResults.map((result, index) => {
         const layer = this.mapController.getLayer(result.layerUid);
         const fieldsByName = new Map((layer?.fields ?? []).map((field) => [field.name, field]));
-        const entries = Object.entries(result.attributes ?? {}).filter(([, value]) => value !== null && value !== "");
+        const feature = summarizeFeature(result.attributes, { ...layer, title: result.layerTitle });
+        const rows = (entries) => entries.map(([key, value]) => `<div><dt>${escapeHtml(fieldsByName.get(key)?.alias || key)}</dt><dd>${escapeHtml(formatAttributeValue(value, fieldsByName.get(key), key))}</dd></div>`).join("");
         const selection = aiEnabled
           ? `<label class="insight-ai-select"><input type="checkbox" data-ai-selection="${index}" ${index === 0 ? "checked" : ""}> Include in AI</label>`
           : "";
-        return `<article class="insight-panel" id="insight-panel-${index}" role="tabpanel" aria-labelledby="insight-tab-${index}" ${index === 0 ? "" : "hidden"}><header><span><strong>${escapeHtml(result.layerTitle)}</strong><small>${escapeHtml(result.kind)}</small></span>${selection}</header>${result.kind === "feature" && payload.point ? `<div class="insight-note-actions"><button type="button" data-feature-note="${index}">Add field observation</button><button type="button" data-feature-map-note="${index}">Add Map Note</button></div>` : ""}<dl>${entries.map(([key, value]) => `<div><dt>${escapeHtml(key)}</dt><dd>${escapeHtml(formatAttributeValue(value, fieldsByName.get(key), key))}</dd></div>`).join("") || "<div><dd>No attributes returned.</dd></div>"}</dl></article>`;
+        return `<article class="insight-panel" id="insight-panel-${index}" role="tabpanel" aria-labelledby="insight-tab-${index}" ${index === 0 ? "" : "hidden"}><header><span><strong>${escapeHtml(feature.title)}</strong><small>${escapeHtml(result.layerTitle)}</small></span>${selection}</header>${result.kind === "feature" && payload.point ? `<div class="insight-note-actions"><button type="button" data-feature-note="${index}">+ Field observation</button><button type="button" data-feature-map-note="${index}">+ Map Note</button></div>` : ""}<dl>${rows(feature.summary) || "<div><dd>No attributes returned.</dd></div>"}</dl>${feature.remaining.length ? `<details class="insight-attributes"><summary>View all attributes (${feature.summary.length + feature.remaining.length})</summary><dl>${rows(feature.remaining)}</dl></details>` : ""}</article>`;
       }).join("");
     document.querySelector(".orbital-insight-details")?.remove();
     this.#renderIntelligenceContents();

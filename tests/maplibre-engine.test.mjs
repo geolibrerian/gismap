@@ -333,11 +333,16 @@ test("GeoJSON layers draw, filter, query and identify in the browser", async () 
   let layer;
   try {
     layer = await engine.addService({ url: "https://example.org/data/ballparks.geojson", definitionExpression: "SIZE > 0" });
+    const explicit = await engine.addService({ url: "https://example.org/data/explicit.geojson", opacity: 1 });
+    assert.equal(explicit.opacity, 1, "explicit opacity is preserved");
+    engine.removeLayer(explicit.uid);
     await assert.rejects(engine.addService({ url: "https://example.org/wfs", serviceType: "wfs" }), (error) => error.details?.capability === "layers-ogc");
   } finally {
     globalThis.fetch = realFetch;
   }
   assert.deepEqual([layer.title, layer.type, layer.geometryType, layer.objectIdField, layer.queryable, layer.where], ["ballparks", "geojson", "point", OBJECT_ID_FIELD, true, "SIZE > 0"]);
+  assert.equal(layer.opacity, 0.9, "new layers show the basemap by default");
+  assert.equal(engine.getLayerConfig(layer).opacity, 0.9, "opacity is saved with the layer");
   assert.ok(Object.isFrozen(layer));
   assert.equal(published[0][0], "layer:added");
   assert.equal(published[0][1].layer, layer);

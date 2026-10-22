@@ -501,7 +501,7 @@ export class ArcGISEngine {
     const common = {
       url: wfs?.serviceUrl ?? featureQuery?.layerUrl ?? cleanUrl,
       title: config.title?.trim() || undefined,
-      opacity: Number.isFinite(config.opacity) ? config.opacity : 1,
+      opacity: Number.isFinite(config.opacity) ? config.opacity : 0.9,
       visible: config.visible !== false,
       popupEnabled: false,
     };
@@ -639,7 +639,7 @@ export class ArcGISEngine {
     for (const part of parts) {
       const url = URL.createObjectURL(new Blob([JSON.stringify(part.data)], { type: "application/geo+json" }));
       try {
-        const layer = new this.modules.GeoJSONLayer({ url, title: part.key ? `${file.name} — ${part.key}` : file.name, popupEnabled: false });
+        const layer = new this.modules.GeoJSONLayer({ url, title: part.key ? `${file.name} — ${part.key}` : file.name, opacity: 0.9, popupEnabled: false });
         const added = await this.#addLayer(layer, { sourceType: parsed.extension === "zip" ? "shapefile" : parsed.extension, fileName: file.name, projectPath: projectPath || `data/${file.name}`, collectionKey: part.key, local: true });
         this.localAssets.set(added.uid, file); first ||= added;
       } catch (error) { URL.revokeObjectURL(url); throw error; }
