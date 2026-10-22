@@ -305,7 +305,7 @@ export class UIController {
       walkthrough.type = "button";
       walkthrough.className = "context-workspace__walkthrough";
       walkthrough.textContent = "Walk me through the tools and menus";
-      walkthrough.addEventListener("click", () => startWorkspaceWalkthrough({ mobile: () => this.mobileMedia.matches }));
+      walkthrough.addEventListener("click", () => this.#startWorkspaceWalkthrough());
       host.append(walkthrough);
       if (context.profile?.profileStatus === "sampled") {
         const coverage = document.createElement("p"); coverage.className = "context-workspace__coverage";
@@ -1119,6 +1119,11 @@ export class UIController {
     welcomePanel.hidden = true;
   }
 
+  #startWorkspaceWalkthrough() {
+    this.#dismissWelcome();
+    startWorkspaceWalkthrough({ mobile: () => this.mobileMedia.matches });
+  }
+
   /**
    * The standard left panels (Places, Bookmarks, Draw, Intelligence, Layers) each
    * get a dock button in their header that moves the panel into a right-panel
@@ -1443,7 +1448,7 @@ export class UIController {
           break;
         case "tools-walkthrough":
           if (document.body.classList.contains("mobile-menu-open")) document.querySelector("#mobile-menu-toggle")?.click();
-          startWorkspaceWalkthrough({ mobile: () => this.mobileMedia.matches });
+          this.#startWorkspaceWalkthrough();
           break;
         case "tools-display":
           this.#displaySettingsDialog();

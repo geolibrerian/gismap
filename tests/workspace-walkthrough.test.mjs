@@ -21,4 +21,6 @@ test('walkthrough can be started from suggestions or the Tools menu', async () =
   assert.match(ui, /Walk me through the tools and menus/);
   assert.match(ui, /case "tools-walkthrough"/);
   assert.match(html, /data-action="tools-walkthrough"/);
+  assert.match(ui, /#startWorkspaceWalkthrough\(\)\s*\{\s*this\.#dismissWelcome\(\);\s*startWorkspaceWalkthrough/);
+  assert.equal((ui.match(/this\.#startWorkspaceWalkthrough\(\)/g) || []).length, 2);
 });
