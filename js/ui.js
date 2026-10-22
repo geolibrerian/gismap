@@ -42,6 +42,7 @@ import { saveEngine } from "./engine-preference.js?v=0.52.1";
 import { BASEMAPS } from "./basemap-catalog.js?v=0.53.0-gallery1";
 import { CartographyLab } from "./cartography-lab.js?v=0.55.0-fieldwork1";
 import { CONTEXT_ACTIONS, createSuggestionPreferences, deriveWorkspace, executeContextAction, suggestionKey, summarizeFeature } from "./contextual-workspace.js?v=5";
+import { startWorkspaceWalkthrough } from "./workspace-walkthrough.js?v=1";
 
 const BUILDINGS_3D_KEY = "gismap-online:buildings-3d:v1";
 const DISPLAY_SETTINGS_KEY = "gismap-online:display:v1";
@@ -300,6 +301,12 @@ export class UIController {
         actions.append(more);
       }
       host.append(header, actions);
+      const walkthrough = document.createElement("button");
+      walkthrough.type = "button";
+      walkthrough.className = "context-workspace__walkthrough";
+      walkthrough.textContent = "Walk me through the tools and menus";
+      walkthrough.addEventListener("click", () => startWorkspaceWalkthrough({ mobile: () => this.mobileMedia.matches }));
+      host.append(walkthrough);
       if (context.profile?.profileStatus === "sampled") {
         const coverage = document.createElement("p"); coverage.className = "context-workspace__coverage";
         coverage.textContent = `${context.profile.coverage.sampleSize} local records sampled · not a full analysis`;
@@ -1433,6 +1440,10 @@ export class UIController {
           break;
         case "tools-cartography-lab":
           this.openCartographyLab();
+          break;
+        case "tools-walkthrough":
+          if (document.body.classList.contains("mobile-menu-open")) document.querySelector("#mobile-menu-toggle")?.click();
+          startWorkspaceWalkthrough({ mobile: () => this.mobileMedia.matches });
           break;
         case "tools-display":
           this.#displaySettingsDialog();
