@@ -54,15 +54,18 @@
     <!-- Installed as an app, GIS Map Online opens .gmo, .gmop and .gmoatlas files and shows its icon on them. -->
     <link rel="manifest" href="./manifest.webmanifest" />
     <link rel="apple-touch-icon" href="./assets/icons/apple-touch-icon.png" />
-    <meta name="theme-color" content="#0f2921" />
+    <meta name="theme-color" content="#f5f5ef" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#0b231e" media="(prefers-color-scheme: dark)" />
     <!-- For language models and agents: a Markdown summary, the machine-readable API, and the agent guide. -->
     <link rel="alternate" type="text/plain" href="/llms.txt" title="GIS Map Online for language models" />
     <link rel="describedby" type="text/plain" href="/llms.txt" />
     <link rel="describedby" type="application/json" href="/api/capabilities.json" />
     <link rel="help" href="/guides/ai-agents/" />
     <link rel="preconnect" href="https://js.arcgis.com" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link rel="stylesheet" href="./css/app.css?v=0.55.0-fieldwork1" />
-    <link rel="stylesheet" href="./css/fieldwork.css?v=0.55.0-fieldwork1" />
+    <link rel="stylesheet" href="./css/fieldwork.css?v=0.56.0-fieldwork2" />
     <!-- three.js for point clouds, models and 3D animation; loaded only when a 3D layer is added. -->
     <script type="importmap">{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.min.js", "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/" } }</script>
     <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
@@ -289,8 +292,8 @@
         <section id="welcome-panel" class="welcome-panel" aria-labelledby="welcome-title">
           <button id="welcome-close" class="welcome-panel__close" type="button" aria-label="Dismiss introduction">×</button>
           <div class="welcome-brand"><img src="./assets/gis-map-online-mark-v2.png" alt="" /><strong>GIS MAP <span>ONLINE</span></strong></div>
-          <span class="eyebrow">Free, open-source browser GIS</span>
-          <h1 id="welcome-title">A world of possibilities.</h1>
+          <span class="eyebrow">Open source · No install</span>
+          <h1 id="welcome-title">Free browser-based GIS maps</h1>
           <p>GISMap.online is a free, open-source, browser-based GIS workspace. Explore places, style your data, and share your map.</p>
           <div class="welcome-panel__actions">
             <button type="button" data-action="data-arcgis">Add ArcGIS REST service</button>

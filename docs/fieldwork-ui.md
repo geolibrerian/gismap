@@ -25,6 +25,8 @@ This branch implements the Fieldwork brand guide as an update to the existing GI
 
 The interface uses Inter for controls, Newsreader for titles and IBM Plex Mono for coordinates. Controls use 36–40 px heights; icon targets are 40 px. Primary actions use a separate foreground token so Observatory does not place white text on pale green. UI palette changes do not replace explicit data renderers. Motion respects the reduced-motion preference.
 
+The Fieldwork 1.1 block at the end of `css/fieldwork.css` completes the token set: the pine/mist/chalk/copper ramp, `--action-primary-hover`/`-pressed`, `--hover-fill`, `--selected-fill`/`--selected-ink`, `--border-strong` (3:1 control boundaries), `--status-*`, `--space-1…6`, `--radius-input/card/sheet` and `--motion-*`. Every former white-on-`--green` control reads `--action-on-primary`, so Observatory keeps 4.5:1 text. View switching (tabs, mobile nav, note modes) uses the selected fill rather than a filled primary button. Metadata is at least 11 px; controls are 13 px. These rules also match before `data-skin` is set, so nothing animates on load.
+
 `js/fieldwork-workspace.js` owns shell composition; it calls existing UI actions and map-controller methods. `js/studio-tabs.js` supplies ARIA relationships, roving focus and arrow/Home/End navigation while keeping form nodes alive.
 
 ## Validation

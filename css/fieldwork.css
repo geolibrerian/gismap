@@ -245,7 +245,6 @@ button:disabled { cursor: not-allowed; opacity: .5; }
 .connection-panel [data-connection-results]:empty { display: none; }
 .connection-panel [data-connection-results] { max-height: 220px; }
 .connection-panel [data-connection-status] { font-size: 12px; }
-:root[data-skin="gismap"][data-theme="dark"] :is(.search-row button, .draw-tools button, .notes-hub__tabs button[aria-pressed="true"], .insight-tabs button[aria-selected="true"]) { color: var(--action-on-primary); }
 body.briefing-presenting :is(.studio-header,.workspace-rail), body.shared-tour-only :is(.studio-header,.workspace-rail) { display: none; }
 body.fieldwork-desktop:is(.briefing-presenting,.shared-tour-only) { padding-top: 0; }
 @media (max-width: 640px), (max-width: 880px) and (orientation: portrait) {
@@ -315,3 +314,176 @@ body.fieldwork-desktop .layer-card__more summary::after { display: none; }
 .notes-hub__actions button.button--primary { color: var(--action-on-primary); background: var(--action-primary); border-color: var(--action-primary); }
 @media (max-width: 420px) { .studio-sources { grid-template-columns: minmax(0,1fr); } .studio-sources button { min-height: 72px; padding: 16px; } }
 :root[data-skin="gismap"] :is(.eyebrow,.menu__label) { color: color-mix(in srgb, var(--focus-ring) 75%, var(--text-primary)); }
+
+/* ------------------------------------------------------------------
+   Fieldwork 1.1: complete token set, state colors and component polish.
+   Components read intent tokens; only this block names palette values.
+   ------------------------------------------------------------------ */
+:root {
+  --pine-950: #0b231e; --pine-900: #103f35; --pine-800: #175a4a; --pine-700: #287564;
+  --pine-500: #69a79a; --pine-200: #c4dad1; --mist-100: #dfeae5; --chalk-50: #f5f5ef;
+  --paper-0: #fffefa; --brand-ink: #142d28; --copper: #c96e28;
+  --space-1: 4px; --space-2: 8px; --space-3: 12px; --space-4: 16px; --space-5: 24px; --space-6: 32px;
+  --radius-input: 8px; --radius-card: 12px; --radius-sheet: 16px;
+  --motion-fast: 140ms; --motion-panel: 200ms; --ease-standard: cubic-bezier(.2, 0, 0, 1);
+  --font-mono: 'IBM Plex Mono', ui-monospace, monospace;
+  --control-font-size: 13px; --meta-font-size: 11px;
+  --action-primary-hover: var(--green-2);
+  --action-primary-pressed: var(--green);
+  --hover-fill: color-mix(in srgb, var(--ink) 6%, transparent);
+  --selected-fill: color-mix(in srgb, var(--green) 14%, var(--surface));
+  --selected-ink: var(--ink);
+  --border-strong: color-mix(in srgb, var(--ink) 28%, var(--line));
+}
+:root:not([data-skin]), :root[data-skin="gismap"] {
+  --action-primary-hover: #175a4a;
+  --action-primary-pressed: #0b231e;
+  --hover-fill: #e8efeb;
+  --selected-fill: #dfeae5;
+  --selected-ink: #103f35;
+  --border-strong: #7a9288;
+  --danger: #a73c2e;
+  --status-danger: #a73c2e; --status-warning: #8a5300; --status-success: #2b6a45; --status-info: #2a5d83;
+  --scrollbar-thumb: #b9cac2; --scrollbar-thumb-hover: #8aa39a;
+  color-scheme: light;
+}
+:root[data-skin="gismap"][data-theme="dark"] {
+  --action-primary-hover: #86bbae;
+  --action-primary-pressed: #a2c9bc;
+  --hover-fill: #174139;
+  --selected-fill: #1d4c42;
+  --selected-ink: #f0f5f0;
+  --border-strong: #5f8f82;
+  --danger: #f2a093;
+  --status-danger: #f2a093; --status-warning: #f0c36a; --status-success: #8fd0a7; --status-info: #9cc6ea;
+  --scrollbar-thumb: #31564c; --scrollbar-thumb-hover: #4d7a6e;
+  color-scheme: dark;
+}
+:root:is(:not([data-skin]),[data-skin="gismap"]) ::selection { color: var(--text-primary); background: color-mix(in srgb, var(--pine-500) 38%, transparent); }
+:root:is(:not([data-skin]),[data-skin="gismap"]) * { scrollbar-width: thin; scrollbar-color: var(--scrollbar-thumb) transparent; }
+
+/* One focus treatment everywhere: a copper ring that clears the control edge. */
+:root:is(:not([data-skin]),[data-skin="gismap"]) :is(button, a, input, select, textarea, summary, [tabindex]):focus-visible {
+  outline: 2px solid var(--focus-ring); outline-offset: 2px; box-shadow: none;
+}
+:root:is(:not([data-skin]),[data-skin="gismap"]) :is(.field input, .field select, .field textarea, .search-row input):focus-visible { outline-offset: 0; border-color: var(--focus-ring); }
+:root:is(:not([data-skin]),[data-skin="gismap"]) .studio-header .search-row:focus-within { border-color: var(--focus-ring); box-shadow: 0 0 0 3px color-mix(in srgb, var(--focus-ring) 22%, transparent); }
+:root:is(:not([data-skin]),[data-skin="gismap"]) .studio-header .search-row input:focus-visible { outline: 0; }
+
+/* Primary buttons: one token pair in both appearances, so Observatory never
+   puts white text on pale pine. Covers the legacy white-on-green controls. */
+:root:is(:not([data-skin]),[data-skin="gismap"]) :is(
+  .button--primary, .studio-share, .welcome-panel__actions button:first-child, .dialog__actions .button--primary,
+  .workspace-tool__actions button, .feature-service-actions button, .atlas-present-action button,
+  .atlas-actions button:first-child, .atlas-actions [data-atlas-capture], .presentation-empty button,
+  .connection-card__actions button:first-child, .inline-primary, .server-directory-input button,
+  .assistant__actions .button--primary, .assistant__setup button, .map-notes-panel button.button--primary,
+  .notes-hub__actions button.button--primary, .search-row button, .ai-question button, .map-button
+) {
+  color: var(--action-on-primary); background: var(--action-primary); border-color: var(--action-primary); filter: none;
+  transition: background-color var(--motion-fast) var(--ease-standard), border-color var(--motion-fast) var(--ease-standard), color var(--motion-fast) var(--ease-standard);
+}
+:root:is(:not([data-skin]),[data-skin="gismap"]) :is(.button--primary, .studio-share, .welcome-panel__actions button:first-child, .dialog__actions .button--primary, .workspace-tool__actions button, .feature-service-actions button, .atlas-present-action button, .presentation-empty button, .connection-card__actions button:first-child, .inline-primary, .server-directory-input button, .assistant__setup button):not(:disabled):hover {
+  background: var(--action-primary-hover); border-color: var(--action-primary-hover); filter: none;
+}
+:root:is(:not([data-skin]),[data-skin="gismap"]) :is(.button--primary, .studio-share, .welcome-panel__actions button:first-child, .dialog__actions .button--primary, .workspace-tool__actions button, .inline-primary):not(:disabled):active {
+  background: var(--action-primary-pressed); border-color: var(--action-primary-pressed);
+}
+:root:is(:not([data-skin]),[data-skin="gismap"]) :is(.sql-result th, .table-scroll th, .location-card, .location-card *, .assistant__message--user, .style-option__badge, .atlas-chapter > button span, .ollama-setup > code, .toast) { color: var(--action-on-primary); }
+:root:is(:not([data-skin]),[data-skin="gismap"]) :is(.sql-result th, .table-scroll th, .location-card, .assistant__message--user, .style-option__badge, .ollama-setup > code, .toast) { background: var(--action-primary); }
+:root:is(:not([data-skin]),[data-skin="gismap"]) .studio-share { min-height: 36px; padding: 8px 16px; border-radius: var(--radius-input); font-size: var(--control-font-size); }
+:root:is(:not([data-skin]),[data-skin="gismap"]) .button--primary { font-size: var(--control-font-size); }
+
+/* Secondary buttons: quiet surface, one border, a visible hover and press. */
+:root:is(:not([data-skin]),[data-skin="gismap"]) :is(.button--secondary, .button--quiet, .welcome-panel__actions button:not(:first-child), .layer-card__actions button, .studio-sources button, .dialog__actions button:not(.button--primary)) {
+  color: var(--text-primary); background: var(--surface-panel); border: 1px solid var(--border-subtle);
+}
+:root:is(:not([data-skin]),[data-skin="gismap"]) :is(.button--secondary, .button--quiet, .welcome-panel__actions button:not(:first-child), .layer-card__actions button, .dialog__actions button:not(.button--primary)):not(:disabled):hover {
+  background: var(--hover-fill); border-color: var(--border-strong);
+}
+:root:is(:not([data-skin]),[data-skin="gismap"]) :is(.button--secondary, .button--quiet, .welcome-panel__actions button:not(:first-child), .layer-card__actions button, .dialog__actions button:not(.button--primary)):not(:disabled):active { background: var(--selected-fill); }
+:root:is(:not([data-skin]),[data-skin="gismap"]) .studio-sources button:hover { background: var(--hover-fill); border-color: var(--action-primary); }
+
+/* View switching is a selected state, not a filled call to action. */
+:root:is(:not([data-skin]),[data-skin="gismap"]) :is(.notes-hub__tabs button[aria-pressed="true"], .insight-tabs button[aria-selected="true"], .application-bottom-tabs button[aria-selected="true"], .map-note-mode button[aria-pressed="true"], .atlas-place-results button[aria-selected="true"], .utility-tab [data-utility-tab][aria-selected="true"], .mobile-panel-nav button.is-active, .mobile-map-tool-strip button.is-active, .map-note-target-options button[aria-pressed="true"], .cartography-lab__dimension button.is-active) {
+  color: var(--selected-ink); background: var(--selected-fill); border-color: color-mix(in srgb, var(--action-primary) 45%, transparent);
+}
+:root:is(:not([data-skin]),[data-skin="gismap"]) .utility-tab [data-utility-tab][aria-selected="true"] { background: transparent; }
+
+/* Header: 13px controls, quiet hover, clear open state. */
+:root:is(:not([data-skin]),[data-skin="gismap"]) .studio-header .menu__trigger { font-size: var(--control-font-size); color: var(--text-primary); transition: background-color var(--motion-fast) var(--ease-standard); }
+:root:is(:not([data-skin]),[data-skin="gismap"]) .studio-header :is(.menu__trigger:hover, .menu.is-open .menu__trigger) { color: var(--text-primary); background: var(--hover-fill); }
+:root:is(:not([data-skin]),[data-skin="gismap"]) .studio-header .menu.is-open .menu__trigger { background: var(--selected-fill); }
+:root:is(:not([data-skin]),[data-skin="gismap"]) .studio-header .menu__content { border: 1px solid var(--border-subtle); background: var(--surface-panel); box-shadow: var(--shadow); }
+:root:is(:not([data-skin]),[data-skin="gismap"]) .studio-header .search-row { transition: border-color var(--motion-fast) var(--ease-standard), box-shadow var(--motion-fast) var(--ease-standard); }
+:root:is(:not([data-skin]),[data-skin="gismap"]) .studio-header .search-row input { font-size: var(--control-font-size); }
+:root:is(:not([data-skin]),[data-skin="gismap"]) .studio-header .search-row input::placeholder { color: var(--text-muted); }
+:root:is(:not([data-skin]),[data-skin="gismap"]) .studio-header .search-row button { color: var(--text-muted); background: transparent; border: 0; }
+:root:is(:not([data-skin]),[data-skin="gismap"]) .studio-header .search-row button:hover { color: var(--text-primary); background: var(--hover-fill); }
+:root:is(:not([data-skin]),[data-skin="gismap"]) .studio-header__project { font-size: 12px; }
+:root:is(:not([data-skin]),[data-skin="gismap"]) .studio-theme:hover { color: var(--text-primary); background: var(--hover-fill); }
+
+/* Rail and workspace tabs. */
+:root:is(:not([data-skin]),[data-skin="gismap"]) .workspace-rail button { transition: background-color var(--motion-fast) var(--ease-standard), color var(--motion-fast) var(--ease-standard); }
+:root:is(:not([data-skin]),[data-skin="gismap"]) .workspace-rail button:hover { background: var(--hover-fill); }
+:root:is(:not([data-skin]),[data-skin="gismap"]) .workspace-rail button[aria-pressed="true"] { color: var(--selected-ink); background: var(--selected-fill); }
+:root:is(:not([data-skin]),[data-skin="gismap"]) .workspace-tabs button { font-size: 12px; transition: color var(--motion-fast) var(--ease-standard), border-color var(--motion-fast) var(--ease-standard); }
+:root:is(:not([data-skin]),[data-skin="gismap"]) .workspace-tabs button:hover { color: var(--text-primary); }
+:root:is(:not([data-skin]),[data-skin="gismap"]) .workspace-tabs .workspace-collapse { display: grid; place-items: center; width: 32px; height: 32px; align-self: center; border: 0; border-radius: var(--radius-input); font-size: 20px; }
+:root:is(:not([data-skin]),[data-skin="gismap"]) .workspace-tabs .workspace-collapse:hover { background: var(--hover-fill); }
+
+/* Metadata never drops below 11px. */
+:root:is(:not([data-skin]),[data-skin="gismap"]) :is(.panel > summary small, .layer-card__head small, .workspace-layer-actions > span, .notes-hub__tabs button, .cartography-lab__actions [data-lab-status], .map-note-mode .form-note) { font-size: var(--meta-font-size); }
+:root:is(:not([data-skin]),[data-skin="gismap"]) .panel > summary small { color: var(--text-muted); letter-spacing: .04em; }
+body.fieldwork-desktop #app .sidebar__footer { font-size: var(--meta-font-size); letter-spacing: .04em; color: var(--text-muted); }
+body.fieldwork-desktop .layer-card__head strong { font-size: var(--control-font-size); }
+body.fieldwork-desktop .layer-card__actions button { font-size: 12px; }
+body.fieldwork-desktop #app .sidebar__scroll > .panel > summary { padding: 20px 20px 12px; }
+body.fieldwork-desktop #app .sidebar__scroll > .panel > .panel__body { padding: 4px 20px 24px; }
+:root:is(:not([data-skin]),[data-skin="gismap"]) .panel summary::after { color: var(--text-muted); }
+
+/* Panels, cards, dialogs and sheets share the guide's radii and title scale. */
+:root:is(:not([data-skin]),[data-skin="gismap"]) .dialog__header h2 { font-size: 22px; line-height: 1.2; }
+:root:is(:not([data-skin]),[data-skin="gismap"]) .dialog__shell { border: 1px solid var(--border-subtle); box-shadow: 0 24px 64px rgb(11 35 30 / 22%); }
+:root:is(:not([data-skin]),[data-skin="gismap"]) .welcome-panel { border-radius: var(--radius-card); }
+:root:is(:not([data-skin]),[data-skin="gismap"]) .welcome-panel h1 { color: var(--text-primary); letter-spacing: -.01em; }
+:root:is(:not([data-skin]),[data-skin="gismap"]) .welcome-panel > p { color: var(--text-muted); line-height: 1.55; }
+:root:is(:not([data-skin]),[data-skin="gismap"]) .welcome-panel__actions button { min-height: 36px; padding: 8px 14px; border-radius: var(--radius-input); font-size: var(--control-font-size); font-weight: 600; }
+:root:is(:not([data-skin]),[data-skin="gismap"]) .welcome-panel__resources a { color: var(--text-primary); text-decoration-color: color-mix(in srgb, var(--text-primary) 35%, transparent); text-underline-offset: 3px; }
+:root:is(:not([data-skin]),[data-skin="gismap"]) .welcome-panel__resources a:hover { text-decoration-color: currentColor; }
+:root:is(:not([data-skin]),[data-skin="gismap"]) .welcome-panel__close { width: 36px; height: 36px; border-radius: var(--radius-input); color: var(--text-muted); }
+:root:is(:not([data-skin]),[data-skin="gismap"]) .welcome-panel__close:hover { color: var(--text-primary); background: var(--hover-fill); }
+
+/* Map overlay controls: same size, same surface, a real pressed state. */
+.map-nav button, .map-camera-menu > summary { transition: background-color var(--motion-fast) var(--ease-standard), color var(--motion-fast) var(--ease-standard); }
+:root:is(:not([data-skin]),[data-skin="gismap"]) :is(.map-nav button, .map-camera-menu > summary) { color: var(--text-primary); background: var(--map-overlay); }
+:root:is(:not([data-skin]),[data-skin="gismap"]) :is(.map-nav button, .map-camera-menu > summary):hover { background: var(--surface-raised); }
+:root:is(:not([data-skin]),[data-skin="gismap"]) :is(.map-nav button:active, .map-nav button[aria-pressed="true"], .map-camera-menu[open] > summary) { color: var(--selected-ink); background: var(--selected-fill); }
+:root[data-skin="gismap"][data-theme="dark"] :is(.map-nav button, .map-camera-menu > summary, .map-nav__zoom) { box-shadow: 0 2px 10px rgb(0 0 0 / 35%); }
+:root:is(:not([data-skin]),[data-skin="gismap"]) .map-status { color: var(--text-muted); background: color-mix(in srgb, var(--map-overlay) 92%, transparent); backdrop-filter: blur(8px); font: 11px/1.4 var(--font-mono); font-variant-numeric: tabular-nums; }
+
+/* Status colors are semantic and readable in both appearances. */
+:root:is(:not([data-skin]),[data-skin="gismap"]) :is(.form-error, .field-error, [role="alert"]:not(:empty), .error-text) { color: var(--status-danger); }
+
+/* Phone: one map canvas, a branded top bar and bottom sheets with 16px corners. */
+@media (max-width: 640px), (max-width: 880px) and (orientation: portrait) {
+  :root:is(:not([data-skin]),[data-skin="gismap"]) .mobile-map-brand { height: calc(40px + env(safe-area-inset-top)); gap: 8px; padding-inline: 12px; border-bottom-color: var(--border-subtle); color: var(--text-primary); background: color-mix(in srgb, var(--surface-panel) 94%, transparent); box-shadow: none; }
+  :root:is(:not([data-skin]),[data-skin="gismap"]) .mobile-map-brand span { width: 24px; height: 24px; border-radius: 0; background: url('../assets/gis-map-online-mark-v2.png') center / contain no-repeat; box-shadow: none; }
+  :root:is(:not([data-skin]),[data-skin="gismap"]) .mobile-map-brand strong { font: 700 14px/1 var(--ui-font); letter-spacing: -.02em; }
+  :root:is(:not([data-skin]),[data-skin="gismap"]) .welcome-brand { display: none; }
+  :root:is(:not([data-skin]),[data-skin="gismap"]) .welcome-panel { border-radius: var(--radius-sheet); border: 1px solid var(--border-subtle); background: var(--surface-panel); box-shadow: 0 -8px 32px rgb(11 35 30 / 14%); }
+  :root:is(:not([data-skin]),[data-skin="gismap"]) .welcome-panel h1 { font-size: 26px; line-height: 1.15; }
+  :root:is(:not([data-skin]),[data-skin="gismap"]) .welcome-panel__actions button { min-height: 44px; font-size: 14px; }
+  :root:is(:not([data-skin]),[data-skin="gismap"]) :is(.mobile-panel-nav, .mobile-map-tool-strip) { border-color: var(--border-subtle); background: var(--surface-panel); }
+  :root:is(:not([data-skin]),[data-skin="gismap"]) :is(.mobile-panel-nav button, .mobile-map-tool-strip button) { color: var(--text-muted); transition: background-color var(--motion-fast) var(--ease-standard), color var(--motion-fast) var(--ease-standard); }
+  :root:is(:not([data-skin]),[data-skin="gismap"]) :is(.mobile-panel-nav button, .mobile-map-tool-strip button) small { font-size: 11px; font-weight: 500; }
+  :root:is(:not([data-skin]),[data-skin="gismap"]) :is(.mobile-panel-nav button.is-active, .mobile-map-tool-strip button.is-active) small { font-weight: 600; }
+  :root:is(:not([data-skin]),[data-skin="gismap"]) .mobile-panel-nav button svg, :root:is(:not([data-skin]),[data-skin="gismap"]) .mobile-map-tool-strip button svg { stroke-width: 1.75; }
+}
+:root:is(:not([data-skin]),[data-skin="gismap"]) .toast.toast--error { color: var(--action-on-danger, #fff); background: var(--status-danger); }
+:root[data-skin="gismap"][data-theme="dark"] { --action-on-danger: #2a0f0b; }
+/* Inputs meet the 3:1 boundary guideline; hover and focus stay distinguishable. */
+:root:is(:not([data-skin]),[data-skin="gismap"]) :is(.field input:not([type="checkbox"]):not([type="radio"]):not([type="range"]), .field select, .field textarea, .cartography-lab__save input) { border-color: var(--border-strong); transition: border-color var(--motion-fast) var(--ease-standard), box-shadow var(--motion-fast) var(--ease-standard); }
+:root:is(:not([data-skin]),[data-skin="gismap"]) :is(.field input, .field select, .field textarea):hover:not(:focus) { border-color: var(--text-muted); }
+:root:is(:not([data-skin]),[data-skin="gismap"]) :is(.field input, .field select, .field textarea):focus-visible { box-shadow: 0 0 0 3px color-mix(in srgb, var(--focus-ring) 22%, transparent); }
+:root:is(:not([data-skin]),[data-skin="gismap"]) :is(input[type="checkbox"], input[type="radio"], input[type="range"]) { accent-color: var(--action-primary); }
