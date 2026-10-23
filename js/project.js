@@ -125,6 +125,11 @@ export class ProjectManager {
     return project;
   }
 
+  /** Whether this project is in the browser's project store; once it is, edits persist automatically. */
+  isSaved() {
+    return Boolean(this.#readStore()[this.current.id]);
+  }
+
   persistCurrentIfSaved() {
     const store = this.#readStore();
     if (!store[this.current.id]) return false;

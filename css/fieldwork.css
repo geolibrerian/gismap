@@ -697,3 +697,8 @@ body.fieldwork-desktop.briefing-presenting #app.app-shell .map-workspace { grid-
 .briefing-slides__add .briefing-add-slide { width: 100%; min-height: 44px; font-size: 15px; }
 /* Generic .button--primary rules (via :is with element selectors) outrank a single class; the main action keeps its size. */
 :root button.briefing-add-slide.briefing-add-slide { min-height: 44px; padding: 10px 16px; border-radius: var(--radius-input, 8px); font-size: 15px; font-weight: 600; }
+/* The Slide workspace pane scrolls; nested editors inside it grow instead of becoming
+   scroll containers whose overscroll-behavior: contain swallowed the wheel. */
+.briefing-inspector :is(.briefing-slide-editor, .briefing-inspector__feature, .briefing-inspector__slide, .briefing-template-form) { overflow: visible; overscroll-behavior: auto; max-height: none; }
+/* Saved is a calm state, not a call to action. */
+.briefing-data-dock__actions [data-dock-save].is-saved { color: var(--text-muted, var(--muted)); border-color: var(--border-subtle, var(--line)); }

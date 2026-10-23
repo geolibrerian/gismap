@@ -89,3 +89,17 @@ test("one prominent Add a new slide button opens a type chooser on the new slide
   assert.match(slides, /data-slide-type="\$\{option\.id\}"[^`]*\$\{option\.kind === "planned" \? " disabled" : ""\}/);
   assert.match(slides, /#chooseSlideType\(slideId, typeId\) \{[\s\S]*?convertSlide\(this\.briefing, slideId, type\.template[\s\S]*?removeSlide\(this\.briefing, slideId\)/);
 });
+
+test("the check list follows typing, the Slide workspace scrolls, and the dock offers Save", () => {
+  const css = readFileSync(new URL("../css/fieldwork.css", import.meta.url), "utf8");
+  const project = readFileSync(new URL("../js/project.js", import.meta.url), "utf8");
+  // Debounced saves refresh "things to check" without redrawing the editor.
+  assert.match(slides, /#saveSoon\(change\) \{[\s\S]*?this\.#refreshIssues\(\);/);
+  assert.match(slides, /<div data-slides-issues>\$\{this\.#issuesMarkup\(issues\)\}<\/div>/);
+  // A nested editor with overscroll-behavior: contain swallowed wheel scrolling of the pane.
+  assert.match(css, /\.briefing-inspector :is\(\.briefing-slide-editor[^)]*\) \{ overflow: visible; overscroll-behavior: auto;/);
+  assert.match(project, /isSaved\(\) \{\s*return Boolean\(this\.#readStore\(\)\[this\.current\.id\]\);/);
+  assert.match(ui, /data-dock-save>Save<\/button>/);
+  assert.match(ui, /if \(!this\.projectManager\.isSaved\(\)\) \{ this\.#saveProjectDialog\(\); return; \}/);
+  assert.match(ui, /button\.textContent = saved \? "Saved ✓" : "Save";/);
+});

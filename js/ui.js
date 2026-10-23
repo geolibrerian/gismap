@@ -30,7 +30,7 @@ import { featureLayerUrl, locationUrl } from "./field-task-share.js?v=0.54.0-uni
 import { dockIcon } from "./dock-icons.js?v=0.24.0";
 import { serviceNameFromUrl } from "./service-name.js?v=0.26.0";
 import { decodeQrFromImage, describeGisMapLink, gisMapLinkFrom, openGisMapLink } from "./qr-import.js?v=0.25.2";
-import { BriefingSlides } from "./briefing-slides.js?v=0.59.0-slidetypes2";
+import { BriefingSlides } from "./briefing-slides.js?v=0.59.0-save1";
 import { createSlide, isRoutineField, matchesFilter, normalizeFilter } from "./briefing-document.js?v=0.59.0-slidetypes2";
 import { conditionComplete, conditionLabel, conditionToFilter } from "./briefing-conditions.js?v=0.1.0";
 import { createFilterBuilder } from "./filter-builder.js?v=0.1.0";
@@ -797,6 +797,7 @@ export class UIController {
     ["map-notes:changed", "note-relationships:changed", "mobile:workflow-changed"].forEach(topic =>
       this.events.subscribe(topic, () => { refreshMapNoteWorkflow(this); refreshMapNoteFilters(this); }),
     );
+    ["project:saved", "project:loaded"].forEach((topic) => this.events.subscribe(topic, () => this.#syncBriefingSave()));
     this.events.subscribe("project:loaded", ({ project, missingFiles }) => {
       this.mapNotePoint = null;
       if (this.mapNotesModeActive) { this.mapNotesSessionDraft = null; this.fieldSessionController.session = null; openMapNotesPanel(this); }
@@ -4244,7 +4245,13 @@ export class UIController {
       actions.className = "briefing-data-dock__actions";
       actions.setAttribute("role", "group");
       actions.setAttribute("aria-label", "Briefing presentation actions");
-      actions.innerHTML = '<button type="button" class="briefing-slides__present" data-dock-preview>Preview slides</button><button type="button" data-dock-share title="Share a link, QR code or PDF">Share</button>';
+      actions.innerHTML = '<button type="button" class="briefing-slides__present" data-dock-preview>Preview slides</button><button type="button" data-dock-save>Save</button><button type="button" data-dock-share title="Share a link, QR code or PDF">Share</button>';
+      // Before the first save, slides live only in this tab; afterwards every edit is kept in this browser.
+      actions.querySelector("[data-dock-save]").addEventListener("click", () => {
+        if (!this.projectManager.isSaved()) { this.#saveProjectDialog(); return; }
+        this.projectManager.save();
+        this.toast("Saved in this browser. Slides save automatically as you edit.");
+      });
       actions.querySelector("[data-dock-preview]").addEventListener("click", () => this.briefingSlides.openPlayer());
       actions.querySelector("[data-dock-share]").addEventListener("click", () => this.shareBriefing());
       dock.prepend(actions);
@@ -4501,7 +4508,18 @@ export class UIController {
     };
   }
 
+  /** The dock's Save button says whether the briefing is kept in this browser yet. */
+  #syncBriefingSave() {
+    const button = document.querySelector(".briefing-data-dock__actions [data-dock-save]");
+    if (!button) return;
+    const saved = this.projectManager.isSaved();
+    button.textContent = saved ? "Saved ✓" : "Save";
+    button.classList.toggle("is-saved", saved);
+    button.title = saved ? "Saved in this browser; slides save automatically as you edit" : "Save this project and its slides in this browser";
+  }
+
   #syncBriefingTabs() {
+    this.#syncBriefingSave();
     const slides = this.projectManager.current.presentation?.briefing?.slides?.length || 0;
     const dockActions = document.querySelector(".briefing-data-dock__actions");
     if (dockActions) dockActions.hidden = !slides;

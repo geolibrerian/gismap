@@ -215,7 +215,26 @@ export class BriefingSlides {
   // Typing saves after a pause without redrawing, so the cursor stays put.
   #saveSoon(change) {
     clearTimeout(this.saveTimer);
-    this.saveTimer = setTimeout(() => this.#save(change(this.briefing), { render: false }), 250);
+    this.saveTimer = setTimeout(() => { this.#save(change(this.briefing), { render: false }); this.#refreshIssues(); }, 250);
+  }
+
+  #currentIssues(briefing = this.briefing) {
+    const data = this.api.data();
+    return validateBriefing(briefing, { featureIds: new Set((data.records || []).map((record) => this.#idOf(record)).filter(Boolean)) });
+  }
+
+  #issuesMarkup(issues) {
+    return issues.length ? `<details class="briefing-slides__issues"><summary>${issues.length} thing${issues.length === 1 ? "" : "s"} to check</summary><ul>${issues.map((issue) => `<li class="is-${issue.level}"><button type="button" data-issue-slide="${issue.slideId}">${escapeHtml(issue.message)}</button></li>`).join("")}</ul></details>` : "";
+  }
+
+  /** Typing saves without redrawing; the "things to check" list still follows each edit. */
+  #refreshIssues() {
+    const host = this.container?.querySelector("[data-slides-issues]");
+    if (!host) return;
+    const open = host.querySelector("details")?.open;
+    host.innerHTML = this.#issuesMarkup(this.#currentIssues());
+    const details = host.querySelector("details");
+    if (details && open) details.open = true;
   }
 
   #idOf(record) {
@@ -472,7 +491,7 @@ export class BriefingSlides {
     const withSlides = new Set(briefing.slides.map((slide) => slide.featureId).filter(Boolean));
     const included = data.useAll ? data.visibleRecords.map((record) => this.#idOf(record)) : [...data.selectedIds];
     const includedCount = included.filter((id) => id && !withSlides.has(id)).length;
-    const issues = validateBriefing(briefing, { featureIds: new Set(data.records.map((record) => this.#idOf(record)).filter(Boolean)) });
+    const issues = this.#currentIssues(briefing);
     const list = briefing.slides.map((slide, index) => `<li class="briefing-slide-item${slide.id === this.selectedSlideId ? " is-selected" : ""}${slide.hidden ? " is-hidden" : ""}">
       <button type="button" class="briefing-slide-item__main" data-slide-select="${slide.id}" aria-current="${slide.id === this.selectedSlideId}">
         <span class="briefing-slide-item__number">${index + 1}</span>
@@ -544,7 +563,7 @@ export class BriefingSlides {
         </div>
         <button type="button" class="briefing-slides__included" data-slides-add-included${includedCount ? "" : " disabled"}>${includedCount ? `Add ${includedCount} included feature${includedCount === 1 ? "" : "s"} as slides` : included.length ? "Every included feature has a slide" : "Include features to add them as slides"}</button>
         ${briefing.slides.length ? `<ol class="briefing-slide-list" aria-label="Briefing slides">${list}</ol>` : `<p class="briefing-slides__empty">No slides yet. Start from the map or choose a template above.</p>`}
-        ${issues.length ? `<details class="briefing-slides__issues"><summary>${issues.length} thing${issues.length === 1 ? "" : "s"} to check</summary><ul>${issues.map((issue) => `<li class="is-${issue.level}"><button type="button" data-slide-select="${issue.slideId}">${escapeHtml(issue.message)}</button></li>`).join("")}</ul></details>` : ""}
+        <div data-slides-issues>${this.#issuesMarkup(issues)}</div>
         ${briefing.slides.length ? `<label class="briefing-slides__transition"><span>Between slides</span><select data-slides-transition><option value="pan"${briefing.transition === "cut" ? "" : " selected"}>Pan and zoom</option><option value="cut"${briefing.transition === "cut" ? " selected" : ""}>Cut (jump straight there)</option></select></label>` : ""}
         ${briefing.slides.length ? `<div class="briefing-slides__actions"><button type="button" class="briefing-slides__present" data-slides-preview data-mobile-bar="primary" data-bar-label="Preview slides">Preview slides</button><button type="button" data-slides-share data-mobile-bar data-bar-label="Share" title="Share a link, QR code or PDF">Share</button></div>${this.api.createTour ? `<button type="button" class="briefing-link-button" data-slides-tour>Make a guided tour from these slides →</button>` : ""}` : ""}
       </div>
@@ -745,6 +764,15 @@ export class BriefingSlides {
       if (!slide || slide.blocks.some((block) => block.type === type)) return;
       const block = type === "text" ? { type, markdown: "" } : type === "facts" && slide.template === "feature" ? { type, fields: [] } : type === "links" ? { type, links: [] } : null;
       if (block) this.#save(updateSlide(this.briefing, slideId, { blocks: [...slide.blocks, block] }));
+    });
+    // Issue links live in a host that refreshes while typing, so one delegated listener serves them.
+    on("[data-slides-issues]", "click", (_host, event) => {
+      const button = event.target.closest("[data-issue-slide]");
+      if (!button) return;
+      this.selectedSlideId = button.dataset.issueSlide;
+      this.openTemplate = null;
+      this.render();
+      this.api.openInspector?.();
     });
     on("[data-slide-select]", "click", (button) => {
       this.selectedSlideId = button.dataset.slideSelect;
