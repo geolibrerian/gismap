@@ -609,3 +609,8 @@ body.fieldwork-desktop.briefing-presenting #app.app-shell .map-workspace { grid-
 .briefing-data-dock__camera > .briefing-data-dock__camera-save:hover { background: var(--action-primary-hover, var(--green-2)); }
 .briefing-data-dock__camera > .briefing-data-dock__camera-divider + button { border-top: 0; }
 :root[data-theme="dark"] .briefing-data-dock__camera, :root[data-theme="dark"] .briefing-data-dock__actions { box-shadow: 0 4px 14px rgb(0 0 0 / 40%); }
+/* Save view confirms in place: a brief check replaces the camera icon. */
+.briefing-data-dock__camera > .briefing-data-dock__camera-save.is-saved svg { visibility: hidden; }
+.briefing-data-dock__camera > .briefing-data-dock__camera-save.is-saved::after { content: '✓'; position: absolute; font: 700 16px/1 var(--ui-font); }
+.briefing-data-dock__camera > .briefing-data-dock__camera-save { position: relative; }
+.briefing-camera p { font-variant-numeric: tabular-nums; }

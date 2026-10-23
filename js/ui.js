@@ -30,7 +30,7 @@ import { featureLayerUrl, locationUrl } from "./field-task-share.js?v=0.54.0-uni
 import { dockIcon } from "./dock-icons.js?v=0.24.0";
 import { serviceNameFromUrl } from "./service-name.js?v=0.26.0";
 import { decodeQrFromImage, describeGisMapLink, gisMapLinkFrom, openGisMapLink } from "./qr-import.js?v=0.25.2";
-import { BriefingSlides } from "./briefing-slides.js?v=0.57.0-slides1";
+import { BriefingSlides } from "./briefing-slides.js?v=0.57.0-slides2";
 import { createSlide, isRoutineField, matchesFilter, normalizeFilter } from "./briefing-document.js?v=0.35.0";
 import { conditionComplete, conditionLabel, conditionToFilter } from "./briefing-conditions.js?v=0.1.0";
 import { createFilterBuilder } from "./filter-builder.js?v=0.1.0";
@@ -4241,14 +4241,15 @@ export class UIController {
         `<button type="button" data-map-slide-show aria-label="Show the slide's saved view" title="Show the slide's saved view">${icon('<path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>')}</button>`,
       ].join("");
       camera.querySelectorAll("[data-slide-nav]").forEach((button) => button.addEventListener("click", () => this.mapController.navigate(button.dataset.slideNav).catch((error) => this.error(error.message))));
-      camera.querySelector("[data-map-slide-save]").addEventListener("click", () => {
-        const button = document.querySelector("#utility-briefing-content [data-slide-camera]");
-        if (button) button.click(); else this.toast("Select a slide with a map view first.");
+      // Save and show act on the selected slide directly, whether or not the Slide workspace is open.
+      const save = camera.querySelector("[data-map-slide-save]");
+      save.addEventListener("click", () => {
+        if (!this.briefingSlides.saveCameraToSelected()) return;
+        save.classList.add("is-saved");
+        clearTimeout(save.savedTimer);
+        save.savedTimer = setTimeout(() => save.classList.remove("is-saved"), 1600);
       });
-      camera.querySelector("[data-map-slide-show]").addEventListener("click", () => {
-        const button = document.querySelector("#utility-briefing-content [data-slide-show-map]");
-        if (button) button.click(); else this.toast("This slide does not have a saved map view yet.");
-      });
+      camera.querySelector("[data-map-slide-show]").addEventListener("click", () => this.briefingSlides.showSelectedMap());
       dock.prepend(camera);
     }
     actions.hidden = !this.projectManager.current.presentation?.briefing?.slides?.length;
