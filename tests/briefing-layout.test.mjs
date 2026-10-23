@@ -66,3 +66,15 @@ test("a saved view replaces grid-cell framing, and the policy select works", () 
   assert.match(slides, /on\("\[data-slide-camera-policy\]", "change", \(select\) => \{[\s\S]*?cameraPolicy:select\.value/);
   assert.doesNotMatch(slides, /cameraPolicy:event\.target\.value/);
 });
+
+test("hidden right-panel panes stay hidden; briefings can be closed, discarded and lose a removed layer", () => {
+  const css = readFileSync(new URL("../css/fieldwork.css", import.meta.url), "utf8");
+  assert.match(css, /\.utility-panes > \[data-utility-pane\]\[hidden\] \{ display: none !important; \}/, ".briefing-inspector's grid must not override [hidden]");
+  assert.match(ui, /data-briefing-close[^>]*>Close<\/button><button type="button" data-briefing-discard[^>]*>Discard briefing…/);
+  assert.match(ui, /#discardBriefing\(\) \{[\s\S]*?globalThis\.confirm\([\s\S]*?patchPresentation\(\{ briefing: null \}\)/);
+  assert.match(ui, /#teardownBriefingV2\(\) \{[\s\S]*?#clearBriefingFeatureContext\(\);\s*document\.querySelector\("#utility-briefing-content"\)\?\.replaceChildren\(\);/);
+  // The layer:removed handler runs from initialize(), not the disabled contextual workspace.
+  const initContext = ui.slice(ui.indexOf("#initContextualWorkspace() {"), ui.indexOf("\n  }\n", ui.indexOf("#initContextualWorkspace() {")));
+  assert.doesNotMatch(initContext, /#teardownBriefingV2/);
+  assert.match(ui, /this\.events\.subscribe\("layer:removed", \(\{ uid \} = \{\}\) => \{[\s\S]*?this\.#teardownBriefingV2\(\);\s*this\.#renderPresentationDashboard/);
+});

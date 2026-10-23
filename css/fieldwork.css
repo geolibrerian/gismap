@@ -636,3 +636,13 @@ body.fieldwork-desktop.briefing-presenting #app.app-shell .map-workspace { grid-
   body.briefing-v2 .map-status { bottom: calc(var(--briefing-dock-height, 36vh) + 78px); }
   body.briefing-v2.insights-open[data-insights-position="dock-bottom"] .map-status { bottom: calc(var(--insights-dock-height, 360px) + var(--briefing-dock-height, 36vh) + 78px); }
 }
+
+/* A hidden right-panel pane stays hidden whatever display its own class sets
+   (.briefing-inspector is a grid), so only the active tab's content shows. */
+.utility-panes > [data-utility-pane][hidden] { display: none !important; }
+/* Briefing header: leave or delete the briefing. */
+.briefing-header-actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 6px 0 10px; }
+.briefing-header-actions button { min-height: 32px; padding: 4px 12px; border: 1px solid var(--border-subtle, var(--line)); border-radius: var(--radius-input, 8px); color: var(--text-primary, var(--ink)); background: var(--surface-panel, var(--surface)); font: 600 12px/1.2 var(--ui-font); cursor: pointer; }
+.briefing-header-actions button:hover { background: var(--hover-fill, var(--surface-2)); }
+.briefing-header-actions [data-briefing-discard] { color: var(--status-danger, var(--danger)); border-color: color-mix(in srgb, var(--status-danger, var(--danger)) 35%, transparent); }
+.briefing-header-actions [data-briefing-discard]:hover { background: color-mix(in srgb, var(--status-danger, var(--danger)) 8%, var(--surface-panel, var(--surface))); }

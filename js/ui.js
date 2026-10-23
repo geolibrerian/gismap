@@ -778,6 +778,18 @@ export class UIController {
     ["layer:added", "layer:removed", "layer:changed", "layers:reset"].forEach((topic) =>
       this.events.subscribe(topic, () => this.#renderLayers()),
     );
+    // Removing the layer a briefing (or other mode) was built on drops its feature context, dock and
+    // Slide workspace; the mode then shows "Start with a dataset". The slides stay with the project.
+    this.events.subscribe("layer:removed", ({ uid } = {}) => {
+      const own = Boolean(uid) && (uid === this.presentationState?.layerUid || uid === this.briefingWorkspace?.layer?.uid);
+      if (!own && uid && this.mapController.getLayers().length) return;
+      this.#clearBriefingFeatureContext();
+      if (!own) return;
+      if (this.presentationState?.layerUid === uid) this.presentationState.layerUid = null;
+      this.briefingWorkspace = null;
+      this.#teardownBriefingV2();
+      this.#renderPresentationDashboard(this.projectManager.current.presentation || {});
+    });
     ["notes:changed", "map-notes:changed", "note-relationships:changed"].forEach(topic =>
       this.events.subscribe(topic, () => refreshNoteRelationships(this)),
     );
@@ -4121,7 +4133,7 @@ export class UIController {
     const overview = selected ? Object.entries(selected.attributes || {}).filter(([key, value]) => value != null && value !== "" && key !== idField).slice(0, 5) : [];
     const useAll = state.briefingUseAll === true;
     const section = (key, title, content) => contextSettings.sections[key] ? `<section><h4>${title}</h4>${content}</section>` : "";
-    root.innerHTML = `<section class="mode-dashboard mode-dashboard--briefing presentation-workspace"><header class="presentation-compact-header"><span class="eyebrow">Context briefing</span><h2>${escapeHtml(presentation.title || layer.title || "Feature briefing")}</h2><label class="compact-dataset"><span>Dataset</span><select data-mode-dataset>${this.mapController.getLayers().filter((item) => item.queryable).map((item) => `<option value="${escapeHtml(item.uid)}"${item.uid === layer.uid ? " selected" : ""}>${escapeHtml(item.title || "Untitled layer")}</option>`).join("")}</select></label></header><div class="briefing-search"><label class="field"><span>Search field</span><select data-search-field>${this.#fieldOptions(fields.fields, state.searchField)}</select></label><label class="field"><span>Find a feature</span><input data-mode-search value="${escapeHtml(state.search)}" placeholder="Search ${escapeHtml(fields.fields.find((field) => field.name === state.searchField)?.alias || nameField || "features")}"/></label><button data-mode-clear aria-label="Clear the search" title="Clear the search">×</button></div><div class="mode-records briefing-records">${state.visibleRecords.slice(0, 400).map((record) => `<button class="mode-record${record === selected ? " is-selected" : ""}" data-mode-record-id="${escapeHtml(featureId(record, idField))}"><strong>${escapeHtml(this.#recordLabel(record, fields))}</strong><small>${escapeHtml(featureId(record, idField) || "")}</small></button>`).join("") || "<p class=\"form-note\">No locally available features match.</p>"}</div><aside class="mode-details briefing-context"><button class="context-settings-button" data-briefing-settings aria-label="Context settings" title="Context settings">⚙</button><span class="eyebrow">${selected ? "Feature context" : "Select a feature"}</span>${selected ? `<h3>${escapeHtml(this.#recordLabel(selected, fields))}</h3><div class="detail-actions"><button data-selection-zoom aria-label="Zoom to feature" title="Zoom to feature">⌕</button><button data-selection-clear aria-label="Clear selected feature" title="Clear selected feature">×</button><button type="button" class="detail-actions__slide" data-briefing-add-slide title="Add this feature to the briefing's slides">+ Slide</button><button type="button" class="detail-actions__slide" data-briefing-add-tour title="Add this feature to the guided tour">+ Tour</button><button type="button" class="detail-actions__slide" data-briefing-add-task title="Make a field task at this feature">Task</button></div>${section("overview", "Overview", `<dl>${overview.map(([key,value]) => `<div><dt>${escapeHtml(fields.fields.find((field) => field.name === key)?.alias || key)}</dt><dd>${escapeHtml(formatAttributeValue(value, fields.fields.find((field) => field.name === key), key))}</dd></div>`).join("")}</dl>`)}${section("surroundings", "Surroundings", `<p data-briefing-surroundings>Checking visible contextual datasets…</p>`)}${section("ai", "AI context", `<p data-briefing-ai>${this.aiController.isConfigured() ? "Deterministic context appears first. Generate a concise explanation after reviewing it." : "AI is not configured. Spatial context and source details remain available."}</p>${this.aiController.isConfigured() ? "<button data-briefing-ai-run>Generate sourced context</button>" : ""}`)}${section("sources", "Sources", contextSources.map((source) => `<p>${escapeHtml(source.title || "Dataset")} ${source === layer ? `· retrieved ${escapeHtml(this.#formatExplorerTime(state.fetchedAt))}` : ""}</p>${source.url ? `<a href="${escapeHtml(source.url)}" target="_blank" rel="noopener">Open dataset source ↗</a>` : ""}`).join("") || "<p>No sources selected.</p>")}<details><summary>All attributes</summary><dl>${Object.entries(selected.attributes || {}).map(([key,value]) => `<div><dt>${escapeHtml(key)}</dt><dd>${escapeHtml(value)}</dd></div>`).join("")}</dl></details>` : "<p>Choose a named feature or click it on the map. The right context panel keeps selection, map highlight, and details synchronized.</p>"}</aside></section>`;
+    root.innerHTML = `<section class="mode-dashboard mode-dashboard--briefing presentation-workspace"><header class="presentation-compact-header"><span class="eyebrow">Context briefing</span><h2>${escapeHtml(presentation.title || layer.title || "Feature briefing")}</h2><div class="briefing-header-actions"><button type="button" data-briefing-close title="Leave Briefing mode; the briefing stays with this project">Close</button><button type="button" data-briefing-discard title="Delete this briefing and its slides">Discard briefing…</button></div><label class="compact-dataset"><span>Dataset</span><select data-mode-dataset>${this.mapController.getLayers().filter((item) => item.queryable).map((item) => `<option value="${escapeHtml(item.uid)}"${item.uid === layer.uid ? " selected" : ""}>${escapeHtml(item.title || "Untitled layer")}</option>`).join("")}</select></label></header><div class="briefing-search"><label class="field"><span>Search field</span><select data-search-field>${this.#fieldOptions(fields.fields, state.searchField)}</select></label><label class="field"><span>Find a feature</span><input data-mode-search value="${escapeHtml(state.search)}" placeholder="Search ${escapeHtml(fields.fields.find((field) => field.name === state.searchField)?.alias || nameField || "features")}"/></label><button data-mode-clear aria-label="Clear the search" title="Clear the search">×</button></div><div class="mode-records briefing-records">${state.visibleRecords.slice(0, 400).map((record) => `<button class="mode-record${record === selected ? " is-selected" : ""}" data-mode-record-id="${escapeHtml(featureId(record, idField))}"><strong>${escapeHtml(this.#recordLabel(record, fields))}</strong><small>${escapeHtml(featureId(record, idField) || "")}</small></button>`).join("") || "<p class=\"form-note\">No locally available features match.</p>"}</div><aside class="mode-details briefing-context"><button class="context-settings-button" data-briefing-settings aria-label="Context settings" title="Context settings">⚙</button><span class="eyebrow">${selected ? "Feature context" : "Select a feature"}</span>${selected ? `<h3>${escapeHtml(this.#recordLabel(selected, fields))}</h3><div class="detail-actions"><button data-selection-zoom aria-label="Zoom to feature" title="Zoom to feature">⌕</button><button data-selection-clear aria-label="Clear selected feature" title="Clear selected feature">×</button><button type="button" class="detail-actions__slide" data-briefing-add-slide title="Add this feature to the briefing's slides">+ Slide</button><button type="button" class="detail-actions__slide" data-briefing-add-tour title="Add this feature to the guided tour">+ Tour</button><button type="button" class="detail-actions__slide" data-briefing-add-task title="Make a field task at this feature">Task</button></div>${section("overview", "Overview", `<dl>${overview.map(([key,value]) => `<div><dt>${escapeHtml(fields.fields.find((field) => field.name === key)?.alias || key)}</dt><dd>${escapeHtml(formatAttributeValue(value, fields.fields.find((field) => field.name === key), key))}</dd></div>`).join("")}</dl>`)}${section("surroundings", "Surroundings", `<p data-briefing-surroundings>Checking visible contextual datasets…</p>`)}${section("ai", "AI context", `<p data-briefing-ai>${this.aiController.isConfigured() ? "Deterministic context appears first. Generate a concise explanation after reviewing it." : "AI is not configured. Spatial context and source details remain available."}</p>${this.aiController.isConfigured() ? "<button data-briefing-ai-run>Generate sourced context</button>" : ""}`)}${section("sources", "Sources", contextSources.map((source) => `<p>${escapeHtml(source.title || "Dataset")} ${source === layer ? `· retrieved ${escapeHtml(this.#formatExplorerTime(state.fetchedAt))}` : ""}</p>${source.url ? `<a href="${escapeHtml(source.url)}" target="_blank" rel="noopener">Open dataset source ↗</a>` : ""}`).join("") || "<p>No sources selected.</p>")}<details><summary>All attributes</summary><dl>${Object.entries(selected.attributes || {}).map(([key,value]) => `<div><dt>${escapeHtml(key)}</dt><dd>${escapeHtml(value)}</dd></div>`).join("")}</dl></details>` : "<p>Choose a named feature or click it on the map. The right context panel keeps selection, map highlight, and details synchronized.</p>"}</aside></section>`;
     const records = root.querySelector(".briefing-records");
     if (records) {
       const scope = document.createElement("div");
@@ -4148,6 +4160,8 @@ export class UIController {
       document.body.dataset.briefingContextDock = contextSettings.dock;
     }
     const workspace = root.querySelector(".mode-dashboard--briefing");
+    root.querySelector("[data-briefing-close]")?.addEventListener("click", () => this.#closeBriefing());
+    root.querySelector("[data-briefing-discard]")?.addEventListener("click", () => this.#discardBriefing());
     const tabs = document.createElement("div");
     tabs.className = "briefing-tabs";
     tabs.setAttribute("role", "tablist");
@@ -4273,9 +4287,16 @@ export class UIController {
       const id = featureId(selected, layer.objectIdField);
       if (id !== this.briefingInspectorFeature) { this.briefingInspectorFeature = id; this.#openBriefingInspector(); }
     } else {
-      this.briefingInspectorFeature = null;
-      document.querySelector("#briefing-context-host")?.replaceChildren();
+      this.#clearBriefingFeatureContext();
     }
+  }
+
+  /** Forgets the selected feature's context in the Slide workspace (no selection, layer removed, briefing closed). */
+  #clearBriefingFeatureContext() {
+    this.briefingInspectorFeature = null;
+    document.querySelector("#briefing-context-host")?.replaceChildren();
+    const featureHost = document.querySelector("#utility-briefing-content [data-inspector-feature]");
+    if (featureHost) { featureHost.replaceChildren(); featureHost.hidden = true; }
   }
 
   /** The Data dock's feature table: columns, sorting, inclusion, and group rows that make slides. */
@@ -4425,8 +4446,26 @@ export class UIController {
       this.#applyBriefingDockPadding();
     }
     document.body.classList.remove("briefing-v2");
-    this.briefingInspectorFeature = null;
+    this.#clearBriefingFeatureContext();
+    document.querySelector("#utility-briefing-content")?.replaceChildren();
     if (this.briefingInspectorOpen) { this.briefingInspectorOpen = false; this.#syncUtilityPanel(); }
+  }
+
+  /** Leaves Briefing mode; the briefing stays with the project. */
+  #closeBriefing() {
+    const route = document.querySelector('.desktop-workflows-menu [data-mobile-workflow="map"]');
+    if (route && !this.mobileMedia.matches) route.click(); else this.openMobileWorkflow("map");
+  }
+
+  /** Deletes the project's briefing after confirmation, then returns to the map. */
+  #discardBriefing() {
+    const slides = this.projectManager.current.presentation?.briefing?.slides?.length || 0;
+    if (!globalThis.confirm(slides ? `Discard this briefing and its ${slides} slide${slides === 1 ? "" : "s"}? This cannot be undone.` : "Discard this briefing?")) return;
+    this.briefingSlides.selectedSlideId = null;
+    this.projectManager.patchPresentation({ briefing: null });
+    this.#closeBriefing();
+    this.#teardownBriefingV2();
+    this.toast("Briefing discarded.");
   }
 
   /** What the Slides tab needs from the loaded briefing data. */
