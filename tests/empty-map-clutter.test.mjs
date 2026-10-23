@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
-test('empty map retains layer shortcuts and creative suggestions live over the map', async () => {
+test('the welcome panel and data shortcuts remain available without automatic suggestions after loading data', async () => {
   const [html, ui, css, workspace, appCss] = await Promise.all([
     readFile(new URL('../index.html', import.meta.url), 'utf8'),
     readFile(new URL('../js/ui.js', import.meta.url), 'utf8'),
@@ -14,7 +14,7 @@ test('empty map retains layer shortcuts and creative suggestions live over the m
   assert.ok(welcome);
   assert.doesNotMatch(welcome, /data-action="data-/);
   assert.doesNotMatch(css, /empty-state--layers \.empty-state__actions\s*\{\s*display:\s*none/);
-  assert.match(ui, /querySelector\("#map-status"\)\?\.before\(host\)/);
+  assert.doesNotMatch(ui, /this\.#initContextualWorkspace\(\)/);
   assert.match(appCss, /\.context-workspace\s*\{[^}]*left:50%; top:16px/);
   assert.doesNotMatch(workspace, /\+ Add layer/);
   for (const source of ['data-file', 'data-arcgis', 'data-geojson', 'data-popular']) {

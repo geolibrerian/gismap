@@ -42,7 +42,7 @@ import { saveEngine } from "./engine-preference.js?v=0.52.1";
 import { BASEMAPS } from "./basemap-catalog.js?v=0.53.0-gallery1";
 import { CartographyLab } from "./cartography-lab.js?v=0.55.0-fieldwork1";
 import { CONTEXT_ACTIONS, createSuggestionPreferences, deriveWorkspace, executeContextAction, suggestionKey, summarizeFeature } from "./contextual-workspace.js?v=6";
-import { BRIEFING_WALKTHROUGH_STEPS, startWorkspaceWalkthrough, waitForWalkthroughTarget } from "./workspace-walkthrough.js?v=4";
+import { BRIEFING_WALKTHROUGH_STEPS, startWorkspaceWalkthrough, waitForWalkthroughTarget } from "./workspace-walkthrough.js?v=0.57.0-no-context-popup1";
 import { chooseHurricaneLayer, createHazardsExampleBriefing } from "./example-hazards-briefing.js?v=3";
 
 const BUILDINGS_3D_KEY = "gismap-online:buildings-3d:v1";
@@ -144,7 +144,6 @@ export class UIController {
   }
 
   initialize() {
-    this.#initContextualWorkspace();
     this.panelManager?.register("content:intelligence", document.querySelector("#intelligence-content"), { shell: document.querySelector("#intelligence-panel") });
     this.panelManager?.register("content:draw", document.querySelector(".draw-tools"), { shell: document.querySelector("#draw-panel") });
     this.#initDockablePanels();

@@ -8,7 +8,7 @@ export const WALKTHROUGH_STEPS = [
   { title: 'Notes, tasks and drawing', desktop: '.workspace-tabs', mobile: '.mobile-map-tool-strip', description: 'Use Notes & Tasks for observations and field work, and Draw for map annotations. On smaller screens these tools are in the map toolbar and menu.' },
   { title: 'Map controls', desktop: '#map-navigation-toggle', mobile: '#map-navigation-toggle', description: 'Use the map controls to zoom, reset north, switch to 3D and access camera tools. The chevron expands or hides the controls.' },
   { title: 'Project and sharing', desktop: '.studio-header__project', mobile: '#mobile-menu-toggle', description: 'Open Project to manage project details and save or export your work. Share provides the available map-sharing options.' },
-  { title: 'Make something', desktop: '.context-workspace', mobile: '.context-workspace', description: 'Start Exploring suggests briefings, tours, dashboard skins and data-specific ideas. You can revisit this walkthrough from the Tools menu.' },
+  { title: 'Make something', desktop: '.workspace-rail__welcome, #welcome-panel', mobile: '#mobile-menu-toggle', description: 'Open Welcome from the workspace toolbar to start a briefing, tour or dashboard. You can revisit this walkthrough from the Tools menu.' },
 ];
 
 // The briefing guide loads its example before the hands-on steps.
