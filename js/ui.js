@@ -1,4 +1,4 @@
-import { initializeFieldworkWorkspace } from "./fieldwork-workspace.js?v=0.56.0-context10";
+import { initializeFieldworkWorkspace } from "./fieldwork-workspace.js?v=0.56.0-welcome-rail1";
 import { timelinePdfFrames, expandTimelinePdfSlides, parseTimelineFrameSelection } from "./briefing-timeline-pdf.js?v=0.1.0";
 import { renderNotesHub } from "./notes-hub.js?v=0.55.0-fieldwork1";
 import { refreshMapNoteFilters } from './map-note-filters.js?v=0.4.1';
@@ -1122,8 +1122,21 @@ export class UIController {
     const welcomePanel = document.querySelector("#welcome-panel");
     const wasVisible = !welcomePanel.hidden;
     welcomePanel.dataset.dismissed = "true";
+    delete welcomePanel.dataset.reopened;
     welcomePanel.hidden = true;
-    if (wasVisible) this.events.publish("context:workspace-changed");
+    if (wasVisible) {
+      this.events.publish("welcome:visibility-changed");
+      this.events.publish("context:workspace-changed");
+    }
+  }
+
+  #toggleWelcome() {
+    const panel = document.querySelector("#welcome-panel");
+    if (!panel.hidden) return this.#dismissWelcome();
+    panel.dataset.reopened = "true";
+    panel.hidden = false;
+    this.events.publish("welcome:visibility-changed");
+    this.events.publish("context:workspace-changed");
   }
 
   #startWorkspaceWalkthrough() {
@@ -1347,6 +1360,9 @@ export class UIController {
     this.keepWelcomeForSharedExample = false;
     try {
       switch (action) {
+        case "welcome-toggle":
+          this.#toggleWelcome();
+          break;
         case "project-select":
           this.#selectProjectDialog();
           break;
@@ -5116,7 +5132,7 @@ export class UIController {
       this.presentationState = { template: "standard", records: [], visibleRecords: [], selected: null, selectedIds: new Set(), layerUid: null, search: "", category: "" };
       this.#hideAtlasChapterOverlay();
       this.#syncPresentationMobileControls(presentation);
-      if (welcomePanel) welcomePanel.hidden = welcomePanel.dataset.dismissed === "true";
+      if (welcomePanel) welcomePanel.hidden = welcomePanel.dataset.dismissed === "true" && welcomePanel.dataset.reopened !== "true";
       return;
     }
     // Choosing a workflow means the visitor has engaged; the introduction stays dismissed.
@@ -6096,9 +6112,11 @@ export class UIController {
     }
     const welcomePanel = document.querySelector("#welcome-panel");
     // On a phone the map is the point once data is loaded; keep the intro only on desktop shared-example landings.
-    if (layers.length && (!this.keepWelcomeForSharedExample || this.mobileMedia.matches)) this.#dismissWelcome();
+    if (welcomePanel.dataset.reopened !== "true") {
+      if (layers.length && (!this.keepWelcomeForSharedExample || this.mobileMedia.matches)) this.#dismissWelcome();
+    }
     const applicationPreset = this.applicationRuntime?.snapshot?.().preset || "standard";
-    welcomePanel.hidden = welcomePanel.dataset.dismissed === "true" || applicationPreset !== "standard";
+    welcomePanel.hidden = welcomePanel.dataset.reopened !== "true" && (welcomePanel.dataset.dismissed === "true" || applicationPreset !== "standard");
     const exportable = new Set(this.exportController.listExportableLayers().map((layer) => layer.uid));
     document.querySelector("#layer-count").textContent = `${layers.length} loaded`;
     const container = document.querySelector("#layers-list");

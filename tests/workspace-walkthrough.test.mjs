@@ -84,3 +84,20 @@ test('the welcome panel combines the six getting-started actions', async () => {
   assert.match(ui, /host\.hidden = suppressed \|\| !context\.layer/);
   assert.match(css, /\.welcome-panel \{[^}]*top: 50%; left: 50%/);
 });
+
+test('the workspace rail offers a discoverable welcome toggle after dismissal', async () => {
+  const [ui, workspace, css] = await Promise.all([
+    readFile(new URL('../js/ui.js', import.meta.url), 'utf8'),
+    readFile(new URL('../js/fieldwork-workspace.js', import.meta.url), 'utf8'),
+    readFile(new URL('../css/fieldwork.css', import.meta.url), 'utf8'),
+  ]);
+  assert.match(workspace, /workspace-rail__welcome[^`]*aria-controls="welcome-panel"[^`]*hidden/);
+  assert.match(workspace, /welcomeButton\.hidden = !dismissed/);
+  assert.match(workspace, /welcome:visibility-changed/);
+  assert.match(workspace, /action\('welcome-toggle'\)/);
+  assert.match(workspace, /is-introduced/);
+  assert.match(css, /\.workspace-rail button\[hidden\] \{ display:none/);
+  assert.match(ui, /case "welcome-toggle":[\s\S]*?#toggleWelcome\(\)/);
+  assert.match(ui, /panel\.dataset\.reopened = "true"/);
+  assert.match(ui, /welcomePanel\.dataset\.reopened !== "true"/);
+});

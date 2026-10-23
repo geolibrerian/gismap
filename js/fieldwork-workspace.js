@@ -10,6 +10,7 @@ const paths = {
   briefs: '<rect x="3" y="4" width="18" height="13" rx="2"/><path d="M12 17v4m-4 0h8M7 8h10M7 12h6"/>',
   tours: '<circle cx="6" cy="6" r="3"/><circle cx="18" cy="18" r="3"/><path d="M9 6h6a4 4 0 0 1 0 8H9a4 4 0 0 0-4 4h10"/>',
   ai: '<path d="m12 3 2.5 6.5L21 12l-6.5 2.5L12 21l-2.5-6.5L3 12l6.5-2.5Z"/>',
+  welcome: '<path d="m3 10 9-7 9 7v10H3zM9 20v-6h6v6"/>',
   settings: '<path d="M4 7h16M4 17h16"/><circle cx="8" cy="7" r="3"/><circle cx="16" cy="17" r="3"/>',
   moon: '<path d="M20 14A8 8 0 0 1 10 4a8 8 0 1 0 10 10Z"/>',
   north: '<path d="m12 3 6 17-6-4-6 4Z"/>',
@@ -34,7 +35,7 @@ export function initializeFieldworkWorkspace({ ui, action, showSidebar, theme })
   const rail = document.createElement('nav');
   rail.className = 'workspace-rail';
   rail.setAttribute('aria-label', 'Workspaces');
-  rail.innerHTML = [['explore','Explore'],['layers','Layers'],['notes','Notes & tasks'],['draw','Draw'],['briefs','Briefings'],['tours','Tours'],['ai','Ask GISMap']].map(([id,label]) => `<button type="button" data-workspace="${id}" aria-label="${label}" title="${label}" aria-pressed="false">${workspaceIcon(id)}<span>${label}</span></button>`).join('') + `<button type="button" class="workspace-rail__settings" aria-label="Display settings" title="Display settings">${workspaceIcon('settings')}<span>Settings</span></button>`;
+  rail.innerHTML = [['explore','Explore'],['layers','Layers'],['notes','Notes & tasks'],['draw','Draw'],['briefs','Briefings'],['tours','Tours'],['ai','Ask GISMap']].map(([id,label]) => `<button type="button" data-workspace="${id}" aria-label="${label}" title="${label}" aria-pressed="false">${workspaceIcon(id)}<span>${label}</span></button>`).join('') + `<button type="button" class="workspace-rail__welcome" aria-label="Open welcome panel" title="Open welcome panel" aria-controls="welcome-panel" aria-expanded="false" hidden>${workspaceIcon('welcome')}<span>Welcome · open anytime</span></button><button type="button" class="workspace-rail__settings" aria-label="Display settings" title="Display settings">${workspaceIcon('settings')}<span>Settings</span></button>`;
   const tabs = document.createElement('nav');
   tabs.className = 'workspace-tabs';
   tabs.setAttribute('aria-label', 'Workspace panels');
@@ -61,6 +62,23 @@ export function initializeFieldworkWorkspace({ ui, action, showSidebar, theme })
   header.querySelector('.studio-header__project').addEventListener('click', () => action('project-details'));
   header.querySelector('.studio-theme').addEventListener('click', theme);
   rail.querySelector('.workspace-rail__settings').addEventListener('click', () => action('tools-display'));
+  const welcomeButton = rail.querySelector('.workspace-rail__welcome');
+  let welcomeIntroduced = false;
+  let welcomeCueTimer;
+  const syncWelcome = () => {
+    const panel = document.querySelector('#welcome-panel');
+    const dismissed = panel?.dataset.dismissed === 'true';
+    welcomeButton.hidden = !dismissed;
+    welcomeButton.setAttribute('aria-expanded', String(Boolean(panel && !panel.hidden)));
+    if (dismissed && !welcomeIntroduced) {
+      welcomeIntroduced = true;
+      welcomeButton.classList.add('is-introduced');
+      clearTimeout(welcomeCueTimer);
+      welcomeCueTimer = setTimeout(() => welcomeButton.classList.remove('is-introduced'), 5000);
+    }
+  };
+  welcomeButton.addEventListener('click', () => { welcomeButton.classList.remove('is-introduced'); action('welcome-toggle'); });
+  ui.events.subscribe('welcome:visibility-changed', syncWelcome);
   tabs.querySelector('.workspace-collapse').addEventListener('click', () => showSidebar(false));
   document.body.append(header, rail);
   let storage = null;
@@ -171,6 +189,6 @@ export function initializeFieldworkWorkspace({ ui, action, showSidebar, theme })
   const syncDimension = () => { const is3d = (ui.mapController.getViewState()?.tilt || 0) > 5; dimension.textContent = is3d ? '2D' : '3D'; dimension.title = dimension.ariaLabel = `Switch to ${is3d ? '2D' : '3D'} view`; dimension.setAttribute('aria-pressed', String(is3d)); };
   dimension.addEventListener('click', () => ui.mapController.setView({ tilt: (ui.mapController.getViewState()?.tilt || 0) > 5 ? 0 : 55 }, { animate: !matchMedia('(prefers-reduced-motion: reduce)').matches }).catch(error => ui.error(error.message)));
   ['view:stationary','map:ready'].forEach(event => ui.events.subscribe(event, syncDimension));
-  syncProject(); syncTheme(); sync();
+  syncProject(); syncTheme(); syncWelcome(); sync();
   return { select, syncPanels, layout: () => preferences.snapshot() };
 }

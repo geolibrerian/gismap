@@ -81,11 +81,14 @@ button:disabled { cursor: not-allowed; opacity: .5; }
 .studio-theme:hover { background: var(--surface-raised); }
 .workspace-rail { position: fixed; z-index: 30; top: 56px; bottom: 0; left: 0; width: 52px; display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 12px 5px; border-right: 1px solid var(--border-subtle); background: var(--surface-panel); }
 .workspace-rail button { position: relative; display: grid; place-items: center; flex: 0 0 40px; width: 40px; height: 40px; padding: 0; border: 0; border-radius: 8px; color: var(--text-muted); background: transparent; cursor: pointer; }
+.workspace-rail button[hidden] { display:none; }
 .workspace-rail button[aria-pressed="true"] { color: var(--text-primary); background: var(--surface-raised); }
 .workspace-rail button[aria-pressed="true"]::before { content: ''; position: absolute; left: -5px; width: 3px; height: 22px; background: var(--action-primary); border-radius: 0 3px 3px 0; }
 .workspace-rail button:hover { color: var(--text-primary); background: var(--surface-raised); }
 .workspace-rail button span { display: none; position: absolute; z-index: 50; left: 47px; padding: 8px 12px; border: 1px solid var(--border-subtle); border-radius: 6px; background: var(--surface-panel); color: var(--text-primary); white-space: nowrap; box-shadow: var(--shadow); font-size: 12px; }
 .workspace-rail button:is(:hover,:focus-visible) span { display: block; }
+.workspace-rail .workspace-rail__welcome.is-introduced { color:var(--selected-ink); background:var(--selected-fill); box-shadow:0 0 0 2px var(--action-primary); }
+.workspace-rail .workspace-rail__welcome.is-introduced span { display:block; }
 .workspace-rail .workspace-rail__settings { margin-top: auto; }
 .workspace-tabs { display: flex; align-items: center; flex: 0 0 auto; gap: 12px; padding: 0 16px; height: 48px; border-bottom: 1px solid var(--border-subtle); }
 .workspace-tabs button { align-self: stretch; padding: 0 2px; border: 0; border-bottom: 2px solid transparent; background: transparent; color: var(--text-muted); cursor: pointer; font-size: 11px; font-weight: 500; white-space: nowrap; }
