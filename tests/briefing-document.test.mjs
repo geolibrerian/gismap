@@ -106,3 +106,12 @@ test("the player has a 16:9 desktop stage and swipeable phone cards that never p
   assert.match(player, /Reset slide/);
   assert.match(player, /Tap the map to explore/, "mobile briefing cards use direct map-first guidance");
 });
+
+test("briefing presentation actions float above the data dock", async () => {
+  const ui = await readFile(new URL("../js/ui.js", import.meta.url), "utf8");
+  const css = await readFile(new URL("../css/app.css", import.meta.url), "utf8");
+  assert.match(ui, /dock\.prepend\(actions\)/);
+  assert.match(ui, /list\.append\(\.\.\.\[scope, records\]/);
+  assert.match(css, /\.briefing-data-dock__actions \{[^}]*bottom:calc\(100% \+ 12px\)/);
+  assert.match(css, /\.briefing-data-dock__actions button \{[^}]*min-height:48px/);
+});
