@@ -328,6 +328,13 @@ body.fieldwork-desktop .layer-card__more summary::after { display: none; }
 }
 .studio-sources { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 12px; }
 .studio-sources button { display: grid; gap: 6px; min-height: 96px; padding: 20px; text-align: left; border: 1px solid var(--border-subtle); border-radius: 12px; background: var(--surface-panel); color: var(--text-primary); cursor: pointer; }
+@media (min-width:1100px) {
+  body.fieldwork-desktop.briefing-workspace-left.utility-panel-open #app.app-shell { grid-template-columns:var(--sidebar) min(var(--utility-panel-width, 360px), 38vw) minmax(260px,1fr); }
+  body.fieldwork-desktop.briefing-workspace-left.sidebar-collapsed.utility-panel-open #app.app-shell { grid-template-columns:52px min(var(--utility-panel-width, 360px), 38vw) minmax(260px,1fr); }
+  body.fieldwork-desktop.briefing-workspace-left #app .utility-panel { grid-column:2; }
+  body.fieldwork-desktop.briefing-workspace-left #app .map-workspace { grid-column:3; }
+  body.briefing-workspace-left .utility-resizer { inset:0 -5px 0 auto; }
+}
 .studio-sources button:hover { background: var(--surface-raised); border-color: var(--action-primary); }
 .studio-sources strong { font-size: 13px; }
 .studio-sources span { font-size: 11px; color: var(--text-muted); }

@@ -35,6 +35,7 @@ import { BriefingPlayer, slideHasMap } from "./briefing-player.js?v=0.38.0-timel
 import { expandTimelinePdfSlides } from "./briefing-timeline-pdf.js?v=0.1.0";
 import { briefingFileStem, briefingPdf, markdownToText } from "./briefing-pdf.js?v=0.44.2";
 import { featureId } from "./presentation-query.js?v=0.30.0";
+import { startWorkspaceWalkthrough } from "./workspace-walkthrough.js?v=0.57.0-editor2";
 
 const escapeHtml = (value) => String(value ?? "").replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char]);
 const templateLabel = (id) => SLIDE_TEMPLATES.find((template) => template.id === id)?.label || "Slide";
@@ -595,7 +596,7 @@ export class BriefingSlides {
       return "";
     }).join("");
     const statCount = slide.blocks.filter((block) => block.type === "stat").length;
-    host.innerHTML = `<header class="briefing-slide-editor__header"><span class="eyebrow">${escapeHtml(templateLabel(slide.template))} slide</span><button type="button" class="briefing-link-button" data-slide-preview-one="${slide.id}">Preview</button></header>
+    host.innerHTML = `<header class="briefing-slide-editor__header"><span class="eyebrow">${escapeHtml(templateLabel(slide.template))} slide</span><button type="button" class="briefing-link-button" data-slide-guide>Guide</button><button type="button" class="briefing-link-button" data-slide-preview-one="${slide.id}">Preview</button></header>
       <label class="briefing-field"><span>Title</span><input data-slide-title value="${escapeHtml(slide.title)}" maxlength="160" placeholder="Slide title"></label>
       ${["title", "map-narrative", "key-numbers"].includes(slide.template) ? `<label class="briefing-field"><span>Subtitle</span><input data-slide-subtitle value="${escapeHtml(slide.subtitle)}" maxlength="160"></label>` : ""}
       ${slide.template === "feature" ? `<p class="form-note">${record ? `Feature: <strong>${escapeHtml(data.label(record))}</strong>` : "This slide's feature is not in the loaded data."}</p>` : ""}
@@ -603,6 +604,7 @@ export class BriefingSlides {
       ${slide.dataView && ["timeline", "filter-series"].includes(slide.generatedBy?.template) ? `<label class="briefing-field"><span>Data-driven map view</span><select data-slide-camera-policy><option value="fit-features"${slide.generatedBy.cameraPolicy !== "fixed" ? " selected" : ""}>Frame matching features</option><option value="fixed"${slide.generatedBy.cameraPolicy === "fixed" ? " selected" : ""}>Keep saved map view</option></select><small>Framing uses included loaded features; source results may be incomplete.</small></label>` : ""}
       ${["title", "feature", "map-narrative"].includes(slide.template) ? this.#layersSection(slide, record) : ""}
       ${blocks}
+      <div class="briefing-editor-content-actions" role="group" aria-label="Add slide content"><span>Add content</span>${slide.blocks.some((block) => block.type === "text") ? "" : '<button type="button" data-slide-add-content="text">Narrative</button>'}${slide.template === "feature" && !slide.blocks.some((block) => block.type === "facts") ? '<button type="button" data-slide-add-content="facts">Feature attributes</button>' : ""}${slide.blocks.some((block) => block.type === "links") ? "" : '<button type="button" data-slide-add-content="links">Links</button>'}</div>
       ${slide.timeline?.frames?.length ? `<details class="briefing-field"><summary>Timeline frame details</summary><p class="form-note">Draft descriptions use loaded features; review them. A dwell time overrides playback speed for that frame.</p>${slide.timeline.frames.map((frame,index) => `<div><label class="briefing-field"><span>${escapeHtml(frame.title)} · description</span><textarea rows="2" data-frame-narrative="${index}">${escapeHtml(frame.narrative || "")}</textarea></label><label class="briefing-field"><span>Dwell in milliseconds (optional)</span><input type="number" min="250" max="60000" step="250" data-frame-dwell="${index}" value="${Number.isInteger(frame.dwellMs) ? frame.dwellMs : ""}"></label></div>`).join("")}</details>` : ""}
       ${slide.generatedBy?.template === "timeline" && !slide.timeline ? `<label class="briefing-field"><span>Timeline dwell in milliseconds (optional)</span><input type="number" min="250" max="60000" step="250" data-slide-dwell value="${Number.isInteger(slide.generatedBy.dwellMs) ? slide.generatedBy.dwellMs : ""}"></label>` : ""}
       ${slide.template === "key-numbers" && statCount < 4 ? `<button type="button" class="briefing-link-button" data-stat-add>+ Add a number</button>` : ""}
@@ -612,6 +614,26 @@ export class BriefingSlides {
   #bind(container) {
     const on = (selector, event, handler) => container.querySelectorAll(selector).forEach((element) => element.addEventListener(event, (domEvent) => handler(element, domEvent)));
     const slideId = this.selectedSlideId;
+    on("[data-slide-guide]", "click", () => {
+      const slide = this.briefing.slides.find((item) => item.id === slideId);
+      if (!slide) return;
+      const template = SLIDE_TEMPLATES.find((item) => item.id === slide.template);
+      const describe = (title, selector, description) => ({ title, desktop: selector, mobile: selector, description });
+      const steps = [describe(`${template?.label || "Slide"} slide`, "[data-slide-editor]", template?.description || "Edit this slide in the workspace.")];
+      steps.push(describe("Give it a title", "[data-slide-title]", "Name the slide and add a subtitle when available."));
+      const content = slide.template === "key-numbers" ? "[data-stat-label]" : slide.template === "actions" ? "[data-block-list]" : slide.template === "feature" ? ".briefing-facts" : "[data-block-text]";
+      if (container.querySelector(content)) steps.push(describe("Shape the content", content, slide.template === "key-numbers" ? "Choose each statistic and its source field, then review the loaded-data result." : slide.template === "actions" ? "Add next steps and links for your audience." : slide.template === "feature" ? "Choose the feature attributes to show on this slide." : "Write the narrative your audience will read."));
+      if (container.querySelector(".briefing-camera")) steps.push(describe("Set the map view", ".briefing-camera", "Adjust the map with its navigation and camera tools, then save the current map view for this slide."));
+      steps.push(describe("Preview your slide", "[data-slide-preview-one]", "Preview the slide, then return to the workspace to continue editing."));
+      startWorkspaceWalkthrough({ steps, label: `${template?.label || "Slide"} slide guide`, mobile: () => this.api.compact?.() ?? false });
+    });
+    on("[data-slide-add-content]", "click", (button) => {
+      const slide = this.briefing.slides.find((item) => item.id === slideId);
+      const type = button.dataset.slideAddContent;
+      if (!slide || slide.blocks.some((block) => block.type === type)) return;
+      const block = type === "text" ? { type, markdown: "" } : type === "facts" && slide.template === "feature" ? { type, fields: [] } : type === "links" ? { type, links: [] } : null;
+      if (block) this.#save(updateSlide(this.briefing, slideId, { blocks: [...slide.blocks, block] }));
+    });
     on("[data-slide-select]", "click", (button) => {
       this.selectedSlideId = button.dataset.slideSelect;
       this.openTemplate = null;

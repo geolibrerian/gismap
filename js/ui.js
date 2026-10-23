@@ -30,7 +30,7 @@ import { featureLayerUrl, locationUrl } from "./field-task-share.js?v=0.54.0-uni
 import { dockIcon } from "./dock-icons.js?v=0.24.0";
 import { serviceNameFromUrl } from "./service-name.js?v=0.26.0";
 import { decodeQrFromImage, describeGisMapLink, gisMapLinkFrom, openGisMapLink } from "./qr-import.js?v=0.25.2";
-import { BriefingSlides } from "./briefing-slides.js?v=0.57.0-editor1";
+import { BriefingSlides } from "./briefing-slides.js?v=0.57.0-editor2";
 import { createSlide, isRoutineField, matchesFilter, normalizeFilter } from "./briefing-document.js?v=0.35.0";
 import { conditionComplete, conditionLabel, conditionToFilter } from "./briefing-conditions.js?v=0.1.0";
 import { createFilterBuilder } from "./filter-builder.js?v=0.1.0";
@@ -1051,7 +1051,7 @@ export class UIController {
 
   #syncUtilityPanel(preferredTab = null) {
     const tabs = [
-      ...(this.briefingInspectorOpen ? [{ id: "briefing", label: "Briefing inspector" }] : []),
+      ...(this.briefingInspectorOpen ? [{ id: "briefing", label: "Slide workspace" }] : []),
       ...(this.utilityWorkspaceOpen ? [{ id: "workspace", label: "Workspace" }] : []),
       ...(this.mapNotesModeActive ? [{ id: "notes", label: "Field Notes" }] : []),
       ...(this.dataMapNotesOpen ? [{ id: "data-notes", label: "Map Notes" }] : []),
@@ -1088,6 +1088,7 @@ export class UIController {
     const utilityModalButton = document.querySelector("#utility-open-modal");
     if (utilityModalButton) utilityModalButton.hidden = ["presentation", "tasks", "notes", "data-notes"].includes(this.activeUtilityTab);
     document.body.classList.toggle("utility-panel-open", open);
+    document.body.classList.toggle("briefing-workspace-left", open && this.activeUtilityTab === "briefing" && this.#briefingV2Active());
     document.body.classList.toggle("mobile-measurement-panel-open", this.mobileMedia.matches && open && this.activeUtilityTab === "measurement");
     document.body.classList.toggle("mobile-presentation-panel-open", this.mobileMedia.matches && open && this.activeUtilityTab === "presentation");
     document.querySelector("#utility-panel").setAttribute("aria-hidden", String(!open));
@@ -2490,7 +2491,8 @@ export class UIController {
     this.setUtilityPanelWidth = (size) => setWidth(size === "max" ? window.innerWidth * 0.55 : 280, true);
     handle.addEventListener("keydown", (event) => {
       if (event.key === "Home" || event.key === "End") { event.preventDefault(); this.setUtilityPanelWidth(event.key === "Home" ? "min" : "max"); return; }
-      const delta = ({ ArrowLeft: 20, ArrowRight: -20 })[event.key];
+      const direction = document.body.classList.contains("briefing-workspace-left") && window.innerWidth >= 1100 ? -1 : 1;
+      const delta = ({ ArrowLeft: 20 * direction, ArrowRight: -20 * direction })[event.key];
       if (delta == null) return;
       event.preventDefault();
       setWidth(this.#readDisplaySettings().utilityPanelWidth + delta, true);
@@ -2500,7 +2502,8 @@ export class UIController {
       const startX = event.clientX;
       const startWidth = this.#readDisplaySettings().utilityPanelWidth;
       document.body.classList.add("utility-resizing");
-      const move = (moveEvent) => setWidth(startWidth + startX - moveEvent.clientX);
+      const direction = document.body.classList.contains("briefing-workspace-left") && window.innerWidth >= 1100 ? -1 : 1;
+      const move = (moveEvent) => setWidth(startWidth + direction * (startX - moveEvent.clientX));
       const finish = () => {
         window.removeEventListener("pointermove", move);
         window.removeEventListener("pointerup", finish);
@@ -4177,7 +4180,25 @@ export class UIController {
       actions.querySelector("[data-dock-share]").addEventListener("click", () => this.shareBriefing());
       dock.prepend(actions);
     }
+    let camera = dock.querySelector(".briefing-data-dock__camera");
+    if (!camera) {
+      camera = document.createElement("div");
+      camera.className = "briefing-data-dock__camera";
+      camera.setAttribute("role", "group");
+      camera.setAttribute("aria-label", "Selected slide map view");
+      camera.innerHTML = '<span>Slide map view</span><button type="button" data-map-slide-save>Save view</button><button type="button" data-map-slide-show>Show saved</button><small>Pan, zoom or use the map camera tools, then save.</small>';
+      camera.querySelector("[data-map-slide-save]").addEventListener("click", () => {
+        const button = document.querySelector("#utility-briefing-content [data-slide-camera]");
+        if (button) button.click(); else this.toast("Select a slide with a map view first.");
+      });
+      camera.querySelector("[data-map-slide-show]").addEventListener("click", () => {
+        const button = document.querySelector("#utility-briefing-content [data-slide-show-map]");
+        if (button) button.click(); else this.toast("This slide does not have a saved map view yet.");
+      });
+      dock.prepend(camera);
+    }
     actions.hidden = !this.projectManager.current.presentation?.briefing?.slides?.length;
+    camera.hidden = actions.hidden;
     list.append(...[scope, records].filter(Boolean));
     body.replaceChildren(filters, list);
     dock.querySelector("[data-briefing-dock-status]").textContent = this.#briefingStatus();
@@ -4375,6 +4396,8 @@ export class UIController {
     const slides = this.projectManager.current.presentation?.briefing?.slides?.length || 0;
     const dockActions = document.querySelector(".briefing-data-dock__actions");
     if (dockActions) dockActions.hidden = !slides;
+    const dockCamera = document.querySelector(".briefing-data-dock__camera");
+    if (dockCamera) dockCamera.hidden = !slides;
     const slidesTab = this.briefingTab === "slides";
     document.querySelectorAll("[data-briefing-tab]").forEach((button) => {
       const selected = button.dataset.briefingTab === this.briefingTab;
