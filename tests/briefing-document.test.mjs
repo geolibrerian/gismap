@@ -94,9 +94,12 @@ test("the project keeps the briefing and the Briefing panel has a Slides tab", a
 test("the player has a 16:9 desktop stage and swipeable phone cards that never pan the map", async () => {
   const player = await readFile(new URL("../js/briefing-player.js", import.meta.url), "utf8");
   const css = await readFile(new URL("../css/app.css", import.meta.url), "utf8");
+  const fieldwork = await readFile(new URL("../css/fieldwork.css", import.meta.url), "utf8");
   assert.match(css, /\.briefing-stage__frame \{[^}]*aspect-ratio:16 \/ 9/);
   assert.match(css, /\.briefing-cards__deck \{[^}]*scroll-snap-type:y mandatory/);
   assert.match(css, /body\.briefing-exploring \.briefing-cards__deck/, "exploring hands gestures to the map");
+  assert.match(fieldwork, /body\.fieldwork-desktop\.briefing-presenting #app \.map-workspace\s*\{[^}]*grid-column:\s*1\s*\/\s*-1/, "the live map occupies the single presentation column");
+  assert.match(fieldwork, /body\.briefing-presenting #app #viewDiv\s*\{[^}]*inset:\s*0/, "hidden docks do not leave the map inset");
   assert.match(player, /params\.set\("slide", slideId\)/, "slides are deep-linked by ID");
   assert.match(player, /requestFullscreen/);
   assert.match(player, /setViewPadding\(/, "the camera centres in the visible part of the map");
