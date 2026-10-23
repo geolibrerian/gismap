@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
-import { BRIEFING_WALKTHROUGH_STEPS, WALKTHROUGH_STEPS } from '../js/workspace-walkthrough.js';
+import { BRIEFING_WALKTHROUGH_STEPS, WALKTHROUGH_STEPS, waitForWalkthroughTarget } from '../js/workspace-walkthrough.js';
 
 test('walkthrough has a concise desktop and mobile overview', () => {
   assert.ok(WALKTHROUGH_STEPS.length >= 5 && WALKTHROUGH_STEPS.length <= 10);
@@ -22,6 +22,37 @@ test('briefing guide covers the workflow without requiring a loaded dataset', as
   assert.match(ui, /data-presentation-setup="briefing-guide"/);
   assert.match(ui, /steps: BRIEFING_WALKTHROUGH_STEPS/);
   assert.match(ui, /'Find a dataset'/);
+  assert.match(ui, /beforeStep: async \(index, \{ signal \}\)/);
+  assert.match(ui, /if \(index < 3\) return true/);
+  assert.match(ui, /#openExampleHazardsBriefing\(\{ signal \}\)/);
+  assert.match(ui, /waitForWalkthroughTarget\(this\.mobileMedia\.matches \? step\.mobile : step\.desktop/);
+  assert.match(ui, /index === 3 \? 'features' : 'slides'/);
+  assert.match(BRIEFING_WALKTHROUGH_STEPS[2].description, /Next will load/);
+});
+
+test('walkthrough target waiting resolves on rendering and aborts or times out safely', async () => {
+  const saved = { document: globalThis.document, MutationObserver: globalThis.MutationObserver, getComputedStyle: globalThis.getComputedStyle };
+  let notify;
+  let target = null;
+  let disconnected = 0;
+  try {
+    globalThis.document = { body: {}, querySelectorAll: () => target ? [target] : [] };
+    globalThis.MutationObserver = class { constructor(callback) { notify = callback; } observe() {} disconnect() { disconnected++; } };
+    globalThis.getComputedStyle = () => ({ visibility: 'visible' });
+    const waiting = waitForWalkthroughTarget('.target', { timeout: 100 });
+    target = { getClientRects: () => [1] };
+    notify();
+    assert.equal(await waiting, target);
+    target = null;
+    const controller = new AbortController();
+    const canceled = waitForWalkthroughTarget('.target', { signal: controller.signal, timeout: 100 });
+    controller.abort();
+    await assert.rejects(canceled, /closed/);
+    await assert.rejects(waitForWalkthroughTarget('.target', { timeout: 1 }), /did not become available/);
+    assert.equal(disconnected, 3);
+  } finally {
+    for (const [key, value] of Object.entries(saved)) value === undefined ? delete globalThis[key] : globalThis[key] = value;
+  }
 });
 
 test('walkthrough can be started from suggestions or the Tools menu', async () => {

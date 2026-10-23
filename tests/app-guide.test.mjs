@@ -65,5 +65,5 @@ test("the assistant switches modes and skins, saves, shares and downloads", asyn
   await tools.download({ format: "smart-image" });
   await assert.rejects(tools.download({ format: "docx" }), /Unknown format/);
   assert.deepEqual(calls, [["mode", "briefing"], ["skin", "dark-analytical"], ["save", "Fires"], ["share"], ["download", "smart-image"]]);
-  assert.match(searchGuide("change the skin to midnight")[0].where, /skins/);
+  assert.match(searchGuide("change the skin to midnight")[0].where, /Instant Dashboard/);
 });

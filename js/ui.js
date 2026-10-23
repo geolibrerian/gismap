@@ -10,7 +10,7 @@ import { refreshNoteRelationships } from "./note-relationships-ui.js?v=0.1.0";
 import { googleMapsLinkForChapter } from "./google-maps-link.js?v=0.53.0";
 import { POPULAR_SERVICES } from "./catalog.js?v=0.18.2";
 import { MapAssistantPanel } from "./assistant-panel.js?v=0.54.0-geourl1";
-import { createAssistantTools, summarizeMapState } from "./map-assistant.js?v=0.54.0-geourl1";
+import { createAssistantTools, summarizeMapState } from "./map-assistant.js?v=0.56.0-dashboard1";
 import { ENTERPRISE_CATALOGS, EnterpriseCatalog, normalizeArcGisDirectoryUrl } from "./enterprise-catalog.js?v=0.18.2";
 import { createShareUrl } from "./share.js?v=0.54.0-unified4";
 import { createShareLink, hasDataFilter } from "./map-share.js?v=0.54.0-unified4";
@@ -41,8 +41,8 @@ import { RAMPS, rampColors, compileRenderer } from "./renderer-spec.js?v=0.29.1"
 import { saveEngine } from "./engine-preference.js?v=0.52.1";
 import { BASEMAPS } from "./basemap-catalog.js?v=0.53.0-gallery1";
 import { CartographyLab } from "./cartography-lab.js?v=0.55.0-fieldwork1";
-import { CONTEXT_ACTIONS, createSuggestionPreferences, deriveWorkspace, executeContextAction, suggestionKey, summarizeFeature } from "./contextual-workspace.js?v=5";
-import { BRIEFING_WALKTHROUGH_STEPS, startWorkspaceWalkthrough } from "./workspace-walkthrough.js?v=2";
+import { CONTEXT_ACTIONS, createSuggestionPreferences, deriveWorkspace, executeContextAction, suggestionKey, summarizeFeature } from "./contextual-workspace.js?v=6";
+import { BRIEFING_WALKTHROUGH_STEPS, startWorkspaceWalkthrough, waitForWalkthroughTarget } from "./workspace-walkthrough.js?v=4";
 import { chooseHurricaneLayer, createHazardsExampleBriefing } from "./example-hazards-briefing.js?v=3";
 
 const BUILDINGS_3D_KEY = "gismap-online:buildings-3d:v1";
@@ -352,7 +352,7 @@ export class UIController {
       workflowTrigger.firstChild.textContent = "Modes ";
       workflowTrigger.querySelector("span").textContent = "⌄";
     }
-    workflows?.querySelector('[data-action="map-presentation"]')?.replaceChildren(document.createTextNode("Instant Presentation…"));
+    workflows?.querySelector('[data-action="map-presentation"]')?.replaceChildren(document.createTextNode("Instant Dashboard…"));
     workflows?.querySelector('[data-mobile-workflow="briefing"]')?.replaceChildren(document.createTextNode("Briefing"));
     workflows?.querySelector('[data-mobile-workflow="tours"]')?.replaceChildren(document.createTextNode("Tours"));
     workflows?.querySelector('[data-mobile-workflow="tasks"]')?.replaceChildren(document.createTextNode("Field tasks"));
@@ -2770,10 +2770,10 @@ export class UIController {
     return this.mapController.addService(config);
   }
 
-  async #openExampleHazardsBriefing() {
-    if (this.exampleBriefingLoading) return;
+  async #openExampleHazardsBriefing({ signal } = {}) {
+    if (this.exampleBriefingLoading) return false;
     const project = this.projectManager.current;
-    if (project.presentation?.briefing?.slides?.length && !confirm('Replace the current briefing slides with the example? Your map layers will be kept.')) return;
+    if (project.presentation?.briefing?.slides?.length && !confirm('Replace the current briefing slides with the example? Your map layers will be kept.')) return false;
     const originalBriefing = JSON.stringify(project.presentation?.briefing || null);
     this.exampleBriefingLoading = true;
     this.toast('Loading the hurricane and earthquake example services…');
@@ -2782,6 +2782,7 @@ export class UIController {
       const earthquake = POPULAR_SERVICES.find(service => service.slug === 'usgs-recent-earthquakes-map-service');
       if (!hurricane || !earthquake) throw new Error('The example services are missing from the catalog.');
       const discovered = await this.mapController.discoverFeatureServiceLayers(hurricane.url);
+      if (signal?.aborted) return false;
       const hurricaneSource = chooseHurricaneLayer(discovered);
       if (!hurricaneSource) throw new Error('The Active Hurricanes service did not advertise a feature layer.');
       const earthquakeUrl = `${earthquake.url.replace(/\/+$/, '')}/0`;
@@ -2792,7 +2793,9 @@ export class UIController {
         return layer;
       };
       const hurricaneLayer = await load(hurricaneSource.url, `Active Hurricanes — ${hurricaneSource.name || 'features'}`);
+      if (signal?.aborted) return false;
       const earthquakeLayer = await load(earthquakeUrl, 'Recent Earthquakes (M2.5+)');
+      if (signal?.aborted) return false;
       if (this.projectManager.current !== project) throw new Error('The project changed while the example was loading.');
       if (JSON.stringify(project.presentation?.briefing || null) !== originalBriefing) throw new Error('The briefing changed while the example was loading, so it was not replaced.');
       const earthquakeRef = briefingLayerRef(this.mapController, earthquakeLayer);
@@ -2803,8 +2806,10 @@ export class UIController {
       this.projectManager.setPresentation({ ...current, template: 'briefing', title: 'A changing hazards picture', primaryLayerId: earthquakeLayer.uid, briefing, briefingSelection: { layerId: earthquakeLayer.uid, ids: [], useAll: true } });
       this.events.publish('mobile:workflow-route', { route: 'briefing' });
       this.toast('Example briefing ready. The public feeds can change or be temporarily unavailable.');
+      return true;
     } catch (error) {
       this.error(`Could not open the example briefing: ${error.message}. Any layers already added remain on the map.`);
+      return false;
     } finally {
       this.exampleBriefingLoading = false;
     }
@@ -3603,7 +3608,23 @@ export class UIController {
         if (button.dataset.presentationSetup === 'example-briefing') return this.#openExampleHazardsBriefing();
         if (button.dataset.presentationSetup === 'briefing-guide') {
           this.#dismissWelcome();
-          return startWorkspaceWalkthrough({ mobile: () => this.mobileMedia.matches, steps: BRIEFING_WALKTHROUGH_STEPS, label: 'Briefing creation guide' });
+          let exampleProject = null;
+          return startWorkspaceWalkthrough({ mobile: () => this.mobileMedia.matches, steps: BRIEFING_WALKTHROUGH_STEPS, label: 'Briefing creation guide', beforeStep: async (index, { signal }) => {
+            if (index < 3) return true;
+            if (!exampleProject) {
+              if (!await this.#openExampleHazardsBriefing({ signal })) return false;
+              exampleProject = this.projectManager.current;
+            }
+            if (this.projectManager.current !== exampleProject || this.projectManager.current.presentation?.template !== 'briefing') throw new Error('The briefing workspace changed. Reopen the guide to continue.');
+            if (!this.#briefingV2Active()) {
+              const tab = index === 3 ? 'features' : 'slides';
+              const tabButton = await waitForWalkthroughTarget(`[data-briefing-tab="${tab}"]`, { signal });
+              if (tabButton.getAttribute('aria-selected') !== 'true') tabButton.click();
+            }
+            const step = BRIEFING_WALKTHROUGH_STEPS[index];
+            await waitForWalkthroughTarget(this.mobileMedia.matches ? step.mobile : step.desktop, { signal });
+            return true;
+          } });
         }
         return this.#handleAction(button.dataset.presentationSetup);
       }));
@@ -5306,7 +5327,7 @@ export class UIController {
     this.openDialog({
       eyebrow: "Account feature · coming soon",
       title: "Dashboard Builder",
-      content: `<div class="dashboard-builder-gate"><p>Dashboard Builder is the signed-in authoring workspace for custom panel layouts, data bindings, and reusable applications.</p><p>Choose Briefing or Tours from <strong>Modes</strong>, and use Instant presentations to choose a look.</p><ul><li>Free now: Map tools, Briefing, Tours, and Field Tasks</li><li>With an account: custom dashboards and advanced operational workflows</li></ul></div>`,
+      content: `<div class="dashboard-builder-gate"><p>Dashboard Builder is the signed-in authoring workspace for custom panel layouts, data bindings, and reusable applications.</p><p>Choose Briefing or Tours from <strong>Modes</strong>, and use Instant Dashboard to choose a look.</p><ul><li>Free now: Map tools, Briefing, Tours, and Field Tasks</li><li>With an account: custom dashboards and advanced operational workflows</li></ul></div>`,
       actions: [{ label: "Close", primary: true, handler: () => this.dialog.close() }],
     });
   }
@@ -5320,9 +5341,9 @@ export class UIController {
     if (maplibre) this.mapColorPreview = mapPalettes;
     let applied = false;
     this.openDialog({
-      eyebrow: "Presentation",
-      title: "Instant presentations",
-      content: `<div class="presentation-picker"><p class="form-note">Choose a look for your map and presentation. Your mode, layers, map symbols, and camera stay as they are.</p><fieldset class="skin-picker"><legend>Interface skin</legend>${INTERFACE_SKINS.map(({ id,label,description }) => `<button type="button" class="skin-card skin-card--${id}" data-skin-choice="${id}" aria-pressed="false"><span class="skin-mini"><i></i><b></b><em></em><small></small></span><strong>${label}</strong><small>${description}</small></button>`).join("")}<select id="presentation-skin" hidden>${skinOptionsMarkup(current.skin)}</select></fieldset><fieldset class="skin-customize"><legend>Customize skin colors</legend><p class="form-note">Adjust the interface accents. Colors are saved with this project.</p><div>${["primary", "secondary", "tertiary"].map((name) => `<label><span>${name[0].toUpperCase() + name.slice(1)}</span><input type="color" data-skin-color="${name}" aria-label="${name} color"></label>`).join("")}</div><button type="button" class="button--quiet" data-skin-reset>Reset colors</button></fieldset>${maplibre ? `<fieldset class="skin-customize map-color-customize"><legend>Customize map colors</legend><p class="form-note">Choose which components to override for this skin. These colors apply to the MapLibre Skin basemap, including 3D buildings—not imagery, other basemaps, or your data layers. Colors are saved with this project. Selecting the Skin basemap changes the map immediately, even if you cancel. Check label contrast after changing colors.</p><button type="button" class="button--quiet" data-use-skin-basemap>Use Skin basemap</button><div>${Object.entries(MAP_COLOR_COMPONENTS).map(([key, label]) => `<label><input type="checkbox" data-map-toggle="${key}"><span>${label}</span><input type="color" data-map-color="${key}" aria-label="${label} color"></label>`).join("")}</div><button type="button" class="button--quiet" data-map-reset>Reset map colors</button></fieldset>` : ""}</div>`,
+      eyebrow: "Dashboard",
+      title: "Instant Dashboard",
+      content: `<div class="presentation-picker"><p class="form-note">Choose a look for your map and dashboard. Your mode, layers, map symbols, and camera stay as they are.</p><fieldset class="skin-picker"><legend>Dashboard skin</legend>${INTERFACE_SKINS.map(({ id,label,description }) => `<button type="button" class="skin-card skin-card--${id}" data-skin-choice="${id}" aria-pressed="false"><span class="skin-mini"><i></i><b></b><em></em><small></small></span><strong>${label}</strong><small>${description}</small></button>`).join("")}<select id="presentation-skin" hidden>${skinOptionsMarkup(current.skin)}</select></fieldset><fieldset class="skin-customize"><legend>Customize skin colors</legend><p class="form-note">Adjust the interface accents. Colors are saved with this project.</p><div>${["primary", "secondary", "tertiary"].map((name) => `<label><span>${name[0].toUpperCase() + name.slice(1)}</span><input type="color" data-skin-color="${name}" aria-label="${name} color"></label>`).join("")}</div><button type="button" class="button--quiet" data-skin-reset>Reset colors</button></fieldset>${maplibre ? `<fieldset class="skin-customize map-color-customize"><legend>Customize map colors</legend><p class="form-note">Choose which components to override for this skin. These colors apply to the MapLibre Skin basemap, including 3D buildings—not imagery, other basemaps, or your data layers. Colors are saved with this project. Selecting the Skin basemap changes the map immediately, even if you cancel. Check label contrast after changing colors.</p><button type="button" class="button--quiet" data-use-skin-basemap>Use Skin basemap</button><div>${Object.entries(MAP_COLOR_COMPONENTS).map(([key, label]) => `<label><input type="checkbox" data-map-toggle="${key}"><span>${label}</span><input type="color" data-map-color="${key}" aria-label="${label} color"></label>`).join("")}</div><button type="button" class="button--quiet" data-map-reset>Reset map colors</button></fieldset>` : ""}</div>`,
       actions: [
         { label: "Cancel", handler: () => this.dialog.close() },
         { label: "Apply", primary: true, handler: () => {
@@ -5333,7 +5354,7 @@ export class UIController {
           applyInterfaceSkin(skin, { colors: palettes[skin] });
           this.syncBasemapTheme?.();
           this.dialog.close();
-          this.toast("Interface skin applied.");
+          this.toast("Dashboard skin applied.");
         } },
       ],
     });

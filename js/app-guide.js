@@ -45,8 +45,7 @@ export const APP_GUIDE = Object.freeze([
   { path: "Map → 3D buildings", keywords: "buildings 3d extruded heights city skyline", text: "Shows or hides extruded 3D buildings on MapLibre basemaps (on by default; tilt the map and zoom to a city to see them). They take the skin's colours on the Skin basemap." },
   { path: "Map → Add Bookmarks panel · Add Draw panel", keywords: "bookmarks saved views draw sketch graphics", text: "Adds the Bookmarks or Draw panel to the side panel." },
   // Modes menu
-  { path: "Modes → Instant presentations…", keywords: "presentation present slides instant", text: "Presents a layer as an instant set of slides." },
-  { path: "Modes → Instant presentations… (skins)", keywords: "skin theme look style colours colors interface " + INTERFACE_SKINS.map(({ id, label }) => `${id} ${label}`).join(" ").toLowerCase(), text: `Interface skins change the app's look (on MapLibre the Skin basemap follows it): ${INTERFACE_SKINS.map(({ label, description }) => `${label} (${description})`).join(", ")}.` },
+  { path: "Modes → Instant Dashboard…", keywords: "dashboard presentation skin theme look style colours colors interface " + INTERFACE_SKINS.map(({ id, label }) => `${id} ${label}`).join(" ").toLowerCase(), text: `Dashboard skins change the app's look (on MapLibre the Skin basemap follows it): ${INTERFACE_SKINS.map(({ label, description }) => `${label} (${description})`).join(", ")}.` },
   { path: "Modes → Briefing mode · Tours mode · Field tasks · Standard map", keywords: "briefing tour atlas field task mode workflow", text: "Switches the app between its modes: briefings (slides), guided tours, field tasks, or the standard map." },
   // Tools menu
   { path: "Tools → Map assistant", keywords: "assistant chat ai", text: "Opens this assistant." },

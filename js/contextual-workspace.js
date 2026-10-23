@@ -61,7 +61,7 @@ export function summarizeFeature(attributes = {}, layer = {}) {
 export const CONTEXT_ACTIONS = Object.freeze({
   "create-briefing": { label: "Create a briefing", description: "Open the briefing workspace", category: "create", command: "briefing", mutatesProject: true },
   "create-tour": { label: "Create a tour", description: "Open the guided tour workspace", category: "create", command: "tour", mutatesProject: true },
-  "presentation-skins": { label: "Presentation skins", description: "Choose a look for your map or presentation", category: "create", command: "skins", mutatesProject: false },
+  "presentation-skins": { label: "Dashboard skins", description: "Choose a look for your map or dashboard", category: "create", command: "skins", mutatesProject: false },
   "style-layer": { label: "Style layer", description: "Open this layer in Cartography Lab", category: "style", command: "style", mutatesProject: false },
   "filter-layer": { label: "Filter layer", description: "Choose conditions in Cartography Lab", category: "filter", command: "filter", mutatesProject: false },
   "explore-time": { label: "Explore change over time", description: "Choose a date or year condition in Cartography Lab", category: "filter", command: "time", mutatesProject: false },
