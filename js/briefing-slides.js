@@ -1,18 +1,21 @@
-import { previewGridAtlas, generateGridAtlas, extentToBounds } from "./briefing-grid-atlas.js?v=0.57.0-gridarea2";
-import { createTimelineSourceCache } from "./briefing-timeline-source.js?v=0.2.0";
+import { previewGridAtlas, generateGridAtlas, extentToBounds } from "./briefing-grid-atlas.js?v=0.59.0-slidetypes2";
+import { createTimelineSourceCache } from "./briefing-timeline-source.js?v=0.59.0-slidetypes2";
 // The Slides tab of the Briefing panel: build an ordered set of slides from the
 // briefing's features and data, and preview them over the live map. The slides
 // themselves are plain data (briefing-document.js); this file only draws and edits.
 import {
   MAX_SLIDES,
   SLIDE_TEMPLATES,
+  SLIDE_TYPES,
   STAT_TYPES,
   addSlide,
   computeStat,
+  convertSlide,
   createSlide,
   duplicateSlide,
   formatStat,
   moveSlide,
+  slideTypeOf,
   normalizeBriefing,
   removeSlide,
   safeUrl,
@@ -22,14 +25,14 @@ import {
   isRoutineField,
   DISTANCE_UNITS,
   SPATIAL_RELATIONSHIPS,
-} from "./briefing-document.js?v=0.35.0";
+} from "./briefing-document.js?v=0.59.0-slidetypes2";
 import { compileWhere } from "./engines/maplibre/where.js?v=0.40.0-timeline";
-import { generateTimeline, previewTimeline, isYearField } from "./briefing-timeline.js?v=0.4.0";
-import { isDateField, previewDateTimeline } from "./briefing-timeline-dates.js?v=0.2.1";
-import { generateFilterSeries, seriesWhere } from "./briefing-data-series.js?v=0.5.0";
-import { generateSpatialChartBrief } from "./briefing-spatial-chart.js?v=0.1.1";
-import { previewFilterSeries, formatSeriesTitle } from "./briefing-series-preview.js?v=0.2.0";
-import { briefingLayerRef } from "./briefing-api.js?v=0.57.0-gridarea2";
+import { generateTimeline, previewTimeline, isYearField } from "./briefing-timeline.js?v=0.59.0-slidetypes2";
+import { isDateField, previewDateTimeline } from "./briefing-timeline-dates.js?v=0.59.0-slidetypes2";
+import { generateFilterSeries, seriesWhere } from "./briefing-data-series.js?v=0.59.0-slidetypes2";
+import { generateSpatialChartBrief } from "./briefing-spatial-chart.js?v=0.59.0-slidetypes2";
+import { previewFilterSeries, formatSeriesTitle } from "./briefing-series-preview.js?v=0.59.0-slidetypes2";
+import { briefingLayerRef } from "./briefing-api.js?v=0.59.0-slidetypes2";
 import { renderMarkdown } from "./markdown.js?v=0.18.2";
 import { BriefingPlayer, slideHasMap } from "./briefing-player.js?v=0.38.0-timeline4";
 import { expandTimelinePdfSlides } from "./briefing-timeline-pdf.js?v=0.1.0";
@@ -66,6 +69,8 @@ export class BriefingSlides {
   constructor(api) {
     this.api = api;
     this.selectedSlideId = null;
+    // The slide whose type chooser is open (a newly added slide opens with it).
+    this.typeChooserFor = null;
     this.saveTimer = null;
     this.timelineSourceCache = createTimelineSourceCache();
     this.timelinePreviewEpoch = 0;
@@ -283,6 +288,17 @@ export class BriefingSlides {
     return preview.subsets.length;
   }
 
+  /** "Add a new slide": a Map slide at the current view, opened with its type chooser. */
+  #addNewSlide() {
+    if (this.briefing.slides.length >= MAX_SLIDES) return;
+    this.#addTemplate("map-narrative");
+    this.typeChooserFor = this.selectedSlideId;
+    this.render();
+    this.api.openInspector?.();
+    const chooser = (this.inspector || this.container)?.querySelector("[data-slide-type-grid]");
+    chooser?.scrollIntoView({ block: "nearest" });
+  }
+
   #addTemplate(template) {
     const data = this.api.data();
     const after = this.selectedSlideId;
@@ -304,6 +320,36 @@ export class BriefingSlides {
     if (Array.isArray(bounds) && bounds.length === 4 && bounds.every(Number.isFinite) && bounds[0] >= -180 && bounds[2] <= 180 && bounds[1] >= -90 && bounds[3] <= 90 && bounds[0] < bounds[2] && bounds[1] < bounds[3]) return { kind: "grid", bounds };
     if (slide.dataView && ["timeline", "filter-series"].includes(generated.template)) return { kind: "features" };
     return null;
+  }
+
+  /**
+   * Makes a slide the chosen type. Templates convert it in place; series kinds open
+   * their generator, and a still-blank slide makes way for the slides it creates.
+   */
+  #chooseSlideType(slideId, typeId) {
+    const type = SLIDE_TYPES.find((option) => option.id === typeId);
+    const slides = this.briefing.slides;
+    const slide = slides.find((item) => item.id === slideId);
+    if (!type || !slide || type.kind === "planned") return;
+    this.typeChooserFor = null;
+    if (type.kind === "template") {
+      if (slideTypeOf(slide).id === type.id) { this.render(); return; }
+      this.#save(convertSlide(this.briefing, slideId, type.template, { camera: this.#currentCamera() }));
+      this.api.notify?.(`This is now a ${type.label} slide.`);
+      return;
+    }
+    const blank = !slide.generatedBy && !slide.title.trim() && !slide.blocks.some((block) => String(block.markdown || "").trim() || block.items?.length || block.links?.length);
+    if (blank) {
+      const index = slides.findIndex((item) => item.id === slideId);
+      this.selectedSlideId = slides[index - 1]?.id || slides[index + 1]?.id || null;
+      this.#save(removeSlide(this.briefing, slideId), { render: false });
+    }
+    // The generator forms appear in this order in the "More ways to add slides" panel.
+    this.openTemplate = ["filter-series", "spatial-3d-chart", "timeline", "grid-atlas"].indexOf(type.generator);
+    this.render();
+    this.api.openInspector?.();
+    this.inspector?.querySelector(".briefing-template-form:not([hidden])")?.scrollIntoView({ block: "start" });
+    this.api.notify?.(`Set up the ${type.label} options, then generate the slides.`);
   }
 
   /** Saves the map's current camera to the selected slide; the slide map toolbar and the editor share this. */
@@ -494,8 +540,7 @@ export class BriefingSlides {
           <div data-grid-results role="status" aria-live="polite"></div>
         </details>
         <div class="briefing-slides__add">
-          <label><span>Add a slide</span><select data-slide-template>${SLIDE_TEMPLATES.filter((template) => template.id !== "feature").map((template) => `<option value="${template.id}">${escapeHtml(template.label)}</option>`).join("")}</select></label>
-          <button type="button" data-slide-add>Add</button>
+          <button type="button" class="button--primary briefing-add-slide" data-add-slide${briefing.slides.length >= MAX_SLIDES ? ` disabled title="A briefing holds at most ${MAX_SLIDES} slides."` : ` title="Add a slide after the selected one, then choose what kind of slide it is"`}><span aria-hidden="true">+</span> Add a new slide</button>
         </div>
         <button type="button" class="briefing-slides__included" data-slides-add-included${includedCount ? "" : " disabled"}>${includedCount ? `Add ${includedCount} included feature${includedCount === 1 ? "" : "s"} as slides` : included.length ? "Every included feature has a slide" : "Include features to add them as slides"}</button>
         ${briefing.slides.length ? `<ol class="briefing-slide-list" aria-label="Briefing slides">${list}</ol>` : `<p class="briefing-slides__empty">No slides yet. Start from the map or choose a template above.</p>`}
@@ -530,15 +575,17 @@ export class BriefingSlides {
     const block = document.createElement("details");
     block.className = "briefing-new-slides";
     block.setAttribute("aria-label", "New slides");
-    block.innerHTML = `<summary>+ Add slides</summary><p class="form-note">Choose a blank slide or create slides from the current map and data.</p>
+    block.innerHTML = `<summary>More ways to add slides</summary><p class="form-note">Choose a blank slide or create slides from the current map and data.</p>
       <div class="briefing-new-slides__row" data-new-quick></div>
       <div class="briefing-new-slides__row"><span>Blank</span>${SLIDE_TEMPLATES.filter((template) => template.id !== "feature").map((template) => `<button type="button" data-new-blank="${template.id}" title="${escapeHtml(template.description)}">${escapeHtml(template.label)}</button>`).join("")}</div>
       <div class="briefing-new-slides__row briefing-slides__templates"><span>From data</span>${forms.map((_, index) => `<button type="button" data-template-open="${index}" aria-pressed="${this.openTemplate === index}">${labels[index] || "Template"}</button>`).join("")}</div>`;
     // Feature selection actions belong beside the Data filters on desktop.
     block.querySelector("[data-new-quick]").append(...[container.querySelector(".briefing-slides__auto")].filter(Boolean));
     container.querySelector("[data-slides-add-included]")?.remove();
-    container.querySelector(".briefing-slides__add")?.remove();
     container.querySelector(".briefing-slides__authoring")?.prepend(block);
+    // One obvious way in, above the other options: a new slide opens with its type chooser.
+    const addNew = container.querySelector("[data-add-slide]");
+    if (addNew) block.before(addNew);
     const editor = container.querySelector("[data-slide-editor]");
     const tabs = document.createElement("nav");
     tabs.className = "briefing-editor-tabs";
@@ -649,7 +696,18 @@ export class BriefingSlides {
       return "";
     }).join("");
     const statCount = slide.blocks.filter((block) => block.type === "stat").length;
-    host.innerHTML = `<header class="briefing-slide-editor__header"><span class="eyebrow">${escapeHtml(templateLabel(slide.template))} slide</span><button type="button" class="briefing-link-button" data-slide-guide>Guide</button><button type="button" class="briefing-link-button" data-slide-preview-one="${slide.id}">Preview</button></header>
+    const type = slideTypeOf(slide);
+    const chooserOpen = this.typeChooserFor === slide.id;
+    const tile = (option) => `<button type="button" class="briefing-type__tile${option.kind === "planned" ? " is-planned" : ""}" data-slide-type="${option.id}" aria-pressed="${option.id === type.id}"${option.kind === "planned" ? " disabled" : ""} title="${escapeHtml(option.description)}"><strong>${escapeHtml(option.label)}</strong><small>${escapeHtml(option.kind === "planned" ? "Coming soon" : option.kind === "generator" ? "Series of slides" : option.description)}</small></button>`;
+    const typeSection = `<section class="briefing-type" aria-label="Slide type"><div class="briefing-type__current"><span>Slide type</span><strong>${escapeHtml(type.label)}</strong><button type="button" class="briefing-type__change" data-slide-type-toggle aria-expanded="${chooserOpen}" aria-controls="slide-type-grid">${chooserOpen ? "Done" : "Change type"}</button></div>
+      <div class="briefing-type__grid" id="slide-type-grid" data-slide-type-grid${chooserOpen ? "" : " hidden"}>
+        <p class="form-note">${this.typeChooserFor === slide.id && !slide.title && !slide.blocks.some((block) => block.markdown) ? "What kind of slide is this? Pick one; you can change it later." : "Changing type keeps the title, map view and notes."}</p>
+        <div class="briefing-type__tiles">${SLIDE_TYPES.filter((option) => option.kind !== "planned").map(tile).join("")}</div>
+        <p class="briefing-type__soon">Coming soon</p>
+        <div class="briefing-type__tiles">${SLIDE_TYPES.filter((option) => option.kind === "planned").map(tile).join("")}</div>
+      </div></section>`;
+    host.innerHTML = `<header class="briefing-slide-editor__header"><span class="eyebrow">${escapeHtml(type.label)} slide</span><button type="button" class="briefing-link-button" data-slide-guide>Guide</button><button type="button" class="briefing-link-button" data-slide-preview-one="${slide.id}">Preview</button></header>
+      ${typeSection}
       <label class="briefing-field"><span>Title</span><input data-slide-title value="${escapeHtml(slide.title)}" maxlength="160" placeholder="Slide title"></label>
       ${["title", "map-narrative", "key-numbers"].includes(slide.template) ? `<label class="briefing-field"><span>Subtitle</span><input data-slide-subtitle value="${escapeHtml(slide.subtitle)}" maxlength="160"></label>` : ""}
       ${slide.template === "feature" ? `<p class="form-note">${record ? `Feature: <strong>${escapeHtml(data.label(record))}</strong>` : "This slide's feature is not in the loaded data."}</p>` : ""}
@@ -695,7 +753,7 @@ export class BriefingSlides {
       const slide = this.briefing.slides.find((item) => item.id === this.selectedSlideId);
       if (slide && (slide.camera || slide.fit)) void this.showSlideMap(slide);
     });
-    on("[data-slide-add]", "click", () => this.#addTemplate(container.querySelector("[data-slide-template]").value));
+    on("[data-add-slide]", "click", () => this.#addNewSlide());
     on("[data-slides-add-included]", "click", () => this.addIncluded());
     on("[data-slide-move]", "click", (button) => this.#save(moveSlide(this.briefing, button.dataset.slideId, Number(button.dataset.slideMove))));
     on("[data-slide-duplicate]", "click", (button) => this.#save(duplicateSlide(this.briefing, button.dataset.slideDuplicate)));
@@ -921,6 +979,8 @@ export class BriefingSlides {
       const fields = input.checked ? [...block.fields, input.value] : block.fields.filter((field) => field !== input.value);
       this.#save(updateBlock(this.briefing, slideId, block.id, { fields }));
     });
+    on("[data-slide-type-toggle]", "click", () => { this.typeChooserFor = this.typeChooserFor === slideId ? null : slideId; this.render(); });
+    on("[data-slide-type]", "click", (button) => this.#chooseSlideType(slideId, button.dataset.slideType));
     on("[data-slide-camera]", "click", () => {
       this.selectedSlideId = slideId;
       this.saveCameraToSelected();

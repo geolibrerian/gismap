@@ -78,3 +78,14 @@ test("hidden right-panel panes stay hidden; briefings can be closed, discarded a
   assert.doesNotMatch(initContext, /#teardownBriefingV2/);
   assert.match(ui, /this\.events\.subscribe\("layer:removed", \(\{ uid \} = \{\}\) => \{[\s\S]*?this\.#teardownBriefingV2\(\);\s*this\.#renderPresentationDashboard/);
 });
+
+test("one prominent Add a new slide button opens a type chooser on the new slide", () => {
+  // One shared button for phone and desktop layouts; the old template dropdown is gone.
+  assert.match(slides, /class="button--primary briefing-add-slide" data-add-slide\$\{[\s\S]*?\}><span aria-hidden="true">\+<\/span> Add a new slide<\/button>/);
+  assert.doesNotMatch(slides, /data-slide-template>/);
+  assert.match(slides, /#addNewSlide\(\) \{[\s\S]*?this\.#addTemplate\("map-narrative"\);\s*this\.typeChooserFor = this\.selectedSlideId;/);
+  assert.match(slides, /on\("\[data-add-slide\]", "click", \(\) => this\.#addNewSlide\(\)\);/);
+  assert.match(slides, /<summary>More ways to add slides<\/summary>/);
+  assert.match(slides, /data-slide-type="\$\{option\.id\}"[^`]*\$\{option\.kind === "planned" \? " disabled" : ""\}/);
+  assert.match(slides, /#chooseSlideType\(slideId, typeId\) \{[\s\S]*?convertSlide\(this\.briefing, slideId, type\.template[\s\S]*?removeSlide\(this\.briefing, slideId\)/);
+});

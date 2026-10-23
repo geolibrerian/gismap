@@ -1,10 +1,10 @@
-import { generateFilterSeries } from "./briefing-data-series.js?v=0.5.0";
-import { isDateField } from "./briefing-timeline-dates.js?v=0.2.1";
-import { generateTimeline } from "./briefing-timeline.js?v=0.4.0";
-import { extentToBounds, generateGridAtlas } from "./briefing-grid-atlas.js?v=0.57.0-gridarea2";
-import { generateSpatialChartBrief } from "./briefing-spatial-chart.js?v=0.1.1";
-import core, { normalizeBriefing, updateSlide, validateBriefingDocument } from "./gismap-core.js?v=0.57.0-skins1";
-import { createShareLink } from "./map-share.js?v=0.57.0-skins1";
+import { generateFilterSeries } from "./briefing-data-series.js?v=0.59.0-slidetypes2";
+import { isDateField } from "./briefing-timeline-dates.js?v=0.59.0-slidetypes2";
+import { generateTimeline } from "./briefing-timeline.js?v=0.59.0-slidetypes2";
+import { extentToBounds, generateGridAtlas } from "./briefing-grid-atlas.js?v=0.59.0-slidetypes2";
+import { generateSpatialChartBrief } from "./briefing-spatial-chart.js?v=0.59.0-slidetypes2";
+import core, { normalizeBriefing, updateSlide, validateBriefingDocument } from "./gismap-core.js?v=0.59.0-slidetypes2";
+import { createShareLink } from "./map-share.js?v=0.59.0-slidetypes2";
 import { GisMapError, layerLoadError, toGisMapError } from "./gismap-errors.js?v=0.28.0";
 import { featureLayerUrl } from "./field-task-share.js?v=0.41.0";
 import { brandedQrFile, printPalette } from "./pdf-document.js?v=0.44.2";

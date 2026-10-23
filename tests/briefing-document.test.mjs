@@ -115,3 +115,29 @@ test("briefing presentation actions float above the data dock", async () => {
   assert.match(css, /\.briefing-data-dock__actions \{[^}]*bottom:calc\(100% \+ 12px\)/);
   assert.match(css, /\.briefing-data-dock__actions button \{[^}]*min-height:48px/);
 });
+
+test("slide types: templates convert in place, series kinds generate, planned kinds are announced", async () => {
+  const { SLIDE_TYPES, slideTypeOf, convertSlide, createSlide, normalizeBriefing, addSlide } = await import("../js/briefing-document.js");
+  assert.deepEqual(SLIDE_TYPES.filter((type) => type.kind === "template").map((type) => type.template), ["map-narrative", "title", "key-numbers", "actions"]);
+  assert.deepEqual(SLIDE_TYPES.filter((type) => type.kind === "generator").map((type) => type.generator).sort(), ["filter-series", "grid-atlas", "spatial-3d-chart", "timeline"]);
+  assert.deepEqual(SLIDE_TYPES.filter((type) => type.kind === "planned").map((type) => type.id), ["tour", "media", "animation", "bim", "realtime", "dashboard"]);
+  const camera = { center: [-100, 40], zoom: 5, heading: 0, tilt: 0 };
+  const map = { ...createSlide("map-narrative", { title: "Coast", camera }), notes: "say this" };
+  map.blocks[0].markdown = "Why it matters";
+  map.generatedBy = { template: "grid-atlas", bounds: [0, 0, 1, 1] };
+  let doc = addSlide(normalizeBriefing({}), map);
+  assert.equal(slideTypeOf(doc.slides[0]).id, "grid");
+  doc = convertSlide(doc, map.id, "key-numbers");
+  const numbers = doc.slides[0];
+  assert.equal(numbers.id, map.id);
+  assert.equal(numbers.template, "key-numbers");
+  assert.equal(numbers.title, "Coast");
+  assert.equal(numbers.notes, "say this");
+  assert.deepEqual(numbers.camera, map.camera);
+  assert.equal(numbers.generatedBy, undefined, "a converted slide leaves its generated series");
+  assert.ok(numbers.blocks.some((block) => block.type === "stat"));
+  assert.equal(numbers.blocks.find((block) => block.type === "text").markdown, "Why it matters", "narrative text carries across");
+  assert.equal(slideTypeOf(numbers).id, "numbers");
+  assert.throws(() => convertSlide(doc, map.id, "nope"), /Unknown slide template/);
+  assert.throws(() => convertSlide(doc, "missing", "title"), /Unknown slide/);
+});

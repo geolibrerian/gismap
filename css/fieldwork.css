@@ -670,3 +670,30 @@ body.fieldwork-desktop.briefing-presenting #app.app-shell .map-workspace { grid-
   --action-on-primary: #fff; --status-danger: #d96a59; --status-warning: #f0c36a; --status-success: #8fd0a7; --status-info: #9cc6ea;
 }
 [data-classic-mode][aria-pressed="true"]::after { content: " ✓"; }
+
+/* Briefing: one obvious "Add a new slide", then a type chooser on the slide. */
+.briefing-add-slide { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; min-height: 44px; margin: 0 0 12px; padding: 10px 16px; border: 1px solid var(--action-primary, var(--green)); border-radius: var(--radius-input, 8px); color: var(--action-on-primary, #fff); background: var(--action-primary, var(--green)); font: 600 15px/1.2 var(--ui-font); cursor: pointer; }
+.briefing-add-slide span { font-size: 20px; line-height: 1; }
+.briefing-add-slide:not(:disabled):hover { background: var(--action-primary-hover, var(--green-2)); border-color: var(--action-primary-hover, var(--green-2)); }
+.briefing-add-slide:disabled { opacity: .55; cursor: not-allowed; }
+.briefing-new-slides > summary { color: var(--text-muted, var(--muted)); font-size: 13px; font-weight: 500; }
+.briefing-type { display: grid; gap: 10px; margin: 0 0 14px; padding: 12px; border: 1px solid var(--border-subtle, var(--line)); border-radius: var(--radius-card, 12px); background: var(--surface-panel, var(--surface)); }
+.briefing-type__current { display: flex; align-items: center; gap: 8px; }
+.briefing-type__current > span { color: var(--text-muted, var(--muted)); font-size: 12px; }
+.briefing-type__current > strong { font-size: 14px; }
+.briefing-type__change { margin-left: auto; min-height: 32px; padding: 4px 12px; border: 1px solid var(--border-subtle, var(--line)); border-radius: var(--radius-input, 8px); color: var(--text-primary, var(--ink)); background: transparent; font: 600 12px var(--ui-font); cursor: pointer; }
+.briefing-type__change:hover { background: var(--hover-fill, var(--surface-2)); }
+.briefing-type__grid[hidden] { display: none; }
+.briefing-type__grid .form-note { margin: 0; }
+.briefing-type__tiles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.briefing-type__tile { display: grid; gap: 2px; min-height: 56px; padding: 10px 12px; text-align: left; border: 1px solid var(--border-subtle, var(--line)); border-radius: var(--radius-input, 8px); color: var(--text-primary, var(--ink)); background: var(--surface-panel, var(--surface)); cursor: pointer; }
+.briefing-type__tile strong { font-size: 13px; }
+.briefing-type__tile small { color: var(--text-muted, var(--muted)); font-size: 11px; line-height: 1.35; }
+.briefing-type__tile:not(:disabled):hover { background: var(--hover-fill, var(--surface-2)); border-color: var(--action-primary, var(--green)); }
+.briefing-type__tile[aria-pressed="true"] { border-color: var(--action-primary, var(--green)); background: var(--selected-fill, var(--surface-2)); box-shadow: inset 0 0 0 1px var(--action-primary, var(--green)); }
+.briefing-type__tile.is-planned { border-style: dashed; background: transparent; cursor: default; opacity: .7; }
+.briefing-type__soon { margin: 4px 0 0; color: var(--text-muted, var(--muted)); font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; }
+/* Phone briefing rules size buttons in .briefing-slides__add; keep the main action a full touch target. */
+.briefing-slides__add .briefing-add-slide { width: 100%; min-height: 44px; font-size: 15px; }
+/* Generic .button--primary rules (via :is with element selectors) outrank a single class; the main action keeps its size. */
+:root button.briefing-add-slide.briefing-add-slide { min-height: 44px; padding: 10px 16px; border-radius: var(--radius-input, 8px); font-size: 15px; font-weight: 600; }

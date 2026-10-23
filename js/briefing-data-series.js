@@ -1,8 +1,8 @@
 // Data-driven slides store a small declarative filter, never executable SQL.
-import { MAX_SLIDES, addSlide, createSlide, normalizeBriefing } from './briefing-document.js?v=0.35.0';
-import { previewFilterSeries } from './briefing-series-preview.js?v=0.2.0';
-import { isDateField } from './briefing-timeline-dates.js?v=0.2.1';
-import { isYearField } from './briefing-timeline.js?v=0.4.0';
+import { MAX_SLIDES, addSlide, createSlide, normalizeBriefing } from './briefing-document.js?v=0.59.0-slidetypes2';
+import { previewFilterSeries } from './briefing-series-preview.js?v=0.59.0-slidetypes2';
+import { isDateField } from './briefing-timeline-dates.js?v=0.59.0-slidetypes2';
+import { isYearField } from './briefing-timeline.js?v=0.59.0-slidetypes2';
 
 export function seriesWhere(filter, fields) {
   if (!Array.isArray(fields) || !fields.some(f => f?.name === filter?.field) ||

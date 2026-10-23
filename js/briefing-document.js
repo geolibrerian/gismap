@@ -18,6 +18,36 @@ export const SLIDE_TEMPLATES = Object.freeze([
 ]);
 const TEMPLATE_IDS = new Set(SLIDE_TEMPLATES.map((template) => template.id));
 
+/**
+ * What a slide can be, as the "Add a new slide" chooser offers it. "template"
+ * kinds convert a slide in place; "generator" kinds create a series of slides
+ * from the data; "planned" kinds are announced but not yet available.
+ */
+export const SLIDE_TYPES = Object.freeze([
+  { id: "map", label: "Map", description: "A place on the map, one main layer and related layers", kind: "template", template: "map-narrative" },
+  { id: "title", label: "Title", description: "Opening slide: title, subtitle and date", kind: "template", template: "title" },
+  { id: "numbers", label: "Key numbers", description: "Two to four statistics from the data", kind: "template", template: "key-numbers" },
+  { id: "actions", label: "Next steps", description: "Actions and links to close the briefing", kind: "template", template: "actions" },
+  { id: "grid", label: "Grid", description: "Divide an area into cells, one slide per cell", kind: "generator", generator: "grid-atlas" },
+  { id: "timeline", label: "Timeline", description: "Step through time, one slide per interval", kind: "generator", generator: "timeline" },
+  { id: "chart-3d", label: "3D spatial chart", description: "Extruded 3D chart of grouped values", kind: "generator", generator: "spatial-3d-chart" },
+  { id: "series", label: "One slide per value", description: "A slide for each value of a field", kind: "generator", generator: "filter-series" },
+  { id: "tour", label: "Tour", description: "A guided tour inside the slide", kind: "planned" },
+  { id: "media", label: "Image & text", description: "Images and text, or a slideshow, without a map", kind: "planned" },
+  { id: "animation", label: "Animation", description: "A MapLibre + three.js or three.js animation", kind: "planned" },
+  { id: "bim", label: "BIM / CAD", description: "A 3D building model", kind: "planned" },
+  { id: "realtime", label: "Real-time", description: "Live data that refreshes during the meeting", kind: "planned" },
+  { id: "dashboard", label: "Dashboard", description: "Charts, graphs and maps together", kind: "planned" },
+]);
+
+/** The chooser's type for a slide: generated series first, then its template. */
+export function slideTypeOf(slide) {
+  const generated = SLIDE_TYPES.find((type) => type.generator && type.generator === slide?.generatedBy?.template);
+  if (generated) return generated;
+  if (slide?.template === "feature") return { id: "feature", label: "Feature map", description: "One selected feature with its facts", kind: "template", template: "feature" };
+  return SLIDE_TYPES.find((type) => type.template === slide?.template) || SLIDE_TYPES[0];
+}
+
 export const STAT_TYPES = Object.freeze(["count", "sum", "average", "min", "max"]);
 /** How the map moves between slides: "pan" flies there (the default), "cut" jumps straight there. */
 export const SLIDE_TRANSITIONS = Object.freeze(["pan", "cut"]);
@@ -246,6 +276,24 @@ export function duplicateSlide(briefing, id) {
   copy.title = slide.title ? `${slide.title} (copy)` : "";
   copy.blocks = copy.blocks.map((block) => ({ ...block, id: newId("b") }));
   return addSlide(briefing, copy, id);
+}
+
+/**
+ * Turns a slide into another template in place: it keeps its id, title, map
+ * view, notes and layers, carries its narrative text across, and stops being
+ * part of a generated series.
+ */
+export function convertSlide(briefing, id, template, { camera = null, date = new Date() } = {}) {
+  if (!TEMPLATE_IDS.has(template)) throw new Error(`Unknown slide template: ${template}`);
+  const slide = normalizeBriefing(briefing).slides.find((item) => item.id === id);
+  if (!slide) throw new Error(`Unknown slide: ${id}`);
+  const fresh = createSlide(template, { title: slide.title, subtitle: slide.subtitle, featureId: template === "feature" ? slide.featureId : null, camera: slide.camera || camera, date });
+  const text = slide.blocks.find((block) => block.type === "text")?.markdown;
+  const blocks = fresh.blocks.map((block) => (block.type === "text" && text ? { ...block, markdown: text } : block));
+  const { generatedBy, dataView, spatialChart, ...kept } = slide;
+  return withSlides(briefing, normalizeBriefing(briefing).slides.map((item) => (item.id === id
+    ? { ...kept, template, subtitle: fresh.subtitle, featureId: fresh.featureId, fit: fresh.fit, camera: fresh.camera, blocks }
+    : item)));
 }
 
 export function updateBlock(briefing, slideId, blockId, patch) {
