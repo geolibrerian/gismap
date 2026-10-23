@@ -64,8 +64,8 @@
     <link rel="preconnect" href="https://js.arcgis.com" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link rel="stylesheet" href="./css/app.css?v=0.56.0-context15" />
-    <link rel="stylesheet" href="./css/fieldwork.css?v=0.56.0-context9" />
+    <link rel="stylesheet" href="./css/app.css?v=0.56.0-welcome1" />
+    <link rel="stylesheet" href="./css/fieldwork.css?v=0.56.0-welcome1" />
     <!-- three.js for point clouds, models and 3D animation; loaded only when a 3D layer is added. -->
     <script type="importmap">{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.min.js", "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/" } }</script>
     <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
@@ -292,12 +292,17 @@
         </header>
         <section id="welcome-panel" class="welcome-panel" aria-labelledby="welcome-title">
           <button id="welcome-close" class="welcome-panel__close" type="button" aria-label="Dismiss introduction">×</button>
-          <div class="welcome-brand"><img src="./assets/gis-map-online-mark-v2.png" alt="" /><strong>GIS MAP <span>ONLINE</span></strong></div>
+          <div class="welcome-brand"><img src="./assets/gis-map-online-mark-v2.png" alt="" /><strong id="welcome-title">GIS MAP <span>ONLINE</span></strong></div>
           <span class="eyebrow">Open source · No install</span>
-          <h1 id="welcome-title">Free browser-based GIS maps</h1>
           <p>GISMap.online is a free, open-source, browser-based GIS workspace. Explore places, style your data, and share your map.</p>
-          <p>Choose a data source in the Layers panel or the Data menu to get started.</p>
-          <p class="welcome-panel__resources"><a href="/examples/">Browse public GIS examples</a> · <a href="/guides/">Read GISMap guides</a> · <a href="/ai-arcgis-map-generator/">Create a shareable ArcGIS map with AI</a></p>
+          <div class="welcome-panel__choices" aria-label="Get started">
+            <a href="/examples/">Browse public GIS examples</a>
+            <a href="/guides/">Read GISMap guides</a>
+            <button type="button" data-action="tools-walkthrough">Walk me through the tools and menus</button>
+            <button type="button" data-welcome-workflow="briefing">Create a briefing</button>
+            <button type="button" data-welcome-workflow="tours">Create a tour</button>
+            <button type="button" data-action="map-presentation">Create a dashboard</button>
+          </div>
         </section>
         <aside id="atlas-chapter-overlay" class="atlas-chapter-overlay" hidden aria-live="polite">
           <div class="atlas-chapter-overlay__copy">
@@ -492,6 +497,6 @@
       </ul>
     </section>
     <noscript>GISMap Online is a geospatial application and needs JavaScript. Without it, a map can still be described as a link: see <a href="/llms.txt">/llms.txt</a> and the <a href="/guides/ai-agents/">guide for AI agents</a>.</noscript>
-    <script type="module" src="./js/app.js?v=0.56.0-context16"></script>
+    <script type="module" src="./js/app.js?v=0.56.0-welcome1"></script>
   </body>
 </html>

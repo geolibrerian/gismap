@@ -147,8 +147,7 @@ body.fieldwork-desktop .workspace-pin[aria-pressed="true"] .workspace-pin__head 
   body.fieldwork-desktop .notes-hub__tabs { gap: 4px; }
   body.fieldwork-desktop .notes-hub__tabs button { padding: 8px; font-size: 10px; }
   body.fieldwork-desktop .notes-hub__actions { display: grid; }
-  body.fieldwork-desktop .welcome-panel { width: min(430px, calc(100% - 100px)); padding: 28px; border: 1px solid var(--border-subtle); background: var(--surface-panel); box-shadow: var(--shadow); }
-  body.fieldwork-desktop .welcome-brand { display: none; }
+  body.fieldwork-desktop .welcome-panel { width: min(620px, calc(100% - 32px)); padding: 28px; border: 1px solid var(--border-subtle); background: var(--surface-panel); box-shadow: var(--shadow); }
   body.fieldwork-desktop .welcome-panel h1 { margin: 12px 0; font-size: 30px; line-height: 1.1; }
   body.fieldwork-desktop .welcome-panel > p { font-size: 13px; }
   body.fieldwork-desktop .welcome-panel__resources { font-size: 11px; }
@@ -488,7 +487,6 @@ body.fieldwork-desktop #app .sidebar__scroll > .panel > .panel__body { padding: 
   :root:is(:not([data-skin]),[data-skin="gismap"]) .mobile-map-brand { height: calc(40px + env(safe-area-inset-top)); gap: 8px; padding-inline: 12px; border-bottom-color: var(--border-subtle); color: var(--text-primary); background: color-mix(in srgb, var(--surface-panel) 94%, transparent); box-shadow: none; }
   :root:is(:not([data-skin]),[data-skin="gismap"]) .mobile-map-brand span { width: 24px; height: 24px; border-radius: 0; background: url('../assets/gis-map-online-mark-v2.png') center / contain no-repeat; box-shadow: none; }
   :root:is(:not([data-skin]),[data-skin="gismap"]) .mobile-map-brand strong { font: 700 14px/1 var(--ui-font); letter-spacing: -.02em; }
-  :root:is(:not([data-skin]),[data-skin="gismap"]) .welcome-brand { display: none; }
   :root:is(:not([data-skin]),[data-skin="gismap"]) .welcome-panel { border-radius: var(--radius-sheet); border: 1px solid var(--border-subtle); background: var(--surface-panel); box-shadow: 0 -8px 32px rgb(11 35 30 / 14%); }
   :root:is(:not([data-skin]),[data-skin="gismap"]) .welcome-panel h1 { font-size: 26px; line-height: 1.15; }
   :root:is(:not([data-skin]),[data-skin="gismap"]) .welcome-panel__actions button { min-height: 44px; font-size: 14px; }

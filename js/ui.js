@@ -246,7 +246,7 @@ export class UIController {
       const key = suggestionKey(this.projectManager.current.id, context.rule, config);
       const suppressed = featureSelected || workflow !== "explore";
       const dismissed = preferences.has(key);
-      host.hidden = suppressed || !context.actions.length;
+      host.hidden = suppressed || !context.layer || !document.querySelector("#welcome-panel")?.hidden || !context.actions.length;
       if (new URLSearchParams(location.search).has("contextDebug")) {
         globalThis.gisMapContextDebug = { rule: context.rule, workflow, viewport: this.mobileMedia.matches ? "mobile" : "desktop", engine: this.mapController.getEngineId(), activeLayerId: layer?.uid || null, layerCount: layers.length, selection: state.selection, layout: this.fieldworkWorkspace?.layout() || null, profile: context.profile, actions: context.actions, suppressedActions: context.suppressed, dismissed, surfaceSuppressed: suppressed };
       }
@@ -400,6 +400,10 @@ export class UIController {
   #bindStaticActions() {
     window.addEventListener("beforeunload", event => { if (this.captureDataMapNoteDraft?.() || this.dataMapNoteDraftDirty) { event.preventDefault(); event.returnValue = ""; } });
     document.querySelector("#welcome-close").addEventListener("click", () => this.#dismissWelcome());
+    document.querySelectorAll("[data-welcome-workflow]").forEach((button) => button.addEventListener("click", () => {
+      this.#dismissWelcome();
+      this.openMobileWorkflow(button.dataset.welcomeWorkflow);
+    }));
     document.querySelector("#layers-list")?.addEventListener("click", (event) => {
       const button = event.target.closest("[data-empty-action]");
       if (button) this.#handleAction(button.dataset.emptyAction);
@@ -1116,8 +1120,10 @@ export class UIController {
 
   #dismissWelcome() {
     const welcomePanel = document.querySelector("#welcome-panel");
+    const wasVisible = !welcomePanel.hidden;
     welcomePanel.dataset.dismissed = "true";
     welcomePanel.hidden = true;
+    if (wasVisible) this.events.publish("context:workspace-changed");
   }
 
   #startWorkspaceWalkthrough() {
