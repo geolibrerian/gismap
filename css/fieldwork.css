@@ -614,3 +614,25 @@ body.fieldwork-desktop.briefing-presenting #app.app-shell .map-workspace { grid-
 .briefing-data-dock__camera > .briefing-data-dock__camera-save.is-saved::after { content: '✓'; position: absolute; font: 700 16px/1 var(--ui-font); }
 .briefing-data-dock__camera > .briefing-data-dock__camera-save { position: relative; }
 .briefing-camera p { font-variant-numeric: tabular-nums; }
+
+/* Map Insight in Briefing editing. Floating, the card stays clear of the slide
+   camera toolbar (left) and stops above the Preview/Share bar and data dock.
+   Docked, the data dock, toolbar and actions shift to sit beside or above the
+   insight instead of underneath it. */
+@media (min-width: 881px), (min-width: 641px) and (orientation: landscape) {
+  body.briefing-v2:not([data-insights-position^="dock-"]) .insights-overlay { left: 62px; max-height: calc(100% - var(--briefing-dock-height, 36vh) - 96px); }
+  body.briefing-v2[data-insights-position="lower-left"] .insights-overlay { top: auto; bottom: calc(var(--briefing-dock-height, 36vh) + 80px); }
+  body.briefing-v2[data-insights-position="bottom"] .insights-overlay { inset: auto 14px calc(var(--briefing-dock-height, 36vh) + 80px) 62px; width: auto; max-height: min(30vh, 320px); }
+  body.briefing-v2.insights-open[data-insights-position="dock-left"] .briefing-data-dock { left: var(--insights-dock-width, 420px); }
+  body.briefing-v2.insights-open[data-insights-position="dock-right"] .briefing-data-dock { right: var(--insights-dock-width, 420px); }
+  body.briefing-v2.insights-open[data-insights-position="dock-bottom"] .briefing-data-dock { bottom: var(--insights-dock-height, 360px); }
+  body.insights-open[data-insights-position^="dock-"] .insights-overlay { z-index: 7; background: var(--surface-panel, var(--surface)); }
+  /* Top/bottom docks leave little map height: the camera toolbar runs across instead of up. */
+  body.briefing-v2.insights-open:is([data-insights-position="dock-top"], [data-insights-position="dock-bottom"]) .briefing-data-dock__camera { flex-direction: row; }
+  body.briefing-v2.insights-open:is([data-insights-position="dock-top"], [data-insights-position="dock-bottom"]) .briefing-data-dock__camera > button + button { border-top: 0; border-left: 1px solid var(--border-subtle, var(--line)); }
+  body.briefing-v2.insights-open:is([data-insights-position="dock-top"], [data-insights-position="dock-bottom"]) .briefing-data-dock__camera-divider { width: 4px; height: auto; }
+  body.briefing-v2.insights-open:is([data-insights-position="dock-top"], [data-insights-position="dock-bottom"]) .briefing-data-dock__actions { left: auto; right: 12px; transform: none; }
+  /* The map status rides above the Preview/Share row so it never covers Share. */
+  body.briefing-v2 .map-status { bottom: calc(var(--briefing-dock-height, 36vh) + 78px); }
+  body.briefing-v2.insights-open[data-insights-position="dock-bottom"] .map-status { bottom: calc(var(--insights-dock-height, 360px) + var(--briefing-dock-height, 36vh) + 78px); }
+}
