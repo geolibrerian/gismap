@@ -55,10 +55,10 @@ test('the direct dragon page is up to date and uses the same game without a 404 
   assert.match(direct, /rel="icon" href="\/assets\/gis-map-online-mark-v2\.png" type="image\/png"/);
   assert.doesNotMatch(direct, /404 ·|couldn’t find that page|content="noindex"/);
   for (const id of ['game', 'canvas', 'start', 'flapButton', 'pauseButton']) assert.match(direct, new RegExp(`id="${id}"`));
-  assert.match(direct, /\/js\/dragon-game\.js\?v=12/);
+  assert.match(direct, /\/js\/dragon-game\.js\?v=13/);
   assert.match(direct, /download="here-be-dragons\.png"/);
   assert.doesNotMatch(direct, /id="shareQrBrand"/);
-  assert.match(direct, /href="\/examples\/">See examples<\/a>/);
+  assert.doesNotMatch(direct, /GISMap Online · Dragon game|>See examples<|>Explore agent skills<|id="challengeBanner"/);
   assert.match(direct, />Download QR Card<\/a>/);
   assert.match(direct, /type="submit">Share your legend<\/button>/);
   const redirects = await readFile(new URL('../_redirects', import.meta.url), 'utf8');
@@ -66,19 +66,26 @@ test('the direct dragon page is up to date and uses the same game without a 404 
 });
 
 
-test('shared links show the previous legend followed by a playable challenge', () => {
+test('shared links show the challenge in the ready overlay without the previous legend', () => {
   const shared = {name:'Flap',score:3,distance:100,beaten:{name:'Old',score:1,distance:12}};
   const {nodes,frames,listeners,getShown,getTarget} = setup(shared);
-  assert.equal(nodes.overlayTitle.textContent, 'The legend of the dragon');
-  assert.equal(getShown(), shared);
+  assert.equal(getShown(), null);
   assert.match(nodes.sharedChallenge.textContent, /The famous dragon Flap has taken 3 maidens and flown 100 leagues — can you beat Flap\?/);
   assert.equal(nodes.sharedChallenge.hidden, false);
   assert.equal(nodes.start.textContent, 'Take the challenge ↗');
-  assert.equal(getTarget().name, 'Flap');
   listeners.get('start:click')();
   assert.equal(nodes.sharedChallenge.hidden, true);
   assert.equal(frames.size, 1);
-  assert.equal(getTarget().score, 3);
+});
+
+test('tapping the ready overlay starts play without intercepting its buttons', () => {
+  const {frames, listeners} = setup({name:'Flap',score:3,distance:100});
+  const pointer = listeners.get('game:pointerdown');
+  const event = (button) => ({target:{closest: selector => selector.startsWith('button') ? button : true},pointerType:'touch',preventDefault(){}});
+  pointer(event(true));
+  assert.equal(frames.size, 0);
+  pointer(event(false));
+  assert.equal(frames.size, 1);
 });
 
 test('shared dragon artwork draws the in-game dragon in both flight and card poses', async () => {

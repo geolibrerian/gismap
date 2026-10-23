@@ -44,16 +44,13 @@ test('sharing uses the recorded name immediately and generates a canonical chall
 
 
 test('challenge compares maidens first and distance breaks ties', () => {
-  const { api, nodes } = setup();
+  const { api } = setup();
   const target = {name:'Old Wyrm', score:3, distance:100};
   assert.equal(api.beats({score:4,distance:0},target), true);
   assert.equal(api.beats({score:2,distance:999},target), false);
   assert.equal(api.beats({score:3,distance:101},target), true);
   assert.equal(api.beats({score:3,distance:100},target), false);
-  api.setChallenge(target);
-  assert.match(nodes.challengeBanner.textContent,/The famous dragon Old Wyrm has taken 3 maidens and flown 100 leagues — can you beat Old Wyrm\?/);
-  api.setChallenge(null);
-  assert.equal(nodes.challengeBanner.hidden, true);
+  assert.match(api.challengeMessage(target),/The famous dragon Old Wyrm has taken 3 maidens and flown 100 leagues — can you beat Old Wyrm\?/);
 });
 
 test('winning challenge survives sharing and appears in the legend, but ties do not', () => {

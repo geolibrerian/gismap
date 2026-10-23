@@ -6,7 +6,8 @@ export function renderDragonPage(notFound) {
   const replacements = [
     ['  <meta name="robots" content="noindex">\n', ''],
     ['<title>Page not found | GISMap Online</title>', '<title>Here be dragons | GISMap Online</title>'],
-    ['<p class="kicker">404 · Uncharted territory</p>', '<p class="kicker">GISMap Online · Dragon game</p>'],
+    ['  <p class="kicker">404 · Uncharted territory</p>\n', ''],
+    ['<a href="/examples/">See examples</a><a href="/skills/">Explore agent skills</a>', ''],
     ['<p class="intro">We couldn’t find that page. Help our dragon cross the kingdom, or return to the map.</p>', '<p class="intro">Help our dragon cross the kingdom and collect maidens, or return to the map.</p>'],
     ['  <section id="suggestions" hidden aria-labelledby="suggestions-title"><h2 id="suggestions-title">Were you looking for…</h2><ul id="suggested-pages"></ul></section>\n', ''],
     ['<script type="module" src="/js/not-found.js?v=1"></script>\n', ''],

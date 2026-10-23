@@ -108,13 +108,13 @@ function frame(now){frameId=0;if(state!=='playing')return;if(!last)last=now;cons
 // Only pointerdown is used, so touch + mouse never double-flap.
 // Tapping inside the game stops the browser from scrolling/zooming during play.
 wrap.addEventListener('pointerdown',e=>{
-  if(e.target.closest('button')||e.target.closest('.panel')||state==='paused')return;
+  if(e.target.closest('button, a, input, select, textarea')||(state!=='ready'&&e.target.closest('.panel'))||state==='paused')return;
   if(e.pointerType==='mouse'&&e.button!==0)return;
   e.preventDefault();wrap.focus({preventScroll:true});flap();
 },{passive:false});
 flapButton.addEventListener('pointerdown',e=>{e.preventDefault();flap()},{passive:false});
 // Fallback for older iOS Safari versions lacking Pointer Events.
-if(!window.PointerEvent){wrap.addEventListener('touchstart',e=>{if(e.target.closest('.panel'))return;e.preventDefault();flap()},{passive:false});flapButton.addEventListener('touchstart',e=>{e.preventDefault();flap()},{passive:false})}
+if(!window.PointerEvent){wrap.addEventListener('touchstart',e=>{if(e.target.closest('button, a, input, select, textarea')||(state!=='ready'&&e.target.closest('.panel'))||state==='paused')return;e.preventDefault();flap()},{passive:false});flapButton.addEventListener('touchstart',e=>{e.preventDefault();flap()},{passive:false})}
 start.addEventListener('click',()=>{if(state==='paused')togglePause();else begin();wrap.focus({preventScroll:true})});
 pauseButton.addEventListener('click',()=>{const resume=state==='paused';togglePause();if(resume)wrap.focus({preventScroll:true})});
 // Pointer presses are handled above; keyboard and assistive-technology activation use click.
@@ -128,7 +128,7 @@ document.addEventListener('visibilitychange',()=>{if(document.hidden&&state==='p
 window.addEventListener('resize',resizeGame,{passive:true});
 // Shared scores are untrusted keepsakes, not verified achievements.
 const shared = DragonResults.parse(location.href);
-if (shared) { challenge={name:shared.name,score:shared.score,distance:shared.distance}; DragonResults.setChallenge(challenge); showLegend(shared); sharedChallenge.textContent=DragonResults.challengeMessage(challenge); sharedChallenge.hidden=false; start.textContent='Take the challenge ↗'; }
+if (shared) { challenge={name:shared.name,score:shared.score,distance:shared.distance}; sharedChallenge.textContent=`${DragonResults.challengeMessage(challenge)} More maidens wins; distance breaks a tie.`; sharedChallenge.hidden=false; start.textContent='Take the challenge ↗'; }
 // The game is still until the visitor deliberately starts it, including for reduced motion.
 resizeGame();
 })();

@@ -54,7 +54,7 @@
     }
     return `HEAR YE, HEAR YE!\n\nWE, THE BRAVE KNIGHTS OF THE REALM, FINALLY SLEW ${dragon.toUpperCase()}!\n\nTHE BEAST CROSSED ${distance} LEAGUES, OUTWITTING SERPENTS, KRAKENS, AND AN ALARMING NUMBER OF LANCES.\n\nWE LOST ${score} ${score === 1 ? 'MAIDEN' : 'MAIDENS'} TO THE BEAST. WE SHALL BE DISCUSSING THIS WITH THE CASTLE GUARDS.${contest}\n\nAT LAST WE TRIUMPHED! (THE DRAGON MAY ALSO HAVE HIT THE GROUND.)\n\nTHUS ENDS THE LEGEND. INSERT ANOTHER ADVENTURE?`;
   };
-  const story = document.querySelector('#legendStory'), scroll = document.querySelector('#legendScroll'), scoreText = document.querySelector('#legendScore'), shareButton = document.querySelector('#shareResults'), banner = document.querySelector('#challengeBanner');
+  const story = document.querySelector('#legendStory'), scroll = document.querySelector('#legendScroll'), scoreText = document.querySelector('#legendScore'), shareButton = document.querySelector('#shareResults');
   const dialog = document.querySelector('#shareDialog'), close = document.querySelector('#shareClose');
   const qr = document.querySelector('#shareQr'), status = document.querySelector('#shareStatus'), copy = document.querySelector('#copyLink'), download = document.querySelector('#downloadQr'), mobileShare = document.querySelector('#mobileShare'), copyFallback = document.querySelector('#copyFallback'), copyFallbackLabel = document.querySelector('#copyFallbackLabel'), brand = document.querySelector('.logo img');
   const recordDialog = document.querySelector('#recordDialog'), recordForm = document.querySelector('#recordForm'), recordName = document.querySelector('#recordName'), recordScore = document.querySelector('#recordScore'), recordOutcome = document.querySelector('#recordOutcome'), recordFlyAgain = document.querySelector('#recordFlyAgain');
@@ -92,11 +92,6 @@
   // Keep the game-over flow reachable even when the browser sends Escape.
   recordDialog.addEventListener('cancel', (event) => event.preventDefault());
   const challengeMessage = (target) => `The famous dragon ${cleanName(target.name)} has taken ${target.score} ${target.score === 1 ? 'maiden' : 'maidens'} and flown ${target.distance} ${target.distance === 1 ? 'league' : 'leagues'} — can you beat ${cleanName(target.name)}?`;
-  function setChallenge(target) {
-    if (!target) { banner.hidden = true; banner.textContent = ''; return; }
-    banner.hidden = false;
-    banner.textContent = `${challengeMessage(target)} More maidens wins; distance breaks a tie.`;
-  }
   function show(result) {
     current = { name: cleanName(result.name), score: Math.max(0, Math.min(MAX_SCORE, Math.floor(result.score))), distance: Math.max(0, Math.min(MAX_SCORE, Math.floor(result.distance))), beaten: result.beaten || null, challenge: result.challenge || null };
     story.textContent = storyFor(current); scoreText.textContent = `MAIDENS ${current.score} · DISTANCE ${current.distance} LEAGUES`;
@@ -167,5 +162,5 @@
     try { await navigator.share(share); }
     catch (error) { if (error?.name !== 'AbortError') status.textContent = 'Could not open sharing. Try Copy link instead.'; }
   });
-  globalThis.DragonResults = { parse, linkFor, storyFor, beats, challengeMessage, setChallenge, record, show, hide };
+  globalThis.DragonResults = { parse, linkFor, storyFor, beats, challengeMessage, record, show, hide };
 })();
