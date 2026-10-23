@@ -19,7 +19,7 @@ export const BRIEFING_WALKTHROUGH_STEPS = [
   { title: 'Choose your features', desktop: '#briefing-data-dock:not([hidden]), body:not(.briefing-v2) .briefing-select', mobile: '.briefing-select', description: 'Use the Data panel to search, filter, group, or select features. Use all matching features, or include only those you need.' },
   { title: 'Build your slides', desktop: '.briefing-new-slides, .briefing-slides__add', mobile: '.briefing-slides__add', description: 'Create slides from the map or your selected features, or start with a blank title, map, numbers or actions slide. Choose a slide in the list to edit its content and map view.' },
   { title: 'Arrange and review', desktop: '.briefing-slide-list', mobile: '.briefing-slide-list', description: 'Reorder, duplicate or hide slides in the list. Review each slide’s text, map view and layer visibility before presenting.' },
-  { title: 'Preview and share', desktop: '.briefing-data-dock__actions:not([hidden]), body:not(.briefing-v2) .briefing-slides__actions', mobile: '.briefing-slides__actions', description: 'Use Preview slides to play the briefing. Share & PDF offers a shareable link and export options. Exit the preview to keep editing.' },
+  { title: 'Preview and share', desktop: '.briefing-data-dock__actions:not([hidden]), body:not(.briefing-v2) .briefing-slides__actions', mobile: '.briefing-slides__actions', description: 'Use Preview slides to play the briefing. Share offers a link, QR code and PDF export. Exit the preview to keep editing.' },
 ];
 
 export function waitForWalkthroughTarget(selector, { signal, timeout = 15000 } = {}) {

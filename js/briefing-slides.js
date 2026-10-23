@@ -35,7 +35,7 @@ import { BriefingPlayer, slideHasMap } from "./briefing-player.js?v=0.38.0-timel
 import { expandTimelinePdfSlides } from "./briefing-timeline-pdf.js?v=0.1.0";
 import { briefingFileStem, briefingPdf, markdownToText } from "./briefing-pdf.js?v=0.44.2";
 import { featureId } from "./presentation-query.js?v=0.30.0";
-import { startWorkspaceWalkthrough } from "./workspace-walkthrough.js?v=0.57.0-editor2";
+import { startWorkspaceWalkthrough } from "./workspace-walkthrough.js?v=0.57.0-slides1";
 
 const escapeHtml = (value) => String(value ?? "").replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char]);
 const templateLabel = (id) => SLIDE_TEMPLATES.find((template) => template.id === id)?.label || "Slide";
@@ -451,7 +451,7 @@ export class BriefingSlides {
         ${briefing.slides.length ? `<ol class="briefing-slide-list" aria-label="Briefing slides">${list}</ol>` : `<p class="briefing-slides__empty">No slides yet. Start from the map or choose a template above.</p>`}
         ${issues.length ? `<details class="briefing-slides__issues"><summary>${issues.length} thing${issues.length === 1 ? "" : "s"} to check</summary><ul>${issues.map((issue) => `<li class="is-${issue.level}"><button type="button" data-slide-select="${issue.slideId}">${escapeHtml(issue.message)}</button></li>`).join("")}</ul></details>` : ""}
         ${briefing.slides.length ? `<label class="briefing-slides__transition"><span>Between slides</span><select data-slides-transition><option value="pan"${briefing.transition === "cut" ? "" : " selected"}>Pan and zoom</option><option value="cut"${briefing.transition === "cut" ? " selected" : ""}>Cut (jump straight there)</option></select></label>` : ""}
-        ${briefing.slides.length ? `<div class="briefing-slides__actions"><button type="button" class="briefing-slides__present" data-slides-preview data-mobile-bar="primary" data-bar-label="Preview slides">Preview slides</button><button type="button" data-slides-share data-mobile-bar data-bar-label="Share">Share &amp; PDF</button></div>${this.api.createTour ? `<button type="button" class="briefing-link-button" data-slides-tour>Make a guided tour from these slides →</button>` : ""}` : ""}
+        ${briefing.slides.length ? `<div class="briefing-slides__actions"><button type="button" class="briefing-slides__present" data-slides-preview data-mobile-bar="primary" data-bar-label="Preview slides">Preview slides</button><button type="button" data-slides-share data-mobile-bar data-bar-label="Share" title="Share a link, QR code or PDF">Share</button></div>${this.api.createTour ? `<button type="button" class="briefing-link-button" data-slides-tour>Make a guided tour from these slides →</button>` : ""}` : ""}
       </div>
       <section class="briefing-slide-editor" data-slide-editor aria-label="Selected slide settings"></section>
     </div>`;

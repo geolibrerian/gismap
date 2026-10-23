@@ -30,7 +30,7 @@ import { featureLayerUrl, locationUrl } from "./field-task-share.js?v=0.54.0-uni
 import { dockIcon } from "./dock-icons.js?v=0.24.0";
 import { serviceNameFromUrl } from "./service-name.js?v=0.26.0";
 import { decodeQrFromImage, describeGisMapLink, gisMapLinkFrom, openGisMapLink } from "./qr-import.js?v=0.25.2";
-import { BriefingSlides } from "./briefing-slides.js?v=0.57.0-skins1";
+import { BriefingSlides } from "./briefing-slides.js?v=0.57.0-slides1";
 import { createSlide, isRoutineField, matchesFilter, normalizeFilter } from "./briefing-document.js?v=0.35.0";
 import { conditionComplete, conditionLabel, conditionToFilter } from "./briefing-conditions.js?v=0.1.0";
 import { createFilterBuilder } from "./filter-builder.js?v=0.1.0";
@@ -42,7 +42,7 @@ import { saveEngine } from "./engine-preference.js?v=0.52.1";
 import { BASEMAPS } from "./basemap-catalog.js?v=0.53.0-gallery1";
 import { CartographyLab } from "./cartography-lab.js?v=0.55.0-fieldwork1";
 import { CONTEXT_ACTIONS, createSuggestionPreferences, deriveWorkspace, executeContextAction, suggestionKey, summarizeFeature } from "./contextual-workspace.js?v=6";
-import { BRIEFING_WALKTHROUGH_STEPS, startWorkspaceWalkthrough, waitForWalkthroughTarget } from "./workspace-walkthrough.js?v=0.57.0-no-context-popup1";
+import { BRIEFING_WALKTHROUGH_STEPS, startWorkspaceWalkthrough, waitForWalkthroughTarget } from "./workspace-walkthrough.js?v=0.57.0-slides1";
 import { chooseHurricaneLayer, createHazardsExampleBriefing } from "./example-hazards-briefing.js?v=3";
 
 const BUILDINGS_3D_KEY = "gismap-online:buildings-3d:v1";
@@ -1784,7 +1784,7 @@ export class UIController {
     });
     this.#setSidebarCollapsed(false);
     this.events.publish("mobile:workflow-route", { route: "briefing" });
-    this.toast(featureIds.length ? `Briefing started with ${featureIds.length} feature${featureIds.length === 1 ? "" : "s"}. Add them as slides in the Slides tab.` : "Briefing created. Edit the slides, then Share & PDF.");
+    this.toast(featureIds.length ? `Briefing started with ${featureIds.length} feature${featureIds.length === 1 ? "" : "s"}. Add them as slides in the Slides tab.` : "Briefing created. Edit the slides, then Share.");
   }
 
   /**
@@ -4215,7 +4215,7 @@ export class UIController {
       actions.className = "briefing-data-dock__actions";
       actions.setAttribute("role", "group");
       actions.setAttribute("aria-label", "Briefing presentation actions");
-      actions.innerHTML = '<button type="button" class="briefing-slides__present" data-dock-preview>Preview slides</button><button type="button" data-dock-share>Share &amp; PDF</button>';
+      actions.innerHTML = '<button type="button" class="briefing-slides__present" data-dock-preview>Preview slides</button><button type="button" data-dock-share title="Share a link, QR code or PDF">Share</button>';
       actions.querySelector("[data-dock-preview]").addEventListener("click", () => this.briefingSlides.openPlayer());
       actions.querySelector("[data-dock-share]").addEventListener("click", () => this.shareBriefing());
       dock.prepend(actions);
@@ -4225,8 +4225,22 @@ export class UIController {
       camera = document.createElement("div");
       camera.className = "briefing-data-dock__camera";
       camera.setAttribute("role", "group");
-      camera.setAttribute("aria-label", "Selected slide map view");
-      camera.innerHTML = '<span>Slide map view</span><button type="button" data-map-slide-save>Save view</button><button type="button" data-map-slide-show>Show saved</button><small>Pan, zoom or use the map camera tools, then save.</small>';
+      camera.setAttribute("aria-label", "Slide map view: adjust the camera, then save it to the selected slide");
+      // A slim camera toolbar beside the map, like the map controls: adjust, then save the angle.
+      const icon = (path) => `<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">${path}</svg>`;
+      const tool = (nav, label, path) => `<button type="button" data-slide-nav="${nav}" aria-label="${label}" title="${label}">${icon(path)}</button>`;
+      camera.innerHTML = [
+        tool("tilt-up", "Tilt up", '<path d="M5 19h14l-3-6H8z"/><path d="M12 10V3m-3 3 3-3 3 3"/>'),
+        tool("tilt-down", "Tilt down", '<path d="M4 19h16"/><path d="M12 3v10m-3-3 3 3 3-3"/>'),
+        tool("rotate-left", "Rotate left", '<path d="M4 12a8 8 0 1 0 2.4-5.7L4 8.6"/><path d="M4 4v4.6h4.6"/>'),
+        tool("rotate-right", "Rotate right", '<path d="M20 12a8 8 0 1 1-2.4-5.7L20 8.6"/><path d="M20 4v4.6h-4.6"/>'),
+        tool("in", "Zoom in", '<path d="M12 5v14M5 12h14"/>'),
+        tool("out", "Zoom out", '<path d="M5 12h14"/>'),
+        '<span class="briefing-data-dock__camera-divider" aria-hidden="true"></span>',
+        `<button type="button" class="briefing-data-dock__camera-save" data-map-slide-save aria-label="Save this view to the selected slide" title="Save this view to the selected slide">${icon('<path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.2"/>')}</button>`,
+        `<button type="button" data-map-slide-show aria-label="Show the slide's saved view" title="Show the slide's saved view">${icon('<path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>')}</button>`,
+      ].join("");
+      camera.querySelectorAll("[data-slide-nav]").forEach((button) => button.addEventListener("click", () => this.mapController.navigate(button.dataset.slideNav).catch((error) => this.error(error.message))));
       camera.querySelector("[data-map-slide-save]").addEventListener("click", () => {
         const button = document.querySelector("#utility-briefing-content [data-slide-camera]");
         if (button) button.click(); else this.toast("Select a slide with a map view first.");
