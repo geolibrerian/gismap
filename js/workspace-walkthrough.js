@@ -11,7 +11,20 @@ export const WALKTHROUGH_STEPS = [
   { title: 'Make something', desktop: '.context-workspace', mobile: '.context-workspace', description: 'Start Exploring suggests briefings, tours, presentation skins and data-specific ideas. You can revisit this walkthrough from the Tools menu.' },
 ];
 
-export function startWorkspaceWalkthrough({ mobile = () => false } = {}) {
+// The briefing guide can start before a dataset exists; later controls are
+// highlighted only if the user has already opened a briefing workspace.
+export const BRIEFING_WALKTHROUGH_STEPS = [
+  { title: 'Create a briefing', desktop: '.presentation-empty', mobile: '.presentation-empty', description: 'A briefing combines an interactive map with a sequence of slides. This guide explains the workflow without changing your project.' },
+  { title: 'Start with data', desktop: '[data-presentation-setup="data-popular"]', mobile: '[data-presentation-setup="data-popular"]', description: 'Find a dataset, connect a service, or add a file. Choose a feature layer with the places or events you want to explain.' },
+  { title: 'Try a finished example', desktop: '[data-presentation-setup="example-briefing"]', mobile: '[data-presentation-setup="example-briefing"]', description: 'Try an example briefing loads hurricane and earthquake services and an editable set of slides. You can explore it before building your own.' },
+  { title: 'Choose your features', desktop: '#briefing-data-dock', mobile: '.briefing-select', description: 'After adding a dataset, use the Data panel to search, filter, group, or select features. Use all matching features, or include only those you need.' },
+  { title: 'Build your slides', desktop: '.briefing-new-slides', mobile: '.briefing-slides__add', description: 'Create slides from the map or your selected features, or start with a blank title, map, numbers or actions slide. Choose a slide in the list to edit its content and map view.' },
+  { title: 'Arrange and review', desktop: '.briefing-slide-list', mobile: '.briefing-slide-list', description: 'Reorder, duplicate or hide slides in the list. Review each slide’s text, map view and layer visibility before presenting.' },
+  { title: 'Preview and share', desktop: '.briefing-data-dock__actions', mobile: '.briefing-slides__actions', description: 'Use Preview slides to play the briefing. Share & PDF offers a shareable link and export options. Exit the preview to keep editing.' },
+];
+
+export function startWorkspaceWalkthrough({ mobile = () => false, steps = WALKTHROUGH_STEPS, label = 'Workspace walkthrough' } = {}) {
+  if (!steps.length) return;
   document.querySelector('.workspace-walkthrough')?.dispatchEvent(new Event('walkthrough:close'));
   const previousFocus = document.activeElement;
   const fallbackFocus = previousFocus?.closest?.('.menu')?.querySelector('.menu__trigger');
@@ -19,7 +32,7 @@ export function startWorkspaceWalkthrough({ mobile = () => false } = {}) {
   const root = document.createElement('section');
   root.className = 'workspace-walkthrough';
   root.setAttribute('role', 'region');
-  root.setAttribute('aria-label', 'Workspace walkthrough');
+  root.setAttribute('aria-label', label);
   const highlight = document.createElement('div');
   highlight.className = 'workspace-walkthrough__highlight';
   highlight.setAttribute('aria-hidden', 'true');
@@ -34,7 +47,7 @@ export function startWorkspaceWalkthrough({ mobile = () => false } = {}) {
   const back = card.querySelector('[data-walkthrough-back]');
   const next = card.querySelector('[data-walkthrough-next]');
   const position = () => {
-    const step = WALKTHROUGH_STEPS[index];
+    const step = steps[index];
     const target = document.querySelector(mobile() ? step.mobile : step.desktop);
     const bounds = target?.getBoundingClientRect();
     const visible = bounds && bounds.width && bounds.height && bounds.bottom > 0 && bounds.right > 0 && bounds.top < window.innerHeight && bounds.left < window.innerWidth && getComputedStyle(target).visibility !== 'hidden';
@@ -42,12 +55,12 @@ export function startWorkspaceWalkthrough({ mobile = () => false } = {}) {
     if (visible) Object.assign(highlight.style, { left: `${Math.max(0, bounds.left - 4)}px`, top: `${Math.max(0, bounds.top - 4)}px`, width: `${Math.min(window.innerWidth, bounds.right + 4) - Math.max(0, bounds.left - 4)}px`, height: `${Math.min(window.innerHeight, bounds.bottom + 4) - Math.max(0, bounds.top - 4)}px` });
   };
   const render = () => {
-    const step = WALKTHROUGH_STEPS[index];
-    count.textContent = `Step ${index + 1} of ${WALKTHROUGH_STEPS.length}`;
+    const step = steps[index];
+    count.textContent = `Step ${index + 1} of ${steps.length}`;
     title.textContent = step.title;
     description.textContent = step.description;
     back.disabled = index === 0;
-    next.textContent = index === WALKTHROUGH_STEPS.length - 1 ? 'Done' : 'Next';
+    next.textContent = index === steps.length - 1 ? 'Done' : 'Next';
     position();
   };
   const close = () => {
@@ -62,7 +75,7 @@ export function startWorkspaceWalkthrough({ mobile = () => false } = {}) {
   root.addEventListener('walkthrough:close', close, { once: true });
   card.querySelector('.workspace-walkthrough__close').addEventListener('click', close);
   back.addEventListener('click', () => { if (index > 0) { index--; render(); } });
-  next.addEventListener('click', () => { if (index === WALKTHROUGH_STEPS.length - 1) close(); else { index++; render(); } });
+  next.addEventListener('click', () => { if (index === steps.length - 1) close(); else { index++; render(); } });
   window.addEventListener('resize', position);
   window.addEventListener('scroll', position, true);
   document.addEventListener('keydown', onKey);

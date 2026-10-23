@@ -42,7 +42,7 @@ import { saveEngine } from "./engine-preference.js?v=0.52.1";
 import { BASEMAPS } from "./basemap-catalog.js?v=0.53.0-gallery1";
 import { CartographyLab } from "./cartography-lab.js?v=0.55.0-fieldwork1";
 import { CONTEXT_ACTIONS, createSuggestionPreferences, deriveWorkspace, executeContextAction, suggestionKey, summarizeFeature } from "./contextual-workspace.js?v=5";
-import { startWorkspaceWalkthrough } from "./workspace-walkthrough.js?v=1";
+import { BRIEFING_WALKTHROUGH_STEPS, startWorkspaceWalkthrough } from "./workspace-walkthrough.js?v=2";
 import { chooseHurricaneLayer, createHazardsExampleBriefing } from "./example-hazards-briefing.js?v=3";
 
 const BUILDINGS_3D_KEY = "gismap-online:buildings-3d:v1";
@@ -2554,7 +2554,7 @@ export class UIController {
     }
     const open = sources.length > 0;
     body.toggle("mobile-action-bar-open", open);
-    const short = { "Connect a service": "Connect", "Add a file": "Add file", "Open an example": "Example" };
+    const short = { "Connect a service": "Connect", "Add a file": "Add file", "Find a dataset": "Find data", "Guide to creating a briefing": "Briefing guide", "Open an example": "Example" };
     const label = (button) => button.dataset.barLabel || short[button.textContent.trim()] || button.textContent.trim();
     const signature = `${template}|${sources.map((button) => `${label(button)}:${button.disabled}:${button.getAttribute("aria-expanded")}`).join(",")}`;
     bar.hidden = !open;
@@ -3592,8 +3592,15 @@ export class UIController {
     root.hidden = false;
     const layer = this.mapController.getLayer(this.presentationState.layerUid);
     if (!layer && template !== "atlas") {
-      root.innerHTML = `<section class="presentation-empty"><span class="eyebrow">${escapeHtml(template)}</span><h2>Start with a dataset</h2><p>This mode becomes interactive after you add a feature layer. Your project and map remain unchanged.</p><div>${template === 'briefing' ? '<button type="button" data-presentation-setup="example-briefing">Try an example briefing</button>' : ''}<button type="button" data-presentation-setup="data-arcgis">Connect a service</button><button type="button" data-presentation-setup="data-file">Add a file</button><button type="button" data-presentation-setup="data-popular">Open an example</button></div>${template === 'briefing' ? '<p class="form-note">The example adds live hurricane and earthquake layers and opens an editable briefing.</p>' : ''}</section>`;
-      root.querySelectorAll("[data-presentation-setup]").forEach((button) => button.addEventListener("click", () => button.dataset.presentationSetup === 'example-briefing' ? this.#openExampleHazardsBriefing() : this.#handleAction(button.dataset.presentationSetup)));
+      root.innerHTML = `<section class="presentation-empty"><span class="eyebrow">${escapeHtml(template)}</span><h2>Start with a dataset</h2><p>This mode becomes interactive after you add a feature layer. Your project and map remain unchanged.</p><div>${template === 'briefing' ? '<button type="button" data-presentation-setup="briefing-guide">Guide to creating a briefing</button><button type="button" data-presentation-setup="example-briefing">Try an example briefing</button>' : ''}<button type="button" data-presentation-setup="data-arcgis">Connect a service</button><button type="button" data-presentation-setup="data-file">Add a file</button><button type="button" data-presentation-setup="data-popular">${template === 'briefing' ? 'Find a dataset' : 'Open an example'}</button></div>${template === 'briefing' ? '<p class="form-note">The example adds live hurricane and earthquake layers and opens an editable briefing.</p>' : ''}</section>`;
+      root.querySelectorAll("[data-presentation-setup]").forEach((button) => button.addEventListener("click", () => {
+        if (button.dataset.presentationSetup === 'example-briefing') return this.#openExampleHazardsBriefing();
+        if (button.dataset.presentationSetup === 'briefing-guide') {
+          this.#dismissWelcome();
+          return startWorkspaceWalkthrough({ mobile: () => this.mobileMedia.matches, steps: BRIEFING_WALKTHROUGH_STEPS, label: 'Briefing creation guide' });
+        }
+        return this.#handleAction(button.dataset.presentationSetup);
+      }));
       return;
     }
     const fields = this.#presentationFields(layer);
