@@ -380,6 +380,8 @@ export type InPageBriefingApi = typeof briefing & {
     presentationMode?: "single-slide" | "slide-series"; rows?: number; columns?: number;
     targetCells?: number; order?: "row-major" | "column-major" | "snake"; skipEmpty?: boolean;
     countMode?: "assigned" | "intersecting";
+    /** Grid Atlas area: the loaded features' extent (default) or the visible map. `bounds` ([west, south, east, north]) sets it explicitly. */
+    area?: "features" | "view"; bounds?: [number, number, number, number];
     groupBy?: string; heightField?: string; slotMeters?: number; gapMeters?: number; scale?: number;
   }): Promise<{ document: BriefingDocument; preview: unknown; saved: boolean; coverage: { returned: number; limit: number; exceededTransferLimit: boolean; completeness: "unknown"; note: string } }>;
   /** The landscape PDF handout, with a QR code back to the live briefing. */

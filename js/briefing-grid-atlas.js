@@ -2,17 +2,36 @@
 import { atlasGeometry, atlasIntersects } from "./briefing-grid-geometry.js?v=0.1.0";
 import { MAX_SLIDES, addSlide, createSlide, normalizeBriefing } from './briefing-document.js?v=0.35.0';
 
-export function previewGridAtlas({ records, rows = 3, columns = 3, targetCells = null, order = 'row-major', skipEmpty = false, countMode = 'assigned', availableSlides = MAX_SLIDES } = {}) {
+/** A map extent ({xmin, ymin, xmax, ymax, spatialReference}) as [west, south, east, north] degrees; Web Mercator is converted. */
+export function extentToBounds(extent) {
+  if (!extent || ![extent.xmin, extent.ymin, extent.xmax, extent.ymax].every(Number.isFinite)) return null;
+  const wkid = extent.spatialReference?.latestWkid ?? extent.spatialReference?.wkid ?? 4326;
+  const mercator = [3857, 102100, 102113, 900913].includes(wkid);
+  const lon = (x) => mercator ? x / 6378137 * 180 / Math.PI : x;
+  const lat = (y) => mercator ? (2 * Math.atan(Math.exp(y / 6378137)) - Math.PI / 2) * 180 / Math.PI : y;
+  const clamp = (value, limit) => Math.max(-limit, Math.min(limit, value));
+  return [clamp(lon(extent.xmin), 180), clamp(lat(extent.ymin), 90), clamp(lon(extent.xmax), 180), clamp(lat(extent.ymax), 90)];
+}
+
+// The grid covers the features' combined extent, or a fixed area (`bounds`, e.g.
+// the current map view) in which features outside it are simply not counted.
+export function previewGridAtlas({ records, bounds = null, rows = 3, columns = 3, targetCells = null, order = 'row-major', skipEmpty = false, countMode = 'assigned', availableSlides = MAX_SLIDES } = {}) {
   rows = Number(rows); columns = Number(columns);
   if (targetCells != null && (!Number.isInteger(Number(targetCells)) || Number(targetCells) < 1 || Number(targetCells) > MAX_SLIDES)) throw new Error(`Choose a target between 1 and ${MAX_SLIDES} slides.`);
   if (!Number.isInteger(rows) || !Number.isInteger(columns) || rows < 1 || columns < 1 || rows > 20 || columns > 20) throw new Error('Choose between 1 and 20 rows and columns.');
   if (!['row-major','column-major','snake'].includes(order)) throw new Error('Choose a supported traversal order.');
   if (!['assigned','intersecting'].includes(countMode)) throw new Error('Choose assigned or intersecting counts.');
-  if (!Array.isArray(records) || !records.length) throw new Error('Include at least one loaded feature with geometry.');
-  const geometries = records.map(record => atlasGeometry(record.geometry));
+  const area = bounds == null ? null : bounds.map(Number);
+  if (area && !(area.length === 4 && area.every(Number.isFinite) && area[0] >= -180 && area[2] <= 180 && area[1] >= -90 && area[3] <= 90 && area[0] < area[2] && area[1] < area[3])) throw new Error('Choose a map area between -180/-90 and 180/90.');
+  if (!Array.isArray(records) || (!area && !records.length)) throw new Error('Include at least one loaded feature with geometry.');
+  let geometries = records.filter(record => record?.geometry).map(record => atlasGeometry(record.geometry));
+  if (!area && !geometries.length) throw new Error('Include at least one loaded feature with geometry.');
   let west = 180, south = 90, east = -180, north = -90;
-  for (const {bounds:[w,s,e,n]} of geometries) { west=Math.min(west,w); east=Math.max(east,e); south=Math.min(south,s); north=Math.max(north,n); }
-  if (east-west > 180) throw new Error('Antimeridian-spanning data is not yet supported.');
+  if (area) {
+    [west, south, east, north] = area;
+    geometries = geometries.filter(geometry => atlasIntersects(geometry, area));
+  } else for (const {bounds:[w,s,e,n]} of geometries) { west=Math.min(west,w); east=Math.max(east,e); south=Math.min(south,s); north=Math.max(north,n); }
+  if (!area && east-west > 180) throw new Error('Antimeridian-spanning data is not yet supported.');
   if (east === west) { west=Math.max(-180,west-0.005); east=Math.min(180,east+0.005); }
   if (north === south) { south=Math.max(-90,south-0.005); north=Math.min(90,north+0.005); }
   if (targetCells != null) {
@@ -49,7 +68,7 @@ export function previewGridAtlas({ records, rows = 3, columns = 3, targetCells =
   else cells=grid.flatMap((row,index)=>order === 'snake' && index%2 ? [...row].reverse() : row);
   if (skipEmpty) cells=cells.filter(cell=>cell.count > 0);
   if (cells.length > Math.max(0, availableSlides)) throw new Error(`${cells.length} cells exceed the ${Math.max(0, availableSlides)} available slide slots; no slides were added.`);
-  return { cells, bounds:[west,south,east,north], rows, columns, recordCount:geometries.length, countMode };
+  return { cells, bounds:[west,south,east,north], rows, columns, recordCount:geometries.length, countMode, area: area ? 'bounds' : 'features' };
 }
 
 export function generateGridAtlas({briefing, layerRef, camera, ...options} = {}) {

@@ -74,3 +74,24 @@ test('point boundary intersection count is distinct from unique assignment',()=>
   assert.equal(p.cells.reduce((n,c)=>n+c.assigned,0),3);
   assert.equal(p.cells.reduce((n,c)=>n+c.intersecting,0),6);
 });
+
+test('a fixed area (e.g. the map view) sets the grid and ignores features outside it', async () => {
+  const { extentToBounds } = await import('../js/briefing-grid-atlas.js');
+  const p = previewGridAtlas({ records, bounds: [0.5, 0.5, 4.5, 4.5], rows: 2, columns: 2 });
+  assert.deepEqual(p.bounds, [0.5, 0.5, 4.5, 4.5]);
+  assert.equal(p.area, 'bounds');
+  assert.equal(p.recordCount, 2, 'the point at 0,0 lies outside the area');
+  assert.equal(p.cells.reduce((n, c) => n + c.assigned, 0), 2);
+  // An empty area still makes a grid; skipping empty cells can leave none.
+  assert.equal(previewGridAtlas({ records, bounds: [50, 50, 60, 60], rows: 2, columns: 2 }).cells.length, 4);
+  assert.equal(previewGridAtlas({ records: [], bounds: [50, 50, 60, 60], rows: 1, columns: 1 }).recordCount, 0);
+  // A zoomed-out view may span more than 180 degrees.
+  assert.equal(previewGridAtlas({ records, bounds: [-180, -60, 180, 80], rows: 2, columns: 2 }).cells.length, 4);
+  assert.throws(() => previewGridAtlas({ records, bounds: [10, 0, 5, 5] }), /map area/);
+  assert.throws(() => previewGridAtlas({ records: [] }), /at least one/);
+  // Web Mercator extents (ArcGIS) convert to degrees.
+  const [w, s, e, n] = extentToBounds({ xmin: -20037508.34, ymin: 0, xmax: 0, ymax: 20037508.34 / 2, spatialReference: { wkid: 102100 } });
+  assert.ok(Math.abs(w + 180) < 1e-6 && Math.abs(s) < 1e-9 && e === 0 && n > 66 && n < 67);
+  assert.deepEqual(extentToBounds({ xmin: 1, ymin: 2, xmax: 3, ymax: 4, spatialReference: { wkid: 4326 } }), [1, 2, 3, 4]);
+  assert.equal(extentToBounds(null), null);
+});

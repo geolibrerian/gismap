@@ -1,7 +1,7 @@
 import { generateFilterSeries } from "./briefing-data-series.js?v=0.5.0";
 import { isDateField } from "./briefing-timeline-dates.js?v=0.2.1";
 import { generateTimeline } from "./briefing-timeline.js?v=0.4.0";
-import { generateGridAtlas } from "./briefing-grid-atlas.js?v=0.2.0";
+import { extentToBounds, generateGridAtlas } from "./briefing-grid-atlas.js?v=0.57.0-gridarea2";
 import { generateSpatialChartBrief } from "./briefing-spatial-chart.js?v=0.1.1";
 import core, { normalizeBriefing, updateSlide, validateBriefingDocument } from "./gismap-core.js?v=0.57.0-skins1";
 import { createShareLink } from "./map-share.js?v=0.57.0-skins1";
@@ -169,8 +169,12 @@ export function createBriefingApi({ projectManager, mapController, host = null, 
           const allowed = ["field","kind","start","end","step","unit","timeZone","mode","rolling","endField","stat","statField","narration","presentationMode","cameraPolicy"];
           result = generateTimeline({...input, kind:isDateField(fields.find(field => field.name === options.field)) ? "date" : "year", ...Object.fromEntries(allowed.filter(key => options[key] !== undefined).map(key => [key, options[key]]))});
         } else if (template === "grid-atlas") {
-          const allowed = ["rows","columns","targetCells","order","skipEmpty","countMode"];
-          result = generateGridAtlas({...input, ...Object.fromEntries(allowed.filter(key => options[key] !== undefined).map(key => [key, options[key]]))});
+          // area: "features" (default, the records' extent) or "view" (the visible map); bounds sets an explicit area.
+          const allowed = ["rows","columns","targetCells","order","skipEmpty","countMode","bounds"];
+          if (options.area != null && !["features", "view"].includes(options.area)) throw new Error("Choose features or view for the grid area.");
+          const area = options.area === "view" && options.bounds === undefined ? { bounds: extentToBounds(mapController.getViewExtent?.()) } : {};
+          if (options.area === "view" && !area.bounds && options.bounds === undefined) throw new Error("The map view is not ready yet.");
+          result = generateGridAtlas({...input, ...Object.fromEntries(allowed.filter(key => options[key] !== undefined).map(key => [key, options[key]])), ...area});
         } else {
           result = generateSpatialChartBrief({ ...input, geometryType:layer.geometryType, groupBy:options.groupBy, heightField:options.heightField, slotMeters:options.slotMeters, gapMeters:options.gapMeters, scale:options.scale });
         }

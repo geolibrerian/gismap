@@ -1,4 +1,4 @@
-import { previewGridAtlas, generateGridAtlas } from "./briefing-grid-atlas.js?v=0.2.0";
+import { previewGridAtlas, generateGridAtlas, extentToBounds } from "./briefing-grid-atlas.js?v=0.57.0-gridarea2";
 import { createTimelineSourceCache } from "./briefing-timeline-source.js?v=0.2.0";
 // The Slides tab of the Briefing panel: build an ordered set of slides from the
 // briefing's features and data, and preview them over the live map. The slides
@@ -29,7 +29,7 @@ import { isDateField, previewDateTimeline } from "./briefing-timeline-dates.js?v
 import { generateFilterSeries, seriesWhere } from "./briefing-data-series.js?v=0.5.0";
 import { generateSpatialChartBrief } from "./briefing-spatial-chart.js?v=0.1.1";
 import { previewFilterSeries, formatSeriesTitle } from "./briefing-series-preview.js?v=0.2.0";
-import { briefingLayerRef } from "./briefing-api.js?v=0.57.0-skins1";
+import { briefingLayerRef } from "./briefing-api.js?v=0.57.0-gridarea2";
 import { renderMarkdown } from "./markdown.js?v=0.18.2";
 import { BriefingPlayer, slideHasMap } from "./briefing-player.js?v=0.38.0-timeline4";
 import { expandTimelinePdfSlides } from "./briefing-timeline-pdf.js?v=0.1.0";
@@ -328,6 +328,23 @@ export class BriefingSlides {
     return true;
   }
 
+  /** The visible map area as [west, south, east, north] in degrees, less any strip the briefing data dock covers. */
+  #viewBounds() {
+    const bounds = extentToBounds(this.api.mapController.getViewExtent?.());
+    const container = this.api.mapController.getContainer?.()?.getBoundingClientRect?.();
+    const dock = globalThis.document?.querySelector?.(".briefing-data-dock:not([hidden])")?.getBoundingClientRect?.();
+    const flat = (this.api.mapController.getViewState?.()?.tilt || 0) <= 5;
+    if (!bounds || !container?.height || !dock?.height || !flat) return bounds;
+    const covered = Math.max(0, Math.min(container.bottom, dock.bottom) - Math.max(container.top, dock.top));
+    if (covered <= 0 || covered >= container.height || dock.width < container.width / 2) return bounds;
+    // On a flat Web Mercator map, screen height is linear in Mercator y.
+    const toY = (lat) => Math.log(Math.tan(Math.PI / 4 + lat * Math.PI / 360));
+    const toLat = (y) => (2 * Math.atan(Math.exp(y)) - Math.PI / 2) * 180 / Math.PI;
+    const [west, south, east, north] = bounds;
+    const y = toY(south) + (toY(north) - toY(south)) * covered / container.height;
+    return [west, toLat(y), east, north];
+  }
+
   #currentCamera() {
     const view = this.api.mapController.getViewState?.();
     const center = view?.center;
@@ -464,7 +481,8 @@ export class BriefingSlides {
         </details>
         <details class="briefing-series-preview">
           <summary>Grid Atlas · map slides</summary>
-          <p class="form-note">Divide loaded WGS84 features into cells. Intersections include boundary touches; each feature is also assigned once (points by location, others to the first intersecting cell in row-major order). Counts and empty-cell removal reflect this loaded selection, not the complete source. Map features remain visible for context.</p>
+          <p class="form-note">Divide an area into cells, one slide per cell. Intersections include boundary touches; each feature is also assigned once (points by location, others to the first intersecting cell in row-major order). Counts reflect loaded features, not the complete source.</p>
+          <label class="briefing-field"><span>Grid area</span><select data-grid-area><option value="included"${included.length > 1 ? " selected" : ""}>Included features</option><option value="all"${included.length > 1 ? "" : " selected"}>All loaded features</option><option value="view">Current map view</option></select><small data-grid-area-note></small></label>
           <label class="briefing-field"><span>Grid sizing</span><select data-grid-sizing><option value="rows">Rows and columns</option><option value="target">Approximate slide count</option></select></label>
           <label class="briefing-field" data-grid-target-wrap hidden><span>Target slide count</span><input data-grid-target type="number" min="1" max="60" step="1" value="10"></label>
           <label class="briefing-field"><span>Rows</span><input data-grid-rows type="number" min="1" max="20" step="1" value="3"></label>
@@ -751,16 +769,33 @@ export class BriefingSlides {
         this.api.notify?.(`Added ${preview.slides} 3D Spatial Chart scenes. Review the virtual-Z legend before sharing.`);
       } catch (error) { output.textContent = error.message; }
     });
+    // The grid covers the included features, every loaded feature, or the area on screen.
     const gridOptions = () => {
       const data = this.api.data();
-      return { records:data.useAll ? data.visibleRecords : data.records.filter(record => data.selectedIds.has(this.#idOf(record))), rows:container.querySelector('[data-grid-rows]').value, columns:container.querySelector('[data-grid-columns]').value, targetCells:container.querySelector('[data-grid-sizing]').value === 'target' ? Number(container.querySelector('[data-grid-target]').value) : null, order:container.querySelector('[data-grid-order]').value, skipEmpty:container.querySelector('[data-grid-skip]').checked, countMode:container.querySelector('[data-grid-count]').value };
+      const area = container.querySelector('[data-grid-area]')?.value || 'included';
+      const included = data.useAll ? data.visibleRecords : data.records.filter(record => data.selectedIds.has(this.#idOf(record)));
+      const bounds = area === 'view' ? this.#viewBounds() : null;
+      if (area === 'view' && !bounds) throw new Error('The map view is not ready yet.');
+      return { records: area === 'included' ? included : data.records, ...(bounds ? { bounds } : {}), rows:container.querySelector('[data-grid-rows]').value, columns:container.querySelector('[data-grid-columns]').value, targetCells:container.querySelector('[data-grid-sizing]').value === 'target' ? Number(container.querySelector('[data-grid-target]').value) : null, order:container.querySelector('[data-grid-order]').value, skipEmpty:container.querySelector('[data-grid-skip]').checked, countMode:container.querySelector('[data-grid-count]').value };
     };
+    const syncGridArea = () => {
+      const select = container.querySelector('[data-grid-area]'); const note = container.querySelector('[data-grid-area-note]');
+      if (!select || !note) return;
+      const data = this.api.data();
+      const included = data.useAll ? data.visibleRecords.length : data.selectedIds.size;
+      const tilted = (this.api.mapController.getViewState?.()?.tilt || 0) > 5;
+      note.textContent = select.value === 'included' ? `${included} included feature${included === 1 ? '' : 's'}; choose rows in the data table to change them.`
+        : select.value === 'all' ? `${data.records.length} loaded feature${data.records.length === 1 ? '' : 's'}.`
+        : `Move the map to the area you want, then preview.${tilted ? ' The map is tilted: the area includes the horizon, so flatten it (2D) for an exact area.' : ''}`;
+    };
+    on('[data-grid-area]', 'change', syncGridArea); syncGridArea();
     on('[data-grid-sizing]', 'change', select => { container.querySelector('[data-grid-target-wrap]').hidden = select.value !== 'target'; container.querySelector('[data-grid-rows]').disabled = select.value === 'target'; container.querySelector('[data-grid-columns]').disabled = select.value === 'target'; });
     on('[data-grid-preview]', 'click', () => {
       const output=container.querySelector('[data-grid-results]');
       try {
         const preview=previewGridAtlas({...gridOptions(),availableSlides:MAX_SLIDES-this.briefing.slides.length});
-        output.innerHTML=`<p><strong>${preview.cells.length} slides</strong> · ${preview.rows} × ${preview.columns} grid · ${preview.recordCount} loaded features</p><ol>${preview.cells.map(cell=>`<li>${escapeHtml(cell.id)} — ${cell.assigned} assigned · ${cell.intersecting} intersecting</li>`).join('')}</ol>`;
+        const [w,s,e,n]=preview.bounds;
+        output.innerHTML=`<p><strong>${preview.cells.length} slides</strong> · ${preview.rows} × ${preview.columns} grid · ${preview.recordCount} loaded feature${preview.recordCount === 1 ? '' : 's'} in the area · ${s.toFixed(2)}°, ${w.toFixed(2)}° to ${n.toFixed(2)}°, ${e.toFixed(2)}°</p><ol>${preview.cells.map(cell=>`<li>${escapeHtml(cell.id)} — ${cell.assigned} assigned · ${cell.intersecting} intersecting</li>`).join('')}</ol>`;
       } catch (error) { output.textContent=error.message; }
     });
     on('[data-grid-create]', 'click', () => {
