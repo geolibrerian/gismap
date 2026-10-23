@@ -112,6 +112,8 @@ export function initializeFieldworkWorkspace({ ui, action, showSidebar, theme })
     preferences.reset(); selected = preferences.snapshot().selected; showSidebar(true); syncPanels();
   });
   const select = id => {
+    // Choosing a workspace replaces the introduction, including one reopened from the rail.
+    if (document.querySelector('#welcome-panel')?.hidden === false) action('welcome-dismiss');
     if (id === 'ai') { action('tools-assistant'); return; }
     if (id === 'briefs' || id === 'tours') {
       document.querySelector(`.desktop-workflows-menu [data-mobile-workflow="${id === 'briefs' ? 'briefing' : 'tours'}"]`)?.click();

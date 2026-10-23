@@ -586,10 +586,20 @@ export class MaplibreEngine {
     this.#records.set(record.uid, record);
     // three.js layers draw through the shared custom layer, not MapLibre sources.
     if (record.kind !== "three") {
-      this.map.addSource(this.#sourceId(record), this.#sourceSpec(record));
-      const specs = this.#layerSpecs(record);
-      for (const spec of specs) this.map.addLayer(spec);
-      record.renderLayerIds = specs.map((spec) => spec.id);
+      try {
+        this.map.addSource(this.#sourceId(record), this.#sourceSpec(record));
+        const specs = this.#layerSpecs(record);
+        for (const spec of specs) this.map.addLayer(spec);
+        record.renderLayerIds = specs.map((spec) => spec.id);
+      } catch (error) {
+        // A failed add must not leave a half-registered record behind every later layer list.
+        this.#records.delete(record.uid);
+        try {
+          for (const spec of this.map.getStyle?.()?.layers || []) if (spec.source === this.#sourceId(record)) this.map.removeLayer(spec.id);
+          if (this.map.getSource?.(this.#sourceId(record))) this.map.removeSource(this.#sourceId(record));
+        } catch { /* The style itself is unavailable; nothing was drawn. */ }
+        throw error;
+      }
     }
     record.handle = layerHandle(record);
     this.#renderLegend();

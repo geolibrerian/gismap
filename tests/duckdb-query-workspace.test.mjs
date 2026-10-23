@@ -19,11 +19,30 @@ test('SQL is bounded and rejects mutations and multiple statements', () => {
   assert.throws(() => boundedSql('SELECT 1; SELECT 2', 20), /one read-only/);
 });
 
-test('eligible analysis layers exclude remote feature services but retain source GeoParquet', async () => {
+test('eligible analysis layers include local files, feature services and GeoParquet but not tiles', async () => {
   const { analysisLayerChoices } = await import('../js/duckdb-query-workspace.js');
-  const layers = [{uid:'local',queryable:true}, {uid:'remote',queryable:true}, {uid:'parquet',queryable:true}];
+  const layers = [{uid:'local',queryable:true}, {uid:'remote',queryable:true}, {uid:'tiles',queryable:false}, {uid:'parquet',queryable:false}];
   const map = {getLayers:() => layers, getLayerConfig:(layer) => ({local:layer.uid === 'local'})};
-  assert.deepEqual(analysisLayerChoices(map,{geoParquetLayers:new Map([['parquet',{}]])}).map(l=>l.uid), ['local','parquet']);
+  assert.deepEqual(analysisLayerChoices(map,{geoParquetLayers:new Map([['parquet',{}]])}).map(l=>l.uid), ['local','remote','parquet']);
+});
+test('spatial operations compile to bounded, quoted, read-only SQL', async () => {
+  const { spatialAnalysisSql, boundedSql, SPATIAL_OPERATIONS } = await import('../js/duckdb-query-workspace.js');
+  const states = {relation:'states"x',geometry:{field:'__gismap_geometry',encoding:'geojson-text'}};
+  const cities = {relation:'cities',geometry:{field:'geom',encoding:'duckdb-geometry'}};
+  for (const operation of Object.keys(SPATIAL_OPERATIONS)) {
+    const sql = spatialAnalysisSql({ operation, source: states, comparison: cities, distance: 5, unit: 'km' });
+    assert.match(sql, /FROM "states""x" AS a/);
+    assert.match(sql, /AS "__gismap_geometry"/);
+    assert.match(boundedSql(sql, 10).sql, /LIMIT 11$/);
+  }
+  assert.match(spatialAnalysisSql({ operation: 'buffer', source: states, distance: 2, unit: 'mi' }), /ST_Buffer\(ST_Transform\(ST_GeomFromGeoJSON\(a\."__gismap_geometry"\), 'EPSG:4326', 'EPSG:3857', true\), 3218\.688 \/ cos/);
+  assert.match(spatialAnalysisSql({ operation: 'within', source: states, comparison: cities, distance: 500, unit: 'm' }), /ST_DWithin\([^]*b\."geom"[^]*500 \/ cos/);
+  assert.match(spatialAnalysisSql({ operation: 'measure', source: states }), /ST_Area_Spheroid\(ST_FlipCoordinates/);
+  assert.match(spatialAnalysisSql({ operation: 'dissolve', source: states, groupField: 'state"name' }), /GROUP BY a\."state""name"/);
+  assert.throws(() => spatialAnalysisSql({ operation: 'count', source: states }), /second, different dataset/);
+  assert.throws(() => spatialAnalysisSql({ operation: 'buffer', source: states, distance: -1 }), /greater than 0/);
+  assert.throws(() => spatialAnalysisSql({ operation: 'buffer', source: states, distance: 2000, unit: 'km' }), /1,000 km/);
+  assert.throws(() => spatialAnalysisSql({ operation: 'nope', source: states }), /Choose a spatial operation/);
 });
 test('spatial intersection template quotes names and converts mixed geometry formats', async () => {
   const { spatialJoinExample } = await import('../js/duckdb-query-workspace.js');

@@ -434,13 +434,14 @@ export class ApplicationRuntime {
 
   #mountSQLPanel(host, context) {
     const initial = context.config.settings?.sql || "SELECT * FROM active_layer LIMIT 25";
-    host.innerHTML = `<form class="sql-panel"><div class="sql-panel__heading"><span class="eyebrow">Local DuckDB-Wasm</span><strong>Read-only SQL</strong></div><label class="field"><span>Query</span><textarea data-sql rows="5" spellcheck="false">${escapeHtml(initial)}</textarea></label><div class="sql-panel__actions"><button type="submit">Run query</button><button type="button" class="button--quiet" data-sql-sample>Reset example</button></div><p class="form-note">Only one read-only statement is accepted. Results are capped at 500 rows in the interface.</p><div data-sql-output class="sql-status">DuckDB loads on first run; remote sources remain subject to HTTPS, CORS, and source permissions.</div></form>`;
-    const form = host.querySelector("form");
+    host.innerHTML = `<div class="sql-panel"><div class="sql-panel__heading"><span class="eyebrow">Local DuckDB-Wasm</span><strong>Read-only SQL</strong></div><label class="field"><span>Query</span><textarea data-sql rows="5" spellcheck="false">${escapeHtml(initial)}</textarea></label><p class="form-note sql-panel__tables" data-sql-tables></p><div class="sql-panel__actions"><button type="button" class="button--primary" data-sql-run>Run query</button><button type="button" class="button--secondary" data-sql-sample>Reset example</button></div><p class="form-note">One read-only statement; up to 500 rows are shown. DuckDB starts on the first run.</p><div data-sql-output class="sql-status" role="status" aria-live="polite"></div></div>`;
+    const layer = this.mapController.getLayer(this.state.value.activeLayerId) || this.mapController.getLayers()[0];
+    host.querySelector("[data-sql-tables]").innerHTML = layer ? `Table <code>active_layer</code> is <strong>${escapeHtml(layer.title || "the active layer")}</strong>.` : "Add a layer to the map to query it as <code>active_layer</code>.";
+    // Not a <form>: hosts such as the app dialog are already forms, and nested forms are dropped by the parser.
     host.querySelector("[data-sql-sample]").addEventListener("click", () => { host.querySelector("[data-sql]").value = "SELECT * FROM active_layer LIMIT 25"; });
-    form.addEventListener("submit", async (event) => {
-      event.preventDefault();
+    const run = async () => {
       const output = host.querySelector("[data-sql-output]");
-      const button = form.querySelector("button[type=submit]");
+      const button = host.querySelector("[data-sql-run]");
       try {
         const sql = validateReadOnlySQL(host.querySelector("[data-sql]").value);
         button.disabled = true; output.textContent = "Loading catalog and running locally…";
@@ -449,8 +450,10 @@ export class ApplicationRuntime {
         const rows = (await this.duckdb.query(sql)).slice(0, 500);
         const fields = Object.keys(rows[0] || {});
         output.innerHTML = rows.length ? `<div class="sql-result"><table><thead><tr>${fields.map((field) => `<th>${escapeHtml(field)}</th>`).join("")}</tr></thead><tbody>${rows.map((row) => `<tr>${fields.map((field) => `<td>${escapeHtml(row[field])}</td>`).join("")}</tr>`).join("")}</tbody></table></div><p>${rows.length} rows shown.</p>` : "Query returned no rows.";
-      } catch (error) { output.innerHTML = `<strong>Query unavailable</strong><p>${escapeHtml(error.message)}</p>`; }
+      } catch (error) { output.innerHTML = `<p class="sql-status__error"><strong>Query unavailable.</strong> ${escapeHtml(error.message)}</p>`; }
       finally { button.disabled = false; }
-    });
+    };
+    host.querySelector("[data-sql-run]").addEventListener("click", run);
+    host.querySelector("[data-sql]").addEventListener("keydown", (event) => { if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) { event.preventDefault(); void run(); } });
   }
 }

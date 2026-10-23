@@ -1,4 +1,4 @@
-import { initializeFieldworkWorkspace } from "./fieldwork-workspace.js?v=0.56.0-welcome-rail1";
+import { initializeFieldworkWorkspace } from "./fieldwork-workspace.js?v=0.57.0-spatial2";
 import { timelinePdfFrames, expandTimelinePdfSlides, parseTimelineFrameSelection } from "./briefing-timeline-pdf.js?v=0.1.0";
 import { renderNotesHub } from "./notes-hub.js?v=0.55.0-fieldwork1";
 import { refreshMapNoteFilters } from './map-note-filters.js?v=0.4.1';
@@ -1363,6 +1363,9 @@ export class UIController {
         case "welcome-toggle":
           this.#toggleWelcome();
           break;
+        case "welcome-dismiss":
+          this.#dismissWelcome();
+          break;
         case "project-select":
           this.#selectProjectDialog();
           break;
@@ -1409,12 +1412,12 @@ export class UIController {
           this.#serviceDialog("wfs");
           break;
         case "data-pmtiles": {
-          const { openPmtilesPanel } = await import("./data-connections-panel.js?v=0.55.0-fieldwork1");
+          const { openPmtilesPanel } = await import("./data-connections-panel.js?v=0.57.0-spatial2");
           openPmtilesPanel(this, this.mapController, (engine) => this.#switchEngine(engine));
           break;
         }
         case "data-duckdb": {
-          const { openDuckdbPanel } = await import("./data-connections-panel.js?v=0.55.0-fieldwork1");
+          const { openDuckdbPanel } = await import("./data-connections-panel.js?v=0.57.0-spatial2");
           openDuckdbPanel(this, this.applicationRuntime.duckdb);
           break;
         }
@@ -1422,15 +1425,20 @@ export class UIController {
           this.openDialog({ eyebrow: "Database tools", title: "SQL Workspace", content: '<div data-tools-sql-workspace></div>' });
           const host = this.dialog.querySelector("[data-tools-sql-workspace]");
           this.applicationRuntime.panels.get("sql").mount(host, { config: { settings: {} } });
+          const more = document.createElement("p");
+          more.className = "form-note sql-panel__more";
+          more.innerHTML = 'For spatial analysis, joins and adding results to the map, use <button type="button" class="link-button">Query Data</button>.';
+          more.querySelector("button").addEventListener("click", () => this.#handleAction("tools-duckdb-query"));
+          host.append(more);
           break;
         }
         case "tools-duckdb-query": {
-          const { openDuckdbQueryWorkspace } = await import("./duckdb-query-workspace.js?v=0.54.0-queryui1");
+          const { openDuckdbQueryWorkspace } = await import("./duckdb-query-workspace.js?v=0.57.0-spatial2");
           openDuckdbQueryWorkspace(this, this.applicationRuntime.duckdb);
           break;
         }
         case "data-postgis": {
-          const { openPostgisPanel } = await import("./data-connections-panel.js?v=0.55.0-fieldwork1");
+          const { openPostgisPanel } = await import("./data-connections-panel.js?v=0.57.0-spatial2");
           openPostgisPanel(this);
           break;
         }
@@ -2687,7 +2695,7 @@ export class UIController {
           if (isGeoJson && isParquetName(sourceUrl)) {
             const result = await addGeoParquetLayer(this, { url: sourceUrl, title: this.dialog.querySelector("#service-title").value });
             if (result.tableOnly) {
-              const { openDuckdbQueryWorkspace } = await import("./duckdb-query-workspace.js?v=0.54.0-queryui1");
+              const { openDuckdbQueryWorkspace } = await import("./duckdb-query-workspace.js?v=0.57.0-spatial2");
               openDuckdbQueryWorkspace(this, this.applicationRuntime.duckdb, { selectedRelation: result.relation, message: "This Parquet file has no recognized GeoParquet geometry metadata. It was loaded as a table, not a map layer." });
               return;
             }
@@ -5890,7 +5898,7 @@ export class UIController {
         const { isParquetName, addGeoParquetLayer } = await import("./geoparquet-layer.js?v=0.54.0-queryui1");
         const result = isParquetName(file.name) ? await addGeoParquetLayer(this, { file }) : null;
         if (result?.tableOnly) {
-          const { openDuckdbQueryWorkspace } = await import("./duckdb-query-workspace.js?v=0.54.0-queryui1");
+          const { openDuckdbQueryWorkspace } = await import("./duckdb-query-workspace.js?v=0.57.0-spatial2");
           openDuckdbQueryWorkspace(this, this.applicationRuntime.duckdb, { selectedRelation: result.relation, message: "This Parquet file has no recognized GeoParquet geometry metadata. It was loaded as a table, not a map layer." });
           continue;
         }
@@ -6184,7 +6192,7 @@ export class UIController {
           <div class="layer-scale-note" data-layer-scale-note ${scaleMessage ? "" : "hidden"}><span data-scale-text>${escapeHtml(scaleMessage || "")}</span><button type="button" data-layer-action="ignore-scale" title="Draw this layer at every zoom level">Show anyway</button></div>
           <label class="opacity-row"><span>Opacity</span><input data-layer-opacity type="range" min="0" max="1" step="0.05" value="${layer.opacity}" /><output>${Math.round(layer.opacity * 100)}%</output></label>
           <div class="layer-card__actions layer-card__primary"><button data-layer-action="zoom">Zoom</button><button data-layer-action="table">Table</button><button data-layer-action="style">Style</button></div>
-          <details class="layer-card__more" ${this.expandedLayerCards.has(layer.uid) ? "open" : ""}><summary>More layer tools</summary><div class="layer-card__actions"><button data-layer-action="filter" title="Show only matching features on the map">Filter map</button>${(config.local || config.sourceType === "geoparquet") && layer.queryable ? '<button data-layer-action="query-duckdb" title="Explore or join a separate analysis dataset">Query data</button>' : ''}<button data-layer-action="export" title="Share this map, make a PDF or briefing, or download data">Share</button><button data-layer-action="refresh">Refresh</button><button data-layer-action="advanced-style">Advanced style</button></div></details>
+          <details class="layer-card__more" ${this.expandedLayerCards.has(layer.uid) ? "open" : ""}><summary>More layer tools</summary><div class="layer-card__actions"><button data-layer-action="filter" title="Show only matching features on the map">Filter map</button>${layer.queryable || config.sourceType === "geoparquet" ? '<button data-layer-action="query-duckdb" title="Query, join or run spatial analysis on a copy of this layer">Query data</button>' : ''}<button data-layer-action="export" title="Share this map, make a PDF or briefing, or download data">Share</button><button data-layer-action="refresh">Refresh</button><button data-layer-action="advanced-style">Advanced style</button></div></details>
         </article>`;
       }).join("")
       : '<div class="empty-state empty-state--layers"><p>No layers yet. Add data to start.</p><div class="empty-state__actions"><button type="button" data-empty-action="data-arcgis">ArcGIS service</button><button type="button" data-empty-action="data-geojson">Geo URL</button><button type="button" data-empty-action="data-file">Local file</button><button type="button" data-empty-action="data-popular">Try an example</button></div></div>';
@@ -6240,7 +6248,7 @@ export class UIController {
         case "query-duckdb": {
           button.disabled = true;
           try {
-            const { openLayerInDuckdb } = await import("./layer-duckdb.js?v=0.54.0-queryui1");
+            const { openLayerInDuckdb } = await import("./layer-duckdb.js?v=0.57.0-spatial2");
             await openLayerInDuckdb(this, uid);
           } catch (error) { this.error(error.message); }
           finally { button.disabled = false; }

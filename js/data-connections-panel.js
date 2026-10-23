@@ -2,7 +2,7 @@ import { initializeStudioTabs } from "./studio-tabs.js?v=0.55.0-fieldwork1";
 // The existing GISMap dialog is dockable on desktop and a sheet on mobile.
 // These panels never serialize runtime objects, file contents, or credentials.
 import { ConnectionRegistry, connectionUrl, resolveRemoteParquetUrl, discoverOgcCollections, filterOgcCollections, inspectOgcSpatial, fetchOgcItems, validateOgcGeometry, ogcHasLocalBounds } from './data-connections.js?v=0.54.0-parquet1';
-import { openDuckdbQueryWorkspace } from './duckdb-query-workspace.js?v=0.54.0-queryui1';
+import { openDuckdbQueryWorkspace } from './duckdb-query-workspace.js?v=0.57.0-spatial2';
 import { inspectExternalTiles } from './engines/maplibre/external-tiles.js?v=0.54.0';
 
 const registry = () => new ConnectionRegistry();

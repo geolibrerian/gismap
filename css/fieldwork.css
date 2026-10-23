@@ -416,8 +416,8 @@ body.fieldwork-desktop .layer-card__more summary::after { display: none; }
 :root:is(:not([data-skin]),[data-skin="gismap"]) :is(.button--primary, .studio-share, .welcome-panel__actions button:first-child, .dialog__actions .button--primary, .workspace-tool__actions button, .inline-primary):not(:disabled):active {
   background: var(--action-primary-pressed); border-color: var(--action-primary-pressed);
 }
-:root:is(:not([data-skin]),[data-skin="gismap"]) :is(.sql-result th, .table-scroll th, .location-card, .location-card *, .assistant__message--user, .style-option__badge, .atlas-chapter > button span, .ollama-setup > code, .toast) { color: var(--action-on-primary); }
-:root:is(:not([data-skin]),[data-skin="gismap"]) :is(.sql-result th, .table-scroll th, .location-card, .assistant__message--user, .style-option__badge, .ollama-setup > code, .toast) { background: var(--action-primary); }
+:root:is(:not([data-skin]),[data-skin="gismap"]) :is(.table-scroll th, .location-card, .location-card *, .assistant__message--user, .style-option__badge, .atlas-chapter > button span, .ollama-setup > code, .toast) { color: var(--action-on-primary); }
+:root:is(:not([data-skin]),[data-skin="gismap"]) :is(.table-scroll th, .location-card, .assistant__message--user, .style-option__badge, .ollama-setup > code, .toast) { background: var(--action-primary); }
 :root:is(:not([data-skin]),[data-skin="gismap"]) .studio-share { min-height: 36px; padding: 8px 16px; border-radius: var(--radius-input); font-size: var(--control-font-size); }
 :root:is(:not([data-skin]),[data-skin="gismap"]) .button--primary { font-size: var(--control-font-size); }
 
@@ -513,3 +513,36 @@ body.fieldwork-desktop #app .sidebar__scroll > .panel > .panel__body { padding: 
 :root:is(:not([data-skin]),[data-skin="gismap"]) :is(.field input, .field select, .field textarea):hover:not(:focus) { border-color: var(--text-muted); }
 :root:is(:not([data-skin]),[data-skin="gismap"]) :is(.field input, .field select, .field textarea):focus-visible { box-shadow: 0 0 0 3px color-mix(in srgb, var(--focus-ring) 22%, transparent); }
 :root:is(:not([data-skin]),[data-skin="gismap"]) :is(input[type="checkbox"], input[type="radio"], input[type="range"]) { accent-color: var(--action-primary); }
+/* A reopened introduction sits above the briefing data dock (z 6) and the map status (z 7). */
+body.fieldwork-desktop .welcome-panel { z-index: 8; }
+
+/* Query Data and SQL Workspace share the studio form language: underline tabs,
+   labelled fields, one primary action and a muted status line. */
+:root:is(:not([data-skin]),[data-skin="gismap"]) .query-tabs { gap: 20px; margin-bottom: 16px; border-bottom: 1px solid var(--border-subtle); }
+:root:is(:not([data-skin]),[data-skin="gismap"]) .query-tabs button { min-height: 40px; padding: 8px 0; border: 0; border-bottom: 2px solid transparent; border-radius: 0; color: var(--text-muted); background: transparent; font-size: var(--control-font-size); font-weight: 500; cursor: pointer; }
+:root:is(:not([data-skin]),[data-skin="gismap"]) .query-tabs button:hover { color: var(--text-primary); }
+:root:is(:not([data-skin]),[data-skin="gismap"]) .query-tabs [aria-selected="true"] { color: var(--text-primary); background: transparent; border-color: transparent; border-bottom-color: var(--action-primary); font-weight: 600; }
+:root:is(:not([data-skin]),[data-skin="gismap"]) .query-disclosure { border-color: var(--border-subtle); border-radius: var(--radius-input); background: var(--surface-panel); }
+:root:is(:not([data-skin]),[data-skin="gismap"]) .query-disclosure summary { font-size: var(--control-font-size); font-weight: 600; }
+.query-workspace [data-q-needs][hidden] { display: none; }
+.query-workspace [data-q-operation-help] { margin: 8px 0 12px; }
+.query-run--inline { margin-bottom: 4px; }
+.query-workspace optgroup { color: var(--text-muted); font-style: normal; }
+
+:root:is(:not([data-skin]),[data-skin="gismap"]) .sql-panel { gap: var(--space-3); padding: 0; }
+.app-dialog .sql-panel__heading { display: none; }
+.application-panel .sql-panel, .application-dock .sql-panel { padding: var(--space-4); }
+:root:is(:not([data-skin]),[data-skin="gismap"]) .sql-panel__heading strong { font: 600 18px/1.2 var(--ui-heading); color: var(--text-primary); }
+:root:is(:not([data-skin]),[data-skin="gismap"]) :is(.sql-panel, .query-workspace) textarea { min-height: 140px; padding: 12px; border: 1px solid var(--border-strong); border-radius: var(--radius-input); color: var(--text-primary); background: var(--surface-panel); font: 13px/1.55 var(--font-mono); }
+:root:is(:not([data-skin]),[data-skin="gismap"]) .sql-panel__actions { gap: var(--space-2); }
+.sql-panel__tables code, .sql-panel__more code { font: 12px var(--font-mono); padding: 1px 4px; border-radius: 4px; background: var(--hover-fill); }
+:root:is(:not([data-skin]),[data-skin="gismap"]) .sql-status { padding: 0; border: 0; color: var(--text-muted); background: transparent; font-size: 12px; line-height: 1.5; }
+.sql-status:empty { display: none; }
+.sql-status > p { margin: 0; }
+.sql-status__error { padding: 10px 12px !important; border: 1px solid color-mix(in srgb, var(--status-danger) 40%, transparent); border-radius: var(--radius-input); color: var(--status-danger); background: color-mix(in srgb, var(--status-danger) 8%, var(--surface-panel)); }
+:root:is(:not([data-skin]),[data-skin="gismap"]) .sql-result { border-color: var(--border-subtle); border-radius: var(--radius-input); background: var(--surface-panel); }
+:root:is(:not([data-skin]),[data-skin="gismap"]) .sql-result table { font: 12px/1.4 var(--ui-font); font-variant-numeric: tabular-nums; }
+:root:is(:not([data-skin]),[data-skin="gismap"]) .sql-result th { color: var(--text-primary); background: var(--surface-raised); font-weight: 600; }
+:root:is(:not([data-skin]),[data-skin="gismap"]) .sql-result td { border-color: var(--border-subtle); }
+.sql-panel__more { margin: var(--space-4) 0 0; padding-top: var(--space-3); border-top: 1px solid var(--border-subtle); }
+:root:is(:not([data-skin]),[data-skin="gismap"]) .link-button { color: var(--text-primary); font: inherit; font-weight: 600; text-underline-offset: 3px; }

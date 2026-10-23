@@ -1,7 +1,7 @@
 import { resolveRemoteParquetUrl } from './data-connections.js?v=0.54.0-parquet1';
 import { createAnalysisDataset, describeAnalysisDataset } from './analysis-dataset.js?v=0.54.0-analysis1';
 import { graphicToGeoJSONFeature } from './export/export-core.js?v=0.18.2';
-import { openDuckdbQueryWorkspace } from './duckdb-query-workspace.js?v=0.54.0-queryui1';
+import { openDuckdbQueryWorkspace } from './duckdb-query-workspace.js?v=0.57.0-spatial2';
 
 // Snapshots are deliberately bounded: local layers may already occupy substantial memory.
 const MAX_ROWS = 20000;
@@ -9,7 +9,7 @@ const MAX_BYTES = 32 * 1024 * 1024;
 const PAGE_SIZE = 1000;
 const GEOMETRY_FIELD = '__gismap_geometry';
 
-/** Register one local layer in the application-wide session. Repeated opens reuse it. */
+/** Register one queryable layer (local file or feature service) in the application-wide session. Repeated opens reuse it. */
 export async function registerLayerSnapshot(runtime, mapController, uid, limits = {}) {
   const client = runtime.duckdb;
   runtime.analysisLayers ||= new Map();
@@ -21,7 +21,7 @@ export async function registerLayerSnapshot(runtime, mapController, uid, limits 
     const epoch = runtime.analysisEpoch || 0;
     const layer = mapController.getLayer(uid);
     const config = layer && mapController.getLayerConfig(layer);
-    if (!layer?.queryable || !config?.local) throw new Error('Choose a local, queryable vector layer.');
+    if (!layer?.queryable || !config) throw new Error('Choose a queryable vector layer.');
     if (layer.fields?.some((field) => field.name === GEOMETRY_FIELD)) throw new Error(`The layer contains the reserved field ${GEOMETRY_FIELD}. Rename it before querying.`);
     const maxRows = limits.maxRows ?? MAX_ROWS;
     const maxBytes = limits.maxBytes ?? MAX_BYTES;
