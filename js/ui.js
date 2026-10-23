@@ -1,4 +1,4 @@
-import { initializeFieldworkWorkspace } from "./fieldwork-workspace.js?v=0.57.0-spatial2";
+import { initializeFieldworkWorkspace } from "./fieldwork-workspace.js?v=0.57.0-panels3";
 import { timelinePdfFrames, expandTimelinePdfSlides, parseTimelineFrameSelection } from "./briefing-timeline-pdf.js?v=0.1.0";
 import { renderNotesHub } from "./notes-hub.js?v=0.55.0-fieldwork1";
 import { refreshMapNoteFilters } from './map-note-filters.js?v=0.4.1';
@@ -200,6 +200,7 @@ export class UIController {
       ui: this,
       action: action => this.#handleAction(action),
       showSidebar: open => this.#setSidebarCollapsed(!open),
+      setPanelVisibility: (id, visible, save = true) => this.#setOptionalPanelVisibility(id, visible, save),
       theme: () => {
         const settings = { ...this.#readDisplaySettings(), appearance: document.documentElement.dataset.theme === "dark" ? "light" : "dark" };
         this.applySkinChoice("gismap");
@@ -464,7 +465,9 @@ export class UIController {
       button.addEventListener("click", () => {
         const panel = document.querySelector(`#${button.dataset.sidebarPanelToggle}`);
         if (!panel) return;
-        this.#setOptionalPanelVisibility(panel.id, panel.classList.contains("is-sidebar-optional-hidden"));
+        // The desktop workspace decides what the side panel shows; phones keep the optional-panel model.
+        if (document.body.classList.contains("fieldwork-desktop")) this.fieldworkWorkspace.togglePanel(panel.id);
+        else this.#setOptionalPanelVisibility(panel.id, panel.classList.contains("is-sidebar-optional-hidden"));
         this.#closeMenus();
       }),
     );
@@ -1184,7 +1187,11 @@ export class UIController {
       const close = document.createElement("button");
       close.type = "button"; close.className = "panel-close"; close.textContent = "×";
       close.setAttribute("aria-label", `Close ${label} panel`); close.title = `Close ${label} panel`;
-      close.addEventListener("click", (event) => { event.preventDefault(); event.stopPropagation(); this.#setOptionalPanelVisibility(shell.id, false); });
+      close.addEventListener("click", (event) => {
+        event.preventDefault(); event.stopPropagation();
+        if (document.body.classList.contains("fieldwork-desktop")) this.fieldworkWorkspace.togglePanel(shell.id);
+        else this.#setOptionalPanelVisibility(shell.id, false);
+      });
       summary.append(close);
     }
   }

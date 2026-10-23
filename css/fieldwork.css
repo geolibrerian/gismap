@@ -546,3 +546,10 @@ body.fieldwork-desktop .welcome-panel { z-index: 8; }
 :root:is(:not([data-skin]),[data-skin="gismap"]) .sql-result td { border-color: var(--border-subtle); }
 .sql-panel__more { margin: var(--space-4) 0 0; padding-top: var(--space-3); border-top: 1px solid var(--border-subtle); }
 :root:is(:not([data-skin]),[data-skin="gismap"]) .link-button { color: var(--text-primary); font: inherit; font-weight: 600; text-underline-offset: 3px; }
+/* Panel headers: the title never truncates; the count gives way. Controls keep
+   one order everywhere: pin, dock, close. */
+body.fieldwork-desktop #app .sidebar__scroll > .panel > summary > span { flex: 0 0 auto; }
+body.fieldwork-desktop #app .sidebar__scroll > .panel > summary > small { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+body.fieldwork-desktop .panel > summary > .workspace-pin { order: 1; margin-left: auto; }
+body.fieldwork-desktop .panel > summary > .panel-dock { order: 2; }
+body.fieldwork-desktop .panel > summary > .panel-close { order: 3; margin-left: 0; }

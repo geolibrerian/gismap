@@ -75,9 +75,10 @@ test('the welcome panel combines the six getting-started actions', async () => {
   ]);
   const welcome = html.match(/<section id="welcome-panel"[\s\S]*?<\/section>/)[0];
   assert.equal((welcome.match(/<(?:a|button)\b/g) || []).length, 7); // Six actions and dismiss.
-  for (const label of ['Browse public GIS examples', 'Read GISMap guides', 'Walk me through the tools and menus', 'Create a briefing', 'Create a tour', 'Create a dashboard']) assert.ok(welcome.includes(label));
+  for (const label of ['Browse popular data services', 'Read GISMap guides', 'Walk me through the tools and menus', 'Create a briefing', 'Create a tour', 'Create a dashboard']) assert.ok(welcome.includes(label));
   assert.doesNotMatch(welcome, /Free browser-based GIS maps|Choose a data source/);
-  assert.match(welcome, /href="\/examples\/"/);
+  // The first choice keeps people in the app: it opens the data catalog, not /examples/.
+  assert.match(welcome, /data-action="data-popular">Browse popular data services/);
   assert.match(welcome, /href="\/guides\/"/);
   assert.match(welcome, /data-action="map-presentation">Create a dashboard/);
   assert.match(ui, /openMobileWorkflow\(button\.dataset\.welcomeWorkflow\)/);

@@ -21,7 +21,7 @@ const save = (key, value) => { try { localStorage.setItem(key, value); } catch {
 const workspacePanels = { layers: ['layers-panel'], explore: ['places-panel', 'bookmarks-panel', 'intelligence-panel'], notes: ['observations-panel'], draw: ['draw-panel'] };
 
 /** Reuses live controls rather than cloning forms, listeners or map canvases. */
-export function initializeFieldworkWorkspace({ ui, action, showSidebar, theme }) {
+export function initializeFieldworkWorkspace({ ui, action, showSidebar, theme, setPanelVisibility = () => {} }) {
   const app = document.querySelector('#app');
   const sidebar = document.querySelector('#sidebar');
   const brand = sidebar.querySelector('.brand');
@@ -123,6 +123,7 @@ export function initializeFieldworkWorkspace({ ui, action, showSidebar, theme })
     // Return from a narrative workspace through its existing router.
     if (app.dataset.presentation && app.dataset.presentation !== 'standard') document.querySelector('.desktop-workflows-menu [data-mobile-workflow="map"]')?.click();
     preferences.select(id); selected = preferences.snapshot().selected; save('gismap:workspace', selected);
+    for (const panelId of workspacePanels[id]) if (document.getElementById(panelId)?.classList.contains('is-sidebar-optional-hidden')) setPanelVisibility(panelId, true, false);
     showSidebar(true);
     syncPanels();
     if (id === 'explore') document.querySelector('#place-query')?.focus();
@@ -134,11 +135,16 @@ export function initializeFieldworkWorkspace({ ui, action, showSidebar, theme })
     const standard = !app.dataset.presentation || app.dataset.presentation === 'standard';
     const layout = preferences.snapshot();
     sidebar.dataset.workspace = selected;
+    const own = workspacePanels[selected].map(id => document.getElementById(id)).filter(Boolean);
+    const emptied = own.every(panel => panel.classList.contains('is-sidebar-optional-hidden'));
     sidebar.querySelectorAll('.sidebar__scroll > .panel').forEach(panel => {
-      const visible = workspacePanels[selected].includes(panel.id) || layout.pinned.includes(panel.id);
+      const pinned = layout.pinned.includes(panel.id);
+      const visible = workspacePanels[selected].includes(panel.id) || pinned;
       panel.classList.toggle('workspace-hidden', active && standard && !visible);
-      if (active && standard && visible) { panel.classList.remove('is-sidebar-optional-hidden'); panel.open = true; }
+      if (active && standard && visible && (pinned || emptied)) panel.classList.remove('is-sidebar-optional-hidden');
+      if (active && standard && visible && !panel.classList.contains('is-sidebar-optional-hidden')) panel.open = true;
     });
+    if (active) syncPanelMenu();
     pinButtons.forEach((button, id) => {
       const pinned = layout.pinned.includes(id);
       const label = sidebar.querySelector(`#${id} > summary > span`)?.textContent || 'panel';
@@ -158,6 +164,7 @@ export function initializeFieldworkWorkspace({ ui, action, showSidebar, theme })
     if (active) { header.prepend(brand, menu); header.querySelector('.studio-header__search').append(search); }
     else homes.forEach(({node,marker}) => marker.after(node));
     syncPanels();
+    if (!active) syncPanelMenu(false);
     requestAnimationFrame(() => ui.mapController.resize());
   };
   ui.mobileMedia.addEventListener('change', sync);
@@ -192,5 +199,49 @@ export function initializeFieldworkWorkspace({ ui, action, showSidebar, theme })
   dimension.addEventListener('click', () => ui.mapController.setView({ tilt: (ui.mapController.getViewState()?.tilt || 0) > 5 ? 0 : 55 }, { animate: !matchMedia('(prefers-reduced-motion: reduce)').matches }).catch(error => ui.error(error.message)));
   ['view:stationary','map:ready'].forEach(event => ui.events.subscribe(event, syncDimension));
   syncProject(); syncTheme(); syncWelcome(); sync();
-  return { select, syncPanels, layout: () => preferences.snapshot() };
+  // The Modes → Panels controls act on what the side panel shows: a panel from
+  // another workspace is pinned here; one from this workspace is hidden in place.
+  function panelShown(id) {
+    const panel = document.getElementById(id);
+    return Boolean(panel && !panel.hidden && !panel.classList.contains('workspace-hidden') && !panel.classList.contains('is-sidebar-optional-hidden'));
+  }
+  // On desktop, place search lives in the header; the Places panel only holds recent places.
+  function syncPanelMenu(active = true) {
+    document.querySelectorAll('[data-sidebar-panel-toggle]').forEach(button => {
+      const id = button.dataset.sidebarPanelToggle;
+      if (id === 'places-panel') {
+        if (active) { button.dataset.mobileLabel ||= button.textContent; button.textContent = 'Search places'; button.removeAttribute('aria-pressed'); }
+        else if (button.dataset.mobileLabel) { button.textContent = button.dataset.mobileLabel; delete button.dataset.mobileLabel; }
+        return;
+      }
+      // Phones use the optional-panel model, so labels follow that flag there.
+      const shown = active ? panelShown(id) && !document.body.classList.contains('sidebar-collapsed') : !document.getElementById(id)?.classList.contains('is-sidebar-optional-hidden');
+      button.textContent = button.textContent.replace(/^(Add|Hide|Show) /, shown ? 'Hide ' : 'Add ');
+      button.setAttribute('aria-pressed', String(shown));
+    });
+  }
+  function togglePanel(id) {
+    const panel = document.getElementById(id);
+    if (!panel) return;
+    if (id === 'places-panel') { showSidebar(true); document.querySelector('#place-query')?.focus(); return; }
+    const pinned = preferences.snapshot().pinned.includes(id);
+    if (panelShown(id) && !document.body.classList.contains('sidebar-collapsed')) {
+      const others = [...sidebar.querySelectorAll('.sidebar__scroll > .panel')].filter(other => other.id !== id && other.id !== 'places-panel' && panelShown(other.id));
+      if (pinned) preferences.pin(id, false);
+      // Hiding the last visible panel would leave an empty dock; collapse it instead.
+      if (!others.length && !pinned) { showSidebar(false); syncPanelMenu(); return; }
+      if (workspacePanels[selected].includes(id) || !pinned) setPanelVisibility(id, false);
+      syncPanels();
+      return;
+    }
+    if (app.dataset.presentation && app.dataset.presentation !== 'standard') document.querySelector('.desktop-workflows-menu [data-mobile-workflow="map"]')?.click();
+    if (!workspacePanels[selected].includes(id)) preferences.pin(id, true);
+    setPanelVisibility(id, true);
+    showSidebar(true);
+    syncPanels();
+    panel.open = true;
+    requestAnimationFrame(() => panel.scrollIntoView({ block: 'nearest', behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' }));
+  }
+  menu.querySelector('.desktop-workflows-menu > .menu__trigger')?.addEventListener('click', () => syncPanelMenu(document.body.classList.contains('fieldwork-desktop')));
+  return { select, syncPanels, togglePanel, layout: () => preferences.snapshot() };
 }
