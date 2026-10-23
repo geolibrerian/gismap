@@ -84,6 +84,18 @@ test("a slide shows its layers, asks each service which features relate, and the
   assert.equal(transit.visible, true);
   assert.equal(filters.get("parking"), null);
 
+  // A slide can also hide the primary dataset, then the next slide and exit restore it.
+  await slides.applySlideLayers({ id: "hurricanes", layers: [{ layer: STADIUMS, visible: false }, { layer: PARKING, visible: true }] });
+  assert.equal(stadiums.visible, false);
+  assert.equal(parking.visible, true);
+  await slides.applySlideLayers({ id: "earthquakes", layers: [{ layer: STADIUMS, visible: true }, { layer: PARKING, visible: false }] });
+  assert.equal(stadiums.visible, true);
+  assert.equal(parking.visible, false);
+  await slides.applySlideLayers({ id: "hurricanes", layers: [{ layer: STADIUMS, visible: false }] });
+  await slides.restoreLayers();
+  assert.equal(stadiums.visible, true);
+  assert.equal(parking.visible, false);
+
   // No related features draws none, not all; the presentation's end restores everything.
   queries.length = 0;
   await slides.applySlideLayers({ id: "s-3", layers: [{ layer: "transit", visible: true }, { layer: PARKING, visible: true, relation: { type: "relation", relationParameter: "T********" } }] }, record);
@@ -105,7 +117,7 @@ test("a slide shows its layers, asks each service which features relate, and the
 
 test("the slide editor offers every relationship and the player restores layers when it closes", async () => {
   const source = await readFile(new URL("../js/briefing-slides.js", import.meta.url), "utf8");
-  assert.match(source, /Other layers <small>/);
+  assert.match(source, /Slide layers <small>/);
   assert.match(source, /SPATIAL_RELATIONSHIPS\.map\(\(type\) => `<option value="\$\{type\}"/);
   assert.match(source, /onClose: \(\) => void this\.restoreLayers\(\)/);
   assert.match(source, /const layers = this\.applySlideLayers\(slide, record\)\.catch/, "layers change alongside the camera move, not after it");

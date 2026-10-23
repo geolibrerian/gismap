@@ -97,7 +97,8 @@ export class BriefingSlides {
 
   #findLayer(ref) {
     const wanted = String(ref || "").trim().replace(/\/+$/, "").toLowerCase();
-    return this.otherLayers().find((item) => String(item.ref).replace(/\/+$/, "").toLowerCase() === wanted || item.layer.uid === ref || item.layer.id === ref || item.layer.title === ref)?.layer || null;
+    const { mapController } = this.api;
+    return (mapController.getLayers?.() || []).find((layer) => String(briefingLayerRef(mapController, layer) || layer.uid).replace(/\/+$/, "").toLowerCase() === wanted || layer.uid === ref || layer.id === ref || layer.title === ref) || null;
   }
 
   /** Puts the other layers back as they were before any slide changed them. */
@@ -142,7 +143,7 @@ export class BriefingSlides {
     const entries = Array.isArray(slide?.layers) ? slide.layers : null;
     if (!entries && !slide?.dataView && !(slide && Object.hasOwn(slide, "spatialChart")) && !this.layerState) return;
     const { mapController } = this.api;
-    this.layerState ??= { visible: new Map(this.otherLayers().map(({ layer }) => [layer.uid, layer.visible !== false])), filtered: new Set() };
+    this.layerState ??= { visible: new Map((mapController.getLayers?.() || []).map((layer) => [layer.uid, layer.visible !== false])), filtered: new Set() };
     await this.#restoreLayersNow({ keep: true });
     if (token !== this.layerToken) return;
     if (slide && Object.hasOwn(slide, "spatialChart")) {
@@ -522,29 +523,30 @@ export class BriefingSlides {
 
   /** Slide details: which other layers show with the main layer, and which of their features. */
   #layersSection(slide, record) {
-    const others = this.otherLayers();
-    if (!others.length) return "";
     const main = this.api.data().layer;
+    const others = this.otherLayers();
+    const layers = main ? [{ layer: main, ref: briefingLayerRef(this.api.mapController, main) || main.uid }, ...others] : others;
+    if (!layers.length) return "";
     const entries = new Map((slide.layers || []).map((entry) => [entry.layer, entry]));
     const canRelate = Boolean(record?.geometry);
-    const rows = others.map(({ layer, ref }) => {
+    const rows = layers.map(({ layer, ref }) => {
       const entry = entries.get(ref);
       const visible = entry ? entry.visible : (this.layerState?.visible.get(layer.uid) ?? layer.visible !== false);
       const relation = entry?.relation || null;
-      const queryable = layer.objectIdQueryable;
+      const queryable = layer !== main && layer.objectIdQueryable;
       const relationControls = queryable
         ? `<div class="briefing-layer__relation"${visible ? "" : " hidden"}>
             <label><span>Features</span><select data-slide-layer-relation${canRelate ? "" : " disabled"}><option value="">All of them</option>${SPATIAL_RELATIONSHIPS.map((type) => `<option value="${type}"${relation?.type === type ? " selected" : ""}>Only those that: ${escapeHtml(RELATION_LABELS[type])}</option>`).join("")}</select></label>
             <label${relation ? "" : " hidden"}><span>Grow the feature by</span><span class="briefing-layer__distance"><input type="number" min="0" step="any" data-slide-layer-distance value="${relation?.distance ?? ""}" placeholder="0"><select data-slide-layer-units>${DISTANCE_UNITS.map((unit) => `<option value="${unit}"${(relation?.units || "meters") === unit ? " selected" : ""}>${UNIT_LABELS[unit]}</option>`).join("")}</select></span></label>
             <label${relation?.type === "relation" ? "" : " hidden"}><span>DE-9IM pattern</span><input data-slide-layer-pattern maxlength="9" value="${escapeHtml(relation?.relationParameter || "")}" placeholder="T********"></label>
           </div>`
-        : `<p class="form-note">Drawn by its service: it can be shown or hidden, not limited by feature.</p>`;
+        : layer === main ? "" : `<p class="form-note">Drawn by its service: it can be shown or hidden, not limited by feature.</p>`;
       return `<div class="briefing-layer" data-slide-layer="${escapeHtml(ref)}"><label class="briefing-layer__show"><input type="checkbox" data-slide-layer-visible${visible ? " checked" : ""}> <span>${escapeHtml(layer.title || "Layer")}</span></label>${relationControls}</div>`;
     }).join("");
     const note = canRelate
       ? `Feature limits ask each layer's service which features relate to this slide's feature${main?.title ? ` in ${escapeHtml(main.title)}` : ""}.`
       : "Feature limits need a slide about one feature (a Feature slide); here a layer can only be shown or hidden.";
-    return `<fieldset class="briefing-field briefing-layers"><legend>Other layers <small>${slide.layers ? "set for this slide" : "as the map has them"}</small></legend>${rows}<p class="form-note">${note}</p>${slide.layers ? '<button type="button" class="briefing-link-button" data-slide-layers-clear>Leave the other layers as the map has them</button>' : ""}</fieldset>`;
+    return `<fieldset class="briefing-field briefing-layers"><legend>Slide layers <small>${slide.layers ? "set for this slide" : "as the map has them"}</small></legend>${rows}<p class="form-note">${note}</p>${slide.layers ? '<button type="button" class="briefing-link-button" data-slide-layers-clear>Leave layers as the map has them</button>' : ""}</fieldset>`;
   }
 
   #renderEditor(host, slide, briefing) {

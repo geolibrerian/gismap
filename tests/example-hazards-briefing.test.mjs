@@ -10,7 +10,14 @@ test('example is an editable briefing with both live sources and no fabricated c
   const briefing = createHazardsExampleBriefing({ earthquakeRef, hurricaneRef, hurricaneLayerName: 'Forecast Position' });
   assert.equal(briefing.layerId, earthquakeRef);
   assert.equal(briefing.slides.length, 5);
-  assert.ok(briefing.slides.every(slide => slide.layers.some(layer => layer.layer === hurricaneRef && layer.visible)));
+  assert.deepEqual(briefing.slides.map(slide => slide.layers.map(layer => [layer.layer, layer.visible])), [
+    [[earthquakeRef, true], [hurricaneRef, true]],
+    [[earthquakeRef, false], [hurricaneRef, true]],
+    [[earthquakeRef, true], [hurricaneRef, false]],
+    [[earthquakeRef, true], [hurricaneRef, true]],
+    [[earthquakeRef, true], [hurricaneRef, true]],
+  ]);
+  assert.notDeepEqual(briefing.slides[1].camera, briefing.slides[2].camera);
   assert.ok(briefing.slides.some(slide => slide.title === 'Recent earthquakes'));
   assert.ok(briefing.slides.some(slide => slide.title === 'Active hurricanes'));
   assert.match(briefing.slides.find(slide => slide.title === 'Active hurricanes').blocks[0].markdown, /Forecast Position/);
