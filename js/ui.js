@@ -30,7 +30,7 @@ import { featureLayerUrl, locationUrl } from "./field-task-share.js?v=0.54.0-uni
 import { dockIcon } from "./dock-icons.js?v=0.24.0";
 import { serviceNameFromUrl } from "./service-name.js?v=0.26.0";
 import { decodeQrFromImage, describeGisMapLink, gisMapLinkFrom, openGisMapLink } from "./qr-import.js?v=0.25.2";
-import { BriefingSlides } from "./briefing-slides.js?v=0.56.0-layer-switch";
+import { BriefingSlides } from "./briefing-slides.js?v=0.57.0-editor1";
 import { createSlide, isRoutineField, matchesFilter, normalizeFilter } from "./briefing-document.js?v=0.35.0";
 import { conditionComplete, conditionLabel, conditionToFilter } from "./briefing-conditions.js?v=0.1.0";
 import { createFilterBuilder } from "./filter-builder.js?v=0.1.0";
@@ -4127,6 +4127,15 @@ export class UIController {
     } else if (this.briefingTab === "slides") this.briefingSlides.render(slidesHost);
     this.#addPresentationDockControl(root);
     this.#bindBriefingWorkspace(root, presentation, layer, fields);
+    const search = root.querySelector(".briefing-search [data-mode-search]");
+    if (search && state.searchField) {
+      const values = [...new Set(state.records.map((record) => record.attributes?.[state.searchField]).filter((value) => value != null && value !== "").map(String))].slice(0, 100);
+      const suggestions = document.createElement("datalist");
+      suggestions.id = "briefing-search-suggestions";
+      for (const value of values) { const option = document.createElement("option"); option.value = value; suggestions.append(option); }
+      search.setAttribute("list", suggestions.id);
+      search.after(suggestions);
+    }
     if (!this.mobileMedia.matches) this.#foldBriefingRecords(root);
     const context = root.querySelector(".briefing-context");
     if (context && this.mobileMedia.matches) this.#foldBriefingSheet(root, context, selected);
@@ -4149,6 +4158,12 @@ export class UIController {
     const filters = document.createElement("div");
     filters.className = "briefing-data-dock__filters";
     filters.append(...[root.querySelector(".briefing-search"), root.querySelector(".briefing-select")].filter(Boolean));
+    const addIncluded = document.createElement("button");
+    addIncluded.type = "button";
+    addIncluded.className = "briefing-data-dock__add-slides";
+    addIncluded.textContent = "Add included features as slides";
+    addIncluded.addEventListener("click", () => { this.briefingSlides.addIncluded(); this.#openBriefingInspector(); });
+    filters.append(addIncluded);
     const list = document.createElement("div");
     list.className = "briefing-data-dock__records";
     let actions = dock.querySelector(".briefing-data-dock__actions");
@@ -4196,8 +4211,10 @@ export class UIController {
     // A few informative columns: numbers and dates first, never IDs or geometry measures.
     const columns = fields.fields.filter((field) => field.name !== labelField && field.name !== state.groupField && !isRoutineField(field, { idField }))
       .sort((a, b) => (["number", "date"].includes(kind(b)) ? 1 : 0) - (["number", "date"].includes(kind(a)) ? 1 : 0)).slice(0, 3);
-    const limit = 400;
-    const rows = state.visibleRecords.slice(0, limit);
+    const limit = 50;
+    const pages = Math.max(1, Math.ceil(state.visibleRecords.length / limit));
+    state.briefingDataPage = Math.min(Math.max(0, state.briefingDataPage || 0), pages - 1);
+    const rows = state.visibleRecords.slice(state.briefingDataPage * limit, (state.briefingDataPage + 1) * limit);
     const useAll = state.briefingUseAll === true;
     const cell = (record, field) => escapeHtml(formatAttributeValue(record.attributes?.[field.name], field, field.name));
     const sortMark = (name) => (state.sortField === name ? (state.sortDirection === "desc" ? " ↓" : " ↑") : "");
@@ -4224,7 +4241,7 @@ export class UIController {
     const groupCount = state.groupField ? new Set(state.visibleRecords.map((record) => String(record.attributes?.[state.groupField] ?? ""))).size : 0;
     wrap.innerHTML = `${state.groupField ? `<div class="briefing-data-table__toolbar"><span>${groupCount.toLocaleString()} groups</span><button type="button" data-dt-series title="One filtered map slide per value, from the matching features">One slide per group</button></div>` : ""}
       <table><thead><tr><th scope="col"><span class="sr-only">Include</span></th><th scope="col"><button type="button" data-dt-sort="${escapeHtml(labelField || "")}">${escapeHtml(fields.fields.find((field) => field.name === labelField)?.alias || "Feature")}${sortMark(labelField)}</button></th>${columns.map((field) => `<th scope="col"><button type="button" data-dt-sort="${escapeHtml(field.name)}">${escapeHtml(field.alias || field.name)}${sortMark(field.name)}</button></th>`).join("")}<th scope="col"><span class="sr-only">Actions</span></th></tr></thead>${body}</table>
-      ${state.visibleRecords.length > limit ? `<p class="form-note">First ${limit} of ${state.visibleRecords.length.toLocaleString()} listed; filters and group actions use all of them.</p>` : ""}${state.visibleRecords.length ? "" : '<p class="form-note">No loaded features match.</p>'}`;
+      ${state.visibleRecords.length > limit ? `<div class="briefing-data-table__pagination"><button type="button" data-dt-page="-1"${state.briefingDataPage === 0 ? " disabled" : ""}>Previous</button><span>Page ${state.briefingDataPage + 1} of ${pages} · ${state.visibleRecords.length.toLocaleString()} matches</span><button type="button" data-dt-page="1"${state.briefingDataPage >= pages - 1 ? " disabled" : ""}>Next</button></div><p class="form-note">Filters and group actions use all matching loaded features.</p>` : ""}${state.visibleRecords.length ? "" : '<p class="form-note">No loaded features match.</p>'}`;
     const rerender = () => this.#renderBriefingWorkspace(root, presentation, layer, fields);
     const recordFor = (id) => state.visibleRecords.find((record) => featureId(record, idField) === id);
     const groupMembers = (value) => state.visibleRecords.filter((record) => String(record.attributes?.[state.groupField] ?? "") === value);
@@ -4237,6 +4254,8 @@ export class UIController {
     });
     wrap.addEventListener("click", async (event) => {
       const target = event.target;
+      const page = target.closest("[data-dt-page]");
+      if (page) { state.briefingDataPage += Number(page.dataset.dtPage); rerender(); return; }
       const sort = target.closest("[data-dt-sort]");
       if (sort) {
         const name = sort.dataset.dtSort;

@@ -476,19 +476,24 @@ export class BriefingSlides {
       return section;
     });
     const labels = ["One slide per value", "3D chart", "Timeline", "Grid atlas"];
-    const block = document.createElement("section");
+    const block = document.createElement("details");
     block.className = "briefing-new-slides";
     block.setAttribute("aria-label", "New slides");
-    block.innerHTML = `<h3>New slides</h3>
+    block.innerHTML = `<summary>+ Add slides</summary><p class="form-note">Choose a blank slide or create slides from the current map and data.</p>
       <div class="briefing-new-slides__row" data-new-quick></div>
       <div class="briefing-new-slides__row"><span>Blank</span>${SLIDE_TEMPLATES.filter((template) => template.id !== "feature").map((template) => `<button type="button" data-new-blank="${template.id}" title="${escapeHtml(template.description)}">${escapeHtml(template.label)}</button>`).join("")}</div>
       <div class="briefing-new-slides__row briefing-slides__templates"><span>From data</span>${forms.map((_, index) => `<button type="button" data-template-open="${index}" aria-pressed="${this.openTemplate === index}">${labels[index] || "Template"}</button>`).join("")}</div>`;
-    // "Make from the map" and "Add included features" join the block; the old select goes.
-    block.querySelector("[data-new-quick]").append(...[container.querySelector(".briefing-slides__auto"), container.querySelector("[data-slides-add-included]")].filter(Boolean));
+    // Feature selection actions belong beside the Data filters on desktop.
+    block.querySelector("[data-new-quick]").append(...[container.querySelector(".briefing-slides__auto")].filter(Boolean));
+    container.querySelector("[data-slides-add-included]")?.remove();
     container.querySelector(".briefing-slides__add")?.remove();
     container.querySelector(".briefing-slides__authoring")?.prepend(block);
     const editor = container.querySelector("[data-slide-editor]");
-    inspector.replaceChildren(...forms, editor);
+    const tabs = document.createElement("nav");
+    tabs.className = "briefing-editor-tabs";
+    tabs.setAttribute("aria-label", "Choose a slide to edit");
+    tabs.innerHTML = this.briefing.slides.map((slide, index) => `<button type="button" data-slide-select="${escapeHtml(slide.id)}" aria-current="${slide.id === this.selectedSlideId}" title="${escapeHtml(slide.title || "Untitled slide")}">${index + 1}. ${escapeHtml(slide.title || "Untitled slide")}</button>`).join("");
+    inspector.replaceChildren(tabs, ...forms, editor);
     forms.forEach((form, index) => { form.hidden = this.openTemplate !== index; });
     if (Number.isInteger(this.openTemplate) && forms[this.openTemplate]) {
       const close = document.createElement("button");
@@ -609,6 +614,7 @@ export class BriefingSlides {
     const slideId = this.selectedSlideId;
     on("[data-slide-select]", "click", (button) => {
       this.selectedSlideId = button.dataset.slideSelect;
+      this.openTemplate = null;
       this.render();
       const slide = this.briefing.slides.find((item) => item.id === this.selectedSlideId);
       if (slide && (slide.camera || slide.fit)) void this.showSlideMap(slide);
