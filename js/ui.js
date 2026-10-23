@@ -1418,6 +1418,17 @@ export class UIController {
           openDuckdbPanel(this, this.applicationRuntime.duckdb);
           break;
         }
+        case "tools-sql-workspace": {
+          this.openDialog({ eyebrow: "Database tools", title: "SQL Workspace", content: '<div data-tools-sql-workspace></div>' });
+          const host = this.dialog.querySelector("[data-tools-sql-workspace]");
+          this.applicationRuntime.panels.get("sql").mount(host, { config: { settings: {} } });
+          break;
+        }
+        case "tools-duckdb-query": {
+          const { openDuckdbQueryWorkspace } = await import("./duckdb-query-workspace.js?v=0.54.0-queryui1");
+          openDuckdbQueryWorkspace(this, this.applicationRuntime.duckdb);
+          break;
+        }
         case "data-postgis": {
           const { openPostgisPanel } = await import("./data-connections-panel.js?v=0.55.0-fieldwork1");
           openPostgisPanel(this);
