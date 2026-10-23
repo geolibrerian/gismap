@@ -4101,7 +4101,13 @@ export class UIController {
     filters.append(...[root.querySelector(".briefing-search"), root.querySelector(".briefing-select")].filter(Boolean));
     const list = document.createElement("div");
     list.className = "briefing-data-dock__records";
-    list.append(...[scope, records].filter(Boolean));
+    const actions = document.createElement("div");
+    actions.className = "briefing-data-dock__actions";
+    actions.hidden = !this.projectManager.current.presentation?.briefing?.slides?.length;
+    actions.innerHTML = '<button type="button" class="briefing-slides__present" data-dock-preview>Preview slides</button><button type="button" data-dock-share>Share &amp; PDF</button>';
+    actions.querySelector("[data-dock-preview]").addEventListener("click", () => this.briefingSlides.openPlayer());
+    actions.querySelector("[data-dock-share]").addEventListener("click", () => this.shareBriefing());
+    list.append(...[actions, scope, records].filter(Boolean));
     body.replaceChildren(filters, list);
     dock.querySelector("[data-briefing-dock-status]").textContent = this.#briefingStatus();
     if (dock.hidden) {
@@ -4292,6 +4298,8 @@ export class UIController {
 
   #syncBriefingTabs() {
     const slides = this.projectManager.current.presentation?.briefing?.slides?.length || 0;
+    const dockActions = document.querySelector(".briefing-data-dock__actions");
+    if (dockActions) dockActions.hidden = !slides;
     const slidesTab = this.briefingTab === "slides";
     document.querySelectorAll("[data-briefing-tab]").forEach((button) => {
       const selected = button.dataset.briefingTab === this.briefingTab;
