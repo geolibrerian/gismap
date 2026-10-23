@@ -3,9 +3,10 @@
  * the whole document — map workspace, presentations, mobile navigation,
  * sheets and dialogs — so the interface never mixes two looks at once.
  *
- * "gismap" is the house look; it alone follows the Light/Dark/System
- * appearance setting. Every other skin carries its own fixed light or dark
- * palette.
+ * Every skin renders light or dark. "gismap" (Fieldwork / Observatory)
+ * follows the Light/Dark/System appearance setting; every other skin opens in
+ * its native tone and remembers its own light/dark choice. The counterpart
+ * palettes live in css/fieldwork.css.
  */
 export const DEFAULT_SKIN = "gismap";
 
@@ -35,11 +36,26 @@ export const skinOptionsMarkup = (selected = DEFAULT_SKIN) => INTERFACE_SKINS
   .map(({ id, label }) => `<option value="${id}"${id === selected ? " selected" : ""}>${label}</option>`)
   .join("");
 
-/** Resolve whether a skin renders dark, given the user's appearance theme. */
-export const skinIsDark = (skin, theme = "light") => {
-  const entry = INTERFACE_SKINS.find(({ id }) => id === normalizeSkin(skin));
-  return entry?.tone === "auto" ? theme === "dark" : entry?.tone === "dark";
+export const skinTone = (skin) => INTERFACE_SKINS.find(({ id }) => id === normalizeSkin(skin))?.tone || "light";
+
+/** The light/dark rendering of a skin: house appearance for "gismap", otherwise the skin's saved choice or native tone. */
+export const resolveSkinTheme = (skin, { houseTheme = "light", choices = {} } = {}) => {
+  const id = normalizeSkin(skin);
+  const tone = skinTone(id);
+  if (tone === "auto") return houseTheme === "dark" ? "dark" : "light";
+  return choices?.[id] === "dark" || choices?.[id] === "light" ? choices[id] : tone;
 };
+
+// The app registers how skins resolve (it owns the saved settings); without it,
+// skins render in their native tone and the house skin follows data-theme.
+let themeResolver = null;
+// Without a resolver, data-theme holds the house appearance until another skin
+// replaces it; keep it so returning to the house skin restores it.
+const houseThemes = new WeakMap();
+export const setSkinThemeResolver = (resolver) => { themeResolver = typeof resolver === "function" ? resolver : null; };
+
+/** Resolve whether a skin renders dark, given the user's appearance theme. */
+export const skinIsDark = (skin, theme = "light") => (themeResolver ? themeResolver(normalizeSkin(skin)) : resolveSkinTheme(skin, { houseTheme: theme })) === "dark";
 
 /**
  * Apply one skin to the whole document. Tokens live on :root so elements
@@ -58,13 +74,17 @@ export const applyInterfaceSkin = (skin, { documentRef = globalThis.document, co
   const root = documentRef?.documentElement;
   if (!root) return normalizeSkin(skin);
   const id = normalizeSkin(skin);
+  const previous = root.dataset.skin;
+  if (!previous || skinTone(previous) === "auto") houseThemes.set(root, root.dataset.theme);
   root.dataset.skin = id;
   const palette = normalizeSkinColors(colors);
   for (const [key, token] of [["primary", "--green"], ["secondary", "--green-2"], ["tertiary", "--amber"]]) {
     if (palette?.[key]) root.style.setProperty?.(token, palette[key]);
     else root.style.removeProperty?.(token);
   }
-  const dark = skinIsDark(id, root.dataset.theme);
+  const theme = themeResolver ? themeResolver(id) : resolveSkinTheme(id, { houseTheme: houseThemes.get(root) ?? root.dataset.theme });
+  root.dataset.theme = theme;
+  const dark = theme === "dark";
   root.style.colorScheme = dark ? "dark" : "light";
   documentRef.body?.classList?.toggle("calcite-mode-dark", dark);
   const app = documentRef.querySelector?.("#app");

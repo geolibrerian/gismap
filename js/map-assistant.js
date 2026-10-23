@@ -7,8 +7,8 @@
 // in-page API (globalThis.gisMapOnline) and a few app hooks passed in as `host`.
 
 import { describeArcgisLayer, describeFields, isArcgisLayerUrl, summarizeArcgisField } from "./layer-insight.js?v=0.50.0";
-import { INTERFACE_SKINS } from "./skin-catalog.js?v=0.44.2";
-import { DISPLAY_SETTINGS, guideOutline, searchGuide, validateDisplaySetting } from "./app-guide.js?v=0.56.0-dashboard1";
+import { INTERFACE_SKINS } from "./skin-catalog.js?v=0.57.0-skins2";
+import { DISPLAY_SETTINGS, guideOutline, searchGuide, validateDisplaySetting } from "./app-guide.js?v=0.57.0-skins1";
 
 const MAX_RESULT = 6000;
 const STEP_LIMIT = 10;

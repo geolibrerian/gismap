@@ -1,4 +1,4 @@
-import { initializeFieldworkWorkspace } from "./fieldwork-workspace.js?v=0.57.0-panels3";
+import { initializeFieldworkWorkspace } from "./fieldwork-workspace.js?v=0.57.0-skins1";
 import { timelinePdfFrames, expandTimelinePdfSlides, parseTimelineFrameSelection } from "./briefing-timeline-pdf.js?v=0.1.0";
 import { renderNotesHub } from "./notes-hub.js?v=0.55.0-fieldwork1";
 import { refreshMapNoteFilters } from './map-note-filters.js?v=0.4.1';
@@ -9,18 +9,18 @@ import { openMapNotesPanel } from "./map-notes-panel.js?v=0.14.0";
 import { refreshNoteRelationships } from "./note-relationships-ui.js?v=0.1.0";
 import { googleMapsLinkForChapter } from "./google-maps-link.js?v=0.53.0";
 import { POPULAR_SERVICES } from "./catalog.js?v=0.18.2";
-import { MapAssistantPanel } from "./assistant-panel.js?v=0.54.0-geourl1";
-import { createAssistantTools, summarizeMapState } from "./map-assistant.js?v=0.56.0-dashboard1";
+import { MapAssistantPanel } from "./assistant-panel.js?v=0.57.0-skins1";
+import { createAssistantTools, summarizeMapState } from "./map-assistant.js?v=0.57.0-skins1";
 import { ENTERPRISE_CATALOGS, EnterpriseCatalog, normalizeArcGisDirectoryUrl } from "./enterprise-catalog.js?v=0.18.2";
 import { createShareUrl } from "./share.js?v=0.54.0-unified4";
-import { createShareLink, hasDataFilter } from "./map-share.js?v=0.54.0-unified4";
-import { briefingLayerRef, findBriefingLayer } from "./briefing-api.js?v=0.53.0-temporal1";
+import { createShareLink, hasDataFilter } from "./map-share.js?v=0.57.0-skins1";
+import { briefingLayerRef, findBriefingLayer } from "./briefing-api.js?v=0.57.0-skins1";
 import { createEmbeddedTourUrl } from "./tour-share.js?v=0.54.0-unified4";
 import { markdownToPlainText, renderMarkdown } from "./markdown.js?v=0.18.2";
 import { formatAttributeValue } from "./attribute-format.js?v=0.18.2";
 import { normalizeApplicationConfig, presetApplication } from "./application-config.js?v=0.18.2";
 import { featureFilterFor, featureId, fieldKind, filterRecords, histogram, requestGuard, sortRecords } from "./presentation-query.js?v=0.30.0";
-import { DEFAULT_SKIN, INTERFACE_SKINS, applyInterfaceSkin, normalizeSkin, skinIsDark, skinOptionsMarkup } from "./skin-catalog.js?v=0.55.0-fieldwork1";
+import { DEFAULT_SKIN, INTERFACE_SKINS, applyInterfaceSkin, normalizeSkin, resolveSkinTheme, setSkinThemeResolver, skinIsDark, skinOptionsMarkup, skinTone } from "./skin-catalog.js?v=0.57.0-skins2";
 import { applyMapColors, MAP_COLOR_COMPONENTS, SKIN_BASEMAP, themeFromComputedStyle } from "./basemap-themes.js?v=0.53.0-mapcolors1";
 import { compactMedia } from "./viewport.js?v=0.18.2";
 import { APP_VERSION } from "./version.js?v=0.53.0";
@@ -30,7 +30,7 @@ import { featureLayerUrl, locationUrl } from "./field-task-share.js?v=0.54.0-uni
 import { dockIcon } from "./dock-icons.js?v=0.24.0";
 import { serviceNameFromUrl } from "./service-name.js?v=0.26.0";
 import { decodeQrFromImage, describeGisMapLink, gisMapLinkFrom, openGisMapLink } from "./qr-import.js?v=0.25.2";
-import { BriefingSlides } from "./briefing-slides.js?v=0.57.0-editor2";
+import { BriefingSlides } from "./briefing-slides.js?v=0.57.0-skins1";
 import { createSlide, isRoutineField, matchesFilter, normalizeFilter } from "./briefing-document.js?v=0.35.0";
 import { conditionComplete, conditionLabel, conditionToFilter } from "./briefing-conditions.js?v=0.1.0";
 import { createFilterBuilder } from "./filter-builder.js?v=0.1.0";
@@ -140,6 +140,12 @@ export class UIController {
     this.briefingRequest = requestGuard();
     this.keepWelcomeForSharedExample = new URLSearchParams(location.search).has("example");
     this.systemThemeMedia = matchMedia("(prefers-color-scheme: dark)");
+    // Every skin renders light or dark: the house skin follows Appearance; other skins keep their own choice.
+    setSkinThemeResolver((skin) => {
+      const settings = this.#readDisplaySettings();
+      const houseTheme = settings.appearance === "system" ? (this.systemThemeMedia.matches ? "dark" : "light") : settings.appearance;
+      return resolveSkinTheme(skin, { houseTheme, choices: settings.skinAppearance });
+    });
     this.mobileMedia = mobilePanelManager?.media || compactMedia();
   }
 
@@ -201,9 +207,12 @@ export class UIController {
       action: action => this.#handleAction(action),
       showSidebar: open => this.#setSidebarCollapsed(!open),
       setPanelVisibility: (id, visible, save = true) => this.#setOptionalPanelVisibility(id, visible, save),
+      // Light/dark flips the current skin; it never swaps the skin for the house look.
       theme: () => {
-        const settings = { ...this.#readDisplaySettings(), appearance: document.documentElement.dataset.theme === "dark" ? "light" : "dark" };
-        this.applySkinChoice("gismap");
+        const current = this.#readDisplaySettings();
+        const skin = normalizeSkin(document.documentElement.dataset.skin);
+        const next = document.documentElement.dataset.theme === "dark" ? "light" : "dark";
+        const settings = skinTone(skin) === "auto" ? { ...current, appearance: next } : { ...current, skinAppearance: { ...current.skinAppearance, [skin]: next } };
         try { localStorage.setItem(DISPLAY_SETTINGS_KEY, JSON.stringify(settings)); } catch { /* Session-only appearance. */ }
         this.#applyDisplaySettings(settings);
       },
@@ -2287,6 +2296,7 @@ export class UIController {
         navigationLayout: saved.navigationLayout === "top" ? "top" : "side",
         utilityPanelWidth: Number.isFinite(saved.utilityPanelWidth) ? Math.min(Math.max(280, window.innerWidth * 0.55), Math.max(280, saved.utilityPanelWidth)) : 360,
         appearance: ["system", "light", "dark"].includes(saved.appearance) ? saved.appearance : "light",
+        skinAppearance: Object.fromEntries(Object.entries(saved.skinAppearance && typeof saved.skinAppearance === "object" ? saved.skinAppearance : {}).filter(([skin, theme]) => INTERFACE_SKINS.some(({ id }) => id === skin) && (theme === "light" || theme === "dark"))),
         darkBasemapEnabled: saved.darkBasemapEnabled === true,
         bookmarksPanelVisible: saved.bookmarksPanelVisible === true,
         drawPanelVisible: saved.drawPanelVisible === true,
@@ -2304,7 +2314,7 @@ export class UIController {
     const prefersDark = matchMedia("(prefers-color-scheme: dark)").matches;
     const resolvedTheme = settings.appearance === "system" ? (prefersDark ? "dark" : "light") : settings.appearance;
     document.documentElement.dataset.theme = resolvedTheme;
-    // Light/Dark applies to the GISMap house skin; other skins keep their own palette.
+    // Appearance is the house skin's light/dark; applyInterfaceSkin resolves the active skin's own rendering.
     const skin = document.documentElement.dataset.skin || this.projectManager?.current?.presentation?.skin;
     applyInterfaceSkin(skin, { colors: this.projectManager?.current?.presentation?.skinColors?.[normalizeSkin(skin)] });
     const mobile = this.mobileMedia.matches;
@@ -2374,7 +2384,7 @@ export class UIController {
       eyebrow: "Interface preferences",
       title: "Display settings",
       content: `<div class="display-settings-grid">
-        <label class="field"><span>Appearance</span><select id="appearance"><option value="system">System</option><option value="light">Light</option><option value="dark">Dark</option></select></label>
+        <label class="field"><span>Appearance <small>${escapeHtml(INTERFACE_SKINS.find(({ id }) => id === normalizeSkin(document.documentElement.dataset.skin))?.label || "")}</small></span><select id="appearance"><option value="system">System</option><option value="light">Light</option><option value="dark">Dark</option></select></label>
         <label class="field"><span>Application navigation</span><select id="navigation-layout"><option value="side">Side panel</option><option value="top">Top navigation bar</option></select></label>
         <label class="field"><span>Map Insight position</span><select id="insight-position"><optgroup label="Floating"><option value="upper-left">Upper left</option><option value="lower-left">Lower left</option><option value="bottom">Bottom overlay</option></optgroup><optgroup label="Dashboard"><option value="dock-left">Dock left</option><option value="dock-right">Dock right</option><option value="dock-top">Dock top</option><option value="dock-bottom">Dock bottom</option></optgroup></select></label>
         <label class="field"><span>Attribute table position</span><select id="table-position"><option value="overlay-bottom">Bottom overlay</option><option value="dock-left">Dock left</option><option value="dock-right">Dock right</option><option value="dock-top">Dock top</option><option value="dock-bottom">Dock bottom</option></select></label>
@@ -2393,7 +2403,11 @@ export class UIController {
         const defaultBasemap = this.dialog.querySelector("#default-basemap").value;
         const insightDismissMiles = Number(this.dialog.querySelector("#insight-dismiss-miles").value);
         if (!Number.isFinite(insightDismissMiles) || insightDismissMiles < 1 || insightDismissMiles > 12450) { this.error("Choose a Map Insight distance between 1 and 12,450 miles."); return; }
-        const settings = { ...this.#readDisplaySettings(), insightDismissEnabled: this.dialog.querySelector("#insight-dismiss-enabled").checked, insightDismissMiles, insightPosition, tablePosition, navigationLayout, appearance, defaultBasemap, darkBasemapEnabled: this.dialog.querySelector("#dark-basemap-enabled").checked, highlightEnabled: this.dialog.querySelector("#highlight-enabled").checked, clickMarkerEnabled: this.dialog.querySelector("#click-marker-enabled").checked, highlightColor: this.dialog.querySelector("#highlight-color").value, highlightStyle: this.dialog.querySelector("#highlight-style").value === "outline" ? "outline" : "fill" };
+        const activeSkin = normalizeSkin(document.documentElement.dataset.skin);
+        const base = this.#readDisplaySettings();
+        // Appearance belongs to the active skin; "System" follows the device for any skin.
+        const skinChoice = skinTone(activeSkin) === "auto" ? {} : { skinAppearance: { ...base.skinAppearance, [activeSkin]: appearance === "system" ? (this.systemThemeMedia.matches ? "dark" : "light") : appearance } };
+        const settings = { ...base, ...skinChoice, insightDismissEnabled: this.dialog.querySelector("#insight-dismiss-enabled").checked, insightDismissMiles, insightPosition, tablePosition, navigationLayout, appearance: skinTone(activeSkin) === "auto" ? appearance : base.appearance, defaultBasemap, darkBasemapEnabled: this.dialog.querySelector("#dark-basemap-enabled").checked, highlightEnabled: this.dialog.querySelector("#highlight-enabled").checked, clickMarkerEnabled: this.dialog.querySelector("#click-marker-enabled").checked, highlightColor: this.dialog.querySelector("#highlight-color").value, highlightStyle: this.dialog.querySelector("#highlight-style").value === "outline" ? "outline" : "fill" };
         localStorage.setItem(DISPLAY_SETTINGS_KEY, JSON.stringify(settings));
         this.#applyDisplaySettings(settings);
         if (this.dialog.querySelector("#apply-default-basemap").checked) {
@@ -2411,7 +2425,8 @@ export class UIController {
     this.dialog.querySelector("#insight-position").value = insightPosition;
     this.dialog.querySelector("#table-position").value = tablePosition;
     this.dialog.querySelector("#navigation-layout").value = current.navigationLayout;
-    this.dialog.querySelector("#appearance").value = current.appearance;
+    const dialogSkin = normalizeSkin(document.documentElement.dataset.skin);
+    this.dialog.querySelector("#appearance").value = skinTone(dialogSkin) === "auto" ? current.appearance : document.documentElement.dataset.theme || "light";
     this.dialog.querySelector("#highlight-color").addEventListener("input", (event) => {
       event.currentTarget.nextElementSibling.value = event.currentTarget.value.toUpperCase();
     });

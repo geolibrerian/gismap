@@ -138,3 +138,20 @@ test("the router follows the active presentation and resets compact-only screens
   assert.match(router, /if \(!matches && this\.route === "more"\)/);
   assert.doesNotMatch(router, /navigate\(route\) \{\s*if \(!this\.media\.matches\) return;/, "desktop shared links must open their workflow");
 });
+
+test("every skin renders light and dark; the toggle keeps the current skin", async () => {
+  const { resolveSkinTheme } = await import("../js/skin-catalog.js");
+  assert.equal(resolveSkinTheme("gismap", { houseTheme: "dark" }), "dark");
+  assert.equal(resolveSkinTheme("clean-light", { houseTheme: "dark" }), "light", "a skin opens in its native tone");
+  assert.equal(resolveSkinTheme("clean-light", { choices: { "clean-light": "dark" } }), "dark", "a skin remembers its own choice");
+  assert.equal(resolveSkinTheme("dark-analytical", { choices: { "clean-light": "dark" } }), "dark");
+  assert.equal(resolveSkinTheme("dark-analytical", { choices: { "dark-analytical": "light" } }), "light");
+  const css = read("../css/fieldwork.css");
+  for (const { id, tone } of INTERFACE_SKINS.filter(({ tone }) => tone !== "auto")) {
+    const counterpart = tone === "dark" ? "light" : "dark";
+    assert.match(css, new RegExp(`:root\\[data-skin="${id}"\\]\\[data-theme="${counterpart}"\\] \\{ --ink:`), `${id} has a ${counterpart} rendering`);
+  }
+  const ui = read("../js/ui.js");
+  assert.doesNotMatch(ui, /theme: \(\) => \{[^}]*applySkinChoice\("gismap"\)/, "the light/dark toggle never swaps in the house skin");
+  assert.match(ui, /skinAppearance: \{ \.\.\.current\.skinAppearance, \[skin\]: next \}/);
+});

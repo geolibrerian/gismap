@@ -29,7 +29,7 @@ import { isDateField, previewDateTimeline } from "./briefing-timeline-dates.js?v
 import { generateFilterSeries, seriesWhere } from "./briefing-data-series.js?v=0.5.0";
 import { generateSpatialChartBrief } from "./briefing-spatial-chart.js?v=0.1.1";
 import { previewFilterSeries, formatSeriesTitle } from "./briefing-series-preview.js?v=0.2.0";
-import { briefingLayerRef } from "./briefing-api.js?v=0.53.0-temporal1";
+import { briefingLayerRef } from "./briefing-api.js?v=0.57.0-skins1";
 import { renderMarkdown } from "./markdown.js?v=0.18.2";
 import { BriefingPlayer, slideHasMap } from "./briefing-player.js?v=0.38.0-timeline4";
 import { expandTimelinePdfSlides } from "./briefing-timeline-pdf.js?v=0.1.0";

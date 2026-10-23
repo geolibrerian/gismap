@@ -174,7 +174,8 @@ export function initializeFieldworkWorkspace({ ui, action, showSidebar, theme, s
   const syncTheme = () => {
     const dark = document.documentElement.dataset.theme === 'dark';
     const button = header.querySelector('.studio-theme');
-    button.title = button.ariaLabel = `Switch to ${dark ? 'Fieldwork' : 'Observatory'}`;
+    const house = (document.documentElement.dataset.skin || 'gismap') === 'gismap';
+    button.title = button.ariaLabel = house ? `Switch to ${dark ? 'Fieldwork' : 'Observatory'}` : `Switch to ${dark ? 'light' : 'dark'} mode`;
     button.setAttribute('aria-pressed', String(dark));
   };
   new MutationObserver(syncTheme).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme','data-skin'] });
