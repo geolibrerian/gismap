@@ -296,16 +296,27 @@ export class BriefingSlides {
     if (template === "title") this.#save(moveSlide(this.briefing, slide.id, -this.briefing.slides.length));
   }
 
+  /** How a slide frames itself when shown; null when it uses its saved view. Pinning a view ("fixed") overrides both. */
+  #autoFraming(slide) {
+    const generated = slide?.generatedBy;
+    if (!generated || generated.cameraPolicy === "fixed") return null;
+    const bounds = generated.template === "grid-atlas" ? generated.bounds : null;
+    if (Array.isArray(bounds) && bounds.length === 4 && bounds.every(Number.isFinite) && bounds[0] >= -180 && bounds[2] <= 180 && bounds[1] >= -90 && bounds[3] <= 90 && bounds[0] < bounds[2] && bounds[1] < bounds[3]) return { kind: "grid", bounds };
+    if (slide.dataView && ["timeline", "filter-series"].includes(generated.template)) return { kind: "features" };
+    return null;
+  }
+
   /** Saves the map's current camera to the selected slide; the slide map toolbar and the editor share this. */
   saveCameraToSelected() {
     const slide = this.briefing.slides.find((item) => item.id === this.selectedSlideId);
     if (!slide || ["key-numbers", "actions"].includes(slide.template)) { this.api.notify?.("Select a slide that shows the map first."); return false; }
     const camera = this.#currentCamera();
     if (!camera) { this.api.notify?.("The map is not ready yet."); return false; }
-    // Saving a view on a data-driven slide pins it, so framing does not replace it later.
-    const generatedBy = slide.dataView && ["timeline", "filter-series"].includes(slide.generatedBy?.template) ? { ...slide.generatedBy, cameraPolicy: "fixed" } : slide.generatedBy;
+    // Saving a view on a grid or data-driven slide pins it, so automatic framing no longer replaces it.
+    const framing = this.#autoFraming(slide);
+    const generatedBy = framing ? { ...slide.generatedBy, cameraPolicy: "fixed" } : slide.generatedBy;
     this.#save(updateSlide(this.briefing, slide.id, { camera, fit: null, ...(generatedBy ? { generatedBy } : {}) }));
-    this.api.notify?.(`Saved this view to “${slide.title || "the selected slide"}”.`);
+    this.api.notify?.(`Saved this view to “${slide.title || "the selected slide"}”.${framing ? ` It now replaces the ${framing.kind === "grid" ? "grid cell" : "feature"} framing.` : ""}`);
     return true;
   }
 
@@ -340,10 +351,10 @@ export class BriefingSlides {
     // move (advancing quickly, a hidden map) must not leave the previous slide's layers.
     const layers = this.applySlideLayers(slide, record).catch((error) => this.api.notify?.(error.message));
     try {
-      const gridBounds = slide.generatedBy?.template === 'grid-atlas' ? slide.generatedBy.bounds : null;
-      if (Array.isArray(gridBounds) && gridBounds.length === 4 && gridBounds.every(Number.isFinite) && gridBounds[0] >= -180 && gridBounds[2] <= 180 && gridBounds[1] >= -90 && gridBounds[3] <= 90 && gridBounds[0] < gridBounds[2] && gridBounds[1] < gridBounds[3]) {
-        await mapController.setView({ bounds:gridBounds }, { animate });
-      } else if (slide.dataView && ['timeline', 'filter-series'].includes(slide.generatedBy?.template) && slide.generatedBy?.cameraPolicy !== 'fixed') {
+      const framing = this.#autoFraming(slide);
+      if (framing?.kind === 'grid') {
+        await mapController.setView({ bounds:framing.bounds }, { animate });
+      } else if (framing?.kind === 'features') {
         const data = this.api.data(), layer = data.layer;
         const ref = briefingLayerRef(mapController, layer);
         const fields = data.fields?.fields || layer?.fields || [];
@@ -583,7 +594,9 @@ export class BriefingSlides {
     const numericFields = data.fields?.numeric || [];
     const fieldOptions = (list, selected, { empty = "" } = {}) => `${empty ? `<option value="">${escapeHtml(empty)}</option>` : ""}${list.map((field) => `<option value="${escapeHtml(field.name)}"${field.name === selected ? " selected" : ""}>${escapeHtml(field.alias || field.name)}</option>`).join("")}`;
     const heading = slide.camera ? Math.round((((slide.camera.heading || 0) % 360) + 360) % 360) : 0;
-    const cameraStatus = slide.camera
+    const framing = this.#autoFraming(slide);
+    const cameraStatus = framing ? (framing.kind === "grid" ? "Frames its grid cell" : "Frames matching features")
+      : slide.camera
       ? `Saved view · zoom ${Number(slide.camera.zoom.toFixed(1))}${Math.round(slide.camera.tilt) ? ` · tilt ${Math.round(slide.camera.tilt)}°` : ""}${heading ? ` · heading ${heading}°` : ""} · ${Number(slide.camera.center[1]).toFixed(3)}, ${Number(slide.camera.center[0]).toFixed(3)}`
       : slide.fit === "feature" ? "Frames its feature" : "No map view saved";
     const blocks = slide.blocks.map((block) => {
@@ -623,6 +636,7 @@ export class BriefingSlides {
       ${["title", "map-narrative", "key-numbers"].includes(slide.template) ? `<label class="briefing-field"><span>Subtitle</span><input data-slide-subtitle value="${escapeHtml(slide.subtitle)}" maxlength="160"></label>` : ""}
       ${slide.template === "feature" ? `<p class="form-note">${record ? `Feature: <strong>${escapeHtml(data.label(record))}</strong>` : "This slide's feature is not in the loaded data."}</p>` : ""}
       ${slide.template !== "key-numbers" && slide.template !== "actions" ? `<div class="briefing-field briefing-camera"><span>Map view</span><p>${escapeHtml(cameraStatus)}</p><div><button type="button" data-slide-camera>Use current map view</button>${slide.featureId ? `<button type="button" data-slide-fit>Frame the feature</button>` : ""}${slide.camera || slide.fit ? `<button type="button" data-slide-show-map>Show</button>` : ""}</div></div>` : ""}
+      ${slide.generatedBy?.template === "grid-atlas" && Array.isArray(slide.generatedBy.bounds) ? `<label class="briefing-field"><span>Grid map view</span><select data-slide-camera-policy><option value="fit-features"${slide.generatedBy.cameraPolicy !== "fixed" ? " selected" : ""}>Frame its grid cell</option><option value="fixed"${slide.generatedBy.cameraPolicy === "fixed" ? " selected" : ""}>Keep saved map view</option></select><small>Saving a view switches this slide to its saved view.</small></label>` : ""}
       ${slide.dataView && ["timeline", "filter-series"].includes(slide.generatedBy?.template) ? `<label class="briefing-field"><span>Data-driven map view</span><select data-slide-camera-policy><option value="fit-features"${slide.generatedBy.cameraPolicy !== "fixed" ? " selected" : ""}>Frame matching features</option><option value="fixed"${slide.generatedBy.cameraPolicy === "fixed" ? " selected" : ""}>Keep saved map view</option></select><small>Framing uses included loaded features; source results may be incomplete.</small></label>` : ""}
       ${["title", "feature", "map-narrative"].includes(slide.template) ? this.#layersSection(slide, record) : ""}
       ${blocks}
@@ -876,9 +890,13 @@ export class BriefingSlides {
       this.selectedSlideId = slideId;
       this.saveCameraToSelected();
     });
-    on("[data-slide-camera-policy]", "change", (event) => {
+    // on() passes the element; the policy decides whether the slide frames itself or keeps its saved view.
+    on("[data-slide-camera-policy]", "change", (select) => {
       const slide = this.briefing.slides.find(item => item.id === slideId);
-      if (slide?.generatedBy) this.#save(updateSlide(this.briefing, slideId, {generatedBy:{...slide.generatedBy, cameraPolicy:event.target.value}}));
+      if (!slide?.generatedBy) return;
+      this.#save(updateSlide(this.briefing, slideId, {generatedBy:{...slide.generatedBy, cameraPolicy:select.value}}));
+      const updated = this.briefing.slides.find(item => item.id === slideId);
+      if (updated) void this.showSlideMap(updated);
     });
     // Other layers: any change records every row, so the slide says exactly what shows.
     const saveLayers = () => {

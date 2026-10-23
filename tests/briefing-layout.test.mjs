@@ -55,3 +55,14 @@ test("mobile map tools toggle sits in the top bar, separated from the title", ()
   assert.match(css, /\.map-nav__toggle::before \{ content:""; position:absolute;[^}]*left:-9px; width:1px;/);
   assert.match(css, /body:not\(\.mobile-map-route\) \.map-nav-shell \{ display:none; \}/);
 });
+
+test("a saved view replaces grid-cell framing, and the policy select works", () => {
+  // Grid and data-driven slides frame themselves only until a view is pinned.
+  assert.match(slides, /#autoFraming\(slide\) \{[\s\S]*?cameraPolicy === "fixed"\) return null;[\s\S]*?"grid-atlas"/);
+  assert.match(slides, /const framing = this\.#autoFraming\(slide\);\s*if \(framing\?\.kind === 'grid'\)/);
+  assert.match(slides, /saveCameraToSelected\(\) \{[\s\S]*?framing \? \{ \.\.\.slide\.generatedBy, cameraPolicy: "fixed" \}/);
+  assert.match(slides, /Frame its grid cell/);
+  // on() hands handlers the element, not the event.
+  assert.match(slides, /on\("\[data-slide-camera-policy\]", "change", \(select\) => \{[\s\S]*?cameraPolicy:select\.value/);
+  assert.doesNotMatch(slides, /cameraPolicy:event\.target\.value/);
+});
