@@ -43,6 +43,7 @@ import { BASEMAPS } from "./basemap-catalog.js?v=0.53.0-gallery1";
 import { CartographyLab } from "./cartography-lab.js?v=0.55.0-fieldwork1";
 import { CONTEXT_ACTIONS, createSuggestionPreferences, deriveWorkspace, executeContextAction, suggestionKey, summarizeFeature } from "./contextual-workspace.js?v=5";
 import { startWorkspaceWalkthrough } from "./workspace-walkthrough.js?v=1";
+import { chooseHurricaneLayer, createHazardsExampleBriefing } from "./example-hazards-briefing.js?v=2";
 
 const BUILDINGS_3D_KEY = "gismap-online:buildings-3d:v1";
 const DISPLAY_SETTINGS_KEY = "gismap-online:display:v1";
@@ -2763,6 +2764,46 @@ export class UIController {
     return this.mapController.addService(config);
   }
 
+  async #openExampleHazardsBriefing() {
+    if (this.exampleBriefingLoading) return;
+    const project = this.projectManager.current;
+    if (project.presentation?.briefing?.slides?.length && !confirm('Replace the current briefing slides with the example? Your map layers will be kept.')) return;
+    const originalBriefing = JSON.stringify(project.presentation?.briefing || null);
+    this.exampleBriefingLoading = true;
+    this.toast('Loading the hurricane and earthquake example services…');
+    try {
+      const hurricane = POPULAR_SERVICES.find(service => service.slug === 'active-hurricanes');
+      const earthquake = POPULAR_SERVICES.find(service => service.slug === 'usgs-recent-earthquakes-map-service');
+      if (!hurricane || !earthquake) throw new Error('The example services are missing from the catalog.');
+      const discovered = await this.mapController.discoverFeatureServiceLayers(hurricane.url);
+      const hurricaneSource = chooseHurricaneLayer(discovered);
+      if (!hurricaneSource) throw new Error('The Active Hurricanes service did not advertise a feature layer.');
+      const earthquakeUrl = `${earthquake.url.replace(/\/+$/, '')}/0`;
+      const load = async (url, title) => {
+        const existing = this.mapController.getLayers().find(layer => String(this.mapController.getLayerConfig(layer)?.url || '').replace(/\/+$/, '').toLowerCase() === url.replace(/\/+$/, '').toLowerCase());
+        if (existing) return existing;
+        const [layer] = await this.loadLayer({ url, title, serviceType: 'arcgis-auto' });
+        return layer;
+      };
+      const hurricaneLayer = await load(hurricaneSource.url, `Active Hurricanes — ${hurricaneSource.name || 'features'}`);
+      const earthquakeLayer = await load(earthquakeUrl, 'Recent Earthquakes (M2.5+)');
+      if (this.projectManager.current !== project) throw new Error('The project changed while the example was loading.');
+      if (JSON.stringify(project.presentation?.briefing || null) !== originalBriefing) throw new Error('The briefing changed while the example was loading, so it was not replaced.');
+      const earthquakeRef = briefingLayerRef(this.mapController, earthquakeLayer);
+      const hurricaneRef = briefingLayerRef(this.mapController, hurricaneLayer);
+      const briefing = createHazardsExampleBriefing({ earthquakeRef, hurricaneRef, hurricaneLayerName: hurricaneSource.name || 'selected layer' });
+      this.briefingTab = 'slides';
+      const current = this.projectManager.current.presentation || {};
+      this.projectManager.setPresentation({ ...current, template: 'briefing', title: 'A changing hazards picture', primaryLayerId: earthquakeLayer.uid, briefing, briefingSelection: { layerId: earthquakeLayer.uid, ids: [], useAll: true } });
+      this.events.publish('mobile:workflow-route', { route: 'briefing' });
+      this.toast('Example briefing ready. The public feeds can change or be temporarily unavailable.');
+    } catch (error) {
+      this.error(`Could not open the example briefing: ${error.message}. Any layers already added remain on the map.`);
+    } finally {
+      this.exampleBriefingLoading = false;
+    }
+  }
+
   #featureServiceLayersDialog(config, layers) {
     this.openDialog({
       eyebrow: "ArcGIS feature service",
@@ -3551,8 +3592,8 @@ export class UIController {
     root.hidden = false;
     const layer = this.mapController.getLayer(this.presentationState.layerUid);
     if (!layer && template !== "atlas") {
-      root.innerHTML = `<section class="presentation-empty"><span class="eyebrow">${escapeHtml(template)}</span><h2>Start with a dataset</h2><p>This mode becomes interactive after you add a feature layer. Your project and map remain unchanged.</p><div><button type="button" data-presentation-setup="data-arcgis">Connect a service</button><button type="button" data-presentation-setup="data-file">Add a file</button><button type="button" data-presentation-setup="data-popular">Open an example</button></div></section>`;
-      root.querySelectorAll("[data-presentation-setup]").forEach((button) => button.addEventListener("click", () => this.#handleAction(button.dataset.presentationSetup)));
+      root.innerHTML = `<section class="presentation-empty"><span class="eyebrow">${escapeHtml(template)}</span><h2>Start with a dataset</h2><p>This mode becomes interactive after you add a feature layer. Your project and map remain unchanged.</p><div>${template === 'briefing' ? '<button type="button" data-presentation-setup="example-briefing">Try an example briefing</button>' : ''}<button type="button" data-presentation-setup="data-arcgis">Connect a service</button><button type="button" data-presentation-setup="data-file">Add a file</button><button type="button" data-presentation-setup="data-popular">Open an example</button></div>${template === 'briefing' ? '<p class="form-note">The example adds live hurricane and earthquake layers and opens an editable briefing.</p>' : ''}</section>`;
+      root.querySelectorAll("[data-presentation-setup]").forEach((button) => button.addEventListener("click", () => button.dataset.presentationSetup === 'example-briefing' ? this.#openExampleHazardsBriefing() : this.#handleAction(button.dataset.presentationSetup)));
       return;
     }
     const fields = this.#presentationFields(layer);
