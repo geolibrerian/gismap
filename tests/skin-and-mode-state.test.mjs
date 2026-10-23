@@ -155,3 +155,19 @@ test("every skin renders light and dark; the toggle keeps the current skin", asy
   assert.doesNotMatch(ui, /theme: \(\) => \{[^}]*applySkinChoice\("gismap"\)/, "the light/dark toggle never swaps in the house skin");
   assert.match(ui, /skinAppearance: \{ \.\.\.current\.skinAppearance, \[skin\]: next \}/);
 });
+
+test("Classic mode sits under Modes next to Standard map and restores the pre-Fieldwork layout and palette", () => {
+  const html = read("../index.html");
+  const ui = read("../js/ui.js");
+  const workspace = read("../js/fieldwork-workspace.js");
+  const css = read("../css/fieldwork.css");
+  assert.match(html, /data-mobile-workflow="map">Standard map<\/button>\s*<button type="button" data-action="classic-mode-toggle" data-classic-mode aria-pressed="false"[^>]*>Classic mode<\/button>/);
+  assert.match(ui, /classicLayout: saved\.classicLayout === true/);
+  assert.match(ui, /document\.documentElement\.dataset\.layout = settings\.classicLayout \? "classic" : "studio";/);
+  assert.match(ui, /case "classic-mode-toggle":[\s\S]*?settings\.classicLayout = !settings\.classicLayout;[\s\S]*?this\.fieldworkWorkspace\?\.refresh\(\);/);
+  assert.match(workspace, /const active = !ui\.mobileMedia\.matches && app\.dataset\.applicationLayout !== 'globe' && !classic\(\);/);
+  // The original house palette, and house-skin Fieldwork rules step aside without changing specificity.
+  assert.match(css, /:root\[data-layout="classic"\]:is\(:not\(\[data-skin\]\), \[data-skin="gismap"\]\) \{[\s\S]*?--green: #123f35;[\s\S]*?--ui-font: "DM Sans"/);
+  assert.match(css, /:root\[data-layout="classic"\]\[data-skin="gismap"\]\[data-theme="dark"\] \{[\s\S]*?--green: #174f42;/);
+  assert.doesNotMatch(css, /:root:is\(:not\(\[data-skin\]\),\[data-skin="gismap"\]\)(?!:not\(:where\(\[data-layout="classic"\]\)\))/);
+});

@@ -21,7 +21,7 @@ const save = (key, value) => { try { localStorage.setItem(key, value); } catch {
 const workspacePanels = { layers: ['layers-panel'], explore: ['places-panel', 'bookmarks-panel', 'intelligence-panel'], notes: ['observations-panel'], draw: ['draw-panel'] };
 
 /** Reuses live controls rather than cloning forms, listeners or map canvases. */
-export function initializeFieldworkWorkspace({ ui, action, showSidebar, theme, setPanelVisibility = () => {} }) {
+export function initializeFieldworkWorkspace({ ui, action, showSidebar, theme, setPanelVisibility = () => {}, classic = () => false }) {
   const app = document.querySelector('#app');
   const sidebar = document.querySelector('#sidebar');
   const brand = sidebar.querySelector('.brand');
@@ -158,7 +158,8 @@ export function initializeFieldworkWorkspace({ ui, action, showSidebar, theme, s
     [rail,tabs].forEach(nav => nav.querySelectorAll('[data-workspace]').forEach(button => button.setAttribute('aria-pressed', String(button.dataset.workspace === currentWorkspace))));
   }
   const sync = () => {
-    const active = !ui.mobileMedia.matches && app.dataset.applicationLayout !== 'globe';
+    // Classic mode keeps the pre-Fieldwork desktop layout: sidebar brand, menu bar and search.
+    const active = !ui.mobileMedia.matches && app.dataset.applicationLayout !== 'globe' && !classic();
     document.body.classList.toggle('fieldwork-desktop', active);
     header.hidden = rail.hidden = tabs.hidden = resizer.hidden = !active;
     if (active) { header.prepend(brand, menu); header.querySelector('.studio-header__search').append(search); }
@@ -244,5 +245,5 @@ export function initializeFieldworkWorkspace({ ui, action, showSidebar, theme, s
     requestAnimationFrame(() => panel.scrollIntoView({ block: 'nearest', behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' }));
   }
   menu.querySelector('.desktop-workflows-menu > .menu__trigger')?.addEventListener('click', () => syncPanelMenu(document.body.classList.contains('fieldwork-desktop')));
-  return { select, syncPanels, togglePanel, layout: () => preferences.snapshot() };
+  return { select, syncPanels, togglePanel, refresh: sync, layout: () => preferences.snapshot() };
 }

@@ -1,4 +1,4 @@
-import { initializeFieldworkWorkspace } from "./fieldwork-workspace.js?v=0.57.0-skins1";
+import { initializeFieldworkWorkspace } from "./fieldwork-workspace.js?v=0.58.0-classic1";
 import { timelinePdfFrames, expandTimelinePdfSlides, parseTimelineFrameSelection } from "./briefing-timeline-pdf.js?v=0.1.0";
 import { renderNotesHub } from "./notes-hub.js?v=0.55.0-fieldwork1";
 import { refreshMapNoteFilters } from './map-note-filters.js?v=0.4.1';
@@ -207,6 +207,7 @@ export class UIController {
       action: action => this.#handleAction(action),
       showSidebar: open => this.#setSidebarCollapsed(!open),
       setPanelVisibility: (id, visible, save = true) => this.#setOptionalPanelVisibility(id, visible, save),
+      classic: () => this.#readDisplaySettings().classicLayout,
       // Light/dark flips the current skin; it never swaps the skin for the house look.
       theme: () => {
         const current = this.#readDisplaySettings();
@@ -1394,6 +1395,16 @@ export class UIController {
         case "welcome-dismiss":
           this.#dismissWelcome();
           break;
+        case "classic-mode-toggle": {
+          const settings = { ...this.#readDisplaySettings() };
+          settings.classicLayout = !settings.classicLayout;
+          try { localStorage.setItem(DISPLAY_SETTINGS_KEY, JSON.stringify(settings)); } catch { /* Session-only layout. */ }
+          this.#closeMenus();
+          this.#applyDisplaySettings(settings);
+          this.fieldworkWorkspace?.refresh();
+          this.toast(settings.classicLayout ? "Classic mode on. Choose Modes → Classic mode again to return to the new layout." : "Classic mode off.");
+          break;
+        }
         case "project-select":
           this.#selectProjectDialog();
           break;
@@ -2308,6 +2319,7 @@ export class UIController {
         navigationLayout: saved.navigationLayout === "top" ? "top" : "side",
         utilityPanelWidth: Number.isFinite(saved.utilityPanelWidth) ? Math.min(Math.max(280, window.innerWidth * 0.55), Math.max(280, saved.utilityPanelWidth)) : 360,
         appearance: ["system", "light", "dark"].includes(saved.appearance) ? saved.appearance : "light",
+        classicLayout: saved.classicLayout === true,
         skinAppearance: Object.fromEntries(Object.entries(saved.skinAppearance && typeof saved.skinAppearance === "object" ? saved.skinAppearance : {}).filter(([skin, theme]) => INTERFACE_SKINS.some(({ id }) => id === skin) && (theme === "light" || theme === "dark"))),
         darkBasemapEnabled: saved.darkBasemapEnabled === true,
         bookmarksPanelVisible: saved.bookmarksPanelVisible === true,
@@ -2326,6 +2338,9 @@ export class UIController {
     const prefersDark = matchMedia("(prefers-color-scheme: dark)").matches;
     const resolvedTheme = settings.appearance === "system" ? (prefersDark ? "dark" : "light") : settings.appearance;
     document.documentElement.dataset.theme = resolvedTheme;
+    // Classic mode restores the pre-Fieldwork layout and house palette (css/fieldwork.css keys off data-layout).
+    document.documentElement.dataset.layout = settings.classicLayout ? "classic" : "studio";
+    document.querySelectorAll("[data-classic-mode]").forEach((button) => button.setAttribute("aria-pressed", String(Boolean(settings.classicLayout))));
     // Appearance is the house skin's light/dark; applyInterfaceSkin resolves the active skin's own rendering.
     const skin = document.documentElement.dataset.skin || this.projectManager?.current?.presentation?.skin;
     applyInterfaceSkin(skin, { colors: this.projectManager?.current?.presentation?.skinColors?.[normalizeSkin(skin)] });
