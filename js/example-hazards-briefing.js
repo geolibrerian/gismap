@@ -1,4 +1,4 @@
-import { createSlide, normalizeBriefing } from './briefing-document.js?v=0.59.0-slidetypes2';
+import { createSlide, normalizeBriefing } from './briefing-document.js?v=0.60.0-media1';
 
 // Narrative is deliberately qualitative: the two public services change over time.
 export function createHazardsExampleBriefing({ earthquakeRef, hurricaneRef, hurricaneLayerName = 'selected layer' }) {

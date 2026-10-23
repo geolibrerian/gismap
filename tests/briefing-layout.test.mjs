@@ -103,3 +103,12 @@ test("the check list follows typing, the Slide workspace scrolls, and the dock o
   assert.match(ui, /if \(!this\.projectManager\.isSaved\(\)\) \{ this\.#saveProjectDialog\(\); return; \}/);
   assert.match(ui, /button\.textContent = saved \? "Saved ✓" : "Save";/);
 });
+
+test("media slides render a slideshow with a place button, and the player can show the place", () => {
+  const player = readFileSync(new URL("../js/briefing-player.js", import.meta.url), "utf8");
+  assert.match(slides, /#galleryHtml\(images, slideId\) \{[\s\S]*?aria-roledescription="carousel"[\s\S]*?data-gallery-track tabindex="0"/);
+  assert.match(slides, /data-slide-place="\$\{escapeHtml\(slide\.id\)\}"/);
+  assert.match(player, /#bindSlideContent\(root\) \{[\s\S]*?\[data-gallery-step\], \[data-gallery-dot\][\s\S]*?\[data-slide-place\]/);
+  assert.match(player, /data-stage-back hidden>← Back to the slide<\/button>/);
+  assert.match(player, /if \(state\.exploring\) \{ mapController\.setViewPadding\(\{ top: 0, right: 0, bottom: 0, left: 0 \}\); return; \}/);
+});

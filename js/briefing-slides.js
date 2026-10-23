@@ -1,9 +1,10 @@
-import { previewGridAtlas, generateGridAtlas, extentToBounds } from "./briefing-grid-atlas.js?v=0.59.0-slidetypes2";
-import { createTimelineSourceCache } from "./briefing-timeline-source.js?v=0.59.0-slidetypes2";
+import { previewGridAtlas, generateGridAtlas, extentToBounds } from "./briefing-grid-atlas.js?v=0.60.0-media1";
+import { createTimelineSourceCache } from "./briefing-timeline-source.js?v=0.60.0-media1";
 // The Slides tab of the Briefing panel: build an ordered set of slides from the
 // briefing's features and data, and preview them over the live map. The slides
 // themselves are plain data (briefing-document.js); this file only draws and edits.
 import {
+  MAX_IMAGES,
   MAX_SLIDES,
   SLIDE_TEMPLATES,
   SLIDE_TYPES,
@@ -25,16 +26,16 @@ import {
   isRoutineField,
   DISTANCE_UNITS,
   SPATIAL_RELATIONSHIPS,
-} from "./briefing-document.js?v=0.59.0-slidetypes2";
+} from "./briefing-document.js?v=0.60.0-media1";
 import { compileWhere } from "./engines/maplibre/where.js?v=0.40.0-timeline";
-import { generateTimeline, previewTimeline, isYearField } from "./briefing-timeline.js?v=0.59.0-slidetypes2";
-import { isDateField, previewDateTimeline } from "./briefing-timeline-dates.js?v=0.59.0-slidetypes2";
-import { generateFilterSeries, seriesWhere } from "./briefing-data-series.js?v=0.59.0-slidetypes2";
-import { generateSpatialChartBrief } from "./briefing-spatial-chart.js?v=0.59.0-slidetypes2";
-import { previewFilterSeries, formatSeriesTitle } from "./briefing-series-preview.js?v=0.59.0-slidetypes2";
-import { briefingLayerRef } from "./briefing-api.js?v=0.59.0-slidetypes2";
+import { generateTimeline, previewTimeline, isYearField } from "./briefing-timeline.js?v=0.60.0-media1";
+import { isDateField, previewDateTimeline } from "./briefing-timeline-dates.js?v=0.60.0-media1";
+import { generateFilterSeries, seriesWhere } from "./briefing-data-series.js?v=0.60.0-media1";
+import { generateSpatialChartBrief } from "./briefing-spatial-chart.js?v=0.60.0-media1";
+import { previewFilterSeries, formatSeriesTitle } from "./briefing-series-preview.js?v=0.60.0-media1";
+import { briefingLayerRef } from "./briefing-api.js?v=0.60.0-media1";
 import { renderMarkdown } from "./markdown.js?v=0.18.2";
-import { BriefingPlayer, slideHasMap } from "./briefing-player.js?v=0.38.0-timeline4";
+import { BriefingPlayer, slideHasMap } from "./briefing-player.js?v=0.60.0-media2";
 import { expandTimelinePdfSlides } from "./briefing-timeline-pdf.js?v=0.1.0";
 import { briefingFileStem, briefingPdf, markdownToText } from "./briefing-pdf.js?v=0.44.2";
 import { featureId } from "./presentation-query.js?v=0.30.0";
@@ -709,6 +710,25 @@ export class BriefingSlides {
       if (block.type === "list") {
         return `<label class="briefing-field"><span>Next steps <small>one per line</small></span><textarea rows="5" data-block-list="${block.id}">${escapeHtml(block.items.join("\n"))}</textarea></label>${this.api.createTask ? `<button type="button" class="briefing-link-button" data-list-task="${block.id}">Send these as a field task →</button>` : ""}`;
       }
+      if (block.type === "images") {
+        const row = (image, index) => `<div class="briefing-image-row" data-image-row="${index}">
+          <img class="briefing-image-row__thumb" src="${escapeHtml(image.url)}" alt="" loading="lazy" referrerpolicy="no-referrer">
+          <div class="briefing-image-row__fields">
+            <label><span>Image URL</span><input type="url" data-image-url value="${escapeHtml(image.url)}" placeholder="https://…"></label>
+            <label><span>Description <small>read aloud by screen readers</small></span><input data-image-alt value="${escapeHtml(image.alt)}" maxlength="200" placeholder="What the image shows"></label>
+            <label><span>Caption <small>optional</small></span><input data-image-caption value="${escapeHtml(image.caption)}" maxlength="300"></label>
+          </div>
+          <div class="briefing-image-row__actions"><button type="button" data-image-move="-1" aria-label="Move image up"${index ? "" : " disabled"}>↑</button><button type="button" data-image-move="1" aria-label="Move image down"${index < block.images.length - 1 ? "" : " disabled"}>↓</button><button type="button" data-image-remove aria-label="Remove image">×</button></div>
+        </div>`;
+        return `<fieldset class="briefing-field briefing-images" data-images="${block.id}"><legend>Images <small>${block.images.length}/${MAX_IMAGES} · two or more play as a slideshow</small></legend>
+          ${block.images.map(row).join("")}
+          ${block.images.length < MAX_IMAGES ? `<div class="briefing-images__add"><input type="url" data-image-new placeholder="Paste an image URL (https://…)" aria-label="New image URL"><button type="button" data-image-add>Add image</button></div>` : ""}
+          <p class="form-note">Use images you have the right to share. They load from their own website when the slides are shown.</p>
+        </fieldset>`;
+      }
+      if (block.type === "place") {
+        return `<label class="briefing-field"><span>Place button <small>${slide.camera ? "opens the linked place on the map" : "save a map view above to link a place"}</small></span><input data-place-label="${block.id}" value="${escapeHtml(block.label)}" maxlength="120" placeholder="Show this place on the map"${slide.camera ? "" : " disabled"}></label>`;
+      }
       if (block.type === "links") {
         return `<label class="briefing-field"><span>Links <small>one per line: Label | https://…</small></span><textarea rows="3" data-block-links="${block.id}">${escapeHtml(block.links.map((link) => `${link.label} | ${link.url}`).join("\n"))}</textarea></label>`;
       }
@@ -730,7 +750,7 @@ export class BriefingSlides {
       <label class="briefing-field"><span>Title</span><input data-slide-title value="${escapeHtml(slide.title)}" maxlength="160" placeholder="Slide title"></label>
       ${["title", "map-narrative", "key-numbers"].includes(slide.template) ? `<label class="briefing-field"><span>Subtitle</span><input data-slide-subtitle value="${escapeHtml(slide.subtitle)}" maxlength="160"></label>` : ""}
       ${slide.template === "feature" ? `<p class="form-note">${record ? `Feature: <strong>${escapeHtml(data.label(record))}</strong>` : "This slide's feature is not in the loaded data."}</p>` : ""}
-      ${slide.template !== "key-numbers" && slide.template !== "actions" ? `<div class="briefing-field briefing-camera"><span>Map view</span><p>${escapeHtml(cameraStatus)}</p><div><button type="button" data-slide-camera>Use current map view</button>${slide.featureId ? `<button type="button" data-slide-fit>Frame the feature</button>` : ""}${slide.camera || slide.fit ? `<button type="button" data-slide-show-map>Show</button>` : ""}</div></div>` : ""}
+      ${slide.template !== "key-numbers" && slide.template !== "actions" ? `<div class="briefing-field briefing-camera"><span>${slide.template === "media" ? "Linked place <small>optional</small>" : "Map view"}</span><p>${escapeHtml(slide.template === "media" && !slide.camera ? "No place linked" : cameraStatus)}</p><div><button type="button" data-slide-camera>${slide.template === "media" ? "Link the current map view" : "Use current map view"}</button>${slide.template === "media" && slide.camera ? `<button type="button" data-slide-unlink>Unlink</button>` : ""}${slide.featureId ? `<button type="button" data-slide-fit>Frame the feature</button>` : ""}${slide.camera || slide.fit ? `<button type="button" data-slide-show-map>Show</button>` : ""}</div></div>` : ""}
       ${slide.generatedBy?.template === "grid-atlas" && Array.isArray(slide.generatedBy.bounds) ? `<label class="briefing-field"><span>Grid map view</span><select data-slide-camera-policy><option value="fit-features"${slide.generatedBy.cameraPolicy !== "fixed" ? " selected" : ""}>Frame its grid cell</option><option value="fixed"${slide.generatedBy.cameraPolicy === "fixed" ? " selected" : ""}>Keep saved map view</option></select><small>Saving a view switches this slide to its saved view.</small></label>` : ""}
       ${slide.dataView && ["timeline", "filter-series"].includes(slide.generatedBy?.template) ? `<label class="briefing-field"><span>Data-driven map view</span><select data-slide-camera-policy><option value="fit-features"${slide.generatedBy.cameraPolicy !== "fixed" ? " selected" : ""}>Frame matching features</option><option value="fixed"${slide.generatedBy.cameraPolicy === "fixed" ? " selected" : ""}>Keep saved map view</option></select><small>Framing uses included loaded features; source results may be incomplete.</small></label>` : ""}
       ${["title", "feature", "map-narrative"].includes(slide.template) ? this.#layersSection(slide, record) : ""}
@@ -994,6 +1014,46 @@ export class BriefingSlides {
     }));
     on("[data-block-text]", "input", (input) => this.#saveSoon((briefing) => updateBlock(briefing, slideId, input.dataset.blockText, { markdown: input.value })));
     on("[data-block-list]", "input", (input) => this.#saveSoon((briefing) => updateBlock(briefing, slideId, input.dataset.blockList, { items: input.value.split("\n").map((line) => line.trim()).filter(Boolean) })));
+    // Images: rows are read back in order, so editing, reordering and removal share one path.
+    const readImages = (fieldset) => [...fieldset.querySelectorAll("[data-image-row]")].map((row) => ({ url: row.querySelector("[data-image-url]").value.trim(), alt: row.querySelector("[data-image-alt]").value, caption: row.querySelector("[data-image-caption]").value }));
+    const saveImages = (fieldset, images, render = true) => {
+      const next = updateBlock(this.briefing, slideId, fieldset.dataset.images, { images });
+      if (render) this.#save(next); else { this.#save(next, { render: false }); this.#refreshIssues(); }
+    };
+    on("[data-images]", "change", (fieldset, event) => {
+      if (event.target.matches("[data-image-url]")) {
+        if (event.target.value.trim() && !safeUrl(event.target.value)) { this.api.notify?.("Use an image address that starts with https://"); return; }
+        saveImages(fieldset, readImages(fieldset).filter((image) => image.url));
+      }
+    });
+    on("[data-images]", "input", (fieldset, event) => {
+      if (event.target.matches("[data-image-alt], [data-image-caption]")) {
+        clearTimeout(this.saveTimer);
+        this.saveTimer = setTimeout(() => saveImages(fieldset, readImages(fieldset), false), 250);
+      }
+    });
+    on("[data-images]", "click", (fieldset, event) => {
+      const button = event.target.closest("button");
+      if (!button) return;
+      const images = readImages(fieldset);
+      const index = Number(button.closest("[data-image-row]")?.dataset.imageRow);
+      if (button.matches("[data-image-add]")) {
+        const input = fieldset.querySelector("[data-image-new]");
+        const url = safeUrl(input.value);
+        if (!url) { this.api.notify?.("Paste an image address that starts with https://"); input.focus(); return; }
+        saveImages(fieldset, [...images, { url, alt: "", caption: "" }]);
+        [...((this.inspector || this.container)?.querySelectorAll("[data-image-alt]") || [])].pop()?.focus();
+      } else if (button.matches("[data-image-remove]")) {
+        images.splice(index, 1); saveImages(fieldset, images);
+      } else if (button.matches("[data-image-move]")) {
+        const to = index + Number(button.dataset.imageMove);
+        if (to < 0 || to >= images.length) return;
+        [images[index], images[to]] = [images[to], images[index]]; saveImages(fieldset, images);
+      }
+    });
+    on("[data-image-new]", "keydown", (input, event) => { if (event.key === "Enter") { event.preventDefault(); input.closest("[data-images]")?.querySelector("[data-image-add]")?.click(); } });
+    on("[data-place-label]", "input", (input) => this.#saveSoon((briefing) => updateBlock(briefing, slideId, input.dataset.placeLabel, { label: input.value })));
+    on("[data-slide-unlink]", "click", () => this.#save(updateSlide(this.briefing, slideId, { camera: null, fit: null })));
     on("[data-block-links]", "change", (input) => {
       const links = input.value.split("\n").map((line) => {
         const [label, url] = line.includes("|") ? line.split("|") : [line, line];
@@ -1108,6 +1168,8 @@ export class BriefingSlides {
         return rows ? `<dl class="briefing-slide__facts">${rows}</dl>` : "";
       }
       if (block.type === "list" && block.items.length) return `<ul class="briefing-slide__list">${block.items.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>`;
+      if (block.type === "images" && block.images.length) return this.#galleryHtml(block.images, slide.id);
+      if (block.type === "place" && slide.camera) return `<p class="briefing-slide__place"><button type="button" data-slide-place="${escapeHtml(slide.id)}">${escapeHtml(block.label.trim() || "Show this place on the map")} <span aria-hidden="true">→</span></button></p>`;
       if (block.type === "links" && block.links.length) return `<p class="briefing-slide__links">${block.links.map((link) => `<a href="${escapeHtml(link.url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(link.label || link.url)}</a>`).join("")}</p>`;
       return "";
     }).join("");
@@ -1128,6 +1190,20 @@ export class BriefingSlides {
       ${(slide.frameNarrative ?? slide.timeline?.frames?.[0]?.narrative) ? `<div class="briefing-slide__text">${renderMarkdown(slide.frameNarrative ?? slide.timeline.frames[0].narrative)}</div>` : ""}
       ${slide.featureId && !record ? `<p class="briefing-slide__warning">This slide's feature is not in the loaded data.</p>` : ""}
     </article>`;
+  }
+
+  /**
+   * One image is a figure; two or more are a slideshow that scrolls sideways
+   * (a swipe on touch screens) with arrows and dots for mouse and keyboard.
+   */
+  #galleryHtml(images, slideId) {
+    const figure = (image, index) => `<figure class="briefing-gallery__item" data-gallery-item="${index}"><img src="${escapeHtml(image.url)}" alt="${escapeHtml(image.alt)}" loading="lazy" decoding="async" referrerpolicy="no-referrer">${image.caption ? `<figcaption>${escapeHtml(image.caption)}</figcaption>` : ""}</figure>`;
+    if (images.length === 1) return `<div class="briefing-gallery briefing-gallery--single">${figure(images[0], 0)}</div>`;
+    const label = `Slideshow, ${images.length} images`;
+    return `<div class="briefing-gallery" data-gallery="${escapeHtml(slideId)}" role="region" aria-roledescription="carousel" aria-label="${label}">
+      <div class="briefing-gallery__track" data-gallery-track tabindex="0">${images.map(figure).join("")}</div>
+      <div class="briefing-gallery__controls"><button type="button" data-gallery-step="-1" aria-label="Previous image">‹</button><span class="briefing-gallery__dots">${images.map((_, index) => `<button type="button" data-gallery-dot="${index}" aria-label="Image ${index + 1} of ${images.length}"${index ? "" : ' aria-current="true"'}></button>`).join("")}</span><button type="button" data-gallery-step="1" aria-label="Next image">›</button></div>
+    </div>`;
   }
 
   /**
@@ -1181,6 +1257,9 @@ export class BriefingSlides {
       }
       if (block.type === "list") content.list.push(...block.items);
       if (block.type === "links") content.links.push(...block.links);
+      // PDFs cannot draw remote images without CORS, so each image is a captioned link.
+      if (block.type === "images") content.links.push(...block.images.map((image, index) => ({ label: image.caption || image.alt || `Image ${index + 1}`, url: image.url })));
+      if (block.type === "place" && slide.camera) content.paragraphs.push(`${block.label.trim() || "Place"}: ${slide.camera.center[1].toFixed(4)}, ${slide.camera.center[0].toFixed(4)}`);
       if (block.type === "stat") {
         const result = this.#slideStat(slide, block, data, briefing);
         content.stats.push({ value: formatStat(result.value), label: block.label || STAT_LABELS[block.stat], sample: result.sample });

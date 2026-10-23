@@ -1,4 +1,4 @@
-import { createSlide, normalizeBriefing } from "./briefing-document.js?v=0.59.0-slidetypes2";
+import { createSlide, normalizeBriefing } from "./briefing-document.js?v=0.60.0-media1";
 import { normalizeSpatialChart, spatialChartAxis } from "./spatial-chart.js?v=0.1.1";
 
 const MAX_NEW_SLIDES = 5;

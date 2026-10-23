@@ -1,7 +1,7 @@
 // Preview only: no slide, project or layer is mutated. Counts describe the
 // supplied records, not the publisher's complete dataset.
-import { MAX_SLIDES } from './briefing-document.js?v=0.59.0-slidetypes2';
-import { isDateField } from './briefing-timeline-dates.js?v=0.59.0-slidetypes2';
+import { MAX_SLIDES } from './briefing-document.js?v=0.60.0-media1';
+import { isDateField } from './briefing-timeline-dates.js?v=0.60.0-media1';
 
 // ArcGIS dates are often epoch milliseconds; retain their exact value in the filter.
 export function formatSeriesTitle(slide, fields = []) {

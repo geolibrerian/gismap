@@ -7,6 +7,7 @@ export const MAX_SLIDES = 60;
 const MAX_TITLE = 160;
 const MAX_TEXT = 4000;
 const MAX_NOTES = 4000;
+export const MAX_IMAGES = 12;
 
 /** The first-release templates, all on a fixed grid. */
 export const SLIDE_TEMPLATES = Object.freeze([
@@ -15,6 +16,7 @@ export const SLIDE_TEMPLATES = Object.freeze([
   { id: "map-narrative", label: "Map and narrative", description: "A map view with explanatory text" },
   { id: "key-numbers", label: "Key numbers", description: "Two to four statistics from the briefing data" },
   { id: "actions", label: "Actions", description: "Next steps and links to close the briefing" },
+  { id: "media", label: "Image & text", description: "Images and text without a map; two or more images become a slideshow" },
 ]);
 const TEMPLATE_IDS = new Set(SLIDE_TEMPLATES.map((template) => template.id));
 
@@ -33,7 +35,7 @@ export const SLIDE_TYPES = Object.freeze([
   { id: "chart-3d", label: "3D spatial chart", description: "Extruded 3D chart of grouped values", kind: "generator", generator: "spatial-3d-chart" },
   { id: "series", label: "One slide per value", description: "A slide for each value of a field", kind: "generator", generator: "filter-series" },
   { id: "tour", label: "Tour", description: "A guided tour inside the slide", kind: "planned" },
-  { id: "media", label: "Image & text", description: "Images and text, or a slideshow, without a map", kind: "planned" },
+  { id: "media", label: "Image & text", description: "Images and text, or a slideshow, without a map", kind: "template", template: "media" },
   { id: "animation", label: "Animation", description: "A MapLibre + three.js or three.js animation", kind: "planned" },
   { id: "bim", label: "BIM / CAD", description: "A 3D building model", kind: "planned" },
   { id: "realtime", label: "Real-time", description: "Live data that refreshes during the meeting", kind: "planned" },
@@ -133,6 +135,12 @@ function normalizeBlock(block) {
   }
   if (block.type === "facts") return { ...block, id, type: "facts", fields: array(block.fields).map(String).slice(0, 12) };
   if (block.type === "list") return { ...block, id, type: "list", items: array(block.items).map((item) => text(item, 300)).filter(Boolean).slice(0, 12) };
+  // Images are referenced by http(s) URL; captions and alt text travel with them.
+  if (block.type === "images") {
+    return { ...block, id, type: "images", images: array(block.images).map((image) => ({ url: safeUrl(image?.url), alt: text(image?.alt, 200), caption: text(image?.caption, 300) })).filter((image) => image.url).slice(0, MAX_IMAGES) };
+  }
+  // A place the slide links to: its saved view, with a label for the "Show on the map" button.
+  if (block.type === "place") return { ...block, id, type: "place", label: text(block.label, 120) };
   if (block.type === "links") {
     return { ...block, id, type: "links", links: array(block.links).map((link) => ({ label: text(link?.label, 120), url: safeUrl(link?.url) })).filter((link) => link.url).slice(0, 8) };
   }
@@ -235,6 +243,7 @@ export function createSlide(template, { title = "", subtitle = "", featureId = n
     ];
   }
   if (template === "actions") base.blocks = [{ id: newId("b"), type: "list", items: [] }, { id: newId("b"), type: "links", links: [] }];
+  if (template === "media") base.blocks = [{ id: newId("b"), type: "images", images: [] }, { id: newId("b"), type: "text", markdown: "" }, { id: newId("b"), type: "place", label: "" }];
   return normalizeSlide(base);
 }
 
@@ -383,6 +392,12 @@ export function validateBriefing(briefing, { featureIds = null } = {}) {
     if (!slide.title.trim()) issues.push({ slideId: slide.id, level: "warning", message: `${where} has no title.` });
     if (slide.template === "feature" && !slide.featureId) issues.push({ slideId: slide.id, level: "error", message: `${where} is a feature slide with no feature.` });
     if (slide.featureId && featureIds && !featureIds.has(slide.featureId)) issues.push({ slideId: slide.id, level: "warning", message: `${where}: its feature is not in the loaded data.` });
+    if (slide.template === "media") {
+      const images = slide.blocks.find((block) => block.type === "images")?.images || [];
+      const words = slide.blocks.some((block) => block.type === "text" && block.markdown.trim());
+      if (!images.length && !words) issues.push({ slideId: slide.id, level: "warning", message: `${where} has no images or text yet.` });
+      if (images.some((image) => !image.alt.trim())) issues.push({ slideId: slide.id, level: "warning", message: `${where}: an image has no description for screen readers.` });
+    }
     if (["map-narrative", "feature", "title"].includes(slide.template) && !slide.camera && !slide.fit) issues.push({ slideId: slide.id, level: "warning", message: `${where} has no saved map view.` });
   });
   return issues;

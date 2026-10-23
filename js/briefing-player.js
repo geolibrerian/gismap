@@ -141,6 +141,8 @@ export class BriefingPlayer {
       mapController.setViewPadding(state.exploring || !body ? { top: 0, right: 0, bottom: 0, left: 0 } : { top: 0, right: 0, bottom: Math.round(body.getBoundingClientRect().height), left: 0 });
       return;
     }
+    // Looking at a slide's place: the frame is hidden and the whole map is the view.
+    if (state.exploring) { mapController.setViewPadding({ top: 0, right: 0, bottom: 0, left: 0 }); return; }
     const mapWindow = state.root.querySelector(".briefing-stage__window");
     const frame = state.root.querySelector(".briefing-stage__frame");
     const area = (mapWindow && !mapWindow.hidden ? mapWindow : frame)?.getBoundingClientRect();
@@ -163,6 +165,7 @@ export class BriefingPlayer {
     root.setAttribute("aria-label", `${this.api.title()} slides`);
     root.innerHTML = `<div class="briefing-stage__frame"><div class="briefing-stage__panel" aria-live="polite"></div><div class="briefing-stage__window" aria-hidden="true"></div></div>
       <div class="briefing-stage__thumbs" hidden></div>
+      <button type="button" class="briefing-stage__back" data-stage-back hidden>← Back to the slide</button>
       <aside class="briefing-stage__notes" hidden><header><strong>Presenter notes</strong><button type="button" data-stage-notes-close aria-label="Close notes">×</button></header><div data-stage-notes-body></div></aside>
       <nav class="briefing-stage__controls" aria-label="Briefing controls">
         <button type="button" data-stage="thumbs" aria-pressed="false" title="Slides (T)">▦</button>
@@ -190,10 +193,15 @@ export class BriefingPlayer {
     };
     root.querySelectorAll("[data-stage]").forEach((button) => button.addEventListener("click", () => actions[button.dataset.stage]?.()));
     root.querySelector("[data-stage-notes-close]").addEventListener("click", () => this.#toggle("notes", false));
+    root.querySelector("[data-stage-back]").addEventListener("click", () => this.#explore(false));
+    this.#bindSlideContent(root);
     // Only the controls and keys change slides; clicks and drags on the map stay with the map.
     this.#listen(document, "keydown", (event) => {
       if (event.target.closest?.("input, textarea, select, [contenteditable]")) return;
       const key = event.key;
+      // Arrow keys in a focused slideshow move its images, not the slides.
+      if (event.target.closest?.("[data-gallery-track]") && ["ArrowLeft", "ArrowRight"].includes(key)) return;
+      if (key === "Escape" && this.state?.exploring) { event.preventDefault(); this.#explore(false); return; }
       if (["ArrowRight", "PageDown", " "].includes(key)) { event.preventDefault(); actions.next(); }
       else if (["ArrowLeft", "PageUp"].includes(key)) { event.preventDefault(); actions.previous(); }
       else if (key === "Home") actions.restart();
@@ -369,6 +377,7 @@ export class BriefingPlayer {
     root.querySelector("[data-cards-exit]").addEventListener("click", () => this.close());
     root.querySelectorAll("[data-card-explore]").forEach((button) => button.addEventListener("click", () => this.#explore(true)));
     root.querySelector("[data-cards-done]").addEventListener("click", () => this.#explore(false));
+    this.#bindSlideContent(root);
     // Long text folds behind "More"; the card expands in place.
     root.querySelectorAll(".briefing-card").forEach((card) => {
       const content = card.querySelector(".briefing-card__content");
@@ -397,13 +406,48 @@ export class BriefingPlayer {
     root.querySelectorAll(".briefing-card").forEach((card) => card.classList.toggle("is-current", card.dataset.card === String(index)));
   }
 
+  /**
+   * Slide content is redrawn as slides change, so its controls are delegated: a
+   * slideshow's arrows and dots, and a media slide's "Show on the map".
+   */
+  #bindSlideContent(root) {
+    const sync = (track) => {
+      const gallery = track.closest("[data-gallery]");
+      const current = Math.round(track.scrollLeft / Math.max(1, track.clientWidth));
+      gallery?.querySelectorAll("[data-gallery-dot]").forEach((dot) => dot.toggleAttribute("aria-current", Number(dot.dataset.galleryDot) === current));
+    };
+    root.addEventListener("click", (event) => {
+      const step = event.target.closest("[data-gallery-step], [data-gallery-dot]");
+      if (step) {
+        const track = step.closest("[data-gallery]")?.querySelector("[data-gallery-track]");
+        if (!track) return;
+        const current = Math.round(track.scrollLeft / Math.max(1, track.clientWidth));
+        const count = track.children.length;
+        const target = step.dataset.galleryDot != null ? Number(step.dataset.galleryDot) : (current + Number(step.dataset.galleryStep) + count) % count;
+        track.scrollTo({ left: target * track.clientWidth, behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
+        return;
+      }
+      const place = event.target.closest("[data-slide-place]");
+      if (place) {
+        const slide = this.state?.slides.find((item) => item.id === place.dataset.slidePlace);
+        if (!slide?.camera) return;
+        this.#explore(true);
+        void this.api.showSlide(slide);
+      }
+    });
+    // Scroll events do not bubble; capture them to keep the dots in step with swipes.
+    root.addEventListener("scroll", (event) => { if (event.target.matches?.("[data-gallery-track]")) sync(event.target); }, true);
+  }
+
   /** Exploring hands every gesture to the map until Done returns to the cards. */
   #explore(on) {
     const state = this.state;
     if (!state) return;
     state.exploring = on;
     document.body.classList.toggle("briefing-exploring", on);
-    state.root.querySelector("[data-cards-done]").hidden = !on;
+    const back = state.root.querySelector("[data-cards-done], [data-stage-back]");
+    if (back) back.hidden = !on;
+    if (on) back?.focus?.();
     this.#applyPadding();
     if (!on) {
       this.hideInsight();

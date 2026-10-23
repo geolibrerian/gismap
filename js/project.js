@@ -7,7 +7,7 @@ import { normalizeDataCatalog } from "./data-catalog.js?v=0.18.2";
 import { normalizeSkin, normalizeSkinColors } from "./skin-catalog.js?v=0.57.0-skins2";
 import { normalizeMapColors } from "./basemap-themes.js?v=0.53.0-mapcolors1";
 import { normalizeMobileWorkflow } from "./mobile-feed-store.js?v=0.18.7";
-import { normalizeBriefing } from "./briefing-document.js?v=0.59.0-slidetypes2";
+import { normalizeBriefing } from "./briefing-document.js?v=0.60.0-media1";
 import { composeSmartImage, embedProjectInPng, readProjectFromPng } from "./smart-image.js?v=0.44.2";
 
 const STORAGE_KEY = "gismap-online:projects:v1";

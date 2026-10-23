@@ -118,9 +118,9 @@ test("briefing presentation actions float above the data dock", async () => {
 
 test("slide types: templates convert in place, series kinds generate, planned kinds are announced", async () => {
   const { SLIDE_TYPES, slideTypeOf, convertSlide, createSlide, normalizeBriefing, addSlide } = await import("../js/briefing-document.js");
-  assert.deepEqual(SLIDE_TYPES.filter((type) => type.kind === "template").map((type) => type.template), ["map-narrative", "title", "key-numbers", "actions"]);
+  assert.deepEqual(SLIDE_TYPES.filter((type) => type.kind === "template").map((type) => type.template), ["map-narrative", "title", "key-numbers", "actions", "media"]);
   assert.deepEqual(SLIDE_TYPES.filter((type) => type.kind === "generator").map((type) => type.generator).sort(), ["filter-series", "grid-atlas", "spatial-3d-chart", "timeline"]);
-  assert.deepEqual(SLIDE_TYPES.filter((type) => type.kind === "planned").map((type) => type.id), ["tour", "media", "animation", "bim", "realtime", "dashboard"]);
+  assert.deepEqual(SLIDE_TYPES.filter((type) => type.kind === "planned").map((type) => type.id), ["tour", "animation", "bim", "realtime", "dashboard"]);
   const camera = { center: [-100, 40], zoom: 5, heading: 0, tilt: 0 };
   const map = { ...createSlide("map-narrative", { title: "Coast", camera }), notes: "say this" };
   map.blocks[0].markdown = "Why it matters";
@@ -140,4 +140,33 @@ test("slide types: templates convert in place, series kinds generate, planned ki
   assert.equal(slideTypeOf(numbers).id, "numbers");
   assert.throws(() => convertSlide(doc, map.id, "nope"), /Unknown slide template/);
   assert.throws(() => convertSlide(doc, "missing", "title"), /Unknown slide/);
+});
+
+test("Image & text slides: http(s) images with alt text, a slideshow cap, a linked place, and checks", async () => {
+  const { createSlide, normalizeBriefing, addSlide, convertSlide, validateBriefing, slideTypeOf, MAX_IMAGES } = await import("../js/briefing-document.js");
+  const slide = createSlide("media", { title: "Valley" });
+  assert.deepEqual(slide.blocks.map((block) => block.type), ["images", "text", "place"]);
+  assert.equal(slideTypeOf(slide).id, "media");
+  let doc = addSlide(normalizeBriefing({}), slide);
+  assert.deepEqual(validateBriefing(doc).map((issue) => issue.message), ["Slide 1 has no images or text yet."]);
+  const images = [
+    { url: "https://example.com/a.jpg", alt: "Granite cliffs", caption: "Half Dome" },
+    { url: "javascript:alert(1)", alt: "bad" },
+    { url: "data:image/png;base64,AAAA", alt: "inline" },
+    { url: "http://example.com/b.jpg", alt: "" },
+    ...Array.from({ length: 20 }, (_, index) => ({ url: `https://example.com/${index}.jpg`, alt: `Photo ${index}` })),
+  ];
+  doc = normalizeBriefing({ slides: [{ ...slide, blocks: [{ type: "images", images }, { type: "place", label: "x".repeat(500) }] }] });
+  const kept = doc.slides[0].blocks[0].images;
+  assert.equal(kept.length, MAX_IMAGES, "slideshows are capped");
+  assert.deepEqual(kept.slice(0, 2).map((image) => image.url), ["https://example.com/a.jpg", "http://example.com/b.jpg"], "only http(s) images survive");
+  assert.equal(doc.slides[0].blocks[1].label.length, 120);
+  assert.ok(validateBriefing(doc).some((issue) => /description for screen readers/.test(issue.message)));
+  // A map slide becomes Image & text, keeping its view as the linked place and its narrative.
+  const map = createSlide("map-narrative", { title: "Coast", camera: { center: [-120, 36], zoom: 8, heading: 0, tilt: 0 } });
+  map.blocks[0].markdown = "Why it matters";
+  const converted = convertSlide(addSlide(normalizeBriefing({}), map), map.id, "media").slides[0];
+  assert.equal(converted.template, "media");
+  assert.deepEqual(converted.camera.center, [-120, 36]);
+  assert.equal(converted.blocks.find((block) => block.type === "text").markdown, "Why it matters");
 });
