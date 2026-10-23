@@ -189,6 +189,7 @@ test('workspace embed uses a compact responsive game without changing the standa
   assert.match(ui, /src="\/dragons\/\?embed=1"/);
   assert.match(code, /location\.search==='\?embed=1'/);
   assert.match(gameCss, /\.dragon-embedded :is\(\.logo,\.kicker,h1,\.intro,\.actions,\.below\)/);
+  assert.match(gameCss, /@media \(min-width:651px\)\s*\{\s*\.dragon-embedded \.logo \{ display:inline-flex/);
   assert.match(appCss, /utility-panel:has\(\.dragon-game-frame\) \.utility-panes \{ grid-row:3;/);
   assert.match(appCss, /\.app-dialog--docked \.dragon-game-frame \{ flex:1; height:100%/);
 });

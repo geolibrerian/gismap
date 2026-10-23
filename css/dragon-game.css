@@ -43,6 +43,10 @@ main{max-width:1090px;margin:auto;border:1px solid #bed3c5;border-radius:26px;ba
 .dragon-embedded main { width:min(100%, max(300px, (100dvh - 100px) * 2)); max-width:1090px; padding:0; border:0; border-radius:0; background:transparent; box-shadow:none; }
 .dragon-embedded :is(.logo,.kicker,h1,.intro,.actions,.below) { display:none; }
 .dragon-embedded .game-controls { margin-top:8px; }
+@media (min-width:651px) {
+  .dragon-embedded .logo { display:inline-flex; gap:8px; margin:0 0 8px; font-size:15px; }
+  .dragon-embedded .logo img { width:30px; height:30px; }
+}
 @media (max-width:650px) {
   .dragon-embedded main { width:min(100%, max(280px, (100dvh - 145px) * .92)); }
 }
