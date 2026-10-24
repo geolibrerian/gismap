@@ -133,3 +133,57 @@ export function clipToCinematicSpec(clip) {
 }
 
 export function exportCinematicClip(clip) { return clone(normalizeCinematicClip(clip)); }
+
+const durationText = (ms) => {
+  const seconds = Math.round(ms / 1000);
+  return seconds >= 60 ? `${Math.floor(seconds / 60)} min ${seconds % 60 ? `${seconds % 60} s` : ""}`.trim() : `${seconds}-second`;
+};
+const dateText = (value) => {
+  const time = Date.parse(value);
+  return Number.isFinite(time) ? new Date(time).toISOString().replace("T", " ").replace(/:\d\d\.\d{3}Z$/, " UTC") : "the first observation";
+};
+
+/**
+ * The Clip JSON people download: the Clip itself plus a `package` block that
+ * says, in plain language, what it shows, who to credit, and what it needs
+ * to play elsewhere. `layers` maps each layerRef to { title, url } as the
+ * map knows it; `effectLabels` names each track's effect for the summary.
+ * It is a portable recipe: it never contains data, credentials or local files.
+ */
+export function buildClipPackage(clip, { layers = {}, attribution = "", effectLabels = {}, appVersion = "", exportedAt = new Date().toISOString() } = {}) {
+  const normalized = exportCinematicClip(clip);
+  const temporal = normalized.tracks.filter((track) => track.type === "temporalLayer");
+  const captions = normalized.tracks.filter((track) => track.type === "caption");
+  const dependencies = temporal.map((track) => {
+    const layer = layers[track.layerRef] || {};
+    const url = safeUrl(layer.url);
+    return url
+      ? { kind: "remote-layer", layerRef: track.layerRef, title: text(layer.title, 160) || "Layer", url, timeField: track.temporal?.startField || null, offlineIncluded: false, note: "Loaded from its online service when the Clip plays." }
+      : { kind: "local-layer", layerRef: track.layerRef, title: text(layer.title, 160) || "Layer", url: null, timeField: track.temporal?.startField || null, offlineIncluded: false, note: "A local file or drawn layer: not included, so the Clip will not play elsewhere until this data is added to the project." };
+  });
+  for (const extra of normalized.dependencies) if (!dependencies.some((item) => item.url === extra.url)) dependencies.push({ kind: extra.kind || "source", title: null, url: extra.url, offlineIncluded: false, note: "Cited source." });
+  const titles = dependencies.filter((item) => item.layerRef).map((item) => item.title);
+  const effects = [...new Set(temporal.map((track) => effectLabels[track.layerRef]).filter(Boolean))];
+  const [start, end] = [normalized.cameraTrack[0]?.camera, normalized.cameraTrack.at(-1)?.camera];
+  const moves = start && end && (start.longitude !== end.longitude || start.latitude !== end.latitude || start.zoom !== end.zoom || start.pitch !== end.pitch || start.bearing !== end.bearing);
+  const summary = [
+    `“${normalized.title}” is a ${durationText(normalized.playback.durationMs)} cinematic clip of ${titles.length ? titles.join(", ") : "map data"}, stepping through observed records from ${dateText(normalized.range.start)} to ${dateText(normalized.range.end)}.`,
+    moves ? "The camera moves between two saved views." : "The camera holds one view.",
+    captions.length ? `It has ${captions.length} caption${captions.length === 1 ? "" : "s"}.` : "",
+    effects.length ? `Visual effects (${effects.join(", ")}) are decoration, not data.` : "",
+  ].filter(Boolean).join(" ");
+  const playable = dependencies.filter((item) => item.layerRef).every((item) => item.kind === "remote-layer");
+  return {
+    ...normalized,
+    package: {
+      kind: "portable-recipe",
+      label: "Portable recipe: plays in GISMap when the online services below are reachable. It contains no data, credentials or video.",
+      summary,
+      attribution: text(attribution, 1000) || null,
+      dependencies,
+      playableElsewhere: playable,
+      exportedAt: text(exportedAt, 40),
+      createdWith: appVersion ? `GISMap Online ${text(appVersion, 40)}` : "GISMap Online",
+    },
+  };
+}

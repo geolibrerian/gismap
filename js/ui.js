@@ -47,7 +47,7 @@ import { chooseHurricaneLayer, createHazardsExampleBriefing } from "./example-ha
 import { CinematicModeController } from "./cinematic/mode.js?v=0.2.0";
 import { CINEMATIC_EFFECTS, suggestEffect } from "./cinematic/cinematic-effects.js?v=0.2.0";
 import { temporalFieldCandidates } from "./cinematic/temporal-adapter.js?v=0.1.1";
-import { clipToCinematicSpec, createCinematicClip, exportCinematicClip } from "./cinematic/clip-model.js?v=0.3.2";
+import { buildClipPackage, clipToCinematicSpec, createCinematicClip, exportCinematicClip } from "./cinematic/clip-model.js?v=0.3.3";
 import { availableVideoFormats, cameraAt, CLIP_FRAME_RATES, clipFrameCount, exportCinematicVideo, observationIndexAt, renderClipPoster } from "./cinematic/clip-export.js?v=0.3.2";
 
 const BUILDINGS_3D_KEY = "gismap-online:buildings-3d:v1";
@@ -5711,13 +5711,23 @@ export class UIController {
   #downloadCinematicClip() {
     const clip = this.#currentCinematicClip();
     if (!clip) return;
-    const file = new Blob([JSON.stringify(exportCinematicClip(clip), null, 2)], { type: "application/json" });
+    // A portable recipe: the Clip plus a summary, credits and what it needs to play elsewhere.
+    const layers = {}, effectLabels = {};
+    for (const track of clip.tracks.filter((item) => item.type === "temporalLayer")) {
+      const layer = this.mapController.getLayer(track.layerRef);
+      layers[track.layerRef] = { title: layer?.title, url: layer?.url };
+      const type = track.animation?.effect?.type;
+      const effect = type === "auto" ? suggestEffect({ title: layer?.title, geometryType: layer?.geometryType, fields: layer?.fields || [] }) : type;
+      if (effect && effect !== "none") effectLabels[track.layerRef] = CINEMATIC_EFFECTS[effect]?.label || effect;
+    }
+    const recipe = buildClipPackage(clip, { layers, effectLabels, attribution: this.#mapAttributionText(), appVersion: APP_VERSION });
+    const file = new Blob([JSON.stringify(recipe, null, 2)], { type: "application/json" });
     const link = document.createElement("a");
     link.href = URL.createObjectURL(file);
     link.download = `${String(clip.title || "cinematic-clip").replace(/[^a-z0-9]+/gi, "-").replace(/^-|-$/g, "").toLowerCase() || "cinematic-clip"}.cinematic.json`;
     link.click();
     setTimeout(() => URL.revokeObjectURL(link.href), 5000);
-    this.toast("Cinematic Clip JSON downloaded.");
+    this.toast(recipe.package.playableElsewhere ? "Clip JSON downloaded: a portable recipe that plays where its online services are reachable." : "Clip JSON downloaded. It uses local data that is not included, so it will not play elsewhere until that data is added.");
   }
 
   #addCinematicClipToBrief() {

@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { clipToCinematicSpec, createCinematicClip, normalizeCinematicClip, normalizeCinematicClips } from "../js/cinematic/clip-model.js";
+import { buildClipPackage, clipToCinematicSpec, createCinematicClip, normalizeCinematicClip, normalizeCinematicClips } from "../js/cinematic/clip-model.js";
 import { createSlide, normalizeBriefing } from "../js/briefing-document.js";
 import { supportedClipVideoMime } from "../js/cinematic/clip-export.js";
 
@@ -141,4 +141,28 @@ test("a Cinematic slide carries its own Clip copy through a shared briefing link
   // A slide with only a reference still works (older Briefs), and nothing at all is not a Cinematic slide yet.
   assert.equal(normalizeBriefing({ slides: [{ ...createSlide("cinematic"), clipRef: "clip-old-1" }] }).slides[0].presentation, "interactive");
   assert.equal(normalizeBriefing({ slides: [createSlide("cinematic")] }).slides[0].clip, undefined);
+});
+
+test("the downloaded Clip JSON is a labelled portable recipe with a summary, credits and dependency report", () => {
+  const styled = { ...cinematic, layers: [{ ...cinematic.layers[0], animation: { effect: { type: "fire" } } }], provenance: { sourceUrls: [] } };
+  const clip = createCinematicClip({ cinematic: styled, observationTimes: [Date.parse("2026-10-01T00:00:00Z"), Date.parse("2026-10-02T00:00:00Z")], title: "Fire run", options: { durationMs: 20000, startCamera: { longitude: -118, latitude: 34, zoom: 9 }, endCamera: { longitude: -118.2, latitude: 34.1, zoom: 11 }, captions: [{ atMs: 1000, text: "Ignition" }] } });
+  const recipe = buildClipPackage(clip, {
+    layers: { "fire-perimeters": { title: "Fire perimeters", url: "https://services.example.org/arcgis/rest/services/Fires/FeatureServer/0?token=SECRET" } },
+    effectLabels: { "fire-perimeters": "Flames" }, attribution: "© Esri | Data: services.example.org", appVersion: "0.53.0", exportedAt: "2026-10-24T00:00:00.000Z",
+  });
+  assert.equal(recipe.schema, "gismap.cinematicClip");
+  assert.equal(recipe.package.kind, "portable-recipe");
+  assert.match(recipe.package.label, /no data, credentials or video/);
+  assert.equal(recipe.package.summary, "“Fire run” is a 20-second cinematic clip of Fire perimeters, stepping through observed records from 2026-10-01 00:00 UTC to 2026-10-02 00:00 UTC. The camera moves between two saved views. It has 1 caption. Visual effects (Flames) are decoration, not data.");
+  assert.equal(recipe.package.attribution, "© Esri | Data: services.example.org");
+  assert.deepEqual(recipe.package.dependencies.map((item) => [item.kind, item.title, item.url, item.timeField]), [["remote-layer", "Fire perimeters", "https://services.example.org/arcgis/rest/services/Fires/FeatureServer/0", "observed_at"]]);
+  assert.equal(recipe.package.playableElsewhere, true);
+  assert.equal(JSON.stringify(recipe).includes("SECRET"), false);
+  // A local layer is reported as not included, and the recipe says it will not play elsewhere.
+  const local = buildClipPackage(clip, { layers: { "fire-perimeters": { title: "My perimeters.geojson" } } });
+  assert.equal(local.package.dependencies[0].kind, "local-layer");
+  assert.equal(local.package.playableElsewhere, false);
+  // Importing the package back yields the plain Clip (the report is not part of the recipe itself).
+  assert.equal(normalizeCinematicClip(recipe).package, undefined);
+  assert.equal(normalizeCinematicClip(recipe).id, clip.id);
 });
