@@ -101,3 +101,29 @@ test("a cinematic clock range limits playback to the observations inside it", as
   assert.deepEqual(mode.state().timeline.ticks, [Date.UTC(2026, 9, 2), Date.UTC(2026, 9, 3)]);
   await mode.destroy();
 });
+
+test("playback can be limited to a date range and jump to a date", async () => {
+  const day = (n) => Date.UTC(2026, 9, n);
+  const rows = [1, 2, 3, 4, 5].map((n) => ({ attributes: { OBJECTID: n, time: day(n) }, geometry: { type: "Point", coordinates: [0, 0] } }));
+  const layer = { uid: "quakes", title: "Quakes", queryable: true, objectIdField: "OBJECTID" };
+  const mapController = { getLayer: () => layer, getFeatureFilter: async () => null, setFeatureFilter: async () => true, setOpacity: async () => {}, queryFeatures: async () => ({ features: rows }) };
+  const mode = new CinematicModeController({ mapController });
+  await mode.load({ cinematic: { layers: [{ layerRef: "quakes", temporal: { startField: "time" } }] } });
+  mode.seek(day(3));
+  assert.equal(mode.setPlaybackRange(new Date(day(2)).toISOString(), day(4)), true);
+  assert.deepEqual(mode.state().timeline.ticks, [day(2), day(3), day(4)]);
+  // The current moment is kept when it is inside the new range, and the range is saved in the spec.
+  assert.equal(mode.state().timeline.observationTime, day(3));
+  assert.equal(mode.exportCinematicSpec().cinematic.clock.start, new Date(day(2)).toISOString());
+  // Go to date: the latest observation on or before it, within the playing range.
+  assert.equal(mode.goToTime(day(3) + 3600000), day(3));
+  assert.equal(mode.goToTime(day(1)), day(2));
+  assert.equal(mode.goToTime(day(9)), day(4));
+  assert.equal(mode.goToTime("not a date"), null);
+  assert.throws(() => mode.setPlaybackRange(day(4), day(2)), /after the start/);
+  assert.throws(() => mode.setPlaybackRange(day(4) + 1000, day(4) + 2000), /No observations/);
+  // Empty bounds play everything again.
+  mode.setPlaybackRange("", "");
+  assert.equal(mode.state().timeline.ticks.length, 5);
+  await mode.destroy();
+});
