@@ -75,7 +75,10 @@ export class AttributeTableController {
       if (!layer?.queryable) {
         throw new Error("This layer does not expose a queryable attribute table.");
       }
-      layer = await this.mapController.loadLayer(layer.uid);
+      // The map renderer may intentionally cap its visible feature set. The
+      // table does not reuse that subset: it obtains IDs and rows in pages
+      // below, so a truncated draw must not be treated like an unsafe share.
+      layer = await this.mapController.loadLayer(layer.uid, { allowTruncated: true });
       if (operationId !== this.operationId) return;
       this.state = {
         ...this.state,
