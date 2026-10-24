@@ -44,6 +44,8 @@ import { CartographyLab } from "./cartography-lab.js?v=0.60.0-media1";
 import { CONTEXT_ACTIONS, createSuggestionPreferences, deriveWorkspace, executeContextAction, suggestionKey, summarizeFeature } from "./contextual-workspace.js?v=6";
 import { BRIEFING_WALKTHROUGH_STEPS, startWorkspaceWalkthrough, waitForWalkthroughTarget } from "./workspace-walkthrough.js?v=0.57.0-slides1";
 import { chooseHurricaneLayer, createHazardsExampleBriefing } from "./example-hazards-briefing.js?v=0.60.0-media1";
+import { CinematicModeController } from "./cinematic/mode.js?v=0.1.0";
+import { temporalFieldCandidates } from "./cinematic/temporal-adapter.js?v=0.1.0";
 
 const BUILDINGS_3D_KEY = "gismap-online:buildings-3d:v1";
 const DISPLAY_SETTINGS_KEY = "gismap-online:display:v1";
@@ -144,6 +146,15 @@ export class UIController {
       openInspector: () => this.#openBriefingInspector(),
     });
     this.briefingFoldSelection = null;
+    this.cinematicController = new CinematicModeController({
+      mapController: this.mapController,
+      onState: (state) => {
+        this.cinematicState = state;
+        this.events.publish("cinematic:state-changed", state);
+        this.#syncCinematicControls(state);
+      },
+    });
+    this.cinematicState = null;
     this.mobileAtlasSettingsOpen = false;
     this.presentationState = { template: "standard", records: [], visibleRecords: [], selectedIds: new Set(), layerUid: null, search: "", searchField: "*", searchOperator: "contains", chartField: null, scope: "all", rangeMin: null, rangeMax: null, sortField: null, sortDirection: "asc", page: 1, pageSize: 25, binCount: 12 };
     this.briefingRequest = requestGuard();
@@ -1562,6 +1573,9 @@ export class UIController {
         case "map-guided-tours":
           this.#openGuidedTours();
           break;
+        case "mode-cinematic":
+          this.#openCinematicMode();
+          break;
         case "map-customize":
         case "dashboard-builder":
           this.#dashboardBuilderComingSoon();
@@ -1586,6 +1600,55 @@ export class UIController {
     });
     await navigator.clipboard.writeText(href);
     this.toast("Share link copied. Local files and credentials were not included.");
+  }
+
+  #openCinematicMode() {
+    const layers = this.mapController.getLayers().filter((layer) => layer.queryable && layer.objectIdField);
+    if (!layers.length) {
+      this.error("Cinematic mode needs a queryable feature layer with a stable object ID.");
+      return;
+    }
+    const selected = layers.find((layer) => layer.uid === this.presentationState.layerUid) || layers[0];
+    const options = () => layers.map((layer) => `<option value="${escapeHtml(layer.uid)}">${escapeHtml(layer.title || "Untitled layer")}</option>`).join("");
+    this.openDialog({
+      eyebrow: "Cinematic mode",
+      title: "Start observed playback",
+      content: `<p class="form-note">Choose an explicit timestamp field. Playback steps between observed records; it does not interpolate geometry or infer numeric years as dates.</p><div class="field-grid"><label class="field"><span>Layer</span><select data-cinematic-layer>${options()}</select></label><label class="field"><span>Timestamp field</span><select data-cinematic-time></select></label><label class="field"><span>Group snapshots by</span><select data-cinematic-group><option value="">All observations together</option></select></label><label class="field"><span>Playback duration (seconds)</span><input data-cinematic-duration type="number" min="1" max="600" value="20"></label></div><p class="form-note" data-cinematic-field-note></p>`,
+      actions: [{ label: "Cancel", handler: () => this.dialog.close() }, { label: "Start cinematic mode", primary: true, handler: async () => {
+        const layer = this.mapController.getLayer(this.dialog.querySelector("[data-cinematic-layer]").value);
+        const timeField = this.dialog.querySelector("[data-cinematic-time]").value;
+        if (!layer || !timeField) throw new Error("Choose a layer and timestamp field.");
+        const groupField = this.dialog.querySelector("[data-cinematic-group]").value;
+        const durationSeconds = Number(this.dialog.querySelector("[data-cinematic-duration]").value);
+        const spec = { cinematic: {
+          id: `cinematic-${Date.now()}`,
+          title: `${layer.title || "Map"} playback`,
+          intent: "explore",
+          preferredEngine: this.mapController.getEngineId(),
+          clock: { durationSeconds, loop: false },
+          layers: [{ layerRef: layer.uid, temporal: { startField: timeField, groupField, featureIdField: layer.objectIdField, timezone: "UTC", missingTime: "exclude" }, animation: { template: layer.geometryType === "point" ? "moving-track" : "step-perimeter", transition: "step", provenanceLabel: "Observed records" } }],
+          provenance: { synthetic: false, sourceUrls: layer.url && /^https:\/\//i.test(layer.url) ? [layer.url] : [], interpolated: false },
+        } };
+        await this.cinematicController.load(spec);
+        this.cinematicState = this.cinematicController.state();
+        this.projectManager.setPresentation({ ...this.projectManager.current.presentation, template: "cinematic", title: spec.cinematic.title, primaryLayerId: layer.uid, cinematic: spec.cinematic });
+        this.dialog.close();
+      } }],
+    });
+    const layerInput = this.dialog.querySelector("[data-cinematic-layer]");
+    const timeInput = this.dialog.querySelector("[data-cinematic-time]");
+    const groupInput = this.dialog.querySelector("[data-cinematic-group]");
+    const note = this.dialog.querySelector("[data-cinematic-field-note]");
+    const fillFields = () => {
+      const layer = this.mapController.getLayer(layerInput.value) || selected;
+      const times = temporalFieldCandidates(layer);
+      timeInput.innerHTML = times.length ? times.map((field) => `<option value="${escapeHtml(field.name)}">${escapeHtml(field.label)}</option>`).join("") : '<option value="">No date/timestamp field found</option>';
+      groupInput.innerHTML = '<option value="">All observations together</option>' + (layer.fields || []).filter((field) => field.name !== layer.objectIdField).map((field) => `<option value="${escapeHtml(field.name)}">${escapeHtml(field.alias || field.name)}</option>`).join("");
+      note.textContent = times.length ? `Stable ID: ${layer.objectIdField}. Rows without a valid ${times[0].label} value will be excluded.` : "This layer has no date/timestamp field. Add or choose a different layer.";
+    };
+    layerInput.value = selected.uid;
+    layerInput.addEventListener("change", fillFields);
+    fillFields();
   }
 
   #selectProjectDialog() {
@@ -3872,6 +3935,10 @@ export class UIController {
       root.querySelectorAll("[data-atlas-rename]").forEach((button) => button.addEventListener("click", () => this.#editAtlasChapter(chapters, Number(button.dataset.atlasRename))));
       return;
     }
+    if (template === "cinematic") {
+      this.#renderCinematicWorkspace(root, presentation, layer);
+      return;
+    }
     if (template === "explorer") {
       this.#renderExplorerWorkspace(root, presentation, layer, fields);
       return;
@@ -3923,6 +3990,40 @@ export class UIController {
     root.querySelector("[data-mode-clear]")?.addEventListener("click", () => { this.presentationState.search = ""; this.presentationState.category = ""; this.presentationState.scope = "all"; this.presentationState.rangeMin = null; this.presentationState.rangeMax = null; this.#filterPresentationRecords(); });
     root.querySelectorAll("[data-mode-category-value]").forEach((button) => button.addEventListener("click", () => { this.presentationState.category = button.dataset.modeCategoryValue; this.#filterPresentationRecords(); }));
     root.querySelectorAll("[data-mode-record]").forEach((button) => button.addEventListener("click", async () => { const result = records[Number(button.dataset.modeRecord)]; this.#selectPresentationResult(result); if (result?.geometry) await this.mapController.setView({ geometry: result.geometry }); }));
+  }
+
+  #renderCinematicWorkspace(root, presentation, layer) {
+    const state = this.cinematicState;
+    const timeline = state?.timeline;
+    if (!timeline) {
+      root.innerHTML = `<section class="mode-dashboard cinematic-dashboard"><header><span class="eyebrow">Cinematic · observed playback</span><h2>${escapeHtml(presentation.title || layer.title || "Cinematic map")}</h2><p>Preparing timestamped observations…</p></header><button type="button" data-cinematic-reconfigure>Configure playback</button></section>`;
+      root.querySelector("[data-cinematic-reconfigure]")?.addEventListener("click", () => this.#openCinematicMode());
+      return;
+    }
+    const current = new Date(timeline.observationTime);
+    root.innerHTML = `<section class="mode-dashboard cinematic-dashboard"><header><span class="eyebrow">Cinematic · observed playback</span><h2>${escapeHtml(presentation.title || layer.title || "Cinematic map")}</h2><p data-cinematic-time-label>${escapeHtml(this.#formatExplorerTime(current))} · observation ${timeline.observationIndex + 1} of ${timeline.ticks.length}</p></header><div class="cinematic-controls" aria-label="Cinematic timeline controls"><button type="button" data-cinematic-previous title="Previous observation">◀</button><button type="button" data-cinematic-play aria-pressed="${timeline.playing ? "true" : "false"}">${timeline.playing ? "Pause" : "Play"}</button><button type="button" data-cinematic-next title="Next observation">▶</button><label>Observation <input type="range" data-cinematic-scrub min="0" max="${Math.max(0, timeline.ticks.length - 1)}" value="${timeline.observationIndex}" step="1"></label></div><p class="form-note">Showing observed state only. Polygon boundaries step between snapshots; no unobserved spread or geometry interpolation is shown.</p><div class="cinematic-actions"><button type="button" data-cinematic-reconfigure>Change mapping</button><button type="button" data-cinematic-exit>Exit cinematic mode</button></div></section>`;
+    root.querySelector("[data-cinematic-play]")?.addEventListener("click", () => this.cinematicController.toggle());
+    root.querySelector("[data-cinematic-previous]")?.addEventListener("click", () => this.cinematicController.previousObservation());
+    root.querySelector("[data-cinematic-next]")?.addEventListener("click", () => this.cinematicController.nextObservation());
+    root.querySelector("[data-cinematic-scrub]")?.addEventListener("input", (event) => this.cinematicController.seekObservation(Number(event.target.value)));
+    root.querySelector("[data-cinematic-reconfigure]")?.addEventListener("click", () => this.#openCinematicMode());
+    root.querySelector("[data-cinematic-exit]")?.addEventListener("click", async () => {
+      await this.cinematicController.destroy();
+      this.cinematicState = null;
+      this.projectManager.setPresentation({ ...this.projectManager.current.presentation, template: "standard" });
+    });
+  }
+
+  #syncCinematicControls(state) {
+    const timeline = state?.timeline;
+    const root = document.querySelector("#presentation-dashboard");
+    if (!timeline || !root || this.projectManager.current.presentation?.template !== "cinematic") return;
+    const time = root.querySelector("[data-cinematic-time-label]");
+    if (time) time.textContent = `${this.#formatExplorerTime(new Date(timeline.observationTime))} · observation ${timeline.observationIndex + 1} of ${timeline.ticks.length}`;
+    const slider = root.querySelector("[data-cinematic-scrub]");
+    if (slider && document.activeElement !== slider) slider.value = String(timeline.observationIndex);
+    const play = root.querySelector("[data-cinematic-play]");
+    if (play) { play.textContent = timeline.playing ? "Pause" : "Play"; play.setAttribute("aria-pressed", String(timeline.playing)); }
   }
 
   #syncPresentationMobileControls(presentation = this.projectManager.current.presentation || {}) {
@@ -5305,6 +5406,30 @@ export class UIController {
     if (autoplay && !matchMedia("(prefers-reduced-motion: reduce)").matches) this.#playAtlasStory(chapters, index);
   }
 
+  /** Deterministic cinematic import used by the UI and the in-page API. */
+  async importCinematicSpec(spec) {
+    await this.cinematicController.load(spec);
+    this.cinematicState = this.cinematicController.state();
+    const normalized = this.cinematicController.exportCinematicSpec();
+    const primaryLayerId = normalized.cinematic.layers[0]?.layerRef || null;
+    this.projectManager.setPresentation({
+      ...this.projectManager.current.presentation,
+      template: "cinematic",
+      title: normalized.cinematic.title,
+      primaryLayerId,
+      cinematic: normalized.cinematic,
+    });
+    return normalized;
+  }
+
+  exportCinematicSpec() {
+    const spec = this.cinematicController.exportCinematicSpec?.();
+    if (spec) return spec;
+    const cinematic = this.projectManager.current.presentation?.cinematic;
+    if (!cinematic) throw new Error("No cinematic specification is loaded.");
+    return { schemaVersion: "0.1", mode: "cinematic", cinematic: structuredClone(cinematic) };
+  }
+
   #playAtlasStory(chapters, startIndex = 0) {
     if (!chapters.length) return;
     const token = ++this.atlasPlaybackToken;
@@ -5344,6 +5469,17 @@ export class UIController {
   }
 
   #applyPresentation(presentation = {}) {
+    const nextTemplate = presentation.template || "standard";
+    if (nextTemplate !== "cinematic" && this.cinematicState) {
+      void this.cinematicController.destroy();
+      this.cinematicState = null;
+    }
+    if (nextTemplate === "cinematic" && presentation.cinematic && !this.cinematicState && !this.cinematicLoading) {
+      this.cinematicLoading = this.cinematicController.load({ cinematic: presentation.cinematic })
+        .then((state) => { this.cinematicState = state; this.#renderPresentationDashboard(this.projectManager.current.presentation); })
+        .catch((error) => this.error(`Cinematic playback could not start: ${error.message}`))
+        .finally(() => { this.cinematicLoading = null; });
+    }
     if ((presentation.template || "standard") !== "briefing") this.#teardownBriefingV2();
     const app = document.querySelector("#app");
     const template = presentation.template || "standard";

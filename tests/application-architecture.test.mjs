@@ -120,6 +120,17 @@ test("Atlas chapter settings normalize safely without activating configurable pa
   assert.equal(configured.configured, true);
 });
 
+test("cinematic presentation stores a versioned layer reference without dataset bytes", () => {
+  const manager = new ProjectManager({ publish() {} }, { getDefaultBasemapId: () => "topo-3d" });
+  const presentation = manager.setPresentation({
+    template: "cinematic",
+    cinematic: { title: "Observed boundary", layers: [{ layerRef: "layer-1", temporal: { startField: "observed_at", featureIdField: "OBJECTID" } }] },
+  });
+  assert.equal(presentation.template, "cinematic");
+  assert.equal(presentation.cinematic.layers[0].layerRef, "layer-1");
+  assert.equal(presentation.cinematic.layers[0].temporal.startField, "observed_at");
+});
+
 test("unknown panel configuration survives normalization for repair UI", () => {
   const config = normalizeApplicationConfig({ preset: "custom", panels: [{ instanceId: "future-1", type: "timeline-replay", title: "Replay", settings: { speed: 2 }, placement: { region: "right", order: 0 } }] });
   assert.equal(config.panels[0].type, "timeline-replay");

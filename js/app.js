@@ -214,6 +214,10 @@ async function start() {
     queries: clientApi.queries,
     sources: clientApi.sources,
     smartImages: clientApi.smartImages,
+    cinematic: Object.freeze({
+      importCinematicSpec: (spec) => uiController.importCinematicSpec(spec),
+      exportCinematicSpec: () => uiController.exportCinematicSpec(),
+    }),
     application: Object.freeze({
       getState: () => applicationRuntime.state.value,
       getConfig: () => applicationRuntime.snapshot(),

@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://gismap.online/schemas/cinematic.schema.json",
+  "title": "GISMap Cinematic 0.1",
+  "type": "object",
+  "required": ["schemaVersion", "mode", "cinematic"],
+  "properties": {
+    "schemaVersion": { "const": "0.1" },
+    "mode": { "const": "cinematic" },
+    "cinematic": {
+      "type": "object",
+      "required": ["id", "title", "clock", "layers"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "title": { "type": "string", "minLength": 1 },
+        "intent": { "enum": ["explore", "investigate", "present"] },
+        "clock": { "type": "object", "required": ["durationSeconds"], "properties": { "start": { "type": "string" }, "end": { "type": "string" }, "current": { "type": "string" }, "durationSeconds": { "type": "number", "minimum": 1, "maximum": 600 }, "loop": { "type": "boolean" } } },
+        "layers": { "type": "array", "items": { "type": "object", "required": ["layerRef", "temporal"], "properties": { "layerRef": { "type": "string" }, "temporal": { "type": "object", "required": ["startField"], "properties": { "startField": { "type": "string" }, "groupField": { "type": "string" }, "featureIdField": { "type": "string" } } }, "animation": { "type": "object", "properties": { "template": { "enum": ["step-perimeter", "moving-track"] }, "transition": { "enum": ["step", "crossfade"] } } } } } }
+      }
+    }
+  }
+}

@@ -8,6 +8,7 @@ import { normalizeSkin, normalizeSkinColors } from "./skin-catalog.js?v=0.57.0-s
 import { normalizeMapColors } from "./basemap-themes.js?v=0.53.0-mapcolors1";
 import { normalizeMobileWorkflow } from "./mobile-feed-store.js?v=0.18.7";
 import { normalizeBriefing } from "./briefing-document.js?v=0.60.0-media1";
+import { importCinematicSpec } from "./cinematic/state.js?v=0.1.0";
 import { composeSmartImage, embedProjectInPng, readProjectFromPng } from "./smart-image.js?v=0.44.2";
 
 const STORAGE_KEY = "gismap-online:projects:v1";
@@ -417,12 +418,12 @@ export class ProjectManager {
   }
 
   #presentation(value = {}) {
-    const templates = new Set(["standard", "briefing", "explorer", "atlas", "ai-map"]);
+    const templates = new Set(["standard", "briefing", "explorer", "atlas", "ai-map", "cinematic"]);
     const template = templates.has(value.template) ? value.template : "standard";
     const title = String(value.title || "");
     // Each mode keeps its own title so Briefing and Tours never rename each other.
     const modeTitles = {};
-    for (const mode of ["briefing", "explorer", "atlas"]) {
+    for (const mode of ["briefing", "explorer", "atlas", "cinematic"]) {
       const saved = value.modeTitles?.[mode];
       if (typeof saved === "string" && saved) modeTitles[mode] = saved;
     }
@@ -445,6 +446,12 @@ export class ProjectManager {
       } : { layerId: null, ids: [], useAll: false, conditions: [] },
       // Slides for the briefing; a briefing without slides behaves exactly as before.
       briefing: normalizeBriefing(value.briefing),
+      // A cinematic spec references existing layers only; invalid imported
+      // drafts are omitted rather than allowed to corrupt project loading.
+      cinematic: (() => {
+        if (!value.cinematic || typeof value.cinematic !== "object") return null;
+        try { return importCinematicSpec({ cinematic: value.cinematic }).cinematic; } catch { return null; }
+      })(),
       primaryLayerId: value.primaryLayerId || null,
       fieldMappings: value.fieldMappings && typeof value.fieldMappings === "object" ? value.fieldMappings : {},
       widgets: value.widgets && typeof value.widgets === "object" ? value.widgets : {},
