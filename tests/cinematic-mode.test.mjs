@@ -5,11 +5,15 @@ import { CinematicModeController } from "../js/cinematic/mode.js";
 test("cinematic mode applies transient observed IDs and restores the prior filter", async () => {
   const applied = [];
   const effects = [];
-  const layer = { uid: "perimeters", title: "Perimeters", queryable: true, objectIdField: "OBJECTID", maxRecordCount: 100 };
+  const opacity = [];
+  const focused = [];
+  const layer = { uid: "perimeters", title: "Perimeters", queryable: true, objectIdField: "OBJECTID", maxRecordCount: 100, opacity: 0.8 };
   const mapController = {
     getLayer: (id) => id === "perimeters" ? layer : null,
     getFeatureFilter: async () => ({ objectIds: [99] }),
     setFeatureFilter: async (_id, filter) => { applied.push(filter); return true; },
+    setOpacity: async (_id, value) => { opacity.push(value); },
+    goToFeatures: async (features, options) => { focused.push({ features, options }); },
     setCinematicEffect: async (_id, effect) => { effects.push(effect); return true; },
     clearCinematicEffect: () => { effects.push(null); },
     queryFeatures: async () => ({ features: [
@@ -20,6 +24,8 @@ test("cinematic mode applies transient observed IDs and restores the prior filte
   const mode = new CinematicModeController({ mapController });
   await mode.load({ cinematic: { title: "Observed", layers: [{ layerRef: "perimeters", temporal: { startField: "observed_at", groupField: "incident", featureIdField: "OBJECTID" } }] } });
   assert.deepEqual(applied.at(-1), { objectIds: [1] });
+  await mode.focusCurrentObservation();
+  assert.equal(focused.at(-1).features[0].attributes.OBJECTID, 1);
   mode.seekObservation(1);
   await mode.renderTask;
   assert.deepEqual(applied.at(-1), { objectIds: [2] });
@@ -33,6 +39,9 @@ test("cinematic mode applies transient observed IDs and restores the prior filte
   mode.setBoundaryGlow(false);
   await mode.renderTask;
   assert.equal(effects.at(-1), null);
+  await mode.setLayerOpacity(0.4);
+  assert.equal(opacity.at(-1), 0.4);
   await mode.destroy();
   assert.deepEqual(applied.at(-1), { objectIds: [99] });
+  assert.equal(opacity.at(-1), 0.8);
 });

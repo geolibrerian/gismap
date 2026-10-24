@@ -44,7 +44,7 @@ import { CartographyLab } from "./cartography-lab.js?v=0.60.0-media1";
 import { CONTEXT_ACTIONS, createSuggestionPreferences, deriveWorkspace, executeContextAction, suggestionKey, summarizeFeature } from "./contextual-workspace.js?v=6";
 import { BRIEFING_WALKTHROUGH_STEPS, startWorkspaceWalkthrough, waitForWalkthroughTarget } from "./workspace-walkthrough.js?v=0.57.0-slides1";
 import { chooseHurricaneLayer, createHazardsExampleBriefing } from "./example-hazards-briefing.js?v=0.60.0-media1";
-import { CinematicModeController } from "./cinematic/mode.js?v=0.1.1";
+import { CinematicModeController } from "./cinematic/mode.js?v=0.1.3";
 import { temporalFieldCandidates } from "./cinematic/temporal-adapter.js?v=0.1.1";
 
 const BUILDINGS_3D_KEY = "gismap-online:buildings-3d:v1";
@@ -4006,14 +4006,20 @@ export class UIController {
     }
     const timeMode = state.spec?.cinematic.clock.timeMode || "instant";
     const supportsBoundaryGlow = this.mapController.getCapabilities().includes("three-3d");
+    const supportsGround = this.mapController.getCapabilities().includes("ground");
     const glowEnabled = state.spec?.cinematic.layers?.some((item) => item.animation?.outline?.glow === true) === true;
+    const layerOpacity = state.spec?.cinematic.layers?.[0]?.animation?.opacity ?? layer.opacity ?? 1;
+    const terrainOptions = supportsGround ? this.#groundOptionsMarkup() : "";
     const current = new Date(timeline.observationTime);
     const timeLabel = `${timeMode === "cumulative" ? "Cumulative through " : ""}${this.#formatExplorerTime(current)} · observation ${timeline.observationIndex + 1} of ${timeline.ticks.length}`;
     const fidelityNote = timeMode === "cumulative" ? "Showing every observed record from the first observation through this moment. This is cumulative display, not inferred persistence or geometry interpolation." : "Showing the current observed state only. Polygon boundaries step between snapshots; no unobserved spread or geometry interpolation is shown.";
-    root.innerHTML = `<section class="mode-dashboard cinematic-dashboard"><header><span class="eyebrow">Cinematic · observed playback</span><h2>${escapeHtml(presentation.title || layer.title || "Cinematic map")}</h2><p data-cinematic-time-label>${escapeHtml(timeLabel)}</p></header><div class="cinematic-controls" aria-label="Cinematic timeline controls"><button type="button" data-cinematic-previous title="Previous observation">◀</button><button type="button" data-cinematic-play aria-pressed="${timeline.playing ? "true" : "false"}">${timeline.playing ? "Pause" : "Play"}</button><button type="button" data-cinematic-next title="Next observation">▶</button><label>Build up <input type="checkbox" data-cinematic-build-up${timeMode === "cumulative" ? " checked" : ""} aria-label="Build up observed records over time"></label><label>Speed <select data-cinematic-rate aria-label="Playback speed"><option value="0.1"${timeline.playbackRate === 0.1 ? " selected" : ""}>Very slow</option><option value="0.25"${timeline.playbackRate === 0.25 ? " selected" : ""}>Slow</option><option value="0.5"${timeline.playbackRate === 0.5 ? " selected" : ""}>Steady</option><option value="1"${timeline.playbackRate === 1 ? " selected" : ""}>Fast</option><option value="2"${timeline.playbackRate === 2 ? " selected" : ""}>Very fast</option></select></label>${supportsBoundaryGlow ? `<label>Glow <input type="checkbox" data-cinematic-boundary-glow${glowEnabled ? " checked" : ""}></label>` : ""}<label>Observation <input type="range" data-cinematic-scrub min="0" max="${Math.max(0, timeline.ticks.length - 1)}" value="${timeline.observationIndex}" step="1"></label></div><p class="form-note">${escapeHtml(fidelityNote)}</p><div class="cinematic-actions"><button type="button" data-cinematic-reconfigure>Change mapping</button><button type="button" data-cinematic-exit>Exit cinematic mode</button></div></section>`;
+    root.innerHTML = `<section class="mode-dashboard cinematic-dashboard"><header><span class="eyebrow">Cinematic · observed playback</span><h2>${escapeHtml(presentation.title || layer.title || "Cinematic map")}</h2><p data-cinematic-time-label>${escapeHtml(timeLabel)}</p></header><div class="cinematic-controls" aria-label="Cinematic timeline controls"><button type="button" data-cinematic-previous title="Previous observation">◀</button><button type="button" data-cinematic-play aria-pressed="${timeline.playing ? "true" : "false"}">${timeline.playing ? "Pause" : "Play"}</button><button type="button" data-cinematic-next title="Next observation">▶</button><button type="button" data-cinematic-focus title="Fly to the current observed feature">Focus</button><label>Build up <input type="checkbox" data-cinematic-build-up${timeMode === "cumulative" ? " checked" : ""} aria-label="Build up observed records over time"></label><label>Speed <select data-cinematic-rate aria-label="Playback speed"><option value="0.1"${timeline.playbackRate === 0.1 ? " selected" : ""}>Very slow</option><option value="0.25"${timeline.playbackRate === 0.25 ? " selected" : ""}>Slow</option><option value="0.5"${timeline.playbackRate === 0.5 ? " selected" : ""}>Steady</option><option value="1"${timeline.playbackRate === 1 ? " selected" : ""}>Fast</option><option value="2"${timeline.playbackRate === 2 ? " selected" : ""}>Very fast</option></select></label>${supportsGround ? `<label>Terrain <select data-cinematic-ground aria-label="Terrain"><option value="">Map setting</option>${terrainOptions}</select></label>` : ""}${supportsBoundaryGlow ? `<label>Glow <input type="checkbox" data-cinematic-boundary-glow${glowEnabled ? " checked" : ""}></label>` : ""}<label>Opacity <input type="range" data-cinematic-opacity min="5" max="100" value="${Math.round(Number(layerOpacity) * 100)}" aria-label="Cinematic layer opacity"></label><label>Observation <input type="range" data-cinematic-scrub min="0" max="${Math.max(0, timeline.ticks.length - 1)}" value="${timeline.observationIndex}" step="1"></label></div><p class="form-note">${escapeHtml(fidelityNote)}</p><div class="cinematic-actions"><button type="button" data-cinematic-reconfigure>Change mapping</button><button type="button" data-cinematic-exit>Exit cinematic mode</button></div></section>`;
     root.querySelector("[data-cinematic-play]")?.addEventListener("click", () => this.cinematicController.toggle());
     root.querySelector("[data-cinematic-previous]")?.addEventListener("click", () => this.cinematicController.previousObservation());
     root.querySelector("[data-cinematic-next]")?.addEventListener("click", () => this.cinematicController.nextObservation());
+    root.querySelector("[data-cinematic-focus]")?.addEventListener("click", () => {
+      void this.cinematicController.focusCurrentObservation().catch((error) => this.error(`Could not focus the current observation: ${error.message}`));
+    });
     root.querySelector("[data-cinematic-scrub]")?.addEventListener("input", (event) => this.cinematicController.seekObservation(Number(event.target.value)));
     root.querySelector("[data-cinematic-rate]")?.addEventListener("change", (event) => {
       this.cinematicController.setRate(Number(event.target.value));
@@ -4030,6 +4036,15 @@ export class UIController {
       this.cinematicController.setBoundaryGlow(event.target.checked);
       const cinematic = this.cinematicController.exportCinematicSpec().cinematic;
       this.projectManager.patchPresentation({ cinematic });
+    });
+    root.querySelector("[data-cinematic-ground]")?.addEventListener("change", (event) => {
+      if (event.target.value) this.mapController.setGround(event.target.value);
+    });
+    root.querySelector("[data-cinematic-opacity]")?.addEventListener("input", (event) => {
+      void this.cinematicController.setLayerOpacity(Number(event.target.value) / 100).then(() => {
+        const cinematic = this.cinematicController.exportCinematicSpec().cinematic;
+        this.projectManager.patchPresentation({ cinematic });
+      });
     });
     root.querySelector("[data-cinematic-reconfigure]")?.addEventListener("click", () => this.#openCinematicMode());
     root.querySelector("[data-cinematic-exit]")?.addEventListener("click", async () => {

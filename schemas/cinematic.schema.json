@@ -14,8 +14,53 @@
         "id": { "type": "string", "minLength": 1 },
         "title": { "type": "string", "minLength": 1 },
         "intent": { "enum": ["explore", "investigate", "present"] },
-        "clock": { "type": "object", "required": ["durationSeconds"], "properties": { "start": { "type": "string" }, "end": { "type": "string" }, "current": { "type": "string" }, "timeMode": { "enum": ["instant", "cumulative"] }, "durationSeconds": { "type": "number", "minimum": 1, "maximum": 600 }, "rate": { "type": "number", "minimum": 0.1, "maximum": 4 }, "loop": { "type": "boolean" } } },
-        "layers": { "type": "array", "items": { "type": "object", "required": ["layerRef", "temporal"], "properties": { "layerRef": { "type": "string" }, "temporal": { "type": "object", "required": ["startField"], "properties": { "startField": { "type": "string" }, "groupField": { "type": "string" }, "featureIdField": { "type": "string" } } }, "animation": { "type": "object", "properties": { "template": { "enum": ["step-perimeter", "moving-track"] }, "transition": { "enum": ["step", "crossfade"] }, "outline": { "type": "object", "properties": { "color": { "type": "string" }, "glow": { "type": "boolean" } } } } } } }
+        "clock": {
+          "type": "object",
+          "required": ["durationSeconds"],
+          "properties": {
+            "start": { "type": "string" },
+            "end": { "type": "string" },
+            "current": { "type": "string" },
+            "timeMode": { "enum": ["instant", "cumulative"] },
+            "durationSeconds": { "type": "number", "minimum": 1, "maximum": 600 },
+            "rate": { "type": "number", "minimum": 0.1, "maximum": 4 },
+            "loop": { "type": "boolean" }
+          }
+        },
+        "layers": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["layerRef", "temporal"],
+            "properties": {
+              "layerRef": { "type": "string" },
+              "temporal": {
+                "type": "object",
+                "required": ["startField"],
+                "properties": {
+                  "startField": { "type": "string" },
+                  "groupField": { "type": "string" },
+                  "featureIdField": { "type": "string" }
+                }
+              },
+              "animation": {
+                "type": "object",
+                "properties": {
+                  "template": { "enum": ["step-perimeter", "moving-track"] },
+                  "transition": { "enum": ["step", "crossfade"] },
+                  "opacity": { "type": "number", "minimum": 0.05, "maximum": 1 },
+                  "outline": {
+                    "type": "object",
+                    "properties": {
+                      "color": { "type": "string" },
+                      "glow": { "type": "boolean" }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
       }
     }
   }

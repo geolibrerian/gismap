@@ -26,6 +26,7 @@ export function normalizeCinematicSpec(input = {}) {
       animation: {
         template,
         transition: layer.animation?.transition === "crossfade" ? "crossfade" : "step",
+        opacity: finite(layer.animation?.opacity) == null ? null : Math.min(1, Math.max(0.05, finite(layer.animation.opacity))),
         outline: layer.animation?.outline && typeof layer.animation.outline === "object" ? { color: string(layer.animation.outline.color, "#ff8136"), glow: layer.animation.outline.glow === true } : undefined,
         provenanceLabel: string(layer.animation?.provenanceLabel),
       },
