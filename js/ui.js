@@ -47,8 +47,8 @@ import { chooseHurricaneLayer, createHazardsExampleBriefing } from "./example-ha
 import { CinematicModeController } from "./cinematic/mode.js?v=0.2.0";
 import { CINEMATIC_EFFECTS, suggestEffect } from "./cinematic/cinematic-effects.js?v=0.2.0";
 import { temporalFieldCandidates } from "./cinematic/temporal-adapter.js?v=0.1.1";
-import { clipToCinematicSpec, createCinematicClip, exportCinematicClip } from "./cinematic/clip-model.js?v=0.3.0";
-import { availableVideoFormats, CLIP_FRAME_RATES, clipFrameCount, exportCinematicVideo } from "./cinematic/clip-export.js?v=0.3.0";
+import { clipToCinematicSpec, createCinematicClip, exportCinematicClip } from "./cinematic/clip-model.js?v=0.3.1";
+import { availableVideoFormats, CLIP_FRAME_RATES, clipFrameCount, exportCinematicVideo, renderClipPoster } from "./cinematic/clip-export.js?v=0.3.1";
 
 const BUILDINGS_3D_KEY = "gismap-online:buildings-3d:v1";
 const DISPLAY_SETTINGS_KEY = "gismap-online:display:v1";
@@ -4050,7 +4050,7 @@ export class UIController {
     const timeLabel = state.localEmpty ? "No timestamped observations intersect the current map window." : `${timeMode === "cumulative" ? "Cumulative through " : ""}${this.#formatExplorerTime(current)} · observation ${timeline.observationIndex + 1} of ${timeline.ticks.length}${localWindow ? " · local window" : ""}`;
     const fidelityNote = timeMode === "cumulative" ? "Showing every observed record from the first observation through this moment. This is cumulative display, not inferred persistence or geometry interpolation." : "Showing the current observed state only. Polygon boundaries step between snapshots; no unobserved spread or geometry interpolation is shown.";
     const inspection = intent === "investigate" ? `<section class="cinematic-inspector" aria-label="Observed data inspection"><span class="eyebrow">Observed evidence</span><strong>${escapeHtml(this.#formatExplorerTime(current))}</strong>${state.layers.map((item) => `<p><b>${escapeHtml(item.title)}</b><span>${item.observedCount} observed feature${item.observedCount === 1 ? "" : "s"} · ${escapeHtml(item.timeField)}</span></p>`).join("")}<small>Observed source records only; no estimated spread is shown.</small></section>` : "";
-    const present = intent === "present" ? `<details class="cinematic-disclosure cinematic-disclosure--present"${presentOpen ? " open" : ""}><summary>Present & export</summary><div class="cinematic-actions"><button type="button" data-cinematic-create-clip>Create Clip</button><button type="button" data-cinematic-set-end-camera title="Move the map, then set this Clip's ending keyframe">Set end camera</button><button type="button" data-cinematic-add-brief>Add to Brief</button><button type="button" data-cinematic-download-clip>Clip JSON</button><button type="button" data-cinematic-poster>Poster PNG</button><button type="button" data-cinematic-record title="Render this Clip to a video file">Export movie</button></div></details>` : "";
+    const present = intent === "present" ? `<details class="cinematic-disclosure cinematic-disclosure--present"${presentOpen ? " open" : ""}><summary>Present & export</summary><div class="cinematic-actions">${this.#cinematicClipSummary()}<button type="button" data-cinematic-create-clip>Create Clip</button>${this.#latestCinematicClip() ? '<button type="button" data-cinematic-edit-clip>Edit Clip</button>' : ""}<button type="button" data-cinematic-add-brief>Add to Brief</button><button type="button" data-cinematic-download-clip>Clip JSON</button><button type="button" data-cinematic-poster>Poster PNG</button><button type="button" data-cinematic-record title="Render this Clip to a video file">Export movie</button></div></details>` : "";
     root.innerHTML = `<section class="mode-dashboard cinematic-dashboard"><header><span class="eyebrow">Cinematic · observed playback</span><h2>${escapeHtml(presentation.title || layer.title || "Cinematic map")}</h2><div class="cinematic-mode-strip"><label>Intent <select data-cinematic-intent aria-label="Cinematic intent"><option value="explore"${intent === "explore" ? " selected" : ""}>Explore</option><option value="investigate"${intent === "investigate" ? " selected" : ""}>Investigate</option><option value="present"${intent === "present" ? " selected" : ""}>Present</option></select></label><span>${this.mapController.getEngineId?.() || "map"}</span></div><p data-cinematic-time-label>${escapeHtml(timeLabel)}</p></header><div class="cinematic-quick-controls" aria-label="Cinematic playback"><button type="button" data-cinematic-previous title="Previous observation">◀</button><button type="button" data-cinematic-play aria-pressed="${timeline.playing ? "true" : "false"}">${timeline.playing ? "Pause" : "Play"}</button><button type="button" data-cinematic-next title="Next observation">▶</button><button type="button" data-cinematic-focus title="Fly to the current observed feature">Focus</button></div>${inspection}<p class="cinematic-provenance">${escapeHtml(fidelityNote)}${state.layers?.[0]?.effectNote ? ` <span class="cinematic-effect-note">${escapeHtml(state.layers[0].effectNote)}</span>` : ""}</p><details class="cinematic-disclosure"${playbackOpen ? " open" : ""}><summary>${intent === "investigate" ? "Playback controls" : "Playback & map appearance"}</summary><div class="cinematic-controls"><label>Build up <input type="checkbox" data-cinematic-build-up${timeMode === "cumulative" ? " checked" : ""} aria-label="Build up observed records over time"></label><label>Local window <input type="checkbox" data-cinematic-local-window${localWindow ? " checked" : ""} aria-label="Filter cinematic observations to the current map window"></label><label>Speed <select data-cinematic-rate aria-label="Playback speed"><option value="0.1"${timeline.playbackRate === 0.1 ? " selected" : ""}>Very slow</option><option value="0.25"${timeline.playbackRate === 0.25 ? " selected" : ""}>Slow</option><option value="0.5"${timeline.playbackRate === 0.5 ? " selected" : ""}>Steady</option><option value="1"${timeline.playbackRate === 1 ? " selected" : ""}>Fast</option><option value="2"${timeline.playbackRate === 2 ? " selected" : ""}>Very fast</option></select></label>${supportsGround ? `<label>Terrain <select data-cinematic-ground aria-label="Terrain"><option value="">Map setting</option>${terrainOptions}</select></label>` : ""}${supportsBoundaryGlow ? `<label>Effect <select data-cinematic-effect aria-label="Visual effect">${effectOptions}</select></label>` : ""}<label>Opacity <input type="range" data-cinematic-opacity min="5" max="100" value="${Math.round(Number(layerOpacity) * 100)}" aria-label="Cinematic layer opacity"></label><label class="cinematic-controls__scrub">Observation <input type="range" data-cinematic-scrub min="0" max="${Math.max(0, timeline.ticks.length - 1)}" value="${timeline.observationIndex}" step="1"></label></div><p class="form-note">${localWindow ? "The local range resets after each completed pan or zoom." : "Controls apply to observed data only."}</p></details>${present}<div class="cinematic-footer-actions"><button type="button" data-cinematic-reconfigure>Change mapping</button><button type="button" data-cinematic-exit>Exit</button></div></section>`;
     root.querySelector("[data-cinematic-play]")?.addEventListener("click", () => this.cinematicController.toggle());
     root.querySelector("[data-cinematic-previous]")?.addEventListener("click", () => this.cinematicController.previousObservation());
@@ -4102,8 +4102,8 @@ export class UIController {
         this.projectManager.patchPresentation({ cinematic });
       });
     });
-    root.querySelector("[data-cinematic-create-clip]")?.addEventListener("click", () => this.#createCinematicClip());
-    root.querySelector("[data-cinematic-set-end-camera]")?.addEventListener("click", () => this.#setCinematicClipEndCamera());
+    root.querySelector("[data-cinematic-create-clip]")?.addEventListener("click", () => this.#captureCinematicClipDialog());
+    root.querySelector("[data-cinematic-edit-clip]")?.addEventListener("click", () => this.#captureCinematicClipDialog({ clip: this.#latestCinematicClip() }));
     root.querySelector("[data-cinematic-add-brief]")?.addEventListener("click", () => this.#addCinematicClipToBrief());
     root.querySelector("[data-cinematic-download-clip]")?.addEventListener("click", () => this.#downloadCinematicClip());
     root.querySelector("[data-cinematic-poster]")?.addEventListener("click", () => void this.#downloadCinematicPoster());
@@ -5585,37 +5585,126 @@ export class UIController {
     return { schemaVersion: "0.1", mode: "cinematic", cinematic: structuredClone(cinematic) };
   }
 
-  #createCinematicClip() {
-    const spec = this.cinematicController.exportCinematicSpec?.();
-    const timeline = this.cinematicState?.timeline;
-    if (!spec?.cinematic || !timeline?.ticks?.length) return this.error("Start cinematic playback before creating a Clip.");
-    const clip = createCinematicClip({
-      cinematic: spec.cinematic,
-      projectId: this.projectManager.current.id,
-      camera: this.mapController.getViewState?.(),
-      observationTimes: timeline.ticks,
-      title: spec.cinematic.title,
-    });
-    const clips = [...(this.projectManager.current.presentation?.cinematicClips || []).filter((item) => item.id !== clip.id), clip];
-    this.projectManager.patchPresentation({ cinematicClips: clips });
-    this.lastCinematicClipId = clip.id;
-    this.toast(`Clip “${clip.title}” saved. Add it to a Brief from the Cinematic Clip slide type.`);
+  /** The Clip the Present panel acts on: the last one saved or edited, else the newest. */
+  #latestCinematicClip() {
+    const clips = this.projectManager.current.presentation?.cinematicClips || [];
+    return clips.find((clip) => clip.id === this.lastCinematicClipId) || clips.at(-1) || null;
+  }
+
+  #cinematicClipSummary() {
+    const clip = this.#latestCinematicClip();
+    return clip ? `<p class="form-note cinematic-clip-summary">Clip: <strong>${escapeHtml(clip.title)}</strong> · ${(clip.playback.durationMs / 1000).toFixed(0)} s${clip.tracks.some((track) => track.type === "caption") ? ` · ${clip.tracks.filter((track) => track.type === "caption").length} captions` : ""}</p>` : "";
+  }
+
+  /** The Clip actions need one: the latest, or (with no saved Clip) the capture dialog opens. */
+  #currentCinematicClip() {
+    const clip = this.#latestCinematicClip();
+    if (!clip) this.#captureCinematicClipDialog();
     return clip;
   }
 
-  #currentCinematicClip() {
-    const clips = this.projectManager.current.presentation?.cinematicClips || [];
-    return clips.find((clip) => clip.id === this.lastCinematicClipId) || clips.at(-1) || this.#createCinematicClip();
-  }
-
-  #setCinematicClipEndCamera() {
-    const clip = this.#currentCinematicClip();
+  /**
+   * Capture → Save Clip: name, time range, length, camera start and end,
+   * easing, captions and poster time. With `clip`, edits that Clip in place
+   * (same id) and keeps the scene it was captured with.
+   */
+  #captureCinematicClipDialog({ clip = null } = {}) {
+    const live = this.cinematicController.exportCinematicSpec?.();
+    const timeline = this.cinematicState?.timeline;
+    if (!clip && (!live?.cinematic || !timeline?.ticks?.length)) return this.error("Start cinematic playback before creating a Clip.");
+    const scene = clip ? clipToCinematicSpec(clip).cinematic : live.cinematic;
+    const ticks = timeline?.ticks?.length ? timeline.ticks : [Date.parse(clip.range.start), Date.parse(clip.range.end)].filter(Number.isFinite);
+    const first = ticks[0], last = ticks.at(-1);
+    // datetime-local works in local time to the second.
+    const toLocal = (ms) => Number.isFinite(ms) ? new Date(ms - new Date(ms).getTimezoneOffset() * 60000).toISOString().slice(0, 19) : "";
+    const fromLocal = (value) => (value ? new Date(value).getTime() : NaN);
     const view = this.mapController.getViewState?.();
-    if (!clip || !Array.isArray(view?.center) || !Number.isFinite(Number(view.center[0])) || !Number.isFinite(Number(view.center[1]))) return this.error("Move the map to a valid view before setting the Clip end camera.");
-    const end = { atMs: clip.playback.durationMs, camera: { longitude: Number(view.center[0]), latitude: Number(view.center[1]), zoom: Number(view.zoom) || 12, bearing: Number(view.heading) || 0, pitch: Number(view.tilt) || 0 } };
-    const updated = { ...clip, updatedAt: new Date().toISOString(), cameraTrack: [clip.cameraTrack?.[0] || end, end] };
-    this.projectManager.patchPresentation({ cinematicClips: (this.projectManager.current.presentation?.cinematicClips || []).map((item) => item.id === clip.id ? updated : item) });
-    this.toast("Clip ending camera saved.");
+    const asCamera = (state) => state && Array.isArray(state.center) ? { longitude: Number(state.center[0]), latitude: Number(state.center[1]), zoom: Number(state.zoom) || 12, bearing: Number(state.heading) || 0, pitch: Number(state.tilt) || 0 } : null;
+    const cameras = { start: clip?.cameraTrack?.[0]?.camera || asCamera(view), end: clip?.cameraTrack?.at(-1)?.camera || asCamera(view) };
+    let captions = (clip?.tracks || []).filter((track) => track.type === "caption").map((track) => ({ seconds: track.atMs / 1000, text: track.text }));
+    const custom = Boolean(clip && (Date.parse(clip.range.start) > first || Date.parse(clip.range.end) < last));
+    const seconds = clip ? clip.playback.durationMs / 1000 : Math.min(30, Math.max(10, Number(scene.clock.durationSeconds) || 20));
+    const cameraText = (camera) => camera ? `${camera.latitude.toFixed(3)}, ${camera.longitude.toFixed(3)} · zoom ${camera.zoom.toFixed(1)}${camera.pitch ? ` · tilt ${Math.round(camera.pitch)}°` : ""}${camera.bearing ? ` · heading ${Math.round(camera.bearing)}°` : ""}` : "Not set";
+    const field = (label, control, extra = "") => `<label class="field"${extra}><span>${label}</span>${control}</label>`;
+    this.openDialog({
+      eyebrow: "Cinematic Clip",
+      title: clip ? "Edit Clip" : "Save Clip",
+      content: `<p class="form-note">A Clip is a reusable recipe of this scene (layers, time, camera and captions), not a video. Briefs play it live; Export movie renders it.</p>
+        <div class="field-grid">
+          ${field("Name", `<input data-clip-title maxlength="160" value="${escapeHtml(clip?.title || scene.title || "Cinematic clip")}">`)}
+          ${field("Length (seconds)", `<input data-clip-seconds type="number" min="5" max="120" step="1" value="${Math.round(seconds)}">`)}
+          ${field("Time range", `<select data-clip-range><option value="all"${custom ? "" : " selected"}>Whole timeline · ${escapeHtml(this.#formatExplorerTime(new Date(first)))} – ${escapeHtml(this.#formatExplorerTime(new Date(last)))}</option><option value="custom"${custom ? " selected" : ""}>Custom start and end</option></select>`)}
+          ${field("Camera motion", `<select data-clip-easing><option value="linear">Steady</option><option value="ease-in-out"${clip?.playback.easing === "ease-in-out" ? " selected" : ""}>Ease in and out</option></select>`)}
+          ${field("Starts at", `<input data-clip-start type="datetime-local" step="1" min="${toLocal(first)}" max="${toLocal(last)}" value="${toLocal(clip ? Date.parse(clip.range.start) : first)}">`, ` data-clip-custom${custom ? "" : " hidden"}`)}
+          ${field("Ends at", `<input data-clip-end type="datetime-local" step="1" min="${toLocal(first)}" max="${toLocal(last)}" value="${toLocal(clip ? Date.parse(clip.range.end) : last)}">`, ` data-clip-custom${custom ? "" : " hidden"}`)}
+        </div>
+        <fieldset class="briefing-field clip-cameras"><legend>Camera</legend>
+          ${["start", "end"].map((key) => `<div class="clip-camera"><strong>${key === "start" ? "Start" : "End"}</strong><span data-clip-camera-text="${key}">${escapeHtml(cameraText(cameras[key]))}</span><button type="button" data-clip-camera-set="${key}">Use current view</button><button type="button" data-clip-camera-show="${key}">Show</button></div>`).join("")}
+          <p class="form-note">Move the map, then set each end. The camera glides between them over the Clip's length.</p>
+        </fieldset>
+        <fieldset class="briefing-field clip-captions"><legend>Captions</legend><div data-clip-captions></div><button type="button" data-clip-caption-add>Add caption</button></fieldset>
+        <div class="field-grid">${field("Poster frame (seconds)", `<input data-clip-poster type="number" min="0" step="0.5" value="${((clip?.posterMs || 0) / 1000).toFixed(1).replace(/\.0$/, "")}">`)}</div>
+        <p class="form-note" data-clip-error role="alert"></p>`,
+      actions: [{ label: "Cancel", handler: () => this.dialog.close() }, { label: clip ? "Save changes" : "Save Clip", primary: true, handler: () => save() }],
+    });
+    const root = this.dialog;
+    const q = (selector) => root.querySelector(selector);
+    const renderCaptions = () => {
+      q("[data-clip-captions]").innerHTML = captions.length
+        ? captions.map((caption, index) => `<div class="clip-caption" data-clip-caption="${index}"><input type="number" min="0" step="0.5" aria-label="Caption time in seconds" data-clip-caption-at value="${caption.seconds}"><input aria-label="Caption text" maxlength="500" data-clip-caption-text value="${escapeHtml(caption.text)}" placeholder="What the viewer should notice"><button type="button" class="briefing-link-button" data-clip-caption-remove aria-label="Remove caption">Remove</button></div>`).join("")
+        : '<p class="form-note">No captions. Each caption shows from its time until the next one.</p>';
+    };
+    const readCaptions = () => {
+      captions = [...root.querySelectorAll("[data-clip-caption]")].map((row) => ({ seconds: Number(row.querySelector("[data-clip-caption-at]").value) || 0, text: row.querySelector("[data-clip-caption-text]").value }));
+    };
+    renderCaptions();
+    q("[data-clip-range]").addEventListener("change", (event) => root.querySelectorAll("[data-clip-custom]").forEach((label) => { label.hidden = event.target.value !== "custom"; }));
+    q("[data-clip-caption-add]").addEventListener("click", () => { readCaptions(); captions.push({ seconds: captions.length ? Math.min(Number(q("[data-clip-seconds]").value) || seconds, captions.at(-1).seconds + 3) : 0, text: "" }); renderCaptions(); root.querySelectorAll("[data-clip-caption-text]")[captions.length - 1]?.focus(); });
+    q("[data-clip-captions]").addEventListener("click", (event) => {
+      const row = event.target.closest("[data-clip-caption-remove]")?.closest("[data-clip-caption]");
+      if (!row) return;
+      readCaptions(); captions.splice(Number(row.dataset.clipCaption), 1); renderCaptions();
+    });
+    root.querySelectorAll("[data-clip-camera-set]").forEach((button) => button.addEventListener("click", () => {
+      const camera = asCamera(this.mapController.getViewState?.());
+      if (!camera) return this.error("The map view could not be read.");
+      cameras[button.dataset.clipCameraSet] = camera;
+      q(`[data-clip-camera-text="${button.dataset.clipCameraSet}"]`).textContent = cameraText(camera);
+    }));
+    root.querySelectorAll("[data-clip-camera-show]").forEach((button) => button.addEventListener("click", () => {
+      const camera = cameras[button.dataset.clipCameraShow];
+      if (camera) void this.mapController.setView({ center: [camera.longitude, camera.latitude], zoom: camera.zoom, heading: camera.bearing, tilt: camera.pitch }, { animate: true });
+    }));
+    const save = () => {
+      readCaptions();
+      const fail = (message) => { q("[data-clip-error]").textContent = message; };
+      const length = Number(q("[data-clip-seconds]").value);
+      if (!(length >= 5 && length <= 120)) return fail("Choose a length from 5 to 120 seconds.");
+      let range = null;
+      if (q("[data-clip-range]").value === "custom") {
+        const from = fromLocal(q("[data-clip-start]").value), to = fromLocal(q("[data-clip-end]").value);
+        if (!Number.isFinite(from) || !Number.isFinite(to)) return fail("Set both the start and end of the time range.");
+        if (to < from) return fail("The time range must end after it starts.");
+        if (!ticks.some((tick) => tick >= from && tick <= to)) return fail("No observations fall inside that time range.");
+        range = { start: new Date(from).toISOString(), end: new Date(to).toISOString() };
+      }
+      const poster = Number(q("[data-clip-poster]").value) || 0;
+      if (poster < 0 || poster > length) return fail(`The poster frame must be between 0 and ${length} seconds.`);
+      const saved = createCinematicClip({
+        cinematic: scene, projectId: this.projectManager.current.id, observationTimes: ticks, title: q("[data-clip-title]").value.trim() || scene.title,
+        options: {
+          id: clip?.id, durationMs: length * 1000, range, easing: q("[data-clip-easing]").value, startCamera: cameras.start, endCamera: cameras.end, posterMs: poster * 1000,
+          captions: captions.filter((caption) => caption.text.trim()).map((caption) => ({ atMs: Math.min(length, Math.max(0, caption.seconds)) * 1000, text: caption.text.trim() })),
+        },
+      });
+      if (clip) Object.assign(saved, { createdAt: clip.createdAt, source: clip.source });
+      const clips = [...(this.projectManager.current.presentation?.cinematicClips || []).filter((item) => item.id !== saved.id), saved];
+      this.projectManager.patchPresentation({ cinematicClips: clips });
+      this.lastCinematicClipId = saved.id;
+      this.dialog.close();
+      this.toast(clip ? `Clip “${saved.title}” updated.` : `Clip “${saved.title}” saved. Add it to a Brief or export a movie.`);
+      this.#renderPresentationDashboard(this.projectManager.current.presentation);
+    };
   }
 
   #downloadCinematicClip() {
@@ -5640,27 +5729,26 @@ export class UIController {
     this.toast(`“${clip.title}” was added as an interactive Brief slide.`);
   }
 
+  /** Poster PNG: the Clip's composed frame at its poster time, the same as that moment of the movie. */
   async #downloadCinematicPoster() {
     const clip = this.#currentCinematicClip();
     if (!clip) return;
+    const restore = await this.#snapshotCinematicSession();
     try {
-      const capture = await this.mapController.captureImage({ format: "png", width: 1280, aspect: 16 / 9 });
-      if (!capture?.dataUrl) throw new Error("The active map renderer could not provide an image capture.");
-      const image = new Image();
-      await new Promise((resolve, reject) => { image.onload = resolve; image.onerror = () => reject(new Error("The map image could not be composed.")); image.src = capture.dataUrl; });
-      const canvas = document.createElement("canvas");
-      canvas.width = 1280; canvas.height = 720;
-      const context = canvas.getContext("2d");
-      context.drawImage(image, 0, 0, canvas.width, canvas.height);
-      context.fillStyle = "rgba(7, 28, 24, .82)"; context.fillRect(0, 0, canvas.width, 112);
-      context.fillStyle = "#fffdf7"; context.font = "700 36px system-ui, sans-serif"; context.fillText(clip.title, 38, 58);
-      context.font = "18px system-ui, sans-serif"; context.fillText("Observed playback · GISMap Online", 38, 88);
-      if (clip.composition.attribution) { context.fillStyle = "rgba(7, 28, 24, .78)"; context.fillRect(0, 682, canvas.width, 38); context.fillStyle = "#fffdf7"; context.font = "14px system-ui, sans-serif"; context.fillText("Map data and imagery providers · Cinematic Clip", 20, 707); }
-      const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/png"));
-      if (!blob) throw new Error("The map uses cross-origin imagery that prevents poster export. Use an export-enabled basemap or remove the restricted layer.");
-      const link = document.createElement("a"); link.href = URL.createObjectURL(blob); link.download = "cinematic-poster.png"; link.click(); setTimeout(() => URL.revokeObjectURL(link.href), 5000);
-      this.toast("Cinematic poster downloaded.");
-    } catch (error) { this.error(`Could not export poster: ${error.message}`); }
+      this.cinematicController.pause();
+      await this.cinematicController.load(clipToCinematicSpec(clip));
+      const blob = await renderClipPoster({ clip, controller: this.cinematicController, mapController: this.mapController, attributionText: this.#mapAttributionText() });
+      await restore();
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(blob);
+      link.download = `${String(clip.title || "cinematic-clip").replace(/[^a-z0-9]+/gi, "-").replace(/^-|-$/g, "").toLowerCase() || "cinematic-clip"}-poster.png`;
+      link.click();
+      setTimeout(() => URL.revokeObjectURL(link.href), 5000);
+      this.toast(`Poster downloaded (frame at ${(clip.posterMs / 1000).toFixed(1)} s).`);
+    } catch (error) {
+      await restore();
+      this.error(`Could not export poster: ${error.message}`);
+    }
   }
 
   /**

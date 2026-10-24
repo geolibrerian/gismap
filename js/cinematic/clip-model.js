@@ -81,7 +81,9 @@ export function normalizeCinematicClip(value = {}) {
     source: { projectId: text(source.source?.projectId, 160) || null, cinematicId: text(source.source?.cinematicId, 160) || null }, range,
     playback: { durationMs, easing: source.playback?.easing === "ease-in-out" ? "ease-in-out" : "linear", loop: source.playback?.loop === true },
     cameraTrack: cameras, tracks,
-    composition: { aspectRatio: source.composition?.aspectRatio === "9:16" ? "9:16" : "16:9", titleOverlay: source.composition?.titleOverlay !== false, attribution: source.composition?.attribution !== false },
+    // The frame a poster (and a Brief slide before it plays) shows.
+    posterMs: Math.min(durationMs, Math.max(0, finite(source.posterMs, 0))),
+    composition: { aspectRatio: ["9:16", "1:1"].includes(source.composition?.aspectRatio) ? source.composition.aspectRatio : "16:9", titleOverlay: source.composition?.titleOverlay !== false, attribution: source.composition?.attribution !== false },
     dependencies, renders: [],
   };
 }
@@ -93,22 +95,28 @@ export function normalizeCinematicClips(value) {
   }).filter((clip) => clip && !seen.has(clip.id) && seen.add(clip.id)).slice(0, MAX_CLIPS);
 }
 
-/** Creates a clip from a loaded cinematic scene and the live map camera. */
-export function createCinematicClip({ cinematic, projectId = null, camera: view = null, observationTimes = [], title = null } = {}) {
+/**
+ * Creates a clip from a loaded cinematic scene. Without options it captures
+ * the whole timeline from the live camera; the capture dialog passes the
+ * author's choices: { durationMs, range: { start, end }, startCamera,
+ * endCamera, easing, captions: [{ atMs, text }], posterMs, aspectRatio, id }.
+ */
+export function createCinematicClip({ cinematic, projectId = null, camera: view = null, observationTimes = [], title = null, options = {} } = {}) {
   const spec = exportCinematicSpec(importCinematicSpec({ cinematic })).cinematic;
-  // Clips are concise, shareable scenes. Longer cinematic sessions can still
-  // be replayed live; a newly authored capture is kept in the 10–30s MVP band.
-  const durationMs = Math.min(30000, Math.max(10000, Math.round(spec.clock.durationSeconds * 1000)));
+  const durationMs = Math.min(120000, Math.max(5000, Math.round(finite(options.durationMs, Math.min(30000, Math.max(10000, spec.clock.durationSeconds * 1000))))));
   const at = [...observationTimes].filter(Number.isFinite).sort((a, b) => a - b);
-  const initialCamera = camera(view);
+  const startCamera = camera(options.startCamera || view);
+  const endCamera = camera(options.endCamera) || startCamera;
   const tracks = spec.layers.map((layer) => ({ type: "temporalLayer", layerRef: layer.layerRef, mode: spec.clock.timeMode === "cumulative" ? "cumulative" : "observed-steps", temporal: layer.temporal, animation: { effect: layer.animation.effect, opacity: layer.animation.opacity } }));
+  const captions = (Array.isArray(options.captions) ? options.captions : []).slice(0, MAX_CAPTIONS).map((caption) => ({ type: "caption", atMs: caption.atMs, text: caption.text }));
   return normalizeCinematicClip({
-    id: newId(), title: title || spec.title, source: { projectId, cinematicId: spec.id },
-    range: { start: at[0] ? new Date(at[0]).toISOString() : spec.clock.start, end: at.at(-1) ? new Date(at.at(-1)).toISOString() : spec.clock.end },
-    playback: { durationMs, easing: "linear", loop: spec.clock.loop },
-    cameraTrack: initialCamera ? [{ atMs: 0, camera: initialCamera }, { atMs: durationMs, camera: initialCamera }] : [],
-    tracks,
-    composition: { aspectRatio: "16:9", titleOverlay: true, attribution: true },
+    id: options.id || newId(), title: title || spec.title, source: { projectId, cinematicId: spec.id },
+    range: { start: options.range?.start || (at[0] ? new Date(at[0]).toISOString() : spec.clock.start), end: options.range?.end || (at.at(-1) ? new Date(at.at(-1)).toISOString() : spec.clock.end) },
+    playback: { durationMs, easing: options.easing === "ease-in-out" ? "ease-in-out" : "linear", loop: spec.clock.loop },
+    cameraTrack: startCamera ? [{ atMs: 0, camera: startCamera }, { atMs: durationMs, camera: endCamera }] : [],
+    tracks: [...tracks, ...captions],
+    posterMs: options.posterMs ?? 0,
+    composition: { aspectRatio: options.aspectRatio || "16:9", titleOverlay: true, attribution: true },
     dependencies: spec.provenance.sourceUrls.map((url) => ({ kind: "source", url })),
   });
 }

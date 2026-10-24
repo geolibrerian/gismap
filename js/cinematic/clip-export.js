@@ -188,10 +188,12 @@ const abortError = () => Object.assign(new Error("Export cancelled."), { name: "
  * `controller` is the loaded cinematic controller (it supplies observations);
  * `format` is one entry of availableVideoFormats(). Cancels with `signal`.
  */
-export async function exportCinematicVideo({ clip, controller, mapController, format, width = 1280, height = 720, fps = 30, attributionText = "", signal, onProgress = () => {} } = {}) {
-  if (!format) throw new Error("This browser cannot produce a supported video format. Try a current Chrome, Edge, Safari or Firefox.");
+/**
+ * A composition canvas and renderAt(ms), which puts the scene at `ms` on it.
+ * While it is in use effects follow the scene clock; call release() after.
+ */
+function clipRenderer({ clip, controller, mapController, width, height, attributionText }) {
   if (!controller?.timeline || !mapController) throw new Error("Load the Clip before exporting it.");
-  const durationMs = Math.min(120000, Math.max(1000, Number(clip.playback?.durationMs) || 20000));
   const tickCount = controller.timeline.state().ticks.length;
   const canvas = document.createElement("canvas");
   canvas.width = width; canvas.height = height;
@@ -213,6 +215,13 @@ export async function exportCinematicVideo({ clip, controller, mapController, fo
     const frame = await readFrame();
     drawClipComposition(context, frame, { width, height, title: clip.title, caption: state.caption, attribution: clip.composition?.attribution !== false, attributionText });
   };
+  return { canvas, renderAt, release: () => setEffectClock(null) };
+}
+
+export async function exportCinematicVideo({ clip, controller, mapController, format, width = 1280, height = 720, fps = 30, attributionText = "", signal, onProgress = () => {} } = {}) {
+  if (!format) throw new Error("This browser cannot produce a supported video format. Try a current Chrome, Edge, Safari or Firefox.");
+  const durationMs = Math.min(120000, Math.max(1000, Number(clip.playback?.durationMs) || 20000));
+  const { canvas, renderAt, release } = clipRenderer({ clip, controller, mapController, width, height, attributionText });
   try {
     // Draw the first frame before starting an encoder, so a tainted map fails fast.
     await renderAt(0);
@@ -220,7 +229,21 @@ export async function exportCinematicVideo({ clip, controller, mapController, fo
     if (format.method === "webcodecs") return await encodeFrames({ format, canvas, fps, durationMs, renderAt, signal, onProgress });
     return await recordFrames({ format, canvas, fps, durationMs, renderAt, signal, onProgress });
   } finally {
-    setEffectClock(null);
+    release();
+  }
+}
+
+/** The Clip's poster: its composed frame at `clip.posterMs` (or `atMs`), as a PNG Blob. */
+export async function renderClipPoster({ clip, controller, mapController, width = 1280, height = 720, attributionText = "", atMs = clip.posterMs || 0 } = {}) {
+  const { canvas, renderAt, release } = clipRenderer({ clip, controller, mapController, width, height, attributionText });
+  try {
+    await renderAt(Math.max(0, Math.min(Number(clip.playback?.durationMs) || 0, atMs)));
+    assertReadable(canvas);
+    const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/png"));
+    if (!blob) throw new Error("The poster could not be encoded.");
+    return blob;
+  } finally {
+    release();
   }
 }
 

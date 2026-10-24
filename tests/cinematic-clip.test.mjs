@@ -97,3 +97,26 @@ test("a Clip keeps each layer's effect and opacity, and replays at its own lengt
   assert.equal(replay.clock.rate, 1);
   assert.equal(replay.clock.start, "2026-10-01T00:00:00.000Z");
 });
+
+test("the capture dialog's choices become the Clip: range, length, cameras, easing, captions and poster", () => {
+  const times = [Date.parse("2026-10-01T00:00:00Z"), Date.parse("2026-10-01T12:00:00Z"), Date.parse("2026-10-02T00:00:00Z")];
+  const start = { longitude: -118, latitude: 34, zoom: 9, pitch: 0, bearing: 0 };
+  const end = { longitude: -118.2, latitude: 34.1, zoom: 11, pitch: 60, bearing: 30 };
+  const clip = createCinematicClip({ cinematic, observationTimes: times, title: "Afternoon run", options: {
+    id: "clip-edit-1", durationMs: 45000, range: { start: "2026-10-01T06:00:00.000Z", end: "2026-10-02T00:00:00.000Z" },
+    startCamera: start, endCamera: end, easing: "ease-in-out", posterMs: 30000,
+    captions: [{ atMs: 2000, text: "Containment lines" }, { atMs: 99000, text: "Clamped to the end" }],
+  } });
+  assert.equal(clip.id, "clip-edit-1");
+  assert.equal(clip.title, "Afternoon run");
+  assert.equal(clip.playback.durationMs, 45000);
+  assert.equal(clip.playback.easing, "ease-in-out");
+  assert.deepEqual(clip.range, { start: "2026-10-01T06:00:00.000Z", end: "2026-10-02T00:00:00.000Z" });
+  assert.deepEqual(clip.cameraTrack.map((point) => [point.atMs, point.camera.zoom]), [[0, 9], [45000, 11]]);
+  assert.deepEqual(clip.tracks.filter((track) => track.type === "caption").map((track) => [track.atMs, track.text]), [[2000, "Containment lines"], [45000, "Clamped to the end"]]);
+  assert.equal(clip.posterMs, 30000);
+  // Lengths are bounded to 5–120 seconds; a poster cannot sit past the end.
+  assert.equal(createCinematicClip({ cinematic, options: { durationMs: 1000 } }).playback.durationMs, 5000);
+  assert.equal(normalizeCinematicClip({ playback: { durationMs: 8000 }, posterMs: 60000 }).posterMs, 8000);
+  assert.equal(normalizeCinematicClip({ composition: { aspectRatio: "1:1" } }).composition.aspectRatio, "1:1");
+});
