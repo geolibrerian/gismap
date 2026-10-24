@@ -1426,9 +1426,22 @@ export class MaplibreEngine {
     for (const record of records) {
       const section = document.createElement("section");
       section.className = "maplibre-legend__layer";
+      // The app opens this layer's style editor on double-click or the edit button.
+      section.dataset.legendLayer = record.uid;
+      section.title = "Double-click to edit this layer's style";
+      const head = document.createElement("header");
+      head.className = "maplibre-legend__head";
       const heading = document.createElement("strong");
+      heading.className = "maplibre-legend__title";
       heading.textContent = record.title || "Untitled layer";
-      section.append(heading);
+      const edit = document.createElement("button");
+      edit.type = "button";
+      edit.className = "maplibre-legend__edit";
+      edit.dataset.legendEdit = record.uid;
+      edit.setAttribute("aria-label", `Edit style of ${record.title || "this layer"}`);
+      edit.innerHTML = '<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path d="M11.3 2.3a1.4 1.4 0 0 1 2 2L5.6 12 2.5 13l1-3.1z" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg>';
+      head.append(heading, edit);
+      section.append(head);
       if (!this.scaleState(record.uid).visibleAtCurrentScale) {
         const note = document.createElement("p");
         note.className = "maplibre-legend__note";
@@ -1509,6 +1522,10 @@ export class MaplibreEngine {
         note.textContent = legend.note;
         section.append(note);
       }
+      // A single unlabelled symbol reads best beside the layer name, not on a row of its own.
+      const single = legend.entries.length === 1 && !legend.entries[0].label.trim();
+      const list = document.createElement("div");
+      list.className = "maplibre-legend__entries";
       for (const entry of legend.entries) {
         const row = document.createElement("div");
         row.className = "maplibre-legend__entry";
@@ -1525,11 +1542,14 @@ export class MaplibreEngine {
           swatch.style.width = `${size}px`;
           swatch.style.height = `${size}px`;
         }
+        if (single) { head.prepend(swatch); continue; }
         const label = document.createElement("span");
+        label.className = "maplibre-legend__label";
         label.textContent = entry.label;
         row.append(swatch, label);
-        section.append(row);
+        list.append(row);
       }
+      if (list.childElementCount) section.append(list);
       host.append(section);
     }
   }

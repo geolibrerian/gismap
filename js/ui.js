@@ -181,6 +181,7 @@ export class UIController {
     this.panelManager?.register("content:draw", document.querySelector(".draw-tools"), { shell: document.querySelector("#draw-panel") });
     this.#initDockablePanels();
     this.#initNotesHub();
+    this.#initLegendEditing();
     this.#applyDisplaySettings(this.#readDisplaySettings());
     this.#followSkinOnMap();
     this.systemThemeMedia.addEventListener?.("change", () => {
@@ -6896,6 +6897,18 @@ export class UIController {
       conditions: savedMatches ? saved.conditions : [{ field: fields[0].name, op: fieldKind(fields[0]) === "number" ? "gte" : fieldKind(fields[0]) === "date" ? "after" : "eq", value: "" }],
       logic: savedMatches ? saved.logic : "and",
       valuesFor: async (name) => (await this.mapController.distinctValues(layer, name).catch(() => ({ values: [] }))).values || [],
+    });
+  }
+
+  /** Legend → style editor: double-click a layer's legend card, or use its edit button. */
+  #initLegendEditing() {
+    const host = document.querySelector("#utility-legend-content");
+    const open = (uid) => { if (uid && this.mapController.getLayer(uid)) this.#openSymbologyUtility(uid); };
+    host?.addEventListener("click", (event) => open(event.target.closest("[data-legend-edit]")?.dataset.legendEdit));
+    host?.addEventListener("dblclick", (event) => {
+      if (event.target.closest("[data-legend-edit]")) return;
+      window.getSelection?.()?.removeAllRanges();
+      open(event.target.closest("[data-legend-layer]")?.dataset.legendLayer);
     });
   }
 

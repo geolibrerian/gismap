@@ -261,8 +261,10 @@ test("MapLibre legend describes the symbols and class labels actually drawn", ()
 });
 
 test("MapLibre legend updates for layer changes and closes through the widget contract", async () => {
-  const makeElement = () => ({ children: [], style: {}, textContent: "", append(...items) { this.children.push(...items); }, replaceChildren(...items) { this.children = items; }, setAttribute() {} });
+  const makeElement = () => ({ children: [], style: {}, dataset: {}, textContent: "", append(...items) { this.children.push(...items); }, prepend(...items) { this.children.unshift(...items); }, get childElementCount() { return this.children.length; }, replaceChildren(...items) { this.children = items; }, setAttribute() {} });
   const host = makeElement();
+  // Section → header → title (a single unlabelled symbol sits beside it in the header).
+  const legendTitle = () => host.children[0].children[0].children.find((child) => child.className === "maplibre-legend__title").textContent;
   const previousDocument = globalThis.document;
   globalThis.document = { querySelector: () => host, createElement: makeElement };
   const events = [];
@@ -272,9 +274,10 @@ test("MapLibre legend updates for layer changes and closes through the widget co
     assert.equal(engine.toggleWidget("legend"), true);
     assert.match(host.children[0].textContent, /No visible layers/);
     const layer = await engine.addLocalFile({ name: "test.geojson", text: async () => JSON.stringify({ type: "FeatureCollection", features: [{ type: "Feature", properties: {}, geometry: { type: "Point", coordinates: [0, 0] } }] }) });
-    assert.equal(host.children[0].children[0].textContent, "test.geojson");
+    assert.equal(legendTitle(), "test.geojson");
+    assert.equal(host.children[0].dataset.legendLayer, layer.uid);
     engine.setTitle(layer.uid, "Renamed");
-    assert.equal(host.children[0].children[0].textContent, "Renamed");
+    assert.equal(legendTitle(), "Renamed");
     engine.setVisibility(layer.uid, false, { silent: true });
     assert.match(host.children[0].textContent, /No visible layers/);
     engine.setVisibility(layer.uid, true);
