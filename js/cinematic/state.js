@@ -39,7 +39,7 @@ export function normalizeCinematicSpec(input = {}) {
       title: string(source.title) || "Cinematic map",
       intent: ["explore", "investigate", "present"].includes(source.intent) ? source.intent : "explore",
       preferredEngine: ["maplibre", "arcgis"].includes(source.preferredEngine) ? source.preferredEngine : "maplibre",
-      clock: { start, end, current: string(clock.current) || start, timeMode: "instant", durationSeconds: Math.min(600, Math.max(1, finite(clock.durationSeconds, 20))), loop: clock.loop === true },
+      clock: { start, end, current: string(clock.current) || start, timeMode: "instant", durationSeconds: Math.min(600, Math.max(1, finite(clock.durationSeconds, 120))), rate: Math.min(4, Math.max(0.1, finite(clock.rate, 0.25))), loop: clock.loop === true },
       layers,
       events: Array.isArray(source.events) ? source.events.slice(0, 200) : [],
       scenes: Array.isArray(source.scenes) ? source.scenes.slice(0, 50) : [],

@@ -37,7 +37,7 @@ export class CinematicModeController {
       this.layers.set(layer.uid, { layer, config, model, previousFilter: await this.mapController.getFeatureFilter(layer.uid).catch(() => null) });
     }
     const ticks = [...new Set([...this.layers.values()].flatMap(({ model }) => model.ticks))].sort((a, b) => a - b);
-    this.timeline = createCinematicTimeline({ ticks, durationSeconds: this.spec.cinematic.clock.durationSeconds, loop: this.spec.cinematic.clock.loop, reducedMotion: globalThis.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches });
+    this.timeline = createCinematicTimeline({ ticks, durationSeconds: this.spec.cinematic.clock.durationSeconds, rate: this.spec.cinematic.clock.rate, loop: this.spec.cinematic.clock.loop, reducedMotion: globalThis.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches });
     this.unsubscribe = this.timeline.subscribe((snapshot) => this.#render(snapshot));
     await this.renderTask;
     return this.state();
@@ -51,6 +51,10 @@ export class CinematicModeController {
   seekObservation(index) { this.timeline?.seekObservation(index); }
   nextObservation() { this.timeline?.nextObservation(); }
   previousObservation() { this.timeline?.previousObservation(); }
+  setRate(rate) {
+    this.timeline?.setRate(rate);
+    if (this.spec) this.spec.cinematic.clock.rate = this.timeline?.state().playbackRate ?? this.spec.cinematic.clock.rate;
+  }
   exportCinematicSpec() { return exportCinematicSpec(this.spec); }
 
   async destroy() {

@@ -1613,19 +1613,20 @@ export class UIController {
     this.openDialog({
       eyebrow: "Cinematic mode",
       title: "Start observed playback",
-      content: `<p class="form-note">Choose an explicit timestamp field. Playback steps between observed records; it does not interpolate geometry or infer numeric years as dates.</p><div class="field-grid"><label class="field"><span>Layer</span><select data-cinematic-layer>${options()}</select></label><label class="field"><span>Timestamp field</span><select data-cinematic-time></select></label><label class="field"><span>Group snapshots by</span><select data-cinematic-group><option value="">All observations together</option></select></label><label class="field"><span>Playback duration (seconds)</span><input data-cinematic-duration type="number" min="1" max="600" value="20"></label></div><p class="form-note" data-cinematic-field-note></p>`,
+      content: `<p class="form-note">Choose an explicit timestamp field. Playback steps between observed records at a steady pace; it does not interpolate geometry or infer numeric years as dates.</p><div class="field-grid"><label class="field"><span>Layer</span><select data-cinematic-layer>${options()}</select></label><label class="field"><span>Timestamp field</span><select data-cinematic-time></select></label><label class="field"><span>Group snapshots by</span><select data-cinematic-group><option value="">All observations together</option></select></label><label class="field"><span>Base playback duration (seconds)</span><input data-cinematic-duration type="number" min="1" max="600" value="120"></label><label class="field"><span>Initial speed</span><select data-cinematic-rate><option value="0.1">Very slow</option><option value="0.25" selected>Slow</option><option value="0.5">Steady</option><option value="1">Fast</option></select></label></div><p class="form-note" data-cinematic-field-note></p>`,
       actions: [{ label: "Cancel", handler: () => this.dialog.close() }, { label: "Start cinematic mode", primary: true, handler: async () => {
         const layer = this.mapController.getLayer(this.dialog.querySelector("[data-cinematic-layer]").value);
         const timeField = this.dialog.querySelector("[data-cinematic-time]").value;
         if (!layer || !timeField) throw new Error("Choose a layer and timestamp field.");
         const groupField = this.dialog.querySelector("[data-cinematic-group]").value;
         const durationSeconds = Number(this.dialog.querySelector("[data-cinematic-duration]").value);
+        const rate = Number(this.dialog.querySelector("[data-cinematic-rate]").value);
         const spec = { cinematic: {
           id: `cinematic-${Date.now()}`,
           title: `${layer.title || "Map"} playback`,
           intent: "explore",
           preferredEngine: this.mapController.getEngineId(),
-          clock: { durationSeconds, loop: false },
+          clock: { durationSeconds, rate, loop: false },
           layers: [{ layerRef: layer.uid, temporal: { startField: timeField, groupField, featureIdField: layer.objectIdField, timezone: "UTC", missingTime: "exclude" }, animation: { template: layer.geometryType === "point" ? "moving-track" : "step-perimeter", transition: "step", provenanceLabel: "Observed records" } }],
           provenance: { synthetic: false, sourceUrls: layer.url && /^https:\/\//i.test(layer.url) ? [layer.url] : [], interpolated: false },
         } };
@@ -4001,11 +4002,16 @@ export class UIController {
       return;
     }
     const current = new Date(timeline.observationTime);
-    root.innerHTML = `<section class="mode-dashboard cinematic-dashboard"><header><span class="eyebrow">Cinematic · observed playback</span><h2>${escapeHtml(presentation.title || layer.title || "Cinematic map")}</h2><p data-cinematic-time-label>${escapeHtml(this.#formatExplorerTime(current))} · observation ${timeline.observationIndex + 1} of ${timeline.ticks.length}</p></header><div class="cinematic-controls" aria-label="Cinematic timeline controls"><button type="button" data-cinematic-previous title="Previous observation">◀</button><button type="button" data-cinematic-play aria-pressed="${timeline.playing ? "true" : "false"}">${timeline.playing ? "Pause" : "Play"}</button><button type="button" data-cinematic-next title="Next observation">▶</button><label>Observation <input type="range" data-cinematic-scrub min="0" max="${Math.max(0, timeline.ticks.length - 1)}" value="${timeline.observationIndex}" step="1"></label></div><p class="form-note">Showing observed state only. Polygon boundaries step between snapshots; no unobserved spread or geometry interpolation is shown.</p><div class="cinematic-actions"><button type="button" data-cinematic-reconfigure>Change mapping</button><button type="button" data-cinematic-exit>Exit cinematic mode</button></div></section>`;
+    root.innerHTML = `<section class="mode-dashboard cinematic-dashboard"><header><span class="eyebrow">Cinematic · observed playback</span><h2>${escapeHtml(presentation.title || layer.title || "Cinematic map")}</h2><p data-cinematic-time-label>${escapeHtml(this.#formatExplorerTime(current))} · observation ${timeline.observationIndex + 1} of ${timeline.ticks.length}</p></header><div class="cinematic-controls" aria-label="Cinematic timeline controls"><button type="button" data-cinematic-previous title="Previous observation">◀</button><button type="button" data-cinematic-play aria-pressed="${timeline.playing ? "true" : "false"}">${timeline.playing ? "Pause" : "Play"}</button><button type="button" data-cinematic-next title="Next observation">▶</button><label>Speed <select data-cinematic-rate aria-label="Playback speed"><option value="0.1"${timeline.playbackRate === 0.1 ? " selected" : ""}>Very slow</option><option value="0.25"${timeline.playbackRate === 0.25 ? " selected" : ""}>Slow</option><option value="0.5"${timeline.playbackRate === 0.5 ? " selected" : ""}>Steady</option><option value="1"${timeline.playbackRate === 1 ? " selected" : ""}>Fast</option><option value="2"${timeline.playbackRate === 2 ? " selected" : ""}>Very fast</option></select></label><label>Observation <input type="range" data-cinematic-scrub min="0" max="${Math.max(0, timeline.ticks.length - 1)}" value="${timeline.observationIndex}" step="1"></label></div><p class="form-note">Showing observed state only. Polygon boundaries step between snapshots; no unobserved spread or geometry interpolation is shown.</p><div class="cinematic-actions"><button type="button" data-cinematic-reconfigure>Change mapping</button><button type="button" data-cinematic-exit>Exit cinematic mode</button></div></section>`;
     root.querySelector("[data-cinematic-play]")?.addEventListener("click", () => this.cinematicController.toggle());
     root.querySelector("[data-cinematic-previous]")?.addEventListener("click", () => this.cinematicController.previousObservation());
     root.querySelector("[data-cinematic-next]")?.addEventListener("click", () => this.cinematicController.nextObservation());
     root.querySelector("[data-cinematic-scrub]")?.addEventListener("input", (event) => this.cinematicController.seekObservation(Number(event.target.value)));
+    root.querySelector("[data-cinematic-rate]")?.addEventListener("change", (event) => {
+      this.cinematicController.setRate(Number(event.target.value));
+      const cinematic = this.cinematicController.exportCinematicSpec().cinematic;
+      this.projectManager.patchPresentation({ cinematic });
+    });
     root.querySelector("[data-cinematic-reconfigure]")?.addEventListener("click", () => this.#openCinematicMode());
     root.querySelector("[data-cinematic-exit]")?.addEventListener("click", async () => {
       await this.cinematicController.destroy();
