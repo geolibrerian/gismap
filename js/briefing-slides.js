@@ -667,9 +667,28 @@ export class BriefingSlides {
       return `<div class="briefing-layer" data-slide-layer="${escapeHtml(ref)}"><label class="briefing-layer__show"><input type="checkbox" data-slide-layer-visible${visible ? " checked" : ""}> <span>${escapeHtml(layer.title || "Layer")}</span></label>${relationControls}</div>`;
     }).join("");
     const note = canRelate
-      ? `Feature limits ask each layer's service which features relate to this slide's feature${main?.title ? ` in ${escapeHtml(main.title)}` : ""}.`
-      : "Feature limits need a slide about one feature (a Feature slide); here a layer can only be shown or hidden.";
-    return `<fieldset class="briefing-field briefing-layers"><legend>Slide layers <small>${slide.layers ? "set for this slide" : "as the map has them"}</small></legend>${rows}<p class="form-note">${note}</p>${slide.layers ? '<button type="button" class="briefing-link-button" data-slide-layers-clear>Leave layers as the map has them</button>' : ""}</fieldset>`;
+      ? `Feature limits ask each layer's service which features relate to ${slide.template === "feature" ? "this slide's feature" : "the focus feature"}${main?.title ? ` in ${escapeHtml(main.title)}` : ""}.`
+      : `Choose a focus feature above to show only what relates to it, for example the ballparks within one state. Without one, a layer can only be shown or hidden.`;
+    const focus = slide.template === "feature" || !main ? "" : this.#focusControl(slide, record, main);
+    return `<fieldset class="briefing-field briefing-layers"><legend>Slide layers <small>${slide.layers ? "set for this slide" : "as the map has them"}</small></legend>${focus}${rows}<p class="form-note">${note}</p>${slide.layers ? '<button type="button" class="briefing-link-button" data-slide-layers-clear>Leave layers as the map has them</button>' : ""}</fieldset>`;
+  }
+
+  /**
+   * A map slide's focus feature: it scopes the related-layer limits below (and
+   * is highlighted on the slide). Typed with suggestions, or clicked on the map.
+   */
+  #focusControl(slide, record, main) {
+    const data = this.api.data();
+    if (record) return `<div class="briefing-focus"><span>Focus feature</span><strong>${escapeHtml(data.label(record))}</strong><button type="button" data-slide-focus-pick>Change on map</button><button type="button" class="briefing-link-button" data-slide-focus-clear>Clear</button></div>`;
+    const counts = new Map();
+    const records = (data.records || []).slice(0, 2000);
+    for (const item of records) counts.set(data.label(item), (counts.get(data.label(item)) || 0) + 1);
+    this.focusOptions = new Map(records.map((item) => {
+      const label = data.label(item);
+      return [counts.get(label) > 1 ? `${label} · #${this.#idOf(item)}` : label, this.#idOf(item)];
+    }));
+    return `<div class="briefing-focus"><label><span>Focus feature <small>limits the layers below to what relates to it</small></span><input list="briefing-focus-${escapeHtml(slide.id)}" data-slide-focus placeholder="Type to find a feature in ${escapeHtml(main.title || "the layer")}"></label><button type="button" data-slide-focus-pick><span aria-hidden="true">⊕</span> Pick on map</button>
+      <datalist id="briefing-focus-${escapeHtml(slide.id)}">${[...this.focusOptions.keys()].map((value) => `<option value="${escapeHtml(value)}"></option>`).join("")}</datalist></div>`;
   }
 
   #renderEditor(host, slide, briefing) {
@@ -1098,6 +1117,26 @@ export class BriefingSlides {
       if (slide) void this.applySlideLayers(slide);
     };
     on("[data-slide-layer] input, [data-slide-layer] select", "change", saveLayers);
+    const setFocus = (id) => {
+      if (!id) return;
+      this.#save(updateSlide(this.briefing, slideId, { featureId: id }));
+      const slide = this.briefing.slides.find((item) => item.id === slideId);
+      const record = this.#recordFor(slide);
+      this.api.notify?.(`Focus feature: ${record ? this.api.data().label(record) : id}. Choose which related features each layer shows.`);
+      if (record) this.api.mapController.highlightFeature?.(record, { pulse: true });
+    };
+    on("[data-slide-focus]", "change", (input) => {
+      const id = this.focusOptions?.get(input.value);
+      if (id) setFocus(id); else if (input.value.trim()) this.api.notify?.("Choose one of the suggested features, or pick it on the map.");
+    });
+    on("[data-slide-focus-pick]", "click", () => this.api.pickFeature?.((id) => setFocus(id)));
+    on("[data-slide-focus-clear]", "click", () => {
+      const slide = this.briefing.slides.find((item) => item.id === slideId);
+      // Related-feature limits need the focus feature; without it the layers go back to shown or hidden.
+      const layers = slide?.layers?.map(({ relation, ...entry }) => entry);
+      this.#save(updateSlide(this.briefing, slideId, { featureId: null, ...(layers ? { layers } : {}) }));
+      this.api.mapController.clearFeatureHighlight?.();
+    });
     on("[data-slide-layers-clear]", "click", () => {
       this.#save(updateSlide(this.briefing, slideId, { layers: undefined }));
       void this.restoreLayers();

@@ -738,3 +738,17 @@ body.briefing-exploring .briefing-stage__frame, body.briefing-exploring .briefin
 .briefing-images__add { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; }
 .briefing-images__add input { min-width: 0; min-height: 38px; padding: 6px 10px; border: 1px solid var(--border-strong, var(--line)); border-radius: var(--radius-input, 8px); background: var(--surface-panel, var(--surface)); color: var(--text-primary, var(--ink)); font: 13px var(--ui-font); }
 .briefing-images__add button { min-height: 38px; padding: 6px 14px; border: 1px solid var(--action-primary, var(--green)); border-radius: var(--radius-input, 8px); color: var(--action-on-primary, #fff); background: var(--action-primary, var(--green)); font: 600 13px var(--ui-font); cursor: pointer; }
+
+/* Picking features for a briefing: a calm banner that counts what is included and offers Done. */
+.briefing-pick-banner { position: absolute; z-index: 9; top: 14px; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 12px; max-width: calc(100% - 120px); padding: 8px 8px 8px 16px; border: 1px solid var(--border-subtle, var(--line)); border-radius: 999px; color: var(--text-primary, var(--ink)); background: var(--surface-panel, var(--surface)); box-shadow: 0 6px 20px rgb(11 35 30 / 18%); font: 500 13px/1.3 var(--ui-font); }
+.briefing-pick-banner span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.briefing-pick-banner button { flex: 0 0 auto; min-height: 32px; padding: 4px 14px; border: 0; border-radius: 999px; color: var(--action-on-primary, #fff); background: var(--action-primary, var(--green)); font: 600 13px var(--ui-font); cursor: pointer; }
+body.briefing-map-select #viewDiv { cursor: crosshair; }
+/* A map slide's focus feature, above its layers. */
+.briefing-focus { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: end; gap: 8px; margin: 0 0 10px; padding: 10px; border: 1px dashed var(--border-strong, var(--line)); border-radius: var(--radius-input, 8px); background: var(--surface-panel, var(--surface)); }
+.briefing-focus label { display: grid; gap: 4px; font-size: 13px; font-weight: 600; }
+.briefing-focus input { min-width: 0; min-height: 36px; padding: 6px 10px; border: 1px solid var(--border-strong, var(--line)); border-radius: 6px; color: var(--text-primary, var(--ink)); background: var(--surface-panel, var(--surface)); font: 13px var(--ui-font); }
+.briefing-focus > button { min-height: 36px; padding: 6px 12px; border: 1px solid var(--border-subtle, var(--line)); border-radius: 6px; color: var(--text-primary, var(--ink)); background: transparent; font: 600 12px var(--ui-font); cursor: pointer; white-space: nowrap; }
+.briefing-focus:has(> strong) { grid-template-columns: auto minmax(0, 1fr) auto auto; align-items: center; border-style: solid; }
+.briefing-focus > span { color: var(--text-muted, var(--muted)); font-size: 12px; }
+.briefing-focus > strong { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }

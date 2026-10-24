@@ -30,7 +30,7 @@ import { featureLayerUrl, locationUrl } from "./field-task-share.js?v=0.54.0-uni
 import { dockIcon } from "./dock-icons.js?v=0.24.0";
 import { serviceNameFromUrl } from "./service-name.js?v=0.26.0";
 import { decodeQrFromImage, describeGisMapLink, gisMapLinkFrom, openGisMapLink } from "./qr-import.js?v=0.25.2";
-import { BriefingSlides } from "./briefing-slides.js?v=0.60.0-media2";
+import { BriefingSlides } from "./briefing-slides.js?v=0.60.0-data1";
 import { createSlide, isRoutineField, matchesFilter, normalizeFilter } from "./briefing-document.js?v=0.60.0-media1";
 import { conditionComplete, conditionLabel, conditionToFilter } from "./briefing-conditions.js?v=0.1.0";
 import { createFilterBuilder } from "./filter-builder.js?v=0.1.0";
@@ -50,6 +50,9 @@ const DISPLAY_SETTINGS_KEY = "gismap-online:display:v1";
 const DOCKABLE_PANELS = { places: "Places", bookmarks: "Bookmarks", draw: "Draw", intelligence: "Intelligence", layers: "Layers", observations: "Notes & Tasks" };
 const RECENT_PLACES_KEY = "gismap-online:recent-places:v1";
 const RECENT_PLACES_LIMIT = 6;
+// Briefing and dashboard data: the first page draws at once, the rest pages in behind it.
+const MAX_PRESENTATION_RECORDS = 10000;
+const PRESENTATION_PAGE_SIZE = 1000;
 const INSIGHT_POSITIONS = new Set(["upper-left", "lower-left", "bottom", "dock-left", "dock-right", "dock-top", "dock-bottom"]);
 const TABLE_POSITIONS = new Set(["overlay-bottom", "dock-left", "dock-right", "dock-top", "dock-bottom"]);
 // Every basemap id with its label (the menus list only the active engine's own; see #basemapOptionsMarkup).
@@ -117,6 +120,12 @@ export class UIController {
     this.applicationRuntime.mountAssistant = (host) => this.assistant.mount(host);
     this.briefingSlides = new BriefingSlides({
       getBriefing: () => this.projectManager.current.presentation?.briefing,
+      // A slide's focus feature can be clicked on the map; the callback gets its ID.
+      pickFeature: (onPick) => {
+        this.briefingFocusPick = onPick;
+        document.body.classList.add("briefing-map-select");
+        this.toast(`Click a feature in ${this.mapController.getLayer(this.presentationState.layerUid)?.title || "the briefing layer"} on the map.`);
+      },
       saveBriefing: (briefing) => {
         this.projectManager.patchPresentation({ briefing });
         this.#syncBriefingTabs();
@@ -835,6 +844,18 @@ export class UIController {
     });
     this.events.subscribe("identify:complete", (payload) => {
       const result = payload.results?.find((item) => item.layerUid === this.presentationState.layerUid);
+      // A slide asked for its focus feature: one click answers it.
+      if (this.briefingFocusPick) {
+        if (!result) { this.toast(`Click a feature in ${this.mapController.getLayer(this.presentationState.layerUid)?.title || "the briefing layer"}.`); return; }
+        const done = this.briefingFocusPick; this.briefingFocusPick = null;
+        this.briefingFocusPicked = true; setTimeout(() => { this.briefingFocusPicked = false; }, 0);
+        document.body.classList.remove("briefing-map-select");
+        const layer = this.mapController.getLayer(this.presentationState.layerUid);
+        const id = featureId(result, layer?.objectIdField);
+        if (id && !this.presentationState.records.some((record) => featureId(record, layer.objectIdField) === id)) this.presentationState.records.push({ ...result, kind: "feature" });
+        done(id);
+        return;
+      }
       if (this.presentationState.template === "briefing" && this.presentationState.mapSelect) return this.#toggleBriefingInclude(result);
       this.#selectPresentationResult(result);
     });
@@ -885,7 +906,7 @@ export class UIController {
       }
       // Picking features (for a briefing or a field task) should not cover the map with details;
       // otherwise Briefing keeps Map Insight like any other mode.
-      if ((this.presentationState.template === "briefing" && this.presentationState.mapSelect) || document.body.classList.contains("field-task-picking")) {
+      if ((this.presentationState.template === "briefing" && this.presentationState.mapSelect) || this.briefingFocusPicked || document.body.classList.contains("field-task-picking")) {
         this.#renderIntelligenceContents();
         this.#setInsightsOpen(false);
         return;
@@ -3426,10 +3447,48 @@ export class UIController {
       this.presentationState.metricUnit = this.presentationState.records.map((record) => record.attributes?.[roles.unit]).find(Boolean) || "";
       if (presentation.template === "briefing") this.#restoreBriefingSelection(layer);
       this.#filterPresentationRecords();
+      // The first page shows quickly; the rest of the layer follows in the background.
+      if (Number.isFinite(totalCount) && totalCount > features.length) void this.#loadRemainingRecords(layer, this.presentationState);
     } catch (error) {
       this.presentationState.error = error.message;
       this.#renderPresentationDashboard(presentation);
     }
+  }
+
+  /**
+   * Loads the rest of a layer's records in stable, ID-ordered pages (up to
+   * MAX_PRESENTATION_RECORDS), then redraws once. A newer load or another
+   * layer abandons it.
+   */
+  async #loadRemainingRecords(layer, state) {
+    const idField = layer.objectIdField;
+    const total = Math.min(state.totalCount, MAX_PRESENTATION_RECORDS);
+    const seen = new Set(state.records.map((record) => featureId(record, idField)).filter(Boolean));
+    const added = [];
+    try {
+      for (let start = 0; start < total; start += PRESENTATION_PAGE_SIZE) {
+        const query = { where: layer.where || "1=1", outFields: ["*"], returnGeometry: true, start, num: PRESENTATION_PAGE_SIZE, ...(idField ? { orderByFields: [idField] } : {}) };
+        const response = await this.mapController.queryFeatures(layer.uid, query);
+        if (this.presentationState !== state || state.layerUid !== layer.uid) return;
+        const page = response.features || [];
+        for (const feature of page) {
+          const record = this.#toRecord(feature, layer);
+          const id = featureId(record, idField);
+          if (id && seen.has(id)) continue;
+          if (id) seen.add(id);
+          added.push(record);
+        }
+        if (!page.length) break;
+      }
+    } catch (error) {
+      if (this.presentationState === state) this.toast(`Loaded the first ${state.records.length.toLocaleString()} features; the rest could not be read (${error.message}).`);
+    }
+    if (this.presentationState !== state || !added.length) return;
+    state.records.push(...added);
+    const metric = state.roles?.metric;
+    const values = state.records.map((record) => Number(record.attributes?.[metric])).filter(Number.isFinite);
+    if (values.length) { state.metricMin = Math.min(...values); state.metricMax = Math.max(...values); }
+    this.#filterPresentationRecords();
   }
 
   /** Slides can point at features beyond the first page of records; fetch those by ID. */
@@ -3532,18 +3591,39 @@ export class UIController {
     if (!id) return;
     if (!state.records.some((record) => featureId(record, layer.objectIdField) === id)) state.records.push({ ...result, kind: "feature" });
     const record = state.records.find((item) => featureId(item, layer.objectIdField) === id);
-    state.briefingUseAll = false;
+    // "Use all matching" stops applying once features are picked one by one; start from what it included.
+    if (state.briefingUseAll) { state.selectedIds = new Set(state.visibleRecords.map((item) => featureId(item, layer.objectIdField)).filter(Boolean)); state.briefingUseAll = false; }
+    const label = this.#recordLabel(record, this.#presentationFields(layer));
+    // Picking leaves the selection and panels alone, so the map does not move under the next click.
     if (state.selectedIds.has(id)) {
       state.selectedIds.delete(id);
-      this.toast(`Removed ${this.#recordLabel(record, this.#presentationFields(layer))} from the briefing.`);
+      state.lastPick = `Removed ${label}`;
     } else {
       state.selectedIds.add(id);
-      state.selected = record;
       this.mapController.highlightFeature(record);
-      this.toast(`Included ${this.#recordLabel(record, this.#presentationFields(layer))} · ${state.selectedIds.size} in the briefing.`);
+      state.lastPick = `Included ${label}`;
     }
     this.#saveBriefingSelection();
     this.#filterPresentationRecords();
+    this.#syncPickBanner();
+  }
+
+  /** While picking on the map, a banner says so, counts what is included and offers Done. */
+  #syncPickBanner() {
+    const state = this.presentationState;
+    const on = state?.template === "briefing" && Boolean(state.mapSelect);
+    let banner = document.querySelector(".briefing-pick-banner");
+    if (!on) { banner?.remove(); return; }
+    if (!banner) {
+      banner = document.createElement("div");
+      banner.className = "briefing-pick-banner";
+      banner.setAttribute("role", "status");
+      banner.innerHTML = '<span data-pick-text></span><button type="button" data-pick-done>Done</button>';
+      banner.querySelector("[data-pick-done]").addEventListener("click", () => document.querySelector("[data-select-map]")?.click());
+      document.querySelector(".map-workspace")?.append(banner);
+    }
+    const count = state.briefingUseAll ? state.visibleRecords.length : state.selectedIds.size;
+    banner.querySelector("[data-pick-text]").textContent = `Click features to include or remove them · ${count.toLocaleString()} included${state.lastPick ? ` · ${state.lastPick}` : ""}`;
   }
 
   #recordLabel(result, fields) {
@@ -4087,9 +4167,10 @@ export class UIController {
     });
     on("[data-select-map]", "click", () => {
       state.mapSelect = !state.mapSelect;
+      state.lastPick = "";
       document.body.classList.toggle("briefing-map-select", state.mapSelect);
-      this.toast(state.mapSelect ? "Click features on the map to include or remove them." : "Pick on map is off.");
       this.#renderBriefingWorkspace(root, presentation, layer, fields);
+      this.#syncPickBanner();
     });
     // The shared builder edits the conditions; the list refreshes when one is complete or removed.
     const conditionHost = tools.querySelector("[data-briefing-conditions]");
@@ -4537,7 +4618,8 @@ export class UIController {
     document.body.classList.toggle("briefing-slides-tab", !v2 && slidesTab && this.presentationState?.template === "briefing");
     // Both tabs are the same double-wide workspace on desktop, so switching keeps its size.
     document.body.classList.toggle("briefing-features-tab", !v2 && !slidesTab && this.presentationState?.template === "briefing");
-    document.body.classList.toggle("briefing-map-select", Boolean(this.presentationState?.mapSelect) && this.presentationState?.template === "briefing");
+    document.body.classList.toggle("briefing-map-select", (Boolean(this.presentationState?.mapSelect) && this.presentationState?.template === "briefing") || Boolean(this.briefingFocusPick));
+    this.#syncPickBanner();
   }
 
   #bindBriefingWorkspace(root, presentation, layer, fields) {

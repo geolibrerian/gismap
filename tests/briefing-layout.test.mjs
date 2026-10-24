@@ -112,3 +112,15 @@ test("media slides render a slideshow with a place button, and the player can sh
   assert.match(player, /data-stage-back hidden>← Back to the slide<\/button>/);
   assert.match(player, /if \(state\.exploring\) \{ mapController\.setViewPadding\(\{ top: 0, right: 0, bottom: 0, left: 0 \}\); return; \}/);
 });
+
+test("the data dock pages past 500, picking on the map keeps the layout still, and slides take a focus feature", () => {
+  // The first page shows quickly; the rest of the layer follows in ID-ordered pages.
+  assert.match(ui, /if \(Number\.isFinite\(totalCount\) && totalCount > features\.length\) void this\.#loadRemainingRecords\(layer, this\.presentationState\);/);
+  assert.match(ui, /async #loadRemainingRecords\(layer, state\) \{[\s\S]*?start, num: PRESENTATION_PAGE_SIZE[\s\S]*?if \(this\.presentationState !== state/);
+  // Including a feature does not open the Slide workspace (which shifted the map under the next click).
+  assert.doesNotMatch(ui.match(/#toggleBriefingInclude\(result\) \{[\s\S]*?\n  \}/)[0], /state\.selected = /);
+  assert.match(ui, /#syncPickBanner\(\) \{[\s\S]*?briefing-pick-banner/);
+  assert.match(ui, /pickFeature: \(onPick\) => \{[\s\S]*?this\.briefingFocusPick = onPick;/);
+  assert.match(slides, /#focusControl\(slide, record, main\) \{[\s\S]*?data-slide-focus-pick/);
+  assert.match(slides, /on\("\[data-slide-focus-pick\]", "click", \(\) => this\.api\.pickFeature\?\.\(\(id\) => setFocus\(id\)\)\);/);
+});
