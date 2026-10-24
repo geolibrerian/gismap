@@ -239,8 +239,10 @@ export class MaplibreEngine {
     if (this.measurement) this.toggleWidget("measurement");
     if (this.legendHost) this.toggleWidget("legend");
     if (this.basemapGallery) this.toggleWidget("basemapGallery");
+    this.three?.clear();
     this.map?.remove();
     this.map = null;
+    this.three = null;
     this.#records.clear();
   }
 
@@ -259,6 +261,30 @@ export class MaplibreEngine {
   /** The MapLibre map itself, for custom tools (gisMapOnline.map). There is no SceneView. */
   native() {
     return { engine: this.id, map: this.map, view: null, layers: () => [] };
+  }
+
+  /**
+   * Add an optional cinematic effect to the one shared ThreeHost. This is
+   * intentionally data-in / data-out: the cinematic controller owns timing,
+   * while the effect only draws the currently observed GeoJSON geometries.
+   */
+  async setCinematicEffect(uid, effect = {}) {
+    const id = String(uid || "");
+    if (!id || effect.type !== "observed-boundary-glow") return false;
+    const THREE = await loadThree();
+    this.three ??= new ThreeHost({ map: this.map, THREE, notify: (message) => this.events.publish("app:error", { message }) });
+    const { buildObservedBoundaryGlow } = await import("../../cinematic/maplibre-boundary-glow.js?v=0.1.0");
+    const item = buildObservedBoundaryGlow(THREE, effect.features, { color: effect.color });
+    if (!item) {
+      this.three.remove(id);
+      return false;
+    }
+    this.three.add(id, item);
+    return true;
+  }
+
+  clearCinematicEffect(uid) {
+    this.three?.remove(String(uid || ""));
   }
 
   resize() {

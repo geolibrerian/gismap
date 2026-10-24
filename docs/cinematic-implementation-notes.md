@@ -16,4 +16,10 @@ Playback advances uniformly between observation indexes instead of mapping anima
 
 The **Cumulative** display mode explicitly retains all observed records from the first timestamp through the active timestamp. It remains a display choice—not an assertion that individual phenomena persisted or that any geometry was interpolated—and its label states that distinction.
 
+## Optional Three.js boundary glow
+
+MapLibre can now opt into a decorative observed-boundary glow. It is disabled by default, loads the pinned Three.js module only when enabled, and reuses the engine's existing `ThreeHost`/MapLibre WebGL context instead of creating another canvas or animation loop. The cinematic clock selects snapshots; the glow redraws only on those observed steps. It is deliberately bounded to 1,200 paths / 50,000 vertices and is disposed whenever a snapshot is replaced or Cinematic Mode exits. ArcGIS and unsupported geometry retain the exact same feature-filter playback without an effect.
+
+This first visual slice places boundary paths in a local metre frame and aligns their base elevation to the terrain at the observation origin. It does not yet claim per-vertex terrain clamping, particles, sprites, billboards, glTF choreography, or camera automation; those need a terrain-sampling/camera design before being enabled.
+
 The initial UI is available from **Modes → Cinematic mode**: it requires a queryable layer with a stable ID, makes the author choose a detected date/timestamp field, and offers an optional grouping field. The compact mode dashboard supports play/pause, step, and scrub; leaving it restores the prior transient layer filters. The normalized spec is persisted in `presentation.cinematic` with the project. The in-page API exposes `gisMapOnline.cinematic.importCinematicSpec()` and `exportCinematicSpec()`.

@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { normalizeTemporalFeatures, observedFeatureIdsAt, parseTemporalValue, temporalFieldCandidates } from "../js/cinematic/temporal-adapter.js";
+import { normalizeTemporalFeatures, observedFeatureIdsAt, observedFeaturesAt, parseTemporalValue, temporalFieldCandidates } from "../js/cinematic/temporal-adapter.js";
 import { importCinematicSpec } from "../js/cinematic/state.js";
 
 const features = [
@@ -29,6 +29,7 @@ test("cinematic mode does not guess numeric years as dates", () => {
 test("cumulative mode retains every observed record through the selected time", () => {
   const model = normalizeTemporalFeatures(features, { timeField: "observed_at", groupField: "fire", objectIdField: "OBJECTID" });
   assert.deepEqual(observedFeatureIdsAt(model, Date.parse("2024-08-15T12:00:00Z"), { timeMode: "cumulative" }), [1, 2, 3]);
+  assert.deepEqual(observedFeaturesAt(model, Date.parse("2024-08-15T12:00:00Z"), { timeMode: "instant" }).map((item) => item.id), [2, 3]);
 });
 
 test("cinematic specs require explicit layer and time mapping", () => {

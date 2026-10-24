@@ -1,5 +1,5 @@
 import { createCinematicTimeline } from "./timeline-controller.js?v=0.1.0";
-import { normalizeTemporalFeatures, observedFeatureIdsAt } from "./temporal-adapter.js?v=0.1.0";
+import { normalizeTemporalFeatures, observedFeatureIdsAt, observedFeaturesAt } from "./temporal-adapter.js?v=0.1.0";
 import { exportCinematicSpec, importCinematicSpec } from "./state.js?v=0.1.0";
 
 /**
@@ -35,7 +35,7 @@ export class CinematicModeController {
         objectIdField: config.temporal.featureIdField || layer.objectIdField,
       });
       if (!model.ticks.length) throw new Error(`No valid timestamped observations were found in ${layer.title}.`);
-      this.layers.set(layer.uid, { layer, config, model, previousFilter: await this.mapController.getFeatureFilter(layer.uid).catch(() => null) });
+      this.layers.set(layer.uid, { layer, config, model, effectUid: `cinematic:${this.spec.cinematic.id}:${layer.uid}`, previousFilter: await this.mapController.getFeatureFilter(layer.uid).catch(() => null) });
     }
     const ticks = [...new Set([...this.layers.values()].flatMap(({ model }) => model.ticks))].sort((a, b) => a - b);
     this.timeline = createCinematicTimeline({ ticks, durationSeconds: this.spec.cinematic.clock.durationSeconds, rate: this.spec.cinematic.clock.rate, loop: this.spec.cinematic.clock.loop, reducedMotion: globalThis.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches });
@@ -62,6 +62,18 @@ export class CinematicModeController {
     const snapshot = this.timeline?.state();
     if (snapshot) this.#render(snapshot);
   }
+  setBoundaryGlow(enabled) {
+    if (!this.spec) return;
+    for (const layer of this.spec.cinematic.layers) {
+      layer.animation.outline = { color: layer.animation.outline?.color || "#ff8136", glow: enabled === true };
+    }
+    // Effects use the same observation snapshot, so deliberately invalidate the
+    // render cache when their setting changes at a paused observation.
+    this.renderedObservationTime = null;
+    this.renderedTimeMode = null;
+    const snapshot = this.timeline?.state();
+    if (snapshot) this.#render(snapshot);
+  }
   exportCinematicSpec() { return exportCinematicSpec(this.spec); }
 
   async destroy() {
@@ -70,7 +82,10 @@ export class CinematicModeController {
     this.pendingSnapshot = null;
     await this.renderTask?.catch(() => {});
     this.renderTask = null;
-    await Promise.all([...this.layers.values()].map(({ layer, previousFilter }) => this.mapController.setFeatureFilter(layer.uid, previousFilter).catch(() => false)));
+    await Promise.all([...this.layers.values()].map(async ({ layer, effectUid, previousFilter }) => {
+      await this.mapController.setFeatureFilter(layer.uid, previousFilter).catch(() => false);
+      if (typeof this.mapController.clearCinematicEffect === "function") await this.mapController.clearCinematicEffect(effectUid).catch(() => false);
+    }));
     this.layers.clear(); this.spec = null; this.renderedObservationTime = null; this.renderedTimeMode = null;
   }
 
@@ -83,9 +98,20 @@ export class CinematicModeController {
         this.pendingSnapshot = null;
         const timeMode = this.spec?.cinematic.clock.timeMode || "instant";
         if (next.observationTime !== this.renderedObservationTime || timeMode !== this.renderedTimeMode) {
-          await Promise.all([...this.layers.values()].map(async ({ layer, model }) => {
+          await Promise.all([...this.layers.values()].map(async ({ layer, config, model, effectUid }) => {
             const objectIds = observedFeatureIdsAt(model, next.observationTime, { timeMode });
             await this.mapController.setFeatureFilter(layer.uid, { objectIds });
+            const glow = config.animation?.outline?.glow === true;
+            if (typeof this.mapController.setCinematicEffect === "function" && glow) {
+              const observations = observedFeaturesAt(model, next.observationTime, { timeMode });
+              await this.mapController.setCinematicEffect(effectUid, {
+                type: "observed-boundary-glow",
+                color: config.animation.outline.color,
+                features: observations.map((observation) => observation.feature),
+              }).catch(() => false);
+            } else if (typeof this.mapController.clearCinematicEffect === "function") {
+              await this.mapController.clearCinematicEffect(effectUid).catch(() => false);
+            }
           }));
           this.renderedObservationTime = next.observationTime;
           this.renderedTimeMode = timeMode;

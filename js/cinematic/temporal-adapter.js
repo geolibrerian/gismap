@@ -69,22 +69,25 @@ export function normalizeTemporalFeatures(features = [], { timeField, groupField
  * mode interpolates or invents geometry.
  */
 export function observedFeatureIdsAt(model, time, { timeMode = "instant" } = {}) {
+  return observedFeaturesAt(model, time, { timeMode }).map((observation) => observation.id)
+    .filter((id, index, ids) => ids.findIndex((value) => String(value) === String(id)) === index)
+    .sort((a, b) => String(a).localeCompare(String(b), undefined, { numeric: true }));
+}
+
+/** The source observations selected by the renderer at a given instant. */
+export function observedFeaturesAt(model, time, { timeMode = "instant" } = {}) {
   if (!model?.observations?.length || !Number.isFinite(Number(time))) return [];
+  const byId = (items) => items.sort((a, b) => String(a.id).localeCompare(String(b.id), undefined, { numeric: true }) || a.index - b.index);
   if (timeMode === "cumulative") {
-    return [...new Set(model.observations
-      .filter((observation) => observation.time <= time)
-      .map((observation) => observation.id))]
-      .sort((a, b) => String(a).localeCompare(String(b), undefined, { numeric: true }));
+    return byId(model.observations.filter((observation) => observation.time <= time));
   }
   const selectedTimes = new Map();
   for (const observation of model.observations) {
     if (observation.time > time) break;
     selectedTimes.set(observation.group, observation.time);
   }
-  return model.observations
-    .filter((observation) => selectedTimes.get(observation.group) === observation.time)
-    .map((observation) => observation.id)
-    .sort((a, b) => String(a).localeCompare(String(b), undefined, { numeric: true }));
+  return byId(model.observations
+    .filter((observation) => selectedTimes.get(observation.group) === observation.time));
 }
 
 export function nearestObservationIndex(ticks = [], time) {

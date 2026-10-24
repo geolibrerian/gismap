@@ -55,6 +55,8 @@ export class ThreeHost {
   }
 
   add(uid, item) {
+    // Replacing an observed snapshot must free the prior GPU resources.
+    this.remove(uid);
     this.#items.set(uid, { visible: true, opacity: 1, ...item });
     this.attach();
     this.map.triggerRepaint();
@@ -80,6 +82,10 @@ export class ThreeHost {
   }
 
   get size() { return this.#items.size; }
+
+  clear() {
+    [...this.#items.keys()].forEach((uid) => this.remove(uid));
+  }
 
   #render(options) {
     if (!this.#renderer || !this.#items.size) return;
