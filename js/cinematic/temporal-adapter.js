@@ -99,3 +99,40 @@ export function nearestObservationIndex(ticks = [], time) {
   }
   return index;
 }
+
+const pointInExtent = (point, extent) => Array.isArray(point) && Number.isFinite(Number(point[0])) && Number.isFinite(Number(point[1]))
+  && point[0] >= extent.xmin && point[0] <= extent.xmax && point[1] >= extent.ymin && point[1] <= extent.ymax;
+
+function coordinatePairs(geometry) {
+  if (!geometry || typeof geometry !== "object") return [];
+  if (Number.isFinite(geometry.x) && Number.isFinite(geometry.y)) return [[geometry.x, geometry.y]];
+  const pairs = [];
+  const visit = (value) => {
+    if (!Array.isArray(value)) return;
+    if (value.length >= 2 && Number.isFinite(Number(value[0])) && Number.isFinite(Number(value[1]))) pairs.push(value);
+    else value.forEach(visit);
+  };
+  visit(geometry.coordinates || geometry.paths || geometry.rings || geometry.points);
+  return pairs;
+}
+
+/** True when an observation intersects a geographic view envelope. */
+export function observationInExtent(observation, extent) {
+  if (!extent || ![extent.xmin, extent.ymin, extent.xmax, extent.ymax].every(Number.isFinite)) return false;
+  const pairs = coordinatePairs(observation?.feature?.geometry);
+  if (pairs.some((point) => pointInExtent(point, extent))) return true;
+  // A view can sit wholly inside a large perimeter, with no perimeter vertex
+  // in view. Envelope overlap is the safe fallback for loaded GeoJSON/ArcGIS
+  // geometries; it may retain edge-only candidates but never drops data that
+  // is visibly relevant merely because of sparse vertices.
+  if (!pairs.length) return false;
+  const xs = pairs.map((point) => Number(point[0])), ys = pairs.map((point) => Number(point[1]));
+  return Math.min(...xs) <= extent.xmax && Math.max(...xs) >= extent.xmin && Math.min(...ys) <= extent.ymax && Math.max(...ys) >= extent.ymin;
+}
+
+/** A model restricted to loaded observations inside the current map window. */
+export function temporalModelInExtent(model, extent) {
+  const observations = (model?.observations || []).filter((observation) => observationInExtent(observation, extent));
+  const ticks = [...new Set(observations.map((observation) => observation.time))];
+  return { ...model, observations, ticks, start: ticks[0] ?? null, end: ticks.at(-1) ?? null };
+}

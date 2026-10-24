@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { normalizeTemporalFeatures, observedFeatureIdsAt, observedFeaturesAt, parseTemporalValue, temporalFieldCandidates } from "../js/cinematic/temporal-adapter.js";
+import { normalizeTemporalFeatures, observedFeatureIdsAt, observedFeaturesAt, parseTemporalValue, temporalFieldCandidates, temporalModelInExtent } from "../js/cinematic/temporal-adapter.js";
 import { importCinematicSpec } from "../js/cinematic/state.js";
 
 const features = [
@@ -38,4 +38,14 @@ test("cinematic specs require explicit layer and time mapping", () => {
   assert.equal(spec.cinematic.provenance.interpolated, false);
   assert.equal(spec.cinematic.layers[0].animation.template, "step-perimeter");
   assert.equal(spec.cinematic.clock.timeMode, "instant");
+});
+
+test("local-window models retain only observations whose geometry overlaps the map extent", () => {
+  const model = normalizeTemporalFeatures([
+    { attributes: { OBJECTID: 1, observed_at: "2024-08-14T00:00:00Z" }, geometry: { type: "Point", coordinates: [-120, 35] } },
+    { attributes: { OBJECTID: 2, observed_at: "2024-08-15T00:00:00Z" }, geometry: { type: "Polygon", coordinates: [[[-102, 29], [-96, 29], [-96, 35], [-102, 35], [-102, 29]]] } },
+  ], { timeField: "observed_at", objectIdField: "OBJECTID" });
+  const local = temporalModelInExtent(model, { xmin: -101, ymin: 30, xmax: -99, ymax: 32 });
+  assert.deepEqual(local.observations.map((item) => item.id), [2]);
+  assert.equal(local.start, Date.parse("2024-08-15T00:00:00Z"));
 });

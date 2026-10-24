@@ -11,6 +11,7 @@ test("cinematic mode applies transient observed IDs and restores the prior filte
   const mapController = {
     getLayer: (id) => id === "perimeters" ? layer : null,
     getFeatureFilter: async () => ({ objectIds: [99] }),
+    getViewExtent: () => ({ xmin: -0.1, ymin: -0.1, xmax: 1.1, ymax: 1.1 }),
     setFeatureFilter: async (_id, filter) => { applied.push(filter); return true; },
     setOpacity: async (_id, value) => { opacity.push(value); },
     goToFeatures: async (features, options) => { focused.push({ features, options }); },
@@ -32,6 +33,14 @@ test("cinematic mode applies transient observed IDs and restores the prior filte
   mode.setTimeMode("cumulative");
   await mode.renderTask;
   assert.deepEqual(applied.at(-1), { objectIds: [1, 2] });
+  mode.setLocalWindow(true);
+  await mode.renderTask;
+  assert.equal(mode.state().localWindow, true);
+  assert.equal(mode.state().timeline.ticks.length, 2);
+  // Changing the local window intentionally resets playback to that window's start.
+  assert.deepEqual(applied.at(-1), { objectIds: [1] });
+  mode.seekObservation(1);
+  await mode.renderTask;
   mode.setBoundaryGlow(true);
   await mode.renderTask;
   assert.equal(effects.at(-1).type, "observed-boundary-glow");

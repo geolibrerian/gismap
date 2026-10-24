@@ -1,5 +1,5 @@
 import { createCinematicTimeline } from "./timeline-controller.js?v=0.1.0";
-import { normalizeTemporalFeatures, observedFeatureIdsAt, observedFeaturesAt } from "./temporal-adapter.js?v=0.1.1";
+import { normalizeTemporalFeatures, observedFeatureIdsAt, observedFeaturesAt, temporalModelInExtent } from "./temporal-adapter.js?v=0.1.2-localwindow1";
 import { exportCinematicSpec, importCinematicSpec } from "./state.js?v=0.1.1";
 
 // Engine adapters may implement a transient operation synchronously (for
@@ -23,6 +23,9 @@ export class CinematicModeController {
     this.renderTask = null;
     this.renderedObservationTime = null;
     this.renderedTimeMode = null;
+    this.localWindow = false;
+    this.localModels = new Map();
+    this.localEmpty = false;
   }
 
   async load(spec, { featuresByLayer = {} } = {}) {
@@ -44,14 +47,12 @@ export class CinematicModeController {
       this.layers.set(layer.uid, { layer, config, model, effectUid: `cinematic:${this.spec.cinematic.id}:${layer.uid}`, previousOpacity, previousFilter: await attempt(() => this.mapController.getFeatureFilter(layer.uid)) });
       if (config.animation.opacity != null) await attempt(() => this.mapController.setOpacity(layer.uid, config.animation.opacity), false);
     }
-    const ticks = [...new Set([...this.layers.values()].flatMap(({ model }) => model.ticks))].sort((a, b) => a - b);
-    this.timeline = createCinematicTimeline({ ticks, durationSeconds: this.spec.cinematic.clock.durationSeconds, rate: this.spec.cinematic.clock.rate, loop: this.spec.cinematic.clock.loop, reducedMotion: globalThis.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches });
-    this.unsubscribe = this.timeline.subscribe((snapshot) => this.#render(snapshot));
+    this.#resetTimeline();
     await this.renderTask;
     return this.state();
   }
 
-  state() { return { spec: this.spec ? exportCinematicSpec(this.spec) : null, timeline: this.timeline?.state() || null, layers: [...this.layers.values()].map(({ layer, model }) => ({ uid: layer.uid, title: layer.title, ticks: model.ticks, invalid: model.invalid })) }; }
+  state() { return { spec: this.spec ? exportCinematicSpec(this.spec) : null, timeline: this.timeline?.state() || null, localWindow: this.localWindow, localEmpty: this.localEmpty, layers: [...this.layers.values()].map(({ layer, model }) => ({ uid: layer.uid, title: layer.title, ticks: (this.localModels.get(layer.uid) || model).ticks, invalid: model.invalid })) }; }
   play() { this.timeline?.play(); }
   pause() { this.timeline?.pause(); }
   toggle() { this.timeline?.toggle(); }
@@ -68,6 +69,29 @@ export class CinematicModeController {
     this.spec.cinematic.clock.timeMode = timeMode === "cumulative" ? "cumulative" : "instant";
     const snapshot = this.timeline?.state();
     if (snapshot) this.#render(snapshot);
+  }
+  setLocalWindow(enabled) {
+    this.localWindow = enabled === true;
+    return this.refreshLocalWindow();
+  }
+  refreshLocalWindow() {
+    if (!this.spec) return false;
+    if (!this.localWindow) {
+      this.localModels.clear(); this.localEmpty = false; this.#resetTimeline(); return true;
+    }
+    const extent = this.mapController.getViewExtent?.();
+    if (!extent) return false;
+    this.localModels = new Map([...this.layers.values()].map(({ layer, model }) => [layer.uid, temporalModelInExtent(model, extent)]));
+    const ticks = [...new Set([...this.localModels.values()].flatMap((model) => model.ticks))];
+    this.localEmpty = !ticks.length;
+    if (ticks.length) this.#resetTimeline(ticks);
+    else {
+      this.renderedObservationTime = null;
+      this.renderedTimeMode = null;
+      const snapshot = this.timeline?.state();
+      if (snapshot) this.#render(snapshot);
+    }
+    return !this.localEmpty;
   }
   setBoundaryGlow(enabled) {
     if (!this.spec) return;
@@ -94,7 +118,7 @@ export class CinematicModeController {
     const snapshot = this.timeline?.state();
     if (!snapshot || typeof this.mapController.goToFeatures !== "function") return false;
     const timeMode = this.spec?.cinematic.clock.timeMode || "instant";
-    const features = [...this.layers.values()].flatMap(({ model }) => observedFeaturesAt(model, snapshot.observationTime, { timeMode })
+    const features = [...this.layers.values()].flatMap(({ layer, model }) => observedFeaturesAt(this.localModels.get(layer.uid) || model, snapshot.observationTime, { timeMode })
       .map((observation) => observation.feature)
       .filter((feature) => feature?.geometry));
     return features.length ? attempt(() => this.mapController.goToFeatures(features, { animate }), false) : false;
@@ -112,7 +136,20 @@ export class CinematicModeController {
       await attempt(() => this.mapController.setOpacity(layer.uid, previousOpacity), false);
       if (typeof this.mapController.clearCinematicEffect === "function") await attempt(() => this.mapController.clearCinematicEffect(effectUid), false);
     }));
-    this.layers.clear(); this.spec = null; this.renderedObservationTime = null; this.renderedTimeMode = null;
+    this.layers.clear(); this.localModels.clear(); this.localWindow = false; this.localEmpty = false; this.spec = null; this.renderedObservationTime = null; this.renderedTimeMode = null;
+  }
+
+  #resetTimeline(explicitTicks = null) {
+    const previous = this.timeline?.state();
+    const wasPlaying = previous?.playing === true;
+    this.unsubscribe?.(); this.unsubscribe = null;
+    this.timeline?.destroy();
+    const ticks = explicitTicks || [...new Set([...this.layers.values()].flatMap(({ layer, model }) => (this.localModels.get(layer.uid) || model).ticks))].sort((a, b) => a - b);
+    this.timeline = createCinematicTimeline({ ticks, durationSeconds: this.spec.cinematic.clock.durationSeconds, rate: this.spec.cinematic.clock.rate, loop: this.spec.cinematic.clock.loop, reducedMotion: globalThis.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches });
+    this.renderedObservationTime = null;
+    this.renderedTimeMode = null;
+    this.unsubscribe = this.timeline.subscribe((snapshot) => this.#render(snapshot));
+    if (wasPlaying) this.timeline.play();
   }
 
   async #render(snapshot) {
@@ -125,11 +162,12 @@ export class CinematicModeController {
         const timeMode = this.spec?.cinematic.clock.timeMode || "instant";
         if (next.observationTime !== this.renderedObservationTime || timeMode !== this.renderedTimeMode) {
           await Promise.all([...this.layers.values()].map(async ({ layer, config, model, effectUid }) => {
-            const objectIds = observedFeatureIdsAt(model, next.observationTime, { timeMode });
+            const activeModel = this.localModels.get(layer.uid) || model;
+            const objectIds = this.localEmpty ? [] : observedFeatureIdsAt(activeModel, next.observationTime, { timeMode });
             await this.mapController.setFeatureFilter(layer.uid, { objectIds });
             const glow = config.animation?.outline?.glow === true;
             if (typeof this.mapController.setCinematicEffect === "function" && glow) {
-              const observations = observedFeaturesAt(model, next.observationTime, { timeMode });
+              const observations = this.localEmpty ? [] : observedFeaturesAt(activeModel, next.observationTime, { timeMode });
               await attempt(() => this.mapController.setCinematicEffect(effectUid, {
                 type: "observed-boundary-glow",
                 color: config.animation.outline.color,

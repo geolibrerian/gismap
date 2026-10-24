@@ -2735,6 +2735,14 @@ body.utility-panel-open .utility-panel:has([data-utility-pane="data-notes"]:not(
 .cinematic-controls select { font:inherit; color:var(--ink); background:var(--surface); border:1px solid var(--line); border-radius:6px; padding:.32rem; }
 .cinematic-dashboard [data-cinematic-time-label] { min-block-size:3.4em; margin-block:.4rem .85rem; font-variant-numeric:tabular-nums; line-height:1.7; }
 .cinematic-actions { display:flex; gap:.5rem; flex-wrap:wrap; }
+.cinematic-map-timeline { position:absolute; z-index:8; left:50%; bottom:28px; transform:translateX(-50%); display:grid; gap:.35rem; width:min(720px, calc(100% - 32px)); padding:.65rem .8rem; color:var(--ink); background:color-mix(in srgb, var(--surface) 94%, transparent); border:1px solid var(--line); border-radius:10px; box-shadow:var(--shadow); font-size:.78rem; font-variant-numeric:tabular-nums; }
+.cinematic-map-timeline__meta, .cinematic-map-timeline__controls { display:flex; align-items:center; gap:.55rem; }
+.cinematic-map-timeline__meta { justify-content:space-between; }
+.cinematic-map-timeline__meta span { color:var(--muted); }
+.cinematic-map-timeline__controls input[type="range"] { flex:1 1 10rem; min-width:5rem; }
+.cinematic-map-timeline__controls button { font:inherit; color:var(--ink); background:var(--surface-2); border:1px solid var(--line); border-radius:6px; padding:.28rem .48rem; }
+.cinematic-map-timeline__controls label { white-space:nowrap; }
+@media (max-width: 720px) { .cinematic-map-timeline { bottom:68px; } .cinematic-map-timeline__controls span { display:none; } }
 
 /* Compact, readable timeline preview at both workspace widths. */
 .timeline-preview-chart { display: grid; gap: .45rem; margin: .75rem 0; }
