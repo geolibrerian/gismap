@@ -271,7 +271,10 @@ body.briefing-presenting #app #viewDiv { inset: 0; }
   .workspace-layer-actions, .workspace-basemaps { margin-top: 12px; }
   .map-nav-shell { right: 8px; top: 8px; }
   body.mobile-map-tools-open .map-nav { display: flex; }
-  .map-camera-menu__content { top: auto; bottom: 0; width: min(242px, calc(100vw - 76px)); }
+  /* The tool column scrolls on short phones, which clipped this panel to nothing: pin it to the screen beside the column. */
+  /* A backdrop filter makes the column the panel's containing block and its scroll box clips it; drop both while the menu is open. */
+  .map-nav:has(.map-camera-menu[open]) { overflow: visible; -webkit-backdrop-filter: none; backdrop-filter: none; }
+  .map-camera-menu__content { position: fixed; top: 50px; right: 70px; bottom: auto; z-index: 30; width: min(242px, calc(100vw - 86px)); max-height: calc(100dvh - 200px); overflow: auto; }
   .workspace-tool-pane { padding: 16px; }
   [data-data-note-form] > .map-note-card__actions { bottom: -16px; margin: 16px -16px -16px; padding: 12px 16px; }
   .dialog__content { padding: 16px; }

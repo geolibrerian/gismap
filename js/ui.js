@@ -383,6 +383,8 @@ export class UIController {
     header.append(title, close);
     const mobileMenu = desktopMenu.cloneNode(true);
     mobileMenu.querySelectorAll('[data-action="dashboard-builder"]').forEach((item) => item.remove());
+    // Phones take notes in the field: Field notes stays; Map notes (desktop data annotation) does not.
+    mobileMenu.querySelectorAll('[data-action="mode-data-map-notes"]').forEach((item) => item.remove());
     const workflows = mobileMenu.querySelector(".desktop-workflows-menu");
     workflows?.classList.remove("desktop-workflows-menu");
     workflows?.removeAttribute("data-desktop-only");
@@ -1546,9 +1548,11 @@ export class UIController {
           this.#popularDataDialog();
           break;
         case "mode-data-map-notes":
+          this.#leaveMobileWorkflowScreen();
           openDataMapNotesPanel(this);
           break;
         case "mode-map-notes":
+          this.#leaveMobileWorkflowScreen();
           openMapNotesPanel(this);
           break;
         case "game-dragons":
@@ -6448,6 +6452,17 @@ export class UIController {
     this.#setSidebarCollapsed(false);
     this.events.publish("mobile:workflow-route", { route: "tours" });
     this.toast(returningToTour ? "Guided tour opened." : "Guided tours ready. Add a chapter to begin.");
+  }
+
+  /** Field notes from the phone's More screen (and any caller outside the menus). */
+  openFieldNotes() {
+    this.#leaveMobileWorkflowScreen();
+    openMapNotesPanel(this);
+  }
+
+  /** Phones: a full-screen workflow (Field tasks, Modes) would cover a map panel opened from the menu, so go back to the map first. */
+  #leaveMobileWorkflowScreen() {
+    if (this.mobileMedia.matches && document.body.classList.contains("mobile-workflow-open")) this.fieldTasks?.navigate?.("map");
   }
 
   prepareMobileWorkflow(route) {

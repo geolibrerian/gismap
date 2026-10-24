@@ -16,8 +16,8 @@ export class MobileWorkflowRouter {
    * createTour(places, { title }) and createBriefing({ layerUrl, ids, title }) let a
    * task become a tour or a briefing; both are provided by the UI controller.
    */
-  constructor({ events, projectManager, mapController, prepareWorkflow, openWorkflow, shareWorkflow, notify, dockWorkflow, createTour, createBriefing }) {
-    Object.assign(this, { events, projectManager, mapController, prepareWorkflow, openWorkflow, shareWorkflow, notify, dockWorkflow, createTour, createBriefing });
+  constructor({ events, projectManager, mapController, prepareWorkflow, openWorkflow, shareWorkflow, notify, dockWorkflow, createTour, createBriefing, openFieldNotes }) {
+    Object.assign(this, { events, projectManager, mapController, prepareWorkflow, openWorkflow, shareWorkflow, notify, dockWorkflow, createTour, createBriefing, openFieldNotes });
     this.media = compactMedia();
     this.store = new MobileFeedStore({ projectManager, events });
     this.root = document.querySelector("#mobile-workflow-root");
@@ -213,7 +213,7 @@ export class MobileWorkflowRouter {
     const features = task.features || [];
     const full = features.length >= FIELD_TASK_LIMITS.maxFeatures;
     const stepRows = steps.map((step, index) => `<li><input type="checkbox" name="stepDone" value="${index}" ${step.done ? "checked" : ""} aria-label="Step ${index + 1} done"/><input name="stepText" value="${escapeHtml(step.text)}" placeholder="Step ${index + 1}" aria-label="Step ${index + 1}" maxlength="120"/><button type="button" data-remove-step="${index}" aria-label="Remove step ${index + 1}">×</button></li>`).join("");
-    return `<form class="mobile-card task-editor" data-task-form data-task-id="${escapeHtml(task.id || "")}"><label>Task title<input name="title" required value="${escapeHtml(task.title || "")}" placeholder="Inspect shoreline access" maxlength="120" /></label><fieldset><legend>Task location</legend><label>Place name<input name="location" value="${escapeHtml(task.location || "")}" placeholder="Place or address" maxlength="120" /></label><div class="task-coordinates"><label>Latitude<input name="latitude" type="number" inputmode="decimal" step="any" min="-90" max="90" value="${escapeHtml(task.latitude ?? "")}" placeholder="45.52345" /></label><label>Longitude<input name="longitude" type="number" inputmode="decimal" step="any" min="-180" max="180" value="${escapeHtml(task.longitude ?? "")}" placeholder="-122.67621" /></label></div><input type="hidden" name="capturedAt" value="${escapeHtml(task.capturedAt || "")}"><div class="task-location-status" data-task-location-status>${task.capturedAt ? `Captured ${escapeHtml(dateLabel(task.capturedAt))}${Number.isFinite(task.latitude) ? ` · ${Number(task.latitude).toFixed(5)}, ${Number(task.longitude).toFixed(5)}` : ""}` : "Enter coordinates, use the map center, or pick a point."}</div><p class="form-note" data-task-address>${task.address?.label ? `Address: ${escapeHtml(task.address.label)}` : ""}</p><div class="task-location-actions"><button type="button" data-capture-task-location>Use map center</button><button type="button" data-pick-location>Pick on map</button>${Number.isFinite(task.latitude) && Number.isFinite(task.longitude) ? `<button type="button" data-zoom-location>Zoom</button>` : ""}</div></fieldset><label>Instructions<textarea name="notes" rows="3" maxlength="${FIELD_TASK_LIMITS.maxNotes}" placeholder="What should the field worker know?">${escapeHtml(task.notes || "")}</textarea></label><fieldset><legend>Steps to complete</legend><ol class="task-step-list">${stepRows}</ol>${steps.length < FIELD_TASK_LIMITS.maxSteps ? `<button type="button" data-add-step>+ Add step</button>` : ""}</fieldset><fieldset><legend>Features <small>optional · ${features.length}/${FIELD_TASK_LIMITS.maxFeatures}</small></legend>${this.#featureRows(features, { editable: true })}<button type="button" data-attach-feature ${full ? "disabled" : ""}>${full ? `Limit of ${FIELD_TASK_LIMITS.maxFeatures} features reached` : "+ Attach a feature from the map"}</button><p class="form-note">Optional. Click a feature from a feature service layer; its location and ID travel with the shared task. A task can also rely on its location alone.</p></fieldset><label>Photos<input name="photos" type="file" accept="image/*" capture="environment" multiple /></label>${task.photos?.length ? `<p>${task.photos.length} photo${task.photos.length === 1 ? "" : "s"} attached · photos stay on this device</p>` : ""}<div class="feed-card__actions"><button type="submit" name="intent" value="share" data-mobile-bar="primary">Save &amp; share</button><button type="submit" name="intent" value="save" data-mobile-bar>Save draft</button><button type="button" data-cancel-task data-mobile-bar>Cancel</button>${task.id ? `<button type="button" data-delete-task="${escapeHtml(task.id)}">Delete</button>` : ""}</div></form>`;
+    return `<form class="mobile-card task-editor" data-task-form data-task-id="${escapeHtml(task.id || "")}"><label>Task title<input name="title" required value="${escapeHtml(task.title || "")}" placeholder="Inspect shoreline access" maxlength="120" /></label><fieldset><legend>Task location</legend><label>Place name<input name="location" value="${escapeHtml(task.location || "")}" placeholder="Place or address" maxlength="120" /></label><div class="task-coordinates"><label>Latitude<input name="latitude" type="number" inputmode="decimal" step="any" min="-90" max="90" value="${escapeHtml(task.latitude ?? "")}" placeholder="45.52345" /></label><label>Longitude<input name="longitude" type="number" inputmode="decimal" step="any" min="-180" max="180" value="${escapeHtml(task.longitude ?? "")}" placeholder="-122.67621" /></label></div><input type="hidden" name="capturedAt" value="${escapeHtml(task.capturedAt || "")}"><div class="task-location-status" data-task-location-status>${task.capturedAt ? `Captured ${escapeHtml(dateLabel(task.capturedAt))}${Number.isFinite(task.latitude) ? ` · ${Number(task.latitude).toFixed(5)}, ${Number(task.longitude).toFixed(5)}` : ""}` : "Enter coordinates, use your location or the map center, or pick a point."}</div><p class="form-note" data-task-address>${task.address?.label ? `Address: ${escapeHtml(task.address.label)}` : ""}</p><div class="task-location-actions"><button type="button" data-capture-task-gps>Use my location</button><button type="button" data-capture-task-location>Use map center</button><button type="button" data-pick-location>Pick on map</button>${Number.isFinite(task.latitude) && Number.isFinite(task.longitude) ? `<button type="button" data-zoom-location>Zoom</button>` : ""}</div></fieldset><label>Instructions<textarea name="notes" rows="3" maxlength="${FIELD_TASK_LIMITS.maxNotes}" placeholder="What should the field worker know?">${escapeHtml(task.notes || "")}</textarea></label><fieldset><legend>Steps to complete</legend><ol class="task-step-list">${stepRows}</ol>${steps.length < FIELD_TASK_LIMITS.maxSteps ? `<button type="button" data-add-step>+ Add step</button>` : ""}</fieldset><fieldset><legend>Features <small>optional · ${features.length}/${FIELD_TASK_LIMITS.maxFeatures}</small></legend>${this.#featureRows(features, { editable: true })}<button type="button" data-attach-feature ${full ? "disabled" : ""}>${full ? `Limit of ${FIELD_TASK_LIMITS.maxFeatures} features reached` : "+ Attach a feature from the map"}</button><p class="form-note">Optional. Click a feature from a feature service layer; its location and ID travel with the shared task. A task can also rely on its location alone.</p></fieldset><label>Photos<input name="photos" type="file" accept="image/*" capture="environment" multiple /></label>${task.photos?.length ? `<p>${task.photos.length} photo${task.photos.length === 1 ? "" : "s"} attached · photos stay on this device</p>` : ""}<div class="feed-card__actions"><button type="submit" name="intent" value="share" data-mobile-bar="primary">Save &amp; share</button><button type="submit" name="intent" value="save" data-mobile-bar>Save draft</button><button type="button" data-cancel-task data-mobile-bar>Cancel</button>${task.id ? `<button type="button" data-delete-task="${escapeHtml(task.id)}">Delete</button>` : ""}</div></form>`;
   }
 
   #taskCompletion(task) {
@@ -234,7 +234,7 @@ export class MobileWorkflowRouter {
   }
 
   #more() {
-    return `<p class="mobile-workflow__subtitle">The mobile app keeps the map and three shareable workflows focused and easy to reach.</p><div class="workflow-grid"><button data-route="briefing"><strong>Briefing</strong><span>Selected features and context · share by QR</span></button><button data-route="tours"><strong>Tours</strong><span>Guided places and chapters · share by QR</span></button><button data-route="tasks"><strong>Field tasks</strong><span>Assignments and drafts · share by QR</span></button><button data-route="map"><strong>Map tools</strong><span>Places, bookmarks, draw, layers, and intelligence</span></button><button data-open-image class="workflow-grid__photo"><strong>Open from a photo</strong><span>A Smart map image or a picture of a GIS Map QR code</span></button></div>${this.#skinPicker()}<section class="account-workflows"><span>With an account · coming soon</span><p>Updates, Compare, Watchlist, custom dashboards, and their desktop authoring tools.</p></section>`;
+    return `<p class="mobile-workflow__subtitle">The mobile app keeps the map and four shareable workflows focused and easy to reach.</p><div class="workflow-grid"><button data-route="briefing"><strong>Briefing</strong><span>Selected features and context · share by QR</span></button><button data-route="tours"><strong>Tours</strong><span>Guided places and chapters · share by QR</span></button><button data-route="tasks"><strong>Field tasks</strong><span>Assignments and drafts · share by QR</span></button><button data-open-field-notes><strong>Field notes</strong><span>Observations at a place or feature · share by QR</span></button><button data-route="map"><strong>Map tools</strong><span>Places, bookmarks, draw, layers, and intelligence</span></button><button data-open-image class="workflow-grid__photo"><strong>Open from a photo</strong><span>A Smart map image or a picture of a GIS Map QR code</span></button></div>${this.#skinPicker()}<section class="account-workflows"><span>With an account · coming soon</span><p>Updates, Compare, Watchlist, custom dashboards, and their desktop authoring tools.</p></section>`;
   }
 
   async #click(event) {
@@ -243,6 +243,7 @@ export class MobileWorkflowRouter {
     if (button.matches("[data-workflow-close]")) return this.navigate("map");
     if (button.dataset.route) return this.navigate(button.dataset.route);
     if (button.matches("[data-open-image]")) return document.querySelector("#image-file-input")?.click();
+    if (button.matches("[data-open-field-notes]")) { this.navigate("map"); return this.openFieldNotes?.(); }
     if (button.dataset.mobileSkin) {
       const skin = applyInterfaceSkin(button.dataset.mobileSkin, { colors: this.projectManager.current.presentation?.skinColors?.[button.dataset.mobileSkin] });
       this.projectManager.patchPresentation({ skin });
@@ -260,6 +261,7 @@ export class MobileWorkflowRouter {
     if (button.dataset.reportTask) return this.#showTaskView({ mode: "report", id: button.dataset.reportTask });
     if (button.matches("[data-cancel-task]")) return this.#showTaskView(null);
     if (button.matches("[data-capture-task-location]")) return this.#captureTaskLocation(button.closest("form"));
+    if (button.matches("[data-capture-task-gps]")) return this.#captureTaskGps(button);
     if (button.dataset.shareTask) return this.#shareTask(button.dataset.shareTask);
     if (button.dataset.sendBack) return this.#sendBack(button.dataset.sendBack);
     if (button.dataset.taskPdf) return this.#downloadTaskFile(button, () => this.#taskPdfFile(this.#task(button.dataset.taskPdf)));
@@ -352,8 +354,26 @@ export class MobileWorkflowRouter {
     document.querySelectorAll(".menu-bar__all-trigger").forEach((trigger) => trigger.setAttribute("aria-expanded", "false"));
   }
 
-  async #captureTaskLocation(form) {
-    const center = this.mapController.getViewState?.()?.center;
+  /** Use my location: the device's GPS fix, shown on the map, then the same capture as the map center. */
+  async #captureTaskGps(button) {
+    const form = button.closest("form");
+    const label = button.textContent;
+    button.disabled = true;
+    button.textContent = "Finding your location…";
+    try {
+      const coords = await this.mapController.locateUser({ move: false });
+      await this.#captureTaskLocation(form, { longitude: coords.longitude, latitude: coords.latitude, accuracy: coords.accuracy });
+      this.mapController.setTaskPin?.([{ kind: "task", label: form?.elements.location.value || "Task location", latitude: Number(coords.latitude), longitude: Number(coords.longitude) }]);
+    } catch (error) {
+      this.notify?.(error?.code === 1 ? "Location permission was denied. Allow location for this site, or use the map center instead." : `Could not find your location: ${error?.message || "location unavailable"}.`);
+    } finally {
+      button.disabled = false;
+      button.textContent = label;
+    }
+  }
+
+  async #captureTaskLocation(form, fix = null) {
+    const center = fix ? [fix.longitude, fix.latitude] : this.mapController.getViewState?.()?.center;
     if (!form || !center) return;
     const location = { longitude: center[0], latitude: center[1] };
     const capturedAt = new Date().toISOString();
@@ -370,7 +390,7 @@ export class MobileWorkflowRouter {
     const addressNote = form.querySelector("[data-task-address]");
     if (addressNote) addressNote.textContent = details?.label ? `Address: ${details.label}` : "";
     const status = form.querySelector("[data-task-location-status]");
-    if (status) status.textContent = `Captured ${dateLabel(capturedAt)} · ${Number(form.elements.latitude.value).toFixed(5)}, ${Number(form.elements.longitude.value).toFixed(5)}`;
+    if (status) status.textContent = `${fix ? "Your location" : "Captured"} ${dateLabel(capturedAt)} · ${Number(form.elements.latitude.value).toFixed(5)}, ${Number(form.elements.longitude.value).toFixed(5)}${Number.isFinite(fix?.accuracy) ? ` · ±${Math.round(fix.accuracy)} m` : ""}`;
   }
 
   #task(id) {

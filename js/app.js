@@ -92,6 +92,7 @@ async function start() {
     dockWorkflow: (open) => uiController.dockWorkflowPanel(open),
     createTour: (places, options) => uiController.createTourFromPlaces(places, options),
     createBriefing: (request) => uiController.createBriefingForLayerUrl(request),
+    openFieldNotes: () => uiController.openFieldNotes(),
   });
   mobileWorkflowRouter.initialize();
   // Briefing action items become field tasks.
