@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
-import { aggregateChart, createChartSpec, normalizeCharts, recommendCharts, rowsAsCsv } from "../js/charting-tools.js";
+import { aggregateChart, chartFields, createChartSpec, normalizeCharts, recommendCharts, rowsAsCsv } from "../js/charting-tools.js";
 import { mapChartAnchor, normalizeMapChartPresentation, planMapChartDisplay, renderMapChartSvg } from "../js/map-chart-tools.js";
 
 const fields = [
@@ -36,6 +36,9 @@ test("histograms and scatterplots retain the source records for map-linked selec
 });
 
 test("recommendations prefer temporal trends and safe project persistence only stores specs", () => {
+  const roles = chartFields(fields);
+  assert.equal(roles.categoricalFields.some((field) => field.name === "OBJECTID"), false, "record IDs are never suggested as chart categories");
+  assert.equal(roles.temporalFields.some((field) => field.name === "OBJECTID"), false, "record IDs are never suggested as chart time axes");
   const recommendations = recommendCharts(fields);
   assert.equal(recommendations[0].type, "line");
   assert.equal(recommendations[0].dimension, "IGNITION_DATE");

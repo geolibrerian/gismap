@@ -35,18 +35,22 @@ const numeric = (value) => value !== "" && value != null && Number.isFinite(Numb
 const label = (value) => value == null || value === "" ? "(No value)" : String(value);
 const allowed = (value, values, fallback) => values.includes(value) ? value : fallback;
 const unique = (values) => [...new Set(values)];
+// Object IDs identify records; they are never meaningful default chart axes or
+// groupings, even when an adapter reports an OID as a text-like field.
+const objectIdField = (field = {}) => /(?:^|[_\s-])(?:object[_\s-]?id|oid|fid|global[_\s-]?id)(?:$|[_\s-])/i.test(String(field.name || "")) || /(?:^|[^a-z])oid(?:$|[^a-z])/i.test(String(field.type || ""));
 
 export function chartFields(fields = []) {
   const usable = fields.filter((field) => field?.name);
+  const analysisFields = usable.filter((field) => !objectIdField(field));
   // IDs and temporal keys can be numeric but are not meaningful default sums.
-  const numericFields = usable.filter((field) => fieldKind(field) === "number" && !/^(?:object)?id$/i.test(field.name) && !/(?:^|[_\s-])(year|date|time)(?:$|[_\s-])/i.test(`${field.name} ${field.alias || ""}`));
+  const numericFields = analysisFields.filter((field) => fieldKind(field) === "number" && !/(?:^|[_\s-])(year|date|time)(?:$|[_\s-])/i.test(`${field.name} ${field.alias || ""}`));
   // Real date metadata is unambiguous and is preferred over a YEAR-like
   // numeric field. YEAR remains a suggestion, never an implicit conversion.
-  const dated = usable.filter((field) => fieldKind(field) === "date");
-  const namedTemporal = usable.filter((field) => fieldKind(field) !== "date" && /(?:^|[_\s-])(year|date|time|month|day)(?:$|[_\s-])/i.test(`${field.name} ${field.alias || ""}`));
-  const temporalFields = unique([...dated, ...namedTemporal].map((field) => field.name)).map((name) => usable.find((field) => field.name === name));
-  const categoricalFields = usable.filter((field) => fieldKind(field) === "text" || fieldKind(field) === "boolean");
-  return { usable, numericFields, temporalFields, categoricalFields };
+  const dated = analysisFields.filter((field) => fieldKind(field) === "date");
+  const namedTemporal = analysisFields.filter((field) => fieldKind(field) !== "date" && /(?:^|[_\s-])(year|date|time|month|day)(?:$|[_\s-])/i.test(`${field.name} ${field.alias || ""}`));
+  const temporalFields = unique([...dated, ...namedTemporal].map((field) => field.name)).map((name) => analysisFields.find((field) => field.name === name));
+  const categoricalFields = analysisFields.filter((field) => fieldKind(field) === "text" || fieldKind(field) === "boolean");
+  return { usable, analysisFields, numericFields, temporalFields, categoricalFields };
 }
 
 export function recommendCharts(fields = [], { family = "all" } = {}) {
