@@ -25,6 +25,7 @@ import { OpenGeocoder } from "./geocoder.js?v=0.47.0";
 import { chooseStyleField, compileRenderer, resolveRendererSpec, suggestRenderers, validateRendererSpec } from "../../renderer-spec.js?v=0.29.1";
 import { rendererToPaint } from "./arcgis-renderer.js?v=0.42.0";
 import { legendForLayer } from "./legend.js?v=0.52.4";
+import { hostCredit, joinCredits, legendSwatch, plainAttribution } from "../map-credits.js?v=0.1.0";
 import { MAX_FEATURES, describeArcGIS, featureServiceLayers, fetchFeatures, fetchGeometries, queryServiceIds } from "./arcgis-service.js?v=0.47.0";
 import { OBJECT_ID_FIELD, boundsIntersect, boundsOf, expandBounds, geometryTypeOf, inferFields, normalizeFeatures, regroupPolygon, representativePoint } from "./geojson.js?v=0.42.0";
 import { loadMaplibre } from "./maplibre-loader.js?v=0.39.0";
@@ -1407,6 +1408,26 @@ export class MaplibreEngine {
     const box = extent ? [extent.xmin, extent.ymin, extent.xmax, extent.ymax] : null;
     return this.drawings.filter((feature) => !box || boundsIntersect(boundsOf(feature.geometry), box))
       .map((feature) => ({ geometry: feature.geometry, attributes: { ...feature.properties, geometry_type: feature.geometry.type } }));
+  }
+
+  /** One line crediting the basemap, terrain and visible data layers, as the attribution control would. */
+  getAttributionText() {
+    if (!this.map) return "";
+    const style = this.map.getStyle?.() || { layers: [] };
+    const sources = new Set(style.layers.filter((layer) => layer.source && (layer.layout?.visibility ?? "visible") !== "none").map((layer) => layer.source));
+    const terrain = this.map.getTerrain?.()?.source;
+    if (terrain) sources.add(terrain);
+    const credits = [...sources].map((id) => plainAttribution(this.map.getSource(id)?.attribution));
+    for (const record of this.#records.values()) if (record.visible) credits.push(record.attribution ? plainAttribution(record.attribution) : hostCredit(record.url));
+    return joinCredits(credits);
+  }
+
+  /** Visible layers' legends as data ({ uid, title, field, entries: [{ label, geometry, fill, stroke, radius }] }), top layer first. */
+  getLegendData() {
+    return [...this.#records.values()].filter((record) => record.visible && record.kind === "vector").reverse().map((record) => {
+      const legend = legendForLayer(record, this.#dataColor());
+      return { uid: record.uid, title: record.title || "Layer", field: legend.field || null, entries: (legend.entries || []).map(legendSwatch) };
+    });
   }
 
   widgetOpen(name) { return name === "measurement" ? Boolean(this.measurement) : name === "basemapGallery" ? Boolean(this.basemapGallery) : name === "legend" && Boolean(this.legendHost); }

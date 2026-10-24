@@ -118,7 +118,90 @@ function drawCover(context, source, width, height) {
   context.drawImage(source, (sourceWidth - cropWidth) / 2, (sourceHeight - cropHeight) / 2, cropWidth, cropHeight, 0, 0, width, height);
 }
 
-export function drawClipComposition(context, image, { width, height, title, caption = "", attribution = true, attributionText = "" } = {}) {
+/** `text` cut with an ellipsis to fit `maxWidth` in the context's current font. */
+function fitText(context, text, maxWidth) {
+  const value = String(text || "");
+  if (context.measureText(value).width <= maxWidth) return value;
+  let low = 0, high = value.length;
+  while (low < high) {
+    const middle = Math.ceil((low + high) / 2);
+    if (context.measureText(`${value.slice(0, middle)}…`).width <= maxWidth) low = middle; else high = middle - 1;
+  }
+  return `${value.slice(0, low).trimEnd()}…`;
+}
+
+function roundedRect(context, x, y, width, height, radius) {
+  context.beginPath();
+  context.moveTo(x + radius, y);
+  context.arcTo(x + width, y, x + width, y + height, radius);
+  context.arcTo(x + width, y + height, x, y + height, radius);
+  context.arcTo(x, y + height, x, y, radius);
+  context.arcTo(x, y, x + width, y, radius);
+  context.closePath();
+}
+
+function drawSwatch(context, entry, x, y, size) {
+  const fill = entry.fill || "#7a8a84";
+  context.save();
+  if (entry.geometry === "point") {
+    const radius = Math.max(size * 0.22, Math.min(size * 0.5, entry.radius ? entry.radius * size / 14 : size * 0.32));
+    context.beginPath(); context.arc(x + size / 2, y + size / 2, radius, 0, Math.PI * 2);
+    context.fillStyle = fill; context.fill();
+    context.lineWidth = Math.max(1, size / 12); context.strokeStyle = entry.stroke || "rgba(255,255,255,.85)"; context.stroke();
+  } else if (entry.geometry === "line") {
+    context.strokeStyle = fill; context.lineWidth = Math.max(2, size / 5); context.lineCap = "round";
+    context.beginPath(); context.moveTo(x + 1, y + size / 2); context.lineTo(x + size - 1, y + size / 2); context.stroke();
+  } else {
+    roundedRect(context, x, y + size * 0.15, size, size * 0.7, size * 0.12);
+    context.fillStyle = fill; context.fill();
+    context.lineWidth = Math.max(1, size / 14); context.strokeStyle = entry.stroke || "rgba(255,255,255,.7)"; context.stroke();
+  }
+  context.restore();
+}
+
+/**
+ * The frame's key, top right under the title: each Clip layer's name, field
+ * and classes (as the map legend shows them), then a note that any effect is
+ * decoration. Returns nothing; draws only what fits in a third of the frame.
+ */
+function drawLegend(context, { width, height, legend = [], effectNote = "" }) {
+  const layers = legend.filter((layer) => layer?.entries?.length).slice(0, 2);
+  if (!layers.length && !effectNote) return;
+  const unit = height / 720;
+  const pad = 14 * unit, row = 24 * unit, swatch = 14 * unit, panelWidth = Math.min(width * 0.3, 340 * unit);
+  const lines = [];
+  for (const layer of layers) {
+    lines.push({ kind: "title", text: layer.title });
+    if (layer.field) lines.push({ kind: "field", text: layer.field });
+    const entries = layer.entries.slice(0, 6);
+    for (const entry of entries) lines.push({ kind: "entry", entry, text: entry.label || layer.title });
+    if (layer.entries.length > entries.length) lines.push({ kind: "field", text: `+ ${layer.entries.length - entries.length} more` });
+  }
+  if (effectNote) lines.push({ kind: "note", text: effectNote });
+  const panelHeight = Math.min(height * 0.62, pad * 2 + lines.length * row);
+  const x = width - panelWidth - Math.round(width * 0.02), y = Math.round(height * 0.15) + Math.round(height * 0.025);
+  context.save();
+  context.fillStyle = "rgba(7, 28, 24, .78)";
+  roundedRect(context, x, y, panelWidth, panelHeight, 10 * unit);
+  context.fill();
+  let cursor = y + pad + row * 0.7;
+  for (const line of lines) {
+    if (cursor > y + panelHeight - pad * 0.5) break;
+    const textX = line.kind === "entry" ? x + pad + swatch + 9 * unit : x + pad;
+    const maxWidth = panelWidth - (textX - x) - pad;
+    context.fillStyle = line.kind === "field" || line.kind === "note" ? "rgba(255, 253, 247, .72)" : "#fffdf7";
+    context.font = line.kind === "title" ? `700 ${Math.round(15 * unit)}px system-ui, sans-serif`
+      : line.kind === "field" ? `600 ${Math.round(11 * unit)}px system-ui, sans-serif`
+      : line.kind === "note" ? `italic 400 ${Math.round(12 * unit)}px system-ui, sans-serif`
+      : `400 ${Math.round(13 * unit)}px system-ui, sans-serif`;
+    if (line.kind === "entry") drawSwatch(context, line.entry, x + pad, cursor - swatch * 0.85, swatch);
+    context.fillText(fitText(context, line.kind === "field" ? line.text.toUpperCase() : line.text, maxWidth), textX, cursor);
+    cursor += row;
+  }
+  context.restore();
+}
+
+export function drawClipComposition(context, image, { width, height, title, caption = "", attribution = true, attributionText = "", legend = [], effectNote = "" } = {}) {
   context.fillStyle = "#102d27";
   context.fillRect(0, 0, width, height);
   drawCover(context, image, width, height);
@@ -126,20 +209,22 @@ export function drawClipComposition(context, image, { width, height, title, capt
   context.fillRect(0, 0, width, Math.round(height * .15));
   context.fillStyle = "#fffdf7";
   context.font = `700 ${Math.round(height * .052)}px system-ui, sans-serif`;
-  context.fillText(String(title || "Cinematic Clip").slice(0, 100), Math.round(width * .03), Math.round(height * .078));
+  context.fillText(fitText(context, String(title || "Cinematic Clip").slice(0, 100), width * .94), Math.round(width * .03), Math.round(height * .078));
+  drawLegend(context, { width, height, legend, effectNote });
   if (caption) {
     context.fillStyle = "rgba(7, 28, 24, .8)";
     context.fillRect(Math.round(width * .03), Math.round(height * .82), Math.round(width * .94), Math.round(height * .09));
     context.fillStyle = "#fffdf7";
     context.font = `500 ${Math.round(height * .028)}px system-ui, sans-serif`;
-    context.fillText(String(caption).slice(0, 180), Math.round(width * .05), Math.round(height * .876));
+    context.fillText(fitText(context, String(caption).slice(0, 180), width * .9), Math.round(width * .05), Math.round(height * .876));
   }
   if (attribution) {
     context.fillStyle = "rgba(7, 28, 24, .78)";
     context.fillRect(0, height - Math.round(height * .045), width, Math.round(height * .045));
     context.fillStyle = "#fffdf7";
     context.font = `400 ${Math.round(height * .018)}px system-ui, sans-serif`;
-    context.fillText(String(attributionText || "Map data and imagery providers · GISMap Online").slice(0, 220), Math.round(width * .02), height - Math.round(height * .015));
+    // Provider terms require visible credit: the line shrinks with an ellipsis, it is never dropped.
+    context.fillText(fitText(context, attributionText || "Map data and imagery providers · GISMap Online", width * .96), Math.round(width * .02), height - Math.round(height * .015));
   }
 }
 
@@ -192,7 +277,7 @@ const abortError = () => Object.assign(new Error("Export cancelled."), { name: "
  * A composition canvas and renderAt(ms), which puts the scene at `ms` on it.
  * While it is in use effects follow the scene clock; call release() after.
  */
-function clipRenderer({ clip, controller, mapController, width, height, attributionText }) {
+function clipRenderer({ clip, controller, mapController, width, height, attributionText, legend = [], effectNote = "" }) {
   if (!controller?.timeline || !mapController) throw new Error("Load the Clip before exporting it.");
   const tickCount = controller.timeline.state().ticks.length;
   const canvas = document.createElement("canvas");
@@ -213,15 +298,15 @@ function clipRenderer({ clip, controller, mapController, width, height, attribut
     if (state.camera) await mapController.setView(state.camera, { animate: false });
     sceneSeconds = ms / 1000;
     const frame = await readFrame();
-    drawClipComposition(context, frame, { width, height, title: clip.title, caption: state.caption, attribution: clip.composition?.attribution !== false, attributionText });
+    drawClipComposition(context, frame, { width, height, title: clip.title, caption: state.caption, attribution: clip.composition?.attribution !== false, attributionText, legend: clip.composition?.legend === false ? [] : legend, effectNote });
   };
   return { canvas, renderAt, release: () => setEffectClock(null) };
 }
 
-export async function exportCinematicVideo({ clip, controller, mapController, format, width = 1280, height = 720, fps = 30, attributionText = "", signal, onProgress = () => {} } = {}) {
+export async function exportCinematicVideo({ clip, controller, mapController, format, width = 1280, height = 720, fps = 30, attributionText = "", legend = [], effectNote = "", signal, onProgress = () => {} } = {}) {
   if (!format) throw new Error("This browser cannot produce a supported video format. Try a current Chrome, Edge, Safari or Firefox.");
   const durationMs = Math.min(120000, Math.max(1000, Number(clip.playback?.durationMs) || 20000));
-  const { canvas, renderAt, release } = clipRenderer({ clip, controller, mapController, width, height, attributionText });
+  const { canvas, renderAt, release } = clipRenderer({ clip, controller, mapController, width, height, attributionText, legend, effectNote });
   try {
     // Draw the first frame before starting an encoder, so a tainted map fails fast.
     await renderAt(0);
@@ -234,8 +319,8 @@ export async function exportCinematicVideo({ clip, controller, mapController, fo
 }
 
 /** The Clip's poster: its composed frame at `clip.posterMs` (or `atMs`), as a PNG Blob. */
-export async function renderClipPoster({ clip, controller, mapController, width = 1280, height = 720, attributionText = "", atMs = clip.posterMs || 0 } = {}) {
-  const { canvas, renderAt, release } = clipRenderer({ clip, controller, mapController, width, height, attributionText });
+export async function renderClipPoster({ clip, controller, mapController, width = 1280, height = 720, attributionText = "", legend = [], effectNote = "", atMs = clip.posterMs || 0 } = {}) {
+  const { canvas, renderAt, release } = clipRenderer({ clip, controller, mapController, width, height, attributionText, legend, effectNote });
   try {
     await renderAt(Math.max(0, Math.min(Number(clip.playback?.durationMs) || 0, atMs)));
     assertReadable(canvas);

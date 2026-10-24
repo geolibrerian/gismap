@@ -83,7 +83,7 @@ export function normalizeCinematicClip(value = {}) {
     cameraTrack: cameras, tracks,
     // The frame a poster (and a Brief slide before it plays) shows.
     posterMs: Math.min(durationMs, Math.max(0, finite(source.posterMs, 0))),
-    composition: { aspectRatio: ["9:16", "1:1"].includes(source.composition?.aspectRatio) ? source.composition.aspectRatio : "16:9", titleOverlay: source.composition?.titleOverlay !== false, attribution: source.composition?.attribution !== false },
+    composition: { aspectRatio: ["9:16", "1:1"].includes(source.composition?.aspectRatio) ? source.composition.aspectRatio : "16:9", titleOverlay: source.composition?.titleOverlay !== false, attribution: source.composition?.attribution !== false, legend: source.composition?.legend !== false },
     dependencies, renders: [],
   };
 }

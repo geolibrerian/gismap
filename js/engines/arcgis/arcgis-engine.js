@@ -12,6 +12,8 @@ import { loadArcGISRuntime } from "./arcgis-loader.js?v=0.38.0";
 import { basemapOnEngine, basemapsForEngine } from "../../basemap-catalog.js?v=0.53.0-gallery1";
 import { normalizeSpatialChart } from "../../spatial-chart.js?v=0.1.1";
 import { spatialChartArcgis } from "../../spatial-chart-arcgis.js?v=0.1.0";
+import { legendForLayer } from "../maplibre/legend.js?v=0.52.4";
+import { hostCredit, joinCredits, legendSwatch, plainAttribution } from "../map-credits.js?v=0.1.0";
 
 const ARCGIS_WORLD_GEOCODER =
   "https://geocode.arcgis.com/arcgis/rest/services/World/GeocodeServer";
@@ -341,6 +343,21 @@ export class ArcGISEngine {
   /** The basemap's own layers have loaded (a screenshot now shows the whole map), or the timeout passed. */
   async whenBasemapLoaded(timeout = 15000) {
     await Promise.race([this.map?.basemap?.load?.(), new Promise((resolve) => setTimeout(resolve, timeout))]).catch(() => {});
+  }
+
+  /** One line crediting the basemap (as Esri's attribution shows it) and visible data layers. */
+  getAttributionText() {
+    const esri = plainAttribution(this.view?.container?.querySelector?.(".esri-attribution__sources")?.textContent);
+    const data = this.#operationalLayers().filter((layer) => layer.visible).map((layer) => plainAttribution(layer.copyright) || hostCredit(layer.url));
+    return joinCredits([esri, ...data]);
+  }
+
+  /** Visible feature layers' legends as data, from their renderers (same shape as the MapLibre engine). */
+  getLegendData() {
+    return this.#operationalLayers().filter((layer) => layer.visible && layer.renderer && layer.geometryType).reverse().map((layer) => {
+      const legend = legendForLayer({ kind: "vector", renderer: layer.renderer.toJSON?.() ?? layer.renderer, geometryType: layer.geometryType }, "#2f7d6d");
+      return { uid: layer.uid, title: layer.title || "Layer", field: legend.field || null, entries: (legend.entries || []).map(legendSwatch) };
+    });
   }
 
   getCapabilities() {

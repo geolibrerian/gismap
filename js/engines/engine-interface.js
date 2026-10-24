@@ -95,6 +95,7 @@ export const MAP_CONTROLLER_METHODS = Object.freeze([
   "search", "reverseGeocode", "captureViews", "captureTaskMap",
   "draw", "hasDrawings", "clearDrawings", "getDrawGraphicsForExport", "setTaskPin", "setTourMarkers", "setActiveTourMarker", "clearTourMarkers", "toggleWidget", "widgetOpen",
   "setBasemapTheme", "getBasemapOptions", "getGroundOptions", "setBuildings3d",
+  "getAttributionText", "getLegendData",
 ]);
 
 /** Capability used when an optional delegated method is absent. */
@@ -106,7 +107,7 @@ export const METHOD_CAPABILITIES = Object.freeze({
   distinctValues: "query", fieldValues: "query", navigate: "view-2d", viewExtentFilter: "spatial-query",
   goToLayer: "query", goToLayers: "query", goToLayerOnInitialLoad: "query", layerExtent: "query", dataBounds: "query",
   highlightFeature: "highlight", clearFeatureHighlight: "highlight", configureInteractionFeedback: "highlight", clearClickMarker: "highlight", locateUser: "view-2d",
-  search: "geocode", reverseGeocode: "geocode", captureViews: "capture", captureTaskMap: "capture",
+  search: "geocode", reverseGeocode: "geocode", captureViews: "capture", captureTaskMap: "capture", getAttributionText: "capture", getLegendData: "capture",
   draw: "draw", hasDrawings: "draw", clearDrawings: "draw", getDrawGraphicsForExport: "draw", setTaskPin: "draw", setTourMarkers: "tour-markers", setActiveTourMarker: "tour-markers", clearTourMarkers: "tour-markers",
   toggleWidget: "widgets", widgetOpen: "widgets", setBasemapTheme: "basemap-themes", setBuildings3d: "buildings-3d", getBasemapOptions: "basemaps", getGroundOptions: "ground",
 });

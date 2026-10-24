@@ -47,8 +47,8 @@ import { chooseHurricaneLayer, createHazardsExampleBriefing } from "./example-ha
 import { CinematicModeController } from "./cinematic/mode.js?v=0.2.0";
 import { CINEMATIC_EFFECTS, suggestEffect } from "./cinematic/cinematic-effects.js?v=0.2.0";
 import { temporalFieldCandidates } from "./cinematic/temporal-adapter.js?v=0.1.1";
-import { clipToCinematicSpec, createCinematicClip, exportCinematicClip } from "./cinematic/clip-model.js?v=0.3.1";
-import { availableVideoFormats, CLIP_FRAME_RATES, clipFrameCount, exportCinematicVideo, renderClipPoster } from "./cinematic/clip-export.js?v=0.3.1";
+import { clipToCinematicSpec, createCinematicClip, exportCinematicClip } from "./cinematic/clip-model.js?v=0.3.2";
+import { availableVideoFormats, CLIP_FRAME_RATES, clipFrameCount, exportCinematicVideo, renderClipPoster } from "./cinematic/clip-export.js?v=0.3.2";
 
 const BUILDINGS_3D_KEY = "gismap-online:buildings-3d:v1";
 const DISPLAY_SETTINGS_KEY = "gismap-online:display:v1";
@@ -5737,7 +5737,7 @@ export class UIController {
     try {
       this.cinematicController.pause();
       await this.cinematicController.load(clipToCinematicSpec(clip));
-      const blob = await renderClipPoster({ clip, controller: this.cinematicController, mapController: this.mapController, attributionText: this.#mapAttributionText() });
+      const blob = await renderClipPoster({ clip, controller: this.cinematicController, mapController: this.mapController, attributionText: this.#mapAttributionText(), ...this.#clipFrameKey(clip) });
       await restore();
       const link = document.createElement("a");
       link.href = URL.createObjectURL(blob);
@@ -5819,7 +5819,7 @@ export class UIController {
         root.querySelector("[data-export-stage]").textContent = `Rendering ${format.container.toUpperCase()} at ${width} × ${height}, ${fps} fps…`;
         const result = await exportCinematicVideo({
           clip, controller: this.cinematicController, mapController: this.mapController, format, width, height, fps,
-          attributionText: this.#mapAttributionText(), signal: controller.signal,
+          attributionText: this.#mapAttributionText(), ...this.#clipFrameKey(clip), signal: controller.signal,
           onProgress: (done, total) => {
             const bar = root.querySelector("[data-export-progress]");
             if (bar) { bar.value = done; root.querySelector("[data-export-count]").textContent = `${done} of ${total} frames`; }
@@ -5872,11 +5872,22 @@ export class UIController {
     };
   }
 
-  /** The map's own attribution line, so exported frames credit the real data and imagery providers. */
+  /**
+   * What a Clip frame's key shows (call after the Clip is loaded): the legend
+   * of the Clip's own layers, and a note naming any effect as decoration.
+   */
+  #clipFrameKey(clip) {
+    const refs = new Set(clip.tracks.filter((track) => track.type === "temporalLayer").map((track) => track.layerRef));
+    let legend = [];
+    try { legend = (this.mapController.getLegendData?.() || []).filter((layer) => refs.has(layer.uid)); } catch { /* No legend from this engine. */ }
+    const effects = [...new Set((this.cinematicController.state()?.layers || []).map((layer) => layer.effect).filter((effect) => effect && effect !== "none"))];
+    const effectNote = effects.length ? `${effects.map((effect) => CINEMATIC_EFFECTS[effect]?.label || effect).join(", ")}: decorative, not data` : "";
+    return { legend, effectNote };
+  }
+
+  /** The engine's credits for the basemap, terrain and visible data, so exported frames credit the real providers. */
   #mapAttributionText() {
-    const host = this.mapController.getContainer?.() || document;
-    const text = host.querySelector?.(".maplibregl-ctrl-attrib-inner, .esri-attribution__sources")?.textContent || "";
-    return text.replace(/\s+/g, " ").trim();
+    try { return this.mapController.getAttributionText?.() || ""; } catch { return ""; }
   }
 
   async #playBriefingCinematicClip(slide, { autoplay = false } = {}) {
