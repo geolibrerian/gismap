@@ -2,7 +2,7 @@
 // legacy field-note sessions. This prevents a standalone install from changing
 // the version of the map app's existing IndexedDB database.
 const DB_NAME = "gismap-field-mode";
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 const requestResult = (request, fallback) => new Promise((resolve, reject) => {
   request.onsuccess = () => resolve(request.result ?? fallback);
   request.onerror = () => reject(request.error || new Error("Local field storage is unavailable."));
@@ -19,6 +19,7 @@ export class FieldRecordStore {
         const db = request.result;
         if (!db.objectStoreNames.contains("fieldRecords")) db.createObjectStore("fieldRecords", { keyPath: "id" });
         if (!db.objectStoreNames.contains("fieldAssets")) db.createObjectStore("fieldAssets", { keyPath: "id" });
+        if (!db.objectStoreNames.contains("fieldTasks")) db.createObjectStore("fieldTasks", { keyPath: "id" });
       };
       request.onsuccess = () => resolve(request.result);
       request.onerror = () => reject(request.error || new Error("Could not open Field Mode storage."));
@@ -57,5 +58,15 @@ export class FieldRecordStore {
     const db = await this.open(); const tx = db.transaction("fieldAssets", "readwrite"); const assets = tx.objectStore("fieldAssets");
     ids.forEach((id) => assets.delete(id));
     await new Promise((resolve, reject) => { tx.oncomplete = resolve; tx.onerror = () => reject(tx.error || new Error("Could not remove observation attachments.")); });
+  }
+  async listTasks() {
+    const db = await this.open();
+    const tasks = await requestResult(db.transaction("fieldTasks", "readonly").objectStore("fieldTasks").getAll(), []);
+    return tasks.sort((a, b) => String(b.updatedAt || b.importedAt || "").localeCompare(String(a.updatedAt || a.importedAt || "")));
+  }
+  async saveTask(task) {
+    const db = await this.open(); const tx = db.transaction("fieldTasks", "readwrite"); tx.objectStore("fieldTasks").put(task);
+    await new Promise((resolve, reject) => { tx.oncomplete = resolve; tx.onerror = () => reject(tx.error || new Error("Could not save this field task.")); });
+    return task;
   }
 }

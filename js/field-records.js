@@ -56,15 +56,23 @@ export function normalizeFieldRecord(value) {
   const properties = value.properties && typeof value.properties === "object" ? value.properties : {};
   const relations = value.relations && typeof value.relations === "object" ? value.relations : {};
   const sync = value.sync && typeof value.sync === "object" ? value.sync : {};
+  const modifiedAt = new Date(value.modifiedAt || value.createdAt);
+  const observedAt = new Date(value.observedAt || value.createdAt);
+  if (!Number.isFinite(modifiedAt.getTime()) || !Number.isFinite(observedAt.getTime())) throw new Error("A field record has an invalid observation or modification time.");
   return {
     schema: FIELD_RECORD_SCHEMA,
     id: recordId,
     collectionId,
     type: cleanText(value.type || "observation", 64) || "observation",
     createdAt: createdAt.toISOString(),
+    observedAt: observedAt.toISOString(),
+    modifiedAt: modifiedAt.toISOString(),
     geometry: geometry(value.geometry),
     location: {
       accuracyMeters: finite(location.accuracyMeters),
+      altitudeMeters: finite(location.altitudeMeters),
+      headingDegrees: finite(location.headingDegrees),
+      speedMetersPerSecond: finite(location.speedMetersPerSecond),
       source: cleanText(location.source || "manual", 64) || "manual",
     },
     properties: {
@@ -82,18 +90,42 @@ export function normalizeFieldRecord(value) {
       fieldTaskIds: Array.isArray(relations.fieldTaskIds) ? relations.fieldTaskIds.map((item) => cleanText(item, 160)).filter(Boolean) : [],
       mapNoteIds: Array.isArray(relations.mapNoteIds) ? relations.mapNoteIds.map((item) => cleanText(item, 160)).filter(Boolean) : [],
     },
-    sync: { status: "local-only", revision: Math.max(1, Math.floor(finite(sync.revision) || 1)) },
+    sync: {
+      status: cleanText(sync.status || "local-only", 48) || "local-only",
+      revision: Math.max(1, Math.floor(finite(sync.revision) || 1)),
+      submittedAt: sync.submittedAt || null,
+      serverReceivedAt: sync.serverReceivedAt || null,
+      registeredAt: sync.registeredAt || null,
+      acknowledgedAt: sync.acknowledgedAt || null,
+      registrationId: cleanText(sync.registrationId, 160) || null,
+    },
+    history: Array.isArray(value.history) ? value.history.slice(-20).map((entry) => ({ revision: Math.max(1, Math.floor(finite(entry?.revision) || 1)), modifiedAt: new Date(entry?.modifiedAt || createdAt).toISOString(), action: cleanText(entry?.action || "edited", 64) || "edited" })) : [],
     ...(value.sketch ? { sketch: value.sketch } : {}),
   };
 }
 
 export function createFieldRecord(values = {}, { recordId = id("field"), createdAt = now() } = {}) {
   return normalizeFieldRecord({
-    schema: FIELD_RECORD_SCHEMA, id: recordId, collectionId: values.collectionId || "default", type: "observation", createdAt,
+    schema: FIELD_RECORD_SCHEMA, id: recordId, collectionId: values.collectionId || "default", type: "observation", createdAt, observedAt: values.observedAt || createdAt, modifiedAt: values.modifiedAt || createdAt,
     geometry: values.geometry || null,
     location: values.location || { source: "manual", accuracyMeters: null },
-    properties: values.properties || {}, notes: values.notes || {}, attachments: values.attachments || [], relations: values.relations || {}, sync: { status: "local-only", revision: 1 },
+    properties: values.properties || {}, notes: values.notes || {}, attachments: values.attachments || [], relations: values.relations || {}, history: values.history || [], sync: { status: "local-only", revision: 1, ...(values.sync || {}) },
     ...(values.sketch ? { sketch: values.sketch } : {}),
+  });
+}
+
+/** Updates a record in place: IDs and original collection timestamp never change. */
+export function reviseFieldRecord(existing, values = {}, { modifiedAt = now(), action = "edited" } = {}) {
+  const current = normalizeFieldRecord(existing);
+  return normalizeFieldRecord({
+    ...current,
+    ...values,
+    id: current.id,
+    createdAt: current.createdAt,
+    observedAt: values.observedAt || current.observedAt,
+    modifiedAt,
+    sync: { ...current.sync, ...(values.sync || {}), revision: current.sync.revision + 1 },
+    history: [...current.history, { revision: current.sync.revision, modifiedAt: current.modifiedAt, action }],
   });
 }
 

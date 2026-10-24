@@ -9,6 +9,7 @@ import {
   makeFieldPackage,
   normalizeFieldPackage,
   recordsGeoJSON,
+  reviseFieldRecord,
 } from "../js/field-records.js";
 
 const record = (overrides = {}) => createFieldRecord({
@@ -55,6 +56,18 @@ test("compact QR records omit binary attachments and round-trip point observatio
   assert.deepEqual(restored.geometry, source.geometry);
   assert.equal(restored.notes.text, source.notes.text);
   assert.deepEqual(restored.attachments, []);
+});
+
+test("editing preserves the stable identity and collection time while recording a new revision", () => {
+  const source = record();
+  const revision = reviseFieldRecord(source, { notes: { text: "Corrected field note.", transcript: null, transcriptStatus: "pending" } }, { modifiedAt: "2026-10-24T13:00:00.000Z" });
+  assert.equal(revision.id, source.id);
+  assert.equal(revision.createdAt, source.createdAt);
+  assert.equal(revision.observedAt, source.observedAt);
+  assert.equal(revision.modifiedAt, "2026-10-24T13:00:00.000Z");
+  assert.equal(revision.sync.revision, 2);
+  assert.equal(revision.history.at(-1).revision, 1);
+  assert.equal(revision.notes.text, "Corrected field note.");
 });
 
 test("invalid coordinates and unsupported package schemas are rejected", () => {
