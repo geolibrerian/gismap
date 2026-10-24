@@ -24,6 +24,10 @@ test("cinematic mode applies transient observed IDs and restores the prior filte
   };
   const mode = new CinematicModeController({ mapController });
   await mode.load({ cinematic: { title: "Observed", layers: [{ layerRef: "perimeters", temporal: { startField: "observed_at", groupField: "incident", featureIdField: "OBJECTID" } }] } });
+  assert.equal(mode.state().spec.cinematic.intent, "explore");
+  mode.setIntent("investigate");
+  assert.equal(mode.state().spec.cinematic.intent, "investigate");
+  assert.equal(mode.state().layers[0].observedCount, 1);
   assert.deepEqual(applied.at(-1), { objectIds: [1] });
   await mode.focusCurrentObservation();
   assert.equal(focused.at(-1).features[0].attributes.OBJECTID, 1);

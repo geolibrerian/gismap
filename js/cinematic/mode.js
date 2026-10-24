@@ -52,7 +52,18 @@ export class CinematicModeController {
     return this.state();
   }
 
-  state() { return { spec: this.spec ? exportCinematicSpec(this.spec) : null, timeline: this.timeline?.state() || null, localWindow: this.localWindow, localEmpty: this.localEmpty, layers: [...this.layers.values()].map(({ layer, model }) => ({ uid: layer.uid, title: layer.title, ticks: (this.localModels.get(layer.uid) || model).ticks, invalid: model.invalid })) }; }
+  state() {
+    const timeline = this.timeline?.state() || null;
+    const timeMode = this.spec?.cinematic.clock.timeMode || "instant";
+    return {
+      spec: this.spec ? exportCinematicSpec(this.spec) : null, timeline, localWindow: this.localWindow, localEmpty: this.localEmpty,
+      layers: [...this.layers.values()].map(({ layer, model, config }) => {
+        const activeModel = this.localModels.get(layer.uid) || model;
+        return { uid: layer.uid, title: layer.title, ticks: activeModel.ticks, invalid: model.invalid, timeField: config.temporal.startField,
+          observedCount: timeline && !this.localEmpty ? observedFeaturesAt(activeModel, timeline.observationTime, { timeMode }).length : 0 };
+      }),
+    };
+  }
   play() { this.timeline?.play(); }
   pause() { this.timeline?.pause(); }
   toggle() { this.timeline?.toggle(); }
@@ -69,6 +80,11 @@ export class CinematicModeController {
     this.spec.cinematic.clock.timeMode = timeMode === "cumulative" ? "cumulative" : "instant";
     const snapshot = this.timeline?.state();
     if (snapshot) this.#render(snapshot);
+  }
+  setIntent(intent) {
+    if (!this.spec) return;
+    this.spec.cinematic.intent = ["explore", "investigate", "present"].includes(intent) ? intent : "explore";
+    this.onState(this.state());
   }
   setLocalWindow(enabled) {
     this.localWindow = enabled === true;
