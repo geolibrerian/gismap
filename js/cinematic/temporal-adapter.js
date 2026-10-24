@@ -64,11 +64,18 @@ export function normalizeTemporalFeatures(features = [], { timeField, groupField
 }
 
 /**
- * Keyframe semantics: for every stable group, retain its latest observed state
- * at or before the current instant. Polygon vertices are never interpolated.
+ * Instant semantics retain the newest observed state per group. Cumulative
+ * semantics retain every observation through the current instant. Neither
+ * mode interpolates or invents geometry.
  */
-export function observedFeatureIdsAt(model, time) {
+export function observedFeatureIdsAt(model, time, { timeMode = "instant" } = {}) {
   if (!model?.observations?.length || !Number.isFinite(Number(time))) return [];
+  if (timeMode === "cumulative") {
+    return [...new Set(model.observations
+      .filter((observation) => observation.time <= time)
+      .map((observation) => observation.id))]
+      .sort((a, b) => String(a).localeCompare(String(b), undefined, { numeric: true }));
+  }
   const selectedTimes = new Map();
   for (const observation of model.observations) {
     if (observation.time > time) break;

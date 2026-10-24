@@ -20,6 +20,9 @@ test("cinematic mode applies transient observed IDs and restores the prior filte
   mode.seekObservation(1);
   await mode.renderTask;
   assert.deepEqual(applied.at(-1), { objectIds: [2] });
+  mode.setTimeMode("cumulative");
+  await mode.renderTask;
+  assert.deepEqual(applied.at(-1), { objectIds: [1, 2] });
   await mode.destroy();
   assert.deepEqual(applied.at(-1), { objectIds: [99] });
 });

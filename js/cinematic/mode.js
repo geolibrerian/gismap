@@ -17,6 +17,7 @@ export class CinematicModeController {
     this.pendingSnapshot = null;
     this.renderTask = null;
     this.renderedObservationTime = null;
+    this.renderedTimeMode = null;
   }
 
   async load(spec, { featuresByLayer = {} } = {}) {
@@ -55,6 +56,12 @@ export class CinematicModeController {
     this.timeline?.setRate(rate);
     if (this.spec) this.spec.cinematic.clock.rate = this.timeline?.state().playbackRate ?? this.spec.cinematic.clock.rate;
   }
+  setTimeMode(timeMode) {
+    if (!this.spec) return;
+    this.spec.cinematic.clock.timeMode = timeMode === "cumulative" ? "cumulative" : "instant";
+    const snapshot = this.timeline?.state();
+    if (snapshot) this.#render(snapshot);
+  }
   exportCinematicSpec() { return exportCinematicSpec(this.spec); }
 
   async destroy() {
@@ -64,7 +71,7 @@ export class CinematicModeController {
     await this.renderTask?.catch(() => {});
     this.renderTask = null;
     await Promise.all([...this.layers.values()].map(({ layer, previousFilter }) => this.mapController.setFeatureFilter(layer.uid, previousFilter).catch(() => false)));
-    this.layers.clear(); this.spec = null; this.renderedObservationTime = null;
+    this.layers.clear(); this.spec = null; this.renderedObservationTime = null; this.renderedTimeMode = null;
   }
 
   async #render(snapshot) {
@@ -74,12 +81,14 @@ export class CinematicModeController {
       while (this.pendingSnapshot) {
         const next = this.pendingSnapshot;
         this.pendingSnapshot = null;
-        if (next.observationTime !== this.renderedObservationTime) {
+        const timeMode = this.spec?.cinematic.clock.timeMode || "instant";
+        if (next.observationTime !== this.renderedObservationTime || timeMode !== this.renderedTimeMode) {
           await Promise.all([...this.layers.values()].map(async ({ layer, model }) => {
-            const objectIds = observedFeatureIdsAt(model, next.observationTime);
+            const objectIds = observedFeatureIdsAt(model, next.observationTime, { timeMode });
             await this.mapController.setFeatureFilter(layer.uid, { objectIds });
           }));
           this.renderedObservationTime = next.observationTime;
+          this.renderedTimeMode = timeMode;
         }
         this.onState(this.state());
       }

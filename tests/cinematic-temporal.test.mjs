@@ -26,9 +26,15 @@ test("cinematic mode does not guess numeric years as dates", () => {
   assert.deepEqual(temporalFieldCandidates({ fields: [{ name: "YEAR", type: "integer" }, { name: "observed_at", type: "date" }] }).map((field) => field.name), ["observed_at"]);
 });
 
+test("cumulative mode retains every observed record through the selected time", () => {
+  const model = normalizeTemporalFeatures(features, { timeField: "observed_at", groupField: "fire", objectIdField: "OBJECTID" });
+  assert.deepEqual(observedFeatureIdsAt(model, Date.parse("2024-08-15T12:00:00Z"), { timeMode: "cumulative" }), [1, 2, 3]);
+});
+
 test("cinematic specs require explicit layer and time mapping", () => {
   assert.throws(() => importCinematicSpec({ cinematic: { layers: [{ layerRef: "x", temporal: {} }] } }), /startField/);
   const spec = importCinematicSpec({ cinematic: { title: "Observed boundary", layers: [{ layerRef: "x", temporal: { startField: "observed_at", featureIdField: "OBJECTID" } }], provenance: { interpolated: true } } });
   assert.equal(spec.cinematic.provenance.interpolated, false);
   assert.equal(spec.cinematic.layers[0].animation.template, "step-perimeter");
+  assert.equal(spec.cinematic.clock.timeMode, "instant");
 });

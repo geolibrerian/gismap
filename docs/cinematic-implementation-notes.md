@@ -14,4 +14,6 @@
 
 Playback advances uniformly between observation indexes instead of mapping animation velocity directly to calendar time. This prevents clusters of closely timestamped records from flashing by after a long quiet interval. The initial UI uses a 120-second base duration at the saved **Slow** rate (0.25×); authors can change speed during playback. The time label reserves two lines and uses tabular numerals, so a wrapped date cannot move the controls.
 
+The **Cumulative** display mode explicitly retains all observed records from the first timestamp through the active timestamp. It remains a display choice—not an assertion that individual phenomena persisted or that any geometry was interpolated—and its label states that distinction.
+
 The initial UI is available from **Modes → Cinematic mode**: it requires a queryable layer with a stable ID, makes the author choose a detected date/timestamp field, and offers an optional grouping field. The compact mode dashboard supports play/pause, step, and scrub; leaving it restores the prior transient layer filters. The normalized spec is persisted in `presentation.cinematic` with the project. The in-page API exposes `gisMapOnline.cinematic.importCinematicSpec()` and `exportCinematicSpec()`.
