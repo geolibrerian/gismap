@@ -11,7 +11,7 @@ test("cinematic mode applies transient observed IDs and restores the prior filte
     getFeatureFilter: async () => ({ objectIds: [99] }),
     setFeatureFilter: async (_id, filter) => { applied.push(filter); return true; },
     setCinematicEffect: async (_id, effect) => { effects.push(effect); return true; },
-    clearCinematicEffect: async () => { effects.push(null); },
+    clearCinematicEffect: () => { effects.push(null); },
     queryFeatures: async () => ({ features: [
       { attributes: { OBJECTID: 1, incident: "a", observed_at: "2024-08-14T00:00:00Z" }, geometry: { type: "LineString", coordinates: [[0, 0], [1, 1]] } },
       { attributes: { OBJECTID: 2, incident: "a", observed_at: "2024-08-15T00:00:00Z" }, geometry: { type: "LineString", coordinates: [[1, 1], [2, 2]] } },

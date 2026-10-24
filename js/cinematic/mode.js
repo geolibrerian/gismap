@@ -2,6 +2,11 @@ import { createCinematicTimeline } from "./timeline-controller.js?v=0.1.0";
 import { normalizeTemporalFeatures, observedFeatureIdsAt, observedFeaturesAt } from "./temporal-adapter.js?v=0.1.0";
 import { exportCinematicSpec, importCinematicSpec } from "./state.js?v=0.1.0";
 
+// Engine adapters may implement a transient operation synchronously (for
+// example, removing an already-loaded Three.js item) or asynchronously. Keep
+// optional cleanup safe in either case, including unsupported adapters.
+const attempt = (operation, fallback = null) => Promise.resolve().then(operation).catch(() => fallback);
+
 /**
  * Bridges the shared cinematic clock to the active engine's transient feature
  * filter. It never edits the layer's saved definition expression or geometry.
@@ -35,7 +40,7 @@ export class CinematicModeController {
         objectIdField: config.temporal.featureIdField || layer.objectIdField,
       });
       if (!model.ticks.length) throw new Error(`No valid timestamped observations were found in ${layer.title}.`);
-      this.layers.set(layer.uid, { layer, config, model, effectUid: `cinematic:${this.spec.cinematic.id}:${layer.uid}`, previousFilter: await this.mapController.getFeatureFilter(layer.uid).catch(() => null) });
+      this.layers.set(layer.uid, { layer, config, model, effectUid: `cinematic:${this.spec.cinematic.id}:${layer.uid}`, previousFilter: await attempt(() => this.mapController.getFeatureFilter(layer.uid)) });
     }
     const ticks = [...new Set([...this.layers.values()].flatMap(({ model }) => model.ticks))].sort((a, b) => a - b);
     this.timeline = createCinematicTimeline({ ticks, durationSeconds: this.spec.cinematic.clock.durationSeconds, rate: this.spec.cinematic.clock.rate, loop: this.spec.cinematic.clock.loop, reducedMotion: globalThis.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches });
@@ -83,8 +88,8 @@ export class CinematicModeController {
     await this.renderTask?.catch(() => {});
     this.renderTask = null;
     await Promise.all([...this.layers.values()].map(async ({ layer, effectUid, previousFilter }) => {
-      await this.mapController.setFeatureFilter(layer.uid, previousFilter).catch(() => false);
-      if (typeof this.mapController.clearCinematicEffect === "function") await this.mapController.clearCinematicEffect(effectUid).catch(() => false);
+      await attempt(() => this.mapController.setFeatureFilter(layer.uid, previousFilter), false);
+      if (typeof this.mapController.clearCinematicEffect === "function") await attempt(() => this.mapController.clearCinematicEffect(effectUid), false);
     }));
     this.layers.clear(); this.spec = null; this.renderedObservationTime = null; this.renderedTimeMode = null;
   }
@@ -104,13 +109,13 @@ export class CinematicModeController {
             const glow = config.animation?.outline?.glow === true;
             if (typeof this.mapController.setCinematicEffect === "function" && glow) {
               const observations = observedFeaturesAt(model, next.observationTime, { timeMode });
-              await this.mapController.setCinematicEffect(effectUid, {
+              await attempt(() => this.mapController.setCinematicEffect(effectUid, {
                 type: "observed-boundary-glow",
                 color: config.animation.outline.color,
                 features: observations.map((observation) => observation.feature),
-              }).catch(() => false);
+              }), false);
             } else if (typeof this.mapController.clearCinematicEffect === "function") {
-              await this.mapController.clearCinematicEffect(effectUid).catch(() => false);
+              await attempt(() => this.mapController.clearCinematicEffect(effectUid), false);
             }
           }));
           this.renderedObservationTime = next.observationTime;
