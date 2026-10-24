@@ -48,7 +48,7 @@ import { CinematicModeController } from "./cinematic/mode.js?v=0.2.0";
 import { CINEMATIC_EFFECTS, suggestEffect } from "./cinematic/cinematic-effects.js?v=0.2.0";
 import { temporalFieldCandidates } from "./cinematic/temporal-adapter.js?v=0.1.1";
 import { clipToCinematicSpec, createCinematicClip, exportCinematicClip } from "./cinematic/clip-model.js?v=0.3.2";
-import { availableVideoFormats, CLIP_FRAME_RATES, clipFrameCount, exportCinematicVideo, renderClipPoster } from "./cinematic/clip-export.js?v=0.3.2";
+import { availableVideoFormats, cameraAt, CLIP_FRAME_RATES, clipFrameCount, exportCinematicVideo, observationIndexAt, renderClipPoster } from "./cinematic/clip-export.js?v=0.3.2";
 
 const BUILDINGS_3D_KEY = "gismap-online:buildings-3d:v1";
 const DISPLAY_SETTINGS_KEY = "gismap-online:display:v1";
@@ -148,6 +148,7 @@ export class UIController {
       aiReady: () => this.aiController.isConfigured(),
       openInspector: () => this.#openBriefingInspector(),
       getCinematicClip: (id) => this.projectManager.current.presentation?.cinematicClips?.find((clip) => clip.id === id) || null,
+      cinematicClips: () => this.projectManager.current.presentation?.cinematicClips || [],
       playCinematicClip: (slide, options) => this.#playBriefingCinematicClip(slide, options),
       pauseCinematicClip: () => this.cinematicController.pause(),
       stopCinematicClip: () => this.#stopBriefingCinematicClip(),
@@ -5723,7 +5724,9 @@ export class UIController {
     const clip = this.#currentCinematicClip();
     if (!clip) return;
     const slide = createSlide("cinematic", { title: clip.title, subtitle: "Observed playback" });
+    // The slide keeps its own copy, so a shared Brief plays the Clip as captured.
     slide.clipRef = clip.id;
+    slide.clip = exportCinematicClip(clip);
     const briefing = addSlide(normalizeBriefing(this.projectManager.current.presentation?.briefing), slide);
     this.projectManager.patchPresentation({ briefing });
     this.toast(`“${clip.title}” was added as an interactive Brief slide.`);
@@ -5890,18 +5893,70 @@ export class UIController {
     try { return this.mapController.getAttributionText?.() || ""; } catch { return ""; }
   }
 
+  /**
+   * Plays a Cinematic slide: its own Clip copy (else the project's), as
+   * interactive playback whose camera follows the Clip's path, or as a poster
+   * still. A token makes a slow load give way when the viewer has moved on,
+   * so returning to a slide reinitializes it once and never plays twice.
+   */
   async #playBriefingCinematicClip(slide, { autoplay = false } = {}) {
-    const clip = this.projectManager.current.presentation?.cinematicClips?.find((item) => item.id === slide?.clipRef);
+    const clip = slide?.clip || this.projectManager.current.presentation?.cinematicClips?.find((item) => item.id === slide?.clipRef);
     if (!clip) throw new Error("This Brief slide refers to a Clip that is not in the project.");
-    const state = await this.cinematicController.load(clipToCinematicSpec(clip));
+    // Play on the slide already loaded resumes it rather than starting over.
+    if (this.briefingClip?.slideId === slide.id && this.cinematicController.timeline) {
+      if (autoplay && slide.presentation !== "poster") this.cinematicController.play();
+      return;
+    }
+    const token = await this.#stopBriefingCinematicClip();
+    // One load at a time on the shared controller: quick slide changes queue, and a superseded one is skipped.
+    const previous = this.briefingClipLoading;
+    let release;
+    this.briefingClipLoading = new Promise((resolve) => { release = resolve; });
+    let state;
+    try {
+      await previous;
+      if (token !== this.briefingClipToken) return;
+      const spec = clipToCinematicSpec(clip);
+      spec.cinematic.clock.loop = slide.loop === true;
+      state = await this.cinematicController.load(spec);
+      if (token !== this.briefingClipToken) { await this.cinematicController.destroy(); return; }
+    } finally { release(); }
     this.cinematicState = state;
+    this.briefingClip = { slideId: slide.id, clip };
+    const durationMs = clip.playback.durationMs;
+    const showAt = async (ms) => {
+      const camera = cameraAt(clip.cameraTrack, ms, clip.playback.easing);
+      if (camera) await this.mapController.setView(camera, { animate: false });
+    };
+    if (slide.presentation === "poster") {
+      this.cinematicController.seekObservation(observationIndexAt(clip.posterMs, durationMs, state.timeline.ticks.length));
+      await this.cinematicController.renderTask;
+      await showAt(clip.posterMs);
+      return;
+    }
+    await showAt(0);
+    // While it plays, the camera follows the Clip; paused, the viewer may move the map.
+    const follow = () => {
+      if (token !== this.briefingClipToken) return;
+      const timeline = this.cinematicController.timeline?.state();
+      if (timeline?.playing) void showAt(timeline.progress * durationMs);
+      this.briefingClipFrame = requestAnimationFrame(follow);
+    };
+    this.briefingClipFrame = requestAnimationFrame(follow);
     if (autoplay && !matchMedia("(prefers-reduced-motion: reduce)").matches) this.cinematicController.play();
   }
 
+  /** Stops a playing Cinematic slide and returns the token for whatever plays next. */
   async #stopBriefingCinematicClip() {
-    if (!this.cinematicState) return;
-    await this.cinematicController.destroy();
-    this.cinematicState = null;
+    this.briefingClipToken = (this.briefingClipToken || 0) + 1;
+    const token = this.briefingClipToken;
+    cancelAnimationFrame(this.briefingClipFrame);
+    this.briefingClip = null;
+    if (this.cinematicState) {
+      await this.cinematicController.destroy();
+      this.cinematicState = null;
+    }
+    return token;
   }
 
   #playAtlasStory(chapters, startIndex = 0) {

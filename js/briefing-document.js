@@ -1,6 +1,7 @@
 // The briefing document: an ordered set of slides kept in the project under
 // presentation.briefing. Pure functions only, so the app, custom tools and
 // agents all edit the same JSON the same way.
+import { normalizeCinematicClip } from "./cinematic/clip-model.js?v=0.3.2";
 
 export const BRIEFING_SCHEMA_VERSION = 1;
 export const MAX_SLIDES = 60;
@@ -209,14 +210,28 @@ function normalizeSlide(slide) {
     blocks: array(slide.blocks).map(normalizeBlock).filter(Boolean).slice(0, 12),
     notes: text(slide.notes, MAX_NOTES),
     hidden: slide.hidden === true,
-    ...(slide.template === "cinematic" && typeof slide.clipRef === "string" && slide.clipRef ? {
-      clipRef: slide.clipRef.slice(0, 120),
-      presentation: "interactive",
-      autoplay: slide.autoplay === true,
-      loop: slide.loop === true,
-      allowExplore: slide.allowExplore !== false,
-      fallback: slide.fallback && typeof slide.fallback === "object" ? { posterRef: text(slide.fallback.posterRef, 2048) || null, videoRef: text(slide.fallback.videoRef, 2048) || null } : { posterRef: null, videoRef: null },
-    } : {}),
+    ...(slide.template === "cinematic" ? cinematicSlideFields(slide) : {}),
+  };
+}
+
+/**
+ * A Cinematic slide plays a Clip. It keeps its own normalized copy (`clip`)
+ * so a shared briefing link plays the Clip as captured, even where the
+ * project's Clip library is absent; `clipRef` still names the original.
+ */
+function cinematicSlideFields(slide) {
+  let clip = null;
+  try { clip = slide.clip && typeof slide.clip === "object" ? normalizeCinematicClip(slide.clip) : null; } catch { clip = null; }
+  const clipRef = clip?.id || (typeof slide.clipRef === "string" && slide.clipRef ? slide.clipRef.slice(0, 120) : null);
+  if (!clipRef) return {};
+  return {
+    clipRef,
+    ...(clip ? { clip } : {}),
+    presentation: slide.presentation === "poster" ? "poster" : "interactive",
+    autoplay: slide.autoplay === true,
+    loop: slide.loop === true,
+    allowExplore: slide.allowExplore !== false,
+    fallback: slide.fallback && typeof slide.fallback === "object" ? { posterRef: text(slide.fallback.posterRef, 2048) || null, videoRef: text(slide.fallback.videoRef, 2048) || null } : { posterRef: null, videoRef: null },
   };
 }
 

@@ -120,3 +120,25 @@ test("the capture dialog's choices become the Clip: range, length, cameras, easi
   assert.equal(normalizeCinematicClip({ playback: { durationMs: 8000 }, posterMs: 60000 }).posterMs, 8000);
   assert.equal(normalizeCinematicClip({ composition: { aspectRatio: "1:1" } }).composition.aspectRatio, "1:1");
 });
+
+test("a Cinematic slide carries its own Clip copy through a shared briefing link", async () => {
+  const { encodeBriefing, decodeBriefing } = await import("../js/briefing-share.js");
+  const clip = createCinematicClip({ cinematic, observationTimes: [Date.parse("2026-10-01T00:00:00Z"), Date.parse("2026-10-02T00:00:00Z")], options: { posterMs: 5000, captions: [{ atMs: 1000, text: "Ignition area" }] } });
+  // A tampered copy may not smuggle credentials into a public link.
+  const slide = { ...createSlide("cinematic", { title: "Fire" }), clipRef: "ignored-when-a-copy-exists", clip: { ...clip, dependencies: [{ url: "https://example.org/FeatureServer/0?token=SECRET" }] }, presentation: "poster", loop: true };
+  const briefing = normalizeBriefing({ slides: [slide] });
+  const stored = briefing.slides[0];
+  assert.equal(stored.clipRef, clip.id);
+  assert.equal(stored.presentation, "poster");
+  assert.equal(stored.loop, true);
+  assert.equal(stored.clip.posterMs, 5000);
+  assert.equal(JSON.stringify(stored).includes("SECRET"), false);
+  const shared = await decodeBriefing(await encodeBriefing(briefing));
+  const opened = normalizeBriefing(shared).slides[0];
+  assert.equal(opened.clip.id, clip.id);
+  assert.equal(opened.clip.tracks.find((track) => track.type === "caption").text, "Ignition area");
+  assert.equal(opened.clip.tracks[0].temporal.startField, "observed_at");
+  // A slide with only a reference still works (older Briefs), and nothing at all is not a Cinematic slide yet.
+  assert.equal(normalizeBriefing({ slides: [{ ...createSlide("cinematic"), clipRef: "clip-old-1" }] }).slides[0].presentation, "interactive");
+  assert.equal(normalizeBriefing({ slides: [createSlide("cinematic")] }).slides[0].clip, undefined);
+});

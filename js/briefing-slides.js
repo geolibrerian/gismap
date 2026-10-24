@@ -698,6 +698,26 @@ export class BriefingSlides {
       <datalist id="briefing-focus-${escapeHtml(slide.id)}">${[...this.focusOptions.keys()].map((value) => `<option value="${escapeHtml(value)}"></option>`).join("")}</datalist></div>`;
   }
 
+  /** A Cinematic slide's Clip and how it plays. The slide keeps its own copy of the Clip. */
+  #cinematicSection(slide) {
+    const library = this.api.cinematicClips?.() || [];
+    const clip = slide.clip || this.api.getCinematicClip?.(slide.clipRef);
+    const saved = library.find((item) => item.id === slide.clipRef);
+    const stale = Boolean(saved && slide.clip && saved.updatedAt !== slide.clip.updatedAt);
+    const choices = [...library, ...(clip && !saved ? [clip] : [])];
+    const poster = slide.presentation === "poster";
+    const seconds = clip ? clip.playback.durationMs / 1000 : 0;
+    const check = (key, label, extra = "") => `<label class="briefing-check"><input type="checkbox" data-slide-clip-flag="${key}"${slide[key] ? " checked" : ""}${extra}> ${label}</label>`;
+    return `<fieldset class="briefing-field briefing-clip"><legend>Cinematic Clip</legend>
+      <label><span>Clip</span><select data-slide-clip><option value="">${choices.length ? "Choose a Clip" : "No Clips yet: create one in Cinematic mode"}</option>${choices.map((item) => `<option value="${escapeHtml(item.id)}"${item.id === slide.clipRef ? " selected" : ""}>${escapeHtml(item.title)} · ${(item.playback.durationMs / 1000).toFixed(0)} s${item === clip && !saved ? " (kept in this slide)" : ""}</option>`).join("")}</select></label>
+      ${stale ? '<p class="form-note">The saved Clip has changed since it was added here. <button type="button" class="briefing-link-button" data-slide-clip-refresh>Use the saved version</button></p>' : ""}
+      ${clip ? `<label><span>Shows as</span><select data-slide-clip-presentation><option value="interactive"${poster ? "" : " selected"}>Interactive playback</option><option value="poster"${poster ? " selected" : ""}>Poster (still frame)</option></select></label>
+      <div class="briefing-clip__flags">${check("autoplay", "Play when the slide opens", poster ? " disabled" : "")}${check("loop", "Loop", poster ? " disabled" : "")}${check("allowExplore", "Let viewers explore the map")}</div>
+      <label><span>Poster frame <small>seconds, 0–${seconds.toFixed(0)}</small></span><input type="number" min="0" max="${seconds}" step="0.5" data-slide-clip-poster value="${(clip.posterMs / 1000).toFixed(1).replace(/\.0$/, "")}"></label>
+      <p class="form-note">This slide keeps its own copy of the Clip, so a shared link plays it as captured.</p>` : ""}
+    </fieldset>`;
+  }
+
   #renderEditor(host, slide, briefing) {
     const data = this.api.data();
     const record = this.#recordFor(slide);
@@ -776,7 +796,8 @@ export class BriefingSlides {
       <label class="briefing-field"><span>Title</span><input data-slide-title value="${escapeHtml(slide.title)}" maxlength="160" placeholder="Slide title"></label>
       ${["title", "map-narrative", "key-numbers"].includes(slide.template) ? `<label class="briefing-field"><span>Subtitle</span><input data-slide-subtitle value="${escapeHtml(slide.subtitle)}" maxlength="160"></label>` : ""}
       ${slide.template === "feature" ? `<p class="form-note">${record ? `Feature: <strong>${escapeHtml(data.label(record))}</strong>` : "This slide's feature is not in the loaded data."}</p>` : ""}
-      ${slide.template !== "key-numbers" && slide.template !== "actions" ? `<div class="briefing-field briefing-camera"><span>${slide.template === "media" ? "Linked place <small>optional</small>" : "Map view"}</span><p>${escapeHtml(slide.template === "media" && !slide.camera ? "No place linked" : cameraStatus)}</p><div><button type="button" data-slide-camera>${slide.template === "media" ? "Link the current map view" : "Use current map view"}</button>${slide.template === "media" && slide.camera ? `<button type="button" data-slide-unlink>Unlink</button>` : ""}${slide.featureId ? `<button type="button" data-slide-fit>Frame the feature</button>` : ""}${slide.camera || slide.fit ? `<button type="button" data-slide-show-map>Show</button>` : ""}</div></div>` : ""}
+      ${slide.template === "cinematic" ? this.#cinematicSection(slide) : ""}
+      ${!["key-numbers", "actions", "cinematic"].includes(slide.template) ? `<div class="briefing-field briefing-camera"><span>${slide.template === "media" ? "Linked place <small>optional</small>" : "Map view"}</span><p>${escapeHtml(slide.template === "media" && !slide.camera ? "No place linked" : cameraStatus)}</p><div><button type="button" data-slide-camera>${slide.template === "media" ? "Link the current map view" : "Use current map view"}</button>${slide.template === "media" && slide.camera ? `<button type="button" data-slide-unlink>Unlink</button>` : ""}${slide.featureId ? `<button type="button" data-slide-fit>Frame the feature</button>` : ""}${slide.camera || slide.fit ? `<button type="button" data-slide-show-map>Show</button>` : ""}</div></div>` : ""}
       ${slide.generatedBy?.template === "grid-atlas" && Array.isArray(slide.generatedBy.bounds) ? `<label class="briefing-field"><span>Grid map view</span><select data-slide-camera-policy><option value="fit-features"${slide.generatedBy.cameraPolicy !== "fixed" ? " selected" : ""}>Frame its grid cell</option><option value="fixed"${slide.generatedBy.cameraPolicy === "fixed" ? " selected" : ""}>Keep saved map view</option></select><small>Saving a view switches this slide to its saved view.</small></label>` : ""}
       ${slide.dataView && ["timeline", "filter-series"].includes(slide.generatedBy?.template) ? `<label class="briefing-field"><span>Data-driven map view</span><select data-slide-camera-policy><option value="fit-features"${slide.generatedBy.cameraPolicy !== "fixed" ? " selected" : ""}>Frame matching features</option><option value="fixed"${slide.generatedBy.cameraPolicy === "fixed" ? " selected" : ""}>Keep saved map view</option></select><small>Framing uses included loaded features; source results may be incomplete.</small></label>` : ""}
       ${["title", "feature", "map-narrative"].includes(slide.template) ? this.#layersSection(slide, record) : ""}
@@ -1124,6 +1145,20 @@ export class BriefingSlides {
       if (slide) void this.applySlideLayers(slide);
     };
     on("[data-slide-layer] input, [data-slide-layer] select", "change", saveLayers);
+    // Cinematic slides: a Clip is copied in when chosen, so the slide plays it as captured.
+    const cinematicSlide = () => this.briefing.slides.find((item) => item.id === slideId);
+    const useClip = (clip) => this.#save(updateSlide(this.briefing, slideId, clip ? { clipRef: clip.id, clip: structuredClone(clip) } : { clipRef: null, clip: undefined }));
+    on("[data-slide-clip]", "change", (select) => useClip((this.api.cinematicClips?.() || []).find((item) => item.id === select.value) || (cinematicSlide()?.clip?.id === select.value ? cinematicSlide().clip : null)));
+    on("[data-slide-clip-refresh]", "click", () => useClip((this.api.cinematicClips?.() || []).find((item) => item.id === cinematicSlide()?.clipRef)));
+    on("[data-slide-clip-presentation]", "change", (select) => this.#save(updateSlide(this.briefing, slideId, { presentation: select.value })));
+    on("[data-slide-clip-flag]", "change", (input) => this.#save(updateSlide(this.briefing, slideId, { [input.dataset.slideClipFlag]: input.checked })));
+    on("[data-slide-clip-poster]", "change", (input) => {
+      const slide = cinematicSlide();
+      const clip = slide?.clip || this.api.getCinematicClip?.(slide?.clipRef);
+      if (!clip) return;
+      const posterMs = Math.min(clip.playback.durationMs, Math.max(0, (Number(input.value) || 0) * 1000));
+      this.#save(updateSlide(this.briefing, slideId, { clipRef: clip.id, clip: { ...structuredClone(clip), posterMs } }));
+    });
     // A limit needs something to relate to: send people to the focus feature when there is none.
     on("[data-slide-layer-relation]", "change", (select) => {
       const slide = this.briefing.slides.find((item) => item.id === slideId);
@@ -1219,8 +1254,13 @@ export class BriefingSlides {
     const briefing = this.briefing;
     const record = this.#recordFor(slide);
     if (slide.template === "cinematic") {
-      const clip = this.api.getCinematicClip?.(slide.clipRef);
-      return `<article class="briefing-slide briefing-slide--cinematic"><span class="briefing-slide__eyebrow">Cinematic clip · ${index + 1} / ${count}</span><h2>${escapeHtml(slide.title || clip?.title || "Cinematic clip")}</h2>${slide.subtitle ? `<p class="briefing-slide__subtitle">${escapeHtml(slide.subtitle)}</p>` : ""}<p class="briefing-slide__text">${clip ? `Interactive observed playback · ${(clip.playback.durationMs / 1000).toFixed(0)} seconds` : "This Clip is unavailable in the current project."}</p><div class="briefing-cinematic-controls">${clip ? `<button type="button" data-cinematic-slide-play="${escapeHtml(slide.id)}">Play clip</button><button type="button" data-cinematic-slide-pause="${escapeHtml(slide.id)}">Pause</button>` : ""}${slide.allowExplore ? `<button type="button" data-slide-place="${escapeHtml(slide.id)}">Explore map <span aria-hidden="true">→</span></button>` : ""}</div>${!clip ? `<p class="briefing-slide__warning">Add the Clip to this project or choose a fallback poster/video.</p>` : ""}</article>`;
+      // The slide's own copy plays even where the project's Clip library is absent (a shared link).
+      const clip = slide.clip || this.api.getCinematicClip?.(slide.clipRef);
+      const poster = slide.presentation === "poster";
+      const what = !clip ? "This Clip is unavailable in the current project." : poster ? `Still frame at ${(clip.posterMs / 1000).toFixed(1)} seconds of “${clip.title}”` : `Interactive observed playback · ${(clip.playback.durationMs / 1000).toFixed(0)} seconds${slide.loop ? " · loops" : ""}`;
+      const play = clip && !poster ? `<button type="button" data-cinematic-slide-play="${escapeHtml(slide.id)}">Play clip</button><button type="button" data-cinematic-slide-pause="${escapeHtml(slide.id)}">Pause</button>` : "";
+      const explore = slide.allowExplore ? `<button type="button" data-slide-place="${escapeHtml(slide.id)}">Explore map <span aria-hidden="true">→</span></button>` : "";
+      return `<article class="briefing-slide briefing-slide--cinematic"><span class="briefing-slide__eyebrow">Cinematic clip · ${index + 1} / ${count}</span><h2>${escapeHtml(slide.title || clip?.title || "Cinematic clip")}</h2>${slide.subtitle ? `<p class="briefing-slide__subtitle">${escapeHtml(slide.subtitle)}</p>` : ""}<p class="briefing-slide__text">${escapeHtml(what)}</p><div class="briefing-cinematic-controls">${play}${explore}</div>${!clip ? `<p class="briefing-slide__warning">Choose a Clip for this slide in the Slide workspace.</p>` : ""}</article>`;
     }
     const body = slide.blocks.map((block) => {
       if (block.type === "text" && block.markdown.trim()) return `<div class="briefing-slide__text">${renderMarkdown(block.markdown)}</div>`;
