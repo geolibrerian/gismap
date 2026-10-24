@@ -8,3 +8,4 @@ assert.notEqual(formatted, String(epoch));
 assert.match(formatted, /2026/);
 assert.equal(formatAttributeValue(42, { type: "integer" }, "OBJECTID"), "42");
 assert.match(formatAttributeValue(epoch, null, "last_updated"), /2026/);
+assert.match(formatAttributeValue(epoch, { type: "long" }, "time"), /2026/);

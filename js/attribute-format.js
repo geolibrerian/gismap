@@ -18,8 +18,13 @@ function asDate(value) {
 export function formatAttributeValue(value, field = null, fieldName = "") {
   if (value == null || value === "") return "";
   const fieldType = String(field?.type || "").toLowerCase();
+  // Some open-data feeds (notably USGS GeoJSON) expose epoch milliseconds as
+  // a generic `long` rather than an ArcGIS date field. A date-like field name
+  // plus a plausible epoch is enough to present it human-readably, without
+  // turning ordinary numeric IDs or measurements into dates.
+  const numericEpoch = typeof value === "number" && Number.isFinite(value) && Math.abs(value) >= 10_000_000_000;
   const isDate = DATE_FIELD_TYPES.has(fieldType) || /date|time/.test(fieldType)
-    || (!field && DATE_FIELD_NAMES.test(fieldName));
+    || (DATE_FIELD_NAMES.test(fieldName) && (!field || numericEpoch || typeof value === "string"));
   if (isDate) {
     const date = asDate(value);
     if (date) return new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" }).format(date);
