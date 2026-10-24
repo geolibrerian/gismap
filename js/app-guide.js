@@ -46,7 +46,7 @@ export const APP_GUIDE = Object.freeze([
   { path: "Map → Add Bookmarks panel · Add Draw panel", keywords: "bookmarks saved views draw sketch graphics", text: "Adds the Bookmarks or Draw panel to the side panel." },
   // Modes menu
   { path: "Modes → Instant Dashboard…", keywords: "dashboard presentation skin theme look style colours colors interface " + INTERFACE_SKINS.map(({ id, label }) => `${id} ${label}`).join(" ").toLowerCase(), text: `Dashboard skins change the app's look (on MapLibre the Skin basemap follows it): ${INTERFACE_SKINS.map(({ label, description }) => `${label} (${description})`).join(", ")}.` },
-  { path: "Modes → Briefing mode · Tours mode · Field tasks · Standard map", keywords: "briefing tour atlas field task mode workflow", text: "Switches the app between its modes: briefings (slides), guided tours, field tasks, or the standard map." },
+  { path: "Modes → Briefing mode · Tours mode · Field Mode · Field tasks · Standard map", keywords: "briefing tour atlas field task offline observation data collection mode workflow", text: "Switches the app between its modes. Field Mode opens the installable, offline-first observation collector; it can work without a map or network connection." },
   // Tools menu
   { path: "Tools → Map assistant", keywords: "assistant chat ai", text: "Opens this assistant." },
   { path: "Tools → Legend · Measurement · Elevation profile · Compass", keywords: "legend measure distance area elevation profile compass gallery widget", text: "Map tools; availability depends on the map engine." },

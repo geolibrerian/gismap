@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#123e35" />
+    <meta name="description" content="Offline-first field observations for GISMap Online." />
+    <title>GISMap Field Mode</title>
+    <link rel="manifest" href="./manifest.webmanifest" />
+    <link rel="apple-touch-icon" href="../assets/icons/apple-touch-icon.png" />
+    <link rel="stylesheet" href="./field-mode.css" />
+    <script src="../js/vendor/qrcode-1.5.4.js"></script>
+  </head>
+  <body>
+    <main class="field-app">
+      <header class="field-header">
+        <a href="../" class="field-header__back">GISMap</a>
+        <div><span>OFFLINE COLLECTION</span><h1>Field Mode</h1></div>
+        <button type="button" data-install hidden>Install</button>
+      </header>
+      <section class="field-status" aria-live="polite" data-capabilities></section>
+      <nav class="field-tabs" aria-label="Field Mode"><button type="button" data-view="collect" aria-pressed="true">Collect</button><button type="button" data-view="records">Records <span data-record-count>0</span></button><button type="button" data-view="transfer">Export &amp; import</button></nav>
+      <section class="field-view" data-view-panel="collect">
+        <div class="field-intro"><p>Works without a map or a connection. Records stay on this device until you export them.</p></div>
+        <form data-record-form>
+          <label>Collection<input name="collectionId" maxlength="120" value="default" placeholder="e.g. October site visits" /></label>
+          <label>Observation title<input name="title" maxlength="240" required placeholder="What did you observe?" /></label>
+          <div class="field-grid"><label>Category<input name="category" maxlength="120" placeholder="e.g. habitat" /></label><label>Priority<select name="priority"><option value="normal">Normal</option><option value="low">Low</option><option value="high">High</option><option value="urgent">Urgent</option></select></label></div>
+          <label>Notes<textarea name="notes" rows="5" maxlength="20000" placeholder="Write an observation. Speech transcription is not assumed to be available offline."></textarea></label>
+          <fieldset><legend>Location</legend><p data-location-status>No location attached. You can save a text-only observation.</p><div class="field-actions"><button type="button" data-capture-gps>Use device GPS</button><button type="button" data-clear-location>Remove location</button></div><div class="field-grid"><label>Longitude<input name="longitude" type="number" step="any" min="-180" max="180" placeholder="-122.4194" /></label><label>Latitude<input name="latitude" type="number" step="any" min="-90" max="90" placeholder="37.7749" /></label></div><small>GPS is requested only when you tap the button. Coordinates are stored locally.</small></fieldset>
+          <fieldset><legend>Attachments</legend><label>Photo<input name="photo" type="file" accept="image/*" capture="environment" /></label><div class="field-actions"><button type="button" data-start-audio>Record voice</button><button type="button" data-stop-audio disabled>Stop recording</button></div><p data-audio-status>Audio is optional and saved only on this device.</p><p data-attachment-status>No attachments selected.</p></fieldset>
+          <fieldset><legend>Sketch <small>screen-space drawing, not map geometry</small></legend><canvas data-sketch width="720" height="280" aria-label="Freehand sketch canvas"></canvas><div class="field-actions"><button type="button" data-clear-sketch>Clear sketch</button></div></fieldset>
+          <button class="field-primary" type="submit">Save local observation</button>
+        </form>
+      </section>
+      <section class="field-view" data-view-panel="records" hidden><div data-record-list></div></section>
+      <section class="field-view" data-view-panel="transfer" hidden>
+        <article class="transfer-card"><h2>Export</h2><p>Packages include records and local attachments. GeoJSON contains the observed geometry and text properties only.</p><div class="field-actions"><button type="button" data-export-package>Download .gisfield</button><button type="button" data-export-geojson>Download GeoJSON</button></div></article>
+        <article class="transfer-card"><h2>Import package</h2><label>Choose a .gisfield file<input data-import-package type="file" accept="application/json,.gisfield" /></label><p data-import-status></p></article>
+        <article class="transfer-card"><h2>Import compact QR record</h2><label>Paste Field Mode QR text<textarea data-qr-text rows="3" placeholder="gismap-field:v1:…"></textarea></label><div class="field-actions"><button type="button" data-import-qr>Import pasted QR</button><label class="file-button">Scan QR image<input data-import-qr-image type="file" accept="image/*" /></label></div><p>QR records intentionally exclude photos, audio, and sketches.</p></article>
+      </section>
+      <dialog data-qr-dialog><button type="button" data-close-qr aria-label="Close">×</button><h2>Transfer observation</h2><canvas data-qr-canvas width="360" height="360"></canvas><p data-qr-summary></p></dialog>
+      <p class="field-toast" data-toast role="status" aria-live="polite"></p>
+    </main>
+    <script type="module" src="./field-mode.js"></script>
+  </body>
+</html>
