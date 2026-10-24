@@ -300,6 +300,8 @@ body.briefing-presenting #app #viewDiv { inset: 0; }
 .cartography-lab__actions { align-items: center; }
 .studio-header [data-panel-top-nav], body.fieldwork-desktop .field:has(#navigation-layout) { display: none; }
 :root[data-skin="gismap"] .studio-header .brand { background: transparent; }
+/* Highway's classic sidebar brand (72px tall, own border) would overflow the 56px top bar. */
+:root[data-skin="highway"] .studio-header .brand { height: 56px; padding: 4px 8px; border: 0; background: transparent; }
 :root[data-skin="gismap"] .toast { color: var(--action-on-primary); }
 body.fieldwork-desktop .welcome-panel__actions button:not(:first-child) { border: 1px solid var(--border-subtle); color: var(--text-primary); background: var(--surface-panel); }
 body.fieldwork-desktop .panel > summary { min-height: 56px; }
