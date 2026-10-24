@@ -1,5 +1,5 @@
 import { createCinematicTimeline } from "./timeline-controller.js?v=0.1.0";
-import { normalizeTemporalFeatures, observedFeatureIdsAt, observedFeaturesAt } from "./temporal-adapter.js?v=0.1.0";
+import { normalizeTemporalFeatures, observedFeatureIdsAt, observedFeaturesAt } from "./temporal-adapter.js?v=0.1.1";
 import { exportCinematicSpec, importCinematicSpec } from "./state.js?v=0.1.0";
 
 // Engine adapters may implement a transient operation synchronously (for

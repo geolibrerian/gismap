@@ -39,9 +39,10 @@ export function observedBoundaryPaths(features = [], { maxPaths = 1200, maxVerti
 }
 
 /**
- * Make a ThreeHost item. MapLibre's shared WebGL context cannot reliably draw
- * wide lines, so a translucent outer stroke plus a narrow inner stroke gives a
- * restrained glow using standard materials (and no independent animation loop).
+ * Make a ThreeHost item. WebGL's LineBasicMaterial cannot reliably draw wide
+ * lines, so the glow uses two exact-coordinate mesh ribbons instead. The
+ * ribbons render above the shared map depth buffer so the terrain cannot hide
+ * a selected observed boundary.
  */
 export function buildObservedBoundaryGlow(THREE, features, { color = "#ff8136" } = {}) {
   const paths = observedBoundaryPaths(features);
@@ -50,14 +51,31 @@ export function buildObservedBoundaryGlow(THREE, features, { color = "#ff8136" }
   const frame = localFrame(origin);
   const scene = new THREE.Scene();
   for (const path of paths) {
-    const points = path.map(([longitude, latitude]) => new THREE.Vector3(...frame.toLocal(longitude, latitude, 0)));
-    const geometry = new THREE.BufferGeometry().setFromPoints(points);
-    const halo = new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.3, depthWrite: false });
-    const core = new THREE.LineBasicMaterial({ color: "#fff3e8", transparent: true, opacity: 0.9, depthWrite: false });
-    const haloLine = new THREE.Line(geometry, halo);
-    const coreLine = new THREE.Line(geometry.clone(), core);
-    coreLine.position.z = 0.15;
-    scene.add(haloLine, coreLine);
+    const localPath = path.map(([longitude, latitude]) => frame.toLocal(longitude, latitude, 0));
+    const ribbon = (halfWidth, elevation) => {
+      const positions = [];
+      for (let index = 1; index < localPath.length; index += 1) {
+        const [x1, y1] = localPath[index - 1];
+        const [x2, y2] = localPath[index];
+        const dx = x2 - x1;
+        const dy = y2 - y1;
+        const length = Math.hypot(dx, dy);
+        if (!length) continue;
+        const offsetX = (-dy / length) * halfWidth;
+        const offsetY = (dx / length) * halfWidth;
+        positions.push(
+          x1 + offsetX, y1 + offsetY, elevation, x1 - offsetX, y1 - offsetY, elevation, x2 + offsetX, y2 + offsetY, elevation,
+          x2 + offsetX, y2 + offsetY, elevation, x1 - offsetX, y1 - offsetY, elevation, x2 - offsetX, y2 - offsetY, elevation,
+        );
+      }
+      return positions.length ? new THREE.BufferGeometry().setAttribute("position", new THREE.Float32BufferAttribute(positions, 3)) : null;
+    };
+    const haloGeometry = ribbon(28, 2);
+    const coreGeometry = ribbon(7, 2.2);
+    if (!haloGeometry || !coreGeometry) continue;
+    const halo = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.55, depthTest: false, depthWrite: false, blending: THREE.AdditiveBlending });
+    const core = new THREE.MeshBasicMaterial({ color: "#fff4e8", transparent: true, opacity: 0.95, depthTest: false, depthWrite: false });
+    scene.add(new THREE.Mesh(haloGeometry, halo), new THREE.Mesh(coreGeometry, core));
   }
   return { scene, origin: frame.mercatorOrigin, scale: frame.mercatorScale, lngLat: { lng: origin[0], lat: origin[1] }, onTerrain: true };
 }

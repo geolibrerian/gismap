@@ -31,7 +31,7 @@ import { loadMaplibre } from "./maplibre-loader.js?v=0.39.0";
 import { HILLSHADE_LAYER_ID, HILLSHADE_SOURCE_ID, MAPLIBRE_GROUNDS, TERRAIN_SOURCE_ID, hillshadeLayer, maplibreGround, terrainSource } from "./terrain.js?v=0.43.0";
 import { normalizeSpatialChart, spatialChartAxis, spatialChartLayerSpecs, spatialChartLegend } from "../../spatial-chart.js?v=0.1.1";
 import { SCENE3D_TYPES, normalizeScene3d, scene3dTypeFor } from "../../scene3d.js?v=0.1.0";
-import { ThreeHost, loadThree } from "../three/three-host.js?v=0.1.0";
+import { ThreeHost, loadThree } from "../three/three-host.js?v=0.1.1";
 
 export const MAPLIBRE_CAPABILITIES = Object.freeze(["view-2d", "view-3d", "spatial-chart-3d", "three-3d", "basemaps", "basemap-themes", "ground", "layers-arcgis", "layers-files", "query", "feature-filter", "renderer-spec", "renderer-native", "identify", "highlight", "capture", "geocode", "buildings-3d", "draw", "measurement", "legend", "native"]);
 
@@ -273,7 +273,7 @@ export class MaplibreEngine {
     if (!id || effect.type !== "observed-boundary-glow") return false;
     const THREE = await loadThree();
     this.three ??= new ThreeHost({ map: this.map, THREE, notify: (message) => this.events.publish("app:error", { message }) });
-    const { buildObservedBoundaryGlow } = await import("../../cinematic/maplibre-boundary-glow.js?v=0.1.0");
+    const { buildObservedBoundaryGlow } = await import("../../cinematic/maplibre-boundary-glow.js?v=0.1.1");
     const item = buildObservedBoundaryGlow(THREE, effect.features, { color: effect.color });
     if (!item) {
       this.three.remove(id);

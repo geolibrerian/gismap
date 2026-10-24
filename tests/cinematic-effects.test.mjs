@@ -12,16 +12,17 @@ test("boundary glow keeps only valid observed line and polygon coordinates withi
 });
 
 test("boundary glow builds a disposable shared-host item from observed GeoJSON", () => {
-  class Vector3 { constructor(...value) { this.value = value; } }
-  class BufferGeometry { setFromPoints(points) { this.points = points; return this; } clone() { return new BufferGeometry().setFromPoints(this.points); } }
-  class LineBasicMaterial { constructor(options) { this.options = options; } }
-  class Line { constructor(geometry, material) { this.geometry = geometry; this.material = material; this.position = {}; } }
+  class BufferGeometry { setAttribute(name, attribute) { this[name] = attribute; return this; } }
+  class Float32BufferAttribute { constructor(values, size) { this.values = values; this.size = size; } }
+  class MeshBasicMaterial { constructor(options) { this.options = options; } }
+  class Mesh { constructor(geometry, material) { this.geometry = geometry; this.material = material; } }
   class Scene { constructor() { this.items = []; } add(...items) { this.items.push(...items); } }
-  const item = buildObservedBoundaryGlow({ Vector3, BufferGeometry, LineBasicMaterial, Line, Scene }, [
+  const item = buildObservedBoundaryGlow({ BufferGeometry, Float32BufferAttribute, MeshBasicMaterial, Mesh, Scene, AdditiveBlending: "add" }, [
     { geometry: { type: "LineString", coordinates: [[-122, 38], [-121, 38]] } },
   ]);
   assert.deepEqual(item.lngLat, { lng: -122, lat: 38 });
   assert.equal(item.onTerrain, true);
   assert.equal(item.scene.items.length, 2);
-  assert.equal(buildObservedBoundaryGlow({ Vector3, BufferGeometry, LineBasicMaterial, Line, Scene }, []), null);
+  assert.equal(item.scene.items[0].material.options.depthTest, false);
+  assert.equal(buildObservedBoundaryGlow({ BufferGeometry, Float32BufferAttribute, MeshBasicMaterial, Mesh, Scene }, []), null);
 });
