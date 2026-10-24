@@ -503,10 +503,10 @@ body.fieldwork-desktop #app .sidebar__scroll > .panel > .panel__body { padding: 
   :root:is(:not([data-skin]),[data-skin="gismap"]):not(:where([data-layout="classic"])) .welcome-panel h1 { font-size: 26px; line-height: 1.15; }
   :root:is(:not([data-skin]),[data-skin="gismap"]):not(:where([data-layout="classic"])) .welcome-panel__actions button { min-height: 44px; font-size: 14px; }
   :root:is(:not([data-skin]),[data-skin="gismap"]):not(:where([data-layout="classic"])) :is(.mobile-panel-nav, .mobile-map-tool-strip) { border-color: var(--border-subtle); background: var(--surface-panel); }
-  :root:is(:not([data-skin]),[data-skin="gismap"]):not(:where([data-layout="classic"])) :is(.mobile-panel-nav button, .mobile-map-tool-strip button) { color: var(--text-muted); transition: background-color var(--motion-fast) var(--ease-standard), color var(--motion-fast) var(--ease-standard); }
-  :root:is(:not([data-skin]),[data-skin="gismap"]):not(:where([data-layout="classic"])) :is(.mobile-panel-nav button, .mobile-map-tool-strip button) small { font-size: 11px; font-weight: 500; }
+  :root:is(:not([data-skin]),[data-skin="gismap"]):not(:where([data-layout="classic"])) :is(.mobile-panel-nav :is(button,a), .mobile-map-tool-strip button) { color: var(--text-muted); transition: background-color var(--motion-fast) var(--ease-standard), color var(--motion-fast) var(--ease-standard); }
+  :root:is(:not([data-skin]),[data-skin="gismap"]):not(:where([data-layout="classic"])) :is(.mobile-panel-nav :is(button,a), .mobile-map-tool-strip button) small { font-size: 11px; font-weight: 500; }
   :root:is(:not([data-skin]),[data-skin="gismap"]):not(:where([data-layout="classic"])) :is(.mobile-panel-nav button.is-active, .mobile-map-tool-strip button.is-active) small { font-weight: 600; }
-  :root:is(:not([data-skin]),[data-skin="gismap"]):not(:where([data-layout="classic"])) .mobile-panel-nav button svg, :root:is(:not([data-skin]),[data-skin="gismap"]):not(:where([data-layout="classic"])) .mobile-map-tool-strip button svg { stroke-width: 1.75; }
+  :root:is(:not([data-skin]),[data-skin="gismap"]):not(:where([data-layout="classic"])) .mobile-panel-nav :is(button,a) svg, :root:is(:not([data-skin]),[data-skin="gismap"]):not(:where([data-layout="classic"])) .mobile-map-tool-strip button svg { stroke-width: 1.75; }
 }
 :root:is(:not([data-skin]),[data-skin="gismap"]):not(:where([data-layout="classic"])) .toast.toast--error { color: var(--action-on-danger, #fff); background: var(--status-danger); }
 :root[data-skin="gismap"][data-theme="dark"] { --action-on-danger: #2a0f0b; }

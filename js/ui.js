@@ -394,7 +394,7 @@ export class UIController {
     workflows?.querySelector('[data-action="map-presentation"]')?.replaceChildren(document.createTextNode("Instant Dashboard…"));
     workflows?.querySelector('[data-mobile-workflow="briefing"]')?.replaceChildren(document.createTextNode("Briefing"));
     workflows?.querySelector('[data-mobile-workflow="tours"]')?.replaceChildren(document.createTextNode("Tours"));
-    workflows?.querySelector('[data-mobile-workflow="tasks"]')?.replaceChildren(document.createTextNode("Field tasks"));
+    workflows?.querySelector(".menu__link--field")?.replaceChildren(document.createTextNode("Field Mode"));
     workflows?.querySelector('[data-mobile-workflow="map"]')?.replaceChildren(document.createTextNode("Map tools"));
     drawer.replaceChildren(header, mobileMenu);
   }

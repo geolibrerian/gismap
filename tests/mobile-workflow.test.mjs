@@ -22,9 +22,10 @@ test("Atlas starts with Clean Light", () => {
 
 test("mobile navigation exposes focused workflows", async () => {
   const html = await readFile(new URL("../index.html", import.meta.url), "utf8");
-  for (const route of ["briefing", "map", "tours", "tasks", "more"]) {
+  for (const route of ["briefing", "map", "tours", "more"]) {
     assert.match(html, new RegExp(`data-mobile-workflow="${route}"`));
   }
+  assert.match(html, /class="mobile-panel-nav__field" href="\/field\/"[\s\S]*?<small>Field<\/small>/);
   assert.doesNotMatch(html, /data-mobile-workflow="updates"/);
   assert.match(html, /id="mobile-workflow-root"/);
 });
@@ -46,12 +47,22 @@ test("mobile chapter editing hides advanced fields in a fold by default", async 
 test("mobile menu nests public workflows below the standard tools", async () => {
   const ui = await readFile(new URL("../js/ui.js", import.meta.url), "utf8");
   assert.match(ui, /dashboard-builder.*map-presentation/s);
-  assert.match(ui, /mobile-workflows-menu.*Modes.*Briefing.*Tours.*Field tasks.*Map tools/s);
+  assert.match(ui, /mobile-workflows-menu.*Modes.*Briefing.*Tours.*Field Mode.*Map tools/s);
   assert.match(ui, /mobileMenu\.append\(workflows\)/);
   assert.doesNotMatch(ui, /Free workflows/);
   assert.doesNotMatch(ui.match(/workflows\.innerHTML[^;]+/s)?.[0] || "", /Updates|Compare|Watchlist/);
   // Opening a workflow never replaces the project's chosen skin.
   assert.doesNotMatch(ui, /skin: returningTo(Tour|Briefing)/);
+});
+
+test("Field Mode is a styled top-level option rather than a browser-default menu link", async () => {
+  const html = await readFile(new URL("../index.html", import.meta.url), "utf8");
+  const router = await readFile(new URL("../js/mobile-workflow-router.js", import.meta.url), "utf8");
+  const css = await readFile(new URL("../css/app.css", import.meta.url), "utf8");
+  assert.match(html, /class="menu__link menu__link--field" href="\/field\//);
+  assert.match(router, /workflow-grid__field" href="\/field\//);
+  assert.match(css, /\.menu__content \.menu__link \{ display:grid/);
+  assert.match(css, /\.mobile-panel-nav :is\(button,a\)/);
 });
 
 test("mobile navigation keeps the menu exclusive and Map active while its tools are open", async () => {

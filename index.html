@@ -85,7 +85,7 @@
           <button type="button" data-mobile-workflow="briefing" aria-label="Briefing"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h12v18H6zM9 7h6M9 11h6M9 15h4"/></svg><small>Briefing</small></button>
           <button type="button" data-mobile-workflow="map" aria-label="Map"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m3 6 6-3 6 3 6-3v15l-6 3-6-3-6 3zM9 3v15m6-12v15"/></svg><small>Map</small></button>
           <button type="button" data-mobile-workflow="tours" aria-label="Tours"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h14v16H5zM9 8h6M9 12h6M9 16h4"/></svg><small>Tours</small></button>
-          <button type="button" data-mobile-workflow="tasks" aria-label="Field tasks"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5h10v16H5V5h4m0-2h6v4H9zM8 12l2 2 5-5"/></svg><small>Tasks</small></button>
+          <a class="mobile-panel-nav__field" href="/field/" aria-label="Open Field Mode"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5h10v16H5V5h4m0-2h6v4H9zM8 12l2 2 5-5"/></svg><small>Field</small></a>
           <button type="button" data-mobile-workflow="more" aria-label="More workflows"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></svg><small>More</small></button>
         </nav>
     <div id="app" class="app-shell">
@@ -158,8 +158,7 @@
               <button type="button" data-mobile-workflow="briefing">Briefing mode</button>
               <button type="button" data-mobile-workflow="tours">Tours mode</button>
               <button type="button" data-action="mode-cinematic">Cinematic mode</button>
-              <a href="/field/">Field Mode <span class="menu__hint">Offline collection</span></a>
-              <button type="button" data-mobile-workflow="tasks">Field tasks</button>
+              <a class="menu__link menu__link--field" href="/field/"><span>Field Mode</span><small>Offline notes, tasks &amp; sharing</small></a>
               <button type="button" data-action="mode-map-notes">Field notes</button>
               <button type="button" data-action="mode-data-map-notes">Map notes</button>
               <hr />

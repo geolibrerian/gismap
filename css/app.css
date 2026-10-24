@@ -492,7 +492,7 @@ body.mobile-workflow-open .field-task-banner { left:auto; right:calc(min(440px,1
 .field-task-banner button { flex:none; min-height:36px; padding:6px 14px; border:0; border-radius:999px; color:var(--on-accent,#fff); background:var(--green); font-weight:700; cursor:pointer; }
 @media (max-width: 640px), (max-width: 880px) and (orientation: portrait) { .field-task-banner { top:calc(44px + env(safe-area-inset-top)); } }
 .workflow-grid { display:grid; gap:11px; }
-.workflow-grid button { display:grid; gap:4px; min-height:72px; padding:13px 15px; border:var(--ui-border-width,1px) solid var(--line); border-radius:var(--ui-radius); color:var(--ink); background:var(--surface); text-align:left; }
+.workflow-grid :is(button,a) { display:grid; gap:4px; min-height:72px; padding:13px 15px; border:var(--ui-border-width,1px) solid var(--line); border-radius:var(--ui-radius); color:var(--ink); background:var(--surface); text-align:left; text-decoration:none; }
 .workflow-grid strong { font:700 18px/1.15 var(--ui-heading); }
 .workflow-grid span { color:var(--muted); font-size:13px; }
 .account-workflows { margin-top:18px; padding:16px; border:1px dashed var(--line); border-radius:var(--ui-radius); color:var(--muted); background:var(--surface-2); }
@@ -546,7 +546,10 @@ body.mobile-workflow-open .field-task-banner { left:auto; right:calc(min(440px,1
 .menu__content { display: none; position: absolute; z-index: 30; top: calc(100% + 2px); left: 8px; right: 8px; max-height: min(640px, calc(100vh - 150px)); overflow-y: auto; padding: 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); box-shadow: var(--shadow); }
 .menu.is-open .menu__content { display: grid; }
 .menu__content button { padding: 9px 10px; border: 0; border-radius: 5px; background: transparent; text-align: left; font-size: 12px; cursor: pointer; }
-.menu__content button:hover, .menu__content button.is-active { background: var(--surface-2); color: var(--green-2); }
+.menu__content .menu__link { display:grid; gap:3px; padding:9px 10px; border-radius:5px; color:var(--ink); text-align:left; text-decoration:none; font-size:12px; font-weight:700; }
+.menu__content .menu__link small { color:var(--muted); font-size:11px; font-weight:500; line-height:1.35; }
+.menu__content button:hover, .menu__content button.is-active, .menu__content .menu__link:hover { background: var(--surface-2); color: var(--green-2); }
+.menu__content .menu__link:hover small { color:currentColor; }
 .menu__content button:disabled { color: var(--muted); opacity: .6; cursor: not-allowed; background: transparent; }
 .menu__label { padding: 8px 10px 3px; color: var(--amber); font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: .1em; }
 .menu__content hr { width: 100%; border: 0; border-top: 1px solid var(--line); margin: 5px 0; }
@@ -2023,11 +2026,11 @@ body.sidebar-collapsed .table-dialog { left: 14px; }
   :root[data-skin="clean-light"] .mobile-menu-drawer { color:var(--ink); background:var(--surface); }
   :root[data-skin="clean-light"] .mobile-menu-drawer__header { color:var(--ink); background:var(--surface-2); }
   :root[data-skin="clean-light"] .mobile-menu-drawer .menu__trigger,
-  :root[data-skin="clean-light"] .mobile-menu-drawer .menu__content button { color:var(--ink); }
+  :root[data-skin="clean-light"] .mobile-menu-drawer .menu__content :is(button,.menu__link) { color:var(--ink); }
   :root[data-skin="clean-light"] .mobile-menu-drawer .menu.is-open > .menu__trigger,
-  :root[data-skin="clean-light"] .mobile-menu-drawer .menu__content button:hover,
+  :root[data-skin="clean-light"] .mobile-menu-drawer .menu__content :is(button,.menu__link):hover,
   :root[data-skin="clean-light"] .mobile-menu-drawer .menu__content button.is-active { color:var(--green); background:var(--surface-2); }
-  .mobile-menu-drawer .mobile-workflows-menu .menu__content button { font-weight:700; }
+  .mobile-menu-drawer .mobile-workflows-menu .menu__content :is(button,.menu__link) { font-weight:700; }
   .app-shell,
   body.sidebar-collapsed .app-shell { grid-template-columns: 1fr; }
   .map-workspace { position:absolute; inset:calc(34px + env(safe-area-inset-top)) 0 0; height:auto; }
@@ -2068,9 +2071,9 @@ body.sidebar-collapsed .table-dialog { left: 14px; }
     border-top: 1px solid var(--line);
   }
   .mobile-panel-nav::-webkit-scrollbar { display: none; }
-  .mobile-panel-nav button { display: grid; min-width: 0; place-items: center; gap: 4px; height: 54px; padding: 5px 1px; border: 0; border-radius: 10px; background: transparent; color: var(--green-2); cursor: pointer; font-weight: 600; }
-  .mobile-panel-nav button svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
-  .mobile-panel-nav button small { font-size: 9px; font-weight: 600; letter-spacing: 0; }
+  .mobile-panel-nav :is(button,a) { display: grid; min-width: 0; place-items: center; gap: 4px; height: 54px; padding: 5px 1px; border: 0; border-radius: 10px; background: transparent; color: var(--green-2); cursor: pointer; font-weight: 600; text-decoration:none; }
+  .mobile-panel-nav :is(button,a) svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+  .mobile-panel-nav :is(button,a) small { font-size: 9px; font-weight: 600; letter-spacing: 0; }
   .mobile-panel-nav button.is-active { color: white; background: var(--green); }
   .sidebar__scroll {
     grid-area: mobile-content;
