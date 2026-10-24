@@ -48,6 +48,8 @@ export class CinematicModeController {
       const effectRange = effectRanges(features, effectFields(layer.fields || [], features[0]?.attributes || features[0]?.properties));
       this.layers.set(layer.uid, { layer, config, model, effectRange, truncated: loaded.truncated, effectUid: `cinematic:${this.spec.cinematic.id}:${layer.uid}`, previousOpacity, previousFilter: await attempt(() => this.mapController.getFeatureFilter(layer.uid)) });
       if (config.animation.opacity != null) await attempt(() => this.mapController.setOpacity(layer.uid, config.animation.opacity), false);
+      // The layer's own Advanced Style effect would double the cinematic one; it returns on exit.
+      await attempt(() => this.mapController.suspendLayerEffect?.(layer.uid, true), false);
     }
     this.#resetTimeline();
     await this.renderTask;
@@ -113,6 +115,39 @@ export class CinematicModeController {
     }
     return !this.localEmpty;
   }
+  /**
+   * Plays only observations from `start` to `end` (ISO strings, epoch ms or
+   * empty for "from the first" / "to the last"). Keeps the current moment when
+   * it is inside the new range. Throws when the range is backwards or empty.
+   */
+  setPlaybackRange(start, end) {
+    if (!this.spec) return false;
+    const read = (value) => (value === "" || value == null ? NaN : typeof value === "number" ? value : Date.parse(value));
+    const from = read(start), to = read(end);
+    if (Number.isFinite(from) && Number.isFinite(to) && to < from) throw new Error("The end date must be after the start date.");
+    const all = this.#allTicks();
+    if (!all.some((tick) => (!Number.isFinite(from) || tick >= from) && (!Number.isFinite(to) || tick <= to))) throw new Error("No observations fall between those dates.");
+    const current = this.timeline?.state().observationTime;
+    this.spec.cinematic.clock.start = Number.isFinite(from) ? new Date(from).toISOString() : "";
+    this.spec.cinematic.clock.end = Number.isFinite(to) ? new Date(to).toISOString() : "";
+    this.#resetTimeline(this.localWindow && !this.localEmpty ? all : null);
+    if (Number.isFinite(current) && (!Number.isFinite(from) || current >= from) && (!Number.isFinite(to) || current <= to)) this.timeline.seek(current);
+    return true;
+  }
+
+  /** Every observation time (in the local window when it is on), ignoring the playback range. */
+  #allTicks() {
+    return [...new Set([...this.layers.values()].flatMap(({ layer, model }) => (this.localModels.get(layer.uid) || model).ticks))].sort((a, b) => a - b);
+  }
+
+  /** Shows the latest observation on or before `time`; returns that observation's time. */
+  goToTime(time) {
+    const value = typeof time === "number" ? time : Date.parse(time);
+    if (!this.timeline || !Number.isFinite(value)) return null;
+    this.timeline.seek(value);
+    return this.timeline.state().observationTime;
+  }
+
   setBoundaryGlow(enabled) { this.setEffect(enabled === true ? "glow" : "none"); }
   /** The decorative effect for every cinematic layer: a CINEMATIC_EFFECTS key or "auto". */
   setEffect(type) {
@@ -157,6 +192,7 @@ export class CinematicModeController {
     await Promise.all([...this.layers.values()].map(async ({ layer, effectUid, previousFilter, previousOpacity }) => {
       await attempt(() => this.mapController.setFeatureFilter(layer.uid, previousFilter), false);
       await attempt(() => this.mapController.setOpacity(layer.uid, previousOpacity), false);
+      await attempt(() => this.mapController.suspendLayerEffect?.(layer.uid, false), false);
       if (typeof this.mapController.clearCinematicEffect === "function") await attempt(() => this.mapController.clearCinematicEffect(effectUid), false);
     }));
     this.layers.clear(); this.localModels.clear(); this.localWindow = false; this.localEmpty = false; this.spec = null; this.renderedObservationTime = null; this.renderedTimeMode = null;
@@ -194,7 +230,7 @@ export class CinematicModeController {
     const wasPlaying = previous?.playing === true;
     this.unsubscribe?.(); this.unsubscribe = null;
     this.timeline?.destroy();
-    const allTicks = explicitTicks || [...new Set([...this.layers.values()].flatMap(({ layer, model }) => (this.localModels.get(layer.uid) || model).ticks))].sort((a, b) => a - b);
+    const allTicks = explicitTicks || this.#allTicks();
     // A Clip's range limits playback to its observations (an empty range is the whole layer).
     const from = Date.parse(this.spec.cinematic.clock.start), to = Date.parse(this.spec.cinematic.clock.end);
     const inRange = allTicks.filter((tick) => (!Number.isFinite(from) || tick >= from) && (!Number.isFinite(to) || tick <= to));

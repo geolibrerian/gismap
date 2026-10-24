@@ -2,6 +2,7 @@
 // rebuild the view travels in the URL fragment (never sent to a server):
 // layers with their styles and filters, basemap, skin, camera and, for a
 // briefing, its slides. Small enough links also fit in a QR code.
+import { normalizeLayerEffect } from "./cinematic/cinematic-effects.js?v=0.2.0";
 import { decodePayload, encodePayload } from "./link-codec.js?v=0.21.0";
 import { normalizeBriefing } from "./briefing-document.js?v=0.60.0-media1";
 import { SHARE_BASEMAPS, SHARE_LAYER_TYPES, sanitizeSharedResourceUrl } from "./share.js?v=0.54.0-unified4";
@@ -69,6 +70,7 @@ export function packLayer(config = {}) {
     w: hasDataFilter(config.definitionExpression) ? text(config.definitionExpression, 2000) : null,
     r: renderer,
     q: chartJson ? config.spatialChart : null,
+    e: normalizeLayerEffect(config.animatedEffect),
     v: config.scene3d && JSON.stringify(config.scene3d).length <= MAX_SPATIAL_CHART ? config.scene3d : null,
     o: Number.isFinite(config.opacity) && config.opacity < 1 ? round(config.opacity, 2) : null,
     h: config.visible === false ? 1 : null,
@@ -87,6 +89,7 @@ function unpackLayer(layer, options) {
     definitionExpression: text(layer.w, 2000) || undefined,
     renderer,
     spatialChart,
+    animatedEffect: normalizeLayerEffect(layer.e) || undefined,
     scene3d: layer.v && typeof layer.v === "object" && !Array.isArray(layer.v) && JSON.stringify(layer.v).length <= MAX_SPATIAL_CHART ? layer.v : undefined,
     opacity: Number.isFinite(layer.o) ? Math.min(1, Math.max(0, layer.o)) : undefined,
     visible: layer.h !== 1,

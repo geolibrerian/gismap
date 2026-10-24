@@ -66,6 +66,7 @@ export function createLayersApi({ mapController, loadLayer, state = null, events
       where: config.definitionExpression || null,
       renderer: config.rendererSpec || (config.styled ? { type: "arcgis", json: config.renderer } : { type: "service" }),
       spatialChart: config.spatialChart || null,
+      animatedEffect: config.animatedEffect || null,
       scene3d: config.scene3d || null,
       visibleAtCurrentScale: scale.visibleAtCurrentScale,
       minScale: scale.serviceMinScale,
@@ -107,6 +108,7 @@ export function createLayersApi({ mapController, loadLayer, state = null, events
       state?.dispatch?.("layer:style", { layerId: uid, style: spec }, { undoable: false });
     }
     if (options.spatialChart !== undefined) await mapController.setSpatialChart(uid, options.spatialChart);
+    if (options.animatedEffect !== undefined) await mapController.setLayerEffect(uid, options.animatedEffect);
   }
 
   // Layers added any way (dialog, link, project) get a feature count in the background.

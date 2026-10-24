@@ -95,13 +95,13 @@ export const MAP_CONTROLLER_METHODS = Object.freeze([
   "search", "reverseGeocode", "captureViews", "captureTaskMap",
   "draw", "hasDrawings", "clearDrawings", "getDrawGraphicsForExport", "setTaskPin", "setTourMarkers", "setActiveTourMarker", "clearTourMarkers", "toggleWidget", "widgetOpen",
   "setBasemapTheme", "getBasemapOptions", "getGroundOptions", "setBuildings3d",
-  "getAttributionText", "getLegendData",
+  "getAttributionText", "getLegendData", "setLayerEffect", "getLayerEffect", "suspendLayerEffect",
 ]);
 
 /** Capability used when an optional delegated method is absent. */
 export const METHOD_CAPABILITIES = Object.freeze({
   native: "native", setGround: "ground", getGroundId: "ground",
-  setCinematicEffect: "three-3d", clearCinematicEffect: "three-3d",
+  setCinematicEffect: "three-3d", clearCinematicEffect: "three-3d", setLayerEffect: "three-3d", getLayerEffect: "three-3d", suspendLayerEffect: "three-3d",
   addLocalFile: "layers-files", discoverFeatureServiceLayers: "layers-arcgis", getQueryableLayer: "query",
   suggestRenderers: "renderer-spec", restoreRenderer: "renderer-native", setRenderer: "renderer-native", setLayerSymbology: "renderer-native", setSpatialChart: "spatial-chart-3d",
   distinctValues: "query", fieldValues: "query", navigate: "view-2d", viewExtentFilter: "spatial-query",

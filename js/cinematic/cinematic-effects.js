@@ -268,3 +268,15 @@ export function particleSeeds(paths, frame, { count = 900 } = {}) {
   }
   return { position, seed, lngLat };
 }
+
+/**
+ * A layer's saved animated effect (Advanced Style, map specs and links):
+ * { type, intensity, color } or null for none. Unknown types are dropped.
+ */
+export function normalizeLayerEffect(value) {
+  if (!value || typeof value !== "object") return null;
+  const type = ["auto", ...CINEMATIC_EFFECT_TYPES].includes(value.type) ? value.type : null;
+  if (!type || type === "none") return null;
+  const intensity = Number(value.intensity);
+  return { type, intensity: Number.isFinite(intensity) ? Math.min(2, Math.max(0.25, intensity)) : 1, color: /^#[0-9a-f]{6}$/i.test(value.color || "") ? value.color : null };
+}

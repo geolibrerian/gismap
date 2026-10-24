@@ -90,3 +90,20 @@ test("terrain sampling stays within budget, interpolates along a path and resamp
   assert.ok(Math.abs(heights[37] - 37) < 1e-6);
   assert.deepEqual([...heights.slice(-2)], [5000, 5000]);
 });
+
+test("layer effects travel in map specs and share links, and bad ones are reported", async () => {
+  const { normalizeLayerEffect } = await import("../js/cinematic/cinematic-effects.js");
+  const { validateMapSpec } = await import("../js/map-spec.js");
+  const { packLayer } = await import("../js/map-share.js");
+  assert.deepEqual(normalizeLayerEffect({ type: "fire", intensity: 0.1 }), { type: "fire", intensity: 0.25, color: null });
+  assert.equal(normalizeLayerEffect({ type: "none" }), null);
+  assert.equal(normalizeLayerEffect("glow"), null);
+  const ok = validateMapSpec({ version: 1, layers: [{ url: "https://example.org/quakes.geojson", animatedEffect: { type: "pulse", intensity: 1.5 } }] });
+  assert.deepEqual(ok.spec.layers[0].animatedEffect, { type: "pulse", intensity: 1.5, color: null });
+  const bad = validateMapSpec({ version: 1, layers: [{ url: "https://example.org/quakes.geojson", animatedEffect: { type: "lasers" } }] });
+  assert.equal(bad.spec.layers[0].animatedEffect, undefined);
+  assert.ok(bad.issues.some((issue) => issue.path === "layers[0].animatedEffect"));
+  // Links prune empty values; reading one back normalizes the effect again.
+  assert.deepEqual(packLayer({ url: "https://example.org/quakes.geojson", sourceType: "geojson", animatedEffect: { type: "glow", intensity: 1 } }).e, { type: "glow", intensity: 1 });
+  assert.deepEqual(normalizeLayerEffect({ type: "glow", intensity: 1 }), { type: "glow", intensity: 1, color: null });
+});

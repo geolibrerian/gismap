@@ -245,6 +245,10 @@ export class ProjectManager {
     if (config.renderer && config.styled !== false) this.mapController.restoreRenderer(layer.uid, config.renderer);
     if (config.rendererSpec) this.mapController.recordRendererSpec(layer.uid, config.rendererSpec);
     if (config.spatialChart) await this.mapController.setSpatialChart(layer.uid, config.spatialChart);
+    // A decorative effect is optional: an engine without it shows the layer plainly.
+    if (config.animatedEffect && this.mapController.getCapabilities?.().includes("three-3d")) {
+      try { await this.mapController.setLayerEffect(layer.uid, config.animatedEffect); } catch { /* Shown without the effect. */ }
+    }
     if (config.definitionExpression != null) {
       this.mapController.setDefinitionExpression(layer.uid, config.definitionExpression);
     }

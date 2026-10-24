@@ -11,6 +11,7 @@ import { SHARE_BASEMAPS, SHARE_LAYER_TYPES, SHARE_LIMITS, sanitizeSharedResource
 import { validateRendererSpec } from "./renderer-spec.js?v=0.29.0";
 import { normalizeBriefing, validateBriefing } from "./briefing-document.js?v=0.60.0-media1";
 import { SCENE3D_TYPES, normalizeScene3d, scene3dTypeFor } from "./scene3d.js?v=0.1.0";
+import { CINEMATIC_EFFECT_TYPES, normalizeLayerEffect } from "./cinematic/cinematic-effects.js?v=0.2.0";
 import { INTERFACE_SKINS } from "./skin-catalog.js?v=0.57.0-skins2";
 import { GisMapError } from "./gismap-errors.js?v=0.28.0";
 
@@ -19,7 +20,7 @@ export const MAP_SPEC_SCHEMA = "https://gismap.online/schemas/map-v1.schema.json
 export { MAP_SPEC_JSON_LIMIT };
 
 const TOP_LEVEL = new Set(["$schema", "version", "title", "description", "basemap", "skin", "camera", "layers", "legend", "briefing"]);
-const LAYER_KEYS = new Set(["url", "type", "title", "where", "renderer", "spatialChart", "scene3d", "opacity", "visible", "ignoreServiceScaleRange", "popup", "outFields", "refreshInterval"]);
+const LAYER_KEYS = new Set(["url", "type", "title", "where", "renderer", "spatialChart", "animatedEffect", "scene3d", "opacity", "visible", "ignoreServiceScaleRange", "popup", "outFields", "refreshInterval"]);
 const SKINS = new Set(INTERFACE_SKINS.map(({ id }) => id));
 const READ_ONLY_WHERE = /;|--|\/\*|\b(drop|delete|insert|update|alter|exec|execute|merge|truncate|create)\b/i;
 const text = (value, max) => String(value ?? "").trim().slice(0, max);
@@ -118,6 +119,11 @@ export function validateMapSpec(input, { allowHttp = false } = {}) {
       if (!chart || typeof chart !== "object" || chart.type !== "spatial-3d-chart" || !modes.includes(chart.mode) || JSON.stringify(chart).length > 12000) issue("warning", "INVALID_SPEC", `${path}.spatialChart`, "spatialChart must be a bounded spatial-3d-chart configuration; it was ignored.");
       else layer.spatialChart = structuredClone(chart);
     }
+    if (raw.animatedEffect !== undefined && raw.animatedEffect !== null) {
+      const effect = normalizeLayerEffect(raw.animatedEffect);
+      if (effect) layer.animatedEffect = effect;
+      else issue("warning", "INVALID_SPEC", `${path}.animatedEffect`, `animatedEffect.type must be one of auto, ${CINEMATIC_EFFECT_TYPES.filter((type) => type !== "none").join(", ")}; it was ignored.`);
+    }
     if (raw.scene3d !== undefined) {
       const kind = SCENE3D_TYPES.includes(type) ? type : scene3dTypeFor(raw.url);
       try {
@@ -178,6 +184,7 @@ export function mapSpecFromSharePayload(payload, options = {}) {
       ...(layer.definitionExpression ? { where: layer.definitionExpression } : {}),
       ...(layer.renderer ? { renderer: { type: "arcgis", json: layer.renderer } } : {}),
       ...(layer.spatialChart ? { spatialChart: layer.spatialChart } : {}),
+      ...(layer.animatedEffect ? { animatedEffect: layer.animatedEffect } : {}),
       ...(layer.scene3d ? { scene3d: layer.scene3d } : {}),
       ...(Number.isFinite(layer.opacity) ? { opacity: layer.opacity } : {}),
       ...(layer.visible === false ? { visible: false } : {}),

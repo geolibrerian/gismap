@@ -76,6 +76,13 @@ export function createMapSpecApi({ layers, camera, mapController, host = {}, iss
             }
           }
         }
+        // A decorative animated effect (MapLibre); another engine shows the layer without it.
+        if (entry.animatedEffect) {
+          try { info = await layers.update(info.id, { animatedEffect: entry.animatedEffect }); } catch (error) {
+            const problem = toGisMapError(error, "UNSUPPORTED");
+            issues.push({ level: "warning", code: problem.code, path: `${path}.animatedEffect`, message: `${problem.message} The layer is shown without its animated effect.` });
+          }
+        }
         if (entry.popup) popups.set(info.id, entry.popup);
         loaded.push(info);
       }
@@ -119,6 +126,7 @@ export function createMapSpecApi({ layers, camera, mapController, host = {}, iss
       ...(layer.where ? { where: layer.where } : {}),
       ...(layer.renderer && layer.renderer.type !== "service" ? { renderer: layer.renderer } : {}),
       ...(layer.spatialChart ? { spatialChart: layer.spatialChart } : {}),
+      ...(layer.animatedEffect ? { animatedEffect: layer.animatedEffect } : {}),
       ...(layer.scene3d ? { scene3d: layer.scene3d } : {}),
       ...(layer.opacity < 1 ? { opacity: layer.opacity } : {}),
       ...(layer.visible === false ? { visible: false } : {}),

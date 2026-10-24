@@ -26,6 +26,10 @@ import { chooseStyleField, compileRenderer, resolveRendererSpec, suggestRenderer
 import { rendererToPaint } from "./arcgis-renderer.js?v=0.42.0";
 import { legendForLayer } from "./legend.js?v=0.52.4";
 import { hostCredit, joinCredits, legendSwatch, plainAttribution } from "../map-credits.js?v=0.1.0";
+import { CINEMATIC_EFFECT_TYPES, effectFields, effectRanges, suggestEffect } from "../../cinematic/cinematic-effects.js?v=0.2.0";
+
+// A layer effect draws over at most this many features; more would cost frame rate for no visible gain.
+const LAYER_EFFECT_MAX_FEATURES = 20000;
 import { MAX_FEATURES, describeArcGIS, featureServiceLayers, fetchFeatures, fetchGeometries, queryServiceIds } from "./arcgis-service.js?v=0.47.0";
 import { OBJECT_ID_FIELD, boundsIntersect, boundsOf, expandBounds, geometryTypeOf, inferFields, normalizeFeatures, regroupPolygon, representativePoint } from "./geojson.js?v=0.42.0";
 import { loadMaplibre } from "./maplibre-loader.js?v=0.39.0";
@@ -572,7 +576,78 @@ export class MaplibreEngine {
       for (const [name, value] of Object.entries(spec.layout)) this.map.setLayoutProperty(spec.id, name, value);
       for (const [name, value] of Object.entries(spec.paint)) this.map.setPaintProperty(spec.id, name, value);
     }
+    if (record.animatedEffect) this.#queueLayerEffect(record);
     this.#renderLegend();
+  }
+
+  /* ---------------- Animated layer effects ---------------- */
+
+  /**
+   * A decorative animated effect on a layer (Advanced Style): the same glow,
+   * flames, pulses, wind, water and flow as Cinematic mode, drawn on every
+   * feature the layer shows. `effect` is { type, intensity?, color? }; type
+   * "none" (or null) removes it. Saved with the layer's configuration.
+   */
+  async setLayerEffect(uid, effect) {
+    const record = this.#requireVector(uid);
+    const type = ["auto", ...CINEMATIC_EFFECT_TYPES].includes(effect?.type) ? effect.type : "none";
+    const intensity = Math.min(2, Math.max(0.25, Number(effect?.intensity) || 1));
+    record.animatedEffect = type === "none" ? null : { type, intensity, color: /^#[0-9a-f]{6}$/i.test(effect?.color || "") ? effect.color : null };
+    record.effectBuilt = null;
+    await this.#syncLayerEffect(record);
+    this.events.publish("layer:changed", { uid: record.uid });
+    return this.getLayerEffect(uid);
+  }
+
+  getLayerEffect(uid) {
+    const effect = this.#record(uid)?.animatedEffect;
+    return effect ? { ...effect } : null;
+  }
+
+  /** Hides a layer's own effect while something else (Cinematic playback) animates that layer. */
+  suspendLayerEffect(uid, suspended = true) {
+    const record = this.#record(uid);
+    if (!record) return;
+    record.effectSuspended = Boolean(suspended);
+    record.effectBuilt = null;
+    void this.#syncLayerEffect(record).catch(() => {});
+  }
+
+  #layerEffectId(record) { return `layer-effect:${record.uid}`; }
+
+  /** Opacity follows at once; a rebuild for new data, filters or visibility waits for changes to settle. */
+  #queueLayerEffect(record) {
+    if (this.three) this.three.set(this.#layerEffectId(record), { opacity: record.opacity });
+    clearTimeout(record.effectTimer);
+    record.effectTimer = setTimeout(() => void this.#syncLayerEffect(record).catch((error) => this.events.publish("app:error", { message: `${record.title}: the animated effect could not be drawn (${error.message}).` })), 180);
+  }
+
+  async #syncLayerEffect(record) {
+    const id = this.#layerEffectId(record);
+    const effect = record.animatedEffect;
+    if (!effect || !record.visible || record.effectSuspended || !this.#records.has(record.uid)) {
+      record.effectBuilt = null;
+      this.three?.remove(id);
+      return;
+    }
+    const features = this.#visibleFeatures(record);
+    const built = { effect, features, where: record.where };
+    // Unchanged data and settings: nothing to rebuild, only opacity to follow.
+    if (record.effectBuilt && Object.entries(built).every(([key, value]) => record.effectBuilt[key] === value)) {
+      this.three?.set(id, { opacity: record.opacity });
+      return;
+    }
+    record.effectBuilt = built;
+    const name = effect.type === "auto" ? suggestEffect({ title: record.title, geometryType: record.geometryType, fields: record.fields }) : effect.type;
+    const shown = features.slice(0, LAYER_EFFECT_MAX_FEATURES);
+    const drawn = await this.setCinematicEffect(id, {
+      type: "observed-effect", effect: name, color: effect.color, intensity: effect.intensity, fields: record.fields,
+      ranges: effectRanges(features, effectFields(record.fields, shown[0]?.properties)),
+      items: shown.map((feature) => ({ feature, fresh: true })),
+    });
+    // The layer may have changed (or gone) while three.js loaded.
+    if (record.effectBuilt !== built || !this.#records.has(record.uid)) return;
+    if (drawn) this.three?.set(id, { opacity: record.opacity });
   }
 
   /** A new layer record, drawn and announced. */
@@ -891,6 +966,8 @@ export class MaplibreEngine {
     const record = this.#record(uid);
     if (!record) return;
     if (record.kind === "three") this.three?.remove(record.uid);
+    clearTimeout(record.effectTimer);
+    this.three?.remove(this.#layerEffectId(record));
     for (const id of this.#layerIds(record)) if (this.map?.getLayer(id)) this.map.removeLayer(id);
     if (this.map?.getSource(this.#sourceId(record))) this.map.removeSource(this.#sourceId(record));
     this.#records.delete(record.uid);
@@ -901,6 +978,8 @@ export class MaplibreEngine {
   async clearOperationalLayers() {
     for (const record of [...this.#records.values()]) {
       if (record.kind === "three") this.three?.remove(record.uid);
+      clearTimeout(record.effectTimer);
+      this.three?.remove(this.#layerEffectId(record));
       for (const id of this.#layerIds(record)) if (this.map?.getLayer(id)) this.map.removeLayer(id);
       if (this.map?.getSource(this.#sourceId(record))) this.map.removeSource(this.#sourceId(record));
     }
@@ -971,6 +1050,7 @@ export class MaplibreEngine {
       styled: Boolean(record.renderer),
       rendererSpec: record.rendererSpec,
       spatialChart: record.spatialChart ? structuredClone(record.spatialChart) : null,
+      animatedEffect: record.animatedEffect ? { ...record.animatedEffect } : null,
       scene3d: record.scene3d ? structuredClone(record.scene3d) : null,
       ignoreServiceScaleRange: record.ignoreScaleRange,
     };

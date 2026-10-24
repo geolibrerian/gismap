@@ -81,6 +81,17 @@
           },
           "additionalProperties": false
         },
+        "animatedEffect": {
+          "type": "object",
+          "required": ["type"],
+          "description": "Decorative animated effect drawn on the layer's features (MapLibre engine; other engines show the layer without it). It is visual annotation, never data. auto picks one from the layer's title, geometry and fields; pulse sizes rings by a magnitude field and wind follows direction/speed fields when present.",
+          "properties": {
+            "type": { "enum": ["auto", "glow", "fire", "pulse", "wind", "water", "flow"] },
+            "intensity": { "type": "number", "minimum": 0.25, "maximum": 2, "default": 1 },
+            "color": { "type": ["string", "null"], "pattern": "^#[0-9a-fA-F]{6}$" }
+          },
+          "additionalProperties": false
+        },
         "spatialChart": {
           "type": "object",
           "required": ["type", "mode", "height"],

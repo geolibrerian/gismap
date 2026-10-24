@@ -507,3 +507,15 @@ test("MapLibre highlights the selected feature, filled or as an outline only", a
   engine.configureInteractionFeedback({ highlightEnabled: false });
   assert.equal(await engine.highlightFeature({ kind: "feature", geometry: polygon }), false);
 });
+
+test("an animated layer effect is saved with the layer, normalized, and removable", async () => {
+  const engine = new MaplibreEngine({ publish: () => {} });
+  engine.map = fakeMap();
+  const layer = await engine.addLocalFile({ name: "quakes.geojson", text: async () => JSON.stringify({ type: "FeatureCollection", features: [{ type: "Feature", properties: { mag: 3 }, geometry: { type: "Point", coordinates: [0, 0] } }] }) });
+  // Hidden, so no three.js scene is built here; the setting is still recorded.
+  engine.setVisibility(layer.uid, false, { silent: true });
+  assert.deepEqual(await engine.setLayerEffect(layer.uid, { type: "pulse", intensity: 9, color: "red" }), { type: "pulse", intensity: 2, color: null });
+  assert.deepEqual(engine.getLayerConfig(layer.uid).animatedEffect, { type: "pulse", intensity: 2, color: null });
+  assert.equal(await engine.setLayerEffect(layer.uid, { type: "sparkles" }), null);
+  assert.equal(engine.getLayerConfig(layer.uid).animatedEffect, null);
+});

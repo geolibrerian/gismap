@@ -273,6 +273,7 @@ Layer properties:
 - `layers[].where`: A read-only SQL filter on the layer's fields, such as "CORN_SALES_IN_DOLLARS >= 0" or "STATE = 'Iowa'". No statements, comments or semicolons.
 - `layers[].renderer`: The style. Field names must match the service exactly; a misspelled field keeps the service's own style and is reported.
 - `layers[].scene3d`: Options for pointcloud and model layers (MapLibre engine, drawn with three.js). Elevations are real heights in metres after unit conversion, not virtual Z.
+- `layers[].animatedEffect`: Decorative animated effect drawn on the layer's features (MapLibre engine; other engines show the layer without it). It is visual annotation, never data. auto picks one from the layer's title, geometry and fields; pulse sizes rings by a magnitude field and wind follows direction/speed fields when present.
 - `layers[].spatialChart`: 3D spatial chart settings (MapLibre and ArcGIS engines). Z values are display offsets, never physical altitude. source-footprints/none is the fast display strategy and does not calculate exact polygon overlaps.
 - `layers[].opacity`: 0 is transparent, 1 is opaque.
 - `layers[].visible`: Whether the layer starts switched on.
