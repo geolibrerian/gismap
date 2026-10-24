@@ -82,11 +82,15 @@ test("chart data exports a compact, quoted CSV", () => {
 test("Chart Tools has dedicated family actions which share one persisted builder", () => {
   const html = fs.readFileSync(new URL("../index.html", import.meta.url), "utf8");
   const ui = fs.readFileSync(new URL("../js/ui.js", import.meta.url), "utf8");
+  const css = fs.readFileSync(new URL("../css/app.css", import.meta.url), "utf8");
   const project = fs.readFileSync(new URL("../js/project.js", import.meta.url), "utf8");
   for (const action of ["tools-chart-line-area", "tools-chart-bar-column", "tools-chart-scatter-bubble", "tools-chart-distribution-composition", "tools-chart-3d", "tools-chart-map", "tools-chart-custom"]) assert.match(html, new RegExp(`data-action="${action}"`));
   assert.doesNotMatch(html, /data-action="tools-charts-analytics">Charts &amp; Analytics/);
   assert.match(ui, /case "tools-chart-line-area":[\s\S]*?#openChartsAnalytics\(\{ family: "line-area" \}\)/);
   assert.match(ui, /chart-builder__gallery/);
   assert.match(ui, /data-chart-target/);
+  assert.match(css, /\.chart-builder \{ container-type:inline-size;[\s\S]*?min-width:0/);
+  assert.match(css, /@container \(max-width: 560px\)/);
+  assert.match(css, /\.app-dialog:has\(\.chart-builder\)[\s\S]*?overflow-x:hidden/);
   assert.match(project, /setCharts\(charts\)/);
 });
