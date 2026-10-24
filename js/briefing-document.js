@@ -17,6 +17,7 @@ export const SLIDE_TEMPLATES = Object.freeze([
   { id: "key-numbers", label: "Key numbers", description: "Two to four statistics from the briefing data" },
   { id: "actions", label: "Actions", description: "Next steps and links to close the briefing" },
   { id: "media", label: "Image & text", description: "Images and text without a map; two or more images become a slideshow" },
+  { id: "cinematic", label: "Cinematic Clip", description: "An interactive, versioned cinematic map scene" },
 ]);
 const TEMPLATE_IDS = new Set(SLIDE_TEMPLATES.map((template) => template.id));
 
@@ -36,6 +37,7 @@ export const SLIDE_TYPES = Object.freeze([
   { id: "series", label: "One slide per value", description: "A slide for each value of a field", kind: "generator", generator: "filter-series" },
   { id: "tour", label: "Tour", description: "A guided tour inside the slide", kind: "planned" },
   { id: "media", label: "Image & text", description: "Images and text, or a slideshow, without a map", kind: "template", template: "media" },
+  { id: "cinematic", label: "Cinematic Clip", description: "Play an interactive cinematic map scene", kind: "template", template: "cinematic" },
   { id: "animation", label: "Animation", description: "A MapLibre + three.js or three.js animation", kind: "planned" },
   { id: "bim", label: "BIM / CAD", description: "A 3D building model", kind: "planned" },
   { id: "realtime", label: "Real-time", description: "Live data that refreshes during the meeting", kind: "planned" },
@@ -207,6 +209,14 @@ function normalizeSlide(slide) {
     blocks: array(slide.blocks).map(normalizeBlock).filter(Boolean).slice(0, 12),
     notes: text(slide.notes, MAX_NOTES),
     hidden: slide.hidden === true,
+    ...(slide.template === "cinematic" && typeof slide.clipRef === "string" && slide.clipRef ? {
+      clipRef: slide.clipRef.slice(0, 120),
+      presentation: "interactive",
+      autoplay: slide.autoplay === true,
+      loop: slide.loop === true,
+      allowExplore: slide.allowExplore !== false,
+      fallback: slide.fallback && typeof slide.fallback === "object" ? { posterRef: text(slide.fallback.posterRef, 2048) || null, videoRef: text(slide.fallback.videoRef, 2048) || null } : { posterRef: null, videoRef: null },
+    } : {}),
   };
 }
 
@@ -244,6 +254,7 @@ export function createSlide(template, { title = "", subtitle = "", featureId = n
   }
   if (template === "actions") base.blocks = [{ id: newId("b"), type: "list", items: [] }, { id: newId("b"), type: "links", links: [] }];
   if (template === "media") base.blocks = [{ id: newId("b"), type: "images", images: [] }, { id: newId("b"), type: "text", markdown: "" }, { id: newId("b"), type: "place", label: "" }];
+  if (template === "cinematic") { base.clipRef = null; base.presentation = "interactive"; base.autoplay = false; base.loop = false; base.allowExplore = true; base.fallback = { posterRef: null, videoRef: null }; }
   return normalizeSlide(base);
 }
 
@@ -398,6 +409,7 @@ export function validateBriefing(briefing, { featureIds = null } = {}) {
       if (!images.length && !words) issues.push({ slideId: slide.id, level: "warning", message: `${where} has no images or text yet.` });
       if (images.some((image) => !image.alt.trim())) issues.push({ slideId: slide.id, level: "warning", message: `${where}: an image has no description for screen readers.` });
     }
+    if (slide.template === "cinematic" && !slide.clipRef) issues.push({ slideId: slide.id, level: "error", message: `${where} has no Cinematic Clip selected.` });
     if (["map-narrative", "feature", "title"].includes(slide.template) && !slide.camera && !slide.fit) issues.push({ slideId: slide.id, level: "warning", message: `${where} has no saved map view.` });
   });
   return issues;

@@ -26,7 +26,7 @@ import {
   isRoutineField,
   DISTANCE_UNITS,
   SPATIAL_RELATIONSHIPS,
-} from "./briefing-document.js?v=0.60.0-media1";
+} from "./briefing-document.js?v=0.60.4-clips1";
 import { compileWhere } from "./engines/maplibre/where.js?v=0.40.0-timeline";
 import { generateTimeline, previewTimeline, isYearField } from "./briefing-timeline.js?v=0.60.0-media1";
 import { isDateField, previewDateTimeline } from "./briefing-timeline-dates.js?v=0.60.0-media1";
@@ -35,7 +35,7 @@ import { generateSpatialChartBrief } from "./briefing-spatial-chart.js?v=0.60.0-
 import { previewFilterSeries, formatSeriesTitle } from "./briefing-series-preview.js?v=0.60.0-media1";
 import { briefingLayerRef } from "./briefing-api.js?v=0.60.0-media1";
 import { renderMarkdown } from "./markdown.js?v=0.18.2";
-import { BriefingPlayer, slideHasMap } from "./briefing-player.js?v=0.60.0-media2";
+import { BriefingPlayer, slideHasMap } from "./briefing-player.js?v=0.60.4-clips1";
 import { expandTimelinePdfSlides } from "./briefing-timeline-pdf.js?v=0.1.0";
 import { briefingFileStem, briefingPdf, markdownToText } from "./briefing-pdf.js?v=0.44.2";
 import { featureId } from "./presentation-query.js?v=0.30.0";
@@ -85,6 +85,9 @@ export class BriefingSlides {
       fields: () => api.data().fields?.fields || api.data().layer?.fields || [],
       slideTitle: slide => formatSeriesTitle(slide, api.data().fields?.fields || api.data().layer?.fields || []),
       onClose: () => void this.restoreLayers(),
+      playCinematicClip: (slide, options) => this.api.playCinematicClip?.(slide, options),
+      stopCinematicClip: () => this.api.stopCinematicClip?.(),
+      pauseCinematicClip: () => this.api.pauseCinematicClip?.(),
     });
     // How the other layers looked before a slide changed them: { visible: Map(uid -> bool), filtered: Set(uid) }.
     this.layerState = null;
@@ -1198,6 +1201,10 @@ export class BriefingSlides {
     const data = this.api.data();
     const briefing = this.briefing;
     const record = this.#recordFor(slide);
+    if (slide.template === "cinematic") {
+      const clip = this.api.getCinematicClip?.(slide.clipRef);
+      return `<article class="briefing-slide briefing-slide--cinematic"><span class="briefing-slide__eyebrow">Cinematic clip · ${index + 1} / ${count}</span><h2>${escapeHtml(slide.title || clip?.title || "Cinematic clip")}</h2>${slide.subtitle ? `<p class="briefing-slide__subtitle">${escapeHtml(slide.subtitle)}</p>` : ""}<p class="briefing-slide__text">${clip ? `Interactive observed playback · ${(clip.playback.durationMs / 1000).toFixed(0)} seconds` : "This Clip is unavailable in the current project."}</p><div class="briefing-cinematic-controls">${clip ? `<button type="button" data-cinematic-slide-play="${escapeHtml(slide.id)}">Play clip</button><button type="button" data-cinematic-slide-pause="${escapeHtml(slide.id)}">Pause</button>` : ""}${slide.allowExplore ? `<button type="button" data-slide-place="${escapeHtml(slide.id)}">Explore map <span aria-hidden="true">→</span></button>` : ""}</div>${!clip ? `<p class="briefing-slide__warning">Add the Clip to this project or choose a fallback poster/video.</p>` : ""}</article>`;
+    }
     const body = slide.blocks.map((block) => {
       if (block.type === "text" && block.markdown.trim()) return `<div class="briefing-slide__text">${renderMarkdown(block.markdown)}</div>`;
       if (block.type === "facts" && record) {

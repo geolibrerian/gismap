@@ -23,3 +23,7 @@ MapLibre can now opt into a decorative observed-boundary glow. It is disabled by
 This first visual slice places boundary paths in a local metre frame and aligns their base elevation to the terrain at the observation origin. It does not yet claim per-vertex terrain clamping, particles, sprites, billboards, glTF choreography, or camera automation; those need a terrain-sampling/camera design before being enabled.
 
 The initial UI is available from **Modes → Cinematic mode**: it requires a queryable layer with a stable ID, makes the author choose a detected date/timestamp field, and offers an optional grouping field. The compact mode dashboard supports play/pause, step, and scrub; leaving it restores the prior transient layer filters. The normalized spec is persisted in `presentation.cinematic` with the project. The in-page API exposes `gisMapOnline.cinematic.importCinematicSpec()` and `exportCinematicSpec()`.
+
+# Clip MVP (v0.2)
+
+`presentation.cinematicClips` now stores versioned `gismap.cinematicClip` recipes. A Clip contains only layer references, observed timing, camera keyframes, captions, composition settings and sanitized remote dependencies—never feature bytes, credentials or local Blob URLs. The UI can create a Clip from the active scene, insert it as an interactive Brief slide, download JSON and a composed PNG poster, or record an explicit geographic composition canvas to a genuinely supported WebM MIME type. MP4, audio and offline data packaging remain intentionally out of scope for this first capture slice.

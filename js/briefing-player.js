@@ -5,7 +5,7 @@
 
 const escapeHtml = (value) => String(value ?? "").replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char]);
 // Slides that show the map get a content column and a window onto the live map.
-const MAP_TEMPLATES = new Set(["feature", "map-narrative", "title"]);
+const MAP_TEMPLATES = new Set(["feature", "map-narrative", "title", "cinematic"]);
 const hasMap = (slide) => MAP_TEMPLATES.has(slide.template) && Boolean(slide.camera || slide.fit);
 /** Whether a slide shows the map (the player, cards and PDF agree on this). */
 export const slideHasMap = hasMap;
@@ -66,6 +66,7 @@ export class BriefingPlayer {
   close() {
     if (!this.state) return;
     this.#stopTimeline();
+    void this.api.stopCinematicClip?.();
     const { root, cleanups, padding } = this.state;
     cleanups.forEach((cleanup) => cleanup());
     root?.remove();
@@ -129,6 +130,8 @@ export class BriefingPlayer {
     this.#syncTimeline();
     this.#applyPadding();
     await this.api.showSlide(slide);
+    if (slide.template === "cinematic") await this.api.playCinematicClip?.(slide, { autoplay: slide.autoplay === true });
+    else await this.api.stopCinematicClip?.();
   }
 
   /** Re-centres the camera within the part of the map that is visible for this slide. */
@@ -433,7 +436,10 @@ export class BriefingPlayer {
         if (!slide?.camera) return;
         this.#explore(true);
         void this.api.showSlide(slide);
+        return;
       }
+      if (event.target.closest("[data-cinematic-slide-play]")) this.api.playCinematicClip?.(this.state?.slides[this.state.index], { autoplay: true });
+      if (event.target.closest("[data-cinematic-slide-pause]")) this.api.pauseCinematicClip?.();
     });
     // Scroll events do not bubble; capture them to keep the dots in step with swipes.
     root.addEventListener("scroll", (event) => { if (event.target.matches?.("[data-gallery-track]")) sync(event.target); }, true);

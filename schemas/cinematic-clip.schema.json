@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://gismap.online/schemas/cinematic-clip-v1.schema.json",
+  "title": "GISMap Cinematic Clip",
+  "type": "object",
+  "required": ["schema", "version", "id", "title", "range", "playback", "cameraTrack", "tracks", "composition", "dependencies", "renders"],
+  "properties": {
+    "schema": { "const": "gismap.cinematicClip" },
+    "version": { "const": 1 },
+    "id": { "type": "string", "pattern": "^[A-Za-z0-9_-]{3,80}$" },
+    "title": { "type": "string", "maxLength": 160 },
+    "range": { "type": "object", "required": ["start", "end"], "properties": { "start": { "type": "string" }, "end": { "type": "string" } } },
+    "playback": { "type": "object", "required": ["durationMs", "easing", "loop"], "properties": { "durationMs": { "type": "number", "minimum": 1000, "maximum": 120000 }, "easing": { "enum": ["linear", "ease-in-out"] }, "loop": { "type": "boolean" } } },
+    "cameraTrack": { "type": "array", "maxItems": 24 },
+    "tracks": { "type": "array", "maxItems": 100 },
+    "composition": { "type": "object", "properties": { "aspectRatio": { "enum": ["16:9", "9:16"] }, "titleOverlay": { "type": "boolean" }, "attribution": { "type": "boolean" } } },
+    "dependencies": { "type": "array", "maxItems": 50 },
+    "renders": { "type": "array", "maxItems": 0 }
+  },
+  "additionalProperties": true
+}

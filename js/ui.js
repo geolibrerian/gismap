@@ -14,7 +14,7 @@ import { createAssistantTools, summarizeMapState } from "./map-assistant.js?v=0.
 import { ENTERPRISE_CATALOGS, EnterpriseCatalog, normalizeArcGisDirectoryUrl } from "./enterprise-catalog.js?v=0.18.2";
 import { createShareUrl } from "./share.js?v=0.54.0-unified4";
 import { createShareLink, hasDataFilter } from "./map-share.js?v=0.60.0-media1";
-import { briefingLayerRef, findBriefingLayer } from "./briefing-api.js?v=0.60.0-media1";
+import { briefingLayerRef, findBriefingLayer } from "./briefing-api.js?v=0.60.4-clips1";
 import { createEmbeddedTourUrl } from "./tour-share.js?v=0.54.0-unified4";
 import { markdownToPlainText, renderMarkdown } from "./markdown.js?v=0.18.2";
 import { formatAttributeValue } from "./attribute-format.js?v=0.18.2";
@@ -30,8 +30,8 @@ import { featureLayerUrl, locationUrl } from "./field-task-share.js?v=0.54.0-uni
 import { dockIcon } from "./dock-icons.js?v=0.24.0";
 import { serviceNameFromUrl } from "./service-name.js?v=0.26.0";
 import { decodeQrFromImage, describeGisMapLink, gisMapLinkFrom, openGisMapLink } from "./qr-import.js?v=0.25.2";
-import { BriefingSlides } from "./briefing-slides.js?v=0.60.0-data1";
-import { createSlide, isRoutineField, matchesFilter, normalizeFilter } from "./briefing-document.js?v=0.60.0-media1";
+import { BriefingSlides } from "./briefing-slides.js?v=0.60.4-clips1";
+import { addSlide, createSlide, isRoutineField, matchesFilter, normalizeBriefing, normalizeFilter } from "./briefing-document.js?v=0.60.4-clips1";
 import { conditionComplete, conditionLabel, conditionToFilter } from "./briefing-conditions.js?v=0.1.0";
 import { createFilterBuilder } from "./filter-builder.js?v=0.1.0";
 import { conditionsToWhere } from "./filter-sql.js?v=0.1.0";
@@ -46,6 +46,8 @@ import { BRIEFING_WALKTHROUGH_STEPS, startWorkspaceWalkthrough, waitForWalkthrou
 import { chooseHurricaneLayer, createHazardsExampleBriefing } from "./example-hazards-briefing.js?v=0.60.0-media1";
 import { CinematicModeController } from "./cinematic/mode.js?v=0.1.3";
 import { temporalFieldCandidates } from "./cinematic/temporal-adapter.js?v=0.1.1";
+import { clipToCinematicSpec, createCinematicClip, exportCinematicClip } from "./cinematic/clip-model.js?v=0.2.0-clips1";
+import { recordCinematicClip, supportedClipVideoMime } from "./cinematic/clip-export.js?v=0.2.0-clips1";
 
 const BUILDINGS_3D_KEY = "gismap-online:buildings-3d:v1";
 const DISPLAY_SETTINGS_KEY = "gismap-online:display:v1";
@@ -144,6 +146,10 @@ export class UIController {
       describeWithAi: () => (this.aiController.isConfigured() ? this.#describeBriefingWithAi() : null),
       aiReady: () => this.aiController.isConfigured(),
       openInspector: () => this.#openBriefingInspector(),
+      getCinematicClip: (id) => this.projectManager.current.presentation?.cinematicClips?.find((clip) => clip.id === id) || null,
+      playCinematicClip: (slide, options) => this.#playBriefingCinematicClip(slide, options),
+      pauseCinematicClip: () => this.cinematicController.pause(),
+      stopCinematicClip: () => this.#stopBriefingCinematicClip(),
     });
     this.briefingFoldSelection = null;
     this.cinematicController = new CinematicModeController({
@@ -4013,7 +4019,7 @@ export class UIController {
     const current = new Date(timeline.observationTime);
     const timeLabel = `${timeMode === "cumulative" ? "Cumulative through " : ""}${this.#formatExplorerTime(current)} · observation ${timeline.observationIndex + 1} of ${timeline.ticks.length}`;
     const fidelityNote = timeMode === "cumulative" ? "Showing every observed record from the first observation through this moment. This is cumulative display, not inferred persistence or geometry interpolation." : "Showing the current observed state only. Polygon boundaries step between snapshots; no unobserved spread or geometry interpolation is shown.";
-    root.innerHTML = `<section class="mode-dashboard cinematic-dashboard"><header><span class="eyebrow">Cinematic · observed playback</span><h2>${escapeHtml(presentation.title || layer.title || "Cinematic map")}</h2><p data-cinematic-time-label>${escapeHtml(timeLabel)}</p></header><div class="cinematic-controls" aria-label="Cinematic timeline controls"><button type="button" data-cinematic-previous title="Previous observation">◀</button><button type="button" data-cinematic-play aria-pressed="${timeline.playing ? "true" : "false"}">${timeline.playing ? "Pause" : "Play"}</button><button type="button" data-cinematic-next title="Next observation">▶</button><button type="button" data-cinematic-focus title="Fly to the current observed feature">Focus</button><label>Build up <input type="checkbox" data-cinematic-build-up${timeMode === "cumulative" ? " checked" : ""} aria-label="Build up observed records over time"></label><label>Speed <select data-cinematic-rate aria-label="Playback speed"><option value="0.1"${timeline.playbackRate === 0.1 ? " selected" : ""}>Very slow</option><option value="0.25"${timeline.playbackRate === 0.25 ? " selected" : ""}>Slow</option><option value="0.5"${timeline.playbackRate === 0.5 ? " selected" : ""}>Steady</option><option value="1"${timeline.playbackRate === 1 ? " selected" : ""}>Fast</option><option value="2"${timeline.playbackRate === 2 ? " selected" : ""}>Very fast</option></select></label>${supportsGround ? `<label>Terrain <select data-cinematic-ground aria-label="Terrain"><option value="">Map setting</option>${terrainOptions}</select></label>` : ""}${supportsBoundaryGlow ? `<label>Glow <input type="checkbox" data-cinematic-boundary-glow${glowEnabled ? " checked" : ""}></label>` : ""}<label>Opacity <input type="range" data-cinematic-opacity min="5" max="100" value="${Math.round(Number(layerOpacity) * 100)}" aria-label="Cinematic layer opacity"></label><label>Observation <input type="range" data-cinematic-scrub min="0" max="${Math.max(0, timeline.ticks.length - 1)}" value="${timeline.observationIndex}" step="1"></label></div><p class="form-note">${escapeHtml(fidelityNote)}</p><div class="cinematic-actions"><button type="button" data-cinematic-reconfigure>Change mapping</button><button type="button" data-cinematic-exit>Exit cinematic mode</button></div></section>`;
+    root.innerHTML = `<section class="mode-dashboard cinematic-dashboard"><header><span class="eyebrow">Cinematic · observed playback</span><h2>${escapeHtml(presentation.title || layer.title || "Cinematic map")}</h2><p data-cinematic-time-label>${escapeHtml(timeLabel)}</p></header><div class="cinematic-controls" aria-label="Cinematic timeline controls"><button type="button" data-cinematic-previous title="Previous observation">◀</button><button type="button" data-cinematic-play aria-pressed="${timeline.playing ? "true" : "false"}">${timeline.playing ? "Pause" : "Play"}</button><button type="button" data-cinematic-next title="Next observation">▶</button><button type="button" data-cinematic-focus title="Fly to the current observed feature">Focus</button><label>Build up <input type="checkbox" data-cinematic-build-up${timeMode === "cumulative" ? " checked" : ""} aria-label="Build up observed records over time"></label><label>Speed <select data-cinematic-rate aria-label="Playback speed"><option value="0.1"${timeline.playbackRate === 0.1 ? " selected" : ""}>Very slow</option><option value="0.25"${timeline.playbackRate === 0.25 ? " selected" : ""}>Slow</option><option value="0.5"${timeline.playbackRate === 0.5 ? " selected" : ""}>Steady</option><option value="1"${timeline.playbackRate === 1 ? " selected" : ""}>Fast</option><option value="2"${timeline.playbackRate === 2 ? " selected" : ""}>Very fast</option></select></label>${supportsGround ? `<label>Terrain <select data-cinematic-ground aria-label="Terrain"><option value="">Map setting</option>${terrainOptions}</select></label>` : ""}${supportsBoundaryGlow ? `<label>Glow <input type="checkbox" data-cinematic-boundary-glow${glowEnabled ? " checked" : ""}></label>` : ""}<label>Opacity <input type="range" data-cinematic-opacity min="5" max="100" value="${Math.round(Number(layerOpacity) * 100)}" aria-label="Cinematic layer opacity"></label><label>Observation <input type="range" data-cinematic-scrub min="0" max="${Math.max(0, timeline.ticks.length - 1)}" value="${timeline.observationIndex}" step="1"></label></div><p class="form-note">${escapeHtml(fidelityNote)}</p><div class="cinematic-actions"><button type="button" data-cinematic-create-clip>Create Clip</button><button type="button" data-cinematic-set-end-camera title="Move the map, then set this Clip's ending keyframe">Set end camera</button><button type="button" data-cinematic-add-brief>Add Clip to Brief</button><button type="button" data-cinematic-download-clip>Download Clip JSON</button><button type="button" data-cinematic-poster>Download poster</button><button type="button" data-cinematic-record${supportedClipVideoMime() ? "" : " disabled"} title="${supportedClipVideoMime() ? "Record a WebM using this browser" : "WebM recording is not supported by this browser"}">Record WebM</button><button type="button" data-cinematic-reconfigure>Change mapping</button><button type="button" data-cinematic-exit>Exit cinematic mode</button></div></section>`;
     root.querySelector("[data-cinematic-play]")?.addEventListener("click", () => this.cinematicController.toggle());
     root.querySelector("[data-cinematic-previous]")?.addEventListener("click", () => this.cinematicController.previousObservation());
     root.querySelector("[data-cinematic-next]")?.addEventListener("click", () => this.cinematicController.nextObservation());
@@ -4046,6 +4052,12 @@ export class UIController {
         this.projectManager.patchPresentation({ cinematic });
       });
     });
+    root.querySelector("[data-cinematic-create-clip]")?.addEventListener("click", () => this.#createCinematicClip());
+    root.querySelector("[data-cinematic-set-end-camera]")?.addEventListener("click", () => this.#setCinematicClipEndCamera());
+    root.querySelector("[data-cinematic-add-brief]")?.addEventListener("click", () => this.#addCinematicClipToBrief());
+    root.querySelector("[data-cinematic-download-clip]")?.addEventListener("click", () => this.#downloadCinematicClip());
+    root.querySelector("[data-cinematic-poster]")?.addEventListener("click", () => void this.#downloadCinematicPoster());
+    root.querySelector("[data-cinematic-record]")?.addEventListener("click", () => void this.#recordCinematicClip());
     root.querySelector("[data-cinematic-reconfigure]")?.addEventListener("click", () => this.#openCinematicMode());
     root.querySelector("[data-cinematic-exit]")?.addEventListener("click", async () => {
       await this.cinematicController.destroy();
@@ -5471,6 +5483,117 @@ export class UIController {
     const cinematic = this.projectManager.current.presentation?.cinematic;
     if (!cinematic) throw new Error("No cinematic specification is loaded.");
     return { schemaVersion: "0.1", mode: "cinematic", cinematic: structuredClone(cinematic) };
+  }
+
+  #createCinematicClip() {
+    const spec = this.cinematicController.exportCinematicSpec?.();
+    const timeline = this.cinematicState?.timeline;
+    if (!spec?.cinematic || !timeline?.ticks?.length) return this.error("Start cinematic playback before creating a Clip.");
+    const clip = createCinematicClip({
+      cinematic: spec.cinematic,
+      projectId: this.projectManager.current.id,
+      camera: this.mapController.getViewState?.(),
+      observationTimes: timeline.ticks,
+      title: spec.cinematic.title,
+    });
+    const clips = [...(this.projectManager.current.presentation?.cinematicClips || []).filter((item) => item.id !== clip.id), clip];
+    this.projectManager.patchPresentation({ cinematicClips: clips });
+    this.lastCinematicClipId = clip.id;
+    this.toast(`Clip “${clip.title}” saved. Add it to a Brief from the Cinematic Clip slide type.`);
+    return clip;
+  }
+
+  #currentCinematicClip() {
+    const clips = this.projectManager.current.presentation?.cinematicClips || [];
+    return clips.find((clip) => clip.id === this.lastCinematicClipId) || clips.at(-1) || this.#createCinematicClip();
+  }
+
+  #setCinematicClipEndCamera() {
+    const clip = this.#currentCinematicClip();
+    const view = this.mapController.getViewState?.();
+    if (!clip || !Array.isArray(view?.center) || !Number.isFinite(Number(view.center[0])) || !Number.isFinite(Number(view.center[1]))) return this.error("Move the map to a valid view before setting the Clip end camera.");
+    const end = { atMs: clip.playback.durationMs, camera: { longitude: Number(view.center[0]), latitude: Number(view.center[1]), zoom: Number(view.zoom) || 12, bearing: Number(view.heading) || 0, pitch: Number(view.tilt) || 0 } };
+    const updated = { ...clip, updatedAt: new Date().toISOString(), cameraTrack: [clip.cameraTrack?.[0] || end, end] };
+    this.projectManager.patchPresentation({ cinematicClips: (this.projectManager.current.presentation?.cinematicClips || []).map((item) => item.id === clip.id ? updated : item) });
+    this.toast("Clip ending camera saved.");
+  }
+
+  #downloadCinematicClip() {
+    const clip = this.#currentCinematicClip();
+    if (!clip) return;
+    const file = new Blob([JSON.stringify(exportCinematicClip(clip), null, 2)], { type: "application/json" });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(file);
+    link.download = `${String(clip.title || "cinematic-clip").replace(/[^a-z0-9]+/gi, "-").replace(/^-|-$/g, "").toLowerCase() || "cinematic-clip"}.cinematic.json`;
+    link.click();
+    setTimeout(() => URL.revokeObjectURL(link.href), 5000);
+    this.toast("Cinematic Clip JSON downloaded.");
+  }
+
+  #addCinematicClipToBrief() {
+    const clip = this.#currentCinematicClip();
+    if (!clip) return;
+    const slide = createSlide("cinematic", { title: clip.title, subtitle: "Observed playback" });
+    slide.clipRef = clip.id;
+    const briefing = addSlide(normalizeBriefing(this.projectManager.current.presentation?.briefing), slide);
+    this.projectManager.patchPresentation({ briefing });
+    this.toast(`“${clip.title}” was added as an interactive Brief slide.`);
+  }
+
+  async #downloadCinematicPoster() {
+    const clip = this.#currentCinematicClip();
+    if (!clip) return;
+    try {
+      const capture = await this.mapController.captureImage({ format: "png", width: 1280, aspect: 16 / 9 });
+      if (!capture?.dataUrl) throw new Error("The active map renderer could not provide an image capture.");
+      const image = new Image();
+      await new Promise((resolve, reject) => { image.onload = resolve; image.onerror = () => reject(new Error("The map image could not be composed.")); image.src = capture.dataUrl; });
+      const canvas = document.createElement("canvas");
+      canvas.width = 1280; canvas.height = 720;
+      const context = canvas.getContext("2d");
+      context.drawImage(image, 0, 0, canvas.width, canvas.height);
+      context.fillStyle = "rgba(7, 28, 24, .82)"; context.fillRect(0, 0, canvas.width, 112);
+      context.fillStyle = "#fffdf7"; context.font = "700 36px system-ui, sans-serif"; context.fillText(clip.title, 38, 58);
+      context.font = "18px system-ui, sans-serif"; context.fillText("Observed playback · GISMap Online", 38, 88);
+      if (clip.composition.attribution) { context.fillStyle = "rgba(7, 28, 24, .78)"; context.fillRect(0, 682, canvas.width, 38); context.fillStyle = "#fffdf7"; context.font = "14px system-ui, sans-serif"; context.fillText("Map data and imagery providers · Cinematic Clip", 20, 707); }
+      const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/png"));
+      if (!blob) throw new Error("The map uses cross-origin imagery that prevents poster export. Use an export-enabled basemap or remove the restricted layer.");
+      const link = document.createElement("a"); link.href = URL.createObjectURL(blob); link.download = "cinematic-poster.png"; link.click(); setTimeout(() => URL.revokeObjectURL(link.href), 5000);
+      this.toast("Cinematic poster downloaded.");
+    } catch (error) { this.error(`Could not export poster: ${error.message}`); }
+  }
+
+  async #recordCinematicClip() {
+    const clip = this.#currentCinematicClip();
+    if (!clip) return;
+    try {
+      this.cinematicController.pause();
+      await this.cinematicController.load(clipToCinematicSpec(clip));
+      this.cinematicState = this.cinematicController.state();
+      this.toast("Recording WebM from the map composition…");
+      const file = await recordCinematicClip({
+        clip, controller: this.cinematicController, mapController: this.mapController,
+        onProgress: (complete, total) => { if (complete === total || complete % 5 === 0) this.toast(`Recording Clip frame ${complete} of ${total}…`); },
+      });
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(file); link.download = "cinematic-clip.webm"; link.click();
+      setTimeout(() => URL.revokeObjectURL(link.href), 5000);
+      this.toast("Cinematic Clip WebM downloaded.");
+    } catch (error) { this.error(`Could not record Clip: ${error.message}`); }
+  }
+
+  async #playBriefingCinematicClip(slide, { autoplay = false } = {}) {
+    const clip = this.projectManager.current.presentation?.cinematicClips?.find((item) => item.id === slide?.clipRef);
+    if (!clip) throw new Error("This Brief slide refers to a Clip that is not in the project.");
+    const state = await this.cinematicController.load(clipToCinematicSpec(clip));
+    this.cinematicState = state;
+    if (autoplay && !matchMedia("(prefers-reduced-motion: reduce)").matches) this.cinematicController.play();
+  }
+
+  async #stopBriefingCinematicClip() {
+    if (!this.cinematicState) return;
+    await this.cinematicController.destroy();
+    this.cinematicState = null;
   }
 
   #playAtlasStory(chapters, startIndex = 0) {

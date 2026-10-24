@@ -7,8 +7,9 @@ import { normalizeDataCatalog } from "./data-catalog.js?v=0.18.2";
 import { normalizeSkin, normalizeSkinColors } from "./skin-catalog.js?v=0.57.0-skins2";
 import { normalizeMapColors } from "./basemap-themes.js?v=0.53.0-mapcolors1";
 import { normalizeMobileWorkflow } from "./mobile-feed-store.js?v=0.18.7";
-import { normalizeBriefing } from "./briefing-document.js?v=0.60.0-media1";
+import { normalizeBriefing } from "./briefing-document.js?v=0.60.4-clips1";
 import { importCinematicSpec } from "./cinematic/state.js?v=0.1.1";
+import { normalizeCinematicClips } from "./cinematic/clip-model.js?v=0.2.0-clips1";
 import { composeSmartImage, embedProjectInPng, readProjectFromPng } from "./smart-image.js?v=0.44.2";
 
 const STORAGE_KEY = "gismap-online:projects:v1";
@@ -452,6 +453,9 @@ export class ProjectManager {
         if (!value.cinematic || typeof value.cinematic !== "object") return null;
         try { return importCinematicSpec({ cinematic: value.cinematic }).cinematic; } catch { return null; }
       })(),
+      // Clips are portable scene recipes, not media files. Keeping them beside
+      // the cinematic draft lets Brief slides refer to a stable ID.
+      cinematicClips: normalizeCinematicClips(value.cinematicClips),
       primaryLayerId: value.primaryLayerId || null,
       fieldMappings: value.fieldMappings && typeof value.fieldMappings === "object" ? value.fieldMappings : {},
       widgets: value.widgets && typeof value.widgets === "object" ? value.widgets : {},
