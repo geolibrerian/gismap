@@ -118,7 +118,7 @@ test("briefing presentation actions float above the data dock", async () => {
 
 test("slide types: templates convert in place, series kinds generate, planned kinds are announced", async () => {
   const { SLIDE_TYPES, slideTypeOf, convertSlide, createSlide, normalizeBriefing, addSlide } = await import("../js/briefing-document.js");
-  assert.deepEqual(SLIDE_TYPES.filter((type) => type.kind === "template").map((type) => type.template), ["map-narrative", "title", "key-numbers", "actions", "media"]);
+  assert.deepEqual(SLIDE_TYPES.filter((type) => type.kind === "template").map((type) => type.template), ["map-narrative", "title", "key-numbers", "actions", "media", "cinematic"]);
   assert.deepEqual(SLIDE_TYPES.filter((type) => type.kind === "generator").map((type) => type.generator).sort(), ["filter-series", "grid-atlas", "spatial-3d-chart", "timeline"]);
   assert.deepEqual(SLIDE_TYPES.filter((type) => type.kind === "planned").map((type) => type.id), ["tour", "animation", "bim", "realtime", "dashboard"]);
   const camera = { center: [-100, 40], zoom: 5, heading: 0, tilt: 0 };
