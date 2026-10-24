@@ -6,6 +6,7 @@ import { CINEMATIC_EFFECTS, effectFields, effectRanges, resolveEffect } from "./
 // Engine adapters may implement a transient operation synchronously (for
 // example, removing an already-loaded Three.js item) or asynchronously. Keep
 // optional cleanup safe in either case, including unsupported adapters.
+const MAX_FEATURES = 50000;
 const attempt = (operation, fallback = null) => Promise.resolve().then(operation).catch(() => fallback);
 
 /**
@@ -35,9 +36,8 @@ export class CinematicModeController {
     for (const config of this.spec.cinematic.layers) {
       const layer = this.mapController.getLayer(config.layerRef);
       if (!layer?.queryable) throw new Error(`Cinematic layer “${config.layerRef}” is not queryable.`);
-      const features = featuresByLayer[config.layerRef] || (await this.mapController.queryFeatures(layer.uid, {
-        where: layer.where || "1=1", outFields: ["*"], returnGeometry: true, num: Math.min(layer.maxRecordCount || 2000, 5000),
-      })).features;
+      const loaded = featuresByLayer[config.layerRef] ? { features: featuresByLayer[config.layerRef], truncated: false } : await this.#queryAll(layer, config.temporal.startField);
+      const { features } = loaded;
       const model = normalizeTemporalFeatures(features, {
         timeField: config.temporal.startField,
         groupField: config.temporal.groupField,
@@ -46,7 +46,7 @@ export class CinematicModeController {
       if (!model.ticks.length) throw new Error(`No valid timestamped observations were found in ${layer.title}.`);
       const previousOpacity = Number.isFinite(Number(layer.opacity)) ? Number(layer.opacity) : 1;
       const effectRange = effectRanges(features, effectFields(layer.fields || [], features[0]?.attributes || features[0]?.properties));
-      this.layers.set(layer.uid, { layer, config, model, effectRange, effectUid: `cinematic:${this.spec.cinematic.id}:${layer.uid}`, previousOpacity, previousFilter: await attempt(() => this.mapController.getFeatureFilter(layer.uid)) });
+      this.layers.set(layer.uid, { layer, config, model, effectRange, truncated: loaded.truncated, effectUid: `cinematic:${this.spec.cinematic.id}:${layer.uid}`, previousOpacity, previousFilter: await attempt(() => this.mapController.getFeatureFilter(layer.uid)) });
       if (config.animation.opacity != null) await attempt(() => this.mapController.setOpacity(layer.uid, config.animation.opacity), false);
     }
     this.#resetTimeline();
@@ -59,11 +59,11 @@ export class CinematicModeController {
     const timeMode = this.spec?.cinematic.clock.timeMode || "instant";
     return {
       spec: this.spec ? exportCinematicSpec(this.spec) : null, timeline, localWindow: this.localWindow, localEmpty: this.localEmpty,
-      layers: [...this.layers.values()].map(({ layer, model, config }) => {
+      layers: [...this.layers.values()].map(({ layer, model, config, truncated }) => {
         const activeModel = this.localModels.get(layer.uid) || model;
         const effect = this.#effectFor(layer, config);
         return { uid: layer.uid, title: layer.title, ticks: activeModel.ticks, invalid: model.invalid, timeField: config.temporal.startField,
-          effect, effectNote: CINEMATIC_EFFECTS[effect]?.note || "",
+          effect, effectNote: CINEMATIC_EFFECTS[effect]?.note || "", loadedCount: model.observations.length + model.invalid.length, truncated,
           observedCount: timeline && !this.localEmpty ? observedFeaturesAt(activeModel, timeline.observationTime, { timeMode }).length : 0 };
       }),
     };
@@ -160,6 +160,27 @@ export class CinematicModeController {
       if (typeof this.mapController.clearCinematicEffect === "function") await attempt(() => this.mapController.clearCinematicEffect(effectUid), false);
     }));
     this.layers.clear(); this.localModels.clear(); this.localWindow = false; this.localEmpty = false; this.spec = null; this.renderedObservationTime = null; this.renderedTimeMode = null;
+  }
+
+  /**
+   * Every record of the layer, oldest first, one page at a time: a single
+   * page of a newest-first feed would start playback days after the data
+   * does. Bounded so a huge service cannot exhaust memory.
+   */
+  async #queryAll(layer, timeField) {
+    const pageSize = Math.min(layer.maxRecordCount || 2000, 5000);
+    const order = [`${timeField} ASC`, ...(layer.objectIdField ? [`${layer.objectIdField} ASC`] : [])];
+    const features = [];
+    for (let start = 0; ; start += pageSize) {
+      const page = await this.mapController.queryFeatures(layer.uid, {
+        where: layer.where || "1=1", outFields: ["*"], returnGeometry: true, start, num: pageSize, orderByFields: order,
+      });
+      features.push(...(page.features || []));
+      // Services without pagination ignore `start`; one page is all they give.
+      const more = page.exceededTransferLimit === true && page.features?.length > 0 && layer.supportsPagination !== false;
+      if (!more) return { features, truncated: false };
+      if (features.length >= MAX_FEATURES) return { features, truncated: true };
+    }
   }
 
   #effectFor(layer, config) {

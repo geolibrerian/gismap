@@ -65,3 +65,29 @@ test("cinematic mode applies transient observed IDs and restores the prior filte
   assert.deepEqual(applied.at(-1), { objectIds: [99] });
   assert.equal(opacity.at(-1), 0.8);
 });
+
+test("cinematic mode loads every page so playback starts at the earliest record", async () => {
+  // A newest-first feed of 25 records served 10 at a time.
+  const rows = Array.from({ length: 25 }, (_, index) => ({ attributes: { OBJECTID: index + 1, time: Date.UTC(2026, 8, 1 + index) }, geometry: { type: "Point", coordinates: [0, 0] } })).reverse();
+  const requests = [];
+  const layer = { uid: "quakes", title: "Quakes", queryable: true, objectIdField: "OBJECTID", maxRecordCount: 10 };
+  const mapController = {
+    getLayer: (id) => id === "quakes" ? layer : null,
+    getFeatureFilter: async () => null,
+    setFeatureFilter: async () => true,
+    setOpacity: async () => {},
+    queryFeatures: async (_id, params) => {
+      requests.push(params);
+      const sorted = params.orderByFields?.[0] === "time ASC" ? [...rows].sort((a, b) => a.attributes.time - b.attributes.time) : rows;
+      const page = sorted.slice(params.start || 0, (params.start || 0) + params.num);
+      return { features: page, exceededTransferLimit: (params.start || 0) + params.num < rows.length };
+    },
+  };
+  const mode = new CinematicModeController({ mapController });
+  await mode.load({ cinematic: { layers: [{ layerRef: "quakes", temporal: { startField: "time" } }] } });
+  assert.deepEqual(requests.map((params) => params.start), [0, 10, 20]);
+  assert.equal(mode.state().timeline.ticks.length, 25);
+  assert.equal(mode.state().timeline.observationTime, Date.UTC(2026, 8, 1));
+  assert.equal(mode.state().layers[0].truncated, false);
+  await mode.destroy();
+});

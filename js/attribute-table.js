@@ -24,6 +24,7 @@ export class AttributeTableController {
   }
 
   initialize() {
+    this.#trackSidebarEdge();
     document.querySelector("#table-close").addEventListener("click", () => this.#cancelAndReset());
     this.dialog.addEventListener("cancel", (event) => {
       event.preventDefault();
@@ -257,6 +258,23 @@ export class AttributeTableController {
     } catch {
       return { tablePosition: "overlay-bottom", tableDockWidth: 520, tableDockHeight: 420 };
     }
+  }
+
+  /**
+   * The table lives outside #app, where modes set their own --sidebar width,
+   * so it reads the sidebar's real right edge to dock beside it, not under it.
+   */
+  #trackSidebarEdge() {
+    const sidebar = document.querySelector("#sidebar");
+    if (!sidebar) return;
+    const update = () => {
+      const edge = document.body.classList.contains("sidebar-collapsed") ? 0 : Math.max(0, Math.round(sidebar.getBoundingClientRect().right));
+      document.body.style.setProperty("--table-dock-left", `${edge}px`);
+    };
+    update();
+    if (typeof ResizeObserver === "function") new ResizeObserver(update).observe(sidebar);
+    window.addEventListener("resize", update);
+    new MutationObserver(update).observe(document.body, { attributes: true, attributeFilter: ["class"] });
   }
 
   #applyTableSize(settings) {

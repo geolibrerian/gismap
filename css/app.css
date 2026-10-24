@@ -1487,7 +1487,7 @@ button.enterprise-row:hover { border-color: var(--green-2); }
 .about-copy p { margin-top: 0; line-height: 1.6; }
 .about-copy dl { padding: 0; }
 
-.table-dialog { position: fixed; inset: auto 14px 14px calc(var(--sidebar) + 14px); width: auto; max-width: none; height: min(44vh, 470px); max-height: none; margin: 0; z-index: 40; resize: vertical; }
+.table-dialog { position: fixed; inset: auto 14px 14px calc(var(--table-dock-left, var(--sidebar)) + 14px); width: auto; max-width: none; height: min(44vh, 470px); max-height: none; margin: 0; z-index: 40; resize: vertical; }
 .table-resizer { display: none; position: absolute; z-index: 3; touch-action: none; }
 .table-dialog__shell { display: grid; grid-template-rows: auto auto 1fr auto; width: 100%; height: 100%; }
 .table-dialog .dialog__header { align-items: center; padding: 7px 14px 5px; }
@@ -1551,17 +1551,17 @@ body.sidebar-collapsed .table-dialog { left: 14px; }
   body.utility-panel-open.table-open[data-table-position="dock-bottom"] .table-dialog {
     right: var(--utility-panel-width, 360px);
   }
-  body.table-open[data-table-position="dock-left"] .map-workspace {
+  body.table-open[data-table-position="dock-left"] #app .map-workspace {
     width: calc(100% - var(--table-dock-width, 520px));
     margin-left: var(--table-dock-width, 520px);
   }
-  body.table-open[data-table-position="dock-right"] .map-workspace {
+  body.table-open[data-table-position="dock-right"] #app .map-workspace {
     width: calc(100% - var(--table-dock-width, 520px));
   }
-  body.table-open[data-table-position="dock-bottom"] .map-workspace {
+  body.table-open[data-table-position="dock-bottom"] #app .map-workspace {
     height: calc(100% - var(--table-dock-height, 420px));
   }
-  body.table-open[data-table-position="dock-top"] .map-workspace {
+  body.table-open[data-table-position="dock-top"] #app .map-workspace {
     height: calc(100% - var(--table-dock-height, 420px));
     margin-top: var(--table-dock-height, 420px);
   }
@@ -1573,7 +1573,7 @@ body.sidebar-collapsed .table-dialog { left: 14px; }
     resize: none;
   }
   body.table-open[data-table-position="dock-left"] .table-dialog {
-    inset: 0 auto 0 var(--sidebar);
+    inset: 0 auto 0 var(--table-dock-left, var(--sidebar));
     width: var(--table-dock-width, 520px);
     height: auto;
   }
@@ -1584,12 +1584,12 @@ body.sidebar-collapsed .table-dialog { left: 14px; }
     height: auto;
   }
   body.table-open[data-table-position="dock-bottom"] .table-dialog {
-    inset: auto 0 0 var(--sidebar);
+    inset: auto 0 0 var(--table-dock-left, var(--sidebar));
     width: auto;
     height: var(--table-dock-height, 420px);
   }
   body.table-open[data-table-position="dock-top"] .table-dialog {
-    inset: 0 0 auto var(--sidebar);
+    inset: 0 0 auto var(--table-dock-left, var(--sidebar));
     width: auto;
     height: var(--table-dock-height, 420px);
   }
@@ -1634,22 +1634,22 @@ body.sidebar-collapsed .table-dialog { left: 14px; }
   body.table-resizing[data-table-position="dock-bottom"] { cursor: row-resize; }
   body.table-resizing iframe, body.table-resizing canvas { pointer-events: none; }
 
-  body.insights-open[data-insights-position="dock-left"] .map-workspace {
+  body.insights-open[data-insights-position="dock-left"] #app .map-workspace {
     display: grid;
     grid-template: minmax(0, 1fr) / var(--insights-dock-width, 420px) minmax(0, 1fr);
     grid-template-areas: "insight map";
   }
-  body.insights-open[data-insights-position="dock-right"] .map-workspace {
+  body.insights-open[data-insights-position="dock-right"] #app .map-workspace {
     display: grid;
     grid-template: minmax(0, 1fr) / minmax(0, 1fr) var(--insights-dock-width, 420px);
     grid-template-areas: "map insight";
   }
-  body.insights-open[data-insights-position="dock-bottom"] .map-workspace {
+  body.insights-open[data-insights-position="dock-bottom"] #app .map-workspace {
     display: grid;
     grid-template: minmax(0, 1fr) var(--insights-dock-height, 360px) / minmax(0, 1fr);
     grid-template-areas: "map" "insight";
   }
-  body.insights-open[data-insights-position="dock-top"] .map-workspace {
+  body.insights-open[data-insights-position="dock-top"] #app .map-workspace {
     display: grid;
     grid-template: var(--insights-dock-height, 360px) minmax(0, 1fr) / minmax(0, 1fr);
     grid-template-areas: "insight" "map";

@@ -1619,7 +1619,17 @@ export class UIController {
     this.toast("Share link copied. Local files and credentials were not included.");
   }
 
-  #openCinematicMode() {
+  /**
+   * Enters Cinematic mode. A mapping already set up in this project (kept while
+   * you visit other modes) resumes as it was; `reconfigure` opens the setup.
+   */
+  #openCinematicMode({ reconfigure = false } = {}) {
+    const current = this.projectManager.current.presentation || {};
+    const saved = current.cinematic;
+    if (!reconfigure && saved?.layers?.length && saved.layers.every((item) => this.mapController.getLayer(item.layerRef))) {
+      if (current.template !== "cinematic") this.projectManager.setPresentation({ ...current, template: "cinematic" });
+      return;
+    }
     const layers = this.mapController.getLayers().filter((layer) => layer.queryable && layer.objectIdField);
     if (!layers.length) {
       this.error("Cinematic mode needs a queryable feature layer with a stable object ID.");
@@ -4020,7 +4030,7 @@ export class UIController {
     const timeline = state?.timeline;
     if (!timeline) {
       root.innerHTML = `<section class="mode-dashboard cinematic-dashboard"><header><span class="eyebrow">Cinematic · observed playback</span><h2>${escapeHtml(presentation.title || layer.title || "Cinematic map")}</h2><p>Preparing timestamped observations…</p></header><button type="button" data-cinematic-reconfigure>Configure playback</button></section>`;
-      root.querySelector("[data-cinematic-reconfigure]")?.addEventListener("click", () => this.#openCinematicMode());
+      root.querySelector("[data-cinematic-reconfigure]")?.addEventListener("click", () => this.#openCinematicMode({ reconfigure: true }));
       return;
     }
     const timeMode = state.spec?.cinematic.clock.timeMode || "instant";
@@ -4098,7 +4108,7 @@ export class UIController {
     root.querySelector("[data-cinematic-download-clip]")?.addEventListener("click", () => this.#downloadCinematicClip());
     root.querySelector("[data-cinematic-poster]")?.addEventListener("click", () => void this.#downloadCinematicPoster());
     root.querySelector("[data-cinematic-record]")?.addEventListener("click", () => void this.#recordCinematicClip());
-    root.querySelector("[data-cinematic-reconfigure]")?.addEventListener("click", () => this.#openCinematicMode());
+    root.querySelector("[data-cinematic-reconfigure]")?.addEventListener("click", () => this.#openCinematicMode({ reconfigure: true }));
     root.querySelector("[data-cinematic-exit]")?.addEventListener("click", async () => {
       await this.cinematicController.destroy();
       this.cinematicState = null;
@@ -5727,12 +5737,24 @@ export class UIController {
   #applyPresentation(presentation = {}) {
     const nextTemplate = presentation.template || "standard";
     if (nextTemplate !== "cinematic" && this.cinematicState) {
+      // Remember where playback was, so returning from another mode resumes there.
+      this.cinematicResume = { id: this.cinematicState.spec?.cinematic.id, time: this.cinematicController.state()?.timeline?.observationTime };
       void this.cinematicController.destroy();
       this.cinematicState = null;
     }
     if (nextTemplate === "cinematic" && presentation.cinematic && !this.cinematicState && !this.cinematicLoading) {
       this.cinematicLoading = this.cinematicController.load({ cinematic: presentation.cinematic })
-        .then((state) => { this.cinematicState = state; this.#renderPresentationDashboard(this.projectManager.current.presentation); })
+        .then(async (state) => {
+          const resume = this.cinematicResume;
+          this.cinematicResume = null;
+          if (resume?.id === presentation.cinematic.id && Number.isFinite(resume.time)) {
+            this.cinematicController.seek(resume.time);
+            await this.cinematicController.renderTask;
+            state = this.cinematicController.state();
+          }
+          this.cinematicState = state;
+          this.#renderPresentationDashboard(this.projectManager.current.presentation);
+        })
         .catch((error) => this.error(`Cinematic playback could not start: ${error.message}`))
         .finally(() => { this.cinematicLoading = null; });
     }
