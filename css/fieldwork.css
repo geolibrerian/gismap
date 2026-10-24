@@ -749,6 +749,9 @@ body.briefing-map-select #viewDiv { cursor: crosshair; }
 .briefing-focus label { display: grid; gap: 4px; font-size: 13px; font-weight: 600; }
 .briefing-focus input { min-width: 0; min-height: 36px; padding: 6px 10px; border: 1px solid var(--border-strong, var(--line)); border-radius: 6px; color: var(--text-primary, var(--ink)); background: var(--surface-panel, var(--surface)); font: 13px var(--ui-font); }
 .briefing-focus > button { min-height: 36px; padding: 6px 12px; border: 1px solid var(--border-subtle, var(--line)); border-radius: 6px; color: var(--text-primary, var(--ink)); background: transparent; font: 600 12px var(--ui-font); cursor: pointer; white-space: nowrap; }
-.briefing-focus:has(> strong) { grid-template-columns: auto minmax(0, 1fr) auto auto; align-items: center; border-style: solid; }
+.briefing-focus:has(> strong) { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; border-style: solid; }
+/* Label on its own line; the buttons drop below the feature's name when the panel is narrow. */
+.briefing-focus:has(> strong) > span { flex: 1 0 100%; }
+.briefing-focus:has(> strong) > strong { flex: 1 1 auto; }
 .briefing-focus > span { color: var(--text-muted, var(--muted)); font-size: 12px; }
-.briefing-focus > strong { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
+.briefing-focus > strong { min-width: 0; overflow-wrap: break-word; font-size: 13px; line-height: 1.3; }

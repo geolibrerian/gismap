@@ -662,16 +662,20 @@ export class BriefingSlides {
       const queryable = layer !== main && layer.objectIdQueryable;
       const relationControls = queryable
         ? `<div class="briefing-layer__relation"${visible ? "" : " hidden"}>
-            <label><span>Features</span><select data-slide-layer-relation${canRelate ? "" : " disabled"}><option value="">All of them</option>${SPATIAL_RELATIONSHIPS.map((type) => `<option value="${type}"${relation?.type === type ? " selected" : ""}>Only those that: ${escapeHtml(RELATION_LABELS[type])}</option>`).join("")}</select></label>
+            <label><span>Features</span><select data-slide-layer-relation><option value="">All of them</option>${SPATIAL_RELATIONSHIPS.map((type) => `<option value="${type}"${relation?.type === type ? " selected" : ""}>Only those that: ${escapeHtml(RELATION_LABELS[type])}</option>`).join("")}</select></label>
             <label${relation ? "" : " hidden"}><span>Grow the feature by</span><span class="briefing-layer__distance"><input type="number" min="0" step="any" data-slide-layer-distance value="${relation?.distance ?? ""}" placeholder="0"><select data-slide-layer-units>${DISTANCE_UNITS.map((unit) => `<option value="${unit}"${(relation?.units || "meters") === unit ? " selected" : ""}>${UNIT_LABELS[unit]}</option>`).join("")}</select></span></label>
             <label${relation?.type === "relation" ? "" : " hidden"}><span>DE-9IM pattern</span><input data-slide-layer-pattern maxlength="9" value="${escapeHtml(relation?.relationParameter || "")}" placeholder="T********"></label>
           </div>`
         : layer === main ? "" : `<p class="form-note">Drawn by its service: it can be shown or hidden, not limited by feature.</p>`;
       return `<div class="briefing-layer" data-slide-layer="${escapeHtml(ref)}"><label class="briefing-layer__show"><input type="checkbox" data-slide-layer-visible${visible ? " checked" : ""}> <span>${escapeHtml(layer.title || "Layer")}</span></label>${relationControls}</div>`;
     }).join("");
+    // A limit can be chosen before the focus feature; it applies once one is set.
+    const pending = !canRelate && (slide.layers || []).some((entry) => entry.relation);
     const note = canRelate
       ? `Feature limits ask each layer's service which features relate to ${slide.template === "feature" ? "this slide's feature" : "the focus feature"}${main?.title ? ` in ${escapeHtml(main.title)}` : ""}.`
-      : `Choose a focus feature above to show only what relates to it, for example the ballparks within one state. Without one, a layer can only be shown or hidden.`;
+      : pending
+        ? `<strong>Choose a focus feature above</strong> to apply these limits. Until then every feature shows.`
+        : `Choose which related features each layer shows, then a focus feature above, for example the ballparks within one state.`;
     const focus = slide.template === "feature" || !main ? "" : this.#focusControl(slide, record, main);
     return `<fieldset class="briefing-field briefing-layers"><legend>Slide layers <small>${slide.layers ? "set for this slide" : "as the map has them"}</small></legend>${focus}${rows}<p class="form-note">${note}</p>${slide.layers ? '<button type="button" class="briefing-link-button" data-slide-layers-clear>Leave layers as the map has them</button>' : ""}</fieldset>`;
   }
@@ -1120,13 +1124,26 @@ export class BriefingSlides {
       if (slide) void this.applySlideLayers(slide);
     };
     on("[data-slide-layer] input, [data-slide-layer] select", "change", saveLayers);
+    // A limit needs something to relate to: send people to the focus feature when there is none.
+    on("[data-slide-layer-relation]", "change", (select) => {
+      const slide = this.briefing.slides.find((item) => item.id === slideId);
+      if (!select.value || this.#recordFor(slide)?.geometry) return;
+      this.api.notify?.("Now choose a focus feature (type a name or pick it on the map) to apply this limit.");
+      requestAnimationFrame(() => {
+        const input = container.querySelector("[data-slide-focus]");
+        input?.scrollIntoView?.({ block: "center", behavior: "smooth" });
+        input?.focus({ preventScroll: true });
+      });
+    });
     const setFocus = (id) => {
       if (!id) return;
       this.#save(updateSlide(this.briefing, slideId, { featureId: id }));
       const slide = this.briefing.slides.find((item) => item.id === slideId);
       const record = this.#recordFor(slide);
-      this.api.notify?.(`Focus feature: ${record ? this.api.data().label(record) : id}. Choose which related features each layer shows.`);
+      const limited = slide?.layers?.some((entry) => entry.relation);
+      this.api.notify?.(`Focus feature: ${record ? this.api.data().label(record) : id}. ${limited ? "Layer limits now apply to it." : "Choose which related features each layer shows."}`);
       if (record) this.api.mapController.highlightFeature?.(record, { pulse: true });
+      if (slide && limited) void this.applySlideLayers(slide, record);
     };
     on("[data-slide-focus]", "change", (input) => {
       const id = this.focusOptions?.get(input.value);
@@ -1135,9 +1152,9 @@ export class BriefingSlides {
     on("[data-slide-focus-pick]", "click", () => this.api.pickFeature?.((id) => setFocus(id)));
     on("[data-slide-focus-clear]", "click", () => {
       const slide = this.briefing.slides.find((item) => item.id === slideId);
-      // Related-feature limits need the focus feature; without it the layers go back to shown or hidden.
-      const layers = slide?.layers?.map(({ relation, ...entry }) => entry);
-      this.#save(updateSlide(this.briefing, slideId, { featureId: null, ...(layers ? { layers } : {}) }));
+      // Limits stay as chosen; without a focus feature they simply show every feature.
+      this.#save(updateSlide(this.briefing, slideId, { featureId: null }));
+      if (slide) void this.applySlideLayers({ ...slide, featureId: null }, null);
       this.api.mapController.clearFeatureHighlight?.();
     });
     on("[data-slide-layers-clear]", "click", () => {

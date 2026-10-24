@@ -124,3 +124,13 @@ test("the data dock pages past 500, picking on the map keeps the layout still, a
   assert.match(slides, /#focusControl\(slide, record, main\) \{[\s\S]*?data-slide-focus-pick/);
   assert.match(slides, /on\("\[data-slide-focus-pick\]", "click", \(\) => this\.api\.pickFeature\?\.\(\(id\) => setFocus\(id\)\)\);/);
 });
+
+test("a slide layer's Features limit can be chosen before its focus feature and applies once one is set", () => {
+  // The dropdown is never disabled: a disabled select looked usable but did nothing.
+  assert.match(slides, /<select data-slide-layer-relation>/);
+  assert.doesNotMatch(slides, /data-slide-layer-relation\$\{canRelate/);
+  assert.match(slides, /on\("\[data-slide-layer-relation\]", "change", \(select\) => \{[\s\S]*?container\.querySelector\("\[data-slide-focus\]"\)/);
+  // Setting the focus feature applies limits already chosen; clearing it keeps them for later.
+  assert.match(slides, /if \(slide && limited\) void this\.applySlideLayers\(slide, record\);/);
+  assert.match(slides, /this\.#save\(updateSlide\(this\.briefing, slideId, \{ featureId: null \}\)\);/);
+});
