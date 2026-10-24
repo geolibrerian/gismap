@@ -1,6 +1,7 @@
 import { createCinematicTimeline } from "./timeline-controller.js?v=0.1.0";
 import { normalizeTemporalFeatures, observedFeatureIdsAt, observedFeaturesAt, temporalModelInExtent } from "./temporal-adapter.js?v=0.1.2-localwindow1";
-import { exportCinematicSpec, importCinematicSpec } from "./state.js?v=0.1.1";
+import { exportCinematicSpec, importCinematicSpec } from "./state.js?v=0.2.0";
+import { CINEMATIC_EFFECTS, effectFields, effectRanges, resolveEffect } from "./cinematic-effects.js?v=0.2.0";
 
 // Engine adapters may implement a transient operation synchronously (for
 // example, removing an already-loaded Three.js item) or asynchronously. Keep
@@ -44,7 +45,8 @@ export class CinematicModeController {
       });
       if (!model.ticks.length) throw new Error(`No valid timestamped observations were found in ${layer.title}.`);
       const previousOpacity = Number.isFinite(Number(layer.opacity)) ? Number(layer.opacity) : 1;
-      this.layers.set(layer.uid, { layer, config, model, effectUid: `cinematic:${this.spec.cinematic.id}:${layer.uid}`, previousOpacity, previousFilter: await attempt(() => this.mapController.getFeatureFilter(layer.uid)) });
+      const effectRange = effectRanges(features, effectFields(layer.fields || [], features[0]?.attributes || features[0]?.properties));
+      this.layers.set(layer.uid, { layer, config, model, effectRange, effectUid: `cinematic:${this.spec.cinematic.id}:${layer.uid}`, previousOpacity, previousFilter: await attempt(() => this.mapController.getFeatureFilter(layer.uid)) });
       if (config.animation.opacity != null) await attempt(() => this.mapController.setOpacity(layer.uid, config.animation.opacity), false);
     }
     this.#resetTimeline();
@@ -59,7 +61,9 @@ export class CinematicModeController {
       spec: this.spec ? exportCinematicSpec(this.spec) : null, timeline, localWindow: this.localWindow, localEmpty: this.localEmpty,
       layers: [...this.layers.values()].map(({ layer, model, config }) => {
         const activeModel = this.localModels.get(layer.uid) || model;
+        const effect = this.#effectFor(layer, config);
         return { uid: layer.uid, title: layer.title, ticks: activeModel.ticks, invalid: model.invalid, timeField: config.temporal.startField,
+          effect, effectNote: CINEMATIC_EFFECTS[effect]?.note || "",
           observedCount: timeline && !this.localEmpty ? observedFeaturesAt(activeModel, timeline.observationTime, { timeMode }).length : 0 };
       }),
     };
@@ -109,10 +113,13 @@ export class CinematicModeController {
     }
     return !this.localEmpty;
   }
-  setBoundaryGlow(enabled) {
+  setBoundaryGlow(enabled) { this.setEffect(enabled === true ? "glow" : "none"); }
+  /** The decorative effect for every cinematic layer: a CINEMATIC_EFFECTS key or "auto". */
+  setEffect(type) {
     if (!this.spec) return;
     for (const layer of this.spec.cinematic.layers) {
-      layer.animation.outline = { color: layer.animation.outline?.color || "#ff8136", glow: enabled === true };
+      layer.animation.effect = { ...layer.animation.effect, type: type === "auto" || CINEMATIC_EFFECTS[type] ? type : "none" };
+      layer.animation.outline = { color: layer.animation.outline?.color || "#ff8136", glow: layer.animation.effect.type !== "none" };
     }
     // Effects use the same observation snapshot, so deliberately invalidate the
     // render cache when their setting changes at a paused observation.
@@ -155,6 +162,12 @@ export class CinematicModeController {
     this.layers.clear(); this.localModels.clear(); this.localWindow = false; this.localEmpty = false; this.spec = null; this.renderedObservationTime = null; this.renderedTimeMode = null;
   }
 
+  #effectFor(layer, config) {
+    const type = config.animation?.effect?.type || "none";
+    if (type === "none") return "none";
+    return resolveEffect(type, { title: layer.title, geometryType: layer.geometryType, fields: layer.fields || [] });
+  }
+
   #resetTimeline(explicitTicks = null) {
     const previous = this.timeline?.state();
     const wasPlaying = previous?.playing === true;
@@ -177,17 +190,22 @@ export class CinematicModeController {
         this.pendingSnapshot = null;
         const timeMode = this.spec?.cinematic.clock.timeMode || "instant";
         if (next.observationTime !== this.renderedObservationTime || timeMode !== this.renderedTimeMode) {
-          await Promise.all([...this.layers.values()].map(async ({ layer, config, model, effectUid }) => {
+          await Promise.all([...this.layers.values()].map(async ({ layer, config, model, effectUid, effectRange }) => {
             const activeModel = this.localModels.get(layer.uid) || model;
             const objectIds = this.localEmpty ? [] : observedFeatureIdsAt(activeModel, next.observationTime, { timeMode });
             await this.mapController.setFeatureFilter(layer.uid, { objectIds });
-            const glow = config.animation?.outline?.glow === true;
-            if (typeof this.mapController.setCinematicEffect === "function" && glow) {
+            const effect = this.#effectFor(layer, config);
+            if (typeof this.mapController.setCinematicEffect === "function" && effect !== "none") {
               const observations = this.localEmpty ? [] : observedFeaturesAt(activeModel, next.observationTime, { timeMode });
+              // "Fresh" features were first observed at this tick: effects flare them as they appear.
               await attempt(() => this.mapController.setCinematicEffect(effectUid, {
-                type: "observed-boundary-glow",
-                color: config.animation.outline.color,
-                features: observations.map((observation) => observation.feature),
+                type: "observed-effect",
+                effect,
+                color: config.animation.effect?.color || null,
+                intensity: config.animation.effect?.intensity ?? 1,
+                fields: layer.fields || [],
+                ranges: effectRange,
+                items: observations.map((observation) => ({ feature: observation.feature, fresh: observation.time === next.observationTime })),
               }), false);
             } else if (typeof this.mapController.clearCinematicEffect === "function") {
               await attempt(() => this.mapController.clearCinematicEffect(effectUid), false);

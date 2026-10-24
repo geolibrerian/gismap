@@ -20,8 +20,9 @@ export async function loadThreeAddon(path) {
 }
 
 /**
- * Draws three.js scenes on a MapLibre map. Each item: { scene, origin: [mercX, mercY], scale, update?(time) }.
+ * Draws three.js scenes on a MapLibre map. Each item: { scene, origin: [mercX, mercY], scale, update?(time, { map }), animated?, dispose? }.
  * `clock` is the shared animation clock: items read its time; the map repaints while it plays.
+ * An `animated` item (a cinematic effect) keeps the map repainting while it is visible.
  */
 export class ThreeHost {
   #items = new Map();
@@ -65,6 +66,7 @@ export class ThreeHost {
   remove(uid) {
     const item = this.#items.get(uid);
     if (!item) return;
+    item.dispose?.();
     item.scene.traverse?.((object) => { object.geometry?.dispose?.(); [object.material].flat().forEach((material) => material?.dispose?.()); });
     this.#items.delete(uid);
     this.map.triggerRepaint();
@@ -76,7 +78,12 @@ export class ThreeHost {
     if (visible !== undefined) item.visible = Boolean(visible);
     if (opacity !== undefined) {
       item.opacity = opacity;
-      item.scene.traverse((object) => [object.material].flat().forEach((material) => { if (!material) return; material.transparent = opacity < 1; material.opacity = opacity; }));
+      item.scene.traverse((object) => [object.material].flat().forEach((material) => {
+        if (!material) return;
+        // Shader effects blend premultiplied colour and read opacity as a uniform.
+        if (material.uniforms?.uOpacity) { material.uniforms.uOpacity.value = opacity; return; }
+        material.transparent = opacity < 1; material.opacity = opacity;
+      }));
     }
     this.map.triggerRepaint();
   }
@@ -99,9 +106,11 @@ export class ThreeHost {
     const { Matrix4 } = this.THREE;
     const projection = new Matrix4().fromArray(matrix);
     const time = this.clock.time;
+    let animating = false;
     for (const item of this.#items.values()) {
       if (!item.visible) continue;
-      item.update?.(time);
+      item.update?.(time, { map: this.map });
+      animating ||= item.animated === true;
       const [x, y] = item.origin, s = item.scale;
       // Ground-relative layers stand on the terrain when it is on (0 on a flat map).
       const ground = item.onTerrain && this.map.getTerrain?.() ? this.map.queryTerrainElevation?.(item.lngLat) || 0 : 0;
@@ -111,5 +120,6 @@ export class ThreeHost {
       this.#renderer.resetState();
       this.#renderer.render(item.scene, this.#camera);
     }
+    if (animating) this.map.triggerRepaint();
   }
 }

@@ -270,11 +270,17 @@ export class MaplibreEngine {
    */
   async setCinematicEffect(uid, effect = {}) {
     const id = String(uid || "");
-    if (!id || effect.type !== "observed-boundary-glow") return false;
+    // "observed-boundary-glow" is the v0.1 name for the glow effect.
+    const name = effect.type === "observed-boundary-glow" ? "glow" : effect.effect;
+    if (!id || !["observed-effect", "observed-boundary-glow"].includes(effect.type) || !name || name === "none") return false;
     const THREE = await loadThree();
     this.three ??= new ThreeHost({ map: this.map, THREE, notify: (message) => this.events.publish("app:error", { message }) });
-    const { buildObservedBoundaryGlow } = await import("../../cinematic/maplibre-boundary-glow.js?v=0.1.1");
-    const item = buildObservedBoundaryGlow(THREE, effect.features, { color: effect.color });
+    const { buildCinematicEffect } = await import("../../cinematic/effects-three.js?v=0.2.0");
+    const item = buildCinematicEffect(THREE, effect.items || effect.features || [], {
+      effect: name, color: effect.color, intensity: effect.intensity, fields: effect.fields, ranges: effect.ranges,
+      reducedMotion: globalThis.matchMedia?.("(prefers-reduced-motion: reduce)").matches === true,
+      elevationAt: (longitude, latitude) => (this.map?.getTerrain?.() ? this.map.queryTerrainElevation?.([longitude, latitude]) || 0 : 0),
+    });
     if (!item) {
       this.three.remove(id);
       return false;

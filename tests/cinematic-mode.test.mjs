@@ -47,8 +47,15 @@ test("cinematic mode applies transient observed IDs and restores the prior filte
   await mode.renderTask;
   mode.setBoundaryGlow(true);
   await mode.renderTask;
-  assert.equal(effects.at(-1).type, "observed-boundary-glow");
-  assert.equal(effects.at(-1).features.length, 2);
+  assert.equal(effects.at(-1).type, "observed-effect");
+  assert.equal(effects.at(-1).effect, "glow");
+  assert.equal(effects.at(-1).items.length, 2);
+  // Only the record first observed at the current tick flares as new.
+  assert.deepEqual(effects.at(-1).items.map((item) => item.fresh), [false, true]);
+  mode.setEffect("fire");
+  await mode.renderTask;
+  assert.equal(effects.at(-1).effect, "fire");
+  assert.equal(mode.state().layers[0].effect, "fire");
   mode.setBoundaryGlow(false);
   await mode.renderTask;
   assert.equal(effects.at(-1), null);

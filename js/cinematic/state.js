@@ -1,5 +1,6 @@
 const finite = (value, fallback = null) => Number.isFinite(Number(value)) ? Number(value) : fallback;
 const string = (value, fallback = "") => typeof value === "string" ? value : fallback;
+const EFFECTS = Object.freeze(["auto", "none", "glow", "fire", "pulse", "wind", "water", "flow"]);
 
 export const CINEMATIC_SCHEMA_VERSION = "0.1";
 export const CINEMATIC_TEMPLATES = Object.freeze(["step-perimeter", "moving-track"]);
@@ -28,6 +29,7 @@ export function normalizeCinematicSpec(input = {}) {
         transition: layer.animation?.transition === "crossfade" ? "crossfade" : "step",
         opacity: finite(layer.animation?.opacity) == null ? null : Math.min(1, Math.max(0.05, finite(layer.animation.opacity))),
         outline: layer.animation?.outline && typeof layer.animation.outline === "object" ? { color: string(layer.animation.outline.color, "#ff8136"), glow: layer.animation.outline.glow === true } : undefined,
+        effect: normalizeEffect(layer.animation),
         provenanceLabel: string(layer.animation?.provenanceLabel),
       },
     };
@@ -47,6 +49,17 @@ export function normalizeCinematicSpec(input = {}) {
       provenance: { synthetic: source.provenance?.synthetic === true, sourceUrls: Array.isArray(source.provenance?.sourceUrls) ? source.provenance.sourceUrls.filter((url) => /^https:\/\//i.test(url)).slice(0, 50) : [], interpolated: false },
     },
   };
+}
+
+/**
+ * A layer's decorative effect: { type, color?, intensity }. v0.1 specs only had
+ * `outline.glow`, which maps to the glow effect.
+ */
+function normalizeEffect(animation = {}) {
+  const effect = animation?.effect && typeof animation.effect === "object" ? animation.effect : {};
+  const type = EFFECTS.includes(effect.type) ? effect.type : animation?.outline?.glow === true ? "glow" : "none";
+  const color = /^#[0-9a-f]{6}$/i.test(string(effect.color)) ? effect.color : null;
+  return { type, color, intensity: Math.min(2, Math.max(0.25, finite(effect.intensity, 1))) };
 }
 
 export function exportCinematicSpec(spec) { return structuredClone(normalizeCinematicSpec(spec)); }
