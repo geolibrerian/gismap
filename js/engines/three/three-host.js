@@ -58,7 +58,8 @@ export class ThreeHost {
   add(uid, item) {
     // Replacing an observed snapshot must free the prior GPU resources.
     this.remove(uid);
-    this.#items.set(uid, { visible: true, opacity: 1, ...item });
+    // Kept as-is (not copied) so live getters such as `animated` stay live.
+    this.#items.set(uid, Object.assign(item, { visible: item.visible ?? true, opacity: item.opacity ?? 1 }));
     this.attach();
     this.map.triggerRepaint();
   }

@@ -1,4 +1,4 @@
-import { exportCinematicSpec, importCinematicSpec } from "./state.js?v=0.1.1";
+import { exportCinematicSpec, importCinematicSpec } from "./state.js?v=0.2.0";
 
 export const CINEMATIC_CLIP_SCHEMA = "gismap.cinematicClip";
 export const CINEMATIC_CLIP_VERSION = 1;
@@ -41,12 +41,20 @@ function normalizeTrack(track, durationMs) {
     return value ? { type: "caption", atMs: Math.min(durationMs, Math.max(0, finite(track.atMs, 0))), text: value } : null;
   }
   if (track.type === "temporalLayer" && text(track.layerRef, 2048)) {
+    const animation = track.animation && typeof track.animation === "object" ? track.animation : {};
+    const effect = animation.effect && typeof animation.effect === "object" ? animation.effect : null;
+    const opacity = finite(animation.opacity);
     return {
       type: "temporalLayer", layerRef: text(track.layerRef, 2048), mode: track.mode === "cumulative" ? "cumulative" : "observed-steps",
       temporal: track.temporal && typeof track.temporal === "object" ? {
         startField: text(track.temporal.startField, 160), groupField: text(track.temporal.groupField, 160) || null,
         featureIdField: text(track.temporal.featureIdField, 160) || null,
       } : null,
+      // How the layer looked when captured: its decorative effect and opacity.
+      animation: {
+        ...(effect ? { effect: { type: text(effect.type, 20) || "none", color: /^#[0-9a-f]{6}$/i.test(effect.color || "") ? effect.color : null, intensity: Math.min(2, Math.max(0.25, finite(effect.intensity, 1))) } } : {}),
+        ...(opacity == null ? {} : { opacity: Math.min(1, Math.max(0.05, opacity)) }),
+      },
     };
   }
   return null;
@@ -55,7 +63,7 @@ function normalizeTrack(track, durationMs) {
 /** A portable Clip recipe. It intentionally excludes credentials, data bytes and local Blob URLs. */
 export function normalizeCinematicClip(value = {}) {
   const source = value && typeof value === "object" ? value : {};
-  const durationMs = Math.min(120000, Math.max(1000, finite(source.playback?.durationMs, 20000)));
+  const durationMs = Math.min(120000, Math.max(5000, finite(source.playback?.durationMs, 20000)));
   const cameras = (Array.isArray(source.cameraTrack) ? source.cameraTrack : []).map((item) => {
     const point = camera(item?.camera);
     return point ? { atMs: Math.min(durationMs, Math.max(0, finite(item.atMs, 0))), camera: point } : null;
@@ -93,7 +101,7 @@ export function createCinematicClip({ cinematic, projectId = null, camera: view 
   const durationMs = Math.min(30000, Math.max(10000, Math.round(spec.clock.durationSeconds * 1000)));
   const at = [...observationTimes].filter(Number.isFinite).sort((a, b) => a - b);
   const initialCamera = camera(view);
-  const tracks = spec.layers.map((layer) => ({ type: "temporalLayer", layerRef: layer.layerRef, mode: spec.clock.timeMode === "cumulative" ? "cumulative" : "observed-steps", temporal: layer.temporal }));
+  const tracks = spec.layers.map((layer) => ({ type: "temporalLayer", layerRef: layer.layerRef, mode: spec.clock.timeMode === "cumulative" ? "cumulative" : "observed-steps", temporal: layer.temporal, animation: { effect: layer.animation.effect, opacity: layer.animation.opacity } }));
   return normalizeCinematicClip({
     id: newId(), title: title || spec.title, source: { projectId, cinematicId: spec.id },
     range: { start: at[0] ? new Date(at[0]).toISOString() : spec.clock.start, end: at.at(-1) ? new Date(at.at(-1)).toISOString() : spec.clock.end },
@@ -109,10 +117,11 @@ export function createCinematicClip({ cinematic, projectId = null, camera: view 
 export function clipToCinematicSpec(clip) {
   const normalized = normalizeCinematicClip(clip);
   const layers = normalized.tracks.filter((track) => track.type === "temporalLayer" && track.temporal?.startField).map((track) => ({
-    layerRef: track.layerRef, temporal: { ...track.temporal }, animation: { template: "step-perimeter", transition: "step" },
+    layerRef: track.layerRef, temporal: { ...track.temporal },
+    animation: { template: "step-perimeter", transition: "step", ...(track.animation?.effect ? { effect: { ...track.animation.effect } } : {}), ...(track.animation?.opacity != null ? { opacity: track.animation.opacity } : {}) },
   }));
   if (!layers.length) throw new Error("This Clip does not contain a playable temporal layer.");
-  return importCinematicSpec({ cinematic: { id: normalized.source.cinematicId || normalized.id, title: normalized.title, clock: { start: normalized.range.start, end: normalized.range.end, durationSeconds: normalized.playback.durationMs / 1000, loop: normalized.playback.loop, timeMode: layers.some((layer) => normalized.tracks.find((track) => track.layerRef === layer.layerRef)?.mode === "cumulative") ? "cumulative" : "instant" }, layers } });
+  return importCinematicSpec({ cinematic: { id: normalized.source.cinematicId || normalized.id, title: normalized.title, clock: { start: normalized.range.start, end: normalized.range.end, durationSeconds: normalized.playback.durationMs / 1000, rate: 1, loop: normalized.playback.loop, timeMode: layers.some((layer) => normalized.tracks.find((track) => track.layerRef === layer.layerRef)?.mode === "cumulative") ? "cumulative" : "instant" }, layers } });
 }
 
 export function exportCinematicClip(clip) { return clone(normalizeCinematicClip(clip)); }

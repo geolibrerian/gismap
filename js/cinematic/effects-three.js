@@ -7,7 +7,17 @@
 import { CINEMATIC_EFFECTS, effectFields, effectFrame, effectParts, particleSeeds, quadBuffers, ribbonBuffers } from "./cinematic-effects.js?v=0.2.0";
 
 const EPOCH = globalThis.performance?.now?.() ?? 0;
-const nowSeconds = () => ((globalThis.performance?.now?.() ?? Date.now()) - EPOCH) / 1000;
+let externalClock = null;
+const nowSeconds = () => (externalClock ? externalClock() : ((globalThis.performance?.now?.() ?? Date.now()) - EPOCH) / 1000);
+
+/**
+ * Drive every effect from `clock()` (seconds) instead of the wall clock, e.g.
+ * so a movie export renders frame f at exactly f / fps; null restores real
+ * time. While set, effects stop asking the map to repaint on their own.
+ */
+export function setEffectClock(clock) {
+  externalClock = typeof clock === "function" ? clock : null;
+}
 
 const NOISE = /* glsl */ `
 float hash(vec2 p) { p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
@@ -466,13 +476,13 @@ export function buildCinematicEffect(THREE, items, { effect = "glow", color, int
     scale: frame.mercatorScale,
     lngLat: { lng: origin[0], lat: origin[1] },
     onTerrain: false,
-    animated: !reducedMotion,
+    get animated() { return !reducedMotion && !externalClock; },
     effect,
     note: preset.note,
     update(_time, { map } = {}) {
       const now = nowSeconds();
-      uniforms.uTime.value = reducedMotion ? 4 : now;
-      uniforms.uSince.value = reducedMotion ? 10 : now - builtAt;
+      uniforms.uTime.value = reducedMotion && !externalClock ? 4 : now;
+      uniforms.uSince.value = reducedMotion && !externalClock ? 10 : Math.max(0, now - builtAt);
       // Local units per CSS pixel: MapLibre's world is 512 × 2^zoom pixels per Mercator unit.
       if (map?.getZoom) uniforms.uPx.value = 1 / (512 * 2 ** map.getZoom()) / frame.mercatorScale;
       uniforms.uDpr.value = globalThis.devicePixelRatio || 1;

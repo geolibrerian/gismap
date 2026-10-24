@@ -47,8 +47,8 @@ import { chooseHurricaneLayer, createHazardsExampleBriefing } from "./example-ha
 import { CinematicModeController } from "./cinematic/mode.js?v=0.2.0";
 import { CINEMATIC_EFFECTS, suggestEffect } from "./cinematic/cinematic-effects.js?v=0.2.0";
 import { temporalFieldCandidates } from "./cinematic/temporal-adapter.js?v=0.1.1";
-import { clipToCinematicSpec, createCinematicClip, exportCinematicClip } from "./cinematic/clip-model.js?v=0.2.0-clips1";
-import { recordCinematicClip, supportedClipVideoMime } from "./cinematic/clip-export.js?v=0.2.0-clips1";
+import { clipToCinematicSpec, createCinematicClip, exportCinematicClip } from "./cinematic/clip-model.js?v=0.3.0";
+import { availableVideoFormats, CLIP_FRAME_RATES, clipFrameCount, exportCinematicVideo } from "./cinematic/clip-export.js?v=0.3.0";
 
 const BUILDINGS_3D_KEY = "gismap-online:buildings-3d:v1";
 const DISPLAY_SETTINGS_KEY = "gismap-online:display:v1";
@@ -4050,7 +4050,7 @@ export class UIController {
     const timeLabel = state.localEmpty ? "No timestamped observations intersect the current map window." : `${timeMode === "cumulative" ? "Cumulative through " : ""}${this.#formatExplorerTime(current)} · observation ${timeline.observationIndex + 1} of ${timeline.ticks.length}${localWindow ? " · local window" : ""}`;
     const fidelityNote = timeMode === "cumulative" ? "Showing every observed record from the first observation through this moment. This is cumulative display, not inferred persistence or geometry interpolation." : "Showing the current observed state only. Polygon boundaries step between snapshots; no unobserved spread or geometry interpolation is shown.";
     const inspection = intent === "investigate" ? `<section class="cinematic-inspector" aria-label="Observed data inspection"><span class="eyebrow">Observed evidence</span><strong>${escapeHtml(this.#formatExplorerTime(current))}</strong>${state.layers.map((item) => `<p><b>${escapeHtml(item.title)}</b><span>${item.observedCount} observed feature${item.observedCount === 1 ? "" : "s"} · ${escapeHtml(item.timeField)}</span></p>`).join("")}<small>Observed source records only; no estimated spread is shown.</small></section>` : "";
-    const present = intent === "present" ? `<details class="cinematic-disclosure cinematic-disclosure--present"${presentOpen ? " open" : ""}><summary>Present & export</summary><div class="cinematic-actions"><button type="button" data-cinematic-create-clip>Create Clip</button><button type="button" data-cinematic-set-end-camera title="Move the map, then set this Clip's ending keyframe">Set end camera</button><button type="button" data-cinematic-add-brief>Add to Brief</button><button type="button" data-cinematic-download-clip>Clip JSON</button><button type="button" data-cinematic-poster>Poster PNG</button><button type="button" data-cinematic-record${supportedClipVideoMime() ? "" : " disabled"} title="${supportedClipVideoMime() ? "Record a WebM using this browser" : "WebM recording is not supported by this browser"}">Record WebM</button></div></details>` : "";
+    const present = intent === "present" ? `<details class="cinematic-disclosure cinematic-disclosure--present"${presentOpen ? " open" : ""}><summary>Present & export</summary><div class="cinematic-actions"><button type="button" data-cinematic-create-clip>Create Clip</button><button type="button" data-cinematic-set-end-camera title="Move the map, then set this Clip's ending keyframe">Set end camera</button><button type="button" data-cinematic-add-brief>Add to Brief</button><button type="button" data-cinematic-download-clip>Clip JSON</button><button type="button" data-cinematic-poster>Poster PNG</button><button type="button" data-cinematic-record title="Render this Clip to a video file">Export movie</button></div></details>` : "";
     root.innerHTML = `<section class="mode-dashboard cinematic-dashboard"><header><span class="eyebrow">Cinematic · observed playback</span><h2>${escapeHtml(presentation.title || layer.title || "Cinematic map")}</h2><div class="cinematic-mode-strip"><label>Intent <select data-cinematic-intent aria-label="Cinematic intent"><option value="explore"${intent === "explore" ? " selected" : ""}>Explore</option><option value="investigate"${intent === "investigate" ? " selected" : ""}>Investigate</option><option value="present"${intent === "present" ? " selected" : ""}>Present</option></select></label><span>${this.mapController.getEngineId?.() || "map"}</span></div><p data-cinematic-time-label>${escapeHtml(timeLabel)}</p></header><div class="cinematic-quick-controls" aria-label="Cinematic playback"><button type="button" data-cinematic-previous title="Previous observation">◀</button><button type="button" data-cinematic-play aria-pressed="${timeline.playing ? "true" : "false"}">${timeline.playing ? "Pause" : "Play"}</button><button type="button" data-cinematic-next title="Next observation">▶</button><button type="button" data-cinematic-focus title="Fly to the current observed feature">Focus</button></div>${inspection}<p class="cinematic-provenance">${escapeHtml(fidelityNote)}${state.layers?.[0]?.effectNote ? ` <span class="cinematic-effect-note">${escapeHtml(state.layers[0].effectNote)}</span>` : ""}</p><details class="cinematic-disclosure"${playbackOpen ? " open" : ""}><summary>${intent === "investigate" ? "Playback controls" : "Playback & map appearance"}</summary><div class="cinematic-controls"><label>Build up <input type="checkbox" data-cinematic-build-up${timeMode === "cumulative" ? " checked" : ""} aria-label="Build up observed records over time"></label><label>Local window <input type="checkbox" data-cinematic-local-window${localWindow ? " checked" : ""} aria-label="Filter cinematic observations to the current map window"></label><label>Speed <select data-cinematic-rate aria-label="Playback speed"><option value="0.1"${timeline.playbackRate === 0.1 ? " selected" : ""}>Very slow</option><option value="0.25"${timeline.playbackRate === 0.25 ? " selected" : ""}>Slow</option><option value="0.5"${timeline.playbackRate === 0.5 ? " selected" : ""}>Steady</option><option value="1"${timeline.playbackRate === 1 ? " selected" : ""}>Fast</option><option value="2"${timeline.playbackRate === 2 ? " selected" : ""}>Very fast</option></select></label>${supportsGround ? `<label>Terrain <select data-cinematic-ground aria-label="Terrain"><option value="">Map setting</option>${terrainOptions}</select></label>` : ""}${supportsBoundaryGlow ? `<label>Effect <select data-cinematic-effect aria-label="Visual effect">${effectOptions}</select></label>` : ""}<label>Opacity <input type="range" data-cinematic-opacity min="5" max="100" value="${Math.round(Number(layerOpacity) * 100)}" aria-label="Cinematic layer opacity"></label><label class="cinematic-controls__scrub">Observation <input type="range" data-cinematic-scrub min="0" max="${Math.max(0, timeline.ticks.length - 1)}" value="${timeline.observationIndex}" step="1"></label></div><p class="form-note">${localWindow ? "The local range resets after each completed pan or zoom." : "Controls apply to observed data only."}</p></details>${present}<div class="cinematic-footer-actions"><button type="button" data-cinematic-reconfigure>Change mapping</button><button type="button" data-cinematic-exit>Exit</button></div></section>`;
     root.querySelector("[data-cinematic-play]")?.addEventListener("click", () => this.cinematicController.toggle());
     root.querySelector("[data-cinematic-previous]")?.addEventListener("click", () => this.cinematicController.previousObservation());
@@ -5663,23 +5663,132 @@ export class UIController {
     } catch (error) { this.error(`Could not export poster: ${error.message}`); }
   }
 
-  async #recordCinematicClip() {
+  /**
+   * Export movie: choose size, frame rate and a format this browser can
+   * genuinely produce, render with progress and Cancel, preview, then
+   * download. The live Cinematic session and map view are restored after.
+   */
+  #recordCinematicClip() {
     const clip = this.#currentCinematicClip();
     if (!clip) return;
-    try {
-      this.cinematicController.pause();
-      await this.cinematicController.load(clipToCinematicSpec(clip));
-      this.cinematicState = this.cinematicController.state();
-      this.toast("Recording WebM from the map composition…");
-      const file = await recordCinematicClip({
-        clip, controller: this.cinematicController, mapController: this.mapController,
-        onProgress: (complete, total) => { if (complete === total || complete % 5 === 0) this.toast(`Recording Clip frame ${complete} of ${total}…`); },
-      });
-      const link = document.createElement("a");
-      link.href = URL.createObjectURL(file); link.download = "cinematic-clip.webm"; link.click();
-      setTimeout(() => URL.revokeObjectURL(link.href), 5000);
-      this.toast("Cinematic Clip WebM downloaded.");
-    } catch (error) { this.error(`Could not record Clip: ${error.message}`); }
+    const seconds = clip.playback.durationMs / 1000;
+    const field = (label, control) => `<label class="field"><span>${label}</span>${control}</label>`;
+    this.openDialog({
+      eyebrow: "Cinematic Clip",
+      title: "Export movie",
+      content: `<p class="form-note">Renders “${escapeHtml(clip.title)}” frame by frame: ${seconds.toFixed(0)} seconds, with the title, captions and map attribution drawn into the video.</p>
+        <div class="field-grid">${field("Resolution", `<select data-export-size><option value="1280x720">720p · 1280 × 720</option><option value="1920x1080">1080p · 1920 × 1080</option></select>`)}${field("Frame rate", `<select data-export-fps>${CLIP_FRAME_RATES.map((fps) => `<option value="${fps}"${fps === 30 ? " selected" : ""}>${fps} fps</option>`).join("")}</select>`)}${field("Format", `<select data-export-format disabled><option>Checking this browser…</option></select>`)}</div>
+        <p class="form-note" data-export-note></p>`,
+      actions: [{ label: "Cancel", handler: () => this.dialog.close() }, { label: "Export", primary: true, handler: () => void start() }],
+    });
+    const root = this.dialog;
+    const exportButton = [...root.querySelectorAll("#dialog-actions button")].at(-1);
+    let formats = [];
+    let controller = null;
+    let objectUrl = null;
+    const size = () => root.querySelector("[data-export-size]").value.split("x").map(Number);
+    const refreshFormats = async () => {
+      const select = root.querySelector("[data-export-format]");
+      if (!select) return;
+      const [width, height] = size();
+      const fps = Number(root.querySelector("[data-export-fps]").value);
+      exportButton.disabled = true;
+      formats = await availableVideoFormats({ width, height, fps });
+      // The dialog may have moved on (closed, or already exporting) while the browser was probed.
+      if (!select.isConnected) return;
+      select.innerHTML = formats.length ? formats.map((format, index) => `<option value="${index}">${escapeHtml(format.label)}</option>`).join("") : "<option>No supported video format</option>";
+      select.disabled = !formats.length;
+      exportButton.disabled = !formats.length;
+      root.querySelector("[data-export-note]").textContent = formats.length
+        ? formats[0].method === "webcodecs" ? "Frame-accurate: every frame is rendered, so the movie is exactly the Clip's length on any device." : "This browser records in real time: on a slow device some frames are skipped (the length stays right)."
+        : "This browser cannot encode video. Use a current Chrome, Edge, Safari or Firefox, or download the Poster PNG and Clip JSON instead.";
+    };
+    root.querySelector("[data-export-size]").addEventListener("change", () => void refreshFormats());
+    root.querySelector("[data-export-fps]").addEventListener("change", () => void refreshFormats());
+    void refreshFormats();
+    // Closing the dialog (Cancel, Esc or ×) stops a running export and frees the preview.
+    root.addEventListener("close", () => { controller?.abort(); if (objectUrl) URL.revokeObjectURL(objectUrl); }, { once: true });
+
+    const start = async () => {
+      const format = formats[Number(root.querySelector("[data-export-format]")?.value) || 0];
+      if (!format) return;
+      const [width, height] = size();
+      const fps = Number(root.querySelector("[data-export-fps]").value);
+      const frames = clipFrameCount(clip.playback.durationMs, fps);
+      controller = new AbortController();
+      document.querySelector("#dialog-content").innerHTML = `<p class="form-note" data-export-stage>Preparing the Clip…</p><progress data-export-progress max="${frames}" value="0" style="width:100%"></progress><p class="form-note" data-export-count>0 of ${frames} frames</p>`;
+      const footer = document.querySelector("#dialog-actions");
+      footer.innerHTML = "";
+      const cancel = document.createElement("button");
+      cancel.type = "button"; cancel.textContent = "Cancel export";
+      cancel.addEventListener("click", () => controller.abort());
+      footer.append(cancel);
+      const restore = await this.#snapshotCinematicSession();
+      try {
+        this.cinematicController.pause();
+        await this.cinematicController.load(clipToCinematicSpec(clip));
+        this.cinematicState = this.cinematicController.state();
+        root.querySelector("[data-export-stage]").textContent = `Rendering ${format.container.toUpperCase()} at ${width} × ${height}, ${fps} fps…`;
+        const result = await exportCinematicVideo({
+          clip, controller: this.cinematicController, mapController: this.mapController, format, width, height, fps,
+          attributionText: this.#mapAttributionText(), signal: controller.signal,
+          onProgress: (done, total) => {
+            const bar = root.querySelector("[data-export-progress]");
+            if (bar) { bar.value = done; root.querySelector("[data-export-count]").textContent = `${done} of ${total} frames`; }
+          },
+        });
+        await restore();
+        if (!this.dialog.open) return;
+        objectUrl = URL.createObjectURL(result.blob);
+        const name = `${String(clip.title || "cinematic-clip").replace(/[^a-z0-9]+/gi, "-").replace(/^-|-$/g, "").toLowerCase() || "cinematic-clip"}${result.extension}`;
+        const megabytes = (result.blob.size / 1048576).toFixed(1);
+        document.querySelector("#dialog-content").innerHTML = `<video src="${objectUrl}" controls playsinline style="width:100%;max-height:52vh;background:#000"></video>
+          <p class="form-note">${escapeHtml(result.mimeType)} · ${width} × ${height} · ${result.frames} frames · ${megabytes} MB${result.droppedFrames ? ` · ${result.droppedFrames} frames skipped by real-time recording` : ""}</p>`;
+        footer.innerHTML = "";
+        const close = document.createElement("button");
+        close.type = "button"; close.textContent = "Close";
+        close.addEventListener("click", () => this.dialog.close());
+        const download = document.createElement("button");
+        download.type = "button"; download.className = "button--primary"; download.textContent = `Download ${result.extension.slice(1).toUpperCase()}`;
+        download.addEventListener("click", () => { const link = document.createElement("a"); link.href = objectUrl; link.download = name; link.click(); this.toast(`${name} downloaded.`); });
+        footer.append(close, download);
+      } catch (error) {
+        await restore();
+        if (error.name === "AbortError") { if (this.dialog.open) this.dialog.close(); this.toast("Movie export cancelled."); return; }
+        if (this.dialog.open) this.dialog.close();
+        this.error(`Could not export the movie: ${error.message}`);
+      }
+    };
+  }
+
+  /** Captures the live Cinematic session (spec, observation, view) and returns a function that puts it back. */
+  async #snapshotCinematicSession() {
+    const spec = this.cinematicState ? this.cinematicController.exportCinematicSpec?.() : null;
+    const time = this.cinematicController.state?.()?.timeline?.observationTime;
+    const view = this.mapController.getViewState?.();
+    let restored = false;
+    return async () => {
+      if (restored) return;
+      restored = true;
+      try {
+        if (spec?.cinematic) {
+          await this.cinematicController.load(spec);
+          if (Number.isFinite(time)) { this.cinematicController.seek(time); await this.cinematicController.renderTask; }
+          this.cinematicState = this.cinematicController.state();
+        }
+        if (view) await this.mapController.setView(view, { animate: false });
+      } catch (error) {
+        this.error(`The Cinematic session could not be restored: ${error.message}`);
+      }
+      this.#renderPresentationDashboard(this.projectManager.current.presentation);
+    };
+  }
+
+  /** The map's own attribution line, so exported frames credit the real data and imagery providers. */
+  #mapAttributionText() {
+    const host = this.mapController.getContainer?.() || document;
+    const text = host.querySelector?.(".maplibregl-ctrl-attrib-inner, .esri-attribution__sources")?.textContent || "";
+    return text.replace(/\s+/g, " ").trim();
   }
 
   async #playBriefingCinematicClip(slide, { autoplay = false } = {}) {

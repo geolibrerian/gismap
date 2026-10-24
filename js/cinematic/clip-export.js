@@ -1,20 +1,127 @@
-// Clip recording is deliberately composed on a dedicated canvas rather than
-// recording the engine canvas. Both map renderers already expose captureImage,
-// so this keeps titles, captions and attribution deterministic and gives a
-// clear CORS failure when a renderer cannot supply pixels.
+// Cinematic Clip video export. A Clip is rendered frame by frame from one
+// timebase: frame f is the scene at f / fps seconds (observation, camera,
+// caption and effect animation all derive from that time), so the movie has
+// the Clip's exact length whatever the device speed. WebCodecs encodes the
+// frames with explicit timestamps (Mediabunny muxes WebM or MP4). Browsers
+// without WebCodecs fall back to MediaRecorder in real time, which keeps the
+// length right by skipping frames it cannot draw in time, and says so.
+//
+// Frames are composed on a dedicated canvas (map + title, captions and
+// attribution), never by recording the engine canvas, and a cross-origin
+// ("tainted") map frame stops the export before anything is encoded.
+import { setEffectClock } from "./effects-three.js?v=0.2.0";
 
+/** Mediabunny (MPL-2.0), pinned and loaded only when a movie is exported. */
+export const MEDIABUNNY_URL = "https://cdn.jsdelivr.net/npm/mediabunny@1.61.3/dist/bundles/mediabunny.min.mjs";
+export const CLIP_FRAME_RATES = Object.freeze([24, 30]);
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+let mediabunnyLoading = null;
 
-/** Return the actual WebM MIME the browser can record, or null. Never label a WebM as MP4. */
-export function supportedClipVideoMime(MediaRecorderClass = globalThis.MediaRecorder) {
-  if (!MediaRecorderClass?.isTypeSupported) return null;
-  return ["video/webm;codecs=vp9", "video/webm;codecs=vp8", "video/webm"].find((type) => MediaRecorderClass.isTypeSupported(type)) || null;
+function loadMediabunny() {
+  mediabunnyLoading ??= import(MEDIABUNNY_URL).catch((error) => {
+    mediabunnyLoading = null;
+    throw new Error(`The video encoder library could not be loaded (${error.message}).`);
+  });
+  return mediabunnyLoading;
 }
 
-export function drawClipComposition(context, image, { width, height, title, caption = "", attribution = true } = {}) {
+/* ---------------- Timebase ---------------- */
+
+export const clipFrameCount = (durationMs, fps) => Math.max(2, Math.round((Number(durationMs) / 1000) * Number(fps)));
+
+function eased(t, easing) {
+  const x = Math.min(1, Math.max(0, t));
+  return easing === "ease-in-out" ? x * x * (3 - 2 * x) : x;
+}
+
+/** The camera at `ms`: keyframes blend with the Clip's easing, and bearing turns the short way round. */
+export function cameraAt(track, ms, easing = "linear") {
+  const points = (track || []).filter((point) => point?.camera).sort((a, b) => a.atMs - b.atMs);
+  if (!points.length) return null;
+  const right = points.find((point) => point.atMs >= ms) || points.at(-1);
+  const left = [...points].reverse().find((point) => point.atMs <= ms) || points[0];
+  const t = left === right ? 0 : eased((ms - left.atMs) / Math.max(1, right.atMs - left.atMs), easing);
+  const lerp = (key) => left.camera[key] + (right.camera[key] - left.camera[key]) * t;
+  const turn = ((((right.camera.bearing - left.camera.bearing) % 360) + 540) % 360) - 180;
+  return { center: [lerp("longitude"), lerp("latitude")], zoom: lerp("zoom"), tilt: lerp("pitch"), heading: left.camera.bearing + turn * t };
+}
+
+/** Observation shown at `ms`: playback moves through observations at a steady pace, as the live timeline does. */
+export function observationIndexAt(ms, durationMs, tickCount) {
+  if (tickCount <= 1) return 0;
+  const progress = Math.min(1, Math.max(0, ms / Math.max(1, durationMs)));
+  return Math.min(tickCount - 1, Math.floor(progress * (tickCount - 1) + 1e-9));
+}
+
+export function captionAt(tracks, ms) {
+  return (tracks || []).filter((track) => track.type === "caption" && track.atMs <= ms).sort((a, b) => a.atMs - b.atMs).at(-1)?.text || "";
+}
+
+/** Everything a frame shows at `ms`, deterministic for the same Clip and time. */
+export function clipStateAt(clip, ms, tickCount) {
+  const durationMs = Number(clip.playback?.durationMs) || 20000;
+  return { ms, observationIndex: observationIndexAt(ms, durationMs, tickCount), camera: cameraAt(clip.cameraTrack, ms, clip.playback?.easing), caption: captionAt(clip.tracks, ms) };
+}
+
+/* ---------------- Formats ---------------- */
+
+/** MediaRecorder MIME types this browser records, MP4 only where it truly records MP4 (Safari). */
+export function supportedRecorderMimes(MediaRecorderClass = globalThis.MediaRecorder) {
+  if (!MediaRecorderClass?.isTypeSupported) return [];
+  return ["video/mp4;codecs=avc1", "video/mp4", "video/webm;codecs=vp9", "video/webm;codecs=vp8", "video/webm"].filter((type) => MediaRecorderClass.isTypeSupported(type));
+}
+
+/** Kept for callers of the first Clip release: the best WebM the recorder supports, or null. */
+export function supportedClipVideoMime(MediaRecorderClass = globalThis.MediaRecorder) {
+  return supportedRecorderMimes(MediaRecorderClass).find((type) => type.startsWith("video/webm")) || null;
+}
+
+const extensionFor = (mime) => (mime.startsWith("video/mp4") ? ".mp4" : ".webm");
+
+/**
+ * The movie formats this browser can genuinely produce at this size, best
+ * first: [{ id, label, container, mimeType, extension, method, codec? }].
+ * WebCodecs formats are probed with the real encoder; nothing is renamed.
+ */
+export async function availableVideoFormats({ width = 1280, height = 720, fps = 30, loader = loadMediabunny, MediaRecorderClass = globalThis.MediaRecorder, hasWebCodecs = typeof globalThis.VideoEncoder === "function" } = {}) {
+  const formats = [];
+  if (hasWebCodecs) {
+    try {
+      const { canEncodeVideo } = await loader();
+      const options = { width, height, frameRate: fps };
+      for (const [container, codecs] of [["mp4", ["avc", "vp9", "av1"]], ["webm", ["vp9", "vp8", "av1"]]]) {
+        for (const codec of codecs) {
+          if (!await canEncodeVideo(codec, options).catch(() => false)) continue;
+          formats.push({ id: `webcodecs-${container}`, method: "webcodecs", container, codec, mimeType: `video/${container}`, extension: `.${container}`, label: `${container.toUpperCase()} (${codec === "avc" ? "H.264" : codec.toUpperCase()}) · frame-accurate` });
+          break;
+        }
+      }
+    } catch { /* Fall through to the recorder: the encoder library is optional. */ }
+  }
+  for (const mimeType of supportedRecorderMimes(MediaRecorderClass)) {
+    const container = mimeType.startsWith("video/mp4") ? "mp4" : "webm";
+    if (formats.some((format) => format.container === container)) continue;
+    formats.push({ id: `recorder-${container}`, method: "recorder", container, mimeType, extension: extensionFor(mimeType), label: `${container.toUpperCase()} · real-time recording (may skip frames)` });
+  }
+  return formats;
+}
+
+/* ---------------- Composition ---------------- */
+
+/** Draws `source` to fill width × height, cropping the overflow evenly instead of stretching it. */
+function drawCover(context, source, width, height) {
+  const sourceWidth = source.naturalWidth || source.videoWidth || source.width;
+  const sourceHeight = source.naturalHeight || source.videoHeight || source.height;
+  if (!sourceWidth || !sourceHeight) return;
+  const scale = Math.max(width / sourceWidth, height / sourceHeight);
+  const cropWidth = width / scale, cropHeight = height / scale;
+  context.drawImage(source, (sourceWidth - cropWidth) / 2, (sourceHeight - cropHeight) / 2, cropWidth, cropHeight, 0, 0, width, height);
+}
+
+export function drawClipComposition(context, image, { width, height, title, caption = "", attribution = true, attributionText = "" } = {}) {
   context.fillStyle = "#102d27";
   context.fillRect(0, 0, width, height);
-  context.drawImage(image, 0, 0, width, height);
+  drawCover(context, image, width, height);
   context.fillStyle = "rgba(7, 28, 24, .84)";
   context.fillRect(0, 0, width, Math.round(height * .15));
   context.fillStyle = "#fffdf7";
@@ -32,7 +139,7 @@ export function drawClipComposition(context, image, { width, height, title, capt
     context.fillRect(0, height - Math.round(height * .045), width, Math.round(height * .045));
     context.fillStyle = "#fffdf7";
     context.font = `400 ${Math.round(height * .018)}px system-ui, sans-serif`;
-    context.fillText("Map data and imagery providers · GISMap Online", Math.round(width * .02), height - Math.round(height * .015));
+    context.fillText(String(attributionText || "Map data and imagery providers · GISMap Online").slice(0, 220), Math.round(width * .02), height - Math.round(height * .015));
   }
 }
 
@@ -42,62 +149,148 @@ async function imageFromDataUrl(dataUrl) {
   return image;
 }
 
-function cameraAt(track, elapsed) {
-  const points = (track || []).filter((point) => point?.camera).sort((a, b) => a.atMs - b.atMs);
-  if (!points.length) return null;
-  const right = points.find((point) => point.atMs >= elapsed) || points.at(-1);
-  const left = [...points].reverse().find((point) => point.atMs <= elapsed) || points[0];
-  const ratio = left === right ? 0 : (elapsed - left.atMs) / Math.max(1, right.atMs - left.atMs);
-  const value = (key) => left.camera[key] + (right.camera[key] - left.camera[key]) * ratio;
-  return { center: [value("longitude"), value("latitude")], zoom: value("zoom"), heading: value("bearing"), tilt: value("pitch") };
+/**
+ * A function that returns the current map frame as a drawable source once the
+ * renderer has drawn the latest state. MapLibre's canvas is read directly
+ * after a forced render; other engines go through captureImage().
+ */
+function frameReader(mapController, { width, height }) {
+  const map = mapController.native?.()?.map;
+  if (map?.getCanvas && map?.once && map?.triggerRepaint) {
+    return async () => {
+      await new Promise((resolve) => {
+        const timer = setTimeout(resolve, 10000);
+        map.once("idle", () => { clearTimeout(timer); resolve(); });
+        map.triggerRepaint();
+      });
+      return map.getCanvas();
+    };
+  }
+  return async () => {
+    const capture = await mapController.captureImage?.({ format: "png", width, height, aspect: width / height });
+    if (!capture?.dataUrl) throw new Error("The active map renderer could not provide a capture frame.");
+    return imageFromDataUrl(capture.dataUrl);
+  };
 }
 
+function assertReadable(canvas) {
+  // Reading pixels back throws on a tainted canvas: stop before encoding a corrupt movie.
+  try { canvas.getContext("2d").getImageData(0, 0, 1, 1); }
+  catch { throw new Error("Map imagery is cross-origin restricted, so this Clip cannot be exported. Use an export-enabled basemap or remove the restricted layer."); }
+}
+
+const abortError = () => Object.assign(new Error("Export cancelled."), { name: "AbortError" });
+
+/* ---------------- Export ---------------- */
+
 /**
- * Render a Clip to a genuine browser-supported WebM. `controller` is the
- * existing shared cinematic controller, so this adds no second animation loop.
+ * Render a Clip to a playable movie: { blob, mimeType, extension, frames, method, droppedFrames }.
+ * `controller` is the loaded cinematic controller (it supplies observations);
+ * `format` is one entry of availableVideoFormats(). Cancels with `signal`.
  */
-export async function recordCinematicClip({ clip, controller, mapController, width = 1280, height = 720, onProgress = () => {} } = {}) {
-  const mimeType = supportedClipVideoMime();
-  if (!mimeType) throw new Error("This browser cannot record WebM video. Try a Chromium-based browser with screen/media recording enabled.");
-  if (!controller?.timeline || !mapController?.captureImage) throw new Error("Load the Clip before recording it.");
+export async function exportCinematicVideo({ clip, controller, mapController, format, width = 1280, height = 720, fps = 30, attributionText = "", signal, onProgress = () => {} } = {}) {
+  if (!format) throw new Error("This browser cannot produce a supported video format. Try a current Chrome, Edge, Safari or Firefox.");
+  if (!controller?.timeline || !mapController) throw new Error("Load the Clip before exporting it.");
+  const durationMs = Math.min(120000, Math.max(1000, Number(clip.playback?.durationMs) || 20000));
+  const tickCount = controller.timeline.state().ticks.length;
   const canvas = document.createElement("canvas");
   canvas.width = width; canvas.height = height;
-  const context = canvas.getContext("2d");
-  const stream = canvas.captureStream?.(30);
+  const context = canvas.getContext("2d", { willReadFrequently: false });
+  const readFrame = frameReader(mapController, { width, height });
+  let shown = -1;
+  // Effects follow the movie's clock; offset so their noise is not at its origin.
+  let sceneSeconds = 0;
+  setEffectClock(() => 10 + sceneSeconds);
+  const renderAt = async (ms) => {
+    const state = clipStateAt(clip, ms, tickCount);
+    if (state.observationIndex !== shown) {
+      controller.seekObservation(state.observationIndex);
+      await controller.renderTask;
+      shown = state.observationIndex;
+    }
+    if (state.camera) await mapController.setView(state.camera, { animate: false });
+    sceneSeconds = ms / 1000;
+    const frame = await readFrame();
+    drawClipComposition(context, frame, { width, height, title: clip.title, caption: state.caption, attribution: clip.composition?.attribution !== false, attributionText });
+  };
+  try {
+    // Draw the first frame before starting an encoder, so a tainted map fails fast.
+    await renderAt(0);
+    assertReadable(canvas);
+    if (format.method === "webcodecs") return await encodeFrames({ format, canvas, fps, durationMs, renderAt, signal, onProgress });
+    return await recordFrames({ format, canvas, fps, durationMs, renderAt, signal, onProgress });
+  } finally {
+    setEffectClock(null);
+  }
+}
+
+async function encodeFrames({ format, canvas, fps, durationMs, renderAt, signal, onProgress }) {
+  const { Output, BufferTarget, CanvasSource, Mp4OutputFormat, WebMOutputFormat, QUALITY_HIGH } = await loadMediabunny();
+  const output = new Output({ format: format.container === "mp4" ? new Mp4OutputFormat({ fastStart: "in-memory" }) : new WebMOutputFormat(), target: new BufferTarget() });
+  const source = new CanvasSource(canvas, { codec: format.codec, bitrate: QUALITY_HIGH });
+  output.addVideoTrack(source, { frameRate: fps });
+  const frames = clipFrameCount(durationMs, fps);
+  let finished = false;
+  try {
+    await output.start();
+    for (let index = 0; index < frames; index += 1) {
+      if (signal?.aborted) throw abortError();
+      if (index > 0) await renderAt((index / fps) * 1000);
+      await source.add(index / fps, 1 / fps);
+      onProgress(index + 1, frames);
+    }
+    await output.finalize();
+    finished = true;
+    const mimeType = output.format.mimeType;
+    return { blob: new Blob([output.target.buffer], { type: mimeType }), mimeType, extension: output.format.fileExtension, frames, method: "webcodecs", droppedFrames: 0 };
+  } finally {
+    if (!finished) await output.cancel().catch(() => {});
+  }
+}
+
+async function recordFrames({ format, canvas, fps, durationMs, renderAt, signal, onProgress }) {
+  // captureStream(0) emits only on requestFrame(); without it the browser samples at fps itself.
+  const manual = typeof CanvasCaptureMediaStreamTrack !== "undefined" && "requestFrame" in CanvasCaptureMediaStreamTrack.prototype;
+  const stream = canvas.captureStream?.(manual ? 0 : fps);
   if (!stream) throw new Error("This browser cannot capture a composition canvas.");
+  const track = stream.getVideoTracks()[0];
   let recorder;
-  try { recorder = new MediaRecorder(stream, { mimeType, videoBitsPerSecond: height >= 1080 ? 7_000_000 : 4_000_000 }); }
-  catch { stream.getTracks().forEach((track) => track.stop()); throw new Error(`This browser reported ${mimeType} but could not start a recorder.`); }
+  try { recorder = new MediaRecorder(stream, { mimeType: format.mimeType, videoBitsPerSecond: canvas.height >= 1080 ? 8_000_000 : 5_000_000 }); }
+  catch { stream.getTracks().forEach((item) => item.stop()); throw new Error(`This browser reported ${format.mimeType} but could not start a recorder.`); }
   const chunks = [];
-  const done = new Promise((resolve, reject) => { recorder.ondataavailable = (event) => { if (event.data?.size) chunks.push(event.data); }; recorder.onerror = () => reject(new Error("The browser stopped the video recorder.")); recorder.onstop = () => resolve(new Blob(chunks, { type: mimeType })); });
-  const timeline = controller.timeline.state();
-  const frames = Math.max(2, timeline.ticks.length);
-  const durationMs = Math.min(30000, Math.max(10000, Number(clip.playback?.durationMs) || 20000));
-  const frameMs = durationMs / frames;
-  const priorView = mapController.getViewState?.();
+  const done = new Promise((resolve, reject) => {
+    recorder.ondataavailable = (event) => { if (event.data?.size) chunks.push(event.data); };
+    recorder.onerror = () => reject(new Error("The browser stopped the video recorder."));
+    recorder.onstop = () => resolve(new Blob(chunks, { type: format.mimeType }));
+  });
+  const frames = clipFrameCount(durationMs, fps);
+  let drawn = 0;
   try {
     recorder.start();
-    for (let index = 0; index < frames; index += 1) {
-      controller.seekObservation(Math.min(index, timeline.ticks.length - 1));
-      await controller.renderTask;
-      const elapsed = Math.round((index / Math.max(1, frames - 1)) * durationMs);
-      const camera = cameraAt(clip.cameraTrack, elapsed);
-      if (camera) await mapController.setView(camera, { animate: false });
-      const capture = await mapController.captureImage({ format: "png", width, height, aspect: width / height });
-      if (!capture?.dataUrl) throw new Error("The active map renderer could not provide a capture frame.");
-      const image = await imageFromDataUrl(capture.dataUrl);
-      const caption = (clip.tracks || []).filter((track) => track.type === "caption" && track.atMs <= elapsed).at(-1)?.text || "";
-      drawClipComposition(context, image, { width, height, title: clip.title, caption, attribution: clip.composition?.attribution !== false });
-      // Calling toDataURL detects a tainted geographic frame before silently
-      // producing a corrupt recording. The message names the remediation.
-      try { canvas.toDataURL("image/png"); } catch { throw new Error("Map imagery is cross-origin restricted, so this Clip cannot be recorded. Use an export-enabled basemap or remove the restricted layer."); }
-      stream.getVideoTracks()[0]?.requestFrame?.();
-      onProgress(index + 1, frames);
-      await sleep(frameMs);
+    const startedAt = performance.now();
+    // Real time: each frame shows the scene at the wall-clock moment it is
+    // drawn, so a slow frame is skipped rather than stretching the movie.
+    for (;;) {
+      if (signal?.aborted) throw abortError();
+      const elapsed = performance.now() - startedAt;
+      if (elapsed >= durationMs) break;
+      const index = Math.floor((elapsed / 1000) * fps);
+      if (drawn > 0) await renderAt((index / fps) * 1000);
+      track.requestFrame?.();
+      drawn += 1;
+      onProgress(Math.min(frames, index + 1), frames);
+      const next = startedAt + ((index + 1) / fps) * 1000;
+      await sleep(Math.max(0, next - performance.now()));
     }
-  } finally {
+  } catch (error) {
+    recorder.ondataavailable = null;
     if (recorder.state !== "inactive") recorder.stop();
-    if (priorView && typeof mapController.restoreView === "function") await mapController.restoreView(priorView).catch(() => {});
+    stream.getTracks().forEach((item) => item.stop());
+    throw error;
   }
-  try { return await done; } finally { stream.getTracks().forEach((track) => track.stop()); }
+  if (recorder.state !== "inactive") recorder.stop();
+  try {
+    const blob = await done;
+    return { blob, mimeType: format.mimeType, extension: format.extension, frames: drawn, method: "recorder", droppedFrames: Math.max(0, frames - drawn) };
+  } finally { stream.getTracks().forEach((item) => item.stop()); }
 }

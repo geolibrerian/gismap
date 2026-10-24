@@ -91,3 +91,13 @@ test("cinematic mode loads every page so playback starts at the earliest record"
   assert.equal(mode.state().layers[0].truncated, false);
   await mode.destroy();
 });
+
+test("a cinematic clock range limits playback to the observations inside it", async () => {
+  const rows = [1, 2, 3, 4].map((day) => ({ attributes: { OBJECTID: day, time: Date.UTC(2026, 9, day) }, geometry: { type: "Point", coordinates: [0, 0] } }));
+  const layer = { uid: "quakes", title: "Quakes", queryable: true, objectIdField: "OBJECTID" };
+  const mapController = { getLayer: () => layer, getFeatureFilter: async () => null, setFeatureFilter: async () => true, setOpacity: async () => {}, queryFeatures: async () => ({ features: rows }) };
+  const mode = new CinematicModeController({ mapController });
+  await mode.load({ cinematic: { clock: { start: "2026-10-02T00:00:00Z", end: "2026-10-03T00:00:00Z" }, layers: [{ layerRef: "quakes", temporal: { startField: "time" } }] } });
+  assert.deepEqual(mode.state().timeline.ticks, [Date.UTC(2026, 9, 2), Date.UTC(2026, 9, 3)]);
+  await mode.destroy();
+});

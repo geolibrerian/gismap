@@ -194,7 +194,11 @@ export class CinematicModeController {
     const wasPlaying = previous?.playing === true;
     this.unsubscribe?.(); this.unsubscribe = null;
     this.timeline?.destroy();
-    const ticks = explicitTicks || [...new Set([...this.layers.values()].flatMap(({ layer, model }) => (this.localModels.get(layer.uid) || model).ticks))].sort((a, b) => a - b);
+    const allTicks = explicitTicks || [...new Set([...this.layers.values()].flatMap(({ layer, model }) => (this.localModels.get(layer.uid) || model).ticks))].sort((a, b) => a - b);
+    // A Clip's range limits playback to its observations (an empty range is the whole layer).
+    const from = Date.parse(this.spec.cinematic.clock.start), to = Date.parse(this.spec.cinematic.clock.end);
+    const inRange = allTicks.filter((tick) => (!Number.isFinite(from) || tick >= from) && (!Number.isFinite(to) || tick <= to));
+    const ticks = inRange.length ? inRange : allTicks;
     this.timeline = createCinematicTimeline({ ticks, durationSeconds: this.spec.cinematic.clock.durationSeconds, rate: this.spec.cinematic.clock.rate, loop: this.spec.cinematic.clock.loop, reducedMotion: globalThis.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches });
     this.renderedObservationTime = null;
     this.renderedTimeMode = null;
