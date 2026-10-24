@@ -49,7 +49,7 @@ import { CINEMATIC_EFFECTS, suggestEffect } from "./cinematic/cinematic-effects.
 import { temporalFieldCandidates } from "./cinematic/temporal-adapter.js?v=0.1.1";
 import { clipToCinematicSpec, createCinematicClip, exportCinematicClip } from "./cinematic/clip-model.js?v=0.2.0-clips1";
 import { recordCinematicClip, supportedClipVideoMime } from "./cinematic/clip-export.js?v=0.2.0-clips1";
-import { CHART_TYPES, chartFields, chartOption, createChartSpec, loadECharts, queryChart, recommendCharts, renderChartFallback, rowsAsCsv } from "./charting-tools.js";
+import { CHART_TYPES, PRESENTATION_TARGETS, chartFields, chartOption, createChartSpec, loadECharts, queryChart, recommendCharts, renderChartFallback, rowsAsCsv } from "./charting-tools.js";
 
 const BUILDINGS_3D_KEY = "gismap-online:buildings-3d:v1";
 const DISPLAY_SETTINGS_KEY = "gismap-online:display:v1";
@@ -1578,8 +1578,27 @@ export class UIController {
         case "tools-cartography-lab":
           this.openCartographyLab();
           break;
-        case "tools-charts-analytics":
-          void this.#openChartsAnalytics();
+        case "tools-chart-line-area":
+          void this.#openChartsAnalytics({ family: "line-area" });
+          break;
+        case "tools-chart-bar-column":
+          void this.#openChartsAnalytics({ family: "bar-column" });
+          break;
+        case "tools-chart-scatter-bubble":
+          void this.#openChartsAnalytics({ family: "scatter-bubble" });
+          break;
+        case "tools-chart-distribution-composition":
+          void this.#openChartsAnalytics({ family: "distribution-composition" });
+          break;
+        case "tools-chart-3d":
+          void this.#openChartsAnalytics({ family: "3d" });
+          break;
+        case "tools-chart-map":
+          void this.#openChartsAnalytics({ family: "map" });
+          break;
+        case "tools-chart-custom":
+        case "tools-charts-analytics": // Deep links from the original entry remain valid.
+          void this.#openChartsAnalytics({ family: "custom" });
           break;
         case "tools-walkthrough":
           if (document.body.classList.contains("mobile-menu-open")) document.querySelector("#mobile-menu-toggle")?.click();
@@ -2128,8 +2147,8 @@ export class UIController {
     this.#syncUtilityPanel("lab");
   }
 
-  /** Tools › Charts & Analytics: a layer-aware, persisted Phase 1 chart builder. */
-  async #openChartsAnalytics() {
+  /** Tools › Chart tools: one layer-aware builder with family presets. */
+  async #openChartsAnalytics({ family = "custom" } = {}) {
     const layers = this.mapController.getLayers().filter((layer) => layer.queryable);
     if (!layers.length) {
       this.error("Add a queryable feature layer before creating a chart.");
@@ -2145,26 +2164,47 @@ export class UIController {
 
     const choice = (items, selected, empty = "Choose a field") => `<option value="">${empty}</option>${items.map((field) => `<option value="${escapeHtml(field.name)}"${field.name === selected ? " selected" : ""}>${escapeHtml(field.alias || field.name)} (${escapeHtml(field.name)})</option>`).join("")}`;
     const selectedValue = (name) => this.dialog.querySelector(`[data-chart-${name}]`)?.value || "";
+    const selectedTargets = () => [...this.dialog.querySelectorAll("[data-chart-target]:checked")].map((control) => control.value);
     const currentSpec = () => createChartSpec({
       id: spec?.id,
       title: selectedValue("title") || `${layer.title || "Layer"} chart`,
       type: selectedValue("type") || spec?.type || "bar",
+      preset: spec?.preset,
       source: { layerId: layer.uid, scope: selectedValue("scope") || "filtered" },
       dimension: selectedValue("dimension") || null,
       measure: { field: selectedValue("measure") || null, aggregation: selectedValue("aggregation") || "count" },
+      encoding: { sizeField: selectedValue("size") || null },
+      presentation: {
+        target: selectedTargets()[0] || spec?.presentation?.target || "panel",
+        targets: selectedTargets(),
+        renderMode: selectedValue("render-mode") || spec?.presentation?.renderMode || "standard",
+        size: selectedValue("presentation-size") || spec?.presentation?.size || "regular",
+        anchor: selectedValue("anchor") || spec?.presentation?.anchor || "feature",
+        collision: selectedValue("collision") || spec?.presentation?.collision || "hide-overlap",
+        display: selectedValue("display") || spec?.presentation?.display || "progressive",
+      },
       interaction: { mapHighlight: true },
     });
     const render = () => {
       const roles = chartFields(fields);
-      const recommendations = recommendCharts(fields);
+      const recommendations = recommendCharts(fields, { family });
+      const gallery = recommendations.length ? recommendations : family === "3d" ? [{ preset: "spatial-3d", type: "bar", label: "Geographic spatial 3D", description: "Use the existing engine-aware Spatial Chart styling for polygons; conventional 3D plots are a later chart-renderer phase.", spatial: true }] : [{ preset: "custom", type: "bar", label: "Start from this layer", description: "Choose the chart type and fields below." }];
       const type = spec?.type || recommendations[0]?.type || "bar";
       const dimension = spec?.dimension?.field || recommendations[0]?.dimension || roles.categoricalFields[0]?.name || roles.temporalFields[0]?.name || "";
       const measure = spec?.measure?.field || recommendations[0]?.measure || roles.numericFields[0]?.name || "";
+      const size = spec?.encoding?.sizeField || recommendations[0]?.size || "";
       const aggregation = spec?.measure?.aggregation || recommendations[0]?.aggregation || "count";
+      const targets = new Set(spec?.presentation?.targets || (family === "map" ? ["map"] : ["panel"]));
+      const presentation = spec?.presentation || {};
+      const galleryLabel = family === "custom" ? "Data-aware starters" : `${family.replaceAll("-", " ")} presets`;
       this.openDialog({
-        eyebrow: "Charts & Analytics",
-        title: "Chart Builder",
+        eyebrow: "Chart tools",
+        title: family === "custom" ? "Custom Chart Builder" : "Chart Builder",
         content: `<div class="chart-builder">
+          <section class="chart-builder__gallery" aria-label="Chart gallery">
+            <div><span class="eyebrow">${escapeHtml(galleryLabel)}</span><p>Choose a starting point. The same builder keeps the data query and saved chart definition consistent.</p></div>
+            <div class="chart-builder__gallery-grid">${gallery.map((item, index) => `<button type="button" class="chart-gallery-card" data-chart-suggestion="${index}"${item.spatial ? " data-chart-spatial=\"true\"" : ""}><span class="chart-gallery-card__glyph chart-gallery-card__glyph--${escapeHtml(item.type)}" aria-hidden="true"></span><strong>${escapeHtml(item.label)}</strong><small>${escapeHtml(item.description || "")}</small></button>`).join("")}</div>
+          </section>
           <div class="chart-builder__controls">
             <label class="field"><span>Source layer</span><select data-chart-layer>${layers.map((item) => `<option value="${escapeHtml(item.uid)}"${item.uid === layer.uid ? " selected" : ""}>${escapeHtml(item.title || "Untitled layer")}</option>`).join("")}</select></label>
             <label class="field"><span>Chart type</span><select data-chart-type>${CHART_TYPES.map((entry) => `<option value="${entry.id}"${entry.id === type ? " selected" : ""}>${entry.label}</option>`).join("")}</select></label>
@@ -2174,7 +2214,15 @@ export class UIController {
             <label class="field"><span>Data scope</span><select data-chart-scope><option value="filtered"${(spec?.source?.scope || "filtered") === "filtered" ? " selected" : ""}>Current layer filters</option><option value="all"${spec?.source?.scope === "all" ? " selected" : ""}>All source records</option><option value="viewport"${spec?.source?.scope === "viewport" ? " selected" : ""}>Features in map extent</option></select></label>
             <label class="field chart-builder__title"><span>Chart title</span><input data-chart-title value="${escapeHtml(spec?.title || `${layer.title || "Layer"} chart`)}" /></label>
           </div>
-          ${recommendations.length ? `<div class="chart-builder__suggestions"><span>Suggested</span>${recommendations.slice(0, 3).map((item, index) => `<button type="button" data-chart-suggestion="${index}">${escapeHtml(item.label)}</button>`).join("")}</div>` : ""}
+          <fieldset class="chart-builder__targets"><legend>Destinations</legend>${PRESENTATION_TARGETS.map((target) => `<label><input type="checkbox" data-chart-target value="${target}"${targets.has(target) ? " checked" : ""}> ${target === "panel" ? "Chart panel" : target === "dashboard" ? "Instant Dashboard" : target === "map" ? "On the map" : "Brief slide"}</label>`).join("")}</fieldset>
+          <details class="chart-builder__advanced"><summary>Advanced settings</summary><div class="chart-builder__controls">
+            <label class="field"><span>Bubble size</span><select data-chart-size>${choice(roles.numericFields, size, "No size encoding")}</select></label>
+            <label class="field"><span>Map glyph</span><select data-chart-render-mode><option value="standard"${(presentation.renderMode || "standard") === "standard" ? " selected" : ""}>Standard panel</option><option value="svg"${presentation.renderMode === "svg" ? " selected" : ""}>SVG mini chart</option><option value="html"${presentation.renderMode === "html" ? " selected" : ""}>HTML mini chart</option></select></label>
+            <label class="field"><span>Map anchor</span><select data-chart-anchor>${[["feature", "Feature geometry"], ["point", "Point"], ["line-midpoint", "Line midpoint"], ["polygon-interior", "Polygon interior"], ["polygon-centroid", "Polygon centroid"]].map(([value, label]) => `<option value="${value}"${(presentation.anchor || "feature") === value ? " selected" : ""}>${label}</option>`).join("")}</select></label>
+            <label class="field"><span>Map overlap</span><select data-chart-collision>${[["hide-overlap", "Hide overlap"], ["cluster", "Cluster"], ["reposition", "Reposition"]].map(([value, label]) => `<option value="${value}"${(presentation.collision || "hide-overlap") === value ? " selected" : ""}>${label}</option>`).join("")}</select></label>
+            <label class="field"><span>Map display</span><select data-chart-display>${[["progressive", "Progressive"], ["all", "All features"], ["clustered", "Clustered"]].map(([value, label]) => `<option value="${value}"${(presentation.display || "progressive") === value ? " selected" : ""}>${label}</option>`).join("")}</select></label>
+            <label class="field"><span>Presentation size</span><select data-chart-presentation-size>${[["compact", "Compact"], ["regular", "Regular"], ["expanded", "Expanded"]].map(([value, label]) => `<option value="${value}"${(presentation.size || "regular") === value ? " selected" : ""}>${label}</option>`).join("")}</select></label>
+          </div><p class="form-note">Map charts are saved as portable definitions now. Engine-specific MapLibre and ArcGIS overlays are the next rendering phase; existing Spatial Charts remain the geographic 3D path.</p></details>
           <div class="chart-builder__preview" data-chart-preview><div class="chart-builder__empty"><strong>Loading chart…</strong><p>Using the selected layer and its active filter.</p></div></div>
           <p class="form-note" data-chart-coverage>Charts use the layer’s canonical current filter. Map navigation does not alter a filtered chart.</p>
         </div>`,
@@ -2186,13 +2234,15 @@ export class UIController {
             link.download = `${(spec?.title || "chart").replace(/[^a-z0-9]+/gi, "-").replace(/(^-|-$)/g, "").toLowerCase() || "chart"}.csv`;
             link.click(); setTimeout(() => URL.revokeObjectURL(link.href), 1000);
           } },
-          { label: "Add to Instant Dashboard", handler: async () => {
-            if (!spec || !result?.rows?.length) return this.error("Configure a chart with data before adding it to the dashboard.");
+          { label: "Save chart", handler: async () => {
+            spec = currentSpec();
+            if (!result?.rows?.length) return this.error("Configure a chart with data before saving it.");
             const charts = this.projectManager.current.charts || [];
             this.projectManager.setCharts?.([...charts.filter((item) => item.id !== spec.id), spec]);
-            await this.applicationRuntime.runTool("application.chart.create", { title: spec.title, binding: { layerId: layer.uid, followActiveLayer: false }, settings: { chart: spec } });
+            if (spec.presentation.targets.includes("dashboard")) await this.applicationRuntime.runTool("application.chart.create", { title: spec.title, binding: { layerId: layer.uid, followActiveLayer: false }, settings: { chart: spec } });
             this.dialog.close();
-            this.toast("Chart added to the Instant Dashboard and saved with this project.");
+            const destinations = spec.presentation.targets.map((item) => item === "panel" ? "chart panel" : item === "dashboard" ? "Instant Dashboard" : item === "map" ? "Map Charts definition" : "Brief chart definition");
+            this.toast(`Chart saved for ${destinations.join(", ") || "this project"}.`);
           } },
           { label: "Close", primary: true, handler: () => this.dialog.close() },
         ],
@@ -2248,11 +2298,17 @@ export class UIController {
         chartInstance?.dispose?.(); chartInstance = null;
         render();
       });
-      this.dialog.querySelectorAll("[data-chart-type], [data-chart-dimension], [data-chart-aggregation], [data-chart-measure], [data-chart-scope], [data-chart-title]").forEach((control) => control.addEventListener(control.tagName === "INPUT" ? "change" : "change", refresh));
+      this.dialog.querySelectorAll("[data-chart-type], [data-chart-dimension], [data-chart-aggregation], [data-chart-measure], [data-chart-size], [data-chart-scope], [data-chart-title], [data-chart-target], [data-chart-render-mode], [data-chart-anchor], [data-chart-collision], [data-chart-display], [data-chart-presentation-size]").forEach((control) => control.addEventListener("change", refresh));
       this.dialog.querySelectorAll("[data-chart-suggestion]").forEach((button) => button.addEventListener("click", () => {
-        const suggestion = recommendations[Number(button.dataset.chartSuggestion)];
+        const suggestion = gallery[Number(button.dataset.chartSuggestion)];
         if (!suggestion) return;
-        spec = createChartSpec({ title: suggestion.label, type: suggestion.type, layerId: layer.uid, dimension: suggestion.dimension, measure: { field: suggestion.measure, aggregation: suggestion.aggregation } });
+        if (suggestion.spatial) {
+          this.dialog.close();
+          this.openCartographyLab(layer.uid);
+          requestAnimationFrame(() => document.querySelector('#utility-lab-content [data-lab-dimension="3d"]')?.focus());
+          return;
+        }
+        spec = createChartSpec({ title: suggestion.label, preset: suggestion.preset, type: suggestion.type, layerId: layer.uid, dimension: suggestion.dimension, measure: { field: suggestion.measure, aggregation: suggestion.aggregation }, encoding: { sizeField: suggestion.size }, presentation: { target: suggestion.target || (family === "map" ? "map" : "panel"), targets: [suggestion.target || (family === "map" ? "map" : "panel")], renderMode: suggestion.renderMode || (family === "map" ? "svg" : "standard") } });
         chartInstance?.dispose?.(); chartInstance = null;
         render();
       }));
@@ -2265,8 +2321,8 @@ export class UIController {
     try {
       layer = await this.mapController.loadLayer(layer.uid, { allowTruncated: false });
       fields = layer.fields || [];
-      const suggestion = recommendCharts(fields)[0] || {};
-      spec = createChartSpec({ title: `${layer.title || "Layer"} chart`, layerId: layer.uid, type: suggestion.type, dimension: suggestion.dimension, measure: { field: suggestion.measure, aggregation: suggestion.aggregation } });
+      const suggestion = recommendCharts(fields, { family })[0] || {};
+      spec = createChartSpec({ title: suggestion.label || `${layer.title || "Layer"} chart`, preset: suggestion.preset, layerId: layer.uid, type: suggestion.type, dimension: suggestion.dimension, measure: { field: suggestion.measure, aggregation: suggestion.aggregation }, encoding: { sizeField: suggestion.size }, presentation: { target: suggestion.target || (family === "map" ? "map" : "panel"), targets: [suggestion.target || (family === "map" ? "map" : "panel")], renderMode: suggestion.renderMode || (family === "map" ? "svg" : "standard") } });
       render();
     } catch (error) {
       this.error(error.message);

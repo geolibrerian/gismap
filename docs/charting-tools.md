@@ -1,7 +1,12 @@
-# Charting Tools
+# Charting Tools 2.0
 
-Charts & Analytics is available from **Tools → Charts & Analytics**. The
-builder stores a portable GISMap chart definition, then translates that
+**Tools → Chart tools** has family entries for Line & Area, Bar & Column,
+Scatter & Bubble, Distribution & Composition, 3D Charts, Map Charts, and the
+Custom Chart Builder. They all open the same layer-aware Chart Builder. The
+builder starts with a visual, data-aware gallery, keeps the live preview in
+view, and moves field and presentation controls into progressive sections.
+
+The builder stores a portable GISMap chart definition, then translates that
 definition to Apache ECharts only at render time. ECharts is lazy-loaded from
 the pinned 5.5.1 CDN build; the builder retains a keyboard-accessible HTML bar
 fallback if it cannot be loaded.
@@ -16,9 +21,22 @@ Definitions are stored at `project.charts`, never with copied source records:
   "schemaVersion": 1,
   "id": "chart-id",
   "type": "bar",
+  "chartType": "bar",
   "source": { "layerId": "stable-layer-id", "scope": "filtered" },
+  "data": {
+    "layerId": "stable-layer-id",
+    "scope": "filtered",
+    "groupBy": "YEAR_",
+    "series": [{ "field": "GIS_ACRES", "aggregation": "sum" }]
+  },
   "dimension": { "field": "YEAR_", "interpretation": "category" },
   "measure": { "field": "GIS_ACRES", "aggregation": "sum" },
+  "presentation": {
+    "target": "dashboard",
+    "targets": ["panel", "dashboard"],
+    "renderMode": "standard",
+    "size": "regular"
+  },
   "interaction": { "mapHighlight": true, "crossFilter": false }
 }
 ```
@@ -29,14 +47,37 @@ renderer. `filtered` uses the layer’s active canonical definition expression;
 reports a transfer limit, the chart is marked partial and is not presented as
 a complete aggregate.
 
-## Interaction and dashboard
+`type`/`source` remain for saved-project compatibility; `chartType`/`data`
+are the portable aliases used by new integrations. Existing saved charts load
+as panel-target charts without migration prompts.
+
+## Destinations, interaction, and dashboard
 
 Clicking a chart mark publishes a shared selection containing the matching
 features and asks the active map engine to highlight the representative
-feature. Adding a chart to Instant Dashboard creates the existing `charts`
-panel with the same stored chart definition, so it remains bound to the map
-layer after a map-engine switch or project reload.
+feature. A chart can target a panel, Instant Dashboard, Map Charts, and/or a
+Brief. Selecting Instant Dashboard creates the existing `charts` panel with
+the same stored chart definition, so it remains bound to the map layer after a
+map-engine switch or project reload. Map and Brief destinations serialize now
+and are intentionally renderer-independent.
 
-The current Phase 1 renderer supports bar, line, area, histogram, scatter,
-donut, and KPI charts. It does not turn a chart click into a permanent layer
-filter: selection and filtering remain separate operations.
+The current panel renderer supports bar, column, line, area, histogram,
+scatter, bubble, box plot, donut, and KPI charts. It does not turn a chart
+click into a permanent layer filter: selection and filtering remain separate
+operations.
+
+## Map Charts subsystem and implementation phases
+
+`js/map-chart-tools.js` defines a renderer-neutral Map Charts contract:
+compact SVG bar, sparkline, and donut glyphs; point, line-midpoint, and
+polygon anchors; and display plans for collision avoidance, clustering, and
+progressive rendering. It does not mount overlays yet. The deferred adapter
+phase will project those plans through MapLibre marker APIs and ArcGIS view
+overlays, retain group-to-feature selection links, and use the same persisted
+chart specification.
+
+Geographic 3D remains separate from ordinary 3D charts. Existing Spatial
+Charts and Cinematic work already run through the map-engine/Three.js path;
+the 3D Chart Tools entry routes users to that engine-aware styling flow rather
+than trying to make ECharts render geographic geometry. Conventional 3D panel
+plots are a subsequent renderer phase.

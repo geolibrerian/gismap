@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import { aggregateChart, createChartSpec, normalizeCharts, recommendCharts, rowsAsCsv } from "../js/charting-tools.js";
+import { mapChartAnchor, normalizeMapChartPresentation, planMapChartDisplay, renderMapChartSvg } from "../js/map-chart-tools.js";
 
 const fields = [
   { name: "OBJECTID", type: "oid" },
@@ -42,6 +43,34 @@ test("recommendations prefer temporal trends and safe project persistence only s
   assert.equal(charts.length, 1);
   assert.equal(charts[0].source.layerId, "fires");
   assert.equal(charts[0].result, undefined);
+  assert.deepEqual(charts[0].presentation.targets, ["panel"]);
+});
+
+test("chart families provide data-aware starters and retain multi-destination definitions", () => {
+  const bars = recommendCharts(fields, { family: "bar-column" });
+  assert.equal(bars.some((item) => item.type === "bar"), true);
+  const scatter = recommendCharts(fields, { family: "scatter-bubble" });
+  assert.equal(scatter.some((item) => item.type === "scatter"), false, "one usable numeric value should not invent a scatterplot");
+  const mapGallery = recommendCharts(fields, { family: "map" });
+  assert.equal(mapGallery.some((item) => item.preset === "map-donut"), true);
+  assert.equal(mapGallery.every((item) => item.target === "map" && item.renderMode === "svg"), true);
+  const map = createChartSpec({ chartType: "donut", data: { layerId: "fires", groupBy: "FIRE_NAME", series: [{ field: "GIS_ACRES", aggregation: "sum" }] }, presentation: { target: "map", targets: ["map", "dashboard"], renderMode: "svg", anchor: "polygon-interior", collision: "cluster", display: "progressive" } });
+  assert.equal(map.type, "donut");
+  assert.equal(map.chartType, "donut");
+  assert.equal(map.data.groupBy, "FIRE_NAME");
+  assert.deepEqual(map.presentation.targets, ["map", "dashboard"]);
+  assert.equal(map.presentation.anchor, "polygon-interior");
+});
+
+test("Map Charts primitives keep anchors, SVG glyphs, and collision plans engine-neutral", () => {
+  assert.deepEqual(mapChartAnchor({ type: "Point", coordinates: [-122.4, 37.8] }), [-122.4, 37.8]);
+  assert.deepEqual(mapChartAnchor({ type: "LineString", coordinates: [[0, 0], [10, 0]] }), [5, 0]);
+  assert.deepEqual(mapChartAnchor({ type: "Polygon", coordinates: [[[0, 0], [4, 0], [4, 4], [0, 4], [0, 0]]] }), [1.6, 1.6]);
+  assert.match(renderMapChartSvg({ mark: "donut", values: [2, 3], label: "A donut" }), /<svg/);
+  const policy = normalizeMapChartPresentation({ collision: "hide-overlap", maxVisible: 1 });
+  const plan = planMapChartDisplay([{ id: "ordinary", screen: { x: 0, y: 0, width: 12, height: 12 } }, { id: "selected", selected: true, screen: { x: 2, y: 2, width: 12, height: 12 } }], policy);
+  assert.equal(plan.visible[0].id, "selected");
+  assert.equal(plan.hidden[0].reason, "budget");
 });
 
 test("chart data exports a compact, quoted CSV", () => {
@@ -50,11 +79,14 @@ test("chart data exports a compact, quoted CSV", () => {
   assert.match(rowsAsCsv(result), /"Alpha","2","2"/);
 });
 
-test("Charts & Analytics is reachable from Tools and persists chart definitions", () => {
+test("Chart Tools has dedicated family actions which share one persisted builder", () => {
   const html = fs.readFileSync(new URL("../index.html", import.meta.url), "utf8");
   const ui = fs.readFileSync(new URL("../js/ui.js", import.meta.url), "utf8");
   const project = fs.readFileSync(new URL("../js/project.js", import.meta.url), "utf8");
-  assert.match(html, /data-action="tools-charts-analytics">Charts &amp; Analytics/);
-  assert.match(ui, /case "tools-charts-analytics":[\s\S]*?#openChartsAnalytics/);
+  for (const action of ["tools-chart-line-area", "tools-chart-bar-column", "tools-chart-scatter-bubble", "tools-chart-distribution-composition", "tools-chart-3d", "tools-chart-map", "tools-chart-custom"]) assert.match(html, new RegExp(`data-action="${action}"`));
+  assert.doesNotMatch(html, /data-action="tools-charts-analytics">Charts &amp; Analytics/);
+  assert.match(ui, /case "tools-chart-line-area":[\s\S]*?#openChartsAnalytics\(\{ family: "line-area" \}\)/);
+  assert.match(ui, /chart-builder__gallery/);
+  assert.match(ui, /data-chart-target/);
   assert.match(project, /setCharts\(charts\)/);
 });
