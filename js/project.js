@@ -11,6 +11,7 @@ import { normalizeBriefing } from "./briefing-document.js?v=0.60.4-clips1";
 import { importCinematicSpec } from "./cinematic/state.js?v=0.2.0";
 import { normalizeCinematicClips } from "./cinematic/clip-model.js?v=0.2.0-clips1";
 import { composeSmartImage, embedProjectInPng, readProjectFromPng } from "./smart-image.js?v=0.44.2";
+import { normalizeCharts } from "./charting-tools.js";
 
 const STORAGE_KEY = "gismap-online:projects:v1";
 const CURRENT_KEY = "gismap-online:current-project:v1";
@@ -82,6 +83,8 @@ export class ProjectManager {
       mobile: normalizeMobileWorkflow(),
       // Saved Cartography Lab styles (schemas/layer-style-v1.schema.json).
       layerStyles: [],
+      // Chart definitions (never copied result data) reconnect to their layers on load.
+      charts: [],
     };
   }
 
@@ -233,6 +236,7 @@ export class ProjectManager {
     this.current.dataCatalog = normalizeDataCatalog(project.dataCatalog);
     this.current.mobile = normalizeMobileWorkflow(project.mobile);
     this.current.layerStyles = Array.isArray(project.layerStyles) ? project.layerStyles.slice(0, 200) : [];
+    this.current.charts = normalizeCharts(project.charts);
     await this.mapController.restoreView(project.view);
     this.events.publish("project:loaded", { project: this.current, missingFiles });
     return { project: this.current, missingFiles };
@@ -408,6 +412,14 @@ export class ProjectManager {
     this.persistCurrentIfSaved();
     this.events.publish("catalog:changed", { catalog: structuredClone(this.current.dataCatalog) });
     return structuredClone(this.current.dataCatalog);
+  }
+
+  setCharts(charts) {
+    this.current.charts = normalizeCharts(charts);
+    this.current.updatedAt = new Date().toISOString();
+    this.persistCurrentIfSaved();
+    this.events.publish("charts:changed", { charts: structuredClone(this.current.charts) });
+    return structuredClone(this.current.charts);
   }
 
   setMobileWorkflow(mobile) {

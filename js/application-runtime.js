@@ -7,6 +7,7 @@ import { DuckDBBrowserClient } from "./duckdb-client.js?v=0.54.0-analysis1";
 import { normalizeDataCatalog, planNaturalLanguageQuery, validateReadOnlySQL } from "./data-catalog.js?v=0.18.2";
 import { PanelManager } from "./panel-manager.js?v=0.18.2";
 import { applyInterfaceSkin } from "./skin-catalog.js?v=0.57.0-skins2";
+import { chartOption, createChartSpec, loadECharts, queryChart, renderChartFallback } from "./charting-tools.js";
 
 const STATIC_PANELS = {
   places: "places-panel",
@@ -287,6 +288,7 @@ export class ApplicationRuntime {
     this.panels.register({
       type: "charts", displayName: "Charts", description: "Computed summaries with linked filters.", category: "Analysis", bindings: ["active-layer", "fixed-layer", "shared-selection", "shared-time"], placements: ["left", "right", "bottom", "floating"],
       mount: (host, context) => {
+        if (context.config.settings?.chart) return this.#mountConfiguredChartPanel(host, context);
         const id = context.config.instanceId;
         let bins = [];
         let layer = null;
@@ -351,6 +353,48 @@ export class ApplicationRuntime {
       type: "sql", displayName: "SQL Workspace", description: "Run validated read-only SQL locally with DuckDB-Wasm.", category: "Analysis", bindings: ["active-layer", "fixed-layer"], placements: ["left", "right", "bottom", "floating"], multiple: true,
       mount: (host, context) => this.#mountSQLPanel(host, context),
     });
+  }
+
+  #mountConfiguredChartPanel(host, context) {
+    const spec = createChartSpec(context.config.settings.chart);
+    let result = null;
+    let chartInstance = null;
+    let request = 0;
+    const selectRow = (row) => {
+      const records = result?.selection(row) || [];
+      const ids = records.map((record) => record.attributes?.[result.layer.objectIdField]).filter((value) => value != null);
+      context.dispatch("selection:set", { layerId: result.layer.uid, objectIds: ids, features: records.slice(0, 100).map((record) => ({ attributes: record.attributes || {}, geometry: record.geometry || null, layerTitle: result.layer.title })) }, { undoable: false });
+      if (records[0]) void this.mapController.highlightFeature({ kind: "feature", layerUid: result.layer.uid, layerTitle: result.layer.title, attributes: records[0].attributes || {}, geometry: records[0].geometry || null }, { pulse: false });
+      host.querySelector("[data-dashboard-chart-selection]").textContent = `${records.length.toLocaleString()} matching feature${records.length === 1 ? "" : "s"} selected on the map.`;
+    };
+    const render = async () => {
+      const token = ++request;
+      const layer = this.mapController.getLayer(spec.source.layerId) || this.mapController.getLayer(context.state.value.activeLayerId) || this.mapController.getLayers()[0];
+      if (!layer?.queryable) { host.innerHTML = `<div class="panel-empty"><strong>Choose a feature layer</strong><p>This chart’s source is unavailable.</p></div>`; return; }
+      host.innerHTML = `<div class="panel-empty"><strong>Computing ${escapeHtml(spec.title)}…</strong><p>Applying the current layer filter.</p></div>`;
+      try {
+        result = await queryChart(this.mapController, layer, { ...spec, source: { ...spec.source, layerId: layer.uid } });
+        if (token !== request) return;
+        const warning = result.quality.status === "complete" ? `${result.quality.processedRecords.toLocaleString()} matching records` : result.quality.warning;
+        host.innerHTML = `<div class="composable-chart chart-dashboard"><span class="eyebrow">${escapeHtml(result.layer.title || "Layer")} · linked</span><strong>${escapeHtml(spec.title)}</strong>${renderChartFallback(result)}<p class="form-note">${escapeHtml(warning)}</p><p data-dashboard-chart-selection class="form-note"></p></div>`;
+        const fallback = host.querySelector(".chart-fallback");
+        fallback?.querySelectorAll("[data-chart-row]").forEach((button) => button.addEventListener("click", () => selectRow(result.rows[Number(button.dataset.chartRow)])));
+        try {
+          const echarts = await loadECharts();
+          if (token !== request || !result.rows.length || result.chart.type === "kpi") return;
+          const canvas = document.createElement("div"); canvas.className = "chart-builder__canvas";
+          host.querySelector(".chart-dashboard").insertBefore(canvas, fallback);
+          chartInstance?.dispose?.(); chartInstance = echarts.init(canvas); chartInstance.setOption(chartOption(result));
+          chartInstance.on("click", (event) => { const row = result.rows[event.dataIndex]; if (row) selectRow(row); });
+          fallback?.remove();
+        } catch { /* Keep the accessible fallback chart. */ }
+      } catch (error) {
+        if (token === request) host.innerHTML = `<div class="panel-empty"><strong>Chart unavailable</strong><p>${escapeHtml(error.message)}</p></div>`;
+      }
+    };
+    const subscription = context.state.subscribe(() => void render(), (state) => state.filters);
+    context.onCleanup(() => { subscription.remove(); chartInstance?.dispose?.(); });
+    void render();
   }
 
   #catalogWithActiveLayer() {

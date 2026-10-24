@@ -49,6 +49,7 @@ import { CINEMATIC_EFFECTS, suggestEffect } from "./cinematic/cinematic-effects.
 import { temporalFieldCandidates } from "./cinematic/temporal-adapter.js?v=0.1.1";
 import { clipToCinematicSpec, createCinematicClip, exportCinematicClip } from "./cinematic/clip-model.js?v=0.2.0-clips1";
 import { recordCinematicClip, supportedClipVideoMime } from "./cinematic/clip-export.js?v=0.2.0-clips1";
+import { CHART_TYPES, chartFields, chartOption, createChartSpec, loadECharts, queryChart, recommendCharts, renderChartFallback, rowsAsCsv } from "./charting-tools.js";
 
 const BUILDINGS_3D_KEY = "gismap-online:buildings-3d:v1";
 const DISPLAY_SETTINGS_KEY = "gismap-online:display:v1";
@@ -1577,6 +1578,9 @@ export class UIController {
         case "tools-cartography-lab":
           this.openCartographyLab();
           break;
+        case "tools-charts-analytics":
+          void this.#openChartsAnalytics();
+          break;
         case "tools-walkthrough":
           if (document.body.classList.contains("mobile-menu-open")) document.querySelector("#mobile-menu-toggle")?.click();
           this.#startWorkspaceWalkthrough();
@@ -2122,6 +2126,151 @@ export class UIController {
     this.#closeMenus();
     this.cartographyLab.render(document.querySelector("#utility-lab-content"), uid);
     this.#syncUtilityPanel("lab");
+  }
+
+  /** Tools › Charts & Analytics: a layer-aware, persisted Phase 1 chart builder. */
+  async #openChartsAnalytics() {
+    const layers = this.mapController.getLayers().filter((layer) => layer.queryable);
+    if (!layers.length) {
+      this.error("Add a queryable feature layer before creating a chart.");
+      return;
+    }
+    let layer = this.mapController.getLayer(this.applicationRuntime?.state?.value?.activeLayerId) || layers[0];
+    if (!layer.queryable) layer = layers[0];
+    let fields = [];
+    let spec = null;
+    let result = null;
+    let chartInstance = null;
+    let request = 0;
+
+    const choice = (items, selected, empty = "Choose a field") => `<option value="">${empty}</option>${items.map((field) => `<option value="${escapeHtml(field.name)}"${field.name === selected ? " selected" : ""}>${escapeHtml(field.alias || field.name)} (${escapeHtml(field.name)})</option>`).join("")}`;
+    const selectedValue = (name) => this.dialog.querySelector(`[data-chart-${name}]`)?.value || "";
+    const currentSpec = () => createChartSpec({
+      id: spec?.id,
+      title: selectedValue("title") || `${layer.title || "Layer"} chart`,
+      type: selectedValue("type") || spec?.type || "bar",
+      source: { layerId: layer.uid, scope: selectedValue("scope") || "filtered" },
+      dimension: selectedValue("dimension") || null,
+      measure: { field: selectedValue("measure") || null, aggregation: selectedValue("aggregation") || "count" },
+      interaction: { mapHighlight: true },
+    });
+    const render = () => {
+      const roles = chartFields(fields);
+      const recommendations = recommendCharts(fields);
+      const type = spec?.type || recommendations[0]?.type || "bar";
+      const dimension = spec?.dimension?.field || recommendations[0]?.dimension || roles.categoricalFields[0]?.name || roles.temporalFields[0]?.name || "";
+      const measure = spec?.measure?.field || recommendations[0]?.measure || roles.numericFields[0]?.name || "";
+      const aggregation = spec?.measure?.aggregation || recommendations[0]?.aggregation || "count";
+      this.openDialog({
+        eyebrow: "Charts & Analytics",
+        title: "Chart Builder",
+        content: `<div class="chart-builder">
+          <div class="chart-builder__controls">
+            <label class="field"><span>Source layer</span><select data-chart-layer>${layers.map((item) => `<option value="${escapeHtml(item.uid)}"${item.uid === layer.uid ? " selected" : ""}>${escapeHtml(item.title || "Untitled layer")}</option>`).join("")}</select></label>
+            <label class="field"><span>Chart type</span><select data-chart-type>${CHART_TYPES.map((entry) => `<option value="${entry.id}"${entry.id === type ? " selected" : ""}>${entry.label}</option>`).join("")}</select></label>
+            <label class="field"><span>Group by</span><select data-chart-dimension>${choice(roles.usable, dimension, "No grouping (metric)")}</select></label>
+            <label class="field"><span>Aggregation</span><select data-chart-aggregation>${["count", "sum", "avg", "min", "max"].map((item) => `<option value="${item}"${item === aggregation ? " selected" : ""}>${item === "avg" ? "Average" : item[0].toUpperCase() + item.slice(1)}</option>`).join("")}</select></label>
+            <label class="field"><span>Value field</span><select data-chart-measure>${choice(roles.numericFields, measure, aggregation === "count" ? "No field needed for count" : "Choose a numeric field")}</select></label>
+            <label class="field"><span>Data scope</span><select data-chart-scope><option value="filtered"${(spec?.source?.scope || "filtered") === "filtered" ? " selected" : ""}>Current layer filters</option><option value="all"${spec?.source?.scope === "all" ? " selected" : ""}>All source records</option><option value="viewport"${spec?.source?.scope === "viewport" ? " selected" : ""}>Features in map extent</option></select></label>
+            <label class="field chart-builder__title"><span>Chart title</span><input data-chart-title value="${escapeHtml(spec?.title || `${layer.title || "Layer"} chart`)}" /></label>
+          </div>
+          ${recommendations.length ? `<div class="chart-builder__suggestions"><span>Suggested</span>${recommendations.slice(0, 3).map((item, index) => `<button type="button" data-chart-suggestion="${index}">${escapeHtml(item.label)}</button>`).join("")}</div>` : ""}
+          <div class="chart-builder__preview" data-chart-preview><div class="chart-builder__empty"><strong>Loading chart…</strong><p>Using the selected layer and its active filter.</p></div></div>
+          <p class="form-note" data-chart-coverage>Charts use the layer’s canonical current filter. Map navigation does not alter a filtered chart.</p>
+        </div>`,
+        actions: [
+          { label: "Download CSV", handler: () => {
+            if (!result?.rows?.length) return this.error("There is no chart data to export.");
+            const link = document.createElement("a");
+            link.href = URL.createObjectURL(new Blob([rowsAsCsv(result)], { type: "text/csv;charset=utf-8" }));
+            link.download = `${(spec?.title || "chart").replace(/[^a-z0-9]+/gi, "-").replace(/(^-|-$)/g, "").toLowerCase() || "chart"}.csv`;
+            link.click(); setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+          } },
+          { label: "Add to Instant Dashboard", handler: async () => {
+            if (!spec || !result?.rows?.length) return this.error("Configure a chart with data before adding it to the dashboard.");
+            const charts = this.projectManager.current.charts || [];
+            this.projectManager.setCharts?.([...charts.filter((item) => item.id !== spec.id), spec]);
+            await this.applicationRuntime.runTool("application.chart.create", { title: spec.title, binding: { layerId: layer.uid, followActiveLayer: false }, settings: { chart: spec } });
+            this.dialog.close();
+            this.toast("Chart added to the Instant Dashboard and saved with this project.");
+          } },
+          { label: "Close", primary: true, handler: () => this.dialog.close() },
+        ],
+      });
+      const refresh = async () => {
+        const token = ++request;
+        spec = currentSpec();
+        const preview = this.dialog.querySelector("[data-chart-preview]");
+        const coverage = this.dialog.querySelector("[data-chart-coverage]");
+        preview.innerHTML = `<div class="chart-builder__empty"><strong>Updating chart…</strong><p>Aggregating the selected records.</p></div>`;
+        try {
+          result = await queryChart(this.mapController, layer, spec);
+          if (token !== request || !this.dialog.open) return;
+          const quality = result.quality;
+          coverage.textContent = quality.status === "complete"
+            ? `${quality.processedRecords.toLocaleString()} matching records · complete result${quality.excludedNullMeasures ? ` · ${quality.excludedNullMeasures} empty measures excluded` : ""}`
+            : quality.warning || "This chart is based on a partial result.";
+          preview.innerHTML = `${renderChartFallback(result)}<div class="chart-builder__selection" data-chart-selection aria-live="polite"></div>`;
+          const fallback = preview.querySelector(".chart-fallback");
+          const selectRow = (row) => {
+            const records = result.selection(row);
+            const ids = records.map((record) => record.attributes?.[result.layer.objectIdField]).filter((value) => value != null);
+            this.applicationRuntime.state.dispatch("selection:set", { layerId: result.layer.uid, objectIds: ids, features: records.slice(0, 100).map((record) => ({ attributes: record.attributes || {}, geometry: record.geometry || null, layerTitle: result.layer.title })) }, { undoable: false });
+            if (records[0]) void this.mapController.highlightFeature({ kind: "feature", layerUid: result.layer.uid, layerTitle: result.layer.title, attributes: records[0].attributes || {}, geometry: records[0].geometry || null }, { pulse: false });
+            preview.querySelector("[data-chart-selection]").textContent = `${records.length.toLocaleString()} matching feature${records.length === 1 ? "" : "s"} selected on the map.`;
+          };
+          fallback?.querySelectorAll("[data-chart-row]").forEach((button) => button.addEventListener("click", () => selectRow(result.rows[Number(button.dataset.chartRow)])));
+          try {
+            const echarts = await loadECharts();
+            if (token !== request || !this.dialog.open || !result.rows.length || result.chart.type === "kpi") return;
+            const canvas = document.createElement("div");
+            canvas.className = "chart-builder__canvas";
+            canvas.dataset.chartCanvas = "";
+            preview.insertBefore(canvas, fallback);
+            chartInstance?.dispose?.();
+            chartInstance = echarts.init(canvas);
+            chartInstance.setOption(chartOption(result));
+            chartInstance.on("click", (event) => { const row = result.rows[event.dataIndex]; if (row) selectRow(row); });
+            fallback?.remove();
+          } catch {
+            // The accessible fallback stays available when the CDN is unavailable.
+          }
+        } catch (error) {
+          if (token !== request || !this.dialog.open) return;
+          preview.innerHTML = `<div class="chart-builder__empty"><strong>Chart unavailable</strong><p>${escapeHtml(error.message)}</p></div>`;
+        }
+      };
+      this.dialog.querySelector("[data-chart-layer]").addEventListener("change", async (event) => {
+        layer = this.mapController.getLayer(event.target.value) || layer;
+        layer = await this.mapController.loadLayer(layer.uid, { allowTruncated: false });
+        fields = layer.fields || [];
+        spec = null;
+        chartInstance?.dispose?.(); chartInstance = null;
+        render();
+      });
+      this.dialog.querySelectorAll("[data-chart-type], [data-chart-dimension], [data-chart-aggregation], [data-chart-measure], [data-chart-scope], [data-chart-title]").forEach((control) => control.addEventListener(control.tagName === "INPUT" ? "change" : "change", refresh));
+      this.dialog.querySelectorAll("[data-chart-suggestion]").forEach((button) => button.addEventListener("click", () => {
+        const suggestion = recommendations[Number(button.dataset.chartSuggestion)];
+        if (!suggestion) return;
+        spec = createChartSpec({ title: suggestion.label, type: suggestion.type, layerId: layer.uid, dimension: suggestion.dimension, measure: { field: suggestion.measure, aggregation: suggestion.aggregation } });
+        chartInstance?.dispose?.(); chartInstance = null;
+        render();
+      }));
+      const session = this.dialogSession;
+      this.dialog.addEventListener("close", () => {
+        if (session === this.dialogSession) { chartInstance?.dispose?.(); chartInstance = null; }
+      }, { once: true });
+      void refresh();
+    };
+    try {
+      layer = await this.mapController.loadLayer(layer.uid, { allowTruncated: false });
+      fields = layer.fields || [];
+      const suggestion = recommendCharts(fields)[0] || {};
+      spec = createChartSpec({ title: `${layer.title || "Layer"} chart`, layerId: layer.uid, type: suggestion.type, dimension: suggestion.dimension, measure: { field: suggestion.measure, aggregation: suggestion.aggregation } });
+      render();
+    } catch (error) {
+      this.error(error.message);
+    }
   }
 
   createTourFromPlaces(places = [], { title = "", open = true } = {}) {
