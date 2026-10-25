@@ -149,8 +149,10 @@ export function fieldTaskFromGeoPayload(payload) {
   return decodeFieldTask(encodeFieldTask(clean.data?.task, "assign")).task;
 }
 
-export function createReturnReceipt({ operationId = id("receipt"), payloadId, status = "accepted", acknowledgedAt = new Date().toISOString(), details = "" } = {}) {
+export function createReturnReceipt({ operationId = id("receipt"), payloadId, taskId = null, recordIds = [], completion = null, status = "accepted", acknowledgedAt = new Date().toISOString(), details = "" } = {}) {
   const originalPayloadId = text(payloadId, 160);
   if (!originalPayloadId) throw new Error("A return receipt needs the original payload ID.");
-  return createGeoPayload({ type: "return-receipt", id: operationId, createdAt: acknowledgedAt, data: { payloadId: originalPayloadId, status: text(status, 48) || "accepted", acknowledgedAt: timestamp(acknowledgedAt), details: text(details, 600) } });
+  const records = Array.isArray(recordIds) ? [...new Set(recordIds.map((value) => text(value, 160)).filter(Boolean))].slice(0, 100) : [];
+  const task = text(taskId, 160) || null;
+  return createGeoPayload({ type: "return-receipt", id: operationId, createdAt: acknowledgedAt, data: { payloadId: originalPayloadId, taskId: task, recordIds: records, completion: completion == null ? null : jsonValue(completion), status: text(status, 48) || "accepted", acknowledgedAt: timestamp(acknowledgedAt), details: text(details, 600) } });
 }

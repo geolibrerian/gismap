@@ -2,7 +2,7 @@ import { createFieldRecord, decodeCompactFieldRecord, encodeCompactFieldRecord, 
 import { FieldRecordStore } from "../js/field-record-store.js";
 import { decodeQrFromImage } from "../js/qr-import.js";
 import { decodeFieldTask, readFieldTaskHash, taskSteps } from "../js/field-task-share.js";
-import { decodeGeoPayload, encodeGeoPayload, fieldRecordFromGeoPayload, fieldTaskFromGeoPayload, geoPayloadFromFieldRecord, recommendTransports } from "../js/geopayload.js";
+import { createReturnReceipt, decodeGeoPayload, encodeGeoPayload, fieldRecordFromGeoPayload, fieldTaskFromGeoPayload, geoPayloadFromFieldRecord, recommendTransports } from "../js/geopayload.js";
 import { brandedQrFile } from "../js/pdf-document.js";
 import { fieldRecordFileStem, fieldRecordPdf } from "../js/field-record-report.js";
 
@@ -10,8 +10,9 @@ const $ = (selector) => document.querySelector(selector);
 const store = new FieldRecordStore();
 let records = [];
 let tasks = [];
+let handoffs = [];
 let selectedRecordIds = new Set();
-let activeQrRecord = null;
+let activeQrTransfer = null;
 let capture = null;
 let attachmentDrafts = [];
 let drawing = [];
@@ -38,15 +39,50 @@ function capabilities() {
   $("[data-capabilities]").innerHTML = `<p><strong>Capture diagnostics</strong></p>${entries.map(([label, yes]) => `<p><b>${escape(label)}</b> ${yes ? "available" : "unavailable"}</p>`).join("")}<p>Dictation from the device keyboard is separate from browser speech recognition. GISMap records audio locally but does not claim offline transcription.</p>`;
 }
 
+const TASK_STATES = ["incoming", "active", "completed", "ready-to-return", "returned"];
+function taskState(task) {
+  if (TASK_STATES.includes(task.status)) return task.status;
+  if (task.status === "completed") return "completed";
+  return "active";
+}
+function taskStateLabel(state) {
+  return ({ incoming: "Incoming", active: "Active", completed: "Completed", "ready-to-return": "Ready to return", returned: "Returned locally" })[state] || "Active";
+}
+function taskCard(task) {
+  const state = taskState(task); const steps = taskSteps(task); const done = steps.filter((step) => step.done).length;
+  const taskId = escape(task.id); const complete = state === "completed"; const ready = state === "ready-to-return"; const returned = state === "returned";
+  const actions = [
+    state === "incoming" ? `<button type="button" data-start-task="${taskId}">Start task</button>` : "",
+    state !== "incoming" ? `<button type="button" data-note-from-task="${taskId}">Add note for task</button>` : "",
+    complete || ready || returned ? `<button type="button" data-return-task="${taskId}">${complete ? "Prepare return" : returned ? "Show return" : "Show return QR"}</button>` : "",
+  ].filter(Boolean).join("");
+  return `<article class="record-card"><span class="record-card__meta">${escape(taskStateLabel(state))} · received ${escape(date(task.acceptedAt || task.importedAt || task.createdAt || Date.now()))}</span><h2>${escape(task.title || "Untitled field task")}</h2><p>${escape(task.notes || task.location || "No instructions.")}</p><p class="record-card__meta">${done}/${steps.length} steps complete${task.completedAt ? ` · completed ${escape(date(task.completedAt))}` : ""}${task.returnPreparedAt ? ` · return prepared ${escape(date(task.returnPreparedAt))}` : ""}</p><div class="task-steps">${steps.map((step, index) => `<label><input type="checkbox" data-task-step="${taskId}" value="${index}" ${step.done ? "checked" : ""} ${state !== "active" ? "disabled" : ""} /> ${escape(step.text)}</label>`).join("")}</div><div class="record-card__actions">${actions}</div></article>`;
+}
+function renderTasks() {
+  if (!tasks.length) return '<div class="field-empty"><h2>Field Inbox is empty</h2><p>Scan or paste a self-contained Work Card while offline to receive work here.</p></div>';
+  const groups = Object.fromEntries(TASK_STATES.map((state) => [state, tasks.filter((task) => taskState(task) === state)]));
+  const incoming = groups.incoming.length; const active = groups.active.length; const outbound = handoffs.filter((item) => item.direction === "outgoing" && item.status === "ready-to-return").length; const received = handoffs.filter((item) => item.direction === "incoming" && item.type === "return-receipt").length;
+  const header = `<article class="transfer-card field-handoff-summary"><h2>Field Inbox &amp; Outbox</h2><p>${incoming} incoming · ${active} active · ${groups.completed.length} completed · ${groups["ready-to-return"].length} ready to return · ${outbound} outbound receipt${outbound === 1 ? "" : "s"} prepared locally${received ? ` · ${received} return receipt${received === 1 ? "" : "s"} received` : ""}.</p><p>Local acknowledgements are durable on this device. They are not server registrations.</p></article>`;
+  return header + TASK_STATES.map((state) => groups[state].length ? `<section class="field-task-group"><h2>${escape(taskStateLabel(state))} <span>${groups[state].length}</span></h2>${groups[state].map(taskCard).join("")}</section>` : "").join("");
+}
+
+async function updateHandoff(id, patch) {
+  if (!id) return;
+  const current = handoffs.find((item) => item.id === id) || await store.getHandoff(id);
+  if (!current) return;
+  await store.saveHandoff({ ...current, ...patch, updatedAt: new Date().toISOString() });
+}
+
 async function refresh() {
   records = await store.listRecords();
   tasks = await store.listTasks();
+  handoffs = await store.listHandoffs();
   $("[data-record-count]").textContent = String(records.length);
   $("[data-task-count]").textContent = String(tasks.length);
   capabilities();
   const list = $("[data-record-list]");
   list.innerHTML = records.length ? `<div class="record-selection"><button type="button" data-select-all>${selectedRecordIds.size === records.length ? "Clear selection" : "Select all"}</button><span>${selectedRecordIds.size} selected</span></div>${records.map((record) => `<article class="record-card"><label class="record-card__select"><input type="checkbox" data-select-record="${escape(record.id)}" ${selectedRecordIds.has(record.id) ? "checked" : ""} /> Select for report</label><span class="record-card__meta">${escape(record.collectionId)} · observed ${escape(date(record.observedAt))}${record.geometry ? " · location attached" : " · no location"}</span><h2>${escape(recordName(record))}</h2><p>${escape(record.notes.text || "No notes.")}</p><span class="record-card__meta">Revision ${record.sync.revision} · edited ${escape(date(record.modifiedAt))} · ${record.attachments.length} attachment${record.attachments.length === 1 ? "" : "s"} · ${escape(record.sync.registeredAt ? "registered" : "local only")}</span><div class="record-card__actions"><button type="button" data-edit-record="${escape(record.id)}">Edit</button><button type="button" data-show-qr="${escape(record.id)}">Share &amp; QR</button><button type="button" data-record-pdf="${escape(record.id)}">PDF</button><button type="button" data-delete-record="${escape(record.id)}">Delete</button></div></article>`).join("")}` : '<div class="field-empty"><h2>No observations yet</h2><p>Saved observations stay securely in this browser until you export them.</p></div>';
-  $("[data-task-list]").innerHTML = tasks.length ? tasks.map((task) => `<article class="record-card"><span class="record-card__meta">${escape(task.status || "in-progress")} · acknowledged locally ${escape(date(task.acknowledgedAt || task.importedAt))}</span><h2>${escape(task.title || "Untitled field task")}</h2><p>${escape(task.notes || task.location || "No instructions.")}</p><p class="record-card__meta">${taskSteps(task).filter((step) => step.done).length}/${taskSteps(task).length} steps complete${task.completedAt ? ` · completed ${escape(date(task.completedAt))}` : ""}</p><div class="task-steps">${taskSteps(task).map((step, index) => `<label><input type="checkbox" data-task-step="${escape(task.id)}" value="${index}" ${step.done ? "checked" : ""} /> ${escape(step.text)}</label>`).join("")}</div><div class="record-card__actions"><button type="button" data-note-from-task="${escape(task.id)}">Add note for task</button></div></article>`).join("") : '<div class="field-empty"><h2>No offline tasks</h2><p>Scan or paste a self-contained Field Task QR while offline to add it here.</p></div>';
+  $("[data-task-list]").innerHTML = renderTasks();
 }
 
 function switchView(view) {
@@ -144,20 +180,27 @@ async function importPackage(file) {
 
 async function showQr(id) {
   const record = records.find((item) => item.id === id); if (!record) return;
-  activeQrRecord = record;
-  const payload = encodeGeoPayload(geoPayloadFromFieldRecord(record));
-  const advice = recommendTransports(decodeGeoPayload(payload), { qr: true });
-  if (!advice.qr.supported) throw new Error("This note is too large for one QR code. Download a .gisfield package instead.");
-  const canvas = $("[data-qr-canvas]");
-  if (!globalThis.QRCode?.toCanvas) throw new Error("QR generator is unavailable.");
-  await globalThis.QRCode.toCanvas(canvas, payload, { width: 360, margin: 2, errorCorrectionLevel: "M", color: { dark: "#123e35", light: "#fffdf8" } });
-  $("[data-qr-summary]").textContent = `${recordName(record)} · portable GeoPayload · text and location only; no attachments included.`; $("[data-qr-dialog]").showModal();
+  await showGeoPayloadQr(geoPayloadFromFieldRecord(record), {
+    title: recordName(record), fileName: `${fieldRecordFileStem(record)}-qr.png`,
+    summary: `${recordName(record)} · portable GeoPayload · text and location only; no attachments included.`,
+    lines: ["Portable GeoPayload record", "Attachments stay in the .gisfield package."],
+  });
 }
 
-async function qrCard(record) {
-  const payload = encodeGeoPayload(geoPayloadFromFieldRecord(record));
-  if (!recommendTransports(decodeGeoPayload(payload), { qr: true }).qr.supported) throw new Error("This note is too large for one QR code. Download a .gisfield package instead.");
-  const file = await brandedQrFile(payload, { fileName: `${fieldRecordFileStem(record)}-qr.png`, title: recordName(record), lines: ["Portable GeoPayload record", "Attachments stay in the .gisfield package."], footer: "Scan in GISMap Field Mode" });
+async function showGeoPayloadQr(payload, { title, fileName = "gismap-field-handoff-qr.png", summary, lines = ["Portable GISMap Field handoff"] } = {}) {
+  const text = encodeGeoPayload(payload);
+  const advice = recommendTransports(payload, { qr: true });
+  if (!advice.qr.supported) throw new Error("This handoff is too large for one QR code. Download a GeoPayload file instead.");
+  activeQrTransfer = { text, title: title || "GISMap Field handoff", fileName, summary: summary || "Portable GISMap Field handoff.", lines };
+  const canvas = $("[data-qr-canvas]");
+  if (!globalThis.QRCode?.toCanvas) throw new Error("QR generator is unavailable.");
+  await globalThis.QRCode.toCanvas(canvas, text, { width: 360, margin: 2, errorCorrectionLevel: "M", color: { dark: "#123e35", light: "#fffdf8" } });
+  $("[data-qr-summary]").textContent = activeQrTransfer.summary; $("[data-qr-dialog]").showModal();
+}
+
+async function qrCard() {
+  if (!activeQrTransfer) throw new Error("Choose a handoff to share first.");
+  const file = await brandedQrFile(activeQrTransfer.text, { fileName: activeQrTransfer.fileName, title: activeQrTransfer.title, lines: activeQrTransfer.lines, footer: "Scan in GISMap Field Mode" });
   if (!file) throw new Error("QR card generation is unavailable.");
   return file;
 }
@@ -197,8 +240,12 @@ async function importQrText(text) {
   if (!encoded) throw new Error("This is not a supported Field Mode note or Field Task QR.");
   const shared = decodeFieldTask(encoded, { allowHttp: location.hostname === "localhost" });
   const task = shared.task; const existing = tasks.find((item) => item.id === task.id);
-  if (!existing) await store.saveTask({ ...task, id: task.id || `task_${Date.now()}`, status: task.status === "completed" ? "completed" : "in-progress", importedAt: new Date().toISOString(), acknowledgedAt: new Date().toISOString(), source: "offline-qr", revision: 1 });
-  await refresh(); switchView("tasks"); toast(existing ? "This task is already on this device." : "Field Task added and acknowledged locally. It has not been registered with a server.");
+  if (!existing) {
+    const acceptedAt = new Date().toISOString(); const id = task.id || `task_${Date.now()}`; const handoffId = `legacy-task:${id}`;
+    await store.saveTask({ ...task, id, status: "incoming", importedAt: acceptedAt, acceptedAt, acknowledgedAt: acceptedAt, source: "offline-qr", handoffId, revision: 1 });
+    await store.saveHandoff({ id: handoffId, direction: "incoming", type: "legacy-work-card", status: "incoming", taskId: id, receivedAt: acceptedAt, acceptedAt, createdAt: acceptedAt, updatedAt: acceptedAt });
+  }
+  await refresh(); switchView("tasks"); toast(existing ? "This task is already in your Field Inbox." : "Field Task added to the Field Inbox. It has not been registered with a server.");
 }
 
 function geoPayloadSummary(payload) {
@@ -229,10 +276,16 @@ async function acceptGeoPayload() {
     await refresh(); switchView("records"); toast(existing ? "This observation is already on this device." : "Portable observation added locally.");
   } else if (payload.type === "work-card") {
     const task = fieldTaskFromGeoPayload(payload); const existing = tasks.find((item) => item.id === task.id);
-    if (!existing) await store.saveTask({ ...task, id: task.id || payload.id, status: "in-progress", importedAt: new Date().toISOString(), acknowledgedAt: new Date().toISOString(), source: "geopayload", payloadId: payload.id, revision: 1 });
-    await refresh(); switchView("tasks"); toast(existing ? "This work card is already in your Field Inbox." : "Work card accepted locally. It has not been registered with a server.");
+    if (!existing) {
+      const acceptedAt = new Date().toISOString(); const id = task.id || payload.id;
+      await store.saveTask({ ...task, id, status: "incoming", importedAt: acceptedAt, acceptedAt, acknowledgedAt: acceptedAt, source: "geopayload", payloadId: payload.id, handoffId: payload.id, revision: 1 });
+      await store.saveHandoff({ id: payload.id, direction: "incoming", type: payload.type, status: "incoming", taskId: id, payloadCreatedAt: payload.createdAt, receivedAt: acceptedAt, acceptedAt, createdAt: acceptedAt, updatedAt: acceptedAt });
+    }
+    await refresh(); switchView("tasks"); toast(existing ? "This work card is already in your Field Inbox." : "Work card accepted into the Field Inbox. It has not been registered with a server.");
   } else {
-    toast("Return receipts are read-only until a receiving service or desktop inbox is connected.");
+    const existing = handoffs.find((item) => item.id === payload.id);
+    if (!existing) await store.saveHandoff({ id: payload.id, direction: "incoming", type: "return-receipt", status: "received", payloadId: payload.data.payloadId, taskId: payload.data.taskId, receivedAt: new Date().toISOString(), acknowledgedAt: payload.data.acknowledgedAt, createdAt: payload.createdAt, updatedAt: new Date().toISOString() });
+    await refresh(); switchView("tasks"); toast(existing ? "This return receipt is already in the local handoff ledger." : "Return receipt saved locally for a future receiving service or desktop inbox.");
   }
   pendingGeoPayload = null;
   $("[data-geopayload-dialog]").close();
@@ -286,6 +339,51 @@ async function importQrImage(file) {
   await importQrText(text);
 }
 
+function returnPayloadForTask(task) {
+  const recordIds = records.filter((record) => record.relations.fieldTaskIds.includes(task.id)).map((record) => record.id);
+  const completedAt = task.completedAt || new Date().toISOString();
+  return createReturnReceipt({
+    operationId: task.returnOperationId || `return:${task.id}:${task.revision || 1}`,
+    payloadId: task.payloadId || task.handoffId || task.id,
+    taskId: task.id,
+    recordIds,
+    status: "completed",
+    acknowledgedAt: completedAt,
+    completion: { title: task.title || "Field task", completedAt, steps: taskSteps(task), taskRevision: task.revision || 1 },
+    details: task.report || "",
+  });
+}
+
+async function prepareTaskReturn(task) {
+  if (!["completed", "ready-to-return", "returned"].includes(taskState(task))) throw new Error("Complete every task step before preparing its return.");
+  const payload = returnPayloadForTask(task); const preparedAt = task.returnPreparedAt || new Date().toISOString();
+  const updated = { ...task, status: "ready-to-return", returnOperationId: payload.id, returnPreparedAt: preparedAt, updatedAt: new Date().toISOString(), revision: (task.revision || 1) + (task.returnOperationId ? 0 : 1) };
+  await store.saveTask(updated);
+  await store.saveHandoff({ id: payload.id, direction: "outgoing", type: "return-receipt", status: "ready-to-return", taskId: task.id, payloadId: task.payloadId || task.handoffId || task.id, createdAt: preparedAt, updatedAt: new Date().toISOString() });
+  await updateHandoff(task.handoffId, { status: "ready-to-return", returnOperationId: payload.id, returnPreparedAt: preparedAt });
+  await refresh();
+  await showGeoPayloadQr(payload, { title: `${task.title || "Field task"} return`, fileName: `gismap-field-return-${task.id}.png`, summary: `${task.title || "Field task"} · completion return · ${payload.data.recordIds.length} linked note${payload.data.recordIds.length === 1 ? "" : "s"}. This QR is not a server acknowledgement.`, lines: ["GISMap Field completion return", "Scan in a prepared GISMap Field inbox."] });
+}
+
+async function readiness({ requestPersistence = false } = {}) {
+  if (requestPersistence && navigator.storage?.persist) await navigator.storage.persist();
+  const registration = navigator.serviceWorker?.getRegistration ? await navigator.serviceWorker.getRegistration("./").catch(() => null) : null;
+  const controlled = Boolean(navigator.serviceWorker?.controller);
+  const cached = "caches" in globalThis ? Boolean(await caches.match(new URL("./index.html", location.href)).catch(() => null)) : false;
+  const persisted = await navigator.storage?.persisted?.().catch(() => false);
+  const estimate = await navigator.storage?.estimate?.().catch(() => null);
+  const scanner = typeof globalThis.BarcodeDetector === "function" ? "Live QR scanner available" : "QR photo scanner available after the Field app shell is cached";
+  const usage = estimate?.usage != null && estimate?.quota ? `${Math.round(estimate.usage / 1024 / 1024)} MB used of ${Math.round(estimate.quota / 1024 / 1024)} MB` : "Storage estimate unavailable";
+  const shell = controlled && cached ? "Ready for offline launch" : registration ? "Caching is installed; reload once before leaving service" : "Not prepared; keep this screen open online until caching finishes";
+  $("[data-readiness-status]").innerHTML = `<ul class="field-readiness"><li><b>Field app shell:</b> ${escape(shell)}</li><li><b>Local records:</b> ${globalThis.indexedDB ? "IndexedDB available" : "unavailable"}</li><li><b>Persistent storage:</b> ${persisted ? "granted" : "not guaranteed—request it below and keep exports"}</li><li><b>Device storage:</b> ${escape(usage)}</li><li><b>QR intake:</b> ${escape(scanner)}</li><li><b>Map coverage:</b> not downloaded by this check. Bring a package or online map coverage separately.</li></ul>`;
+}
+
+async function openReadiness(requestPersistence = false) {
+  const dialog = $("[data-readiness-dialog]"); if (!dialog.open) dialog.showModal();
+  $("[data-readiness-status]").textContent = "Checking this device…";
+  try { await readiness({ requestPersistence }); } catch (error) { $("[data-readiness-status]").textContent = `Could not finish the readiness check: ${error.message}`; }
+}
+
 function wire() {
   document.querySelectorAll("[data-view]").forEach((button) => button.addEventListener("click", () => switchView(button.dataset.view)));
   $("[data-capture-gps]").addEventListener("click", () => {
@@ -317,8 +415,16 @@ function wire() {
   $("[data-draft-attachments]").addEventListener("click", (event) => { const target = event.target.closest("button[data-remove-attachment]"); if (!target) return; attachmentDrafts.splice(Number(target.dataset.removeAttachment), 1); renderDraftAttachments(); });
   $("[data-record-list]").addEventListener("change", (event) => { const input = event.target; if (!input.matches("[data-select-record]")) return; if (input.checked) selectedRecordIds.add(input.dataset.selectRecord); else selectedRecordIds.delete(input.dataset.selectRecord); refresh().catch((error) => toast(error.message)); });
   $("[data-record-list]").addEventListener("click", async (event) => { const target = event.target.closest("button"); if (!target) return; try { if (target.dataset.selectAll !== undefined) { selectedRecordIds = selectedRecordIds.size === records.length ? new Set() : new Set(records.map((record) => record.id)); await refresh(); return; } if (target.dataset.editRecord) { editRecord(target.dataset.editRecord); return; } if (target.dataset.showQr) await showQr(target.dataset.showQr); if (target.dataset.recordPdf) { const record = records.find((item) => item.id === target.dataset.recordPdf); download(`${fieldRecordFileStem(record)}.pdf`, await reportFile([record]), "application/pdf"); } if (target.dataset.deleteRecord) { const record = records.find((item) => item.id === target.dataset.deleteRecord); if (record && confirm(`Delete “${recordName(record)}” from this device?`)) { const usedElsewhere = new Set(records.filter((item) => item.id !== record.id).flatMap((item) => item.attachments.map((attachment) => attachment.localAssetId))); await store.deleteRecord(record.id); await store.deleteAssets(record.attachments.map((id) => id.localAssetId).filter((id) => !usedElsewhere.has(id))); selectedRecordIds.delete(record.id); await refresh(); toast("Observation deleted."); } } } catch (error) { toast(error.message); } });
-  $("[data-task-list]").addEventListener("change", async (event) => { const input = event.target; if (!input.matches("[data-task-step]")) return; const task = tasks.find((item) => item.id === input.dataset.taskStep); if (!task) return; const steps = taskSteps(task).map((step, index) => ({ ...step, done: index === Number(input.value) ? input.checked : step.done })); const complete = steps.length && steps.every((step) => step.done); await store.saveTask({ ...task, steps, status: complete ? "completed" : "in-progress", completedAt: complete ? (task.completedAt || new Date().toISOString()) : null, updatedAt: new Date().toISOString(), revision: (task.revision || 1) + 1 }); await refresh(); });
-  $("[data-task-list]").addEventListener("click", (event) => { const target = event.target.closest("button[data-note-from-task]"); if (!target) return; const task = tasks.find((item) => item.id === target.dataset.noteFromTask); if (!task) return; resetEditor(); const fields = $("[data-record-form]").elements; fields.collectionId.value = "task-notes"; fields.title.value = task.title || ""; fields.notes.value = task.notes || ""; if (Number.isFinite(task.longitude) && Number.isFinite(task.latitude)) setLocation({ coordinates: [task.longitude, task.latitude], source: "field-task", accuracyMeters: null }); $("[data-record-form]").dataset.taskId = task.id; switchView("collect"); });
+  $("[data-task-list]").addEventListener("change", async (event) => { const input = event.target; if (!input.matches("[data-task-step]")) return; const task = tasks.find((item) => item.id === input.dataset.taskStep); if (!task) return; const steps = taskSteps(task).map((step, index) => ({ ...step, done: index === Number(input.value) ? input.checked : step.done })); const complete = steps.length && steps.every((step) => step.done); const state = complete ? "completed" : "active"; await store.saveTask({ ...task, steps, status: state, completedAt: complete ? (task.completedAt || new Date().toISOString()) : null, updatedAt: new Date().toISOString(), revision: (task.revision || 1) + 1 }); await updateHandoff(task.handoffId, { status: state, completedAt: complete ? (task.completedAt || new Date().toISOString()) : null }); await refresh(); });
+  $("[data-task-list]").addEventListener("click", async (event) => {
+    const target = event.target.closest("button"); if (!target) return;
+    try {
+      if (target.dataset.startTask) { const task = tasks.find((item) => item.id === target.dataset.startTask); if (!task) return; const startedAt = new Date().toISOString(); await store.saveTask({ ...task, status: "active", startedAt, updatedAt: startedAt, revision: (task.revision || 1) + 1 }); await updateHandoff(task.handoffId, { status: "active", startedAt }); await refresh(); toast("Task started locally."); return; }
+      if (target.dataset.returnTask) { const task = tasks.find((item) => item.id === target.dataset.returnTask); if (task) await prepareTaskReturn(task); return; }
+      if (!target.dataset.noteFromTask) return;
+      const task = tasks.find((item) => item.id === target.dataset.noteFromTask); if (!task) return; resetEditor(); const fields = $("[data-record-form]").elements; fields.collectionId.value = "task-notes"; fields.title.value = task.title || ""; fields.notes.value = task.notes || ""; if (Number.isFinite(task.longitude) && Number.isFinite(task.latitude)) setLocation({ coordinates: [task.longitude, task.latitude], source: "field-task", accuracyMeters: null }); $("[data-record-form]").dataset.taskId = task.id; switchView("collect");
+    } catch (error) { toast(error.message); }
+  });
   $("[data-export-geojson]").addEventListener("click", () => download("gismap-field-observations.geojson", JSON.stringify(recordsGeoJSON(selectedRecords().length ? selectedRecords() : records), null, 2), "application/geo+json"));
   $("[data-export-geopayload]").addEventListener("click", () => {
     const scope = selectedRecords().length ? selectedRecords() : records.length === 1 ? records : [];
@@ -342,10 +448,14 @@ function wire() {
   $("[data-reject-geopayload]").addEventListener("click", () => $("[data-geopayload-dialog]").close());
   $("[data-geopayload-dialog]").addEventListener("close", () => { pendingGeoPayload = null; });
   $("[data-accept-geopayload]").addEventListener("click", () => acceptGeoPayload().catch((error) => toast(error.message)));
+  $("[data-prepare-field]").addEventListener("click", () => openReadiness());
+  $("[data-close-readiness]").addEventListener("click", () => $("[data-readiness-dialog]").close());
+  $("[data-refresh-readiness]").addEventListener("click", () => openReadiness());
+  $("[data-persist-field]").addEventListener("click", () => openReadiness(true));
   $("[data-close-qr]").addEventListener("click", () => $("[data-qr-dialog]").close());
-  $("[data-download-qr]").addEventListener("click", async () => { try { const file = await qrCard(activeQrRecord); download(file.name, file, file.type); } catch (error) { toast(error.message); } });
-  $("[data-share-qr]").addEventListener("click", async () => { try { const file = await qrCard(activeQrRecord); await mobileShare({ title: recordName(activeQrRecord), text: "GISMap Field Mode QR record. Attachments are not included.", file }); } catch (error) { if (error.name !== "AbortError") toast(error.message); } });
-  $("[data-copy-qr]").addEventListener("click", async () => { try { await navigator.clipboard.writeText(encodeGeoPayload(geoPayloadFromFieldRecord(activeQrRecord))); toast("Portable GeoPayload copied."); } catch { toast("Copy is unavailable in this browser."); } });
+  $("[data-download-qr]").addEventListener("click", async () => { try { const file = await qrCard(); download(file.name, file, file.type); } catch (error) { toast(error.message); } });
+  $("[data-share-qr]").addEventListener("click", async () => { try { const file = await qrCard(); await mobileShare({ title: activeQrTransfer?.title || "GISMap Field handoff", text: activeQrTransfer?.summary || "GISMap Field handoff.", file }); } catch (error) { if (error.name !== "AbortError") toast(error.message); } });
+  $("[data-copy-qr]").addEventListener("click", async () => { try { if (!activeQrTransfer) throw new Error("Choose a handoff to copy first."); await navigator.clipboard.writeText(activeQrTransfer.text); toast("Portable GeoPayload copied."); } catch (error) { toast(error.message || "Copy is unavailable in this browser."); } });
   $("[data-capability-details]").addEventListener("click", () => { const detail = $("[data-capabilities]"); detail.hidden = !detail.hidden; });
   window.addEventListener("online", capabilities); window.addEventListener("offline", capabilities);
   window.addEventListener("beforeinstallprompt", (event) => { event.preventDefault(); installPrompt = event; $("[data-install]").hidden = false; });

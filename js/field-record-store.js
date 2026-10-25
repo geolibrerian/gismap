@@ -2,7 +2,7 @@
 // legacy field-note sessions. This prevents a standalone install from changing
 // the version of the map app's existing IndexedDB database.
 const DB_NAME = "gismap-field-mode";
-const DB_VERSION = 2;
+const DB_VERSION = 3;
 const requestResult = (request, fallback) => new Promise((resolve, reject) => {
   request.onsuccess = () => resolve(request.result ?? fallback);
   request.onerror = () => reject(request.error || new Error("Local field storage is unavailable."));
@@ -20,6 +20,10 @@ export class FieldRecordStore {
         if (!db.objectStoreNames.contains("fieldRecords")) db.createObjectStore("fieldRecords", { keyPath: "id" });
         if (!db.objectStoreNames.contains("fieldAssets")) db.createObjectStore("fieldAssets", { keyPath: "id" });
         if (!db.objectStoreNames.contains("fieldTasks")) db.createObjectStore("fieldTasks", { keyPath: "id" });
+        // Incoming work and outgoing receipts are an audit trail separate from
+        // task content.  A future server can reconcile this ledger without
+        // changing the locally authored task or observation records.
+        if (!db.objectStoreNames.contains("fieldHandoffs")) db.createObjectStore("fieldHandoffs", { keyPath: "id" });
       };
       request.onsuccess = () => resolve(request.result);
       request.onerror = () => reject(request.error || new Error("Could not open Field Mode storage."));
@@ -68,5 +72,19 @@ export class FieldRecordStore {
     const db = await this.open(); const tx = db.transaction("fieldTasks", "readwrite"); tx.objectStore("fieldTasks").put(task);
     await new Promise((resolve, reject) => { tx.oncomplete = resolve; tx.onerror = () => reject(tx.error || new Error("Could not save this field task.")); });
     return task;
+  }
+  async listHandoffs() {
+    const db = await this.open();
+    const handoffs = await requestResult(db.transaction("fieldHandoffs", "readonly").objectStore("fieldHandoffs").getAll(), []);
+    return handoffs.sort((a, b) => String(b.updatedAt || b.createdAt || "").localeCompare(String(a.updatedAt || a.createdAt || "")));
+  }
+  async saveHandoff(handoff) {
+    const db = await this.open(); const tx = db.transaction("fieldHandoffs", "readwrite"); tx.objectStore("fieldHandoffs").put(handoff);
+    await new Promise((resolve, reject) => { tx.oncomplete = resolve; tx.onerror = () => reject(tx.error || new Error("Could not save this handoff state.")); });
+    return handoff;
+  }
+  async getHandoff(id) {
+    const db = await this.open();
+    return requestResult(db.transaction("fieldHandoffs", "readonly").objectStore("fieldHandoffs").get(id), null);
   }
 }

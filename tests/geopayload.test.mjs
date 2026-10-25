@@ -47,4 +47,7 @@ test("work cards use the existing safe task normalizer", () => {
   assert.equal(task.steps[0].done, false);
   const receipt = createReturnReceipt({ payloadId: payload.id });
   assert.equal(receipt.data.payloadId, payload.id);
+  const completion = createReturnReceipt({ payloadId: payload.id, taskId: task.id, recordIds: ["note-1", "note-1"], completion: { completedAt: "2026-10-25T14:00:00.000Z", steps: [{ text: "Photograph", done: true }] } });
+  assert.deepEqual(completion.data.recordIds, ["note-1"]);
+  assert.equal(completion.data.taskId, "task-1");
 });

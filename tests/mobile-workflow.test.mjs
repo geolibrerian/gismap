@@ -82,9 +82,15 @@ test("Field Mode reserves its offline identity and QR scanner for actual offline
   assert.match(fieldJs, /previewGeoPayload/);
   assert.match(fieldJs, /encodeGeoPayload/);
   assert.match(fieldCss, /\.field-app\.is-offline \.field-header__brand-online::after/);
-  assert.match(worker, /gismap-field-v4/);
+  assert.match(worker, /gismap-field-v5/);
   assert.match(worker, /geopayload\.js/);
   assert.match(worker, /caches\.delete/);
+  assert.match(fieldHtml, /data-prepare-field>Prepare/);
+  assert.match(fieldHtml, /data-readiness-dialog/);
+  assert.match(fieldJs, /Field Inbox &amp; Outbox/);
+  assert.match(fieldJs, /ready-to-return/);
+  assert.match(fieldJs, /createReturnReceipt/);
+  assert.match(fieldJs, /navigator\.storage\?\.persist/);
 });
 
 test("mobile navigation keeps the menu exclusive and Map active while its tools are open", async () => {
