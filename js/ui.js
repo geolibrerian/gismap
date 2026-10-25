@@ -1698,7 +1698,7 @@ export class UIController {
     }
     const layers = this.mapController.getLayers().filter((layer) => layer.queryable && layer.objectIdField);
     if (!layers.length) {
-      this.error("Cinematic mode needs a queryable feature layer with a stable object ID.");
+      this.#openCinematicNeedsData();
       return;
     }
     const selected = layers.find((layer) => layer.uid === this.presentationState.layerUid) || layers[0];
@@ -4293,6 +4293,22 @@ export class UIController {
   }
 
   /** Effect <option>s; "Auto" names the effect it resolves to for this layer. */
+  /** Cinematic mode with no animatable layer: explain that it needs data and offer the ways to add some. */
+  #openCinematicNeedsData() {
+    this.openDialog({
+      eyebrow: "Cinematic mode",
+      title: "Add data to animate",
+      content: `<p class="form-note">Cinematic mode animates a feature layer on your map, so it needs data first: a layer of points, lines or polygons, ideally with a date or number field to play through.</p><div class="cinematic-needs-data"><button type="button" data-cinematic-needs="data-popular"><strong>Popular data services</strong><span>Browse live public layers such as earthquakes, wildfires and storms.</span></button><button type="button" data-cinematic-needs="guide"><strong>Cinematic mode tutorial</strong><span>A step-by-step guide that loads an example layer for you.</span></button><button type="button" data-cinematic-needs="data-arcgis"><strong>Add ArcGIS REST service</strong><span>Connect a FeatureServer or MapServer layer by URL.</span></button><button type="button" data-cinematic-needs="data-geojson"><strong>Add Geo URL</strong><span>Load GeoJSON or another geodata file from a web address.</span></button></div>`,
+      actions: [{ label: "Close", handler: () => this.dialog.close() }],
+    });
+    this.dialog.querySelectorAll("[data-cinematic-needs]").forEach((button) => button.addEventListener("click", () => {
+      const choice = button.dataset.cinematicNeeds;
+      this.dialog.close();
+      // The next step opens its own dialog, so it starts after this one has closed.
+      setTimeout(() => { if (choice === "guide") void this.#startCinematicGuide(); else this.#handleAction(choice); }, 0);
+    }));
+  }
+
   /** The scene's tracks: each layer with its role and effect, plus adding another layer beside the lead track. */
   #cinematicTracksMarkup(state, supportsEffects) {
     const kindLabel = (item) => item.ambient || item.kind === "none" ? "Ambient · loops beside the timeline" : item.kind === "number" ? `Scenario · ${item.timeField}` : `Timeline · ${item.timeField}`;

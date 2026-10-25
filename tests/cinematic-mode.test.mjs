@@ -288,3 +288,11 @@ test("a scene can't mix date and number timelines", async () => {
   const numeric = importCinematicSpec({ cinematic: { clock: { start: "2", end: "10" }, layers: [{ layerRef: "a", temporal: { kind: "none" } }, { layerRef: "b", temporal: { kind: "number", startField: "n" } }] } });
   assert.equal(numeric.cinematic.clock.end, "10", "the lead track's kind decides how the range is read");
 });
+
+test("Cinematic mode without data opens a guide to adding some instead of an error", async () => {
+  const { readFileSync } = await import("node:fs");
+  const ui = readFileSync(new URL("../js/ui.js", import.meta.url), "utf8");
+  assert.doesNotMatch(ui, /Cinematic mode needs a queryable feature layer/);
+  assert.match(ui, /if \(!layers\.length\) \{\s*this\.#openCinematicNeedsData\(\);/);
+  for (const choice of ["data-popular", "guide", "data-arcgis", "data-geojson"]) assert.match(ui, new RegExp(`data-cinematic-needs="${choice}"`));
+});
