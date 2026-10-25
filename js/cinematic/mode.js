@@ -1,6 +1,6 @@
 import { createCinematicTimeline } from "./timeline-controller.js?v=0.1.0";
-import { normalizeTemporalFeatures, observedFeatureIdsAt, observedFeaturesAt, parsePlaybackValue, temporalModelInExtent } from "./temporal-adapter.js?v=0.3.1";
-import { exportCinematicSpec, importCinematicSpec } from "./state.js?v=0.2.1";
+import { normalizeTemporalFeatures, observedFeaturesAt, parsePlaybackValue, temporalModelInExtent } from "./temporal-adapter.js?v=0.3.1";
+import { exportCinematicSpec, importCinematicSpec } from "./state.js?v=0.2.2";
 import { CINEMATIC_EFFECTS, effectFields, effectRanges, resolveEffect, resolveQuality } from "./cinematic-effects.js?v=0.2.1";
 
 // In a build-up, outlines older than the newest few are "settled": drawn as a
@@ -18,6 +18,8 @@ const SLOW_STEPS = 3;
 // example, removing an already-loaded Three.js item) or asynchronously. Keep
 // optional cleanup safe in either case, including unsupported adapters.
 const MAX_FEATURES = 50000;
+const uniqueIds = (observations) => [...new Set(observations.map((observation) => observation.id))]
+  .sort((a, b) => String(a).localeCompare(String(b), undefined, { numeric: true }));
 const attempt = (operation, fallback = null) => Promise.resolve().then(operation).catch(() => fallback);
 
 /**
@@ -47,29 +49,84 @@ export class CinematicModeController {
     await this.destroy();
     this.spec = importCinematicSpec(spec);
     this.adaptive = { cap: TIERS.length - 1, slow: 0 };
-    for (const config of this.spec.cinematic.layers) {
-      const layer = this.mapController.getLayer(config.layerRef);
-      if (!layer?.queryable) throw new Error(`Cinematic layer “${config.layerRef}” is not queryable.`);
-      const loaded = featuresByLayer[config.layerRef] ? { features: featuresByLayer[config.layerRef], truncated: false } : await this.#queryAll(layer, config.temporal.startField);
-      const { features } = loaded;
-      const model = normalizeTemporalFeatures(features, {
-        kind: config.temporal.kind || "time",
-        steps: config.temporal.steps || 0,
-        timeField: config.temporal.startField,
-        groupField: config.temporal.groupField,
-        objectIdField: config.temporal.featureIdField || layer.objectIdField,
-      });
-      if (!model.ticks.length) throw new Error(config.temporal.kind === "number" ? `No numeric values were found in ${config.temporal.startField} of ${layer.title}.` : config.temporal.kind === "none" ? `${layer.title} has no features to animate.` : `No valid timestamped observations were found in ${layer.title}.`);
-      const previousOpacity = Number.isFinite(Number(layer.opacity)) ? Number(layer.opacity) : 1;
-      const effectRange = effectRanges(features, effectFields(layer.fields || [], features[0]?.attributes || features[0]?.properties));
-      this.layers.set(layer.uid, { layer, config, model, effectRange, truncated: loaded.truncated, effectUid: `cinematic:${this.spec.cinematic.id}:${layer.uid}`, previousOpacity, previousFilter: await attempt(() => this.mapController.getFeatureFilter(layer.uid)) });
-      if (config.animation.opacity != null) await attempt(() => this.mapController.setOpacity(layer.uid, config.animation.opacity), false);
-      // The layer's own Advanced Style effect would double the cinematic one; it returns on exit.
-      await attempt(() => this.mapController.suspendLayerEffect?.(layer.uid, true), false);
-    }
+    for (const config of this.spec.cinematic.layers) await this.#loadLayer(config, featuresByLayer);
     this.#resetTimeline();
     await this.renderTask;
     return this.state();
+  }
+
+  /** Query, model and take over one track's layer (filter, opacity, its own effect paused). */
+  async #loadLayer(config, featuresByLayer = {}) {
+    const layer = this.mapController.getLayer(config.layerRef);
+    if (!layer?.queryable) throw new Error(`Cinematic layer “${config.layerRef}” is not queryable.`);
+    if (this.layers.has(layer.uid)) throw new Error(`${layer.title} is already a track in this scene.`);
+    const loaded = featuresByLayer[config.layerRef] ? { features: featuresByLayer[config.layerRef], truncated: false } : await this.#queryAll(layer, config.temporal.startField);
+    const { features } = loaded;
+    const model = normalizeTemporalFeatures(features, {
+      kind: config.temporal.kind || "time",
+      steps: config.temporal.steps || 0,
+      timeField: config.temporal.startField,
+      groupField: config.temporal.groupField,
+      objectIdField: config.temporal.featureIdField || layer.objectIdField,
+    });
+    if (!model.ticks.length) throw new Error(config.temporal.kind === "number" ? `No numeric values were found in ${config.temporal.startField} of ${layer.title}.` : config.temporal.kind === "none" ? `${layer.title} has no features to animate.` : `No valid timestamped observations were found in ${layer.title}.`);
+    const previousOpacity = Number.isFinite(Number(layer.opacity)) ? Number(layer.opacity) : 1;
+    const effectRange = effectRanges(features, effectFields(layer.fields || [], features[0]?.attributes || features[0]?.properties));
+    this.layers.set(layer.uid, { layer, config, model, effectRange, truncated: loaded.truncated, effectUid: `cinematic:${this.spec.cinematic.id}:${layer.uid}`, previousOpacity, previousFilter: await attempt(() => this.mapController.getFeatureFilter(layer.uid)) });
+    if (config.animation.opacity != null) await attempt(() => this.mapController.setOpacity(layer.uid, config.animation.opacity), false);
+    // The layer's own Advanced Style effect would double the cinematic one; it returns on exit.
+    await attempt(() => this.mapController.suspendLayerEffect?.(layer.uid, true), false);
+  }
+
+  /**
+   * Add another layer to the scene as a track: Ambient (always shown, its
+   * effect looping) or stepping on the same timeline as the lead track.
+   */
+  async addTrack({ layerRef, kind = "none", startField = null, steps, effect = "auto" } = {}) {
+    if (!this.spec) throw new Error("Start Cinematic mode first.");
+    const next = importCinematicSpec({ ...this.spec.cinematic, layers: [...this.spec.cinematic.layers, { layerRef, temporal: { kind, startField, steps }, animation: { effect: { type: effect, intensity: 1 } } }] });
+    const config = next.cinematic.layers.at(-1);
+    await this.#loadLayer(config);
+    this.spec.cinematic.layers.push(config);
+    this.#resetTimeline();
+    await this.renderTask;
+    return this.state();
+  }
+
+  /** Remove a track and give its layer back as it was. The last track can't be removed. */
+  async removeTrack(layerUid) {
+    const entry = this.layers.get(layerUid);
+    if (!entry || !this.spec) return false;
+    if (this.layers.size <= 1) throw new Error("A scene needs at least one track.");
+    await this.renderTask?.catch(() => {});
+    await this.#restoreLayer(entry);
+    this.layers.delete(layerUid);
+    this.localModels.delete(layerUid);
+    this.spec.cinematic.layers = this.spec.cinematic.layers.filter((config) => config !== entry.config);
+    this.#resetTimeline();
+    await this.renderTask;
+    return true;
+  }
+
+  async #restoreLayer({ layer, effectUid, previousFilter, previousOpacity }) {
+    await attempt(() => this.mapController.setFeatureFilter(layer.uid, previousFilter), false);
+    await attempt(() => this.mapController.setOpacity(layer.uid, previousOpacity), false);
+    await attempt(() => this.mapController.suspendLayerEffect?.(layer.uid, false), false);
+    if (typeof this.mapController.clearCinematicEffect === "function") {
+      await attempt(() => this.mapController.clearCinematicEffect(effectUid), false);
+      await attempt(() => this.mapController.clearCinematicEffect(`${effectUid}:settled`), false);
+    }
+  }
+
+  /** An Ambient track beside a stepping one: always fully shown, its effect looping. */
+  #ambient(entry) {
+    return entry.config.temporal.kind === "none" && this.valueKind() !== "none";
+  }
+
+  /** The records a track shows at `time`. */
+  #observedAt(entry, time, timeMode) {
+    const model = this.localModels.get(entry.layer.uid) || entry.model;
+    return this.#ambient(entry) ? model.observations : observedFeaturesAt(model, time, { timeMode });
   }
 
   state() {
@@ -78,12 +135,14 @@ export class CinematicModeController {
     return {
       spec: this.spec ? exportCinematicSpec(this.spec) : null, timeline, localWindow: this.localWindow, localEmpty: this.localEmpty, valueKind: this.valueKind(),
       detail: { quality: this.spec?.cinematic.quality || "auto", lightened: this.adaptive.cap < TIERS.length - 1 ? TIERS[this.adaptive.cap] : null, stats: this.effectStats },
-      layers: [...this.layers.values()].map(({ layer, model, config, truncated }) => {
+      layers: [...this.layers.values()].map((entry) => {
+        const { layer, model, config, truncated } = entry;
         const activeModel = this.localModels.get(layer.uid) || model;
         const effect = this.#effectFor(layer, config);
         return { uid: layer.uid, title: layer.title, ticks: activeModel.ticks, invalid: model.invalid, timeField: config.temporal.startField,
+          kind: config.temporal.kind || "time", ambient: this.#ambient(entry), effectType: config.animation.effect?.type || "none",
           effect, effectNote: CINEMATIC_EFFECTS[effect]?.note || "", loadedCount: model.observations.length + model.invalid.length, truncated,
-          observedCount: timeline && !this.localEmpty ? observedFeaturesAt(activeModel, timeline.observationTime, { timeMode }).length : 0 };
+          observedCount: timeline && !this.localEmpty ? this.#observedAt(entry, timeline.observationTime, timeMode).length : 0 };
       }),
     };
   }
@@ -155,7 +214,9 @@ export class CinematicModeController {
 
   /** How playback steps: "time" (a date field), "number" (a Scenario sweep) or "none" (Ambient). */
   valueKind() {
-    return this.spec?.cinematic.layers[0]?.temporal?.kind || "time";
+    if (!this.spec) return "time";
+    // The first stepping track leads; a scene of only Ambient tracks has no timeline.
+    return this.spec.cinematic.layers.find((config) => config.temporal.kind !== "none")?.temporal.kind || (this.spec.cinematic.layers.length ? "none" : "time");
   }
 
   /** A range bound or a go-to value as a playback value of this session's kind (NaN when empty). */
@@ -167,7 +228,7 @@ export class CinematicModeController {
 
   /** Every observation time (in the local window when it is on), ignoring the playback range. */
   #allTicks() {
-    return [...new Set([...this.layers.values()].flatMap(({ layer, model }) => (this.localModels.get(layer.uid) || model).ticks))].sort((a, b) => a - b);
+    return [...new Set([...this.layers.values()].filter((entry) => !this.#ambient(entry)).flatMap(({ layer, model }) => (this.localModels.get(layer.uid) || model).ticks))].sort((a, b) => a - b);
   }
 
   /** Shows the latest observation on or before `time`; returns that observation's time. */
@@ -189,9 +250,12 @@ export class CinematicModeController {
     this.refreshEffectDetail();
   }
 
-  setEffect(type) {
+  /** The effect for every track, or for one track when `layerUid` is given. */
+  setEffect(type, layerUid = null) {
     if (!this.spec) return;
+    const only = layerUid ? this.layers.get(layerUid)?.config : null;
     for (const layer of this.spec.cinematic.layers) {
+      if (only && layer !== only) continue;
       layer.animation.effect = { ...layer.animation.effect, type: type === "auto" || CINEMATIC_EFFECTS[type] ? type : "none" };
       layer.animation.outline = { color: layer.animation.outline?.color || "#ff8136", glow: layer.animation.effect.type !== "none" };
     }
@@ -215,7 +279,7 @@ export class CinematicModeController {
     const snapshot = this.timeline?.state();
     if (!snapshot || typeof this.mapController.goToFeatures !== "function") return false;
     const timeMode = this.spec?.cinematic.clock.timeMode || "instant";
-    const features = [...this.layers.values()].flatMap(({ layer, model }) => observedFeaturesAt(this.localModels.get(layer.uid) || model, snapshot.observationTime, { timeMode })
+    const features = [...this.layers.values()].filter((entry) => !this.#ambient(entry)).flatMap((entry) => this.#observedAt(entry, snapshot.observationTime, timeMode)
       .map((observation) => observation.feature)
       .filter((feature) => feature?.geometry));
     return features.length ? attempt(() => this.mapController.goToFeatures(features, { animate }), false) : false;
@@ -228,15 +292,7 @@ export class CinematicModeController {
     this.pendingSnapshot = null;
     await this.renderTask?.catch(() => {});
     this.renderTask = null;
-    await Promise.all([...this.layers.values()].map(async ({ layer, effectUid, previousFilter, previousOpacity }) => {
-      await attempt(() => this.mapController.setFeatureFilter(layer.uid, previousFilter), false);
-      await attempt(() => this.mapController.setOpacity(layer.uid, previousOpacity), false);
-      await attempt(() => this.mapController.suspendLayerEffect?.(layer.uid, false), false);
-      if (typeof this.mapController.clearCinematicEffect === "function") {
-        await attempt(() => this.mapController.clearCinematicEffect(effectUid), false);
-        await attempt(() => this.mapController.clearCinematicEffect(`${effectUid}:settled`), false);
-      }
-    }));
+    await Promise.all([...this.layers.values()].map((entry) => this.#restoreLayer(entry)));
     this.layers.clear(); this.localModels.clear(); this.localWindow = false; this.localEmpty = false; this.spec = null; this.renderedObservationTime = null; this.renderedTimeMode = null;
   }
 
@@ -346,7 +402,7 @@ export class CinematicModeController {
     this.renderedObservationTime = null;
     this.renderedTimeMode = null;
     // A new timeline (range, local window) has a different set of records to settle.
-    for (const entry of this.layers.values()) entry.settled = null;
+    for (const entry of this.layers.values()) { entry.settled = null; entry.ambientKey = null; }
     this.unsubscribe = this.timeline.subscribe((snapshot) => this.#render(snapshot));
     if (wasPlaying) this.timeline.play();
   }
@@ -360,14 +416,18 @@ export class CinematicModeController {
         this.pendingSnapshot = null;
         const timeMode = this.spec?.cinematic.clock.timeMode || "instant";
         if (next.observationTime !== this.renderedObservationTime || timeMode !== this.renderedTimeMode) {
-          await Promise.all([...this.layers.values()].map(async ({ layer, config, model, effectUid, effectRange }) => {
-            const activeModel = this.localModels.get(layer.uid) || model;
-            const objectIds = this.localEmpty ? [] : observedFeatureIdsAt(activeModel, next.observationTime, { timeMode });
-            await this.mapController.setFeatureFilter(layer.uid, { objectIds });
+          await Promise.all([...this.layers.values()].map(async (entry) => {
+            const { layer, config, effectUid, effectRange } = entry;
+            const ambient = this.#ambient(entry);
             const effect = this.#effectFor(layer, config);
+            // An Ambient track doesn't change from step to step; redraw it only when its look does.
+            const ambientKey = ambient ? `${effect}|${this.#quality(entry.model.observations.length)}|${Math.round(this.mapController.getViewState?.()?.zoom ?? 0)}|${this.localEmpty}|${this.localModels.get(layer.uid)?.observations.length ?? "all"}` : null;
+            if (ambient && entry.ambientKey === ambientKey) return;
+            entry.ambientKey = ambientKey;
+            const observations = this.localEmpty ? [] : this.#observedAt(entry, next.observationTime, timeMode);
+            await this.mapController.setFeatureFilter(layer.uid, { objectIds: uniqueIds(observations) });
             if (typeof this.mapController.setCinematicEffect === "function" && effect !== "none") {
-              const observations = this.localEmpty ? [] : observedFeaturesAt(activeModel, next.observationTime, { timeMode });
-              await this.#drawEffects(this.layers.get(layer.uid), { effect, observations, observationTime: next.observationTime, timeMode, effectRange });
+              await this.#drawEffects(entry, { effect, observations, observationTime: ambient ? null : next.observationTime, timeMode: ambient ? "instant" : timeMode, effectRange });
             } else if (typeof this.mapController.clearCinematicEffect === "function") {
               await attempt(() => this.mapController.clearCinematicEffect(effectUid), false);
               await attempt(() => this.mapController.clearCinematicEffect(`${effectUid}:settled`), false);

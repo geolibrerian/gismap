@@ -181,3 +181,14 @@ test("Scenario and Ambient scenes become Clips that replay the same way", () => 
   assert.equal(replay.temporal.kind, "none");
   assert.equal(replay.temporal.startField, null);
 });
+
+test("a Clip keeps every track, including Ambient ones beside the timeline", () => {
+  const scene = { ...cinematic, layers: [
+    { layerRef: "power", temporal: { kind: "none" }, animation: { effect: { type: "flow" } } },
+    { layerRef: "quakes", temporal: { startField: "time" }, animation: { effect: { type: "pulse" } } },
+  ] };
+  const clip = createCinematicClip({ cinematic: scene, observationTimes: [Date.UTC(2026, 0, 1), Date.UTC(2026, 0, 5)] });
+  assert.match(clip.range.start, /^2026-01-01/, "the lead (date) track sets the range, not the Ambient track listed first");
+  const replay = clipToCinematicSpec(clip).cinematic.layers;
+  assert.deepEqual(replay.map((layer) => [layer.layerRef, layer.temporal.kind, layer.animation.effect.type]), [["power", "none", "flow"], ["quakes", "time", "pulse"]]);
+});

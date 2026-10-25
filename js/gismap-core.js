@@ -16,7 +16,7 @@ import {
   updateBlock,
   updateSlide,
   validateBriefing,
-} from "./briefing-document.js?v=0.60.10-edges1";
+} from "./briefing-document.js?v=0.60.11-tracks1";
 import {
   BRIEFING_SHARE_LIMITS,
   BRIEFING_SHARE_VERSION,

@@ -65,6 +65,19 @@ layer if the map has none.
   pane). Settled edges no longer animate, so a paused build-up only animates its
   recent records.
 
+## Done in the fourth slice (Phase 2 begins)
+
+- **Multiple tracks.** A scene can hold several layers under one clock. The
+  first track that steps by dates or numbers leads; others either step on the
+  same timeline (their records join it) or are **Ambient**: always fully
+  shown with their effect looping, and not rebuilt each step. A scene can't mix
+  date and number timelines. The Cinematic panel's **Tracks** section lists
+  each layer with its role, live count and its own effect, adds another map
+  layer (Ambient or on the timeline by one of its fields) and removes one,
+  handing its filter, opacity and own effect back. Clips and saved projects
+  keep every track. Tried on California fire perimeters (timeline, flames)
+  with past-month earthquakes (Ambient, seismic pulse).
+
 ## Next phases
 
 ### Phase 1 — Performance foundation (continue)
@@ -84,8 +97,8 @@ recipes over these.
 - Distinguish `dataTime`, `animationTime`, `phase` (0–1 in a cycle) and
   `scenarioValue` in the shared clock; effects read `phase`, so loops stay
   deterministic when seeking and exporting.
-- **Multiple tracks:** several layers, each with its own effect and cycle,
-  composed under the master clock (traffic + electricity + trees together).
+- **Per-track cycles:** each track's own loop length and phase offset (tracks
+  themselves are done).
 - Field mappings per recipe (e.g. Flow `intensityField`, `direction`), never
   implying physical speed from animation speed.
 

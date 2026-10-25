@@ -1,4 +1,4 @@
-import { exportCinematicSpec, importCinematicSpec } from "./state.js?v=0.2.1";
+import { exportCinematicSpec, importCinematicSpec } from "./state.js?v=0.2.2";
 
 export const CINEMATIC_CLIP_SCHEMA = "gismap.cinematicClip";
 export const CINEMATIC_CLIP_VERSION = 1;
@@ -111,7 +111,7 @@ const rangeValue = (value, kind) => (!Number.isFinite(value) || kind === "none" 
  */
 export function createCinematicClip({ cinematic, projectId = null, camera: view = null, observationTimes = [], title = null, options = {} } = {}) {
   const spec = exportCinematicSpec(importCinematicSpec({ cinematic })).cinematic;
-  const kind = spec.layers[0]?.temporal?.kind || "time";
+  const kind = spec.layers.find((layer) => layer.temporal?.kind !== "none")?.temporal.kind || (spec.layers.length ? "none" : "time");
   const durationMs = Math.min(120000, Math.max(5000, Math.round(finite(options.durationMs, Math.min(30000, Math.max(10000, spec.clock.durationSeconds * 1000))))));
   const at = [...observationTimes].filter(Number.isFinite).sort((a, b) => a - b);
   const startCamera = camera(options.startCamera || view);

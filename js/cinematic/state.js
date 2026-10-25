@@ -10,8 +10,10 @@ export function normalizeCinematicSpec(input = {}) {
   const clock = source.clock || {};
   const start = string(clock.start);
   const end = string(clock.end);
-  // A Scenario sweep's range is numbers; a timeline's is dates.
-  const numeric = Array.isArray(source.layers) && source.layers[0]?.temporal?.kind === "number";
+  // A Scenario sweep's range is numbers; a timeline's is dates. The first
+  // stepping track (not Ambient) leads; Ambient tracks loop alongside it.
+  const lead = Array.isArray(source.layers) ? source.layers.find((layer) => layer?.temporal?.kind !== "none") : null;
+  const numeric = lead?.temporal?.kind === "number";
   const bound = (value) => (numeric ? Number(value) : Date.parse(value));
   if (start && end && bound(end) < bound(start)) throw new Error("Cinematic clock end must not precede its start.");
   const layers = Array.isArray(source.layers) ? source.layers.map((layer) => {
@@ -41,6 +43,8 @@ export function normalizeCinematicSpec(input = {}) {
       },
     };
   }) : [];
+  const leadKind = layers.find((layer) => layer.temporal.kind !== "none")?.temporal.kind;
+  if (layers.some((layer) => layer.temporal.kind !== "none" && layer.temporal.kind !== leadKind)) throw new Error("Tracks in one scene must all step by dates or all by numbers; Ambient tracks can join either.");
   return {
     schemaVersion: CINEMATIC_SCHEMA_VERSION,
     mode: "cinematic",

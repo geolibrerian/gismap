@@ -229,3 +229,62 @@ test("Auto detail steps down a tier while playback stays slow, and never touches
   assert.equal(mode.state().detail.lightened, null);
   await mode.destroy();
 });
+
+test("several tracks share one clock: Ambient tracks loop beside the timeline and can be added or removed", async () => {
+  const quakes = Array.from({ length: 5 }, (_, n) => ({ attributes: { OBJECTID: n + 1, time: Date.UTC(2026, 0, 1 + n) }, geometry: { type: "Point", coordinates: [n, 0] } }));
+  const lines = Array.from({ length: 3 }, (_, n) => ({ attributes: { OBJECTID: n + 1, kind: "main" }, geometry: { type: "LineString", coordinates: [[n, 1], [n + 1, 1]] } }));
+  const trees = Array.from({ length: 2 }, (_, n) => ({ attributes: { OBJECTID: n + 1, planted: Date.UTC(2026, 0, 2 + n * 10) }, geometry: { type: "Point", coordinates: [n, 2] } }));
+  const layers = {
+    quakes: { uid: "quakes", title: "Quakes", queryable: true, objectIdField: "OBJECTID", fields: [{ name: "time", type: "date" }] },
+    power: { uid: "power", title: "Power lines", queryable: true, objectIdField: "OBJECTID", fields: [] },
+    trees: { uid: "trees", title: "Trees", queryable: true, objectIdField: "OBJECTID", fields: [{ name: "planted", type: "date" }] },
+  };
+  const rows = { quakes, power: lines, trees };
+  const filters = {}, effects = [], restored = [];
+  const mapController = {
+    getLayer: (id) => layers[id], getFeatureFilter: async (id) => ({ restoreMe: id }), setOpacity: async () => {},
+    setFeatureFilter: async (id, filter) => { filters[id] = filter; if (filter?.restoreMe) restored.push(id); return true; },
+    queryFeatures: async (id) => ({ features: rows[id] }), getViewState: () => ({ zoom: 6 }),
+    setCinematicEffect: async (uid, effect) => { effects.push({ uid, effect: effect.effect, count: effect.items.length, fresh: effect.items.filter((item) => item.fresh).length }); return true; },
+    clearCinematicEffect: () => {},
+  };
+  const mode = new CinematicModeController({ mapController });
+  await mode.load({ cinematic: { clock: { timeMode: "instant" }, layers: [
+    { layerRef: "power", temporal: { kind: "none" }, animation: { effect: { type: "flow" } } },
+    { layerRef: "quakes", temporal: { startField: "time" }, animation: { effect: { type: "pulse" } } },
+  ] } });
+  // The first stepping track leads, even when an Ambient track is listed first.
+  assert.equal(mode.valueKind(), "time");
+  assert.equal(mode.state().timeline.ticks.length, 5);
+  assert.deepEqual(mode.state().layers.map((item) => [item.uid, item.ambient]), [["power", true], ["quakes", false]]);
+  assert.equal(filters.power.objectIds.length, 3, "an Ambient track shows every feature");
+  assert.equal(filters.quakes.objectIds.length, 1);
+  const flowDraws = () => effects.filter((call) => call.uid.endsWith(":power")).length;
+  const before = flowDraws();
+  for (let index = 1; index < 5; index += 1) { mode.seekObservation(index); await mode.renderTask; }
+  assert.equal(flowDraws(), before, "an Ambient track's effect isn't rebuilt each step");
+  assert.equal(filters.power.objectIds.length, 3);
+  // Each track keeps its own effect.
+  mode.setEffect("glow", "power"); await mode.renderTask;
+  assert.equal(effects.filter((call) => call.uid.endsWith(":power")).at(-1).effect, "glow");
+  assert.equal(mode.state().layers.find((item) => item.uid === "quakes").effectType, "pulse");
+  // A second timeline track adds its records to the same clock.
+  await mode.addTrack({ layerRef: "trees", kind: "time", startField: "planted", effect: "glow" });
+  assert.equal(mode.state().layers.length, 3);
+  assert.equal(mode.state().timeline.ticks.length, 6, "Jan 12 joins the five quake days (Jan 2 is shared)");
+  await assert.rejects(() => mode.addTrack({ layerRef: "trees", kind: "none" }), /already a track/);
+  await mode.removeTrack("trees");
+  assert.deepEqual(restored, ["trees"], "a removed track gets its layer back as it was");
+  assert.equal(mode.state().timeline.ticks.length, 5);
+  assert.equal(mode.exportCinematicSpec().cinematic.layers.length, 2);
+  await mode.removeTrack("power");
+  await assert.rejects(() => mode.removeTrack("quakes"), /at least one track/);
+  await mode.destroy();
+});
+
+test("a scene can't mix date and number timelines", async () => {
+  const { importCinematicSpec } = await import("../js/cinematic/state.js");
+  assert.throws(() => importCinematicSpec({ cinematic: { layers: [{ layerRef: "a", temporal: { startField: "t" } }, { layerRef: "b", temporal: { kind: "number", startField: "n" } }] } }), /all step by dates or all by numbers/);
+  const numeric = importCinematicSpec({ cinematic: { clock: { start: "2", end: "10" }, layers: [{ layerRef: "a", temporal: { kind: "none" } }, { layerRef: "b", temporal: { kind: "number", startField: "n" } }] } });
+  assert.equal(numeric.cinematic.clock.end, "10", "the lead track's kind decides how the range is read");
+});
