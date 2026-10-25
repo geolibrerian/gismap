@@ -70,7 +70,7 @@ test("Field Mode reserves its offline identity and QR scanner for actual offline
   const fieldJs = await readFile(new URL("../field/field-mode.js", import.meta.url), "utf8");
   const fieldCss = await readFile(new URL("../field/field-mode.css", import.meta.url), "utf8");
   const worker = await readFile(new URL("../field/service-worker.js", import.meta.url), "utf8");
-  assert.match(fieldHtml, /data-field-collection-label>FIELD COLLECTION/);
+  assert.doesNotMatch(fieldHtml, /FIELD COLLECTION/);
   assert.match(fieldHtml, /data-open-qr-import>Scan QR/);
   assert.match(fieldHtml, /data-start-qr-camera>Scan with camera/);
   assert.match(fieldHtml, /data-import-qr-camera-image[^>]*capture="environment"/);

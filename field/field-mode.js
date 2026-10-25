@@ -32,7 +32,6 @@ function capabilities() {
   const entries = [["Local storage", Boolean(globalThis.indexedDB)], ["GPS", Boolean(navigator.geolocation)], ["Audio recording", media], ["Browser speech recognition", recognition], ["Camera capture", "capture" in document.createElement("input")], ["Network", navigator.onLine]];
   const offline = navigator.onLine === false;
   $(".field-app").classList.toggle("is-offline", offline);
-  $("[data-field-collection-label]").textContent = offline ? "OFFLINE COLLECTION" : "FIELD COLLECTION";
   $("[data-status-summary]").textContent = `Local workspace · ${offline ? "offline" : "online"} · ${records.length} note${records.length === 1 ? "" : "s"}`;
   $("[data-capabilities]").innerHTML = `<p><strong>Capture diagnostics</strong></p>${entries.map(([label, yes]) => `<p><b>${escape(label)}</b> ${yes ? "available" : "unavailable"}</p>`).join("")}<p>Dictation from the device keyboard is separate from browser speech recognition. GISMap records audio locally but does not claim offline transcription.</p>`;
 }
