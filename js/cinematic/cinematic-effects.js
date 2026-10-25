@@ -12,7 +12,30 @@ export const CINEMATIC_EFFECTS = Object.freeze({
   wind: { label: "Wind", color: "#2f8fdc", note: "Streaks blow along the observed direction field; without one they are decorative only." },
   water: { label: "Water", color: "#1f8fd6", note: "Ripples decorate observed water areas; they are not a flow or depth model." },
   flow: { label: "Flow", color: "#18c7b5", note: "Light travels along observed lines in their drawn order." },
+  // Native primitives (MapLibre style layers, no custom GL), for statistics and planning.
+  extrude: { label: "Rise (extrude)", color: "#4c7fd9", native: true, note: "Areas rise to their value of the chosen field; the rise is animation, the heights are the data." },
+  reveal: { label: "Reveal", color: "#f2a93b", native: true, note: "Features appear one after another in the order of a field (or their stored order); the order is not a date unless the field is one." },
 });
+/**
+ * Skins choose effect palettes, never data: a skin only recolours effects that
+ * have no colour of their own. Values, dates and scenarios are untouched.
+ */
+export const SKIN_EFFECT_PALETTES = Object.freeze({
+  "dark-analytical": { glow: "#38e1ff", fire: "#ff7a2f", pulse: "#ff4d6d", wind: "#7cc4ff", water: "#3ad0ff", flow: "#00ffc6", extrude: "#38e1ff", reveal: "#ffd166" },
+  highway: { glow: "#ffb000", fire: "#ff8a00", pulse: "#ffcc00", wind: "#ffffff", water: "#4fc3ff", flow: "#ffd400", extrude: "#ffb000", reveal: "#ffd400" },
+  "velvet-orbit": { glow: "#ff5fd2", fire: "#ff6a5f", pulse: "#c77dff", wind: "#9db4ff", water: "#7f8cff", flow: "#ff9de2", extrude: "#b06bff", reveal: "#ff5fd2" },
+  "violet-circuit": { glow: "#a46bff", fire: "#ff7a45", pulse: "#ff4fd8", wind: "#5ee7ff", water: "#5ee7ff", flow: "#7dffcf", extrude: "#a46bff", reveal: "#5ee7ff" },
+  portolan: { glow: "#b5652b", fire: "#c4471d", pulse: "#8c2f1b", wind: "#3e5c76", water: "#2f6f8f", flow: "#7a5c2e", extrude: "#8b5a2b", reveal: "#b5652b" },
+});
+
+/** The colour an effect draws in: its own, else the skin's palette, else the effect's default. */
+export function effectColor(effect, { color = null, skin = "" } = {}) {
+  if (/^#[0-9a-f]{6}$/i.test(color || "")) return color;
+  return SKIN_EFFECT_PALETTES[skin]?.[effect] || CINEMATIC_EFFECTS[effect]?.color || "#ff8136";
+}
+
+/** Effects drawn as native map layers rather than three.js. */
+export const NATIVE_EFFECTS = Object.freeze(Object.keys(CINEMATIC_EFFECTS).filter((key) => CINEMATIC_EFFECTS[key].native));
 export const CINEMATIC_EFFECT_TYPES = Object.freeze(Object.keys(CINEMATIC_EFFECTS));
 
 const MAGNITUDE = /^(mag|magnitude|ml|mw|mb|richter|intensity)$/i;
@@ -48,11 +71,68 @@ export function suggestEffect({ title = "", geometryType = "", fields = [], samp
   const found = effectFields(fields, sample);
   const points = /point/i.test(geometryType);
   if (/fire|burn|perimeter|wildland|blaze|smoke|hotspot|firms|viirs|modis/.test(name)) return "fire";
+  // Statistical areas (population, income, housing…) rise to their values.
+  if (/polygon/i.test(geometryType) && /population|census|tract|county|counties|income|density|demograph|households|housing units|poverty/.test(name) && valueField(fields, sample)) return "extrude";
   if (/quake|seism|tremor|shake|usgs.*(mag|event)/.test(name) || (points && found.magnitude && /^(mag|magnitude|mw|ml)$/i.test(found.magnitude))) return "pulse";
   if (/wind|gust|storm|hurricane|cyclone|typhoon|weather station|metar/.test(name) || (points && found.direction && found.speed)) return "wind";
   if (/flood|water|river|stream|lake|inundat|tide|surge|coast|hydro|wetland/.test(name)) return /line/i.test(geometryType) ? "flow" : "water";
   if (/line/i.test(geometryType) || /route|track|path|trip|transit|traffic/.test(name)) return "flow";
   return "glow";
+}
+
+const VALUE_HINT = /^(pop|population|total|count|value|amount|density|income|households|units|height|estimate|est|pct|percent|rate)/i;
+const NOT_A_VALUE = /^(objectid|fid|oid|id|gid|shape_|st_|globalid|fips|geoid|code|zip)/i;
+
+/** The numeric field an extrusion or a reveal reads by default: a value-like name first, then any number. */
+export function valueField(fields = [], sample = {}) {
+  const numeric = fields.filter((field) => /double|single|integer|small|long|float|number|int/i.test(field?.type || "") && !NOT_A_VALUE.test(field.name));
+  const fromSample = Object.entries(sample || {}).filter(([name, value]) => typeof value === "number" && !NOT_A_VALUE.test(name)).map(([name]) => ({ name }));
+  const all = [...numeric, ...fromSample];
+  return (all.find((field) => VALUE_HINT.test(field.name)) || all[0])?.name || null;
+}
+
+/**
+ * GeoJSON for a native effect: each feature's exact geometry with `v` (its
+ * value of `field`, scaled 0–1 across the features) and `order` (0–1 rank by
+ * `field`, or by stored order without one). Values are never altered.
+ */
+export function nativeEffectData(items = [], { field = null } = {}) {
+  const rows = [];
+  for (const entry of items) {
+    const feature = entry?.feature ?? entry;
+    const geometry = feature?.geometry;
+    if (!geometry?.type || !geometry.coordinates) continue;
+    const attributes = feature.attributes || feature.properties || {};
+    const raw = field ? attributes[field] : null;
+    const value = raw === null || raw === undefined || raw === "" ? NaN : Number(raw);
+    rows.push({ geometry, value, index: rows.length });
+  }
+  const values = rows.map((row) => row.value).filter(Number.isFinite);
+  const min = values.length ? Math.min(...values) : 0, max = values.length ? Math.max(...values) : 0;
+  const ranked = [...rows].sort((a, b) => (Number.isFinite(a.value) ? a.value : Infinity) - (Number.isFinite(b.value) ? b.value : Infinity) || a.index - b.index);
+  ranked.forEach((row, rank) => { row.order = ranked.length > 1 ? rank / (ranked.length - 1) : 0; });
+  return {
+    // Heights must stay proportional: non-negative values scale from zero (value / max), so
+    // the smallest area is not drawn flat; only data with negatives scale min–max.
+    data: { type: "FeatureCollection", features: rows.map((row) => ({ type: "Feature", geometry: row.geometry, properties: { v: scaled(row.value, min, max), order: field ? row.order : (rows.length > 1 ? row.index / (rows.length - 1) : 0) } })) },
+    stats: { field, min, max, count: rows.length, withValue: values.length },
+  };
+}
+
+function scaled(value, min, max) {
+  if (!Number.isFinite(value)) return 0;
+  if (min >= 0) return max > 0 ? value / max : 0;
+  return max > min ? (value - min) / (max - min) : 1;
+}
+
+const smooth = (x) => { const t = Math.min(1, Math.max(0, x)); return t * t * (3 - 2 * t); };
+/** How far a rise has grown (0–1) at a track's time: over its cycle, or over 3 s and then held. */
+export function riseAmount({ seconds = 0, phase = 0 } = {}, cycleSeconds = 0) {
+  return smooth(cycleSeconds > 0 ? phase : seconds / 3);
+}
+/** How much of a reveal is shown (0–1): over its cycle, or over 8 s and then held. */
+export function revealAmount({ seconds = 0, phase = 0 } = {}, cycleSeconds = 0) {
+  return Math.min(1, Math.max(0, cycleSeconds > 0 ? phase : seconds / 8));
 }
 
 /** "auto" resolved against the layer; unknown names fall back to glow. */
@@ -338,5 +418,7 @@ export function normalizeLayerEffect(value) {
   const type = ["auto", ...CINEMATIC_EFFECT_TYPES].includes(value.type) ? value.type : null;
   if (!type || type === "none") return null;
   const intensity = Number(value.intensity);
-  return { type, intensity: Number.isFinite(intensity) ? Math.min(2, Math.max(0.25, intensity)) : 1, color: /^#[0-9a-f]{6}$/i.test(value.color || "") ? value.color : null };
+  // A Rise or Reveal keeps the field it reads.
+  const field = typeof value.field === "string" ? value.field.trim().slice(0, 160) : "";
+  return { type, intensity: Number.isFinite(intensity) ? Math.min(2, Math.max(0.25, intensity)) : 1, color: /^#[0-9a-f]{6}$/i.test(value.color || "") ? value.color : null, ...(field ? { field } : {}) };
 }

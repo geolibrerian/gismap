@@ -31,6 +31,8 @@ export class ThreeHost {
   #warnedGlobe = false;
   // Frame timing while items animate: smoothed interval and render cost in ms.
   #frames = { last: 0, interval: 0, render: 0, samples: 0 };
+  // Draw calls and triangles of the last frame (three.js counts per render call, so they are summed).
+  #drawn = { calls: 0, triangles: 0 };
 
   constructor({ map, THREE, notify = () => {} }) {
     Object.assign(this, { map, THREE, notify });
@@ -106,6 +108,7 @@ export class ThreeHost {
       items: items.length, vertices: items.reduce((sum, item) => sum + (item.vertices || 0), 0),
       frameMs: samples ? Math.round(interval * 10) / 10 : null, fps: samples && interval ? Math.round(1000 / interval) : null,
       renderMs: samples ? Math.round(render * 100) / 100 : null, samples,
+      drawCalls: this.#drawn.calls, triangles: this.#drawn.triangles,
     };
     if (reset) this.#frames = { last: 0, interval: 0, render: 0, samples: 0 };
     return result;
@@ -129,7 +132,7 @@ export class ThreeHost {
     const time = this.clock.time;
     const view = paddedView(this.map);
     const started = globalThis.performance?.now?.() ?? Date.now();
-    let animating = false;
+    let animating = false, calls = 0, triangles = 0;
     for (const item of this.#items.values()) {
       if (!item.visible) continue;
       // Off-screen effects are neither drawn nor kept repainting.
@@ -144,7 +147,10 @@ export class ThreeHost {
       this.#camera.projectionMatrix = projection.clone().multiply(local);
       this.#renderer.resetState();
       this.#renderer.render(item.scene, this.#camera);
+      calls += this.#renderer.info?.render?.calls || 0;
+      triangles += this.#renderer.info?.render?.triangles || 0;
     }
+    this.#drawn = { calls, triangles };
     if (animating) this.#sample(started);
     if (animating && globalThis.document?.visibilityState !== "hidden") this.map.triggerRepaint();
   }

@@ -125,3 +125,35 @@ test("large scenes keep the newest observation, trim sub-pixel detail and pick a
   assert.equal(resolveQuality("auto", 17950), "eco");
   assert.equal(resolveQuality("balanced", 17950), "balanced");
 });
+
+test("Rise and Reveal read a value field, keep values as data and grow on the track's time", async () => {
+  const { nativeEffectData, valueField, riseAmount, revealAmount, NATIVE_EFFECTS, suggestEffect: suggest } = await import("../js/cinematic/cinematic-effects.js");
+  assert.deepEqual(NATIVE_EFFECTS, ["extrude", "reveal"]);
+  const fields = [{ name: "OBJECTID", type: "esriFieldTypeOID" }, { name: "GEOID", type: "esriFieldTypeInteger" }, { name: "NAME", type: "esriFieldTypeString" }, { name: "POP2020", type: "esriFieldTypeInteger" }];
+  assert.equal(valueField(fields), "POP2020", "IDs and codes are not values");
+  const square = (x) => ({ type: "Polygon", coordinates: [[[x, 0], [x + 1, 0], [x + 1, 1], [x, 0]]] });
+  const items = [100, 400, 250, null].map((value, index) => ({ feature: { attributes: { POP2020: value }, geometry: square(index) } }));
+  const { data, stats } = nativeEffectData(items, { field: "POP2020" });
+  assert.deepEqual(stats, { field: "POP2020", min: 100, max: 400, count: 4, withValue: 3 });
+  assert.deepEqual(data.features.map((feature) => feature.properties.v), [0.25, 1, 0.625, 0], "heights are proportional to the values (no value: flat)");
+  assert.deepEqual(nativeEffectData([-10, 10].map((value) => ({ feature: { attributes: { d: value }, geometry: square(0) } })), { field: "d" }).data.features.map((feature) => feature.properties.v), [0, 1], "data with negatives scale min to max");
+  assert.deepEqual(data.features.map((feature) => feature.properties.order), [0, 2 / 3, 1 / 3, 1], "ranked by value; no value last");
+  assert.deepEqual(data.features[1].geometry, square(1), "geometry is passed through exactly");
+  const stored = nativeEffectData(items);
+  assert.deepEqual(stored.data.features.map((feature) => feature.properties.order), [0, 1 / 3, 2 / 3, 1], "without a field, the stored order (not a date)");
+  assert.equal(riseAmount({ seconds: 0 }), 0);
+  assert.equal(riseAmount({ seconds: 3 }), 1, "a continuous track rises over 3 s and holds");
+  assert.equal(riseAmount({ phase: 0.5 }, 6), 0.5);
+  assert.equal(revealAmount({ seconds: 4 }), 0.5);
+  assert.equal(suggest({ title: "County population 2020", geometryType: "polygon", fields }), "extrude");
+  assert.equal(suggest({ title: "Parcels", geometryType: "polygon", fields }), "glow", "only statistical areas rise by default");
+});
+
+test("skins recolour effects without a colour of their own, and nothing else", async () => {
+  const { effectColor, SKIN_EFFECT_PALETTES, CINEMATIC_EFFECTS: catalog } = await import("../js/cinematic/cinematic-effects.js");
+  assert.equal(effectColor("fire"), catalog.fire.color);
+  assert.equal(effectColor("flow", { skin: "dark-analytical" }), SKIN_EFFECT_PALETTES["dark-analytical"].flow);
+  assert.equal(effectColor("flow", { skin: "dark-analytical", color: "#123456" }), "#123456", "a track's own colour wins");
+  assert.equal(effectColor("flow", { skin: "no-such-skin" }), catalog.flow.color);
+  for (const palette of Object.values(SKIN_EFFECT_PALETTES)) for (const value of Object.values(palette)) assert.match(value, /^#[0-9a-f]{6}$/i);
+});

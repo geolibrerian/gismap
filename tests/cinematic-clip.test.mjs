@@ -192,3 +192,11 @@ test("a Clip keeps every track, including Ambient ones beside the timeline", () 
   const replay = clipToCinematicSpec(clip).cinematic.layers;
   assert.deepEqual(replay.map((layer) => [layer.layerRef, layer.temporal.kind, layer.animation.effect.type]), [["power", "none", "flow"], ["quakes", "time", "pulse"]]);
 });
+
+test("a Clip keeps each track's timing, visibility and provenance", () => {
+  const scene = { ...cinematic, clock: {}, layers: [{ layerRef: "lines", temporal: { kind: "none" }, provenance: { status: "modeled" }, animation: { effect: { type: "flow" }, visible: false, timing: { cycleSeconds: 6, policy: "pingPong" } } }] };
+  const clip = createCinematicClip({ cinematic: scene, observationTimes: [0] });
+  const layer = clipToCinematicSpec(clip).cinematic.layers[0];
+  assert.deepEqual([layer.provenance.status, layer.animation.visible, layer.animation.timing.cycleSeconds, layer.animation.timing.policy], ["modeled", false, 6, "pingPong"]);
+  assert.deepEqual(clip.range, { start: "", end: "" }, "an Ambient Clip has no invented dates");
+});

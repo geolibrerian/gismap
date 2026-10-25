@@ -78,6 +78,15 @@ layer if the map has none.
   keep every track. Tried on California fire perimeters (timeline, flames)
   with past-month earthquakes (Ambient, seismic pulse).
 
+## Done in the fifth slice (spec v0.3 delivery)
+
+Master effects clock with per-track timing, Ambient playback controls,
+per-track motion/colour/visibility/provenance, Rise and Reveal native
+primitives, Layer → Animate with an explained recommender, skin effect
+palettes, live diagnostics. Details, the scene-JSON mapping, the
+performance report and the spec §14 test status are in
+`docs/cinematic-v0.3-migration.md`.
+
 ## Next phases
 
 ### Phase 1 — Performance foundation (continue)

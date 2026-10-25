@@ -1,7 +1,7 @@
 // Lazy engine discovery. The application asks for an engine by stable id and
 // does not import a renderer implementation directly. Keeping loaders here
 // lets a future MapLibre engine ship without downloading the ArcGIS runtime.
-import { ENGINE_CAPABILITIES, ENGINE_METHODS } from "./engine-interface.js?v=0.54.1-perf";
+import { ENGINE_CAPABILITIES, ENGINE_METHODS } from "./engine-interface.js?v=0.54.2-anim1";
 import { GisMapError } from "../gismap-errors.js?v=0.28.0";
 
 const definitions = new Map();
@@ -31,7 +31,7 @@ registerEngine({
   // Kept in step with MAPLIBRE_CAPABILITIES in maplibre-engine.js (a test checks).
   capabilities: ["view-2d", "view-3d", "spatial-chart-3d", "three-3d", "basemaps", "basemap-themes", "ground", "layers-arcgis", "layers-files", "query", "feature-filter", "renderer-spec", "renderer-native", "identify", "highlight", "capture", "geocode", "buildings-3d", "draw", "measurement", "legend", "native"],
   load: async ({ events }) => {
-    const { MaplibreEngine } = await import("./maplibre/maplibre-engine.js?v=0.57.4-viewfx2");
+    const { MaplibreEngine } = await import("./maplibre/maplibre-engine.js?v=0.57.5-anim2");
     return new MaplibreEngine(events);
   },
 });

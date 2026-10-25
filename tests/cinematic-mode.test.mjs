@@ -329,3 +329,35 @@ test("leaving Cinematic mode keeps each track's effect for its layer", async () 
   assert.match(ui, /async #leaveCinematic\(\) \{[\s\S]*?effectsToKeep\(\)[\s\S]*?setLayerEffect\(uid, effect\)/);
   await mode.destroy();
 });
+
+test("tracks carry their own timing to the effect, can be hidden, and the effects clock saves with the scene", async () => {
+  const lines = [{ attributes: { OBJECTID: 1 }, geometry: { type: "LineString", coordinates: [[0, 0], [1, 1]] } }];
+  const layer = { uid: "lines", title: "Power lines", geometryType: "polyline", queryable: true, objectIdField: "OBJECTID", fields: [] };
+  const drawn = [], cleared = [];
+  let frames = 0;
+  const mapController = {
+    getLayer: () => layer, getFeatureFilter: async () => null, setFeatureFilter: async () => true, setOpacity: async () => {},
+    queryFeatures: async () => ({ features: lines }), requestEffectFrame: () => { frames += 1; },
+    setCinematicEffect: async (uid, effect) => { drawn.push(effect); return true; }, clearCinematicEffect: (uid) => { cleared.push(uid); },
+  };
+  const mode = new CinematicModeController({ mapController });
+  await mode.load({ cinematic: { layers: [{ layerRef: "lines", temporal: { kind: "none" }, animation: { effect: { type: "flow" } } }] } });
+  assert.equal(mode.valueKind(), "none", "an Ambient scene needs no date field");
+  assert.equal(drawn.at(-1).timing.policy, "loop");
+  mode.setTrackTiming("lines", { cycleSeconds: 6, policy: "pingPong" });
+  await mode.renderTask;
+  assert.deepEqual([drawn.at(-1).timing.cycleSeconds, drawn.at(-1).timing.policy], [6, "pingPong"]);
+  mode.setTrackVisible("lines", false);
+  await mode.renderTask;
+  assert.ok(cleared.includes("cinematic:" + mode.state().spec.cinematic.id + ":lines"), "a hidden track's effect is removed");
+  assert.equal(mode.state().layers[0].visible, false);
+  mode.setEffectsPlaying(false);
+  mode.setEffectsRate(2);
+  assert.ok(frames >= 2, "a paused clock still gets a frame drawn after each change");
+  assert.deepEqual([mode.state().effects.playing, mode.state().effects.rate], [false, 2]);
+  const saved = mode.exportCinematicSpec().cinematic;
+  assert.deepEqual([saved.clock.effectsPlaying, saved.clock.effectsRate, saved.layers[0].animation.visible, saved.layers[0].animation.timing.cycleSeconds], [false, 2, false, 6]);
+  mode.setTrackProvenance("lines", "modeled");
+  assert.equal(mode.state().layers[0].provenance, "modeled");
+  await mode.destroy();
+});

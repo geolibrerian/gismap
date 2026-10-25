@@ -1,6 +1,9 @@
-const finite = (value, fallback = null) => Number.isFinite(Number(value)) ? Number(value) : fallback;
+import { PROVENANCE_STATUSES, normalizeTiming } from "./clock.js?v=0.1.0";
+
+// null and "" are "not set", not 0: a saved spec re-normalized must keep an unset opacity unset.
+const finite = (value, fallback = null) => value !== null && value !== "" && Number.isFinite(Number(value)) ? Number(value) : fallback;
 const string = (value, fallback = "") => typeof value === "string" ? value : fallback;
-const EFFECTS = Object.freeze(["auto", "none", "glow", "fire", "pulse", "wind", "water", "flow"]);
+const EFFECTS = Object.freeze(["auto", "none", "glow", "fire", "pulse", "wind", "water", "flow", "extrude", "reveal"]);
 
 export const CINEMATIC_SCHEMA_VERSION = "0.1";
 export const CINEMATIC_TEMPLATES = Object.freeze(["step-perimeter", "moving-track"]);
@@ -40,7 +43,14 @@ export function normalizeCinematicSpec(input = {}) {
         outline: layer.animation?.outline && typeof layer.animation.outline === "object" ? { color: string(layer.animation.outline.color, "#ff8136"), glow: layer.animation.outline.glow === true } : undefined,
         effect: normalizeEffect(layer.animation),
         provenanceLabel: string(layer.animation?.provenanceLabel),
+        // The track's own motion on the master clock (rate, cycle, offset, policy).
+        timing: normalizeTiming(layer.animation?.timing),
+        // A hidden track keeps its place (and its layer's filter) but draws no effect.
+        visible: layer.animation?.visible !== false,
       },
+      // What the displayed progression is. A Timeline shows observations; an
+      // Ambient loop or a Scenario sweep is illustrative unless the author says otherwise.
+      provenance: { status: PROVENANCE_STATUSES.includes(layer.provenance?.status) ? layer.provenance.status : kind === "time" ? "observed" : "illustrative", caption: string(layer.provenance?.caption).slice(0, 200) },
     };
   }) : [];
   const leadKind = layers.find((layer) => layer.temporal.kind !== "none")?.temporal.kind;
@@ -55,7 +65,9 @@ export function normalizeCinematicSpec(input = {}) {
       preferredEngine: ["maplibre", "arcgis"].includes(source.preferredEngine) ? source.preferredEngine : "maplibre",
       // Effect detail: "auto" sizes it to the scene; eco/balanced/cinematic fix it.
       quality: ["eco", "balanced", "cinematic"].includes(source.quality) ? source.quality : "auto",
-      clock: { start, end, current: string(clock.current) || start, timeMode: clock.timeMode === "cumulative" ? "cumulative" : "instant", durationSeconds: Math.min(600, Math.max(1, finite(clock.durationSeconds, 120))), rate: Math.min(4, Math.max(0.1, finite(clock.rate, 0.25))), loop: clock.loop === true },
+      clock: { start, end, current: string(clock.current) || start, timeMode: clock.timeMode === "cumulative" ? "cumulative" : "instant", durationSeconds: Math.min(600, Math.max(1, finite(clock.durationSeconds, 120))), rate: Math.min(4, Math.max(0.1, finite(clock.rate, 0.25))), loop: clock.loop === true,
+        // The master effects clock: its speed, and whether effects move (independent of the timeline).
+        effectsRate: Math.min(8, Math.max(0.1, finite(clock.effectsRate, 1))), effectsPlaying: clock.effectsPlaying !== false },
       layers,
       events: Array.isArray(source.events) ? source.events.slice(0, 200) : [],
       scenes: Array.isArray(source.scenes) ? source.scenes.slice(0, 50) : [],
@@ -72,7 +84,9 @@ function normalizeEffect(animation = {}) {
   const effect = animation?.effect && typeof animation.effect === "object" ? animation.effect : {};
   const type = EFFECTS.includes(effect.type) ? effect.type : animation?.outline?.glow === true ? "glow" : "none";
   const color = /^#[0-9a-f]{6}$/i.test(string(effect.color)) ? effect.color : null;
-  return { type, color, intensity: Math.min(2, Math.max(0.25, finite(effect.intensity, 1))) };
+  // `field`: the attribute a Rise or a Reveal reads (null = chosen from the layer).
+  const field = string(effect.field).slice(0, 160);
+  return { type, color, intensity: Math.min(2, Math.max(0.25, finite(effect.intensity, 1))), ...(field ? { field } : {}) };
 }
 
 export function exportCinematicSpec(spec) { return structuredClone(normalizeCinematicSpec(spec)); }

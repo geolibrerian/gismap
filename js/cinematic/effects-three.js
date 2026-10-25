@@ -4,20 +4,34 @@
 // zoom 16, and whose motion reads one continuous clock, so stepping to the next
 // observation never restarts a flame or a ripple. Newly observed features
 // (`fresh`) flare when they appear; older ones in a build-up settle down.
-import { CINEMATIC_EFFECTS, EFFECT_QUALITY, effectFields, effectFrame, effectParts, particleSeeds, partsBounds, quadBuffers, ribbonBuffers } from "./cinematic-effects.js?v=0.2.1";
+import { CINEMATIC_EFFECTS, EFFECT_QUALITY, effectFields, effectFrame, effectParts, particleSeeds, partsBounds, quadBuffers, ribbonBuffers } from "./cinematic-effects.js?v=0.2.3";
+import { trackTime } from "./clock.js?v=0.1.0";
 
 const EPOCH = globalThis.performance?.now?.() ?? 0;
+const wallSeconds = () => ((globalThis.performance?.now?.() ?? Date.now()) - EPOCH) / 1000;
+// null: real time. A function: frames rendered on request (movie export).
+// An object { seconds(), playing }: the Cinematic master clock.
 let externalClock = null;
-const nowSeconds = () => (externalClock ? externalClock() : ((globalThis.performance?.now?.() ?? Date.now()) - EPOCH) / 1000);
+const nowSeconds = () => (!externalClock ? wallSeconds() : typeof externalClock === "function" ? externalClock() : externalClock.seconds());
+// Effects ask the map to repaint only while their clock runs on its own.
+const clockRunning = () => !externalClock || (typeof externalClock === "object" && externalClock.playing === true);
 
 /**
- * Drive every effect from `clock()` (seconds) instead of the wall clock, e.g.
- * so a movie export renders frame f at exactly f / fps; null restores real
- * time. While set, effects stop asking the map to repaint on their own.
+ * Drive every effect from a clock instead of the wall clock: a function of
+ * seconds renders frame f at exactly f / fps for a movie export (effects then
+ * stop repainting on their own); a master clock { seconds(), playing } pauses,
+ * seeks and changes speed for all of them. null restores real time. Returns
+ * the clock it replaced, so a temporary one can be undone.
  */
 export function setEffectClock(clock) {
-  externalClock = typeof clock === "function" ? clock : null;
+  const previous = externalClock;
+  externalClock = typeof clock === "function" || (clock && typeof clock.seconds === "function") ? clock : null;
+  return previous;
 }
+
+/** The effects clock's time in seconds, and whether it runs on its own (for native effects animated beside these). */
+export const effectSeconds = () => nowSeconds();
+export const effectClockRunning = () => clockRunning();
 
 const NOISE = /* glsl */ `
 float hash(vec2 p) { p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
@@ -421,7 +435,7 @@ export function cachedHeights(key, heightAt) {
  * [{ feature, fresh }] (or bare features), `effect` a CINEMATIC_EFFECTS key.
  * Returns null when nothing drawable was observed.
  */
-export function buildCinematicEffect(THREE, items, { effect = "glow", color, intensity = 1, fields = [], ranges = {}, elevationAt = () => 0, reducedMotion = false, quality = "cinematic", simplify = 0 } = {}) {
+export function buildCinematicEffect(THREE, items, { effect = "glow", color, intensity = 1, fields = [], ranges = {}, elevationAt = () => 0, reducedMotion = false, quality = "cinematic", simplify = 0, timing = null } = {}) {
   const tier = EFFECT_QUALITY[quality] || EFFECT_QUALITY.cinematic;
   const parts = effectParts(items, { maxPaths: tier.maxPaths, maxVertices: tier.maxVertices, maxPoints: tier.maxPoints, simplify });
   const origin = parts.paths[0]?.coordinates[0] || parts.points[0]?.coordinates;
@@ -431,7 +445,9 @@ export function buildCinematicEffect(THREE, items, { effect = "glow", color, int
   const preset = CINEMATIC_EFFECTS[effect] || CINEMATIC_EFFECTS.glow;
   const tint = color || preset.color;
   const found = effectFields(fields, parts.points[0]?.attributes);
-  const builtAt = nowSeconds();
+  // A track's own time (its rate, cycle, offset and policy) on the shared clock.
+  const localTime = () => (timing ? trackTime(nowSeconds(), timing) : { seconds: nowSeconds(), settled: false });
+  const builtAt = localTime().seconds, builtWall = wallSeconds();
   const uniforms = {
     uTime: { value: 0 }, uSince: { value: 0 }, uPx: { value: 1 }, uDpr: { value: globalThis.devicePixelRatio || 1 },
     uOpacity: { value: 1 }, uIntensity: { value: Math.min(2, Math.max(0.25, Number(intensity) || 1)) },
@@ -505,22 +521,25 @@ export function buildCinematicEffect(THREE, items, { effect = "glow", color, int
     // Where the effect is, so the host can skip it (and stop repainting) when it is off screen.
     bounds: partsBounds(parts),
     onTerrain: false,
-    get animated() { return !reducedMotion && !externalClock; },
+    // Still while the clock is paused, the track has settled (a finished "once", a "hold") or motion is reduced.
+    get animated() { return !reducedMotion && clockRunning() && !localTime().settled; },
     effect,
     note: preset.note,
     update(_time, { map } = {}) {
-      const now = nowSeconds();
-      uniforms.uTime.value = reducedMotion && !externalClock ? 4 : now;
-      uniforms.uSince.value = reducedMotion && !externalClock ? 10 : Math.max(0, now - builtAt);
+      const now = localTime().seconds, wall = wallSeconds();
+      const still = reducedMotion && clockRunning();
+      uniforms.uTime.value = still ? 4 : now;
+      uniforms.uSince.value = still ? 10 : Math.max(0, now - builtAt);
       // Local units per CSS pixel: MapLibre's world is 512 × 2^zoom pixels per Mercator unit.
       if (map?.getZoom) uniforms.uPx.value = 1 / (512 * 2 ** map.getZoom()) / frame.mercatorScale;
       uniforms.uDpr.value = globalThis.devicePixelRatio || 1;
       if (!map) return;
       const key = `${Boolean(map.getTerrain?.())}:${Math.round(map.getZoom?.() || 0)}`;
       // Terrain tiles arrive after the first frames: a few refreshes while they load, then only on change.
-      const loading = now - builtAt < 8 && loadingRefreshes < 4;
-      if ((key !== sampledKey || loading) && now - sampledAt > 0.75 && !map.isMoving?.()) {
-        sampledAt = now;
+      // Terrain loading is real time, whatever the animation clock is doing.
+      const loading = wall - builtWall < 8 && loadingRefreshes < 4;
+      if ((key !== sampledKey || loading) && wall - sampledAt > 0.75 && !map.isMoving?.()) {
+        sampledAt = wall;
         if (loading) loadingRefreshes += 1;
         refreshElevation(map);
       }

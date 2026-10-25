@@ -13,8 +13,8 @@ import { MapAssistantPanel } from "./assistant-panel.js?v=0.57.0-skins1";
 import { createAssistantTools, summarizeMapState } from "./map-assistant.js?v=0.57.0-skins1";
 import { ENTERPRISE_CATALOGS, EnterpriseCatalog, normalizeArcGisDirectoryUrl } from "./enterprise-catalog.js?v=0.18.2";
 import { createShareUrl } from "./share.js?v=0.54.0-unified4";
-import { createShareLink, hasDataFilter } from "./map-share.js?v=0.60.0-media1";
-import { briefingLayerRef, findBriefingLayer } from "./briefing-api.js?v=0.60.11-tracks1";
+import { createShareLink, hasDataFilter } from "./map-share.js?v=0.60.16-anim2";
+import { briefingLayerRef, findBriefingLayer } from "./briefing-api.js?v=0.60.16-anim3";
 import { createEmbeddedTourUrl } from "./tour-share.js?v=0.54.0-unified4";
 import { markdownToPlainText, renderMarkdown } from "./markdown.js?v=0.18.2";
 import { formatAttributeValue } from "./attribute-format.js?v=0.18.2";
@@ -30,8 +30,8 @@ import { featureLayerUrl, locationUrl } from "./field-task-share.js?v=0.54.0-uni
 import { dockIcon } from "./dock-icons.js?v=0.24.0";
 import { serviceNameFromUrl } from "./service-name.js?v=0.26.0";
 import { decodeQrFromImage, describeGisMapLink, gisMapLinkFrom, openGisMapLink } from "./qr-import.js?v=0.25.2";
-import { BriefingSlides } from "./briefing-slides.js?v=0.60.11-tracks1";
-import { addSlide, createSlide, isRoutineField, matchesFilter, normalizeBriefing, normalizeFilter } from "./briefing-document.js?v=0.60.11-tracks1";
+import { BriefingSlides } from "./briefing-slides.js?v=0.60.16-anim2";
+import { addSlide, createSlide, isRoutineField, matchesFilter, normalizeBriefing, normalizeFilter } from "./briefing-document.js?v=0.60.16-anim2";
 import { conditionComplete, conditionLabel, conditionToFilter } from "./briefing-conditions.js?v=0.1.0";
 import { createFilterBuilder } from "./filter-builder.js?v=0.1.0";
 import { conditionsToWhere } from "./filter-sql.js?v=0.1.0";
@@ -44,11 +44,22 @@ import { CartographyLab } from "./cartography-lab.js?v=0.60.0-media1";
 import { CONTEXT_ACTIONS, createSuggestionPreferences, deriveWorkspace, executeContextAction, suggestionKey, summarizeFeature } from "./contextual-workspace.js?v=6";
 import { BRIEFING_WALKTHROUGH_STEPS, CINEMATIC_WALKTHROUGH_STEPS, startWorkspaceWalkthrough, waitForWalkthroughTarget } from "./workspace-walkthrough.js?v=0.58.0-cinematic1";
 import { chooseHurricaneLayer, createHazardsExampleBriefing } from "./example-hazards-briefing.js?v=0.60.0-media1";
-import { CinematicModeController } from "./cinematic/mode.js?v=0.3.4";
-import { CINEMATIC_EFFECTS, suggestEffect } from "./cinematic/cinematic-effects.js?v=0.2.1";
+import { CinematicModeController } from "./cinematic/mode.js?v=0.3.8";
+import { CINEMATIC_EFFECTS, suggestEffect } from "./cinematic/cinematic-effects.js?v=0.2.3";
+import { PROVENANCE_STATUSES } from "./cinematic/clock.js?v=0.1.0";
+import { recommendAnimations } from "./cinematic/recommend.js?v=0.1.1";
+
+// What each provenance label tells a viewer about a track's displayed progression.
+const PROVENANCE_HELP = Object.freeze({
+  observed: "Observed: each step shows recorded data as captured.",
+  interpolated: "Interpolated: in-between states are estimated, not recorded.",
+  modeled: "Modeled: the progression comes from a model, not observations.",
+  forecast: "Forecast: a prediction of what may happen.",
+  illustrative: "Illustrative: decorative motion that does not measure anything.",
+});
 import { numericFieldCandidates, temporalFieldCandidates } from "./cinematic/temporal-adapter.js?v=0.3.1";
-import { buildClipPackage, clipToCinematicSpec, createCinematicClip, exportCinematicClip } from "./cinematic/clip-model.js?v=0.3.5";
-import { availableVideoFormats, cameraAt, CLIP_FRAME_RATES, clipFrameCount, exportCinematicVideo, observationIndexAt, renderClipPoster } from "./cinematic/clip-export.js?v=0.3.3";
+import { buildClipPackage, clipToCinematicSpec, createCinematicClip, exportCinematicClip } from "./cinematic/clip-model.js?v=0.3.7";
+import { availableVideoFormats, cameraAt, CLIP_FRAME_RATES, clipFrameCount, exportCinematicVideo, observationIndexAt, renderClipPoster } from "./cinematic/clip-export.js?v=0.3.4";
 
 const BUILDINGS_3D_KEY = "gismap-online:buildings-3d:v1";
 const DISPLAY_SETTINGS_KEY = "gismap-online:display:v1";
@@ -4136,11 +4147,19 @@ export class UIController {
     const playbackOpen = disclosure.playback === true;
     const presentOpen = disclosure.present !== false;
     const timeLabel = this.#cinematicPositionLabel(state);
+    const ambientScene = state.valueKind === "none";
+    const playing = ambientScene ? state.effects?.playing === true : timeline.playing;
     const fidelityNote = state.valueKind === "none" ? "Ambient animation: every feature shows at once and its effect loops. Nothing is stepped through time or estimated." : state.valueKind === "number" ? `Stepping through ${state.layers?.find((item) => item.kind === "number")?.timeField || "the field"} from lowest to highest. ${timeMode === "cumulative" ? "Build up shows every record up to the current value." : "Only records with the current value show."} Values are the data's own; nothing is interpolated.` : timeMode === "cumulative" ? "Showing every observed record from the first observation through this moment. This is cumulative display, not inferred persistence or geometry interpolation." : "Showing the current observed state only. Polygon boundaries step between snapshots; no unobserved spread or geometry interpolation is shown.";
     const inspection = intent === "investigate" ? `<section class="cinematic-inspector" aria-label="Observed data inspection"><span class="eyebrow">Observed evidence</span><strong>${escapeHtml(this.#cinematicValueText(timeline.observationTime, state))}</strong>${state.layers.map((item) => `<p><b>${escapeHtml(item.title)}</b><span>${item.observedCount} observed feature${item.observedCount === 1 ? "" : "s"} · ${escapeHtml(item.timeField)}</span></p>`).join("")}<small>Observed source records only; no estimated spread is shown.</small></section>` : "";
     const present = intent === "present" ? `<details class="cinematic-disclosure cinematic-disclosure--present"${presentOpen ? " open" : ""}><summary>Present & export</summary><div class="cinematic-actions">${this.#cinematicClipSummary()}<button type="button" data-cinematic-create-clip>Create Clip</button>${this.#latestCinematicClip() ? '<button type="button" data-cinematic-edit-clip>Edit Clip</button>' : ""}<button type="button" data-cinematic-add-brief>Add to Brief</button><button type="button" data-cinematic-download-clip>Clip JSON</button><button type="button" data-cinematic-poster>Poster PNG</button><button type="button" data-cinematic-record title="Render this Clip to a video file">Export movie</button></div></details>` : "";
-    root.innerHTML = `<section class="mode-dashboard cinematic-dashboard"><header><span class="eyebrow">Cinematic · observed playback</span><h2>${escapeHtml(presentation.title || layer.title || "Cinematic map")}</h2><div class="cinematic-mode-strip"><label>Intent <select data-cinematic-intent aria-label="Cinematic intent"><option value="explore"${intent === "explore" ? " selected" : ""}>Explore</option><option value="investigate"${intent === "investigate" ? " selected" : ""}>Investigate</option><option value="present"${intent === "present" ? " selected" : ""}>Present</option></select></label><span>${this.mapController.getEngineId?.() || "map"}</span></div><p data-cinematic-time-label>${escapeHtml(timeLabel)}</p></header><div class="cinematic-quick-controls" aria-label="Cinematic playback"><button type="button" data-cinematic-previous title="Previous observation">◀</button><button type="button" data-cinematic-play aria-pressed="${timeline.playing ? "true" : "false"}">${timeline.playing ? "Pause" : "Play"}</button><button type="button" data-cinematic-next title="Next observation">▶</button><button type="button" data-cinematic-focus title="Fly to the current observed feature">Focus</button></div>${inspection}<p class="cinematic-provenance">${escapeHtml(fidelityNote)}${state.layers?.[0]?.effectNote ? ` <span class="cinematic-effect-note">${escapeHtml(state.layers[0].effectNote)}</span>` : ""}</p><details class="cinematic-disclosure cinematic-disclosure--playback"${playbackOpen ? " open" : ""}><summary>${intent === "investigate" ? "Playback controls" : "Playback & map appearance"}</summary><div class="cinematic-controls"><label>Build up <input type="checkbox" data-cinematic-build-up${timeMode === "cumulative" ? " checked" : ""} aria-label="Build up observed records over time"></label><label>Local window <input type="checkbox" data-cinematic-local-window${localWindow ? " checked" : ""} aria-label="Filter cinematic observations to the current map window"></label><label>Speed <select data-cinematic-rate aria-label="Playback speed"><option value="0.1"${timeline.playbackRate === 0.1 ? " selected" : ""}>Very slow</option><option value="0.25"${timeline.playbackRate === 0.25 ? " selected" : ""}>Slow</option><option value="0.5"${timeline.playbackRate === 0.5 ? " selected" : ""}>Steady</option><option value="1"${timeline.playbackRate === 1 ? " selected" : ""}>Fast</option><option value="2"${timeline.playbackRate === 2 ? " selected" : ""}>Very fast</option></select></label>${supportsGround ? `<label>Terrain <select data-cinematic-ground aria-label="Terrain"><option value="">Map setting</option>${terrainOptions}</select></label>` : ""}${supportsBoundaryGlow ? `${state.layers.length > 1 ? "" : `<label>Effect <select data-cinematic-effect aria-label="Visual effect">${effectOptions}</select></label>`}<label title="How much effect detail to draw. Auto lightens it for large scenes; the data is never reduced.">Detail <select data-cinematic-quality aria-label="Effect detail">${[["auto", "Auto"], ["eco", "Eco"], ["balanced", "Balanced"], ["cinematic", "Cinematic"]].map(([value, label]) => `<option value="${value}"${(state.spec?.cinematic.quality || "auto") === value ? " selected" : ""}>${label}</option>`).join("")}</select></label>` : ""}<label>Opacity <input type="range" data-cinematic-opacity min="5" max="100" value="${Math.round(Number(layerOpacity) * 100)}" aria-label="Cinematic layer opacity"></label><label class="cinematic-controls__scrub">Observation <input type="range" data-cinematic-scrub min="0" max="${Math.max(0, timeline.ticks.length - 1)}" value="${timeline.observationIndex}" step="1"></label></div>${this.#cinematicDateControls(state)}${supportsBoundaryGlow ? `<p class="cinematic-perf form-note" data-cinematic-perf aria-live="polite">${escapeHtml(this.#cinematicPerfText(state))}</p>` : ""}<p class="form-note">${localWindow ? "The local range resets after each completed pan or zoom." : "Controls apply to observed data only."}</p></details>${this.#cinematicTracksMarkup(state, supportsBoundaryGlow)}${present}<div class="cinematic-footer-actions"><button type="button" data-cinematic-reconfigure>Change mapping</button><button type="button" data-cinematic-guide>Guide</button><button type="button" data-cinematic-exit>Exit</button></div></section>`;
-    root.querySelector("[data-cinematic-play]")?.addEventListener("click", () => this.cinematicController.toggle());
+    root.innerHTML = `<section class="mode-dashboard cinematic-dashboard"><header><span class="eyebrow">Cinematic · ${ambientScene ? "ambient loop" : state.valueKind === "number" ? "scenario sweep" : "observed playback"}</span><h2>${escapeHtml(presentation.title || layer.title || "Cinematic map")}</h2><div class="cinematic-mode-strip"><label>Intent <select data-cinematic-intent aria-label="Cinematic intent"><option value="explore"${intent === "explore" ? " selected" : ""}>Explore</option><option value="investigate"${intent === "investigate" ? " selected" : ""}>Investigate</option><option value="present"${intent === "present" ? " selected" : ""}>Present</option></select></label><span>${this.mapController.getEngineId?.() || "map"}</span></div><p data-cinematic-time-label>${escapeHtml(timeLabel)}</p></header><div class="cinematic-quick-controls" aria-label="Cinematic playback">${ambientScene ? "" : '<button type="button" data-cinematic-previous title="Previous observation">◀</button>'}<button type="button" data-cinematic-play aria-pressed="${playing ? "true" : "false"}"${ambientScene ? ' title="Play or pause the looping effects"' : ""}>${playing ? "Pause" : "Play"}</button>${ambientScene ? "" : '<button type="button" data-cinematic-next title="Next observation">▶</button>'}<button type="button" data-cinematic-focus title="Fly to the current observed feature">Focus</button></div>${inspection}<p class="cinematic-provenance">${this.#cinematicProvenanceBadges(state)}${escapeHtml(fidelityNote)}${state.layers?.[0]?.effectNote ? ` <span class="cinematic-effect-note">${escapeHtml(state.layers[0].effectNote)}</span>` : ""}</p><details class="cinematic-disclosure cinematic-disclosure--playback"${playbackOpen ? " open" : ""}><summary>${intent === "investigate" ? "Playback controls" : "Playback & map appearance"}</summary><div class="cinematic-controls">${ambientScene ? "" : `<label>Build up <input type="checkbox" data-cinematic-build-up${timeMode === "cumulative" ? " checked" : ""} aria-label="Build up observed records over time"></label><label>Local window <input type="checkbox" data-cinematic-local-window${localWindow ? " checked" : ""} aria-label="Filter cinematic observations to the current map window"></label>`}${ambientScene ? "" : `<label>Speed <select data-cinematic-rate aria-label="Playback speed"><option value="0.1"${timeline.playbackRate === 0.1 ? " selected" : ""}>Very slow</option><option value="0.25"${timeline.playbackRate === 0.25 ? " selected" : ""}>Slow</option><option value="0.5"${timeline.playbackRate === 0.5 ? " selected" : ""}>Steady</option><option value="1"${timeline.playbackRate === 1 ? " selected" : ""}>Fast</option><option value="2"${timeline.playbackRate === 2 ? " selected" : ""}>Very fast</option></select></label>`}${supportsGround ? `<label>Terrain <select data-cinematic-ground aria-label="Terrain"><option value="">Map setting</option>${terrainOptions}</select></label>` : ""}${supportsBoundaryGlow ? `${state.layers.length > 1 ? "" : `<label>Effect <select data-cinematic-effect aria-label="Visual effect">${effectOptions}</select></label>`}<label title="How much effect detail to draw. Auto lightens it for large scenes; the data is never reduced.">Detail <select data-cinematic-quality aria-label="Effect detail">${[["auto", "Auto"], ["eco", "Eco"], ["balanced", "Balanced"], ["cinematic", "Cinematic"]].map(([value, label]) => `<option value="${value}"${(state.spec?.cinematic.quality || "auto") === value ? " selected" : ""}>${label}</option>`).join("")}</select></label><label title="Effects loop on one clock, separate from the timeline">Effects move <input type="checkbox" data-cinematic-effects-playing${state.effects?.playing !== false ? " checked" : ""} aria-label="Effects move"></label><label>Effect speed <select data-cinematic-effects-rate aria-label="Effect speed">${[0.25, 0.5, 1, 2, 4].map((value) => `<option value="${value}"${(state.effects?.rate ?? 1) === value ? " selected" : ""}>${value}×</option>`).join("")}</select></label>` : ""}<label>Opacity <input type="range" data-cinematic-opacity min="5" max="100" value="${Math.round(Number(layerOpacity) * 100)}" aria-label="Cinematic layer opacity"></label>${ambientScene ? "" : `<label class="cinematic-controls__scrub">Observation <input type="range" data-cinematic-scrub min="0" max="${Math.max(0, timeline.ticks.length - 1)}" value="${timeline.observationIndex}" step="1"></label>`}</div>${ambientScene ? "" : this.#cinematicDateControls(state)}${supportsBoundaryGlow ? `<p class="cinematic-perf form-note" data-cinematic-perf aria-live="polite">${escapeHtml(this.#cinematicPerfText(state))}</p>` : ""}<p class="form-note">${ambientScene ? "Ambient: no dates or steps. Effects loop on one clock; pause stops repainting." : localWindow ? "The local range resets after each completed pan or zoom." : "Controls apply to observed data only."}</p></details>${this.#cinematicTracksMarkup(state, supportsBoundaryGlow)}${present}<div class="cinematic-footer-actions"><button type="button" data-cinematic-reconfigure>Change mapping</button><button type="button" data-cinematic-guide>Guide</button><button type="button" data-cinematic-exit>Exit</button></div></section>`;
+    // An Ambient scene has no timeline: Play and Pause drive its looping effects.
+    root.querySelector("[data-cinematic-play]")?.addEventListener("click", () => {
+      if (this.cinematicState?.valueKind === "none") { this.cinematicController.toggleEffects(); this.#saveCinematicSpec(); }
+      else this.cinematicController.toggle();
+    });
+    root.querySelector("[data-cinematic-effects-playing]")?.addEventListener("change", (event) => { this.cinematicController.setEffectsPlaying(event.target.checked); this.#saveCinematicSpec(); });
+    root.querySelector("[data-cinematic-effects-rate]")?.addEventListener("change", (event) => { this.cinematicController.setEffectsRate(Number(event.target.value)); this.#saveCinematicSpec(); });
     root.querySelector("[data-cinematic-previous]")?.addEventListener("click", () => this.cinematicController.previousObservation());
     root.querySelector("[data-cinematic-next]")?.addEventListener("click", () => this.cinematicController.nextObservation());
     root.querySelector("[data-cinematic-focus]")?.addEventListener("click", () => {
@@ -4213,6 +4232,13 @@ export class UIController {
       this.#renderPresentationDashboard(this.projectManager.current.presentation);
     });
     this.#bindCinematicTracks(root);
+    // The effects readout refreshes on its own while the panel shows (Ambient scenes have no steps).
+    clearInterval(this.cinematicPerfTimer);
+    this.cinematicPerfTimer = setInterval(() => {
+      const perf = document.querySelector("[data-cinematic-perf]");
+      if (!perf || !this.cinematicState) { clearInterval(this.cinematicPerfTimer); return; }
+      perf.textContent = this.#cinematicPerfText(this.cinematicController.state());
+    }, 2000);
     root.querySelector("[data-cinematic-ground]")?.addEventListener("change", (event) => {
       if (event.target.value) this.mapController.setGround(event.target.value);
     });
@@ -4314,6 +4340,66 @@ export class UIController {
     if (kept.length) this.toast(`Kept ${kept.join(", ")}. Change it in the layer's Style → Animated effect.`);
   }
 
+  /**
+   * Layer → Animate: suggestions for this layer, each with why it was offered
+   * and what it shows (observed or illustrative). Ambient ones apply right on
+   * the map; any of them can open in Cinematic mode instead.
+   */
+  #openAnimateLayer(uid) {
+    const layer = this.mapController.getLayer(uid);
+    if (!layer) return;
+    const suggestions = recommendAnimations(layer);
+    const kindName = { time: "Timeline", number: "Scenario", none: "Ambient" };
+    const cards = suggestions.map((item, index) => `<article class="animate-option"><header><span class="animate-option__kind">${kindName[item.kind]}</span><span class="cinematic-badge cinematic-badge--${item.provenance}">${item.provenance}</span></header><strong>${escapeHtml(item.label.replace(/^[A-Za-z]+: /, ""))}</strong><p>${escapeHtml(item.reason)}</p><div class="animate-option__actions">${item.kind === "none" ? `<button type="button" class="button--primary" data-animate-apply="${index}">Animate on the map</button>` : ""}<button type="button" data-animate-cinematic="${index}">${item.kind === "none" ? "Open in Cinematic" : "Play in Cinematic"}</button></div></article>`).join("");
+    const current = layer.animatedEffect ? `<p class="form-note">Now animated with ${escapeHtml(CINEMATIC_EFFECTS[layer.animatedEffect.type]?.label || layer.animatedEffect.type)}. <button type="button" class="link-button" data-animate-stop>Stop animating</button></p>` : "";
+    this.openDialog({
+      eyebrow: "Animate",
+      title: `Animate ${layer.title || "layer"}`,
+      content: `<p class="form-note">Suggested from this layer's shape and fields. A Timeline needs a real date field; without one, layers can still loop (Ambient) or sweep a number (Scenario). Effects decorate the data and never change it.</p>${current}<div class="animate-options">${cards}</div><p class="form-note"><button type="button" class="link-button" data-animate-more>More options in Cinematic setup…</button></p>`,
+      actions: [{ label: "Close", handler: () => this.dialog.close() }],
+    });
+    const pick = (index) => suggestions[Number(index)];
+    this.dialog.querySelectorAll("[data-animate-apply]").forEach((button) => button.addEventListener("click", async () => {
+      const item = pick(button.dataset.animateApply);
+      try {
+        await this.mapController.setLayerEffect(uid, { type: item.effect, intensity: 1, ...(item.field ? { field: item.field } : {}) });
+        this.dialog.close();
+        this.toast(`${layer.title}: ${CINEMATIC_EFFECTS[item.effect]?.label || item.effect} on. Change it in Style → Animated effect.`);
+      } catch (error) { this.error(`Could not animate the layer: ${error.message}`); }
+    }));
+    this.dialog.querySelectorAll("[data-animate-cinematic]").forEach((button) => button.addEventListener("click", () => {
+      const item = pick(button.dataset.animateCinematic);
+      this.dialog.close();
+      this.#startCinematicFromSuggestion(layer, item).catch((error) => this.error(`Could not start Cinematic mode: ${error.message}`));
+    }));
+    this.dialog.querySelector("[data-animate-stop]")?.addEventListener("click", async () => {
+      await this.mapController.setLayerEffect(uid, { type: "none" });
+      this.dialog.close();
+    });
+    this.dialog.querySelector("[data-animate-more]")?.addEventListener("click", () => {
+      this.presentationState.layerUid = uid;
+      this.dialog.close();
+      this.#openCinematicMode({ reconfigure: true });
+    });
+  }
+
+  /** Start Cinematic mode straight from an Animate suggestion (no setup dialog). */
+  async #startCinematicFromSuggestion(layer, item) {
+    const spec = { cinematic: {
+      id: `cinematic-${Date.now()}`,
+      title: `${layer.title || "Map"} ${item.kind === "none" ? "animation" : item.kind === "number" ? `by ${item.field}` : "playback"}`,
+      intent: "explore", preferredEngine: this.mapController.getEngineId(),
+      clock: { durationSeconds: 120, rate: 0.25, timeMode: item.timeMode || "instant", loop: false },
+      layers: [{ layerRef: layer.uid, temporal: { kind: item.kind, startField: item.kind === "none" ? null : item.field, featureIdField: layer.objectIdField, timezone: "UTC", missingTime: "exclude" },
+        animation: { template: layer.geometryType === "point" ? "moving-track" : "step-perimeter", transition: "step", effect: { type: item.effect, intensity: 1, ...(item.kind === "none" && item.field ? { field: item.field } : {}) }, provenanceLabel: "Observed records" },
+        provenance: { status: item.provenance } }],
+      provenance: { synthetic: false, sourceUrls: layer.url && /^https:\/\//i.test(layer.url) ? [layer.url] : [], interpolated: false },
+    } };
+    await this.cinematicController.load(spec);
+    this.cinematicState = this.cinematicController.state();
+    this.projectManager.setPresentation({ ...this.projectManager.current.presentation, template: "cinematic", title: spec.cinematic.title, primaryLayerId: layer.uid, cinematic: this.cinematicController.exportCinematicSpec().cinematic });
+  }
+
   /** Cinematic mode with no animatable layer: explain that it needs data and offer the ways to add some. */
   #openCinematicNeedsData() {
     this.openDialog({
@@ -4330,15 +4416,39 @@ export class UIController {
     }));
   }
 
+  #saveCinematicSpec() {
+    this.projectManager.patchPresentation({ cinematic: this.cinematicController.exportCinematicSpec().cinematic });
+  }
+
+  /** One badge per track saying what its progression is: Observed, Interpolated, Modeled, Forecast or Illustrative. */
+  #cinematicProvenanceBadges(state) {
+    const statuses = [...new Set((state.layers || []).map((item) => item.provenance || "illustrative"))];
+    return statuses.map((status) => `<span class="cinematic-badge cinematic-badge--${escapeHtml(status)}" title="${escapeHtml(PROVENANCE_HELP[status] || "")}">${escapeHtml(status[0].toUpperCase() + status.slice(1))}</span> `).join("");
+  }
+
   /** The scene's tracks: each layer with its role and effect, plus adding another layer beside the lead track. */
   #cinematicTracksMarkup(state, supportsEffects) {
     const kindLabel = (item) => item.ambient || item.kind === "none" ? "Ambient · loops beside the timeline" : item.kind === "number" ? `Scenario · ${item.timeField}` : `Timeline · ${item.timeField}`;
     const inScene = new Set(state.layers.map((item) => item.uid));
     const candidates = this.mapController.getLayers().filter((layer) => layer.queryable && layer.objectIdField && !inScene.has(layer.uid));
-    const rows = state.layers.map((item) => `<li><span><b>${escapeHtml(item.title)}</b><small>${escapeHtml(kindLabel(item))} · <span data-cinematic-track-count="${escapeHtml(item.uid)}">${item.observedCount.toLocaleString()}</span> shown</small></span>${supportsEffects ? `<select data-cinematic-track-effect="${escapeHtml(item.uid)}" aria-label="Effect for ${escapeHtml(item.title)}">${this.#cinematicEffectOptions(item.effectType, item.effect)}</select>` : ""}${state.layers.length > 1 ? `<button type="button" class="cinematic-track-remove" data-cinematic-track-remove="${escapeHtml(item.uid)}" aria-label="Remove ${escapeHtml(item.title)} from the scene">Remove</button>` : ""}</li>`).join("");
+    const rows = state.layers.map((item) => `<li><span><b>${escapeHtml(item.title)}</b><small>${escapeHtml(kindLabel(item))} · <span data-cinematic-track-count="${escapeHtml(item.uid)}">${item.observedCount.toLocaleString()}</span> shown</small></span>${supportsEffects ? `<select data-cinematic-track-effect="${escapeHtml(item.uid)}" aria-label="Effect for ${escapeHtml(item.title)}">${this.#cinematicEffectOptions(item.effectType, item.effect)}</select>` : ""}${state.layers.length > 1 ? `<button type="button" class="cinematic-track-remove" data-cinematic-track-remove="${escapeHtml(item.uid)}" aria-label="Remove ${escapeHtml(item.title)} from the scene">Remove</button>` : ""}${supportsEffects ? this.#cinematicTrackMotion(item) : ""}</li>`).join("");
     const add = candidates.length ? `<div class="cinematic-track-add"><label>Add layer <select data-cinematic-track-layer>${candidates.map((layer) => `<option value="${escapeHtml(layer.uid)}">${escapeHtml(layer.title || "Untitled layer")}</option>`).join("")}</select></label><label>As <select data-cinematic-track-kind></select></label><button type="button" data-cinematic-track-add>Add track</button></div>` : '<p class="form-note">Add another queryable layer to the map to animate it here too.</p>';
     const open = this.cinematicDisclosureState?.tracks === true;
     return `<details class="cinematic-disclosure cinematic-disclosure--tracks"${open ? " open" : ""}><summary>Tracks (${state.layers.length})</summary><ul class="cinematic-tracks">${rows}</ul>${add}<p class="form-note">Ambient tracks show every feature with a looping effect beside the timeline. Timeline tracks step with it under the same clock.</p></details>`;
+  }
+
+  /** A track's own motion and label: show, colour, speed, cycle, policy and provenance. */
+  #cinematicTrackMotion(item) {
+    const uid = escapeHtml(item.uid), timing = item.timing || {};
+    const option = (value, label, current) => `<option value="${value}"${String(current) === String(value) ? " selected" : ""}>${label}</option>`;
+    return `<details class="cinematic-track-motion"><summary>Motion & label</summary><div class="cinematic-track-motion__grid">`
+      + `<label>Show effect <input type="checkbox" data-cinematic-track-visible="${uid}"${item.visible !== false ? " checked" : ""}></label>`
+      + `<label>Colour <input type="color" data-cinematic-track-color="${uid}" value="${escapeHtml(item.color || CINEMATIC_EFFECTS[item.effect]?.color || "#ff8136")}"></label>`
+      + `<label>Speed <select data-cinematic-track-rate="${uid}">${[0.25, 0.5, 1, 2, 4].map((value) => option(value, `${value}×`, timing.rate ?? 1)).join("")}</select></label>`
+      + `<label>Cycle <select data-cinematic-track-cycle="${uid}">${[[0, "Continuous"], [3, "3 s"], [6, "6 s"], [12, "12 s"], [30, "30 s"]].map(([value, label]) => option(value, label, timing.cycleSeconds ?? 0)).join("")}</select></label>`
+      + `<label>Repeat <select data-cinematic-track-policy="${uid}">${[["loop", "Loop"], ["pingPong", "Ping-pong"], ["once", "Once"], ["hold", "Hold still"]].map(([value, label]) => option(value, label, timing.policy || "loop")).join("")}</select></label>`
+      + `<label>Shown as <select data-cinematic-track-provenance="${uid}">${PROVENANCE_STATUSES.map((status) => option(status, status[0].toUpperCase() + status.slice(1), item.provenance)).join("")}</select></label>`
+      + `</div><p class="form-note">${escapeHtml(PROVENANCE_HELP[item.provenance] || "")} Speed and cycle are animation settings, not physical rates.</p></details>`;
   }
 
   #bindCinematicTracks(root) {
@@ -4352,6 +4462,16 @@ export class UIController {
       this.cinematicController.setEffect(select.value, select.dataset.cinematicTrackEffect);
       commit();
     }));
+    const onTrack = (selector, apply) => root.querySelectorAll(`[${selector}]`).forEach((input) => input.addEventListener("change", () => {
+      apply(input.getAttribute(selector), input);
+      commit();
+    }));
+    onTrack("data-cinematic-track-visible", (uid, input) => this.cinematicController.setTrackVisible(uid, input.checked));
+    onTrack("data-cinematic-track-color", (uid, input) => this.cinematicController.setTrackColor(uid, input.value));
+    onTrack("data-cinematic-track-rate", (uid, input) => this.cinematicController.setTrackTiming(uid, { rate: Number(input.value) }));
+    onTrack("data-cinematic-track-cycle", (uid, input) => this.cinematicController.setTrackTiming(uid, { cycleSeconds: Number(input.value) }));
+    onTrack("data-cinematic-track-policy", (uid, input) => this.cinematicController.setTrackTiming(uid, { policy: input.value }));
+    onTrack("data-cinematic-track-provenance", (uid, input) => this.cinematicController.setTrackProvenance(uid, input.value));
     root.querySelectorAll("[data-cinematic-track-remove]").forEach((button) => button.addEventListener("click", () => {
       this.cinematicController.removeTrack(button.dataset.cinematicTrackRemove).then(commit).catch((error) => this.error(error.message));
     }));
@@ -4405,7 +4525,10 @@ export class UIController {
     const slider = root.querySelector("[data-cinematic-scrub]");
     if (slider && document.activeElement !== slider) slider.value = String(timeline.observationIndex);
     const play = root.querySelector("[data-cinematic-play]");
-    if (play) { play.textContent = timeline.playing ? "Pause" : "Play"; play.setAttribute("aria-pressed", String(timeline.playing)); }
+    const playing = state.valueKind === "none" ? state.effects?.playing === true : timeline.playing;
+    if (play) { play.textContent = playing ? "Pause" : "Play"; play.setAttribute("aria-pressed", String(playing)); }
+    const effectsPlaying = root.querySelector("[data-cinematic-effects-playing]");
+    if (effectsPlaying) effectsPlaying.checked = state.effects?.playing !== false;
     const local = root.querySelector("[data-cinematic-local-window]");
     if (local) local.checked = state.localWindow === true;
     const perf = root.querySelector("[data-cinematic-perf]");
@@ -4420,9 +4543,12 @@ export class UIController {
   /** One line on effect load: what is drawn, measured frame rate, and whether Auto lightened the detail. */
   #cinematicPerfText(state) {
     const { stats, lightened } = state?.detail || {};
-    if (!stats?.items) return "Effects: nothing drawn yet.";
-    const parts = [`Effects: ${stats.vertices.toLocaleString()} vertices`];
+    if (!stats?.items && !stats?.native) return "Effects: nothing drawn yet.";
+    const parts = [`Effects: ${(stats.vertices || 0).toLocaleString()} vertices`];
+    if (stats.drawCalls) parts.push(`${stats.drawCalls} draw call${stats.drawCalls === 1 ? "" : "s"}`);
+    if (stats.native) parts.push(`${stats.native} native layer${stats.native === 1 ? "" : "s"}`);
     if (stats.fps) parts.push(`${stats.fps} fps`);
+    if (state.effects && !state.effects.playing) parts.push("effects paused (no repaint)");
     if (lightened) parts.push(`Auto lightened detail to ${lightened[0].toUpperCase()}${lightened.slice(1)} to keep playback smooth`);
     return `${parts.join(" · ")}.`;
   }
@@ -6174,7 +6300,10 @@ export class UIController {
     let legend = [];
     try { legend = (this.mapController.getLegendData?.() || []).filter((layer) => refs.has(layer.uid)); } catch { /* No legend from this engine. */ }
     const effects = [...new Set((this.cinematicController.state()?.layers || []).map((layer) => layer.effect).filter((effect) => effect && effect !== "none"))];
-    const effectNote = effects.length ? `${effects.map((effect) => CINEMATIC_EFFECTS[effect]?.label || effect).join(", ")}: decorative, not data` : "";
+    // Each track's progression is labelled in the movie too (Observed, Modeled, Illustrative…).
+    const statuses = [...new Set((this.cinematicController.state()?.layers || []).map((layer) => layer.provenance).filter(Boolean))];
+    const shownAs = statuses.length ? `Shown as ${statuses.join(", ")}` : "";
+    const effectNote = [effects.length ? `${effects.map((effect) => CINEMATIC_EFFECTS[effect]?.label || effect).join(", ")}: decorative, not data` : "", shownAs].filter(Boolean).join(" · ");
     return { legend, effectNote };
   }
 
@@ -7360,7 +7489,7 @@ export class UIController {
           <div class="layer-scale-note" data-layer-scale-note ${scaleMessage ? "" : "hidden"}><span data-scale-text>${escapeHtml(scaleMessage || "")}</span><button type="button" data-layer-action="ignore-scale" title="Draw this layer at every zoom level">Show anyway</button></div>
           <label class="opacity-row"><span>Opacity</span><input data-layer-opacity type="range" min="0" max="1" step="0.05" value="${layer.opacity}" /><output>${Math.round(layer.opacity * 100)}%</output></label>
           <div class="layer-card__actions layer-card__primary"><button data-layer-action="zoom">Zoom</button><button data-layer-action="table">Table</button><button data-layer-action="style">Style</button></div>
-          <details class="layer-card__more" ${this.expandedLayerCards.has(layer.uid) ? "open" : ""}><summary>More layer tools</summary><div class="layer-card__actions"><button data-layer-action="filter" title="Show only matching features on the map">Filter map</button>${layer.queryable || config.sourceType === "geoparquet" ? '<button data-layer-action="query-duckdb" title="Query, join or run spatial analysis on a copy of this layer">Query data</button>' : ''}<button data-layer-action="export" title="Share this map, make a PDF or briefing, or download data">Share</button><button data-layer-action="refresh">Refresh</button><button data-layer-action="advanced-style">Advanced style</button></div></details>
+          <details class="layer-card__more" ${this.expandedLayerCards.has(layer.uid) ? "open" : ""}><summary>More layer tools</summary><div class="layer-card__actions">${layer.queryable && this.mapController.getCapabilities().includes("three-3d") ? '<button data-layer-action="animate" title="Suggested animations for this layer: a looping effect, a timeline or a sweep">Animate</button>' : ""}<button data-layer-action="filter" title="Show only matching features on the map">Filter map</button>${layer.queryable || config.sourceType === "geoparquet" ? '<button data-layer-action="query-duckdb" title="Query, join or run spatial analysis on a copy of this layer">Query data</button>' : ''}<button data-layer-action="export" title="Share this map, make a PDF or briefing, or download data">Share</button><button data-layer-action="refresh">Refresh</button><button data-layer-action="advanced-style">Advanced style</button></div></details>
         </article>`;
       }).join("")
       : '<div class="empty-state empty-state--layers"><p>No layers yet. Add data to start.</p><div class="empty-state__actions"><button type="button" data-empty-action="data-arcgis">ArcGIS service</button><button type="button" data-empty-action="data-geojson">Geo URL</button><button type="button" data-empty-action="data-file">Local file</button><button type="button" data-empty-action="data-popular">Try an example</button></div></div>';
@@ -7429,6 +7558,7 @@ export class UIController {
           else this.#openSymbologyUtility(uid);
           break;
         case "advanced-style": this.#openSymbologyUtility(uid); break;
+        case "animate": this.#openAnimateLayer(uid); break;
         case "refresh": this.#refreshDialog(uid); break;
       }
     }));
@@ -8172,6 +8302,14 @@ export class UIController {
   applySkinChoice(skin) {
     const applied = applyInterfaceSkin(skin, { colors: this.projectManager.current.presentation?.skinColors?.[normalizeSkin(skin)] });
     this.projectManager.patchPresentation({ skin: applied });
+    // Effects without a colour of their own take the new skin's palette.
+    this.cinematicController.refreshEffectDetail();
+    if (this.mapController.getCapabilities().includes("three-3d")) {
+      for (const layer of this.mapController.getLayers()) {
+        const effect = layer.animatedEffect;
+        if (effect && !effect.color) void Promise.resolve(this.mapController.setLayerEffect(layer.uid, effect)).catch(() => {});
+      }
+    }
   }
 
   setProjectTitle(title) {

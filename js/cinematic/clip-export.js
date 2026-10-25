@@ -9,7 +9,7 @@
 // Frames are composed on a dedicated canvas (map + title, captions and
 // attribution), never by recording the engine canvas, and a cross-origin
 // ("tainted") map frame stops the export before anything is encoded.
-import { setEffectClock } from "./effects-three.js?v=0.2.1";
+import { setEffectClock } from "./effects-three.js?v=0.2.3";
 
 /** Mediabunny (MPL-2.0), pinned and loaded only when a movie is exported. */
 export const MEDIABUNNY_URL = "https://cdn.jsdelivr.net/npm/mediabunny@1.61.3/dist/bundles/mediabunny.min.mjs";
@@ -287,7 +287,8 @@ function clipRenderer({ clip, controller, mapController, width, height, attribut
   let shown = -1;
   // Effects follow the movie's clock; offset so their noise is not at its origin.
   let sceneSeconds = 0;
-  setEffectClock(() => 10 + sceneSeconds);
+  // Restored afterwards: the Cinematic master clock goes back to driving the effects.
+  const previousClock = setEffectClock(() => 10 + sceneSeconds);
   const renderAt = async (ms) => {
     const state = clipStateAt(clip, ms, tickCount);
     if (state.observationIndex !== shown) {
@@ -300,7 +301,7 @@ function clipRenderer({ clip, controller, mapController, width, height, attribut
     const frame = await readFrame();
     drawClipComposition(context, frame, { width, height, title: clip.title, caption: state.caption, attribution: clip.composition?.attribution !== false, attributionText, legend: clip.composition?.legend === false ? [] : legend, effectNote });
   };
-  return { canvas, renderAt, release: () => setEffectClock(null) };
+  return { canvas, renderAt, release: () => setEffectClock(previousClock) };
 }
 
 export async function exportCinematicVideo({ clip, controller, mapController, format, width = 1280, height = 720, fps = 30, attributionText = "", legend = [], effectNote = "", signal, onProgress = () => {} } = {}) {

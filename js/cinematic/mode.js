@@ -1,7 +1,9 @@
 import { createCinematicTimeline } from "./timeline-controller.js?v=0.1.0";
 import { normalizeTemporalFeatures, observedFeaturesAt, parsePlaybackValue, temporalModelInExtent } from "./temporal-adapter.js?v=0.3.1";
-import { exportCinematicSpec, importCinematicSpec } from "./state.js?v=0.2.2";
-import { CINEMATIC_EFFECTS, effectFields, effectRanges, resolveEffect, resolveQuality } from "./cinematic-effects.js?v=0.2.1";
+import { exportCinematicSpec, importCinematicSpec } from "./state.js?v=0.2.4";
+import { CINEMATIC_EFFECTS, NATIVE_EFFECTS, effectFields, effectRanges, resolveEffect, resolveQuality } from "./cinematic-effects.js?v=0.2.3";
+import { PROVENANCE_STATUSES, createEffectsClock, normalizeTiming } from "./clock.js?v=0.1.0";
+import { setEffectClock } from "./effects-three.js?v=0.2.3";
 
 // In a build-up, outlines older than the newest few are "settled": drawn as a
 // cheap edge and rebuilt only now and then, while the recent ones (full
@@ -49,6 +51,10 @@ export class CinematicModeController {
     await this.destroy();
     this.spec = importCinematicSpec(spec);
     this.adaptive = { cap: TIERS.length - 1, slow: 0 };
+    // One master clock for every effect: pause, seek and speed apply to all tracks together.
+    this.effectsClock = createEffectsClock({ playing: this.spec.cinematic.clock.effectsPlaying });
+    this.effectsClock.setRate(this.spec.cinematic.clock.effectsRate);
+    setEffectClock(this.effectsClock);
     for (const config of this.spec.cinematic.layers) await this.#loadLayer(config, featuresByLayer);
     this.#resetTimeline();
     await this.renderTask;
@@ -134,13 +140,16 @@ export class CinematicModeController {
     const timeMode = this.spec?.cinematic.clock.timeMode || "instant";
     return {
       spec: this.spec ? exportCinematicSpec(this.spec) : null, timeline, localWindow: this.localWindow, localEmpty: this.localEmpty, valueKind: this.valueKind(),
-      detail: { quality: this.spec?.cinematic.quality || "auto", lightened: this.adaptive.cap < TIERS.length - 1 ? TIERS[this.adaptive.cap] : null, stats: this.effectStats },
+      effects: this.effectsClock ? { playing: this.effectsClock.playing, rate: this.effectsClock.rate, seconds: Math.round(this.effectsClock.seconds() * 10) / 10 } : null,
+      // Live when asked (an Ambient scene has no steps to refresh it), else the last step's.
+      detail: { quality: this.spec?.cinematic.quality || "auto", lightened: this.adaptive.cap < TIERS.length - 1 ? TIERS[this.adaptive.cap] : null, stats: (this.spec && this.#readStats()) || this.effectStats },
       layers: [...this.layers.values()].map((entry) => {
         const { layer, model, config, truncated } = entry;
         const activeModel = this.localModels.get(layer.uid) || model;
         const effect = this.#effectFor(layer, config);
         return { uid: layer.uid, title: layer.title, ticks: activeModel.ticks, invalid: model.invalid, timeField: config.temporal.startField,
           kind: config.temporal.kind || "time", ambient: this.#ambient(entry), effectType: config.animation.effect?.type || "none",
+          timing: { ...config.animation.timing }, visible: config.animation.visible !== false, color: config.animation.effect?.color || null, provenance: config.provenance?.status || "illustrative",
           effect, effectNote: CINEMATIC_EFFECTS[effect]?.note || "", loadedCount: model.observations.length + model.invalid.length, truncated,
           observedCount: timeline && !this.localEmpty ? this.#observedAt(entry, timeline.observationTime, timeMode).length : 0 };
       }),
@@ -266,6 +275,69 @@ export class CinematicModeController {
     const snapshot = this.timeline?.state();
     if (snapshot) this.#render(snapshot);
   }
+  /* ---- The master effects clock (animation time, not observation dates) ---- */
+
+  /** Effects move (true) or hold still (false); the timeline is separate. */
+  setEffectsPlaying(playing) {
+    if (!this.effectsClock || !this.spec) return;
+    if (playing) this.effectsClock.play(); else this.effectsClock.pause();
+    this.spec.cinematic.clock.effectsPlaying = this.effectsClock.playing;
+    this.#repaint();
+  }
+  toggleEffects() { this.setEffectsPlaying(!this.effectsClock?.playing); }
+  /** Every track shows its state at master time `seconds`, playing or not. */
+  seekEffects(seconds) { this.effectsClock?.seek(seconds); this.#repaint(); }
+  setEffectsRate(rate) {
+    if (!this.effectsClock || !this.spec) return;
+    this.effectsClock.setRate(rate);
+    this.spec.cinematic.clock.effectsRate = this.effectsClock.rate;
+    this.#repaint();
+  }
+
+  /* ---- Per-track settings ---- */
+
+  /** A track's motion on the master clock: { rate, cycleSeconds, offsetSeconds, policy }. */
+  setTrackTiming(layerUid, timing) {
+    const entry = this.layers.get(layerUid);
+    if (!entry) return;
+    entry.config.animation.timing = normalizeTiming({ ...entry.config.animation.timing, ...timing });
+    this.#redrawTrack(entry);
+  }
+  /** Show or hide a track's effect; its records stay filtered as before. */
+  setTrackVisible(layerUid, visible) {
+    const entry = this.layers.get(layerUid);
+    if (!entry) return;
+    entry.config.animation.visible = visible !== false;
+    this.#redrawTrack(entry);
+  }
+  /** A track's effect colour (#rrggbb), or null for the effect's own. */
+  setTrackColor(layerUid, color) {
+    const entry = this.layers.get(layerUid);
+    if (!entry) return;
+    entry.config.animation.effect = { ...entry.config.animation.effect, color: /^#[0-9a-f]{6}$/i.test(color || "") ? color : null };
+    this.#redrawTrack(entry);
+  }
+  /** What the track's progression is: observed, interpolated, modeled, forecast or illustrative. */
+  setTrackProvenance(layerUid, status) {
+    const entry = this.layers.get(layerUid);
+    if (!entry || !PROVENANCE_STATUSES.includes(status)) return;
+    entry.config.provenance = { ...entry.config.provenance, status };
+    this.onState(this.state());
+  }
+
+  #redrawTrack(entry) {
+    entry.settled = null; entry.ambientKey = null;
+    this.renderedObservationTime = null;
+    const snapshot = this.timeline?.state();
+    if (snapshot) this.#render(snapshot); else this.onState(this.state());
+  }
+
+  /** Effects stop repainting while their clock is paused, so a change needs one frame drawn. */
+  #repaint() {
+    try { this.mapController.requestEffectFrame?.(); } catch { /* no effects on this engine */ }
+    this.onState(this.state());
+  }
+
   async setLayerOpacity(opacity) {
     if (!this.spec) return;
     const next = Math.min(1, Math.max(0.05, Number(opacity) || 1));
@@ -301,6 +373,7 @@ export class CinematicModeController {
   }
 
   async destroy() {
+    if (this.effectsClock) { setEffectClock(null); this.effectsClock = null; }
     this.unsubscribe?.(); this.unsubscribe = null;
     this.timeline?.destroy(); this.timeline = null;
     this.pendingSnapshot = null;
@@ -340,9 +413,10 @@ export class CinematicModeController {
   async #drawEffects(entry, { effect, observations, observationTime, timeMode, effectRange }) {
     const { layer, config, effectUid } = entry;
     const quality = this.#quality(observations.length);
-    const base = { type: "observed-effect", effect, color: config.animation.effect?.color || null, intensity: config.animation.effect?.intensity ?? 1, fields: layer.fields || [], ranges: effectRange };
+    const base = { type: "observed-effect", effect, color: config.animation.effect?.color || null, intensity: config.animation.effect?.intensity ?? 1, field: config.animation.effect?.field || null, fields: layer.fields || [], ranges: effectRange, timing: config.animation.timing };
     const asItems = (list) => list.map((observation) => ({ feature: observation.feature, fresh: observation.time === observationTime }));
-    const split = timeMode === "cumulative" && observations.length > RECENT_MIN * 2;
+    // Native effects (Rise, Reveal) are style layers, cheap at any size: no settled/recent split.
+    const split = !NATIVE_EFFECTS.includes(effect) && timeMode === "cumulative" && observations.length > RECENT_MIN * 2;
     if (!split) {
       entry.settled = null;
       await attempt(() => this.mapController.clearCinematicEffect?.(`${effectUid}:settled`), false);
@@ -398,7 +472,7 @@ export class CinematicModeController {
 
   #effectFor(layer, config) {
     const type = config.animation?.effect?.type || "none";
-    if (type === "none") return "none";
+    if (type === "none" || config.animation?.visible === false) return "none";
     return resolveEffect(type, { title: layer.title, geometryType: layer.geometryType, fields: layer.fields || [] });
   }
 
