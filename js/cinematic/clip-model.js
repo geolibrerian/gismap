@@ -1,4 +1,4 @@
-import { exportCinematicSpec, importCinematicSpec } from "./state.js?v=0.2.0";
+import { exportCinematicSpec, importCinematicSpec } from "./state.js?v=0.2.1";
 
 export const CINEMATIC_CLIP_SCHEMA = "gismap.cinematicClip";
 export const CINEMATIC_CLIP_VERSION = 1;

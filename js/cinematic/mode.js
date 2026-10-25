@@ -1,6 +1,6 @@
 import { createCinematicTimeline } from "./timeline-controller.js?v=0.1.0";
-import { normalizeTemporalFeatures, observedFeatureIdsAt, observedFeaturesAt, parsePlaybackValue, temporalModelInExtent } from "./temporal-adapter.js?v=0.3.0";
-import { exportCinematicSpec, importCinematicSpec } from "./state.js?v=0.2.0";
+import { normalizeTemporalFeatures, observedFeatureIdsAt, observedFeaturesAt, parsePlaybackValue, temporalModelInExtent } from "./temporal-adapter.js?v=0.3.1";
+import { exportCinematicSpec, importCinematicSpec } from "./state.js?v=0.2.1";
 import { CINEMATIC_EFFECTS, effectFields, effectRanges, resolveEffect, resolveQuality } from "./cinematic-effects.js?v=0.2.0";
 
 // In a build-up, outlines older than the newest few are "settled": drawn as a
@@ -8,6 +8,11 @@ import { CINEMATIC_EFFECTS, effectFields, effectRanges, resolveEffect, resolveQu
 // flames) are rebuilt each step. Settling keeps RECENT_MIN recent records; the
 // next settle is due once the recent set has doubled.
 const RECENT_MIN = 120;
+// Auto detail steps down a tier (never up) while playback stays slower than
+// SLOW_FRAME_MS a frame for SLOW_STEPS steps in a row. Only decoration lightens.
+const TIERS = ["eco", "balanced", "cinematic"];
+const SLOW_FRAME_MS = 45;
+const SLOW_STEPS = 3;
 
 // Engine adapters may implement a transient operation synchronously (for
 // example, removing an already-loaded Three.js item) or asynchronously. Keep
@@ -34,11 +39,14 @@ export class CinematicModeController {
     this.localWindow = false;
     this.localModels = new Map();
     this.localEmpty = false;
+    this.adaptive = { cap: TIERS.length - 1, slow: 0 };
+    this.effectStats = null;
   }
 
   async load(spec, { featuresByLayer = {} } = {}) {
     await this.destroy();
     this.spec = importCinematicSpec(spec);
+    this.adaptive = { cap: TIERS.length - 1, slow: 0 };
     for (const config of this.spec.cinematic.layers) {
       const layer = this.mapController.getLayer(config.layerRef);
       if (!layer?.queryable) throw new Error(`Cinematic layer “${config.layerRef}” is not queryable.`);
@@ -46,6 +54,7 @@ export class CinematicModeController {
       const { features } = loaded;
       const model = normalizeTemporalFeatures(features, {
         kind: config.temporal.kind || "time",
+        steps: config.temporal.steps || 0,
         timeField: config.temporal.startField,
         groupField: config.temporal.groupField,
         objectIdField: config.temporal.featureIdField || layer.objectIdField,
@@ -68,6 +77,7 @@ export class CinematicModeController {
     const timeMode = this.spec?.cinematic.clock.timeMode || "instant";
     return {
       spec: this.spec ? exportCinematicSpec(this.spec) : null, timeline, localWindow: this.localWindow, localEmpty: this.localEmpty, valueKind: this.valueKind(),
+      detail: { quality: this.spec?.cinematic.quality || "auto", lightened: this.adaptive.cap < TIERS.length - 1 ? TIERS[this.adaptive.cap] : null, stats: this.effectStats },
       layers: [...this.layers.values()].map(({ layer, model, config, truncated }) => {
         const activeModel = this.localModels.get(layer.uid) || model;
         const effect = this.#effectFor(layer, config);
@@ -173,7 +183,9 @@ export class CinematicModeController {
   /** Effect detail: "auto", "eco", "balanced" or "cinematic". */
   setQuality(quality) {
     if (!this.spec) return;
-    this.spec.cinematic.quality = ["eco", "balanced", "cinematic"].includes(quality) ? quality : "auto";
+    this.spec.cinematic.quality = TIERS.includes(quality) ? quality : "auto";
+    this.adaptive = { cap: TIERS.length - 1, slow: 0 };
+    this.#readStats({ reset: true });
     this.refreshEffectDetail();
   }
 
@@ -257,7 +269,7 @@ export class CinematicModeController {
    */
   async #drawEffects(entry, { effect, observations, observationTime, timeMode, effectRange }) {
     const { layer, config, effectUid } = entry;
-    const quality = resolveQuality(this.spec?.cinematic.quality || "auto", observations.length);
+    const quality = this.#quality(observations.length);
     const base = { type: "observed-effect", effect, color: config.animation.effect?.color || null, intensity: config.animation.effect?.intensity ?? 1, fields: layer.fields || [], ranges: effectRange };
     const asItems = (list) => list.map((observation) => ({ feature: observation.feature, fresh: observation.time === observationTime }));
     const split = timeMode === "cumulative" && observations.length > RECENT_MIN * 2;
@@ -282,6 +294,29 @@ export class CinematicModeController {
     }
     const recent = observations.filter((observation) => observation.time > entry.settled.time);
     await attempt(() => this.mapController.setCinematicEffect(effectUid, { ...base, quality: quality === "eco" ? "eco" : "cinematic", items: asItems(recent) }), false);
+  }
+
+  /** The detail tier for a scene of `count` records: the chosen one, or Auto's pick capped by measured frame time. */
+  #quality(count) {
+    const chosen = this.spec?.cinematic.quality || "auto";
+    const tier = resolveQuality(chosen, count);
+    return chosen === "auto" ? TIERS[Math.min(TIERS.indexOf(tier), this.adaptive.cap)] : tier;
+  }
+
+  #readStats({ reset = false } = {}) {
+    try { return this.mapController.getCinematicEffectStats?.({ reset }) ?? null; } catch { return null; }
+  }
+
+  /** After a playback step: note frame time and, on Auto, lighten effects when playback can't keep up. */
+  #adapt(playing) {
+    const stats = this.#readStats();
+    this.effectStats = stats;
+    if (!playing || (this.spec?.cinematic.quality || "auto") !== "auto" || !stats?.samples || stats.samples < 30 || this.adaptive.cap === 0) return;
+    this.adaptive.slow = stats.frameMs > SLOW_FRAME_MS ? this.adaptive.slow + 1 : 0;
+    if (this.adaptive.slow < SLOW_STEPS) return;
+    // The next step draws at the lighter tier; settled layers re-settle because their tier changed.
+    this.adaptive = { cap: this.adaptive.cap - 1, slow: 0 };
+    this.#readStats({ reset: true });
   }
 
   /** A new zoom level changes how much detail effects need; redraw the current snapshot. */
@@ -341,6 +376,7 @@ export class CinematicModeController {
           }));
           this.renderedObservationTime = next.observationTime;
           this.renderedTimeMode = timeMode;
+          this.#adapt(next.playing === true);
         }
         this.onState(this.state());
       }

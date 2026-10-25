@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { normalizeTemporalFeatures, observedFeatureIdsAt, observedFeaturesAt, parseTemporalValue, temporalFieldCandidates, temporalModelInExtent } from "../js/cinematic/temporal-adapter.js";
+import { normalizeTemporalFeatures, observedFeatureIdsAt, observedFeaturesAt, parseTemporalValue, quantileSteps, temporalFieldCandidates, temporalModelInExtent } from "../js/cinematic/temporal-adapter.js";
 import { importCinematicSpec } from "../js/cinematic/state.js";
 
 const features = [
@@ -48,4 +48,16 @@ test("local-window models retain only observations whose geometry overlaps the m
   const local = temporalModelInExtent(model, { xmin: -101, ymin: 30, xmax: -99, ymax: 32 });
   assert.deepEqual(local.observations.map((item) => item.id), [2]);
   assert.equal(local.start, Date.parse("2024-08-15T00:00:00Z"));
+});
+
+test("Scenario sweeps bin many distinct values into quantile steps", () => {
+  assert.equal(quantileSteps([1, 2, 3], 5), null);
+  const features = Array.from({ length: 1000 }, (_, i) => ({ attributes: { OBJECTID: i, acres: i * 1.5 } }));
+  const model = normalizeTemporalFeatures(features, { timeField: "acres", objectIdField: "OBJECTID", kind: "number", steps: 50 });
+  assert.equal(model.ticks.length, 50);
+  assert.equal(model.ticks.at(-1), 999 * 1.5);
+  // Every record sits at the first step at or above its own value.
+  for (const item of model.observations) assert.ok(item.time >= item.value);
+  const exact = normalizeTemporalFeatures(features, { timeField: "acres", objectIdField: "OBJECTID", kind: "number" });
+  assert.equal(exact.ticks.length, 1000);
 });

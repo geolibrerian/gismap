@@ -35,24 +35,35 @@ JSON all understand the three kinds.
 and Modes menus, the setup dialog and the Cinematic panel. It loads an example
 layer if the map has none.
 
+## Done in the second slice
+
+- **Scenario steps.** A numeric sweep plays in at most 200 quantile steps
+  (`temporal.steps`, 0 = every distinct value). Each record joins the first
+  step at or above its own value, so "Up to …" stays true. The 23,290-value
+  acreage sweep now plays as "step N of 200".
+- **Frame-time monitor.** The three.js host keeps a smoothed frame interval,
+  render cost and vertex count while effects animate. It ignores gaps over
+  500 ms (a stall or a hidden tab) and stops repainting while the tab is hidden.
+  The engine exposes it as `getCinematicEffectStats()`.
+- **Adaptive Auto detail.** On Auto, three playback steps in a row slower than
+  45 ms a frame lower effect detail one tier (Cinematic → Balanced → Eco). It
+  never steps back up during the session, and choosing a tier by hand clears
+  the cap. The Cinematic panel shows one line: vertices, fps and whether Auto
+  lightened detail. Filters and observed records are never touched.
+
 ## Next phases
 
 ### Phase 1 — Performance foundation (continue)
-1. **Frame-time monitor and diagnostics panel** (Tools → Cinematic diagnostics):
-   draw calls, vertices, effect items, settled/recent sizes, build ms, and
-   measured frame time. Auto Detail steps down when sustained frame time
-   exceeds a budget. It reads `document.visibilityState`, so a background tab
-   doesn't count as slow.
+1. **Diagnostics panel** (Tools → Cinematic diagnostics): draw calls,
+   settled/recent sizes and build ms beside the existing frame-time readout.
+   Also a Steps control for Scenario sweeps in the setup dialog.
 2. **Idle rendering:** stop continuous repaint when nothing animates (effects
-   paused, reduced motion, or Detail = Eco with static edges).
+   paused or Detail = Eco with static edges; reduced motion already stops it).
 3. **Worker geometry prep:** move `effectParts` / ribbon building for settled
    layers into a Web Worker. It's already pure, deterministic data → buffers.
 4. **Native-layer tier:** at regional zoom, draw settled fire edges as a
    MapLibre line layer (blur + width expressions) instead of three.js.
    That needs no custom GL and costs almost nothing.
-5. **Scenario binning:** sweep a numeric field in N quantile or equal steps
-   (default about 200) instead of every distinct value. A 23,290-value acreage
-   sweep is too fine-grained.
 
 ### Phase 2 — Animation primitives and tracks
 Recast effects as primitives with one interface (geometry, attribute mapping,

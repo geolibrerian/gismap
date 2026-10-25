@@ -196,3 +196,35 @@ test("the Create an animation guide walks every Cinematic step and is reachable 
   // The setup dialog is reopened non-modally so the guide's own buttons stay usable.
   assert.match(ui, /if \(this\.dialog\.open && this\.dialog\.matches\?\.\(":modal"\)\) \{ this\.dialog\.close\(\); this\.dialog\.show\(\); \}/);
 });
+
+test("Auto detail steps down a tier while playback stays slow, and never touches the data", async () => {
+  globalThis.requestAnimationFrame ??= (callback) => setTimeout(() => callback(performance.now()), 2);
+  globalThis.cancelAnimationFrame ??= (id) => clearTimeout(id);
+  const rows = Array.from({ length: 400 }, (_, n) => ({ attributes: { OBJECTID: n + 1, time: Date.UTC(2026, 0, 1) + n * 3600000 }, geometry: { type: "LineString", coordinates: [[n * 0.01, 0], [n * 0.01 + 0.005, 0.005]] } }));
+  const layer = { uid: "fires", title: "Fires", queryable: true, objectIdField: "OBJECTID" };
+  const qualities = [], filters = [];
+  let frameMs = 80, resets = 0;
+  const mapController = {
+    getLayer: () => layer, getFeatureFilter: async () => null, setOpacity: async () => {},
+    setFeatureFilter: async (_id, filter) => { filters.push(filter.objectIds.length); return true; },
+    queryFeatures: async () => ({ features: rows }), getViewState: () => ({ zoom: 8 }),
+    setCinematicEffect: async (uid, effect) => { if (!uid.endsWith(":settled")) qualities.push(effect.quality); return true; },
+    clearCinematicEffect: () => {},
+    getCinematicEffectStats: ({ reset } = {}) => { if (reset) resets += 1; return { items: 1, vertices: 900, frameMs, fps: Math.round(1000 / frameMs), samples: 60 }; },
+  };
+  const mode = new CinematicModeController({ mapController });
+  // 400 records is a "cinematic" scene for Auto by size alone.
+  await mode.load({ cinematic: { clock: { timeMode: "instant", durationSeconds: 1, rate: 2 }, layers: [{ layerRef: "fires", temporal: { startField: "time" }, animation: { effect: { type: "fire" } } }] } });
+  assert.equal(qualities.at(-1), "cinematic");
+  mode.play();
+  for (let wait = 0; wait < 100 && mode.state().detail.lightened !== "eco"; wait += 1) await new Promise((resolve) => setTimeout(resolve, 10));
+  mode.pause(); await mode.renderTask;
+  assert.equal(mode.state().detail.lightened, "eco");
+  assert.ok(qualities.includes("balanced") && qualities.at(-1) === "eco", "steps down one tier at a time");
+  assert.ok(resets >= 2);
+  assert.ok(filters.every((count) => count === 1), "every observed record is still shown");
+  // Choosing a tier by hand clears the adaptation.
+  mode.setQuality("cinematic");
+  assert.equal(mode.state().detail.lightened, null);
+  await mode.destroy();
+});

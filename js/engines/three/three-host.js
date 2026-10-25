@@ -29,6 +29,8 @@ export class ThreeHost {
   #renderer = null;
   #camera = null;
   #warnedGlobe = false;
+  // Frame timing while items animate: smoothed interval and render cost in ms.
+  #frames = { last: 0, interval: 0, render: 0, samples: 0 };
 
   constructor({ map, THREE, notify = () => {} }) {
     Object.assign(this, { map, THREE, notify });
@@ -47,6 +49,11 @@ export class ThreeHost {
       onRemove: () => { this.#renderer?.dispose(); this.#renderer = null; },
     };
     this.attach();
+    // A background tab neither repaints nor counts as a slow frame.
+    globalThis.document?.addEventListener?.("visibilitychange", () => {
+      this.#frames.last = 0;
+      if (globalThis.document.visibilityState === "visible") this.map.triggerRepaint();
+    });
   }
 
   /** (Re)adds the custom layer, e.g. after a basemap style change removed it. */
@@ -59,7 +66,7 @@ export class ThreeHost {
     // Replacing an observed snapshot must free the prior GPU resources.
     this.remove(uid);
     // Kept as-is (not copied) so live getters such as `animated` stay live.
-    this.#items.set(uid, Object.assign(item, { visible: item.visible ?? true, opacity: item.opacity ?? 1 }));
+    this.#items.set(uid, Object.assign(item, { visible: item.visible ?? true, opacity: item.opacity ?? 1, vertices: countVertices(item.scene) }));
     this.attach();
     this.map.triggerRepaint();
   }
@@ -91,6 +98,19 @@ export class ThreeHost {
 
   get size() { return this.#items.size; }
 
+  /** What is drawn and how fast: items, vertices, smoothed frame interval and render cost (ms). `reset` restarts the frame sample. */
+  stats({ reset = false } = {}) {
+    const items = [...this.#items.values()].filter((item) => item.visible);
+    const { interval, render, samples } = this.#frames;
+    const result = {
+      items: items.length, vertices: items.reduce((sum, item) => sum + (item.vertices || 0), 0),
+      frameMs: samples ? Math.round(interval * 10) / 10 : null, fps: samples && interval ? Math.round(1000 / interval) : null,
+      renderMs: samples ? Math.round(render * 100) / 100 : null, samples,
+    };
+    if (reset) this.#frames = { last: 0, interval: 0, render: 0, samples: 0 };
+    return result;
+  }
+
   clear() {
     [...this.#items.keys()].forEach((uid) => this.remove(uid));
   }
@@ -107,6 +127,7 @@ export class ThreeHost {
     const { Matrix4 } = this.THREE;
     const projection = new Matrix4().fromArray(matrix);
     const time = this.clock.time;
+    const started = globalThis.performance?.now?.() ?? Date.now();
     let animating = false;
     for (const item of this.#items.values()) {
       if (!item.visible) continue;
@@ -121,6 +142,25 @@ export class ThreeHost {
       this.#renderer.resetState();
       this.#renderer.render(item.scene, this.#camera);
     }
-    if (animating) this.map.triggerRepaint();
+    if (animating) this.#sample(started);
+    if (animating && globalThis.document?.visibilityState !== "hidden") this.map.triggerRepaint();
   }
+
+  #sample(started) {
+    const now = globalThis.performance?.now?.() ?? Date.now();
+    const frames = this.#frames, gap = frames.last ? started - frames.last : 0;
+    frames.last = started;
+    // Gaps over half a second are a stall or a hidden tab, not frame time.
+    if (!gap || gap > 500) return;
+    const weight = frames.samples < 10 ? 1 / (frames.samples + 1) : 0.1;
+    frames.interval += (gap - frames.interval) * weight;
+    frames.render += ((now - started) - frames.render) * weight;
+    frames.samples += 1;
+  }
+}
+
+function countVertices(scene) {
+  let count = 0;
+  scene?.traverse?.((object) => { count += object.geometry?.attributes?.position?.count || 0; });
+  return count;
 }

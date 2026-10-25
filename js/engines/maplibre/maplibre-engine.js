@@ -36,7 +36,7 @@ import { loadMaplibre } from "./maplibre-loader.js?v=0.39.0";
 import { HILLSHADE_LAYER_ID, HILLSHADE_SOURCE_ID, MAPLIBRE_GROUNDS, TERRAIN_SOURCE_ID, hillshadeLayer, maplibreGround, terrainSource } from "./terrain.js?v=0.43.0";
 import { normalizeSpatialChart, spatialChartAxis, spatialChartLayerSpecs, spatialChartLegend } from "../../spatial-chart.js?v=0.1.1";
 import { SCENE3D_TYPES, normalizeScene3d, scene3dTypeFor } from "../../scene3d.js?v=0.1.0";
-import { ThreeHost, loadThree } from "../three/three-host.js?v=0.1.1";
+import { ThreeHost, loadThree } from "../three/three-host.js?v=0.1.2";
 
 export const MAPLIBRE_CAPABILITIES = Object.freeze(["view-2d", "view-3d", "spatial-chart-3d", "three-3d", "basemaps", "basemap-themes", "ground", "layers-arcgis", "layers-files", "query", "feature-filter", "renderer-spec", "renderer-native", "identify", "highlight", "capture", "geocode", "buildings-3d", "draw", "measurement", "legend", "native"]);
 
@@ -304,6 +304,11 @@ export class MaplibreEngine {
 
   clearCinematicEffect(uid) {
     this.three?.remove(String(uid || ""));
+  }
+
+  /** Effect load and frame timing for Cinematic's adaptive detail (null before any effect). */
+  getCinematicEffectStats({ reset = false } = {}) {
+    return this.three?.stats({ reset }) ?? null;
   }
 
   resize() {

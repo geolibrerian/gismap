@@ -23,6 +23,8 @@ export function normalizeCinematicSpec(input = {}) {
       layerRef: layer.layerRef,
       temporal: {
         kind,
+        // A Scenario sweep's number of steps (0 = every distinct value).
+        steps: kind === "number" ? Math.max(0, Math.min(5000, Math.round(finite(layer.temporal.steps, 200)))) : 0,
         startField: kind === "none" ? null : layer.temporal.startField,
         groupField: string(layer.temporal.groupField) || null,
         featureIdField: string(layer.temporal.featureIdField) || null,

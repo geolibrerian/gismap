@@ -85,7 +85,7 @@ export const ENGINE_METHODS = Object.freeze([
 export const MAP_CONTROLLER_METHODS = Object.freeze([
   ...ENGINE_METHODS,
   "native", "setInitialBasemap", "setDefaultBasemap", "getDefaultBasemapId", "setGround", "getGroundId",
-  "setCinematicEffect", "clearCinematicEffect",
+  "setCinematicEffect", "clearCinematicEffect", "getCinematicEffectStats",
   "addLocalFile", "discoverFeatureServiceLayers", "getQueryableLayer", "getAllLayerConfigs",
   "setTitle", "setOutFields", "setRefreshInterval", "refreshLayer", "ignoreScaleRange", "scaleState", "layerMetadata", "getLocalAsset",
   "suggestRenderers", "restoreRenderer", "setRenderer", "recordRendererSpec", "setLayerSymbology", "setSpatialChart", "distinctValues", "fieldValues",
@@ -101,7 +101,7 @@ export const MAP_CONTROLLER_METHODS = Object.freeze([
 /** Capability used when an optional delegated method is absent. */
 export const METHOD_CAPABILITIES = Object.freeze({
   native: "native", setGround: "ground", getGroundId: "ground",
-  setCinematicEffect: "three-3d", clearCinematicEffect: "three-3d", setLayerEffect: "three-3d", getLayerEffect: "three-3d", suspendLayerEffect: "three-3d",
+  setCinematicEffect: "three-3d", clearCinematicEffect: "three-3d", getCinematicEffectStats: "three-3d", setLayerEffect: "three-3d", getLayerEffect: "three-3d", suspendLayerEffect: "three-3d",
   addLocalFile: "layers-files", discoverFeatureServiceLayers: "layers-arcgis", getQueryableLayer: "query",
   suggestRenderers: "renderer-spec", restoreRenderer: "renderer-native", setRenderer: "renderer-native", setLayerSymbology: "renderer-native", setSpatialChart: "spatial-chart-3d",
   distinctValues: "query", fieldValues: "query", navigate: "view-2d", viewExtentFilter: "spatial-query",

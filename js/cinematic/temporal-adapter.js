@@ -46,6 +46,22 @@ function observationId(feature, index, objectIdField) {
   return value == null || value === "" ? null : value;
 }
 
+/** Up to `steps` ascending step values that split `values` into equal-count groups (null when they already fit). */
+export function quantileSteps(values, steps) {
+  const sorted = [...new Set(values)].sort((a, b) => a - b);
+  if (sorted.length <= steps) return null;
+  const all = [...values].sort((a, b) => a - b);
+  const breaks = [];
+  for (let i = 1; i <= steps; i += 1) breaks.push(all[Math.min(all.length - 1, Math.ceil((i * all.length) / steps) - 1)]);
+  return [...new Set(breaks)];
+}
+
+function firstAtLeast(sorted, value) {
+  let low = 0, high = sorted.length - 1;
+  while (low < high) { const middle = (low + high) >> 1; if (sorted[middle] >= value) high = middle; else low = middle + 1; }
+  return low;
+}
+
 /**
  * Return a bounded, deterministic playback model for already-queried features.
  * `kind` is "time" (a date field: the observed timeline), "number" (a numeric
@@ -53,7 +69,7 @@ function observationId(feature, index, objectIdField) {
  * feature at once, effects loop). Rows lacking a valid value or stable object
  * ID are reported, never guessed.
  */
-export function normalizeTemporalFeatures(features = [], { timeField, groupField = "", objectIdField, kind = "time" } = {}) {
+export function normalizeTemporalFeatures(features = [], { timeField, groupField = "", objectIdField, kind = "time", steps = 0 } = {}) {
   if (kind !== "none" && !timeField) throw new Error(kind === "number" ? "Choose a numeric field." : "Choose a timestamp field.");
   if (!objectIdField) throw new Error("This layer needs a stable object ID field for cinematic playback.");
   const invalid = [];
@@ -69,6 +85,12 @@ export function normalizeTemporalFeatures(features = [], { timeField, groupField
       ? String(feature.attributes[groupField]) : "__all__";
     observations.push({ id, group, time, feature, index });
   });
+  // A Scenario sweep over many distinct values plays in `steps` quantile steps:
+  // each record joins the first step value at or above its own, so "up to" stays true.
+  if (kind === "number" && steps > 0) {
+    const breaks = quantileSteps(observations.map((item) => item.time), steps);
+    if (breaks) for (const item of observations) { item.value = item.time; item.time = breaks[firstAtLeast(breaks, item.time)]; }
+  }
   observations.sort((a, b) => a.time - b.time || String(a.id).localeCompare(String(b.id)) || a.index - b.index);
   const ticks = [...new Set(observations.map((item) => item.time))];
   return {
