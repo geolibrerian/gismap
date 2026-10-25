@@ -173,3 +173,16 @@ test("roads get Traffic: car lights both ways, labelled as styling", async () =>
   const first = recommendAnimations({ title: "Major roads", geometryType: "polyline", fields: [] })[0];
   assert.deepEqual([first.effect, first.kind, first.provenance], ["traffic", "none", "illustrative"]);
 });
+
+test("rail and transit lines get Trains, labelled as not real positions", async () => {
+  const { CINEMATIC_EFFECTS: catalog, suggestEffect: suggest } = await import("../js/cinematic/cinematic-effects.js");
+  assert.match(catalog.trains.note, /not real vehicle positions or timetables/);
+  for (const title of ["Light rail lines", "BART routes", "Subway lines", "Amtrak railway", "Streetcar network"]) assert.equal(suggest({ title, geometryType: "polyline" }), "trains", title);
+  assert.equal(suggest({ title: "Major roads", geometryType: "polyline" }), "traffic", "roads keep Traffic");
+  assert.equal(suggest({ title: "Rail stations", geometryType: "point" }) !== "trains", true, "stations are points, not lines");
+  const { importCinematicSpec } = await import("../js/cinematic/state.js");
+  assert.equal(importCinematicSpec({ cinematic: { layers: [{ layerRef: "rail", temporal: { kind: "none" }, animation: { effect: { type: "trains" } } }] } }).cinematic.layers[0].animation.effect.type, "trains");
+  const { recommendAnimations } = await import("../js/cinematic/recommend.js");
+  const first = recommendAnimations({ title: "Light rail lines", geometryType: "polyline", fields: [] })[0];
+  assert.deepEqual([first.effect, first.kind, first.provenance], ["trains", "none", "illustrative"]);
+});
