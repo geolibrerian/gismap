@@ -12,6 +12,23 @@ export function temporalFieldCandidates(layer) {
   }));
 }
 
+/** Numeric fields a Scenario sweep can step through (not IDs, not dates). */
+export function numericFieldCandidates(layer) {
+  return (layer?.fields || []).filter((field) => /^(?:esriFieldType)?(?:small-?integer|integer|single|double|long|big-?integer|number)$/i.test(String(field.type || "").replace(/^esriFieldType/i, ""))
+    && field.name !== layer?.objectIdField && !/(?:^|_)(?:fid|oid|objectid|id)$/i.test(field.name) && !dateLike(field))
+    .map((field) => ({ name: field.name, label: field.alias || field.name, type: field.type || "unknown" }));
+}
+
+/** A playback value by kind: epoch ms for "time", the number for "number", 0 for "none". */
+export function parsePlaybackValue(value, kind = "time") {
+  if (kind === "none") return 0;
+  if (kind === "number") {
+    const number = value === "" || value == null ? NaN : Number(value);
+    return Number.isFinite(number) ? number : null;
+  }
+  return parseTemporalValue(value);
+}
+
 export function parseTemporalValue(value) {
   if (value instanceof Date) return Number.isFinite(value.getTime()) ? value.getTime() : null;
   if (typeof value === "number") {
@@ -30,16 +47,19 @@ function observationId(feature, index, objectIdField) {
 }
 
 /**
- * Return a bounded, deterministic timeline model for already-queried features.
- * Rows lacking a valid timestamp or stable object ID are reported, never guessed.
+ * Return a bounded, deterministic playback model for already-queried features.
+ * `kind` is "time" (a date field: the observed timeline), "number" (a numeric
+ * field: a Scenario sweep through its values) or "none" (Ambient: every
+ * feature at once, effects loop). Rows lacking a valid value or stable object
+ * ID are reported, never guessed.
  */
-export function normalizeTemporalFeatures(features = [], { timeField, groupField = "", objectIdField } = {}) {
-  if (!timeField) throw new Error("Choose a timestamp field.");
+export function normalizeTemporalFeatures(features = [], { timeField, groupField = "", objectIdField, kind = "time" } = {}) {
+  if (kind !== "none" && !timeField) throw new Error(kind === "number" ? "Choose a numeric field." : "Choose a timestamp field.");
   if (!objectIdField) throw new Error("This layer needs a stable object ID field for cinematic playback.");
   const invalid = [];
   const observations = [];
   features.forEach((feature, index) => {
-    const time = parseTemporalValue(feature?.attributes?.[timeField]);
+    const time = parsePlaybackValue(feature?.attributes?.[timeField], kind);
     const id = observationId(feature, index, objectIdField);
     if (time == null || id == null) {
       invalid.push({ index, reason: time == null ? "invalid-time" : "missing-id" });
@@ -52,7 +72,8 @@ export function normalizeTemporalFeatures(features = [], { timeField, groupField
   observations.sort((a, b) => a.time - b.time || String(a.id).localeCompare(String(b.id)) || a.index - b.index);
   const ticks = [...new Set(observations.map((item) => item.time))];
   return {
-    timeField,
+    kind,
+    timeField: kind === "none" ? null : timeField,
     groupField: groupField || null,
     objectIdField,
     observations,

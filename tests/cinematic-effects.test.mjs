@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { effectFields, effectFrame, effectParts, particleSeeds, quadBuffers, resolveEffect, ribbonBuffers, suggestEffect } from "../js/cinematic/cinematic-effects.js";
+import { effectFields, effectFrame, effectParts, particleSeeds, quadBuffers, resolveEffect, resolveQuality, ribbonBuffers, simplifyPath, suggestEffect } from "../js/cinematic/cinematic-effects.js";
 import { normalizeCinematicSpec } from "../js/cinematic/state.js";
 
 test("effect parts keep only valid observed coordinates, tagged fresh, within budget", () => {
@@ -9,9 +9,10 @@ test("effect parts keep only valid observed coordinates, tagged fresh, within bu
     { geometry: { type: "LineString", coordinates: [[181, 0], [-120, 40], [-119, 40]] } },
     { feature: { attributes: { mag: 4.2 }, geometry: { type: "Point", coordinates: [-121.9, 37.7] } }, fresh: true },
   ]);
+  // Newest first: the budget goes to fresh observations, then from the end of the list back.
   assert.deepEqual(parts.paths.map((path) => [path.coordinates, path.fresh]), [
-    [[[-122, 38], [-121, 38], [-121, 39], [-122, 38]], 0],
     [[[-120, 40], [-119, 40]], 1],
+    [[[-122, 38], [-121, 38], [-121, 39], [-122, 38]], 0],
   ]);
   assert.equal(parts.polygons.length, 1);
   assert.deepEqual(parts.points, [{ coordinates: [-121.9, 37.7], fresh: 1, attributes: { mag: 4.2 } }]);
@@ -106,4 +107,21 @@ test("layer effects travel in map specs and share links, and bad ones are report
   // Links prune empty values; reading one back normalizes the effect again.
   assert.deepEqual(packLayer({ url: "https://example.org/quakes.geojson", sourceType: "geojson", animatedEffect: { type: "glow", intensity: 1 } }).e, { type: "glow", intensity: 1 });
   assert.deepEqual(normalizeLayerEffect({ type: "glow", intensity: 1 }), { type: "glow", intensity: 1, color: null });
+});
+
+test("large scenes keep the newest observation, trim sub-pixel detail and pick a lighter quality", () => {
+  const line = (n) => ({ feature: { geometry: { type: "LineString", coordinates: [[n, 0], [n + 0.5, 0.0001], [n + 1, 0]] } }, fresh: false });
+  const items = [...Array.from({ length: 50 }, (_, n) => line(n)), { ...line(99), fresh: true }];
+  const parts = effectParts(items, { maxPaths: 5 });
+  assert.equal(parts.paths.length, 5);
+  assert.equal(parts.paths[0].coordinates[0][0], 99);
+  assert.equal(parts.paths[1].coordinates[0][0], 49);
+  // A bump smaller than the tolerance is dropped; one larger is kept.
+  assert.deepEqual(simplifyPath([[0, 0], [0.5, 0.0001], [1, 0]], 0.001), [[0, 0], [1, 0]]);
+  assert.equal(simplifyPath([[0, 0], [0.5, 0.01], [1, 0]], 0.001).length, 3);
+  assert.equal(effectParts(items, { simplify: 0.001 }).paths[0].coordinates.length, 2);
+  assert.equal(resolveQuality("auto", 300), "cinematic");
+  assert.equal(resolveQuality("auto", 3000), "balanced");
+  assert.equal(resolveQuality("auto", 17950), "eco");
+  assert.equal(resolveQuality("balanced", 17950), "balanced");
 });

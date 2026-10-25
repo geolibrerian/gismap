@@ -4,7 +4,7 @@
 // zoom 16, and whose motion reads one continuous clock, so stepping to the next
 // observation never restarts a flame or a ripple. Newly observed features
 // (`fresh`) flare when they appear; older ones in a build-up settle down.
-import { CINEMATIC_EFFECTS, effectFields, effectFrame, effectParts, particleSeeds, quadBuffers, ribbonBuffers } from "./cinematic-effects.js?v=0.2.0";
+import { CINEMATIC_EFFECTS, EFFECT_QUALITY, effectFields, effectFrame, effectParts, particleSeeds, quadBuffers, ribbonBuffers } from "./cinematic-effects.js?v=0.2.0";
 
 const EPOCH = globalThis.performance?.now?.() ?? 0;
 let externalClock = null;
@@ -397,17 +397,37 @@ function fill(heights, from, to) {
 }
 
 /**
+ * Terrain heights shared across rebuilds: stepping a build-up re-samples the
+ * same perimeters again and again, and each lookup costs ~20 µs. Keyed by
+ * terrain state and zoom level (tile detail), so a change starts afresh; a
+ * height of 0 (tile not loaded yet, or sea level) is looked up again.
+ */
+const HEIGHT_CACHE_LIMIT = 250000;
+let heightCache = new Map(), heightCacheKey = "";
+export function cachedHeights(key, heightAt) {
+  if (key !== heightCacheKey || heightCache.size > HEIGHT_CACHE_LIMIT) { heightCache = new Map(); heightCacheKey = key; }
+  return (coordinate) => {
+    const id = `${coordinate[0].toFixed(5)},${coordinate[1].toFixed(5)}`;
+    const known = heightCache.get(id);
+    if (known) return known;
+    const height = heightAt(coordinate);
+    if (height) heightCache.set(id, height);
+    return height;
+  };
+}
+
+/**
  * Build a ThreeHost item for one observation snapshot. `items` are
  * [{ feature, fresh }] (or bare features), `effect` a CINEMATIC_EFFECTS key.
  * Returns null when nothing drawable was observed.
  */
-export function buildCinematicEffect(THREE, items, { effect = "glow", color, intensity = 1, fields = [], ranges = {}, elevationAt = () => 0, reducedMotion = false } = {}) {
-  const parts = effectParts(items);
+export function buildCinematicEffect(THREE, items, { effect = "glow", color, intensity = 1, fields = [], ranges = {}, elevationAt = () => 0, reducedMotion = false, quality = "cinematic", simplify = 0 } = {}) {
+  const tier = EFFECT_QUALITY[quality] || EFFECT_QUALITY.cinematic;
+  const parts = effectParts(items, { maxPaths: tier.maxPaths, maxVertices: tier.maxVertices, maxPoints: tier.maxPoints, simplify });
   const origin = parts.paths[0]?.coordinates[0] || parts.points[0]?.coordinates;
   if (!origin || effect === "none") return null;
-  // Geometry is built flat; heights come from the strided terrain sampler below.
+  // Geometry is built flat; heights come from the strided, cached terrain sampler below.
   const frame = effectFrame(origin);
-  const ground = effectFrame(origin, elevationAt);
   const preset = CINEMATIC_EFFECTS[effect] || CINEMATIC_EFFECTS.glow;
   const tint = color || preset.color;
   const found = effectFields(fields, parts.points[0]?.attributes);
@@ -429,8 +449,11 @@ export function buildCinematicEffect(THREE, items, { effect = "glow", color, int
 
   if (effect === "fire") {
     add(ribbonMesh("fireEdge", { uWidth: 9, uAdd: 0.3 }), 1);
-    add(ribbonGeometry && new THREE.Mesh(ribbonGeometry, material(THREE, uniforms, WALL_VERTEX, "fireWall", { uAdd: 0.35, uHeight: 36 })), 2);
-    const seeds = ribbon && particleSeeds(parts.paths, frame, { count: Math.min(1400, 200 + parts.paths.length * 120) });
+    // Flame curtains are the costliest part (fill rate): every edge, only the newest, or none.
+    const wallPaths = tier.walls === "all" ? null : tier.walls === "fresh" ? parts.paths.filter((path) => path.fresh) : [];
+    const wallGeometry = wallPaths === null ? ribbonGeometry : wallPaths.length ? geometry(THREE, ribbonBuffers(wallPaths, frame), RIBBON_ATTRIBUTES) : null;
+    add(wallGeometry && new THREE.Mesh(wallGeometry, material(THREE, uniforms, WALL_VERTEX, "fireWall", { uAdd: 0.35, uHeight: 36 })), 2);
+    const seeds = ribbon && tier.embers > 0 && particleSeeds(parts.paths, frame, { count: Math.min(tier.embers, 200 + parts.paths.length * 120) });
     add(seeds && emberPoints(THREE, uniforms, seeds), 3);
     add(quadMesh("spot", { uColor: "#ff5a14", uRadius: 22 }), 1);
     add(quads && flamePoints(THREE, uniforms, quads), 2);
@@ -457,12 +480,16 @@ export function buildCinematicEffect(THREE, items, { effect = "glow", color, int
   // effect sits on the observed edge across ridges and valleys. Terrain tiles
   // arrive after the first frame, so heights are refreshed while they load and
   // after each completed camera move.
-  let sampledKey = "", sampledAt = -Infinity;
+  let sampledKey = "", sampledAt = -Infinity, loadingRefreshes = 0;
   const refreshElevation = (map) => {
     const geometries = new Set();
     scene.traverse((object) => { if (object.geometry?.userData.lngLat) geometries.add(object.geometry); });
+    // The cache holds metres; this effect's frame scales them by latitude (as MapLibre does).
+    const metresAt = cachedHeights(`${Boolean(map?.getTerrain?.())}:${Math.round(map?.getZoom?.() || 0)}`, ([longitude, latitude]) => Number(elevationAt(longitude, latitude)) || 0);
+    const cosOrigin = Math.cos((origin[1] * Math.PI) / 180);
+    const heightAt = (coordinate) => metresAt(coordinate) * (cosOrigin / Math.cos((coordinate[1] * Math.PI) / 180));
     for (const shape of geometries) {
-      const heights = sampledHeights(shape.userData.lngLat, (coordinate) => ground.toLocal(coordinate)[2]);
+      const heights = sampledHeights(shape.userData.lngLat, heightAt);
       const positions = shape.getAttribute("position");
       for (let i = 0; i < positions.count; i += 1) positions.setZ(i, heights[i]);
       positions.needsUpdate = true;
@@ -488,9 +515,11 @@ export function buildCinematicEffect(THREE, items, { effect = "glow", color, int
       uniforms.uDpr.value = globalThis.devicePixelRatio || 1;
       if (!map) return;
       const key = `${Boolean(map.getTerrain?.())}:${Math.round(map.getZoom?.() || 0)}`;
-      const loading = now - builtAt < 8;
+      // Terrain tiles arrive after the first frames: a few refreshes while they load, then only on change.
+      const loading = now - builtAt < 8 && loadingRefreshes < 4;
       if ((key !== sampledKey || loading) && now - sampledAt > 0.75 && !map.isMoving?.()) {
         sampledAt = now;
+        if (loading) loadingRefreshes += 1;
         refreshElevation(map);
       }
     },

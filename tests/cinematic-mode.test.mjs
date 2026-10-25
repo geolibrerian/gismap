@@ -127,3 +127,72 @@ test("playback can be limited to a date range and jump to a date", async () => {
   assert.equal(mode.state().timeline.ticks.length, 5);
   await mode.destroy();
 });
+
+test("a large build-up redraws only its recent records each step and settles the rest occasionally", async () => {
+  const rows = Array.from({ length: 1000 }, (_, n) => ({ attributes: { OBJECTID: n + 1, time: Date.UTC(2026, 0, 1) + n * 3600000 }, geometry: { type: "LineString", coordinates: [[n * 0.01, 0], [n * 0.01 + 0.005, 0.005]] } }));
+  const layer = { uid: "fires", title: "Fires", queryable: true, objectIdField: "OBJECTID" };
+  const calls = [];
+  const mapController = {
+    getLayer: () => layer, getFeatureFilter: async () => null, setFeatureFilter: async () => true, setOpacity: async () => {},
+    queryFeatures: async () => ({ features: rows }), getViewState: () => ({ zoom: 8 }),
+    setCinematicEffect: async (uid, effect) => { calls.push({ uid, count: effect.items.length, fresh: effect.items.filter((item) => item.fresh).length, quality: effect.quality }); return true; },
+    clearCinematicEffect: () => {},
+  };
+  const mode = new CinematicModeController({ mapController });
+  await mode.load({ cinematic: { clock: { timeMode: "cumulative" }, layers: [{ layerRef: "fires", temporal: { startField: "time" }, animation: { effect: { type: "fire" } } }] } });
+  calls.length = 0;
+  for (let index = 600; index < 640; index += 1) { mode.seekObservation(index); await mode.renderTask; }
+  const settled = calls.filter((call) => call.uid.endsWith(":settled"));
+  const recent = calls.filter((call) => !call.uid.endsWith(":settled"));
+  assert.equal(recent.length, 40, "the recent layer follows every step");
+  assert.ok(settled.length <= 2, `settled rebuilds stay rare (${settled.length})`);
+  assert.ok(recent.every((call) => call.count <= 241 && call.fresh === 1), "recent layers are small and include the new record");
+  assert.equal(settled[0].quality, "eco");
+  // Stepping back re-settles from the new position.
+  calls.length = 0;
+  mode.seekObservation(300); await mode.renderTask;
+  assert.equal(calls.filter((call) => call.uid.endsWith(":settled")).length, 1);
+  await mode.destroy();
+});
+
+test("Scenario sweeps a numeric field and Ambient needs no field at all", async () => {
+  const rows = [3, 1, 2, 2, 5].map((depth, n) => ({ attributes: { OBJECTID: n + 1, depth_ft: depth }, geometry: { type: "Point", coordinates: [n, 0] } }));
+  const layer = { uid: "flood", title: "Flood", queryable: true, objectIdField: "OBJECTID" };
+  const mapController = { getLayer: () => layer, getFeatureFilter: async () => null, setFeatureFilter: async () => true, setOpacity: async () => {}, queryFeatures: async () => ({ features: rows }) };
+  const mode = new CinematicModeController({ mapController });
+  await mode.load({ cinematic: { clock: { timeMode: "cumulative" }, layers: [{ layerRef: "flood", temporal: { kind: "number", startField: "depth_ft" } }] } });
+  assert.equal(mode.valueKind(), "number");
+  assert.deepEqual(mode.state().timeline.ticks, [1, 2, 3, 5]);
+  mode.seekObservation(1); await mode.renderTask;
+  assert.equal(mode.state().layers[0].observedCount, 3, "everything up to depth 2 is shown");
+  assert.equal(mode.goToTime("2.5"), 2);
+  mode.setPlaybackRange("2", "3");
+  assert.deepEqual(mode.state().timeline.ticks, [2, 3]);
+  assert.equal(mode.exportCinematicSpec().cinematic.clock.start, "2");
+  await mode.destroy();
+  // Ambient: no field; every feature is shown at once, and effects loop on their own.
+  await mode.load({ cinematic: { layers: [{ layerRef: "flood", temporal: { kind: "none" } }] } });
+  assert.equal(mode.valueKind(), "none");
+  assert.deepEqual(mode.state().timeline.ticks, [0]);
+  assert.equal(mode.state().layers[0].observedCount, 5);
+  await mode.destroy();
+});
+
+test("the Create an animation guide walks every Cinematic step and is reachable from the menus", async () => {
+  const { readFileSync } = await import("node:fs");
+  const { CINEMATIC_WALKTHROUGH_STEPS } = await import("../js/workspace-walkthrough.js");
+  const ui = readFileSync(new URL("../js/ui.js", import.meta.url), "utf8");
+  const html = readFileSync(new URL("../index.html", import.meta.url), "utf8");
+  assert.deepEqual(CINEMATIC_WALKTHROUGH_STEPS.map((step) => step.id), ["layer", "kind", "effect", "start", "play", "tune", "dates", "camera", "clip", "share"]);
+  // Every step points at something the app draws.
+  for (const step of CINEMATIC_WALKTHROUGH_STEPS) {
+    for (const selector of step.desktop.split(",").map((item) => item.trim())) {
+      const token = selector.match(/\[data-[\w-]+|#[\w-]+|\.[\w-]+/)?.[0]?.replace(/^\[/, "");
+      assert.ok(ui.includes(token.replace(/^[#.]/, "")) || html.includes(token.replace(/^[#.]/, "")), `${step.id}: ${selector}`);
+    }
+  }
+  assert.match(html, /data-action="guide-cinematic">Create an animation \(guide\)/);
+  assert.match(ui, /case "guide-cinematic":[\s\S]*?this\.#startCinematicGuide\(\)/);
+  // The setup dialog is reopened non-modally so the guide's own buttons stay usable.
+  assert.match(ui, /if \(this\.dialog\.open && this\.dialog\.matches\?\.\(":modal"\)\) \{ this\.dialog\.close\(\); this\.dialog\.show\(\); \}/);
+});

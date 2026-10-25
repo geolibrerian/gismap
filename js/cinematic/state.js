@@ -10,15 +10,20 @@ export function normalizeCinematicSpec(input = {}) {
   const clock = source.clock || {};
   const start = string(clock.start);
   const end = string(clock.end);
-  if (start && end && Date.parse(end) < Date.parse(start)) throw new Error("Cinematic clock end must not precede its start.");
+  // A Scenario sweep's range is numbers; a timeline's is dates.
+  const numeric = Array.isArray(source.layers) && source.layers[0]?.temporal?.kind === "number";
+  const bound = (value) => (numeric ? Number(value) : Date.parse(value));
+  if (start && end && bound(end) < bound(start)) throw new Error("Cinematic clock end must not precede its start.");
   const layers = Array.isArray(source.layers) ? source.layers.map((layer) => {
     if (!string(layer?.layerRef)) throw new Error("Every cinematic layer needs a layerRef.");
-    if (!string(layer?.temporal?.startField)) throw new Error("Every cinematic layer needs temporal.startField.");
+    const kind = ["number", "none"].includes(layer?.temporal?.kind) ? layer.temporal.kind : "time";
+    if (kind !== "none" && !string(layer?.temporal?.startField)) throw new Error("Every cinematic layer needs temporal.startField (or temporal.kind \"none\" for an ambient animation).");
     const template = CINEMATIC_TEMPLATES.includes(layer?.animation?.template) ? layer.animation.template : "step-perimeter";
     return {
       layerRef: layer.layerRef,
       temporal: {
-        startField: layer.temporal.startField,
+        kind,
+        startField: kind === "none" ? null : layer.temporal.startField,
         groupField: string(layer.temporal.groupField) || null,
         featureIdField: string(layer.temporal.featureIdField) || null,
         timezone: string(layer.temporal.timezone, "UTC") || "UTC",
@@ -42,6 +47,8 @@ export function normalizeCinematicSpec(input = {}) {
       title: string(source.title) || "Cinematic map",
       intent: ["explore", "investigate", "present"].includes(source.intent) ? source.intent : "explore",
       preferredEngine: ["maplibre", "arcgis"].includes(source.preferredEngine) ? source.preferredEngine : "maplibre",
+      // Effect detail: "auto" sizes it to the scene; eco/balanced/cinematic fix it.
+      quality: ["eco", "balanced", "cinematic"].includes(source.quality) ? source.quality : "auto",
       clock: { start, end, current: string(clock.current) || start, timeMode: clock.timeMode === "cumulative" ? "cumulative" : "instant", durationSeconds: Math.min(600, Math.max(1, finite(clock.durationSeconds, 120))), rate: Math.min(4, Math.max(0.1, finite(clock.rate, 0.25))), loop: clock.loop === true },
       layers,
       events: Array.isArray(source.events) ? source.events.slice(0, 200) : [],

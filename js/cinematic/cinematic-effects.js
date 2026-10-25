@@ -82,20 +82,71 @@ function collect(geometry, out) {
 }
 
 /**
- * Observed geometry split into drawable parts, each tagged with its feature's
- * `fresh` flag (first observed at the current tick) and attributes. Bounded so
- * a cumulative timeline cannot exhaust the GPU.
+ * Rendering budgets. Detail is decoration, so it is what gives way first:
+ * "eco" draws only edges, "balanced" keeps flames and embers for the newest
+ * observations, "cinematic" draws everything. "auto" picks from the size of
+ * the scene (resolveQuality).
  */
-export function effectParts(items = [], { maxPaths = 2500, maxVertices = 150000, maxPoints = 8000 } = {}) {
+export const EFFECT_QUALITY = Object.freeze({
+  eco: { label: "Eco", maxPaths: 800, maxVertices: 30000, maxPoints: 3000, walls: "none", embers: 0 },
+  balanced: { label: "Balanced", maxPaths: 1500, maxVertices: 80000, maxPoints: 6000, walls: "fresh", embers: 600 },
+  cinematic: { label: "Cinematic", maxPaths: 2500, maxVertices: 150000, maxPoints: 8000, walls: "all", embers: 1400 },
+});
+
+/** "auto" by scene size: small scenes get full detail, large ones a lighter budget. */
+export function resolveQuality(quality, featureCount = 0) {
+  if (EFFECT_QUALITY[quality]) return quality;
+  return featureCount > 6000 ? "eco" : featureCount > 1200 ? "balanced" : "cinematic";
+}
+
+/**
+ * Douglas–Peucker on [lon, lat] with a tolerance in degrees. Used only for
+ * decoration at sub-pixel tolerance; the observed outline itself is drawn by
+ * the map from the exact geometry.
+ */
+export function simplifyPath(path, tolerance) {
+  if (!(tolerance > 0) || path.length < 3) return path;
+  const keep = new Uint8Array(path.length);
+  keep[0] = keep[path.length - 1] = 1;
+  const stack = [[0, path.length - 1]];
+  const squared = tolerance * tolerance;
+  while (stack.length) {
+    const [first, last] = stack.pop();
+    const [ax, ay] = path[first], [bx, by] = path[last];
+    const dx = bx - ax, dy = by - ay, length = dx * dx + dy * dy;
+    let farthest = -1, best = squared;
+    for (let i = first + 1; i < last; i += 1) {
+      const [px, py] = path[i];
+      const t = length ? Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / length)) : 0;
+      const ex = ax + t * dx - px, ey = ay + t * dy - py, distance = ex * ex + ey * ey;
+      if (distance > best) { best = distance; farthest = i; }
+    }
+    if (farthest > 0) { keep[farthest] = 1; stack.push([first, farthest], [farthest, last]); }
+  }
+  const simplified = path.filter((_, index) => keep[index]);
+  return simplified.length >= 2 ? simplified : path;
+}
+
+/**
+ * Observed geometry split into drawable parts, each tagged with its feature's
+ * `fresh` flag (first observed at the current tick) and attributes. The budget
+ * is spent on the newest observations first (fresh, then from the end of the
+ * list), so a large build-up never drops the perimeter that just appeared.
+ * `simplify` (degrees) trims sub-pixel vertices from decoration.
+ */
+export function effectParts(items = [], { maxPaths = 2500, maxVertices = 150000, maxPoints = 8000, simplify = 0 } = {}) {
   const parts = { paths: [], polygons: [], points: [] };
   let vertices = 0;
-  for (const entry of items) {
+  const ordered = [...items.filter((entry) => entry?.fresh === true), ...items.filter((entry) => entry?.fresh !== true).reverse()];
+  for (const entry of ordered) {
+    if (parts.paths.length >= maxPaths && parts.points.length >= maxPoints) break;
     const feature = entry?.feature ?? entry;
     const fresh = entry?.fresh === false ? 0 : 1;
     const attributes = feature?.attributes || feature?.properties || {};
     const found = { paths: [], polygons: [], points: [] };
     collect(feature?.geometry || feature, found);
-    for (const path of found.paths) {
+    for (const original of found.paths) {
+      const path = simplify ? simplifyPath(original, simplify) : original;
       if (parts.paths.length >= maxPaths || vertices + path.length > maxVertices) break;
       parts.paths.push({ coordinates: path, fresh });
       vertices += path.length;

@@ -26,7 +26,7 @@ import { chooseStyleField, compileRenderer, resolveRendererSpec, suggestRenderer
 import { rendererToPaint } from "./arcgis-renderer.js?v=0.42.0";
 import { legendForLayer } from "./legend.js?v=0.52.4";
 import { hostCredit, joinCredits, legendSwatch, plainAttribution } from "../map-credits.js?v=0.1.0";
-import { CINEMATIC_EFFECT_TYPES, effectFields, effectRanges, suggestEffect } from "../../cinematic/cinematic-effects.js?v=0.2.0";
+import { CINEMATIC_EFFECT_TYPES, effectFields, effectRanges, resolveQuality, suggestEffect } from "../../cinematic/cinematic-effects.js?v=0.2.0";
 
 // A layer effect draws over at most this many features; more would cost frame rate for no visible gain.
 const LAYER_EFFECT_MAX_FEATURES = 20000;
@@ -217,7 +217,12 @@ export class MaplibreEngine {
       this.#finishDrawing({ type: "Polygon", coordinates: [[[west, south], [east, south], [east, north], [west, north], [west, south]]] });
     });
     this.map.on("mousemove", (event) => this.events.publish("view:pointer-move", { longitude: event.lngLat.lng, latitude: event.lngLat.lat, zoom: this.#gisZoom() }));
-    this.map.on("zoomend", () => { this.#renderLegend(); this.events.publish("view:scale-change", { scale: this.getScale() }); });
+    this.map.on("zoomend", () => {
+      this.#renderLegend();
+      this.events.publish("view:scale-change", { scale: this.getScale() });
+      // Layer effects carry zoom-dependent detail; a new zoom level redraws them.
+      for (const record of this.#records.values()) if (record.animatedEffect && record.effectBuilt && record.effectBuilt.zoom !== Math.round(this.map.getZoom())) this.#queueLayerEffect(record);
+    });
     this.map.on("moveend", () => {
       this.events.publish("view:stationary", {});
       this.#sharpen();
@@ -281,8 +286,11 @@ export class MaplibreEngine {
     const THREE = await loadThree();
     this.three ??= new ThreeHost({ map: this.map, THREE, notify: (message) => this.events.publish("app:error", { message }) });
     const { buildCinematicEffect } = await import("../../cinematic/effects-three.js?v=0.2.0");
+    // Decoration is simplified to half a screen pixel at the current zoom; the map draws the exact outline.
+    const simplify = Number.isFinite(effect.simplify) ? effect.simplify : 0.5 * 360 / (512 * 2 ** (this.map?.getZoom?.() ?? 0));
     const item = buildCinematicEffect(THREE, effect.items || effect.features || [], {
       effect: name, color: effect.color, intensity: effect.intensity, fields: effect.fields, ranges: effect.ranges,
+      quality: effect.quality || "cinematic", simplify,
       reducedMotion: globalThis.matchMedia?.("(prefers-reduced-motion: reduce)").matches === true,
       elevationAt: (longitude, latitude) => (this.map?.getTerrain?.() ? this.map.queryTerrainElevation?.([longitude, latitude]) || 0 : 0),
     });
@@ -631,7 +639,8 @@ export class MaplibreEngine {
       return;
     }
     const features = this.#visibleFeatures(record);
-    const built = { effect, features, where: record.where };
+    // Detail follows the zoom level, so a rebuild comes with each new level.
+    const built = { effect, features, where: record.where, zoom: Math.round(this.map?.getZoom?.() || 0) };
     // Unchanged data and settings: nothing to rebuild, only opacity to follow.
     if (record.effectBuilt && Object.entries(built).every(([key, value]) => record.effectBuilt[key] === value)) {
       this.three?.set(id, { opacity: record.opacity });
@@ -641,7 +650,7 @@ export class MaplibreEngine {
     const name = effect.type === "auto" ? suggestEffect({ title: record.title, geometryType: record.geometryType, fields: record.fields }) : effect.type;
     const shown = features.slice(0, LAYER_EFFECT_MAX_FEATURES);
     const drawn = await this.setCinematicEffect(id, {
-      type: "observed-effect", effect: name, color: effect.color, intensity: effect.intensity, fields: record.fields,
+      type: "observed-effect", effect: name, color: effect.color, intensity: effect.intensity, fields: record.fields, quality: resolveQuality(effect.quality || "auto", features.length),
       ranges: effectRanges(features, effectFields(record.fields, shown[0]?.properties)),
       items: shown.map((feature) => ({ feature, fresh: true })),
     });

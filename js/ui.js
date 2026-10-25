@@ -42,11 +42,11 @@ import { saveEngine } from "./engine-preference.js?v=0.52.1";
 import { BASEMAPS } from "./basemap-catalog.js?v=0.53.0-gallery1";
 import { CartographyLab } from "./cartography-lab.js?v=0.60.0-media1";
 import { CONTEXT_ACTIONS, createSuggestionPreferences, deriveWorkspace, executeContextAction, suggestionKey, summarizeFeature } from "./contextual-workspace.js?v=6";
-import { BRIEFING_WALKTHROUGH_STEPS, startWorkspaceWalkthrough, waitForWalkthroughTarget } from "./workspace-walkthrough.js?v=0.57.0-slides1";
+import { BRIEFING_WALKTHROUGH_STEPS, CINEMATIC_WALKTHROUGH_STEPS, startWorkspaceWalkthrough, waitForWalkthroughTarget } from "./workspace-walkthrough.js?v=0.58.0-cinematic1";
 import { chooseHurricaneLayer, createHazardsExampleBriefing } from "./example-hazards-briefing.js?v=0.60.0-media1";
 import { CinematicModeController } from "./cinematic/mode.js?v=0.2.0";
 import { CINEMATIC_EFFECTS, suggestEffect } from "./cinematic/cinematic-effects.js?v=0.2.0";
-import { temporalFieldCandidates } from "./cinematic/temporal-adapter.js?v=0.1.1";
+import { numericFieldCandidates, temporalFieldCandidates } from "./cinematic/temporal-adapter.js?v=0.3.0";
 import { buildClipPackage, clipToCinematicSpec, createCinematicClip, exportCinematicClip } from "./cinematic/clip-model.js?v=0.3.3";
 import { availableVideoFormats, cameraAt, CLIP_FRAME_RATES, clipFrameCount, exportCinematicVideo, observationIndexAt, renderClipPoster } from "./cinematic/clip-export.js?v=0.3.2";
 
@@ -792,7 +792,14 @@ export class UIController {
         if (save) save.disabled = false;
       });
     });
-    this.events.subscribe("view:scale-change", () => this.#updateLayerScaleIndicators());
+    this.events.subscribe("view:scale-change", () => {
+      this.#updateLayerScaleIndicators();
+      // Cinematic effects carry zoom-dependent detail.
+      if (this.presentationState.template === "cinematic" && this.cinematicState) {
+        clearTimeout(this.cinematicDetailTimer);
+        this.cinematicDetailTimer = setTimeout(() => this.cinematicController.refreshEffectDetail(), 250);
+      }
+    });
     this.events.subscribe("view:stationary", () => {
       if (this.presentationState.template === "cinematic" && this.cinematicController.state()?.localWindow) {
         clearTimeout(this.cinematicLocalWindowTimer);
@@ -1217,6 +1224,56 @@ export class UIController {
     this.events.publish("context:workspace-changed");
   }
 
+  /**
+   * "Create an animation": the Cinematic guide. Each step opens what it points
+   * at (the setup dialog, the playback controls, Present & export), and a map
+   * with nothing to animate gets the USGS past-week earthquakes first.
+   */
+  async #startCinematicGuide() {
+    this.#dismissWelcome();
+    const steps = CINEMATIC_WALKTHROUGH_STEPS;
+    const wait = (selector, signal) => waitForWalkthroughTarget(selector, { signal }).catch(() => null);
+    const nonModal = () => {
+      // A modal dialog makes the rest of the page inert, including the guide's own buttons.
+      if (this.dialog.open && this.dialog.matches?.(":modal")) { this.dialog.close(); this.dialog.show(); }
+    };
+    const openPanel = (sections) => {
+      this.cinematicDisclosureState = { ...(this.cinematicDisclosureState || {}), ...sections };
+      this.#renderPresentationDashboard(this.projectManager.current.presentation);
+    };
+    const prepare = async (index, { signal }) => {
+      const step = steps[index];
+      if (["layer", "kind", "effect", "start"].includes(step.id)) {
+        if (!document.querySelector("[data-cinematic-kind]")?.isConnected || !this.dialog.open) {
+          if (!this.mapController.getLayers().some((layer) => layer.queryable && layer.objectIdField)) {
+            await this.loadLayer({ url: "https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/2.5_week.geojson", title: "Earthquakes — past week", serviceType: "geojson" });
+          }
+          this.#openCinematicMode({ reconfigure: true });
+        }
+        nonModal();
+        return Boolean(await wait(step.desktop, signal));
+      }
+      if (step.id === "play") {
+        // Leaving the setup steps starts the animation with what was chosen.
+        const start = this.dialog.open && document.querySelector("[data-cinematic-kind]") ? document.querySelector("#dialog-actions .button--primary") : null;
+        start?.click();
+        return Boolean(await wait(".cinematic-quick-controls", signal));
+      }
+      if (step.id === "tune" || step.id === "dates") { openPanel({ playback: true }); await wait(".cinematic-controls", signal); return true; }
+      if (step.id === "clip" || step.id === "share") {
+        if (this.cinematicController.exportCinematicSpec?.()?.cinematic?.intent !== "present") {
+          this.cinematicController.setIntent("present");
+          this.projectManager.patchPresentation({ cinematic: this.cinematicController.exportCinematicSpec().cinematic });
+        }
+        openPanel({ present: true });
+        return Boolean(await wait("[data-cinematic-create-clip]", signal));
+      }
+      return true;
+    };
+    try { await prepare(0, { signal: new AbortController().signal }); } catch (error) { this.error(`The guide could not start: ${error.message}`); return; }
+    startWorkspaceWalkthrough({ steps, label: "Create an animation", mobile: () => this.mobileMedia.matches, beforeStep: prepare, preparingLabel: "Getting the next step ready…" });
+  }
+
   #startWorkspaceWalkthrough() {
     this.#dismissWelcome();
     startWorkspaceWalkthrough({ mobile: () => this.mobileMedia.matches });
@@ -1582,6 +1639,10 @@ export class UIController {
         case "tools-cartography-lab":
           this.openCartographyLab();
           break;
+        case "guide-cinematic":
+          if (document.body.classList.contains("mobile-menu-open")) document.querySelector("#mobile-menu-toggle")?.click();
+          void this.#startCinematicGuide();
+          break;
         case "tools-walkthrough":
           if (document.body.classList.contains("mobile-menu-open")) document.querySelector("#mobile-menu-toggle")?.click();
           this.#startWorkspaceWalkthrough();
@@ -1645,24 +1706,25 @@ export class UIController {
     const options = () => layers.map((layer) => `<option value="${escapeHtml(layer.uid)}">${escapeHtml(layer.title || "Untitled layer")}</option>`).join("");
     this.openDialog({
       eyebrow: "Cinematic mode",
-      title: "Start observed playback",
-      content: `<p class="form-note">Choose an explicit timestamp field. Playback steps between observed records at a steady pace; it does not interpolate geometry or infer numeric years as dates.</p><div class="field-grid"><label class="field"><span>Layer</span><select data-cinematic-layer>${options()}</select></label><label class="field"><span>Timestamp field</span><select data-cinematic-time></select></label><label class="field"><span>Group snapshots by</span><select data-cinematic-group><option value="">All observations together</option></select></label><label class="field"><span>Display through time</span><select data-cinematic-time-mode><option value="instant">Current observed state</option><option value="cumulative">Build up observed records</option></select></label><label class="field"><span>Base playback duration (seconds)</span><input data-cinematic-duration type="number" min="1" max="600" value="120"></label><label class="field"><span>Initial speed</span><select data-cinematic-rate><option value="0.1">Very slow</option><option value="0.25" selected>Slow</option><option value="0.5">Steady</option><option value="1">Fast</option></select></label>${supportsBoundaryGlow ? '<label class="field"><span>Visual effect</span><select data-cinematic-effect></select><small>Decorative animation drawn on observed geometry (MapLibre). It never changes the data.</small></label>' : ""}</div><p class="form-note" data-cinematic-field-note></p>`,
+      title: "Animate a layer",
+      content: `<p class="form-note">Play observed records through time, sweep through a number field, or just bring the layer to life with a looping effect. Playback steps between real records; it never interpolates geometry or reads numbers as dates. <button type="button" class="link-button" data-cinematic-guide>New to this? Follow the step-by-step guide.</button></p><div class="field-grid"><label class="field"><span>Layer</span><select data-cinematic-layer>${options()}</select></label><label class="field"><span>Animate by</span><select data-cinematic-kind><option value="time">A date or time field (timeline)</option><option value="number">A number field (scenario sweep)</option><option value="none">Nothing: everything at once (ambient loop)</option></select></label><label class="field" data-cinematic-needs-field><span data-cinematic-field-label>Timestamp field</span><select data-cinematic-time></select></label><label class="field" data-cinematic-needs-field><span>Group snapshots by</span><select data-cinematic-group><option value="">All observations together</option></select></label><label class="field" data-cinematic-needs-field><span>Display through time</span><select data-cinematic-time-mode><option value="instant">Current observed state</option><option value="cumulative">Build up observed records</option></select></label><label class="field"><span>Base playback duration (seconds)</span><input data-cinematic-duration type="number" min="1" max="600" value="120"></label><label class="field"><span>Initial speed</span><select data-cinematic-rate><option value="0.1">Very slow</option><option value="0.25" selected>Slow</option><option value="0.5">Steady</option><option value="1">Fast</option></select></label>${supportsBoundaryGlow ? '<label class="field"><span>Visual effect</span><select data-cinematic-effect></select><small>Decorative animation drawn on observed geometry (MapLibre). It never changes the data.</small></label>' : ""}</div><p class="form-note" data-cinematic-field-note></p>`,
       actions: [{ label: "Cancel", handler: () => this.dialog.close() }, { label: "Start cinematic mode", primary: true, handler: async () => {
         const layer = this.mapController.getLayer(this.dialog.querySelector("[data-cinematic-layer]").value);
-        const timeField = this.dialog.querySelector("[data-cinematic-time]").value;
-        if (!layer || !timeField) throw new Error("Choose a layer and timestamp field.");
-        const groupField = this.dialog.querySelector("[data-cinematic-group]").value;
-        const timeMode = this.dialog.querySelector("[data-cinematic-time-mode]").value;
+        const kind = this.dialog.querySelector("[data-cinematic-kind]").value;
+        const timeField = kind === "none" ? null : this.dialog.querySelector("[data-cinematic-time]").value;
+        if (!layer || (kind !== "none" && !timeField)) throw new Error(kind === "number" ? "Choose a layer and a number field." : "Choose a layer and a timestamp field.");
+        const groupField = kind === "none" ? "" : this.dialog.querySelector("[data-cinematic-group]").value;
+        const timeMode = kind === "none" ? "instant" : this.dialog.querySelector("[data-cinematic-time-mode]").value;
         const durationSeconds = Number(this.dialog.querySelector("[data-cinematic-duration]").value);
         const rate = Number(this.dialog.querySelector("[data-cinematic-rate]").value);
         const effectType = this.dialog.querySelector("[data-cinematic-effect]")?.value || "none";
         const spec = { cinematic: {
           id: `cinematic-${Date.now()}`,
-          title: `${layer.title || "Map"} playback`,
+          title: `${layer.title || "Map"} ${kind === "none" ? "animation" : kind === "number" ? `by ${timeField}` : "playback"}`,
           intent: "explore",
           preferredEngine: this.mapController.getEngineId(),
           clock: { durationSeconds, rate, timeMode, loop: false },
-          layers: [{ layerRef: layer.uid, temporal: { startField: timeField, groupField, featureIdField: layer.objectIdField, timezone: "UTC", missingTime: "exclude" }, animation: { template: layer.geometryType === "point" ? "moving-track" : "step-perimeter", transition: "step", outline: { color: "#ff8136", glow: effectType !== "none" }, effect: { type: effectType, intensity: 1 }, provenanceLabel: "Observed records" } }],
+          layers: [{ layerRef: layer.uid, temporal: { kind, startField: timeField, groupField, featureIdField: layer.objectIdField, timezone: "UTC", missingTime: "exclude" }, animation: { template: layer.geometryType === "point" ? "moving-track" : "step-perimeter", transition: "step", outline: { color: "#ff8136", glow: effectType !== "none" }, effect: { type: effectType, intensity: 1 }, provenanceLabel: "Observed records" } }],
           provenance: { synthetic: false, sourceUrls: layer.url && /^https:\/\//i.test(layer.url) ? [layer.url] : [], interpolated: false },
         } };
         await this.cinematicController.load(spec);
@@ -1675,12 +1737,26 @@ export class UIController {
     const timeInput = this.dialog.querySelector("[data-cinematic-time]");
     const groupInput = this.dialog.querySelector("[data-cinematic-group]");
     const note = this.dialog.querySelector("[data-cinematic-field-note]");
+    this.dialog.querySelector("[data-cinematic-guide]")?.addEventListener("click", () => void this.#startCinematicGuide());
+    const kindInput = this.dialog.querySelector("[data-cinematic-kind]");
+    const fillKind = () => {
+      const layer = this.mapController.getLayer(layerInput.value) || selected;
+      const kind = kindInput.value;
+      const candidates = kind === "number" ? numericFieldCandidates(layer) : temporalFieldCandidates(layer);
+      this.dialog.querySelectorAll("[data-cinematic-needs-field]").forEach((label) => { label.hidden = kind === "none"; });
+      this.dialog.querySelector("[data-cinematic-field-label]").textContent = kind === "number" ? "Number field" : "Timestamp field";
+      timeInput.innerHTML = candidates.length ? candidates.map((field) => `<option value="${escapeHtml(field.name)}">${escapeHtml(field.label)}</option>`).join("") : `<option value="">${kind === "number" ? "No number field found" : "No date/timestamp field found"}</option>`;
+      note.textContent = kind === "none" ? "Every feature shows at once and its effect loops. No date or number field is needed; Export movie records the loop with your camera moves."
+        : candidates.length ? (kind === "number" ? `Steps through each value of the field, lowest first. Build up shows everything up to the current value. Rows without a number are excluded.` : `Stable ID: ${layer.objectIdField}. Rows without a valid ${candidates[0].label} value will be excluded.`)
+        : `This layer has no ${kind === "number" ? "number" : "date/timestamp"} field. Choose "Nothing" to animate it anyway, or pick another layer.`;
+    };
+    kindInput.addEventListener("change", fillKind);
     const fillFields = () => {
       const layer = this.mapController.getLayer(layerInput.value) || selected;
-      const times = temporalFieldCandidates(layer);
-      timeInput.innerHTML = times.length ? times.map((field) => `<option value="${escapeHtml(field.name)}">${escapeHtml(field.label)}</option>`).join("") : '<option value="">No date/timestamp field found</option>';
+      // No date field is no obstacle: the layer can still sweep a number or animate as ambient.
+      kindInput.value = temporalFieldCandidates(layer).length ? "time" : numericFieldCandidates(layer).length ? "number" : "none";
       groupInput.innerHTML = '<option value="">All observations together</option>' + (layer.fields || []).filter((field) => field.name !== layer.objectIdField).map((field) => `<option value="${escapeHtml(field.name)}">${escapeHtml(field.alias || field.name)}</option>`).join("");
-      note.textContent = times.length ? `Stable ID: ${layer.objectIdField}. Rows without a valid ${times[0].label} value will be excluded.` : "This layer has no date/timestamp field. Add or choose a different layer.";
+      fillKind();
       const effectInput = this.dialog.querySelector("[data-cinematic-effect]");
       if (effectInput) effectInput.innerHTML = this.#cinematicEffectOptions("auto", suggestEffect({ title: layer.title, geometryType: layer.geometryType, fields: layer.fields || [] }));
     };
@@ -4052,11 +4128,11 @@ export class UIController {
     const disclosure = this.cinematicDisclosureState || {};
     const playbackOpen = disclosure.playback === true;
     const presentOpen = disclosure.present !== false;
-    const timeLabel = state.localEmpty ? "No timestamped observations intersect the current map window." : `${timeMode === "cumulative" ? "Cumulative through " : ""}${this.#formatExplorerTime(current)} · observation ${timeline.observationIndex + 1} of ${timeline.ticks.length}${localWindow ? " · local window" : ""}`;
-    const fidelityNote = timeMode === "cumulative" ? "Showing every observed record from the first observation through this moment. This is cumulative display, not inferred persistence or geometry interpolation." : "Showing the current observed state only. Polygon boundaries step between snapshots; no unobserved spread or geometry interpolation is shown.";
-    const inspection = intent === "investigate" ? `<section class="cinematic-inspector" aria-label="Observed data inspection"><span class="eyebrow">Observed evidence</span><strong>${escapeHtml(this.#formatExplorerTime(current))}</strong>${state.layers.map((item) => `<p><b>${escapeHtml(item.title)}</b><span>${item.observedCount} observed feature${item.observedCount === 1 ? "" : "s"} · ${escapeHtml(item.timeField)}</span></p>`).join("")}<small>Observed source records only; no estimated spread is shown.</small></section>` : "";
+    const timeLabel = this.#cinematicPositionLabel(state);
+    const fidelityNote = state.valueKind === "none" ? "Ambient animation: every feature shows at once and its effect loops. Nothing is stepped through time or estimated." : state.valueKind === "number" ? `Stepping through ${state.layers?.[0]?.timeField || "the field"} from lowest to highest. ${timeMode === "cumulative" ? "Build up shows every record up to the current value." : "Only records with the current value show."} Values are the data's own; nothing is interpolated.` : timeMode === "cumulative" ? "Showing every observed record from the first observation through this moment. This is cumulative display, not inferred persistence or geometry interpolation." : "Showing the current observed state only. Polygon boundaries step between snapshots; no unobserved spread or geometry interpolation is shown.";
+    const inspection = intent === "investigate" ? `<section class="cinematic-inspector" aria-label="Observed data inspection"><span class="eyebrow">Observed evidence</span><strong>${escapeHtml(this.#cinematicValueText(timeline.observationTime, state))}</strong>${state.layers.map((item) => `<p><b>${escapeHtml(item.title)}</b><span>${item.observedCount} observed feature${item.observedCount === 1 ? "" : "s"} · ${escapeHtml(item.timeField)}</span></p>`).join("")}<small>Observed source records only; no estimated spread is shown.</small></section>` : "";
     const present = intent === "present" ? `<details class="cinematic-disclosure cinematic-disclosure--present"${presentOpen ? " open" : ""}><summary>Present & export</summary><div class="cinematic-actions">${this.#cinematicClipSummary()}<button type="button" data-cinematic-create-clip>Create Clip</button>${this.#latestCinematicClip() ? '<button type="button" data-cinematic-edit-clip>Edit Clip</button>' : ""}<button type="button" data-cinematic-add-brief>Add to Brief</button><button type="button" data-cinematic-download-clip>Clip JSON</button><button type="button" data-cinematic-poster>Poster PNG</button><button type="button" data-cinematic-record title="Render this Clip to a video file">Export movie</button></div></details>` : "";
-    root.innerHTML = `<section class="mode-dashboard cinematic-dashboard"><header><span class="eyebrow">Cinematic · observed playback</span><h2>${escapeHtml(presentation.title || layer.title || "Cinematic map")}</h2><div class="cinematic-mode-strip"><label>Intent <select data-cinematic-intent aria-label="Cinematic intent"><option value="explore"${intent === "explore" ? " selected" : ""}>Explore</option><option value="investigate"${intent === "investigate" ? " selected" : ""}>Investigate</option><option value="present"${intent === "present" ? " selected" : ""}>Present</option></select></label><span>${this.mapController.getEngineId?.() || "map"}</span></div><p data-cinematic-time-label>${escapeHtml(timeLabel)}</p></header><div class="cinematic-quick-controls" aria-label="Cinematic playback"><button type="button" data-cinematic-previous title="Previous observation">◀</button><button type="button" data-cinematic-play aria-pressed="${timeline.playing ? "true" : "false"}">${timeline.playing ? "Pause" : "Play"}</button><button type="button" data-cinematic-next title="Next observation">▶</button><button type="button" data-cinematic-focus title="Fly to the current observed feature">Focus</button></div>${inspection}<p class="cinematic-provenance">${escapeHtml(fidelityNote)}${state.layers?.[0]?.effectNote ? ` <span class="cinematic-effect-note">${escapeHtml(state.layers[0].effectNote)}</span>` : ""}</p><details class="cinematic-disclosure"${playbackOpen ? " open" : ""}><summary>${intent === "investigate" ? "Playback controls" : "Playback & map appearance"}</summary><div class="cinematic-controls"><label>Build up <input type="checkbox" data-cinematic-build-up${timeMode === "cumulative" ? " checked" : ""} aria-label="Build up observed records over time"></label><label>Local window <input type="checkbox" data-cinematic-local-window${localWindow ? " checked" : ""} aria-label="Filter cinematic observations to the current map window"></label><label>Speed <select data-cinematic-rate aria-label="Playback speed"><option value="0.1"${timeline.playbackRate === 0.1 ? " selected" : ""}>Very slow</option><option value="0.25"${timeline.playbackRate === 0.25 ? " selected" : ""}>Slow</option><option value="0.5"${timeline.playbackRate === 0.5 ? " selected" : ""}>Steady</option><option value="1"${timeline.playbackRate === 1 ? " selected" : ""}>Fast</option><option value="2"${timeline.playbackRate === 2 ? " selected" : ""}>Very fast</option></select></label>${supportsGround ? `<label>Terrain <select data-cinematic-ground aria-label="Terrain"><option value="">Map setting</option>${terrainOptions}</select></label>` : ""}${supportsBoundaryGlow ? `<label>Effect <select data-cinematic-effect aria-label="Visual effect">${effectOptions}</select></label>` : ""}<label>Opacity <input type="range" data-cinematic-opacity min="5" max="100" value="${Math.round(Number(layerOpacity) * 100)}" aria-label="Cinematic layer opacity"></label><label class="cinematic-controls__scrub">Observation <input type="range" data-cinematic-scrub min="0" max="${Math.max(0, timeline.ticks.length - 1)}" value="${timeline.observationIndex}" step="1"></label></div>${this.#cinematicDateControls(state)}<p class="form-note">${localWindow ? "The local range resets after each completed pan or zoom." : "Controls apply to observed data only."}</p></details>${present}<div class="cinematic-footer-actions"><button type="button" data-cinematic-reconfigure>Change mapping</button><button type="button" data-cinematic-exit>Exit</button></div></section>`;
+    root.innerHTML = `<section class="mode-dashboard cinematic-dashboard"><header><span class="eyebrow">Cinematic · observed playback</span><h2>${escapeHtml(presentation.title || layer.title || "Cinematic map")}</h2><div class="cinematic-mode-strip"><label>Intent <select data-cinematic-intent aria-label="Cinematic intent"><option value="explore"${intent === "explore" ? " selected" : ""}>Explore</option><option value="investigate"${intent === "investigate" ? " selected" : ""}>Investigate</option><option value="present"${intent === "present" ? " selected" : ""}>Present</option></select></label><span>${this.mapController.getEngineId?.() || "map"}</span></div><p data-cinematic-time-label>${escapeHtml(timeLabel)}</p></header><div class="cinematic-quick-controls" aria-label="Cinematic playback"><button type="button" data-cinematic-previous title="Previous observation">◀</button><button type="button" data-cinematic-play aria-pressed="${timeline.playing ? "true" : "false"}">${timeline.playing ? "Pause" : "Play"}</button><button type="button" data-cinematic-next title="Next observation">▶</button><button type="button" data-cinematic-focus title="Fly to the current observed feature">Focus</button></div>${inspection}<p class="cinematic-provenance">${escapeHtml(fidelityNote)}${state.layers?.[0]?.effectNote ? ` <span class="cinematic-effect-note">${escapeHtml(state.layers[0].effectNote)}</span>` : ""}</p><details class="cinematic-disclosure"${playbackOpen ? " open" : ""}><summary>${intent === "investigate" ? "Playback controls" : "Playback & map appearance"}</summary><div class="cinematic-controls"><label>Build up <input type="checkbox" data-cinematic-build-up${timeMode === "cumulative" ? " checked" : ""} aria-label="Build up observed records over time"></label><label>Local window <input type="checkbox" data-cinematic-local-window${localWindow ? " checked" : ""} aria-label="Filter cinematic observations to the current map window"></label><label>Speed <select data-cinematic-rate aria-label="Playback speed"><option value="0.1"${timeline.playbackRate === 0.1 ? " selected" : ""}>Very slow</option><option value="0.25"${timeline.playbackRate === 0.25 ? " selected" : ""}>Slow</option><option value="0.5"${timeline.playbackRate === 0.5 ? " selected" : ""}>Steady</option><option value="1"${timeline.playbackRate === 1 ? " selected" : ""}>Fast</option><option value="2"${timeline.playbackRate === 2 ? " selected" : ""}>Very fast</option></select></label>${supportsGround ? `<label>Terrain <select data-cinematic-ground aria-label="Terrain"><option value="">Map setting</option>${terrainOptions}</select></label>` : ""}${supportsBoundaryGlow ? `<label>Effect <select data-cinematic-effect aria-label="Visual effect">${effectOptions}</select></label><label title="How much effect detail to draw. Auto lightens it for large scenes; the data is never reduced.">Detail <select data-cinematic-quality aria-label="Effect detail">${[["auto", "Auto"], ["eco", "Eco"], ["balanced", "Balanced"], ["cinematic", "Cinematic"]].map(([value, label]) => `<option value="${value}"${(state.spec?.cinematic.quality || "auto") === value ? " selected" : ""}>${label}</option>`).join("")}</select></label>` : ""}<label>Opacity <input type="range" data-cinematic-opacity min="5" max="100" value="${Math.round(Number(layerOpacity) * 100)}" aria-label="Cinematic layer opacity"></label><label class="cinematic-controls__scrub">Observation <input type="range" data-cinematic-scrub min="0" max="${Math.max(0, timeline.ticks.length - 1)}" value="${timeline.observationIndex}" step="1"></label></div>${this.#cinematicDateControls(state)}<p class="form-note">${localWindow ? "The local range resets after each completed pan or zoom." : "Controls apply to observed data only."}</p></details>${present}<div class="cinematic-footer-actions"><button type="button" data-cinematic-reconfigure>Change mapping</button><button type="button" data-cinematic-guide>Guide</button><button type="button" data-cinematic-exit>Exit</button></div></section>`;
     root.querySelector("[data-cinematic-play]")?.addEventListener("click", () => this.cinematicController.toggle());
     root.querySelector("[data-cinematic-previous]")?.addEventListener("click", () => this.cinematicController.previousObservation());
     root.querySelector("[data-cinematic-next]")?.addEventListener("click", () => this.cinematicController.nextObservation());
@@ -4073,7 +4149,7 @@ export class UIController {
     });
     root.querySelector("[data-cinematic-scrub]")?.addEventListener("input", (event) => this.cinematicController.seekObservation(Number(event.target.value)));
     // Dates: a playback range (saved with the session) and Go to date.
-    const fromLocal = (value) => (value ? new Date(value).getTime() : NaN);
+    const fromLocal = (value) => this.#cinematicInputValue(value);
     const saveRange = (start, end) => {
       this.#rememberCinematicDisclosureState(root);
       try { this.cinematicController.setPlaybackRange(start, end); } catch (error) { this.error(error.message); return; }
@@ -4094,7 +4170,8 @@ export class UIController {
       const shown = this.cinematicController.goToTime(wanted);
       const note = root.querySelector("[data-cinematic-goto-note]");
       if (!Number.isFinite(shown)) { if (note) note.textContent = "Enter a date and time."; return; }
-      const message = shown > wanted ? `No observation on or before that moment in the playing range; showing the first, ${this.#formatExplorerTime(new Date(shown))}.` : shown === wanted ? `Showing the observation at ${this.#formatExplorerTime(new Date(shown))}.` : `Showing the latest observation on or before it: ${this.#formatExplorerTime(new Date(shown))}.`;
+      const text = this.#cinematicValueText(shown);
+      const message = shown > wanted ? `Nothing on or before that in the playing range; showing the first, ${text}.` : shown === wanted ? `Showing ${text}.` : `Showing the latest on or before it: ${text}.`;
       if (note) note.textContent = message;
       this.toast(message);
     });
@@ -4115,6 +4192,10 @@ export class UIController {
       this.cinematicController.setLocalWindow(event.target.checked);
       this.cinematicState = this.cinematicController.state();
       this.#renderPresentationDashboard(this.projectManager.current.presentation);
+    });
+    root.querySelector("[data-cinematic-quality]")?.addEventListener("change", (event) => {
+      this.cinematicController.setQuality(event.target.value);
+      this.projectManager.patchPresentation({ cinematic: this.cinematicController.exportCinematicSpec().cinematic });
     });
     root.querySelector("[data-cinematic-effect]")?.addEventListener("change", (event) => {
       this.#rememberCinematicDisclosureState(root);
@@ -4140,6 +4221,7 @@ export class UIController {
     root.querySelector("[data-cinematic-poster]")?.addEventListener("click", () => void this.#downloadCinematicPoster());
     root.querySelector("[data-cinematic-record]")?.addEventListener("click", () => void this.#recordCinematicClip());
     root.querySelector("[data-cinematic-reconfigure]")?.addEventListener("click", () => this.#openCinematicMode({ reconfigure: true }));
+    root.querySelector("[data-cinematic-guide]")?.addEventListener("click", () => void this.#startCinematicGuide());
     root.querySelector("[data-cinematic-exit]")?.addEventListener("click", async () => {
       await this.cinematicController.destroy();
       this.cinematicState = null;
@@ -4147,6 +4229,25 @@ export class UIController {
       this.projectManager.setPresentation({ ...this.projectManager.current.presentation, template: "standard" });
     });
     this.#syncCinematicMapTimeline(state);
+  }
+
+  /** A playback position as people read it: a date, "field value", or nothing for ambient. */
+  #cinematicValueText(value, state = this.cinematicState) {
+    if (state?.valueKind === "none") return "Ambient";
+    if (state?.valueKind === "number") return `${state.layers?.[0]?.timeField || "Value"} ${Number(value).toLocaleString(undefined, { maximumFractionDigits: 6 })}`;
+    return this.#formatExplorerTime(new Date(value));
+  }
+
+  /** The panel's one-line position: where playback is, out of how many steps. */
+  #cinematicPositionLabel(state) {
+    const timeline = state?.timeline;
+    if (!timeline) return "";
+    if (state.localEmpty) return "No records intersect the current map window.";
+    const count = (state.layers || []).reduce((sum, layer) => sum + (layer.observedCount || 0), 0);
+    if (state.valueKind === "none") return `Ambient · ${count.toLocaleString()} feature${count === 1 ? "" : "s"} · effects loop${state.localWindow ? " · local window" : ""}`;
+    const cumulative = (state.spec?.cinematic.clock.timeMode || "instant") === "cumulative";
+    const prefix = cumulative ? (state.valueKind === "number" ? "Up to " : "Cumulative through ") : "";
+    return `${prefix}${this.#cinematicValueText(timeline.observationTime, state)} · ${state.valueKind === "number" ? "step" : "observation"} ${timeline.observationIndex + 1} of ${timeline.ticks.length}${state.localWindow ? " · local window" : ""}`;
   }
 
   /** A datetime-local value (local time, to the second) for epoch ms. */
@@ -4159,20 +4260,33 @@ export class UIController {
    * bounded by the observations the session has (in the local window when on).
    */
   #cinematicDateControls(state) {
+    if (state.valueKind === "none") return "";
     const all = [...new Set((state.layers || []).flatMap((layer) => layer.ticks || []))].sort((a, b) => a - b);
     if (!all.length) return "";
+    const numeric = state.valueKind === "number";
     const clock = state.spec?.cinematic.clock || {};
-    const from = Date.parse(clock.start), to = Date.parse(clock.end);
+    const from = this.#cinematicInputValue(clock.start, state, true), to = this.#cinematicInputValue(clock.end, state, true);
     const limited = Number.isFinite(from) || Number.isFinite(to);
-    const min = this.#localDateTimeValue(all[0]), max = this.#localDateTimeValue(all.at(-1));
+    const show = (value) => (numeric ? String(value) : this.#localDateTimeValue(value));
+    const input = (attributes, value) => numeric
+      ? `<input type="number" step="any" ${attributes} min="${all[0]}" max="${all.at(-1)}" value="${value}">`
+      : `<input type="datetime-local" step="1" ${attributes} min="${show(all[0])}" max="${show(all.at(-1))}" value="${value}">`;
     const count = state.timeline?.ticks?.length || 0;
-    return `<fieldset class="cinematic-dates"><legend>Dates</legend>
-      <div class="cinematic-dates__range"><label>Play from <input type="datetime-local" step="1" data-cinematic-from min="${min}" max="${max}" value="${this.#localDateTimeValue(Number.isFinite(from) ? from : all[0])}"></label><label>to <input type="datetime-local" step="1" data-cinematic-to min="${min}" max="${max}" value="${this.#localDateTimeValue(Number.isFinite(to) ? to : all.at(-1))}"></label></div>
-      <div class="cinematic-dates__actions"><button type="button" data-cinematic-range-apply>Set range</button>${limited ? '<button type="button" data-cinematic-range-all>All dates</button>' : ""}</div>
-      <p class="form-note">${limited ? `Playing ${count.toLocaleString()} of ${all.length.toLocaleString()} observations.` : `All ${all.length.toLocaleString()} observations.`}</p>
-      <form class="cinematic-dates__goto" data-cinematic-goto><label>Go to date <input type="datetime-local" step="1" data-cinematic-goto-input min="${min}" max="${max}" required></label><button type="submit">Go</button></form>
+    const noun = numeric ? "values" : "observations";
+    return `<fieldset class="cinematic-dates"><legend>${numeric ? "Values" : "Dates"}</legend>
+      <div class="cinematic-dates__range"><label>Play from ${input("data-cinematic-from", show(Number.isFinite(from) ? from : all[0]))}</label><label>to ${input("data-cinematic-to", show(Number.isFinite(to) ? to : all.at(-1)))}</label></div>
+      <div class="cinematic-dates__actions"><button type="button" data-cinematic-range-apply>Set range</button>${limited ? `<button type="button" data-cinematic-range-all>All ${numeric ? "values" : "dates"}</button>` : ""}</div>
+      <p class="form-note">${limited ? `Playing ${count.toLocaleString()} of ${all.length.toLocaleString()} ${noun}.` : `All ${all.length.toLocaleString()} ${noun}.`}</p>
+      <form class="cinematic-dates__goto" data-cinematic-goto><label>Go to ${numeric ? "value" : "date"} ${input("data-cinematic-goto-input required", "")}</label><button type="submit">Go</button></form>
       <p class="form-note" data-cinematic-goto-note aria-live="polite"></p>
     </fieldset>`;
+  }
+
+  /** An input's (or stored range bound's) value as a playback value: epoch ms for dates, the number for a sweep. */
+  #cinematicInputValue(value, state = this.cinematicState, stored = false) {
+    if (value === "" || value == null) return NaN;
+    if (state?.valueKind === "number") return Number(value);
+    return stored ? Date.parse(value) : new Date(value).getTime();
   }
 
   /** Effect <option>s; "Auto" names the effect it resolves to for this layer. */
@@ -4195,7 +4309,7 @@ export class UIController {
     if (!timeline || !root || this.projectManager.current.presentation?.template !== "cinematic") { document.querySelector("#cinematic-map-timeline")?.remove(); return; }
     const time = root.querySelector("[data-cinematic-time-label]");
     const timeMode = state.spec?.cinematic.clock.timeMode || "instant";
-    if (time) time.textContent = state.localEmpty ? "No timestamped observations intersect the current map window." : `${timeMode === "cumulative" ? "Cumulative through " : ""}${this.#formatExplorerTime(new Date(timeline.observationTime))} · observation ${timeline.observationIndex + 1} of ${timeline.ticks.length}${state.localWindow ? " · local window" : ""}`;
+    if (time) time.textContent = this.#cinematicPositionLabel(state);
     const buildUp = root.querySelector("[data-cinematic-build-up]");
     if (buildUp) buildUp.checked = timeMode === "cumulative";
     const slider = root.querySelector("[data-cinematic-scrub]");
@@ -4210,6 +4324,8 @@ export class UIController {
   #syncCinematicMapTimeline(state) {
     const timeline = state?.timeline;
     const container = this.mapController.getContainer?.();
+    // Ambient animations have no timeline to scrub.
+    if (state?.valueKind === "none") { document.querySelector("#cinematic-map-timeline")?.remove(); return; }
     if (!timeline || !container || this.projectManager.current.presentation?.template !== "cinematic") return;
     let overlay = container.querySelector?.("#cinematic-map-timeline");
     if (!overlay) {
@@ -4232,9 +4348,9 @@ export class UIController {
         }
       });
     }
-    const current = this.#formatExplorerTime(new Date(timeline.observationTime));
-    const start = this.#formatExplorerTime(new Date(timeline.ticks[0]));
-    const end = this.#formatExplorerTime(new Date(timeline.ticks.at(-1)));
+    const current = this.#cinematicValueText(timeline.observationTime, state);
+    const start = this.#cinematicValueText(timeline.ticks[0], state);
+    const end = this.#cinematicValueText(timeline.ticks.at(-1), state);
     overlay.innerHTML = `<div class="cinematic-map-timeline__meta"><strong>${state.localEmpty ? "No local observations" : current}</strong><span>${state.localWindow ? "Local window" : "All observed data"}</span></div><div class="cinematic-map-timeline__controls"><button type="button" data-cinematic-map-play aria-pressed="${timeline.playing ? "true" : "false"}">${timeline.playing ? "Pause" : "Play"}</button><span>${escapeHtml(start)}</span><input type="range" data-cinematic-map-scrub min="0" max="${Math.max(0, timeline.ticks.length - 1)}" value="${timeline.observationIndex}" step="1" aria-label="Cinematic observation"><span>${escapeHtml(end)}</span><label><input type="checkbox" data-cinematic-map-local${state.localWindow ? " checked" : ""}> Local window</label></div>`;
   }
 
@@ -5670,6 +5786,8 @@ export class UIController {
     const timeline = this.cinematicState?.timeline;
     if (!clip && (!live?.cinematic || !timeline?.ticks?.length)) return this.error("Start cinematic playback before creating a Clip.");
     const scene = clip ? clipToCinematicSpec(clip).cinematic : live.cinematic;
+    // Custom date ranges are for timelines; a Scenario's range is set in the panel's Values.
+    const kind = scene.layers[0]?.temporal?.kind || "time";
     const ticks = timeline?.ticks?.length ? timeline.ticks : [Date.parse(clip.range.start), Date.parse(clip.range.end)].filter(Number.isFinite);
     const first = ticks[0], last = ticks.at(-1);
     // datetime-local works in local time to the second.
@@ -5679,7 +5797,7 @@ export class UIController {
     const asCamera = (state) => state && Array.isArray(state.center) ? { longitude: Number(state.center[0]), latitude: Number(state.center[1]), zoom: Number(state.zoom) || 12, bearing: Number(state.heading) || 0, pitch: Number(state.tilt) || 0 } : null;
     const cameras = { start: clip?.cameraTrack?.[0]?.camera || asCamera(view), end: clip?.cameraTrack?.at(-1)?.camera || asCamera(view) };
     let captions = (clip?.tracks || []).filter((track) => track.type === "caption").map((track) => ({ seconds: track.atMs / 1000, text: track.text }));
-    const custom = Boolean(clip && (Date.parse(clip.range.start) > first || Date.parse(clip.range.end) < last));
+    const custom = kind === "time" && Boolean(clip && (Date.parse(clip.range.start) > first || Date.parse(clip.range.end) < last));
     const seconds = clip ? clip.playback.durationMs / 1000 : Math.min(30, Math.max(10, Number(scene.clock.durationSeconds) || 20));
     const cameraText = (camera) => camera ? `${camera.latitude.toFixed(3)}, ${camera.longitude.toFixed(3)} · zoom ${camera.zoom.toFixed(1)}${camera.pitch ? ` · tilt ${Math.round(camera.pitch)}°` : ""}${camera.bearing ? ` · heading ${Math.round(camera.bearing)}°` : ""}` : "Not set";
     const field = (label, control, extra = "") => `<label class="field"${extra}><span>${label}</span>${control}</label>`;
@@ -5690,7 +5808,7 @@ export class UIController {
         <div class="field-grid">
           ${field("Name", `<input data-clip-title maxlength="160" value="${escapeHtml(clip?.title || scene.title || "Cinematic clip")}">`)}
           ${field("Length (seconds)", `<input data-clip-seconds type="number" min="5" max="120" step="1" value="${Math.round(seconds)}">`)}
-          ${field("Time range", `<select data-clip-range><option value="all"${custom ? "" : " selected"}>Whole timeline · ${escapeHtml(this.#formatExplorerTime(new Date(first)))} – ${escapeHtml(this.#formatExplorerTime(new Date(last)))}</option><option value="custom"${custom ? " selected" : ""}>Custom start and end</option></select>`)}
+          ${field(kind === "time" ? "Time range" : "Range", `<select data-clip-range><option value="all"${custom ? "" : " selected"}>${kind === "none" ? "The whole ambient loop" : `Whole ${kind === "number" ? "range" : "timeline"} · ${escapeHtml(this.#cinematicValueText(first, { ...this.cinematicState, valueKind: kind }))} – ${escapeHtml(this.#cinematicValueText(last, { ...this.cinematicState, valueKind: kind }))}`}</option>${kind === "time" ? `<option value="custom"${custom ? " selected" : ""}>Custom start and end</option>` : ""}</select>`)}
           ${field("Camera motion", `<select data-clip-easing><option value="linear">Steady</option><option value="ease-in-out"${clip?.playback.easing === "ease-in-out" ? " selected" : ""}>Ease in and out</option></select>`)}
           ${field("Starts at", `<input data-clip-start type="datetime-local" step="1" min="${toLocal(first)}" max="${toLocal(last)}" value="${toLocal(clip ? Date.parse(clip.range.start) : first)}">`, ` data-clip-custom${custom ? "" : " hidden"}`)}
           ${field("Ends at", `<input data-clip-end type="datetime-local" step="1" min="${toLocal(first)}" max="${toLocal(last)}" value="${toLocal(clip ? Date.parse(clip.range.end) : last)}">`, ` data-clip-custom${custom ? "" : " hidden"}`)}

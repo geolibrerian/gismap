@@ -22,6 +22,21 @@ export const BRIEFING_WALKTHROUGH_STEPS = [
   { title: 'Preview and share', desktop: '.briefing-data-dock__actions:not([hidden]), body:not(.briefing-v2) .briefing-slides__actions', mobile: '.briefing-slides__actions', description: 'Use Preview slides to play the briefing. Share offers a link, QR code and PDF export. Exit the preview to keep editing.' },
 ];
 
+// "Create an animation": a hands-on Cinematic guide. Each step's `prepare`
+// (supplied by the app) opens what it points at before the step shows.
+export const CINEMATIC_WALKTHROUGH_STEPS = [
+  { id: 'layer', title: 'Choose a layer', desktop: '[data-cinematic-layer]', mobile: '[data-cinematic-layer]', description: 'Cinematic mode animates a layer already on your map. Pick the one to bring to life. (If your map had no data, this guide added the USGS past-week earthquakes.)' },
+  { id: 'kind', title: 'Choose how it moves', desktop: '[data-cinematic-kind]', mobile: '[data-cinematic-kind]', description: 'Timeline steps through a date field, observation by observation. A number field sweeps through values, lowest first (flood depth, acreage, year built). Nothing needs no field at all: every feature shows and its effect loops.' },
+  { id: 'effect', title: 'Pick an effect', desktop: '[data-cinematic-effect]', mobile: '[data-cinematic-effect]', description: 'Auto picks from the layer (flames for fires, pulses for earthquakes, wind, water, flow, glow). Effects decorate the data; they never change it.' },
+  { id: 'start', title: 'Start the animation', desktop: '#dialog-actions .button--primary', mobile: '#dialog-actions .button--primary', description: 'Next starts Cinematic mode with these choices. You can change them any time with Change mapping.' },
+  { id: 'play', title: 'Play and scrub', desktop: '#cinematic-map-timeline, .cinematic-quick-controls', mobile: '.cinematic-quick-controls', description: 'Play runs the animation; ◀ ▶ step one observation; drag the bar to scrub. Focus flies to what is showing now.' },
+  { id: 'tune', title: 'Tune the look', desktop: '.cinematic-controls', mobile: '.cinematic-controls', description: 'Build up keeps earlier records on the map. Speed, terrain, effect, Detail and opacity set the mood. Detail on Auto lightens effects for big scenes so playback stays smooth.' },
+  { id: 'dates', title: 'Set the range', desktop: '.cinematic-dates', mobile: '.cinematic-dates', description: 'Play from and to limit playback to part of the data; Go to jumps straight to a date or value. (Ambient animations have no range.)' },
+  { id: 'camera', title: 'Frame the shot', desktop: '#map-navigation', mobile: '#map-navigation-toggle', description: 'Move the map to your opening view. 3D tilts the camera over terrain; the camera tools rotate and tilt. A Clip glides between a start and end view you choose.' },
+  { id: 'clip', title: 'Save a Clip', desktop: '[data-cinematic-create-clip]', mobile: '[data-cinematic-create-clip]', description: 'Present & export appears with the Present intent. Create Clip saves a reusable recipe: name, length, range, camera start and end, captions and a poster frame.' },
+  { id: 'share', title: 'Export or present', desktop: '.cinematic-actions', mobile: '.cinematic-actions', description: 'Export movie renders an MP4 or WebM of exactly the Clip’s length. Add to Brief makes a live slide; Poster PNG and Clip JSON share it elsewhere. That’s it: your animation is ready.' },
+];
+
 export function waitForWalkthroughTarget(selector, { signal, timeout = 15000 } = {}) {
   return new Promise((resolve, reject) => {
     let observer, timer;
@@ -40,7 +55,7 @@ export function waitForWalkthroughTarget(selector, { signal, timeout = 15000 } =
   });
 }
 
-export function startWorkspaceWalkthrough({ mobile = () => false, steps = WALKTHROUGH_STEPS, label = 'Workspace walkthrough', beforeStep = null } = {}) {
+export function startWorkspaceWalkthrough({ mobile = () => false, steps = WALKTHROUGH_STEPS, label = 'Workspace walkthrough', beforeStep = null, preparingLabel = 'Preparing the briefing…' } = {}) {
   if (!steps.length) return;
   document.querySelector('.workspace-walkthrough')?.dispatchEvent(new Event('walkthrough:close'));
   const previousFocus = document.activeElement;
@@ -109,12 +124,12 @@ export function startWorkspaceWalkthrough({ mobile = () => false, steps = WALKTH
       pending = true;
       back.disabled = true;
       next.disabled = true;
-      status.textContent = 'Preparing the briefing…';
+      status.textContent = preparingLabel;
       status.hidden = false;
       try {
         const ready = await beforeStep(nextIndex, { signal: controller.signal });
         if (closed) return;
-        if (ready === false) throw new Error('The example was not opened. Select Next to try again.');
+        if (ready === false) throw new Error('That step could not be prepared. Select Next to try again.');
       } catch (error) {
         if (closed) return;
         status.textContent = error.message || 'The briefing could not be prepared. Select Next to try again.';

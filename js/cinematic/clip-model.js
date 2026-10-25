@@ -47,7 +47,8 @@ function normalizeTrack(track, durationMs) {
     return {
       type: "temporalLayer", layerRef: text(track.layerRef, 2048), mode: track.mode === "cumulative" ? "cumulative" : "observed-steps",
       temporal: track.temporal && typeof track.temporal === "object" ? {
-        startField: text(track.temporal.startField, 160), groupField: text(track.temporal.groupField, 160) || null,
+        kind: ["number", "none"].includes(track.temporal.kind) ? track.temporal.kind : "time",
+        startField: text(track.temporal.startField, 160) || null, groupField: text(track.temporal.groupField, 160) || null,
         featureIdField: text(track.temporal.featureIdField, 160) || null,
       } : null,
       // How the layer looked when captured: its decorative effect and opacity.
@@ -74,7 +75,10 @@ export function normalizeCinematicClip(value = {}) {
     return url ? { kind: text(entry.kind, 80) || "remote-layer", url, offlineIncluded: false } : null;
   }).filter(Boolean).slice(0, 50);
   const range = source.range && typeof source.range === "object" ? { start: text(source.range.start, 80), end: text(source.range.end, 80) } : { start: "", end: "" };
-  if (range.start && range.end && Date.parse(range.end) < Date.parse(range.start)) throw new Error("A Clip range cannot end before it starts.");
+  // Scenario ranges are plain numbers; timeline ranges are ISO instants.
+  const numeric = /^-?\d+(?:\.\d+)?$/.test(range.start) && /^-?\d+(?:\.\d+)?$/.test(range.end);
+  const bound = (value) => (numeric ? Number(value) : Date.parse(value));
+  if (range.start && range.end && bound(range.end) < bound(range.start)) throw new Error("A Clip range cannot end before it starts.");
   return {
     schema: CINEMATIC_CLIP_SCHEMA, version: CINEMATIC_CLIP_VERSION, id: /^[\w-]{3,80}$/.test(source.id || "") ? source.id : newId(),
     title: text(source.title, 160) || "Cinematic clip", createdAt: text(source.createdAt, 40) || new Date().toISOString(), updatedAt: text(source.updatedAt, 40) || new Date().toISOString(),
@@ -95,6 +99,9 @@ export function normalizeCinematicClips(value) {
   }).filter((clip) => clip && !seen.has(clip.id) && seen.add(clip.id)).slice(0, MAX_CLIPS);
 }
 
+/** A range bound as stored: an ISO instant for a timeline, the number for a Scenario sweep, nothing for Ambient. */
+const rangeValue = (value, kind) => (!Number.isFinite(value) || kind === "none" ? "" : kind === "number" ? String(value) : new Date(value).toISOString());
+
 /**
  * Creates a clip from a loaded cinematic scene. Without options it captures
  * the whole timeline from the live camera; the capture dialog passes the
@@ -103,6 +110,7 @@ export function normalizeCinematicClips(value) {
  */
 export function createCinematicClip({ cinematic, projectId = null, camera: view = null, observationTimes = [], title = null, options = {} } = {}) {
   const spec = exportCinematicSpec(importCinematicSpec({ cinematic })).cinematic;
+  const kind = spec.layers[0]?.temporal?.kind || "time";
   const durationMs = Math.min(120000, Math.max(5000, Math.round(finite(options.durationMs, Math.min(30000, Math.max(10000, spec.clock.durationSeconds * 1000))))));
   const at = [...observationTimes].filter(Number.isFinite).sort((a, b) => a - b);
   const startCamera = camera(options.startCamera || view);
@@ -111,7 +119,7 @@ export function createCinematicClip({ cinematic, projectId = null, camera: view 
   const captions = (Array.isArray(options.captions) ? options.captions : []).slice(0, MAX_CAPTIONS).map((caption) => ({ type: "caption", atMs: caption.atMs, text: caption.text }));
   return normalizeCinematicClip({
     id: options.id || newId(), title: title || spec.title, source: { projectId, cinematicId: spec.id },
-    range: { start: options.range?.start || (at[0] ? new Date(at[0]).toISOString() : spec.clock.start), end: options.range?.end || (at.at(-1) ? new Date(at.at(-1)).toISOString() : spec.clock.end) },
+    range: { start: options.range?.start || rangeValue(at[0], kind) || spec.clock.start, end: options.range?.end || rangeValue(at.at(-1), kind) || spec.clock.end },
     playback: { durationMs, easing: options.easing === "ease-in-out" ? "ease-in-out" : "linear", loop: spec.clock.loop },
     cameraTrack: startCamera ? [{ atMs: 0, camera: startCamera }, { atMs: durationMs, camera: endCamera }] : [],
     tracks: [...tracks, ...captions],
@@ -124,7 +132,7 @@ export function createCinematicClip({ cinematic, projectId = null, camera: view 
 /** Rebuilds the existing cinematic controller spec for interactive playback. */
 export function clipToCinematicSpec(clip) {
   const normalized = normalizeCinematicClip(clip);
-  const layers = normalized.tracks.filter((track) => track.type === "temporalLayer" && track.temporal?.startField).map((track) => ({
+  const layers = normalized.tracks.filter((track) => track.type === "temporalLayer" && (track.temporal?.startField || track.temporal?.kind === "none")).map((track) => ({
     layerRef: track.layerRef, temporal: { ...track.temporal },
     animation: { template: "step-perimeter", transition: "step", ...(track.animation?.effect ? { effect: { ...track.animation.effect } } : {}), ...(track.animation?.opacity != null ? { opacity: track.animation.opacity } : {}) },
   }));

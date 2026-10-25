@@ -1,7 +1,13 @@
 import { createCinematicTimeline } from "./timeline-controller.js?v=0.1.0";
-import { normalizeTemporalFeatures, observedFeatureIdsAt, observedFeaturesAt, temporalModelInExtent } from "./temporal-adapter.js?v=0.1.2-localwindow1";
+import { normalizeTemporalFeatures, observedFeatureIdsAt, observedFeaturesAt, parsePlaybackValue, temporalModelInExtent } from "./temporal-adapter.js?v=0.3.0";
 import { exportCinematicSpec, importCinematicSpec } from "./state.js?v=0.2.0";
-import { CINEMATIC_EFFECTS, effectFields, effectRanges, resolveEffect } from "./cinematic-effects.js?v=0.2.0";
+import { CINEMATIC_EFFECTS, effectFields, effectRanges, resolveEffect, resolveQuality } from "./cinematic-effects.js?v=0.2.0";
+
+// In a build-up, outlines older than the newest few are "settled": drawn as a
+// cheap edge and rebuilt only now and then, while the recent ones (full
+// flames) are rebuilt each step. Settling keeps RECENT_MIN recent records; the
+// next settle is due once the recent set has doubled.
+const RECENT_MIN = 120;
 
 // Engine adapters may implement a transient operation synchronously (for
 // example, removing an already-loaded Three.js item) or asynchronously. Keep
@@ -39,11 +45,12 @@ export class CinematicModeController {
       const loaded = featuresByLayer[config.layerRef] ? { features: featuresByLayer[config.layerRef], truncated: false } : await this.#queryAll(layer, config.temporal.startField);
       const { features } = loaded;
       const model = normalizeTemporalFeatures(features, {
+        kind: config.temporal.kind || "time",
         timeField: config.temporal.startField,
         groupField: config.temporal.groupField,
         objectIdField: config.temporal.featureIdField || layer.objectIdField,
       });
-      if (!model.ticks.length) throw new Error(`No valid timestamped observations were found in ${layer.title}.`);
+      if (!model.ticks.length) throw new Error(config.temporal.kind === "number" ? `No numeric values were found in ${config.temporal.startField} of ${layer.title}.` : config.temporal.kind === "none" ? `${layer.title} has no features to animate.` : `No valid timestamped observations were found in ${layer.title}.`);
       const previousOpacity = Number.isFinite(Number(layer.opacity)) ? Number(layer.opacity) : 1;
       const effectRange = effectRanges(features, effectFields(layer.fields || [], features[0]?.attributes || features[0]?.properties));
       this.layers.set(layer.uid, { layer, config, model, effectRange, truncated: loaded.truncated, effectUid: `cinematic:${this.spec.cinematic.id}:${layer.uid}`, previousOpacity, previousFilter: await attempt(() => this.mapController.getFeatureFilter(layer.uid)) });
@@ -60,7 +67,7 @@ export class CinematicModeController {
     const timeline = this.timeline?.state() || null;
     const timeMode = this.spec?.cinematic.clock.timeMode || "instant";
     return {
-      spec: this.spec ? exportCinematicSpec(this.spec) : null, timeline, localWindow: this.localWindow, localEmpty: this.localEmpty,
+      spec: this.spec ? exportCinematicSpec(this.spec) : null, timeline, localWindow: this.localWindow, localEmpty: this.localEmpty, valueKind: this.valueKind(),
       layers: [...this.layers.values()].map(({ layer, model, config, truncated }) => {
         const activeModel = this.localModels.get(layer.uid) || model;
         const effect = this.#effectFor(layer, config);
@@ -122,17 +129,30 @@ export class CinematicModeController {
    */
   setPlaybackRange(start, end) {
     if (!this.spec) return false;
-    const read = (value) => (value === "" || value == null ? NaN : typeof value === "number" ? value : Date.parse(value));
+    const read = (value) => (value === "" || value == null ? NaN : typeof value === "number" ? value : this.#bound(value));
     const from = read(start), to = read(end);
     if (Number.isFinite(from) && Number.isFinite(to) && to < from) throw new Error("The end date must be after the start date.");
     const all = this.#allTicks();
     if (!all.some((tick) => (!Number.isFinite(from) || tick >= from) && (!Number.isFinite(to) || tick <= to))) throw new Error("No observations fall between those dates.");
     const current = this.timeline?.state().observationTime;
-    this.spec.cinematic.clock.start = Number.isFinite(from) ? new Date(from).toISOString() : "";
-    this.spec.cinematic.clock.end = Number.isFinite(to) ? new Date(to).toISOString() : "";
+    const store = (value) => (!Number.isFinite(value) ? "" : this.valueKind() === "number" ? String(value) : new Date(value).toISOString());
+    this.spec.cinematic.clock.start = store(from);
+    this.spec.cinematic.clock.end = store(to);
     this.#resetTimeline(this.localWindow && !this.localEmpty ? all : null);
     if (Number.isFinite(current) && (!Number.isFinite(from) || current >= from) && (!Number.isFinite(to) || current <= to)) this.timeline.seek(current);
     return true;
+  }
+
+  /** How playback steps: "time" (a date field), "number" (a Scenario sweep) or "none" (Ambient). */
+  valueKind() {
+    return this.spec?.cinematic.layers[0]?.temporal?.kind || "time";
+  }
+
+  /** A range bound or a go-to value as a playback value of this session's kind (NaN when empty). */
+  #bound(value) {
+    if (value === "" || value == null) return NaN;
+    const parsed = parsePlaybackValue(value, this.valueKind());
+    return parsed == null ? NaN : parsed;
   }
 
   /** Every observation time (in the local window when it is on), ignoring the playback range. */
@@ -142,7 +162,7 @@ export class CinematicModeController {
 
   /** Shows the latest observation on or before `time`; returns that observation's time. */
   goToTime(time) {
-    const value = typeof time === "number" ? time : Date.parse(time);
+    const value = typeof time === "number" ? time : this.#bound(time);
     if (!this.timeline || !Number.isFinite(value)) return null;
     this.timeline.seek(value);
     return this.timeline.state().observationTime;
@@ -150,6 +170,13 @@ export class CinematicModeController {
 
   setBoundaryGlow(enabled) { this.setEffect(enabled === true ? "glow" : "none"); }
   /** The decorative effect for every cinematic layer: a CINEMATIC_EFFECTS key or "auto". */
+  /** Effect detail: "auto", "eco", "balanced" or "cinematic". */
+  setQuality(quality) {
+    if (!this.spec) return;
+    this.spec.cinematic.quality = ["eco", "balanced", "cinematic"].includes(quality) ? quality : "auto";
+    this.refreshEffectDetail();
+  }
+
   setEffect(type) {
     if (!this.spec) return;
     for (const layer of this.spec.cinematic.layers) {
@@ -193,7 +220,10 @@ export class CinematicModeController {
       await attempt(() => this.mapController.setFeatureFilter(layer.uid, previousFilter), false);
       await attempt(() => this.mapController.setOpacity(layer.uid, previousOpacity), false);
       await attempt(() => this.mapController.suspendLayerEffect?.(layer.uid, false), false);
-      if (typeof this.mapController.clearCinematicEffect === "function") await attempt(() => this.mapController.clearCinematicEffect(effectUid), false);
+      if (typeof this.mapController.clearCinematicEffect === "function") {
+        await attempt(() => this.mapController.clearCinematicEffect(effectUid), false);
+        await attempt(() => this.mapController.clearCinematicEffect(`${effectUid}:settled`), false);
+      }
     }));
     this.layers.clear(); this.localModels.clear(); this.localWindow = false; this.localEmpty = false; this.spec = null; this.renderedObservationTime = null; this.renderedTimeMode = null;
   }
@@ -205,7 +235,7 @@ export class CinematicModeController {
    */
   async #queryAll(layer, timeField) {
     const pageSize = Math.min(layer.maxRecordCount || 2000, 5000);
-    const order = [`${timeField} ASC`, ...(layer.objectIdField ? [`${layer.objectIdField} ASC`] : [])];
+    const order = [...(timeField ? [`${timeField} ASC`] : []), ...(layer.objectIdField ? [`${layer.objectIdField} ASC`] : [])];
     const features = [];
     for (let start = 0; ; start += pageSize) {
       const page = await this.mapController.queryFeatures(layer.uid, {
@@ -217,6 +247,48 @@ export class CinematicModeController {
       if (!more) return { features, truncated: false };
       if (features.length >= MAX_FEATURES) return { features, truncated: true };
     }
+  }
+
+  /**
+   * Draws a layer's effect for one snapshot. "Fresh" records (first observed
+   * at this tick) flare as they appear. A large build-up is split into a
+   * settled layer (older outlines, edge only, rebuilt occasionally) and a
+   * recent layer (the newest, full detail, rebuilt each step).
+   */
+  async #drawEffects(entry, { effect, observations, observationTime, timeMode, effectRange }) {
+    const { layer, config, effectUid } = entry;
+    const quality = resolveQuality(this.spec?.cinematic.quality || "auto", observations.length);
+    const base = { type: "observed-effect", effect, color: config.animation.effect?.color || null, intensity: config.animation.effect?.intensity ?? 1, fields: layer.fields || [], ranges: effectRange };
+    const asItems = (list) => list.map((observation) => ({ feature: observation.feature, fresh: observation.time === observationTime }));
+    const split = timeMode === "cumulative" && observations.length > RECENT_MIN * 2;
+    if (!split) {
+      entry.settled = null;
+      await attempt(() => this.mapController.clearCinematicEffect?.(`${effectUid}:settled`), false);
+      await attempt(() => this.mapController.setCinematicEffect(effectUid, { ...base, quality, items: asItems(observations) }), false);
+      return;
+    }
+    const zoom = Math.round(this.mapController.getViewState?.()?.zoom ?? 0);
+    const settled = entry.settled;
+    const recentCount = settled ? observations.filter((observation) => observation.time > settled.time).length : Infinity;
+    const due = !settled || observationTime <= settled.time || settled.zoom !== zoom || settled.effect !== effect || settled.quality !== quality
+      || recentCount > RECENT_MIN * 2;
+    if (due) {
+      // Settle everything before this tick except the newest RECENT_MIN records.
+      const older = observations.filter((observation) => observation.time < observationTime).sort((a, b) => a.time - b.time);
+      const cut = older[Math.max(0, older.length - RECENT_MIN) - 1]?.time ?? -Infinity;
+      const settledItems = older.filter((observation) => observation.time <= cut);
+      entry.settled = { time: cut, count: settledItems.length, zoom, effect, quality };
+      await attempt(() => this.mapController.setCinematicEffect(`${effectUid}:settled`, { ...base, quality: "eco", items: settledItems.map((observation) => ({ feature: observation.feature, fresh: false })) }), false);
+    }
+    const recent = observations.filter((observation) => observation.time > entry.settled.time);
+    await attempt(() => this.mapController.setCinematicEffect(effectUid, { ...base, quality: quality === "eco" ? "eco" : "cinematic", items: asItems(recent) }), false);
+  }
+
+  /** A new zoom level changes how much detail effects need; redraw the current snapshot. */
+  refreshEffectDetail() {
+    if (!this.spec || !this.timeline) return;
+    this.renderedObservationTime = null;
+    this.#render(this.timeline.state());
   }
 
   #effectFor(layer, config) {
@@ -232,12 +304,14 @@ export class CinematicModeController {
     this.timeline?.destroy();
     const allTicks = explicitTicks || this.#allTicks();
     // A Clip's range limits playback to its observations (an empty range is the whole layer).
-    const from = Date.parse(this.spec.cinematic.clock.start), to = Date.parse(this.spec.cinematic.clock.end);
+    const from = this.#bound(this.spec.cinematic.clock.start), to = this.#bound(this.spec.cinematic.clock.end);
     const inRange = allTicks.filter((tick) => (!Number.isFinite(from) || tick >= from) && (!Number.isFinite(to) || tick <= to));
     const ticks = inRange.length ? inRange : allTicks;
     this.timeline = createCinematicTimeline({ ticks, durationSeconds: this.spec.cinematic.clock.durationSeconds, rate: this.spec.cinematic.clock.rate, loop: this.spec.cinematic.clock.loop, reducedMotion: globalThis.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches });
     this.renderedObservationTime = null;
     this.renderedTimeMode = null;
+    // A new timeline (range, local window) has a different set of records to settle.
+    for (const entry of this.layers.values()) entry.settled = null;
     this.unsubscribe = this.timeline.subscribe((snapshot) => this.#render(snapshot));
     if (wasPlaying) this.timeline.play();
   }
@@ -258,18 +332,11 @@ export class CinematicModeController {
             const effect = this.#effectFor(layer, config);
             if (typeof this.mapController.setCinematicEffect === "function" && effect !== "none") {
               const observations = this.localEmpty ? [] : observedFeaturesAt(activeModel, next.observationTime, { timeMode });
-              // "Fresh" features were first observed at this tick: effects flare them as they appear.
-              await attempt(() => this.mapController.setCinematicEffect(effectUid, {
-                type: "observed-effect",
-                effect,
-                color: config.animation.effect?.color || null,
-                intensity: config.animation.effect?.intensity ?? 1,
-                fields: layer.fields || [],
-                ranges: effectRange,
-                items: observations.map((observation) => ({ feature: observation.feature, fresh: observation.time === next.observationTime })),
-              }), false);
+              await this.#drawEffects(this.layers.get(layer.uid), { effect, observations, observationTime: next.observationTime, timeMode, effectRange });
             } else if (typeof this.mapController.clearCinematicEffect === "function") {
               await attempt(() => this.mapController.clearCinematicEffect(effectUid), false);
+              await attempt(() => this.mapController.clearCinematicEffect(`${effectUid}:settled`), false);
+              this.layers.get(layer.uid).settled = null;
             }
           }));
           this.renderedObservationTime = next.observationTime;
