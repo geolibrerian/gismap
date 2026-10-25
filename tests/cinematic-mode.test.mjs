@@ -195,7 +195,12 @@ test("the Create an animation guide walks every Cinematic step and is reachable 
   assert.match(html, /data-action="guide-cinematic">Create an animation \(guide\)/);
   assert.match(ui, /case "guide-cinematic":[\s\S]*?this\.#startCinematicGuide\(\)/);
   // The setup dialog is reopened non-modally so the guide's own buttons stay usable.
-  assert.match(ui, /if \(this\.dialog\.open && this\.dialog\.matches\?\.\(":modal"\)\) \{ this\.dialog\.close\(\); this\.dialog\.show\(\); \}/);
+  // The setup stays usable beside the guide: non-modal, floating over the map as a panel.
+  assert.match(ui, /if \(this\.dialog\.matches\?\.\(":modal"\)\) \{ this\.dialog\.close\(\); this\.dialog\.show\(\); \}/);
+  assert.match(ui, /classList\.add\("app-dialog--floating"\)/);
+  const css = readFileSync(new URL("../css/app.css", import.meta.url), "utf8");
+  assert.match(css, /\.app-dialog--floating\[open\] \{ position:fixed;/);
+  assert.match(css, /\.field\[hidden\] \{ display: none; \}/, "hidden setup fields (Steps, timestamp for Ambient) really hide");
 });
 
 test("Auto detail steps down a tier while playback stays slow, and never touches the data", async () => {

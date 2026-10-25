@@ -1234,8 +1234,14 @@ export class UIController {
     const steps = CINEMATIC_WALKTHROUGH_STEPS;
     const wait = (selector, signal) => waitForWalkthroughTarget(selector, { signal }).catch(() => null);
     const nonModal = () => {
-      // A modal dialog makes the rest of the page inert, including the guide's own buttons.
-      if (this.dialog.open && this.dialog.matches?.(":modal")) { this.dialog.close(); this.dialog.show(); }
+      // A modal dialog makes the rest of the page inert, including the guide's own buttons,
+      // so during the guide the setup floats over the map as a panel beside the guide's card.
+      if (!this.dialog.open || this.mobileMedia.matches) return;
+      if (this.dialog.matches?.(":modal")) { this.dialog.close(); this.dialog.show(); }
+      if (!this.dialog.classList.contains("app-dialog--floating")) {
+        this.dialog.classList.add("app-dialog--floating");
+        this.dialog.addEventListener("close", () => this.dialog.classList.remove("app-dialog--floating"), { once: true });
+      }
     };
     const openPanel = (sections) => {
       this.cinematicDisclosureState = { ...(this.cinematicDisclosureState || {}), ...sections };
