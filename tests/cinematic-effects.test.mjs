@@ -157,3 +157,19 @@ test("skins recolour effects without a colour of their own, and nothing else", a
   assert.equal(effectColor("flow", { skin: "no-such-skin" }), catalog.flow.color);
   for (const palette of Object.values(SKIN_EFFECT_PALETTES)) for (const value of Object.values(palette)) assert.match(value, /^#[0-9a-f]{6}$/i);
 });
+
+test("roads get Traffic: car lights both ways, labelled as styling", async () => {
+  const { CINEMATIC_EFFECTS: catalog, suggestEffect: suggest, resolveEffect: resolve, normalizeLayerEffect } = await import("../js/cinematic/cinematic-effects.js");
+  assert.equal(catalog.traffic.label, "Traffic");
+  assert.match(catalog.traffic.note, /not measured traffic/);
+  for (const title of ["Major roads", "Street centerlines", "Interstate highways", "Traffic counts (AADT)"]) assert.equal(suggest({ title, geometryType: "polyline" }), "traffic", title);
+  assert.equal(suggest({ title: "Transmission lines", geometryType: "polyline" }), "flow", "other lines keep Flow");
+  assert.notEqual(suggest({ title: "Traffic cameras", geometryType: "point" }), "traffic", "traffic points are not roads");
+  assert.equal(resolve("traffic"), "traffic");
+  assert.deepEqual(normalizeLayerEffect({ type: "traffic" }), { type: "traffic", intensity: 1, color: null });
+  const { importCinematicSpec } = await import("../js/cinematic/state.js");
+  assert.equal(importCinematicSpec({ cinematic: { layers: [{ layerRef: "roads", temporal: { kind: "none" }, animation: { effect: { type: "traffic" } } }] } }).cinematic.layers[0].animation.effect.type, "traffic");
+  const { recommendAnimations } = await import("../js/cinematic/recommend.js");
+  const first = recommendAnimations({ title: "Major roads", geometryType: "polyline", fields: [] })[0];
+  assert.deepEqual([first.effect, first.kind, first.provenance], ["traffic", "none", "illustrative"]);
+});

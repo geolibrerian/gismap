@@ -2,7 +2,7 @@
 // Rules only (no AI): geometry, field names/types and the layer's title. A
 // Timeline is offered only when a real date field exists; without one the
 // suggestions are Ambient loops or a Scenario sweep, never an invented date.
-import { effectFields, suggestEffect, valueField } from "./cinematic-effects.js?v=0.2.3";
+import { effectFields, suggestEffect, valueField } from "./cinematic-effects.js?v=0.2.4";
 import { numericFieldCandidates, temporalFieldCandidates } from "./temporal-adapter.js?v=0.3.1";
 
 const geometryOf = (layer) => (/point/i.test(layer?.geometryType || "") ? "point" : /line/i.test(layer?.geometryType || "") ? "line" : /polygon/i.test(layer?.geometryType || "") ? "polygon" : "");
@@ -31,6 +31,10 @@ export function recommendAnimations(layer = {}, { sample = {} } = {}) {
     add({ id: `timeline-${effect}`, kind: "time", field: date.name, effect, timeMode: geometry === "point" ? "cumulative" : "instant",
       label: `Timeline: play ${things} by ${date.label}`, provenance: "observed",
       reason: `${date.label} holds real dates, so playback can step through the recorded observations${geometry === "point" ? " and build them up" : ""}.` });
+  }
+  if (geometry === "line" && themed === "traffic") {
+    add({ id: "ambient-traffic", kind: "none", effect: "traffic", label: "Ambient: traffic along the roads", provenance: "illustrative",
+      reason: "A road network suits car lights moving both ways along each road. Their speed and spacing are styling, not measured traffic." });
   }
   if (geometry === "line") {
     add({ id: "ambient-flow", kind: "none", effect: "flow", label: "Ambient: flow along the lines", provenance: "illustrative",

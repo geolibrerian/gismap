@@ -12,6 +12,7 @@ export const CINEMATIC_EFFECTS = Object.freeze({
   wind: { label: "Wind", color: "#2f8fdc", note: "Streaks blow along the observed direction field; without one they are decorative only." },
   water: { label: "Water", color: "#1f8fd6", note: "Ripples decorate observed water areas; they are not a flow or depth model." },
   flow: { label: "Flow", color: "#18c7b5", note: "Light travels along observed lines in their drawn order." },
+  traffic: { label: "Traffic", color: "#ffcf73", note: "Car lights move both ways along each road; their speed and spacing are styling, not measured traffic." },
   // Native primitives (MapLibre style layers, no custom GL), for statistics and planning.
   extrude: { label: "Rise (extrude)", color: "#4c7fd9", native: true, note: "Areas rise to their value of the chosen field; the rise is animation, the heights are the data." },
   reveal: { label: "Reveal", color: "#f2a93b", native: true, note: "Features appear one after another in the order of a field (or their stored order); the order is not a date unless the field is one." },
@@ -21,11 +22,11 @@ export const CINEMATIC_EFFECTS = Object.freeze({
  * have no colour of their own. Values, dates and scenarios are untouched.
  */
 export const SKIN_EFFECT_PALETTES = Object.freeze({
-  "dark-analytical": { glow: "#38e1ff", fire: "#ff7a2f", pulse: "#ff4d6d", wind: "#7cc4ff", water: "#3ad0ff", flow: "#00ffc6", extrude: "#38e1ff", reveal: "#ffd166" },
-  highway: { glow: "#ffb000", fire: "#ff8a00", pulse: "#ffcc00", wind: "#ffffff", water: "#4fc3ff", flow: "#ffd400", extrude: "#ffb000", reveal: "#ffd400" },
-  "velvet-orbit": { glow: "#ff5fd2", fire: "#ff6a5f", pulse: "#c77dff", wind: "#9db4ff", water: "#7f8cff", flow: "#ff9de2", extrude: "#b06bff", reveal: "#ff5fd2" },
-  "violet-circuit": { glow: "#a46bff", fire: "#ff7a45", pulse: "#ff4fd8", wind: "#5ee7ff", water: "#5ee7ff", flow: "#7dffcf", extrude: "#a46bff", reveal: "#5ee7ff" },
-  portolan: { glow: "#b5652b", fire: "#c4471d", pulse: "#8c2f1b", wind: "#3e5c76", water: "#2f6f8f", flow: "#7a5c2e", extrude: "#8b5a2b", reveal: "#b5652b" },
+  "dark-analytical": { glow: "#38e1ff", fire: "#ff7a2f", pulse: "#ff4d6d", wind: "#7cc4ff", water: "#3ad0ff", flow: "#00ffc6", traffic: "#ffe08a", extrude: "#38e1ff", reveal: "#ffd166" },
+  highway: { glow: "#ffb000", fire: "#ff8a00", pulse: "#ffcc00", wind: "#ffffff", water: "#4fc3ff", flow: "#ffd400", traffic: "#fff1b8", extrude: "#ffb000", reveal: "#ffd400" },
+  "velvet-orbit": { glow: "#ff5fd2", fire: "#ff6a5f", pulse: "#c77dff", wind: "#9db4ff", water: "#7f8cff", flow: "#ff9de2", traffic: "#ffd6f2", extrude: "#b06bff", reveal: "#ff5fd2" },
+  "violet-circuit": { glow: "#a46bff", fire: "#ff7a45", pulse: "#ff4fd8", wind: "#5ee7ff", water: "#5ee7ff", flow: "#7dffcf", traffic: "#ffe9a8", extrude: "#a46bff", reveal: "#5ee7ff" },
+  portolan: { glow: "#b5652b", fire: "#c4471d", pulse: "#8c2f1b", wind: "#3e5c76", water: "#2f6f8f", flow: "#7a5c2e", traffic: "#9b6b2e", extrude: "#8b5a2b", reveal: "#b5652b" },
 });
 
 /** The colour an effect draws in: its own, else the skin's palette, else the effect's default. */
@@ -76,6 +77,7 @@ export function suggestEffect({ title = "", geometryType = "", fields = [], samp
   if (/quake|seism|tremor|shake|usgs.*(mag|event)/.test(name) || (points && found.magnitude && /^(mag|magnitude|mw|ml)$/i.test(found.magnitude))) return "pulse";
   if (/wind|gust|storm|hurricane|cyclone|typhoon|weather station|metar/.test(name) || (points && found.direction && found.speed)) return "wind";
   if (/flood|water|river|stream|lake|inundat|tide|surge|coast|hydro|wetland/.test(name)) return /line/i.test(geometryType) ? "flow" : "water";
+  if (/line/i.test(geometryType) && /road|street|highway|freeway|interstate|motorway|traffic|aadt|arterial|centerline|centreline/.test(name)) return "traffic";
   if (/line/i.test(geometryType) || /route|track|path|trip|transit|traffic/.test(name)) return "flow";
   return "glow";
 }

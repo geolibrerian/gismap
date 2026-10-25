@@ -26,7 +26,7 @@ import { chooseStyleField, compileRenderer, resolveRendererSpec, suggestRenderer
 import { rendererToPaint } from "./arcgis-renderer.js?v=0.42.0";
 import { legendForLayer } from "./legend.js?v=0.52.4";
 import { hostCredit, joinCredits, legendSwatch, plainAttribution } from "../map-credits.js?v=0.1.0";
-import { CINEMATIC_EFFECT_TYPES, effectFields, effectRanges, resolveQuality, suggestEffect } from "../../cinematic/cinematic-effects.js?v=0.2.3";
+import { CINEMATIC_EFFECT_TYPES, effectFields, effectRanges, resolveQuality, suggestEffect } from "../../cinematic/cinematic-effects.js?v=0.2.4";
 
 // A layer effect draws over at most this many features; more would cost frame rate for no visible gain.
 const LAYER_EFFECT_MAX_FEATURES = 20000;
@@ -296,7 +296,7 @@ export class MaplibreEngine {
     if (name === "extrude" || name === "reveal") return this.#drawNativeEffect(id, name, effect);
     const THREE = await loadThree();
     this.three ??= new ThreeHost({ map: this.map, THREE, notify: (message) => this.events.publish("app:error", { message }) });
-    const [{ buildCinematicEffect }, { effectColor }] = await Promise.all([import("../../cinematic/effects-three.js?v=0.2.3"), import("../../cinematic/cinematic-effects.js?v=0.2.3")]);
+    const [{ buildCinematicEffect }, { effectColor }] = await Promise.all([import("../../cinematic/effects-three.js?v=0.2.5"), import("../../cinematic/cinematic-effects.js?v=0.2.4")]);
     // Decoration is simplified to half a screen pixel at the current zoom; the map draws the exact outline.
     const simplify = Number.isFinite(effect.simplify) ? effect.simplify : 0.5 * 360 / (512 * 2 ** (this.map?.getZoom?.() ?? 0));
     const item = buildCinematicEffect(THREE, effect.items || effect.features || [], {
@@ -337,7 +337,7 @@ export class MaplibreEngine {
    */
   async #drawNativeEffect(id, name, effect) {
     const [{ effectColor, nativeEffectData, valueField, riseAmount, revealAmount }, { effectSeconds, effectClockRunning }, { trackTime, normalizeTiming }] = await Promise.all([
-      import("../../cinematic/cinematic-effects.js?v=0.2.3"), import("../../cinematic/effects-three.js?v=0.2.3"), import("../../cinematic/clock.js?v=0.1.0"),
+      import("../../cinematic/cinematic-effects.js?v=0.2.4"), import("../../cinematic/effects-three.js?v=0.2.5"), import("../../cinematic/clock.js?v=0.1.0"),
     ]);
     this.#effectClockRunning = effectClockRunning;
     this.three?.remove(id);
@@ -419,7 +419,7 @@ export class MaplibreEngine {
    * and far cheaper than shader ribbons for thousands of outlines.
    */
   async #drawSettledEdges(id, name, effect) {
-    const { effectColor, effectParts } = await import("../../cinematic/cinematic-effects.js?v=0.2.3");
+    const { effectColor, effectParts } = await import("../../cinematic/cinematic-effects.js?v=0.2.4");
     this.three?.remove(id);
     const simplify = Number.isFinite(effect.simplify) ? effect.simplify : 0.5 * 360 / (512 * 2 ** (this.map?.getZoom?.() ?? 0));
     const parts = effectParts(effect.items || [], { maxPaths: 20000, maxVertices: 400000, maxPoints: 20000, simplify });

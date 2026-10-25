@@ -4,7 +4,7 @@
 // zoom 16, and whose motion reads one continuous clock, so stepping to the next
 // observation never restarts a flame or a ripple. Newly observed features
 // (`fresh`) flare when they appear; older ones in a build-up settle down.
-import { CINEMATIC_EFFECTS, EFFECT_QUALITY, effectFields, effectFrame, effectParts, particleSeeds, partsBounds, quadBuffers, ribbonBuffers } from "./cinematic-effects.js?v=0.2.3";
+import { CINEMATIC_EFFECTS, EFFECT_QUALITY, effectFields, effectFrame, effectParts, particleSeeds, partsBounds, quadBuffers, ribbonBuffers } from "./cinematic-effects.js?v=0.2.4";
 import { trackTime } from "./clock.js?v=0.1.0";
 
 const EPOCH = globalThis.performance?.now?.() ?? 0;
@@ -140,6 +140,34 @@ void main() {
   float heat = clamp(flame * 1.2, 0.0, 1.0);
   vec3 col = fireRamp(heat * 0.92 + n * 0.08);
   float a = smoothstep(0.08, 0.5, heat) * smoothstep(1.0, 0.72, vUp) * uIntensity * uOpacity;
+  ${OUTPUT}
+}`,
+  // Cars in two lanes: one lane travels with the line's drawn direction, the
+  // other against it. Each car is a dark body (reads on light maps) with a light
+  // at one end — headlights on one lane, tail lights on the other (reads on dark
+  // maps). Seeded per car, so seek and export repeat exactly.
+  traffic: /* glsl */ `
+varying float vSide, vDistPx, vFresh, vSeed;
+void main() {
+  float lane = vSide >= 0.0 ? 1.0 : -1.0;
+  float d = abs(vSide);
+  float across = (d - 0.52) / 0.3;
+  float laneShape = smoothstep(1.0, 0.55, abs(across));
+  float speed = uSpeed * (0.8 + 0.4 * hash(vec2(lane * 7.0, vSeed * 3.0)));
+  float s = (vDistPx - lane * uTime * speed) / uSpacing;
+  float cell = floor(s), f = fract(s);
+  float present = step(hash(vec2(cell, vSeed * 13.0 + lane * 5.0)), 0.62);
+  float start = hash(vec2(cell + 3.1, vSeed + lane)) * 0.5;
+  float x = (f - start) / (16.0 / uSpacing);
+  float body = step(0.0, x) * step(x, 1.0) * present * laneShape;
+  // The lit end: the front for headlights (with the line), the back for tail lights.
+  float lit = lane > 0.0 ? smoothstep(0.72, 0.95, x) : smoothstep(0.28, 0.05, x);
+  vec3 lights = lane > 0.0 ? vec3(1.0, 0.96, 0.78) : vec3(1.0, 0.13, 0.08);
+  vec3 bodyColor = mix(vec3(0.11, 0.13, 0.17), uColor * 0.35, 0.25);
+  vec3 col = mix(bodyColor, lights, lit);
+  float glow = 0.1 * exp(-d * d * 1.4);
+  float a = clamp(body * mix(0.88, 1.0, lit) + glow * (1.0 - body), 0.0, 1.0) * uIntensity * uOpacity;
+  col = mix(uColor, col, body);
   ${OUTPUT}
 }`,
   // Comets running along the line in its drawn order over a faint base line.
@@ -483,6 +511,9 @@ export function buildCinematicEffect(THREE, items, { effect = "glow", color, int
     add(parts.polygons.length && waterFill(THREE, uniforms, parts.polygons, frame), 0);
     add(ribbonMesh("flow", { uWidth: 7, uSpeed: 28, uSpacing: 60, uColor: "#bfefff" }), 1);
     add(quadMesh("pulse", { uRadius: 30, uPalette: 1, uRate: 0.18 }), 1);
+  } else if (effect === "traffic") {
+    add(ribbonMesh("traffic", { uWidth: 10, uSpeed: 55, uSpacing: 70, uAdd: 0.08 }), 1);
+    add(quadMesh("spot", { uRadius: 12 }), 1);
   } else if (effect === "flow") {
     add(ribbonMesh("flow", { uWidth: 10, uSpeed: 90, uSpacing: 160, uAdd: 0.3 }), 1);
     add(quadMesh("spot", { uRadius: 16 }), 1);

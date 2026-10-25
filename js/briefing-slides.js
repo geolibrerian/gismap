@@ -26,7 +26,7 @@ import {
   isRoutineField,
   DISTANCE_UNITS,
   SPATIAL_RELATIONSHIPS,
-} from "./briefing-document.js?v=0.60.16-anim2";
+} from "./briefing-document.js?v=0.60.17-traffic1";
 import { compileWhere } from "./engines/maplibre/where.js?v=0.40.0-timeline";
 import { generateTimeline, previewTimeline, isYearField } from "./briefing-timeline.js?v=0.60.0-media1";
 import { isDateField, previewDateTimeline } from "./briefing-timeline-dates.js?v=0.60.0-media1";
