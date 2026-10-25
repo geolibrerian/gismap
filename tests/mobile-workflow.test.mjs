@@ -74,11 +74,16 @@ test("Field Mode reserves its offline identity and QR scanner for actual offline
   assert.match(fieldHtml, /data-open-qr-import>Scan QR/);
   assert.match(fieldHtml, /data-start-qr-camera>Scan with camera/);
   assert.match(fieldHtml, /data-import-qr-camera-image[^>]*capture="environment"/);
+  assert.match(fieldHtml, /data-import-geopayload/);
+  assert.match(fieldHtml, /data-accept-geopayload/);
   assert.match(fieldJs, /classList\.toggle\("is-offline", offline\)/);
   assert.match(fieldJs, /new globalThis\.BarcodeDetector/);
   assert.match(fieldJs, /scanQrWithCamera/);
+  assert.match(fieldJs, /previewGeoPayload/);
+  assert.match(fieldJs, /encodeGeoPayload/);
   assert.match(fieldCss, /\.field-app\.is-offline \.field-header__brand-online::after/);
-  assert.match(worker, /gismap-field-v3/);
+  assert.match(worker, /gismap-field-v4/);
+  assert.match(worker, /geopayload\.js/);
   assert.match(worker, /caches\.delete/);
 });
 

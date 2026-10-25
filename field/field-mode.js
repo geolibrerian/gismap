@@ -2,6 +2,7 @@ import { createFieldRecord, decodeCompactFieldRecord, encodeCompactFieldRecord, 
 import { FieldRecordStore } from "../js/field-record-store.js";
 import { decodeQrFromImage } from "../js/qr-import.js";
 import { decodeFieldTask, readFieldTaskHash, taskSteps } from "../js/field-task-share.js";
+import { decodeGeoPayload, encodeGeoPayload, fieldRecordFromGeoPayload, fieldTaskFromGeoPayload, geoPayloadFromFieldRecord, recommendTransports } from "../js/geopayload.js";
 import { brandedQrFile } from "../js/pdf-document.js";
 import { fieldRecordFileStem, fieldRecordPdf } from "../js/field-record-report.js";
 
@@ -18,6 +19,7 @@ let activeStroke = null;
 let installPrompt = null;
 let qrCameraStream = null;
 let qrCameraTimer = null;
+let pendingGeoPayload = null;
 
 const toast = (message) => { const node = $("[data-toast]"); node.textContent = message; clearTimeout(toast.timer); toast.timer = setTimeout(() => { node.textContent = ""; }, 4200); };
 const escape = (value) => String(value ?? "").replace(/[&<>'"]/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", '"': "&quot;" })[character]);
@@ -143,15 +145,19 @@ async function importPackage(file) {
 async function showQr(id) {
   const record = records.find((item) => item.id === id); if (!record) return;
   activeQrRecord = record;
-  const payload = encodeCompactFieldRecord(record); const canvas = $("[data-qr-canvas]");
+  const payload = encodeGeoPayload(geoPayloadFromFieldRecord(record));
+  const advice = recommendTransports(decodeGeoPayload(payload), { qr: true });
+  if (!advice.qr.supported) throw new Error("This note is too large for one QR code. Download a .gisfield package instead.");
+  const canvas = $("[data-qr-canvas]");
   if (!globalThis.QRCode?.toCanvas) throw new Error("QR generator is unavailable.");
   await globalThis.QRCode.toCanvas(canvas, payload, { width: 360, margin: 2, errorCorrectionLevel: "M", color: { dark: "#123e35", light: "#fffdf8" } });
-  $("[data-qr-summary]").textContent = `${recordName(record)} · text and location only; no attachments included.`; $("[data-qr-dialog]").showModal();
+  $("[data-qr-summary]").textContent = `${recordName(record)} · portable GeoPayload · text and location only; no attachments included.`; $("[data-qr-dialog]").showModal();
 }
 
 async function qrCard(record) {
-  const payload = encodeCompactFieldRecord(record);
-  const file = await brandedQrFile(payload, { fileName: `${fieldRecordFileStem(record)}-qr.png`, title: recordName(record), lines: ["Portable Field Mode record", "Attachments stay in the .gisfield package."], footer: "Scan in GISMap Field Mode" });
+  const payload = encodeGeoPayload(geoPayloadFromFieldRecord(record));
+  if (!recommendTransports(decodeGeoPayload(payload), { qr: true }).qr.supported) throw new Error("This note is too large for one QR code. Download a .gisfield package instead.");
+  const file = await brandedQrFile(payload, { fileName: `${fieldRecordFileStem(record)}-qr.png`, title: recordName(record), lines: ["Portable GeoPayload record", "Attachments stay in the .gisfield package."], footer: "Scan in GISMap Field Mode" });
   if (!file) throw new Error("QR card generation is unavailable.");
   return file;
 }
@@ -176,6 +182,10 @@ function selectedRecords() {
 
 async function importQrText(text) {
   const value = String(text || "").trim();
+  if (value.startsWith("gismap-geopayload:v1:") || value.startsWith("{")) {
+    try { previewGeoPayload(decodeGeoPayload(value)); return; }
+    catch (error) { if (value.startsWith("gismap-geopayload:v1:")) throw error; }
+  }
   if (value.startsWith("gismap-field:v1:")) {
     const record = decodeCompactFieldRecord(value); const existing = records.find((item) => item.id === record.id);
     if (existing && JSON.stringify(existing) !== JSON.stringify(record)) throw new Error("This note already exists with a different revision. Import a .gisfield package to review both copies.");
@@ -189,6 +199,43 @@ async function importQrText(text) {
   const task = shared.task; const existing = tasks.find((item) => item.id === task.id);
   if (!existing) await store.saveTask({ ...task, id: task.id || `task_${Date.now()}`, status: task.status === "completed" ? "completed" : "in-progress", importedAt: new Date().toISOString(), acknowledgedAt: new Date().toISOString(), source: "offline-qr", revision: 1 });
   await refresh(); switchView("tasks"); toast(existing ? "This task is already on this device." : "Field Task added and acknowledged locally. It has not been registered with a server.");
+}
+
+function geoPayloadSummary(payload) {
+  if (payload.type === "observation") {
+    const record = fieldRecordFromGeoPayload(payload);
+    return `Observation: ${recordName(record)} · collected ${date(record.observedAt)} · ${record.geometry ? "location attached" : "no location"}.`;
+  }
+  if (payload.type === "work-card") {
+    const task = fieldTaskFromGeoPayload(payload);
+    return `Work card: ${task.title || "Untitled task"} · ${taskSteps(task).length} step${taskSteps(task).length === 1 ? "" : "s"} · ${task.features.length} linked feature${task.features.length === 1 ? "" : "s"}.`;
+  }
+  return `Return receipt for ${payload.data.payloadId} · ${payload.data.status} · ${date(payload.data.acknowledgedAt)}.`;
+}
+
+function previewGeoPayload(payload) {
+  pendingGeoPayload = payload;
+  $("[data-geopayload-summary]").textContent = geoPayloadSummary(payload);
+  $("[data-geopayload-dialog]").showModal();
+}
+
+async function acceptGeoPayload() {
+  const payload = pendingGeoPayload;
+  if (!payload) return;
+  if (payload.type === "observation") {
+    const record = fieldRecordFromGeoPayload(payload); const existing = records.find((item) => item.id === record.id);
+    if (existing && JSON.stringify(existing) !== JSON.stringify(record)) throw new Error("This observation already exists with different content. Import a .gisfield package to review both copies.");
+    if (!existing) await store.saveRecord(record);
+    await refresh(); switchView("records"); toast(existing ? "This observation is already on this device." : "Portable observation added locally.");
+  } else if (payload.type === "work-card") {
+    const task = fieldTaskFromGeoPayload(payload); const existing = tasks.find((item) => item.id === task.id);
+    if (!existing) await store.saveTask({ ...task, id: task.id || payload.id, status: "in-progress", importedAt: new Date().toISOString(), acknowledgedAt: new Date().toISOString(), source: "geopayload", payloadId: payload.id, revision: 1 });
+    await refresh(); switchView("tasks"); toast(existing ? "This work card is already in your Field Inbox." : "Work card accepted locally. It has not been registered with a server.");
+  } else {
+    toast("Return receipts are read-only until a receiving service or desktop inbox is connected.");
+  }
+  pendingGeoPayload = null;
+  $("[data-geopayload-dialog]").close();
 }
 
 function stopQrCamera() {
@@ -273,8 +320,16 @@ function wire() {
   $("[data-task-list]").addEventListener("change", async (event) => { const input = event.target; if (!input.matches("[data-task-step]")) return; const task = tasks.find((item) => item.id === input.dataset.taskStep); if (!task) return; const steps = taskSteps(task).map((step, index) => ({ ...step, done: index === Number(input.value) ? input.checked : step.done })); const complete = steps.length && steps.every((step) => step.done); await store.saveTask({ ...task, steps, status: complete ? "completed" : "in-progress", completedAt: complete ? (task.completedAt || new Date().toISOString()) : null, updatedAt: new Date().toISOString(), revision: (task.revision || 1) + 1 }); await refresh(); });
   $("[data-task-list]").addEventListener("click", (event) => { const target = event.target.closest("button[data-note-from-task]"); if (!target) return; const task = tasks.find((item) => item.id === target.dataset.noteFromTask); if (!task) return; resetEditor(); const fields = $("[data-record-form]").elements; fields.collectionId.value = "task-notes"; fields.title.value = task.title || ""; fields.notes.value = task.notes || ""; if (Number.isFinite(task.longitude) && Number.isFinite(task.latitude)) setLocation({ coordinates: [task.longitude, task.latitude], source: "field-task", accuracyMeters: null }); $("[data-record-form]").dataset.taskId = task.id; switchView("collect"); });
   $("[data-export-geojson]").addEventListener("click", () => download("gismap-field-observations.geojson", JSON.stringify(recordsGeoJSON(selectedRecords().length ? selectedRecords() : records), null, 2), "application/geo+json"));
+  $("[data-export-geopayload]").addEventListener("click", () => {
+    const scope = selectedRecords().length ? selectedRecords() : records.length === 1 ? records : [];
+    if (scope.length !== 1) { toast("Select one note on the Notes tab to create a compact GeoPayload."); return; }
+    const payload = geoPayloadFromFieldRecord(scope[0]);
+    download(`${fieldRecordFileStem(scope[0])}.geopayload`, encodeGeoPayload(payload, "file"), "application/vnd.gismap.geopayload+json");
+    toast("Portable GeoPayload downloaded. Attachments stay in the .gisfield package.");
+  });
   $("[data-export-package]").addEventListener("click", async () => { try { const assets = await packageAssets(); download("gismap-field-observations.gisfield", JSON.stringify(makeFieldPackage(records, assets), null, 2), "application/vnd.gismap.field+json"); toast("Field package downloaded."); } catch (error) { toast(error.message); } });
   $("[data-import-package]").addEventListener("change", async (event) => { const [file] = event.target.files; if (!file) return; try { await importPackage(file); } catch (error) { toast(error.message); } event.target.value = ""; });
+  $("[data-import-geopayload]").addEventListener("change", async (event) => { const [file] = event.target.files; if (!file) return; try { previewGeoPayload(decodeGeoPayload(await file.text())); } catch (error) { toast(error.message); } event.target.value = ""; });
   $("[data-export-pdf]").addEventListener("click", async () => { try { const scope = selectedRecords(); const file = await reportFile(scope.length ? scope : records); download(file.name, file, file.type); toast("Field PDF downloaded. Open its location links on desktop to add a map later."); } catch (error) { toast(error.message); } });
   $("[data-share-records]").addEventListener("click", async () => { try { const scope = selectedRecords(); const file = await reportFile(scope.length ? scope : records); await mobileShare({ title: "GISMap Field report", text: "Field observations from GISMap Field Mode.", file }); } catch (error) { if (error.name !== "AbortError") toast(error.message); } });
   $("[data-import-qr]").addEventListener("click", async () => { try { await importQrText($("[data-qr-text]").value); $("[data-qr-text]").value = ""; } catch (error) { toast(error.message); } });
@@ -283,10 +338,14 @@ function wire() {
   $("[data-start-qr-camera]").addEventListener("click", () => scanQrWithCamera().catch((error) => toast(error.message)));
   $("[data-close-qr-scanner]").addEventListener("click", () => $("[data-qr-scanner-dialog]").close());
   $("[data-qr-scanner-dialog]").addEventListener("close", stopQrCamera);
+  $("[data-close-geopayload]").addEventListener("click", () => $("[data-geopayload-dialog]").close());
+  $("[data-reject-geopayload]").addEventListener("click", () => $("[data-geopayload-dialog]").close());
+  $("[data-geopayload-dialog]").addEventListener("close", () => { pendingGeoPayload = null; });
+  $("[data-accept-geopayload]").addEventListener("click", () => acceptGeoPayload().catch((error) => toast(error.message)));
   $("[data-close-qr]").addEventListener("click", () => $("[data-qr-dialog]").close());
   $("[data-download-qr]").addEventListener("click", async () => { try { const file = await qrCard(activeQrRecord); download(file.name, file, file.type); } catch (error) { toast(error.message); } });
   $("[data-share-qr]").addEventListener("click", async () => { try { const file = await qrCard(activeQrRecord); await mobileShare({ title: recordName(activeQrRecord), text: "GISMap Field Mode QR record. Attachments are not included.", file }); } catch (error) { if (error.name !== "AbortError") toast(error.message); } });
-  $("[data-copy-qr]").addEventListener("click", async () => { try { await navigator.clipboard.writeText(encodeCompactFieldRecord(activeQrRecord)); toast("Compact record copied."); } catch { toast("Copy is unavailable in this browser."); } });
+  $("[data-copy-qr]").addEventListener("click", async () => { try { await navigator.clipboard.writeText(encodeGeoPayload(geoPayloadFromFieldRecord(activeQrRecord))); toast("Portable GeoPayload copied."); } catch { toast("Copy is unavailable in this browser."); } });
   $("[data-capability-details]").addEventListener("click", () => { const detail = $("[data-capabilities]"); detail.hidden = !detail.hidden; });
   window.addEventListener("online", capabilities); window.addEventListener("offline", capabilities);
   window.addEventListener("beforeinstallprompt", (event) => { event.preventDefault(); installPrompt = event; $("[data-install]").hidden = false; });

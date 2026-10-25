@@ -1,5 +1,5 @@
-const CACHE = "gismap-field-v3";
-const SHELL = ["./", "./index.html", "./field-mode.css", "./field-mode.js", "../js/field-records.js", "../js/field-record-store.js", "../js/field-record-report.js", "../js/field-task-share.js", "../js/pdf-document.js", "../js/qr-import.js", "../js/vendor/qrcode-1.5.4.js", "../js/vendor/jsqr-1.4.0.js"];
+const CACHE = "gismap-field-v4";
+const SHELL = ["./", "./index.html", "./field-mode.css", "./field-mode.js", "../js/geopayload.js", "../js/field-records.js", "../js/field-record-store.js", "../js/field-record-report.js", "../js/field-task-share.js", "../js/pdf-document.js", "../js/qr-import.js", "../js/vendor/qrcode-1.5.4.js", "../js/vendor/jsqr-1.4.0.js"];
 self.addEventListener("install", (event) => event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(SHELL)).then(() => self.skipWaiting())));
 self.addEventListener("activate", (event) => event.waitUntil(caches.keys()
   .then((names) => Promise.all(names.filter((name) => name.startsWith("gismap-field-") && name !== CACHE).map((name) => caches.delete(name))))
