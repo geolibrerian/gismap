@@ -7,7 +7,7 @@ import { DuckDBBrowserClient } from "./duckdb-client.js?v=0.54.0-analysis1";
 import { normalizeDataCatalog, planNaturalLanguageQuery, validateReadOnlySQL } from "./data-catalog.js?v=0.18.2";
 import { PanelManager } from "./panel-manager.js?v=0.18.2";
 import { applyInterfaceSkin } from "./skin-catalog.js?v=0.57.0-skins2";
-import { chartOption, createChartSpec, loadECharts, queryChart, renderChartFallback } from "./charting-tools.js";
+import { chartOption, createChartSpec, displayChartRows, loadECharts, queryChart, renderChartFallback } from "./charting-tools.js";
 
 const STATIC_PANELS = {
   places: "places-panel",
@@ -376,16 +376,17 @@ export class ApplicationRuntime {
         result = await queryChart(this.mapController, layer, { ...spec, source: { ...spec.source, layerId: layer.uid } });
         if (token !== request) return;
         const warning = result.quality.status === "complete" ? `${result.quality.processedRecords.toLocaleString()} matching records` : result.quality.warning;
-        host.innerHTML = `<div class="composable-chart chart-dashboard"><span class="eyebrow">${escapeHtml(result.layer.title || "Layer")} · linked</span><strong>${escapeHtml(spec.title)}</strong>${renderChartFallback(result)}<p class="form-note">${escapeHtml(warning)}</p><p data-dashboard-chart-selection class="form-note"></p></div>`;
+        const displayRows = displayChartRows(result);
+        host.innerHTML = `<div class="composable-chart chart-dashboard"><span class="eyebrow">${escapeHtml(result.layer.title || "Layer")} · linked</span><strong>${escapeHtml(spec.title)}</strong>${renderChartFallback(result, { rows: displayRows })}<p class="form-note">${escapeHtml(warning)}</p><p data-dashboard-chart-selection class="form-note"></p></div>`;
         const fallback = host.querySelector(".chart-fallback");
-        fallback?.querySelectorAll("[data-chart-row]").forEach((button) => button.addEventListener("click", () => selectRow(result.rows[Number(button.dataset.chartRow)])));
+        fallback?.querySelectorAll("[data-chart-row]").forEach((button) => button.addEventListener("click", () => selectRow(displayRows[Number(button.dataset.chartRow)])));
         try {
           const echarts = await loadECharts();
-          if (token !== request || !result.rows.length || result.chart.type === "kpi") return;
+          if (token !== request || !displayRows.length || ["kpi", "bar3d", "scatter3d"].includes(result.chart.type)) return;
           const canvas = document.createElement("div"); canvas.className = "chart-builder__canvas";
           host.querySelector(".chart-dashboard").insertBefore(canvas, fallback);
-          chartInstance?.dispose?.(); chartInstance = echarts.init(canvas); chartInstance.setOption(chartOption(result));
-          chartInstance.on("click", (event) => { const row = result.rows[event.dataIndex]; if (row) selectRow(row); });
+          chartInstance?.dispose?.(); chartInstance = echarts.init(canvas); chartInstance.setOption(chartOption(result, { rows: displayRows }));
+          chartInstance.on("click", (event) => { const row = displayRows[event.dataIndex]; if (row) selectRow(row); });
           fallback?.remove();
         } catch { /* Keep the accessible fallback chart. */ }
       } catch (error) {

@@ -25,7 +25,10 @@ export function normalizeMapChartPresentation(value = {}) {
     size: allowed(source.size, ["compact", "regular", "expanded"], "compact"),
     minZoom: finite(source.minZoom),
     maxZoom: finite(source.maxZoom),
-    maxVisible: Math.max(1, Math.min(2000, Math.floor(finite(source.maxVisible) ?? 250))),
+    // A compact map overlay should remain legible while panning.  Large maps
+    // can opt into a larger explicit budget, but should not create hundreds of
+    // DOM markers by default.
+    maxVisible: Math.max(1, Math.min(2000, Math.floor(finite(source.maxVisible) ?? 80))),
     expandOnClick: source.expandOnClick !== false,
   };
 }
@@ -110,7 +113,10 @@ export function planMapChartDisplay(items = [], presentation = {}) {
     if (visible.length >= policy.maxVisible && !item.selected && !item.pinned) { hidden.push({ ...item, reason: "budget" }); continue; }
     const screen = item.screen;
     const overlap = boxes.some((box) => screen.x < box.x + box.width && screen.x + screen.width > box.x && screen.y < box.y + box.height && screen.y + screen.height > box.y);
-    if (overlap && policy.collision === "hide-overlap" && !item.selected && !item.pinned) { hidden.push({ ...item, reason: "overlap" }); continue; }
+    if (overlap && ["hide-overlap", "cluster"].includes(policy.collision) && !item.selected && !item.pinned) {
+      hidden.push({ ...item, reason: policy.collision === "cluster" ? "cluster" : "overlap" });
+      continue;
+    }
     visible.push(item); boxes.push(screen);
   }
   return { policy, visible, hidden, clustered: policy.display === "clustered" || policy.collision === "cluster" };
@@ -119,3 +125,137 @@ export function planMapChartDisplay(items = [], presentation = {}) {
 // Adapter contract (implemented in the deferred Map Charts MVP):
 // { mount(plan), update(plan), destroy(), project(coordinate), onSelect(callback) }
 export const MAP_CHART_ADAPTER_CONTRACT = Object.freeze(["mount", "update", "destroy", "project", "onSelect"]);
+
+/**
+ * Small, engine-neutral HTML/SVG overlay layer for the first Map Charts MVP.
+ * Both map engines expose a screen projection through their native escape hatch;
+ * the chart data, anchors, collision plan, and DOM glyphs stay provider-neutral.
+ */
+export class MapChartOverlayController {
+  constructor({ events, mapController, projectManager, onSelect = null, notify = null } = {}) {
+    Object.assign(this, { events, mapController, projectManager, onSelect, notify });
+    this.root = null;
+    this.items = [];
+    this.token = 0;
+    this.queued = false;
+  }
+
+  initialize() {
+    const refresh = () => this.schedule(true);
+    ["map:ready", "charts:changed", "project:loaded", "layer:added", "layer:removed", "layer:changed", "layers:reset"].forEach((topic) => this.events?.subscribe?.(topic, refresh));
+    ["view:stationary", "view:scale-change"].forEach((topic) => this.events?.subscribe?.(topic, () => this.schedule(false)));
+    this.schedule(true);
+  }
+
+  schedule(requery = false) {
+    if (requery) this.needsQuery = true;
+    if (this.queued) return;
+    this.queued = true;
+    const frame = globalThis.requestAnimationFrame || ((callback) => setTimeout(callback, 0));
+    frame(() => {
+      this.queued = false;
+      if (this.needsQuery) { this.needsQuery = false; void this.refresh(); }
+      else this.render();
+    });
+  }
+
+  async refresh() {
+    const token = ++this.token;
+    const charts = (this.projectManager?.current?.charts || []).filter((chart) => chart?.presentation?.targets?.includes("map") || chart?.presentation?.target === "map");
+    if (!charts.length) { this.items = []; this.render(); return; }
+    const { queryChart } = await import("./charting-tools.js");
+    const next = [];
+    for (const chart of charts) {
+      const layer = this.mapController?.getLayer?.(chart.source?.layerId || chart.data?.layerId);
+      if (!layer?.queryable || layer.visible === false) continue;
+      try {
+        const result = await queryChart(this.mapController, layer, chart);
+        if (token !== this.token) return;
+        const presentation = normalizeMapChartPresentation(chart.presentation);
+        const mark = presentation.mark === "bar" && chart.type === "donut" ? "donut" : presentation.mark === "bar" && ["line", "area"].includes(chart.type) ? "sparkline" : presentation.mark;
+        const fields = chart.encoding?.mapFields?.length ? chart.encoding.mapFields : [chart.measure?.field].filter(Boolean);
+        result.features.forEach((feature, index) => {
+          const anchor = mapChartAnchor(feature.geometry, presentation.anchor);
+          if (!anchor) return;
+          const values = fields.map((field) => finite(feature.attributes?.[field])).filter((value) => value != null);
+          if (!values.length) values.push(chart.measure?.aggregation === "count" ? 1 : 0);
+          const featureLabel = feature.attributes?.[chart.dimension?.field] ?? feature.attributes?.[layer.displayField] ?? `Feature ${index + 1}`;
+          next.push({ id: `${chart.id}:${index}`, chart, layer, feature, anchor, values, label: `${chart.title} · ${featureLabel}`, presentation: { ...presentation, mark }, priority: values.reduce((sum, value) => sum + Math.abs(value), 0) });
+        });
+      } catch (error) {
+        this.notify?.(`Map chart “${chart.title || "Untitled chart"}” could not update: ${error.message}`);
+      }
+    }
+    if (token !== this.token) return;
+    this.items = next;
+    this.render();
+  }
+
+  #native() { try { return this.mapController?.native?.() || null; } catch { return null; } }
+
+  #surface(native) { return native?.engine === "maplibre" ? native.map?.getContainer?.() : native?.view?.container; }
+
+  #screen(native, coordinate) {
+    try {
+      if (native?.engine === "maplibre") {
+        const projected = native.map?.project?.({ lng: coordinate[0], lat: coordinate[1] });
+        return projected && Number.isFinite(projected.x) ? { x: projected.x, y: projected.y } : null;
+      }
+      const projected = native?.view?.toScreen?.({ longitude: coordinate[0], latitude: coordinate[1] });
+      return projected && Number.isFinite(projected.x) ? { x: projected.x, y: projected.y } : null;
+    } catch { return null; }
+  }
+
+  #ensureRoot(surface) {
+    if (!surface) return null;
+    if (this.root?.parentElement === surface) return this.root;
+    this.root?.remove();
+    const root = document.createElement("div");
+    root.className = "map-chart-overlay";
+    surface.append(root);
+    this.root = root;
+    return root;
+  }
+
+  render() {
+    const native = this.#native(); const surface = this.#surface(native); const root = this.#ensureRoot(surface);
+    if (!root) return;
+    const zoom = native?.engine === "maplibre" ? Number(native.map?.getZoom?.()) : Number(native?.view?.zoom);
+    const candidates = this.items.filter((item) => (item.presentation.minZoom == null || zoom >= item.presentation.minZoom) && (item.presentation.maxZoom == null || zoom <= item.presentation.maxZoom)).map((item) => {
+      const size = item.presentation.size === "expanded" ? [112, 70] : item.presentation.size === "regular" ? [84, 52] : [62, 38];
+      const screen = this.#screen(native, item.anchor);
+      return { ...item, screen: screen && { x: screen.x - size[0] / 2, y: screen.y - size[1] - 10, width: size[0], height: size[1] }, glyphSize: size };
+    }).filter((item) => item.screen);
+    const grouped = new Map();
+    candidates.forEach((item) => { const key = JSON.stringify(item.presentation); if (!grouped.has(key)) grouped.set(key, []); grouped.get(key).push(item); });
+    const fragments = [];
+    for (const items of grouped.values()) {
+      const plan = planMapChartDisplay(items, items[0].presentation);
+      plan.visible.forEach((item) => fragments.push(this.#glyph(item)));
+      if (plan.clustered && plan.hidden.length) fragments.push(this.#cluster(plan.hidden[0], plan.hidden.length));
+    }
+    root.replaceChildren(...fragments);
+  }
+
+  #glyph(item) {
+    const button = document.createElement("button");
+    button.type = "button"; button.className = "map-chart-glyph";
+    button.style.left = `${item.screen.x}px`; button.style.top = `${item.screen.y}px`;
+    button.style.width = `${item.glyphSize[0]}px`; button.style.height = `${item.glyphSize[1]}px`;
+    button.setAttribute("aria-label", item.label);
+    button.innerHTML = renderMapChartSvg({ mark: item.presentation.mark, values: item.values, label: item.label, width: item.glyphSize[0], height: item.glyphSize[1] });
+    button.addEventListener("click", () => this.onSelect?.(item));
+    return button;
+  }
+
+  #cluster(item, count) {
+    const button = document.createElement("button");
+    button.type = "button"; button.className = "map-chart-cluster";
+    button.style.left = `${item.screen.x + item.screen.width / 2}px`; button.style.top = `${item.screen.y + item.screen.height / 2}px`;
+    button.textContent = `+${count}`; button.title = `${count} overlapping map charts`; button.setAttribute("aria-label", `${count} overlapping map charts`);
+    button.addEventListener("click", () => this.onSelect?.(item));
+    return button;
+  }
+
+  destroy() { this.root?.remove(); this.root = null; this.items = []; }
+}

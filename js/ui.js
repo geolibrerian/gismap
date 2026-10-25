@@ -49,7 +49,8 @@ import { CINEMATIC_EFFECTS, suggestEffect } from "./cinematic/cinematic-effects.
 import { temporalFieldCandidates } from "./cinematic/temporal-adapter.js?v=0.1.1";
 import { clipToCinematicSpec, createCinematicClip, exportCinematicClip } from "./cinematic/clip-model.js?v=0.2.0-clips1";
 import { recordCinematicClip, supportedClipVideoMime } from "./cinematic/clip-export.js?v=0.2.0-clips1";
-import { CHART_TYPES, PRESENTATION_TARGETS, chartFields, chartOption, createChartSpec, loadECharts, queryChart, recommendCharts, renderChartFallback, rowsAsCsv } from "./charting-tools.js";
+import { CHART_TYPES, PRESENTATION_TARGETS, chartFields, chartOption, createChartSpec, displayChartRows, loadECharts, queryChart, recommendCharts, renderChartFallback, rowsAsCsv } from "./charting-tools.js";
+import { MapChartOverlayController } from "./map-chart-tools.js";
 
 const BUILDINGS_3D_KEY = "gismap-online:buildings-3d:v1";
 const DISPLAY_SETTINGS_KEY = "gismap-online:display:v1";
@@ -175,6 +176,21 @@ export class UIController {
       return resolveSkinTheme(skin, { houseTheme, choices: settings.skinAppearance });
     });
     this.mobileMedia = mobilePanelManager?.media || compactMedia();
+    this.mapChartOverlays = new MapChartOverlayController({
+      events: this.events,
+      mapController: this.mapController,
+      projectManager: this.projectManager,
+      notify: (message) => this.toast(message),
+      onSelect: ({ feature, layer }) => {
+        const objectId = feature?.attributes?.[layer?.objectIdField];
+        this.applicationRuntime.state.dispatch("selection:set", {
+          layerId: layer?.uid || null,
+          objectIds: objectId == null ? [] : [objectId],
+          features: feature ? [{ attributes: feature.attributes || {}, geometry: feature.geometry || null, layerTitle: layer?.title || "" }] : [],
+        }, { undoable: false });
+        if (feature) void this.mapController.highlightFeature({ kind: "feature", layerUid: layer.uid, layerTitle: layer.title, attributes: feature.attributes || {}, geometry: feature.geometry || null }, { pulse: false });
+      },
+    });
   }
 
   initialize() {
@@ -227,6 +243,7 @@ export class UIController {
     this.#bindMobileSheetResize();
     this.#bindMobileActionBar();
     this.#bindMapEvents();
+    this.mapChartOverlays.initialize();
     this.#renderBookmarks();
     this.#renderLayers();
     document.querySelector("#insights-ai").hidden = !this.aiController.isConfigured();
@@ -2164,6 +2181,7 @@ export class UIController {
 
     const choice = (items, selected, empty = "Choose a field") => `<option value="">${empty}</option>${items.map((field) => `<option value="${escapeHtml(field.name)}"${field.name === selected ? " selected" : ""}>${escapeHtml(field.alias || field.name)} (${escapeHtml(field.name)})</option>`).join("")}`;
     const selectedValue = (name) => this.dialog.querySelector(`[data-chart-${name}]`)?.value || "";
+    const selectedValues = (name) => [...(this.dialog.querySelector(`[data-chart-${name}]`)?.selectedOptions || [])].map((option) => option.value).filter(Boolean);
     const selectedTargets = () => [...this.dialog.querySelectorAll("[data-chart-target]:checked")].map((control) => control.value);
     const currentSpec = () => createChartSpec({
       id: spec?.id,
@@ -2173,7 +2191,7 @@ export class UIController {
       source: { layerId: layer.uid, scope: selectedValue("scope") || "filtered" },
       dimension: selectedValue("dimension") || null,
       measure: { field: selectedValue("measure") || null, aggregation: selectedValue("aggregation") || "count" },
-      encoding: { sizeField: selectedValue("size") || null },
+      encoding: { sizeField: selectedValue("size") || null, mapFields: selectedValues("map-fields") },
       presentation: {
         target: selectedTargets()[0] || spec?.presentation?.target || "panel",
         targets: selectedTargets(),
@@ -2188,11 +2206,12 @@ export class UIController {
     const render = () => {
       const roles = chartFields(fields);
       const recommendations = recommendCharts(fields, { family });
-      const gallery = recommendations.length ? recommendations : family === "3d" ? [{ preset: "spatial-3d", type: "bar", label: "Geographic spatial 3D", description: "Use the existing engine-aware Spatial Chart styling for polygons; conventional 3D plots are a later chart-renderer phase.", spatial: true }] : [{ preset: "custom", type: "bar", label: "Start from this layer", description: "Choose the chart type and fields below." }];
+      const gallery = recommendations.length ? recommendations : family === "3d" ? [{ preset: "bar-3d", type: "bar3d", dimension: roles.categoricalFields[0]?.name || roles.temporalFields[0]?.name || "", measure: roles.numericFields[0]?.name || "", aggregation: "sum", label: "3D category comparison", description: "An analytical isometric chart in the panel." }, { preset: "spatial-3d", type: "bar", label: "Geographic spatial 3D", description: "Extrude actual polygons and features in Cartography Lab.", spatial: true }] : [{ preset: "custom", type: "bar", label: "Start from this layer", description: "Choose the chart type and fields below." }];
       const type = spec?.type || recommendations[0]?.type || "bar";
       const dimension = spec?.dimension?.field || recommendations[0]?.dimension || roles.categoricalFields[0]?.name || roles.temporalFields[0]?.name || "";
       const measure = spec?.measure?.field || recommendations[0]?.measure || roles.numericFields[0]?.name || "";
       const size = spec?.encoding?.sizeField || recommendations[0]?.size || "";
+      const mapFields = spec?.encoding?.mapFields || [measure, ...roles.numericFields.map((field) => field.name).filter((field) => field !== measure)].filter(Boolean).slice(0, 4);
       const aggregation = spec?.measure?.aggregation || recommendations[0]?.aggregation || "count";
       const targets = new Set(spec?.presentation?.targets || (family === "map" ? ["map"] : ["panel"]));
       const presentation = spec?.presentation || {};
@@ -2217,12 +2236,13 @@ export class UIController {
           <fieldset class="chart-builder__targets"><legend>Destinations</legend>${PRESENTATION_TARGETS.map((target) => `<label><input type="checkbox" data-chart-target value="${target}"${targets.has(target) ? " checked" : ""}> ${target === "panel" ? "Chart panel" : target === "dashboard" ? "Instant Dashboard" : target === "map" ? "On the map" : "Brief slide"}</label>`).join("")}</fieldset>
           <details class="chart-builder__advanced"><summary>Advanced settings</summary><div class="chart-builder__controls">
             <label class="field"><span>Bubble size</span><select data-chart-size>${choice(roles.numericFields, size, "No size encoding")}</select></label>
+            <label class="field"><span>Map measures <small>2–4 fields when available</small></span><select data-chart-map-fields multiple size="3">${roles.numericFields.map((field) => `<option value="${escapeHtml(field.name)}"${mapFields.includes(field.name) ? " selected" : ""}>${escapeHtml(field.alias || field.name)}</option>`).join("")}</select></label>
             <label class="field"><span>Map glyph</span><select data-chart-render-mode><option value="standard"${(presentation.renderMode || "standard") === "standard" ? " selected" : ""}>Standard panel</option><option value="svg"${presentation.renderMode === "svg" ? " selected" : ""}>SVG mini chart</option><option value="html"${presentation.renderMode === "html" ? " selected" : ""}>HTML mini chart</option></select></label>
             <label class="field"><span>Map anchor</span><select data-chart-anchor>${[["feature", "Feature geometry"], ["point", "Point"], ["line-midpoint", "Line midpoint"], ["polygon-interior", "Polygon interior"], ["polygon-centroid", "Polygon centroid"]].map(([value, label]) => `<option value="${value}"${(presentation.anchor || "feature") === value ? " selected" : ""}>${label}</option>`).join("")}</select></label>
             <label class="field"><span>Map overlap</span><select data-chart-collision>${[["hide-overlap", "Hide overlap"], ["cluster", "Cluster"], ["reposition", "Reposition"]].map(([value, label]) => `<option value="${value}"${(presentation.collision || "hide-overlap") === value ? " selected" : ""}>${label}</option>`).join("")}</select></label>
             <label class="field"><span>Map display</span><select data-chart-display>${[["progressive", "Progressive"], ["all", "All features"], ["clustered", "Clustered"]].map(([value, label]) => `<option value="${value}"${(presentation.display || "progressive") === value ? " selected" : ""}>${label}</option>`).join("")}</select></label>
             <label class="field"><span>Presentation size</span><select data-chart-presentation-size>${[["compact", "Compact"], ["regular", "Regular"], ["expanded", "Expanded"]].map(([value, label]) => `<option value="${value}"${(presentation.size || "regular") === value ? " selected" : ""}>${label}</option>`).join("")}</select></label>
-          </div><p class="form-note">Map charts are saved as portable definitions now. Engine-specific MapLibre and ArcGIS overlays are the next rendering phase; existing Spatial Charts remain the geographic 3D path.</p></details>
+          </div><p class="form-note">Map charts anchor compact SVG bars, sparklines, and donuts to visible features. Conventional 3D charts stay in this panel; Spatial Charts remain the geographic 3D path.</p></details>
           <div class="chart-builder__preview" data-chart-preview><div class="chart-builder__empty"><strong>Loading chart…</strong><p>Using the selected layer and its active filter.</p></div></div>
           <p class="form-note" data-chart-coverage>Charts use the layer’s canonical current filter. Map navigation does not alter a filtered chart.</p>
         </div>`,
@@ -2260,7 +2280,8 @@ export class UIController {
           coverage.textContent = quality.status === "complete"
             ? `${quality.processedRecords.toLocaleString()} matching records · complete result${quality.excludedNullMeasures ? ` · ${quality.excludedNullMeasures} empty measures excluded` : ""}`
             : quality.warning || "This chart is based on a partial result.";
-          preview.innerHTML = `${renderChartFallback(result)}<div class="chart-builder__selection" data-chart-selection aria-live="polite"></div>`;
+          const displayRows = displayChartRows(result);
+          preview.innerHTML = `${renderChartFallback(result, { rows: displayRows })}<div class="chart-builder__selection" data-chart-selection aria-live="polite"></div>`;
           const fallback = preview.querySelector(".chart-fallback");
           const selectRow = (row) => {
             const records = result.selection(row);
@@ -2269,18 +2290,23 @@ export class UIController {
             if (records[0]) void this.mapController.highlightFeature({ kind: "feature", layerUid: result.layer.uid, layerTitle: result.layer.title, attributes: records[0].attributes || {}, geometry: records[0].geometry || null }, { pulse: false });
             preview.querySelector("[data-chart-selection]").textContent = `${records.length.toLocaleString()} matching feature${records.length === 1 ? "" : "s"} selected on the map.`;
           };
-          fallback?.querySelectorAll("[data-chart-row]").forEach((button) => button.addEventListener("click", () => selectRow(result.rows[Number(button.dataset.chartRow)])));
+          fallback?.querySelectorAll("[data-chart-row]").forEach((button) => {
+            const select = () => selectRow(displayRows[Number(button.dataset.chartRow)]);
+            button.addEventListener("click", select);
+            button.addEventListener("keydown", (event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); select(); } });
+          });
           try {
             const echarts = await loadECharts();
-            if (token !== request || !this.dialog.open || !result.rows.length || result.chart.type === "kpi") return;
+            if (token !== request || !this.dialog.open || !displayRows.length || ["kpi", "bar3d", "scatter3d"].includes(result.chart.type)) return;
             const canvas = document.createElement("div");
             canvas.className = "chart-builder__canvas";
             canvas.dataset.chartCanvas = "";
+            if (result.chart.type === "bar") canvas.style.height = `${Math.max(300, displayRows.length * 30 + 54)}px`;
             preview.insertBefore(canvas, fallback);
             chartInstance?.dispose?.();
             chartInstance = echarts.init(canvas);
-            chartInstance.setOption(chartOption(result));
-            chartInstance.on("click", (event) => { const row = result.rows[event.dataIndex]; if (row) selectRow(row); });
+            chartInstance.setOption(chartOption(result, { rows: displayRows }));
+            chartInstance.on("click", (event) => { const row = displayRows[event.dataIndex]; if (row) selectRow(row); });
             fallback?.remove();
           } catch {
             // The accessible fallback stays available when the CDN is unavailable.
@@ -2298,7 +2324,7 @@ export class UIController {
         chartInstance?.dispose?.(); chartInstance = null;
         render();
       });
-      this.dialog.querySelectorAll("[data-chart-type], [data-chart-dimension], [data-chart-aggregation], [data-chart-measure], [data-chart-size], [data-chart-scope], [data-chart-title], [data-chart-target], [data-chart-render-mode], [data-chart-anchor], [data-chart-collision], [data-chart-display], [data-chart-presentation-size]").forEach((control) => control.addEventListener("change", refresh));
+      this.dialog.querySelectorAll("[data-chart-type], [data-chart-dimension], [data-chart-aggregation], [data-chart-measure], [data-chart-size], [data-chart-map-fields], [data-chart-scope], [data-chart-title], [data-chart-target], [data-chart-render-mode], [data-chart-anchor], [data-chart-collision], [data-chart-display], [data-chart-presentation-size]").forEach((control) => control.addEventListener("change", refresh));
       this.dialog.querySelectorAll("[data-chart-suggestion]").forEach((button) => button.addEventListener("click", () => {
         const suggestion = gallery[Number(button.dataset.chartSuggestion)];
         if (!suggestion) return;

@@ -26,6 +26,8 @@ export const CHART_TYPES = Object.freeze([
   { id: "boxplot", label: "Box plot", dimension: true, measure: true },
   { id: "donut", label: "Donut chart", dimension: true, measure: true },
   { id: "kpi", label: "Metric card", dimension: false, measure: true },
+  { id: "bar3d", label: "3D bar chart", dimension: true, measure: true },
+  { id: "scatter3d", label: "3D scatterplot", dimension: true, measure: true },
 ]);
 export const AGGREGATIONS = Object.freeze(["count", "sum", "avg", "min", "max"]);
 
@@ -75,7 +77,9 @@ export function recommendCharts(fields = [], { family = "all" } = {}) {
   if (numeric && secondNumeric) {
     add({ preset: "scatter", type: "scatter", dimension: numeric, measure: secondNumeric, aggregation: "count", label: "Numeric relationship", description: "Compare two numeric fields feature by feature." }, ["scatter-bubble"]);
     add({ preset: "bubble", type: "bubble", dimension: numeric, measure: secondNumeric, size: numericFields[2]?.name || null, aggregation: "count", label: "Bubble comparison", description: "A relationship with bubble size as a third measure." }, ["scatter-bubble"]);
+    add({ preset: "scatter-3d", type: "scatter3d", dimension: numeric, measure: secondNumeric, size: numericFields[2]?.name || numeric, aggregation: "count", label: "3D numeric relationship", description: "A conventional three-axis scatter plot in the chart panel." }, ["3d"]);
   }
+  if (category && numeric) add({ preset: "bar-3d", type: "bar3d", dimension: category, measure: numeric, aggregation: "sum", label: "3D category comparison", description: "A conventional isometric bar chart; it is not a geographic extrusion." }, ["3d"]);
   if (numeric) add({ preset: "metric", type: "kpi", dimension: null, measure: numeric, aggregation: "sum", label: "Total metric", description: "One headline value." }, ["custom"]);
   if (family === "map") {
     if (category && numeric) recommendations.push({ preset: "map-bars", type: "bar", dimension: category, measure: numeric, aggregation: "sum", label: "Map mini bars", description: "Compact SVG bars, ready for geographic feature anchors.", target: "map", renderMode: "svg" });
@@ -95,6 +99,7 @@ export function createChartSpec(input = {}) {
   const dimensionInput = input.dimension?.field || input.dimension || source.groupBy || null;
   const measureInput = input.measure?.field ?? input.measureField ?? input.data?.series?.[0]?.field ?? null;
   const sizeField = input.encoding?.sizeField || input.size?.field || input.size || null;
+  const mapFields = unique((Array.isArray(input.encoding?.mapFields) ? input.encoding.mapFields : Array.isArray(input.mapFields) ? input.mapFields : []).filter((field) => typeof field === "string" && field));
   return {
     schemaVersion: CHART_SCHEMA_VERSION,
     id: input.id || id(),
@@ -108,7 +113,7 @@ export function createChartSpec(input = {}) {
     data: { layerId: source.layerId || input.layerId || null, scope: ["all", "filtered", "viewport", "selected"].includes(source.scope || input.scope) ? (source.scope || input.scope) : "filtered", groupBy: dimensionInput || null, series: [{ field: measureInput, aggregation }] },
     dimension: dimensionInput ? { field: dimensionInput, interpretation: input.dimension?.interpretation || (input.preset?.includes("trend") ? "temporal" : "category") } : null,
     measure: { field: measureInput, aggregation },
-    encoding: { ...(sizeField ? { sizeField: String(sizeField) } : {}) },
+    encoding: { ...(sizeField ? { sizeField: String(sizeField) } : {}), ...(mapFields.length ? { mapFields } : {}) },
     presentation: {
       target,
       targets: targets.length ? targets : ["panel"],
@@ -144,7 +149,7 @@ export function aggregateChart(records = [], spec = {}) {
   const chart = createChartSpec(spec);
   const quality = { status: "complete", processedRecords: records.length, excludedNullMeasures: 0, excludedInvalidDimensions: 0, warning: null };
   const measure = chart.measure.field;
-  if (["scatter", "bubble"].includes(chart.type)) {
+  if (["scatter", "bubble", "scatter3d"].includes(chart.type)) {
     const xField = chart.dimension?.field;
     const sizeField = chart.encoding?.sizeField;
     const points = records.map((record) => ({ x: numeric(record.attributes?.[xField]), y: numeric(record.attributes?.[measure]), size: numeric(record.attributes?.[sizeField]), record })).filter((point) => point.x != null && point.y != null);
@@ -198,7 +203,7 @@ export async function queryChart(mapController, layer, spec) {
   const chart = createChartSpec(spec);
   if (!layer?.queryable) throw new Error("Choose a queryable feature layer.");
   const loaded = await mapController.loadLayer(layer.uid, { allowTruncated: false });
-  const fields = [chart.dimension?.field, chart.measure?.field, chart.encoding?.sizeField, loaded.objectIdField].filter(Boolean);
+  const fields = [chart.dimension?.field, chart.measure?.field, chart.encoding?.sizeField, ...(chart.encoding?.mapFields || []), loaded.objectIdField].filter(Boolean);
   const params = { where: chart.source.scope === "all" ? "1=1" : undefined, outFields: [...new Set(fields)], returnGeometry: chart.interaction.mapHighlight === true };
   if (chart.source.scope === "viewport") params.geometry = "view";
   const response = await mapController.queryFeatures(loaded.uid, params, { layerDefaults: chart.source.scope !== "all" });
@@ -207,15 +212,30 @@ export async function queryChart(mapController, layer, spec) {
   return { ...result, layer: loaded, features: response.features };
 }
 
-export function chartOption(result, { palette = ["#1b7f6a", "#e0ad35", "#2f7f9d", "#b23f62", "#667085"] } = {}) {
-  const { chart, rows } = result;
+export function displayChartRows(result, { limit = null } = {}) {
+  const rows = result?.rows || [];
+  const type = result?.chart?.type;
+  const maximum = limit || ({ bar: 16, column: 12, donut: 8, bar3d: 12 }[type] || Infinity);
+  if (rows.length <= maximum || !Number.isFinite(maximum)) return rows;
+  const scalar = (row) => Array.isArray(row.value) ? Number(row.value[2]) || 0 : Number(row.value ?? row.y) || 0;
+  const ranked = [...rows].sort((a, b) => Math.abs(scalar(b)) - Math.abs(scalar(a)) || String(a.label).localeCompare(String(b.label)));
+  const retained = ranked.slice(0, Math.max(1, maximum - 1));
+  const remainder = ranked.slice(retained.length);
+  return [...retained, { label: `Other (${remainder.length})`, value: remainder.reduce((total, row) => total + scalar(row), 0), records: remainder.flatMap((row) => row.records || []) }];
+}
+
+export function chartOption(result, { palette = ["#1b7f6a", "#e0ad35", "#2f7f9d", "#b23f62", "#667085"], rows = displayChartRows(result) } = {}) {
+  const { chart } = result;
   const common = { color: palette, animation: !globalThis.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches, tooltip: { trigger: chart.type === "donut" ? "item" : "axis" } };
-  if (chart.type === "kpi") return null;
+  // Conventional 3D charts deliberately use the local SVG renderer below.
+  // That keeps analytical 3D independent of the geographic engines and avoids
+  // making ECharts GL another CDN/runtime requirement.
+  if (["kpi", "bar3d", "scatter3d"].includes(chart.type)) return null;
   if (["scatter", "bubble"].includes(chart.type)) return { ...common, xAxis: { type: "value", name: chart.dimension?.field || "X" }, yAxis: { type: "value", name: chart.measure.field || "Y" }, series: [{ type: "scatter", symbolSize: chart.type === "bubble" ? (value) => Math.max(7, Math.min(42, Math.sqrt(Math.abs(Number(value[2]) || 0)) * 2.5 || 10)) : 9, data: rows.map((row) => chart.type === "bubble" ? [row.x, row.y, row.size] : [row.x, row.y]) }] };
   if (chart.type === "donut") return { ...common, tooltip: { trigger: "item" }, series: [{ type: "pie", radius: ["45%", "75%"], data: rows.map((row) => ({ name: row.label, value: row.value })) }] };
   if (chart.type === "boxplot") return { ...common, grid: { left: 48, right: 18, top: 22, bottom: 55 }, xAxis: { type: "category", data: rows.map((row) => row.label) }, yAxis: { type: "value" }, series: [{ type: "boxplot", data: rows.map((row) => row.value) }] };
   const categories = rows.map((row) => chart.type === "histogram" ? `${row.min.toLocaleString(undefined, { maximumFractionDigits: 2 })}–${row.max.toLocaleString(undefined, { maximumFractionDigits: 2 })}` : row.label);
-  if (chart.type === "bar") return { ...common, grid: { left: 95, right: 18, top: 22, bottom: 30 }, xAxis: { type: "value" }, yAxis: { type: "category", data: categories, axisLabel: { interval: 0 } }, series: [{ type: "bar", data: rows.map((row) => row.value) }] };
+  if (chart.type === "bar") return { ...common, grid: { left: 138, right: 24, top: 22, bottom: 30 }, xAxis: { type: "value" }, yAxis: { type: "category", data: categories, axisLabel: { interval: 0, width: 125, overflow: "truncate" } }, series: [{ type: "bar", barMaxWidth: 22, data: rows.map((row) => row.value) }] };
   const type = chart.type === "histogram" || chart.type === "column" ? "bar" : "line";
   return { ...common, grid: { left: 48, right: 18, top: 22, bottom: 55 }, xAxis: { type: "category", data: categories, axisLabel: { rotate: categories.length > 7 ? 35 : 0 } }, yAxis: { type: "value" }, series: [{ type, areaStyle: chart.type === "area" ? {} : undefined, data: rows.map((row) => row.value) }] };
 }
@@ -232,13 +252,28 @@ export async function loadECharts(documentRef = document) {
   });
 }
 
-export function renderChartFallback(result) {
-  const { chart, rows } = result;
+function renderThreeDimensionalFallback(chart, rows) {
+  const scalar = (row) => Math.max(0, Number(row.value ?? row.z ?? row.y) || 0);
+  const max = Math.max(...rows.map(scalar), 1);
+  if (chart.type === "scatter3d") {
+    const values = rows.slice(0, 80); const x = values.map((row) => Number(row.x) || 0); const y = values.map((row) => Number(row.y) || 0); const z = values.map((row) => Number(row.size) || 0);
+    const range = (list) => [Math.min(...list), Math.max(...list)]; const [minX, maxX] = range(x); const [minY, maxY] = range(y); const [minZ, maxZ] = range(z);
+    const scale = (value, min, max, size) => max === min ? size / 2 : (value - min) / (max - min) * size;
+    return `<div class="chart-3d" aria-label="${escape(chart.title)} three-dimensional scatterplot"><svg viewBox="0 0 520 300" role="img"><path class="chart-3d__axis" d="M68 244 270 282 464 178M68 244 68 54M68 244 198 174"/>${values.map((row, index) => { const px = 68 + scale(Number(row.x) || 0, minX, maxX, 200); const py = 244 - scale(Number(row.y) || 0, minY, maxY, 154) - scale(Number(row.size) || 0, minZ, maxZ, 68); return `<g class="chart-3d__point" data-chart-row="${index}" role="button" tabindex="0" aria-label="${escape(`${row.x}, ${row.y}, ${row.size}`)}"><circle cx="${px}" cy="${py}" r="6" /></g>`; }).join("")}</svg><p>Fixed perspective · X, Y, and Z use the selected numeric fields.</p></div>`;
+  }
+  const values = rows; const spacing = 390 / Math.max(values.length, 1);
+  return `<div class="chart-3d" aria-label="${escape(chart.title)} three-dimensional bar chart"><svg viewBox="0 0 520 300" role="img"><path class="chart-3d__axis" d="M48 252 458 252M48 252 48 46M48 252 140 202"/>${values.map((row, index) => { const height = Math.max(5, scalar(row) / max * 174); const width = Math.max(14, Math.min(28, spacing - 8)); const left = 66 + index * spacing; const top = 252 - height; const depth = Math.min(12, width * .5); return `<g class="chart-3d__column" data-chart-row="${index}" role="button" tabindex="0" aria-label="${escape(`${row.label}: ${row.value}`)}"><path class="chart-3d__bar-side" d="M${left + width} ${top} l${depth} -${depth} v${height} l-${depth} ${depth}z"/><path class="chart-3d__bar-top" d="M${left} ${top} l${depth} -${depth} h${width} l-${depth} ${depth}z"/><rect class="chart-3d__bar" x="${left}" y="${top}" width="${width}" height="${height}" rx="1"/></g>`; }).join("")}</svg><p>Fixed analytical perspective · geographic 3D remains available through Spatial Charts.</p></div>`;
+}
+
+export function renderChartFallback(result, { rows = displayChartRows(result) } = {}) {
+  const { chart } = result;
   if (!rows.length) return `<div class="chart-builder__empty"><strong>No chartable values</strong><p>Change the fields or adjust the current layer filter.</p></div>`;
   if (chart.type === "kpi") return `<div class="chart-kpi"><span>${escape(chart.measure.aggregation)}</span><strong>${Number(rows[0].value).toLocaleString(undefined, { maximumFractionDigits: 2 })}</strong></div>`;
+  if (["bar3d", "scatter3d"].includes(chart.type)) return renderThreeDimensionalFallback(chart, rows);
   const scalar = (row) => Array.isArray(row.value) ? row.value[2] : Number(row.value ?? row.y) || 0;
   const max = Math.max(...rows.map(scalar), 1);
   const rowLabel = (row) => row.label || (row.min != null ? `${Number(row.min).toLocaleString(undefined, { maximumFractionDigits: 2 })}–${Number(row.max).toLocaleString(undefined, { maximumFractionDigits: 2 })}` : row.x);
+  if (chart.type === "bar") return `<div class="chart-fallback chart-fallback--horizontal" aria-label="${escape(chart.title)}">${rows.map((row, index) => `<button type="button" data-chart-row="${index}" title="${escape(rowLabel(row))}: ${Number(row.value ?? row.y).toLocaleString()}"><span>${escape(rowLabel(row))}</span><i style="width:${Math.max(2, scalar(row) / max * 100)}%"></i><b>${Number(row.value ?? row.y).toLocaleString(undefined, { maximumFractionDigits: 2 })}</b></button>`).join("")}</div>`;
   return `<div class="chart-fallback" aria-label="${escape(chart.title)}">${rows.map((row, index) => `<button type="button" data-chart-row="${index}" title="${escape(rowLabel(row) || `${row.x}, ${row.y}`)}: ${Array.isArray(row.value) ? row.value[2].toLocaleString() : Number(row.value ?? row.y).toLocaleString()}"><i style="height:${Math.max(4, scalar(row) / max * 100)}%"></i><span>${escape(rowLabel(row))}</span></button>`).join("")}</div>`;
 }
 
@@ -248,7 +283,8 @@ export function mapSelectionForRows(result, rows) {
 }
 
 export function rowsAsCsv(result) {
-  const headings = ["scatter", "bubble"].includes(result.chart.type) ? [result.chart.dimension?.field || "x", result.chart.measure.field || "y", ...(result.chart.type === "bubble" ? [result.chart.encoding?.sizeField || "size"] : [])] : ["category", "value", "record_count"];
-  const values = result.rows.map((row) => ["scatter", "bubble"].includes(result.chart.type) ? [row.x, row.y, ...(result.chart.type === "bubble" ? [row.size] : [])] : [row.label || `${row.min}–${row.max}`, Array.isArray(row.value) ? row.value.join("–") : row.value, row.records?.length || 0]);
+  const scatter = ["scatter", "bubble", "scatter3d"].includes(result.chart.type);
+  const headings = scatter ? [result.chart.dimension?.field || "x", result.chart.measure.field || "y", ...(["bubble", "scatter3d"].includes(result.chart.type) ? [result.chart.encoding?.sizeField || "z / size"] : [])] : ["category", "value", "record_count"];
+  const values = result.rows.map((row) => scatter ? [row.x, row.y, ...(["bubble", "scatter3d"].includes(result.chart.type) ? [row.size] : [])] : [row.label || `${row.min}–${row.max}`, Array.isArray(row.value) ? row.value.join("–") : row.value, row.records?.length || 0]);
   return [headings, ...values].map((row) => row.map((cell) => `"${String(cell ?? "").replaceAll('"', '""')}"`).join(",")).join("\n");
 }

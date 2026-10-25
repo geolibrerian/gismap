@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
-import { aggregateChart, chartFields, createChartSpec, normalizeCharts, recommendCharts, rowsAsCsv } from "../js/charting-tools.js";
+import { aggregateChart, chartFields, createChartSpec, displayChartRows, normalizeCharts, recommendCharts, rowsAsCsv } from "../js/charting-tools.js";
 import { mapChartAnchor, normalizeMapChartPresentation, planMapChartDisplay, renderMapChartSvg } from "../js/map-chart-tools.js";
 
 const fields = [
@@ -63,6 +63,18 @@ test("chart families provide data-aware starters and retain multi-destination de
   assert.equal(map.data.groupBy, "FIRE_NAME");
   assert.deepEqual(map.presentation.targets, ["map", "dashboard"]);
   assert.equal(map.presentation.anchor, "polygon-interior");
+  const threeD = recommendCharts([...fields, { name: "TEMPERATURE", type: "double" }], { family: "3d" });
+  assert.equal(threeD.some((item) => item.type === "bar3d"), true);
+  assert.equal(threeD.some((item) => item.type === "scatter3d"), true);
+});
+
+test("large categorical previews retain the most material values and an Other bucket", () => {
+  const many = Array.from({ length: 24 }, (_, index) => ({ attributes: { CATEGORY: `Category ${index + 1}`, VALUE: index + 1 } }));
+  const result = aggregateChart(many, createChartSpec({ type: "bar", dimension: "CATEGORY", measure: { field: "VALUE", aggregation: "sum" } }));
+  const display = displayChartRows(result);
+  assert.equal(display.length, 16);
+  assert.match(display.at(-1).label, /^Other \(9\)$/);
+  assert.equal(display.at(-1).records.length, 9);
 });
 
 test("Map Charts primitives keep anchors, SVG glyphs, and collision plans engine-neutral", () => {
@@ -74,6 +86,8 @@ test("Map Charts primitives keep anchors, SVG glyphs, and collision plans engine
   const plan = planMapChartDisplay([{ id: "ordinary", screen: { x: 0, y: 0, width: 12, height: 12 } }, { id: "selected", selected: true, screen: { x: 2, y: 2, width: 12, height: 12 } }], policy);
   assert.equal(plan.visible[0].id, "selected");
   assert.equal(plan.hidden[0].reason, "budget");
+  const cluster = planMapChartDisplay([{ id: "one", screen: { x: 0, y: 0, width: 12, height: 12 } }, { id: "two", screen: { x: 2, y: 2, width: 12, height: 12 } }], { collision: "cluster", maxVisible: 4 });
+  assert.equal(cluster.hidden[0].reason, "cluster");
 });
 
 test("chart data exports a compact, quoted CSV", () => {
