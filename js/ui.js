@@ -1238,10 +1238,9 @@ export class UIController {
       // so during the guide the setup floats over the map as a panel beside the guide's card.
       if (!this.dialog.open || this.mobileMedia.matches) return;
       if (this.dialog.matches?.(":modal")) { this.dialog.close(); this.dialog.show(); }
-      if (!this.dialog.classList.contains("app-dialog--floating")) {
-        this.dialog.classList.add("app-dialog--floating");
-        this.dialog.addEventListener("close", () => this.dialog.classList.remove("app-dialog--floating"), { once: true });
-      }
+      // openDialog clears this for the next dialog. (Not a close listener: the
+      // close event of the swap above arrives while the dialog is open again.)
+      this.dialog.classList.add("app-dialog--floating");
     };
     const openPanel = (sections) => {
       this.cinematicDisclosureState = { ...(this.cinematicDisclosureState || {}), ...sections };
@@ -8313,7 +8312,7 @@ export class UIController {
   openDialog({ eyebrow = "GIS Map Online", title, content, actions = [], presentationSheet = false }) {
     this.dialogSession = (this.dialogSession || 0) + 1;
     const remainsDocked = this.utilityDialogOpen && this.dialog.open;
-    this.dialog.classList.remove("app-dialog--docked", "app-dialog--presentation-sheet");
+    this.dialog.classList.remove("app-dialog--docked", "app-dialog--presentation-sheet", "app-dialog--floating");
     if (remainsDocked) this.dialog.classList.add("app-dialog--docked");
     this.dialog.classList.toggle("app-dialog--presentation-sheet", presentationSheet);
     document.querySelector("#dialog-dock").setAttribute("aria-label", "Move dialog to the right panel");

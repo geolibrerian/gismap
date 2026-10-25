@@ -198,6 +198,10 @@ test("the Create an animation guide walks every Cinematic step and is reachable 
   // The setup stays usable beside the guide: non-modal, floating over the map as a panel.
   assert.match(ui, /if \(this\.dialog\.matches\?\.\(":modal"\)\) \{ this\.dialog\.close\(\); this\.dialog\.show\(\); \}/);
   assert.match(ui, /classList\.add\("app-dialog--floating"\)/);
+  // Cleared by the next ordinary dialog, not by a close listener: the swap's late close event
+  // would otherwise strip it at step 1 and drop the setup off screen.
+  assert.match(ui, /classList\.remove\("app-dialog--docked", "app-dialog--presentation-sheet", "app-dialog--floating"\)/);
+  assert.doesNotMatch(ui, /addEventListener\("close", \(\) => this\.dialog\.classList\.remove\("app-dialog--floating"\)/);
   const css = readFileSync(new URL("../css/app.css", import.meta.url), "utf8");
   assert.match(css, /\.app-dialog--floating\[open\] \{ position:fixed;/);
   assert.match(css, /\.field\[hidden\] \{ display: none; \}/, "hidden setup fields (Steps, timestamp for Ambient) really hide");
