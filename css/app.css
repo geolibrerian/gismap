@@ -548,6 +548,7 @@ body.mobile-workflow-open .field-task-banner { left:auto; right:calc(min(440px,1
 .menu__content button { padding: 9px 10px; border: 0; border-radius: 5px; background: transparent; text-align: left; font-size: 12px; cursor: pointer; }
 .menu__content .menu__link { display:grid; gap:3px; padding:9px 10px; border-radius:5px; color:var(--ink); text-align:left; text-decoration:none; font-size:12px; font-weight:700; }
 .menu__content .menu__link small { color:var(--muted); font-size:11px; font-weight:500; line-height:1.35; }
+.desktop-workflows-menu .menu__link--field { padding-block:7px; color:var(--muted); font-size:11px; font-weight:600; }.desktop-workflows-menu .menu__link--field small { font-size:10px; }.desktop-workflows-menu .menu__link--field:hover { color:var(--green-2); }
 .menu__content button:hover, .menu__content button.is-active, .menu__content .menu__link:hover { background: var(--surface-2); color: var(--green-2); }
 .menu__content .menu__link:hover small { color:currentColor; }
 .menu__content button:disabled { color: var(--muted); opacity: .6; cursor: not-allowed; background: transparent; }

@@ -65,6 +65,23 @@ test("Field Mode is a styled top-level option rather than a browser-default menu
   assert.match(css, /\.mobile-panel-nav :is\(button,a\)/);
 });
 
+test("Field Mode reserves its offline identity and QR scanner for actual offline collection", async () => {
+  const fieldHtml = await readFile(new URL("../field/index.html", import.meta.url), "utf8");
+  const fieldJs = await readFile(new URL("../field/field-mode.js", import.meta.url), "utf8");
+  const fieldCss = await readFile(new URL("../field/field-mode.css", import.meta.url), "utf8");
+  const worker = await readFile(new URL("../field/service-worker.js", import.meta.url), "utf8");
+  assert.match(fieldHtml, /data-field-collection-label>FIELD COLLECTION/);
+  assert.match(fieldHtml, /data-open-qr-import>Scan QR/);
+  assert.match(fieldHtml, /data-start-qr-camera>Scan with camera/);
+  assert.match(fieldHtml, /data-import-qr-camera-image[^>]*capture="environment"/);
+  assert.match(fieldJs, /classList\.toggle\("is-offline", offline\)/);
+  assert.match(fieldJs, /new globalThis\.BarcodeDetector/);
+  assert.match(fieldJs, /scanQrWithCamera/);
+  assert.match(fieldCss, /\.field-app\.is-offline \.field-header__brand-online::after/);
+  assert.match(worker, /gismap-field-v3/);
+  assert.match(worker, /caches\.delete/);
+});
+
 test("mobile navigation keeps the menu exclusive and Map active while its tools are open", async () => {
   const router = await readFile(new URL("../js/mobile-workflow-router.js", import.meta.url), "utf8");
   const ui = await readFile(new URL("../js/ui.js", import.meta.url), "utf8");

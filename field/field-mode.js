@@ -16,6 +16,8 @@ let attachmentDrafts = [];
 let drawing = [];
 let activeStroke = null;
 let installPrompt = null;
+let qrCameraStream = null;
+let qrCameraTimer = null;
 
 const toast = (message) => { const node = $("[data-toast]"); node.textContent = message; clearTimeout(toast.timer); toast.timer = setTimeout(() => { node.textContent = ""; }, 4200); };
 const escape = (value) => String(value ?? "").replace(/[&<>'"]/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", '"': "&quot;" })[character]);
@@ -28,7 +30,10 @@ function capabilities() {
   const media = Boolean(navigator.mediaDevices?.getUserMedia && globalThis.MediaRecorder);
   const recognition = Boolean(globalThis.SpeechRecognition || globalThis.webkitSpeechRecognition);
   const entries = [["Local storage", Boolean(globalThis.indexedDB)], ["GPS", Boolean(navigator.geolocation)], ["Audio recording", media], ["Browser speech recognition", recognition], ["Camera capture", "capture" in document.createElement("input")], ["Network", navigator.onLine]];
-  $("[data-status-summary]").textContent = `${navigator.onLine ? "Local workspace · online" : "Local workspace · offline"} · ${records.length} note${records.length === 1 ? "" : "s"}`;
+  const offline = navigator.onLine === false;
+  $(".field-app").classList.toggle("is-offline", offline);
+  $("[data-field-collection-label]").textContent = offline ? "OFFLINE COLLECTION" : "FIELD COLLECTION";
+  $("[data-status-summary]").textContent = `Local workspace · ${offline ? "offline" : "online"} · ${records.length} note${records.length === 1 ? "" : "s"}`;
   $("[data-capabilities]").innerHTML = `<p><strong>Capture diagnostics</strong></p>${entries.map(([label, yes]) => `<p><b>${escape(label)}</b> ${yes ? "available" : "unavailable"}</p>`).join("")}<p>Dictation from the device keyboard is separate from browser speech recognition. GISMap records audio locally but does not claim offline transcription.</p>`;
 }
 
@@ -187,6 +192,54 @@ async function importQrText(text) {
   await refresh(); switchView("tasks"); toast(existing ? "This task is already on this device." : "Field Task added and acknowledged locally. It has not been registered with a server.");
 }
 
+function stopQrCamera() {
+  if (qrCameraTimer) clearTimeout(qrCameraTimer);
+  qrCameraTimer = null;
+  qrCameraStream?.getTracks().forEach((track) => track.stop());
+  qrCameraStream = null;
+  const video = $("[data-qr-scanner-video]");
+  if (video) video.srcObject = null;
+}
+
+async function scanQrWithCamera() {
+  if (!navigator.mediaDevices?.getUserMedia) throw new Error("Camera scanning is unavailable here. Use Take QR photo instead.");
+  if (typeof globalThis.BarcodeDetector !== "function") throw new Error("Live QR scanning is unavailable in this browser. Use Take QR photo instead.");
+  const dialog = $("[data-qr-scanner-dialog]"); const video = $("[data-qr-scanner-video]"); const status = $("[data-qr-scanner-status]");
+  stopQrCamera();
+  try {
+    const formats = await globalThis.BarcodeDetector.getSupportedFormats?.();
+    if (formats && !formats.includes("qr_code")) throw new Error("This camera does not support QR scanning. Use Take QR photo instead.");
+    const detector = new globalThis.BarcodeDetector({ formats: ["qr_code"] });
+    qrCameraStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: "environment" } }, audio: false });
+    video.srcObject = qrCameraStream;
+    if (!dialog.open) dialog.showModal();
+    await video.play(); status.textContent = "Point the camera at a Field Mode or Field Task QR code.";
+    const detect = async () => {
+      if (!qrCameraStream) return;
+      try {
+        const codes = video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA ? await detector.detect(video) : [];
+        const value = codes.find((code) => code.rawValue)?.rawValue;
+        if (value) {
+          stopQrCamera(); dialog.close(); await importQrText(value); return;
+        }
+      } catch (error) { status.textContent = error.message || "Camera scan failed. Use Take QR photo instead."; stopQrCamera(); return; }
+      qrCameraTimer = setTimeout(detect, 250);
+    };
+    void detect();
+  } catch (error) {
+    stopQrCamera();
+    if (dialog.open) dialog.close();
+    throw error;
+  }
+}
+
+async function importQrImage(file) {
+  if (!file) return;
+  const text = await decodeQrFromImage(file);
+  if (!text) throw new Error("No QR code was found in that image.");
+  await importQrText(text);
+}
+
 function wire() {
   document.querySelectorAll("[data-view]").forEach((button) => button.addEventListener("click", () => switchView(button.dataset.view)));
   $("[data-capture-gps]").addEventListener("click", () => {
@@ -226,7 +279,11 @@ function wire() {
   $("[data-export-pdf]").addEventListener("click", async () => { try { const scope = selectedRecords(); const file = await reportFile(scope.length ? scope : records); download(file.name, file, file.type); toast("Field PDF downloaded. Open its location links on desktop to add a map later."); } catch (error) { toast(error.message); } });
   $("[data-share-records]").addEventListener("click", async () => { try { const scope = selectedRecords(); const file = await reportFile(scope.length ? scope : records); await mobileShare({ title: "GISMap Field report", text: "Field observations from GISMap Field Mode.", file }); } catch (error) { if (error.name !== "AbortError") toast(error.message); } });
   $("[data-import-qr]").addEventListener("click", async () => { try { await importQrText($("[data-qr-text]").value); $("[data-qr-text]").value = ""; } catch (error) { toast(error.message); } });
-  $("[data-import-qr-image]").addEventListener("change", async (event) => { const [file] = event.target.files; if (!file) return; try { const text = await decodeQrFromImage(file); if (!text) throw new Error("No QR code was found in that image."); await importQrText(text); } catch (error) { toast(error.message); } event.target.value = ""; });
+  ["[data-import-qr-image]", "[data-import-qr-camera-image]"].forEach((selector) => $(selector).addEventListener("change", async (event) => { const [file] = event.target.files; try { await importQrImage(file); } catch (error) { toast(error.message); } event.target.value = ""; }));
+  $("[data-open-qr-import]").addEventListener("click", () => { switchView("transfer"); requestAnimationFrame(() => $("[data-start-qr-camera]").focus()); });
+  $("[data-start-qr-camera]").addEventListener("click", () => scanQrWithCamera().catch((error) => toast(error.message)));
+  $("[data-close-qr-scanner]").addEventListener("click", () => $("[data-qr-scanner-dialog]").close());
+  $("[data-qr-scanner-dialog]").addEventListener("close", stopQrCamera);
   $("[data-close-qr]").addEventListener("click", () => $("[data-qr-dialog]").close());
   $("[data-download-qr]").addEventListener("click", async () => { try { const file = await qrCard(activeQrRecord); download(file.name, file, file.type); } catch (error) { toast(error.message); } });
   $("[data-share-qr]").addEventListener("click", async () => { try { const file = await qrCard(activeQrRecord); await mobileShare({ title: recordName(activeQrRecord), text: "GISMap Field Mode QR record. Attachments are not included.", file }); } catch (error) { if (error.name !== "AbortError") toast(error.message); } });
