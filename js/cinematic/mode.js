@@ -286,6 +286,20 @@ export class CinematicModeController {
   }
   exportCinematicSpec() { return exportCinematicSpec(this.spec); }
 
+  /**
+   * The effect each track shows, to keep on its layer (Advanced Style) after
+   * leaving Cinematic mode: [{ uid, title, effect: { type, intensity, color } }].
+   * Tracks without an effect are left out, so their layers keep their own.
+   */
+  effectsToKeep() {
+    return [...this.layers.values()].flatMap(({ layer, config }) => {
+      const type = this.#effectFor(layer, config);
+      if (!type || type === "none") return [];
+      const { intensity = 1, color = null } = config.animation.effect || {};
+      return [{ uid: layer.uid, title: layer.title, effect: { type, intensity, color } }];
+    });
+  }
+
   async destroy() {
     this.unsubscribe?.(); this.unsubscribe = null;
     this.timeline?.destroy(); this.timeline = null;

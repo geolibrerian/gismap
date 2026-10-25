@@ -30,6 +30,8 @@ import { CINEMATIC_EFFECT_TYPES, effectFields, effectRanges, resolveQuality, sug
 
 // A layer effect draws over at most this many features; more would cost frame rate for no visible gain.
 const LAYER_EFFECT_MAX_FEATURES = 20000;
+// Above this many features a layer effect spends its budget on what is in view first.
+const LAYER_EFFECT_VIEW_FIRST = 800;
 // Settled cinematic build-ups draw as native line layers under this source/layer prefix.
 const SETTLED_EDGES_PREFIX = "cinematic-edges:";
 import { MAX_FEATURES, describeArcGIS, featureServiceLayers, fetchFeatures, fetchGeometries, queryServiceIds } from "./arcgis-service.js?v=0.47.0";
@@ -227,6 +229,9 @@ export class MaplibreEngine {
     });
     this.map.on("moveend", () => {
       this.events.publish("view:stationary", {});
+      // View-first layer effects follow the map once it leaves the area they were built for.
+      const view = this.#effectViewBounds();
+      for (const record of this.#records.values()) if (record.animatedEffect && record.effectBuilt?.viewBounds && view && !containsBounds(record.effectBuilt.viewBounds, view)) this.#queueLayerEffect(record);
       this.#sharpen();
     });
     this.map.on("error", (event) => {
@@ -675,6 +680,14 @@ export class MaplibreEngine {
 
   #layerEffectId(record) { return `layer-effect:${record.uid}`; }
 
+  /** The map view as [w, s, e, n] for layer effects, or null for a wrapped/world view where "in view" means everything. */
+  #effectViewBounds() {
+    const bounds = this.map?.getBounds?.();
+    if (!bounds) return null;
+    const view = [bounds.getWest(), bounds.getSouth(), bounds.getEast(), bounds.getNorth()];
+    return view[2] - view[0] >= 180 || view[0] < -180 || view[2] > 180 ? null : view;
+  }
+
   /** Opacity follows at once; a rebuild for new data, filters or visibility waits for changes to settle. */
   #queueLayerEffect(record) {
     if (this.three) this.three.set(this.#layerEffectId(record), { opacity: record.opacity });
@@ -691,8 +704,12 @@ export class MaplibreEngine {
       return;
     }
     const features = this.#visibleFeatures(record);
+    // A large layer decorates what is in (or near) view first, so the budget isn't
+    // spent off screen. It is rebuilt when the view leaves the area it was built for.
+    const view = features.length > LAYER_EFFECT_VIEW_FIRST ? this.#effectViewBounds() : null;
+    const viewBounds = !view ? null : record.effectBuilt?.viewBounds && containsBounds(record.effectBuilt.viewBounds, view) ? record.effectBuilt.viewBounds : expandBounds(view, 2);
     // Detail follows the zoom level, so a rebuild comes with each new level.
-    const built = { effect, features, where: record.where, zoom: Math.round(this.map?.getZoom?.() || 0) };
+    const built = { effect, features, where: record.where, zoom: Math.round(this.map?.getZoom?.() || 0), viewBounds };
     // Unchanged data and settings: nothing to rebuild, only opacity to follow.
     if (record.effectBuilt && Object.entries(built).every(([key, value]) => record.effectBuilt[key] === value)) {
       this.three?.set(id, { opacity: record.opacity });
@@ -700,9 +717,10 @@ export class MaplibreEngine {
     }
     record.effectBuilt = built;
     const name = effect.type === "auto" ? suggestEffect({ title: record.title, geometryType: record.geometryType, fields: record.fields }) : effect.type;
-    const shown = features.slice(0, LAYER_EFFECT_MAX_FEATURES);
+    // Off-screen features wait for the view to reach them; detail follows how many are near it.
+    const shown = (viewBounds ? nearView(features, viewBounds) : features).slice(0, LAYER_EFFECT_MAX_FEATURES);
     const drawn = await this.setCinematicEffect(id, {
-      type: "observed-effect", effect: name, color: effect.color, intensity: effect.intensity, fields: record.fields, quality: resolveQuality(effect.quality || "auto", features.length),
+      type: "observed-effect", effect: name, color: effect.color, intensity: effect.intensity, fields: record.fields, quality: resolveQuality(effect.quality || "auto", shown.length),
       ranges: effectRanges(features, effectFields(record.fields, shown[0]?.properties)),
       items: shown.map((feature) => ({ feature, fresh: true })),
     });
@@ -2242,4 +2260,19 @@ export default MaplibreEngine;
 function rendererFields(renderer) {
   if (!renderer) return [];
   return [renderer.field, renderer.field1, renderer.field2, renderer.field3, renderer.normalizationField, ...(renderer.visualVariables || []).map((variable) => variable.field)].filter((field) => typeof field === "string");
+}
+
+function containsBounds(outer, inner) {
+  return outer[0] <= inner[0] && outer[1] <= inner[1] && outer[2] >= inner[2] && outer[3] >= inner[3];
+}
+
+// Feature bounds are cached: the same features are tested again on every pan.
+const featureBounds = new WeakMap();
+/** The features overlapping `bounds`, in their order. */
+function nearView(features, bounds) {
+  return features.filter((feature) => {
+    let box = featureBounds.get(feature);
+    if (box === undefined) { box = feature?.geometry ? boundsOf(feature.geometry) : null; featureBounds.set(feature, box); }
+    return Boolean(box) && boundsIntersect(box, bounds);
+  });
 }

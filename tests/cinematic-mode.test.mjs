@@ -305,3 +305,27 @@ test("Cinematic mode without data opens a guide to adding some instead of an err
   assert.match(ui, /if \(!layers\.length\) \{\s*this\.#openCinematicNeedsData\(\);/);
   for (const choice of ["data-popular", "guide", "data-arcgis", "data-geojson"]) assert.match(ui, new RegExp(`data-cinematic-needs="${choice}"`));
 });
+
+test("leaving Cinematic mode keeps each track's effect for its layer", async () => {
+  const fires = [{ attributes: { OBJECTID: 1, ALARM_DATE: Date.UTC(2024, 7, 1) }, geometry: { type: "Polygon", coordinates: [[[0, 0], [1, 0], [1, 1], [0, 0]]] } }];
+  const roads = [{ attributes: { OBJECTID: 1 }, geometry: { type: "LineString", coordinates: [[0, 0], [1, 1]] } }];
+  const layers = {
+    fires: { uid: "fires", title: "Wildfire perimeters", geometryType: "polygon", queryable: true, objectIdField: "OBJECTID", fields: [] },
+    roads: { uid: "roads", title: "Roads", geometryType: "polyline", queryable: true, objectIdField: "OBJECTID", fields: [] },
+  };
+  const rows = { fires, roads };
+  const mapController = {
+    getLayer: (id) => layers[id], getFeatureFilter: async () => null, setFeatureFilter: async () => true, setOpacity: async () => {},
+    queryFeatures: async (id) => ({ features: rows[id] }), setCinematicEffect: async () => true, clearCinematicEffect: () => {},
+  };
+  const mode = new CinematicModeController({ mapController });
+  await mode.load({ cinematic: { layers: [
+    { layerRef: "fires", temporal: { startField: "ALARM_DATE" }, animation: { effect: { type: "auto", intensity: 1.5 } } },
+    { layerRef: "roads", temporal: { kind: "none" }, animation: { effect: { type: "none" } } },
+  ] } });
+  // "Auto" is kept as the effect it shows (flames for a wildfire layer); a track without an effect leaves its layer alone.
+  assert.deepEqual(mode.effectsToKeep(), [{ uid: "fires", title: "Wildfire perimeters", effect: { type: "fire", intensity: 1.5, color: null } }]);
+  const ui = (await import("node:fs")).readFileSync(new URL("../js/ui.js", import.meta.url), "utf8");
+  assert.match(ui, /async #leaveCinematic\(\) \{[\s\S]*?effectsToKeep\(\)[\s\S]*?setLayerEffect\(uid, effect\)/);
+  await mode.destroy();
+});

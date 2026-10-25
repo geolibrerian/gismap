@@ -44,7 +44,7 @@ import { CartographyLab } from "./cartography-lab.js?v=0.60.0-media1";
 import { CONTEXT_ACTIONS, createSuggestionPreferences, deriveWorkspace, executeContextAction, suggestionKey, summarizeFeature } from "./contextual-workspace.js?v=6";
 import { BRIEFING_WALKTHROUGH_STEPS, CINEMATIC_WALKTHROUGH_STEPS, startWorkspaceWalkthrough, waitForWalkthroughTarget } from "./workspace-walkthrough.js?v=0.58.0-cinematic1";
 import { chooseHurricaneLayer, createHazardsExampleBriefing } from "./example-hazards-briefing.js?v=0.60.0-media1";
-import { CinematicModeController } from "./cinematic/mode.js?v=0.3.3";
+import { CinematicModeController } from "./cinematic/mode.js?v=0.3.4";
 import { CINEMATIC_EFFECTS, suggestEffect } from "./cinematic/cinematic-effects.js?v=0.2.1";
 import { numericFieldCandidates, temporalFieldCandidates } from "./cinematic/temporal-adapter.js?v=0.3.1";
 import { buildClipPackage, clipToCinematicSpec, createCinematicClip, exportCinematicClip } from "./cinematic/clip-model.js?v=0.3.5";
@@ -4231,9 +4231,7 @@ export class UIController {
     root.querySelector("[data-cinematic-reconfigure]")?.addEventListener("click", () => this.#openCinematicMode({ reconfigure: true }));
     root.querySelector("[data-cinematic-guide]")?.addEventListener("click", () => void this.#startCinematicGuide());
     root.querySelector("[data-cinematic-exit]")?.addEventListener("click", async () => {
-      await this.cinematicController.destroy();
-      this.cinematicState = null;
-      document.querySelector("#cinematic-map-timeline")?.remove();
+      await this.#leaveCinematic();
       this.projectManager.setPresentation({ ...this.projectManager.current.presentation, template: "standard" });
     });
     this.#syncCinematicMapTimeline(state);
@@ -4298,6 +4296,24 @@ export class UIController {
   }
 
   /** Effect <option>s; "Auto" names the effect it resolves to for this layer. */
+  /**
+   * Leave Cinematic mode. Each track's effect (flames on a wildfire layer, say)
+   * stays on its layer as its Advanced Style animated effect, so the Layers view
+   * keeps the look; Style → Animated effect changes or removes it.
+   */
+  async #leaveCinematic() {
+    const keep = this.mapController.getCapabilities().includes("three-3d") ? this.cinematicController.effectsToKeep() : [];
+    this.cinematicState = null;
+    document.querySelector("#cinematic-map-timeline")?.remove();
+    await this.cinematicController.destroy();
+    const kept = [];
+    for (const { uid, title, effect } of keep) {
+      if (!this.mapController.getLayer(uid)) continue;
+      try { await this.mapController.setLayerEffect(uid, effect); kept.push(`${CINEMATIC_EFFECTS[effect.type]?.label || effect.type} on ${title}`); } catch { /* the layer keeps its own look */ }
+    }
+    if (kept.length) this.toast(`Kept ${kept.join(", ")}. Change it in the layer's Style → Animated effect.`);
+  }
+
   /** Cinematic mode with no animatable layer: explain that it needs data and offer the ways to add some. */
   #openCinematicNeedsData() {
     this.openDialog({
@@ -6276,8 +6292,7 @@ export class UIController {
     if (nextTemplate !== "cinematic" && this.cinematicState) {
       // Remember where playback was, so returning from another mode resumes there.
       this.cinematicResume = { id: this.cinematicState.spec?.cinematic.id, time: this.cinematicController.state()?.timeline?.observationTime };
-      void this.cinematicController.destroy();
-      this.cinematicState = null;
+      void this.#leaveCinematic();
     }
     if (nextTemplate === "cinematic" && presentation.cinematic && !this.cinematicState && !this.cinematicLoading) {
       this.cinematicLoading = this.cinematicController.load({ cinematic: presentation.cinematic })
