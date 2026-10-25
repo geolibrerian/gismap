@@ -26,17 +26,19 @@ import { chooseStyleField, compileRenderer, resolveRendererSpec, suggestRenderer
 import { rendererToPaint } from "./arcgis-renderer.js?v=0.42.0";
 import { legendForLayer } from "./legend.js?v=0.52.4";
 import { hostCredit, joinCredits, legendSwatch, plainAttribution } from "../map-credits.js?v=0.1.0";
-import { CINEMATIC_EFFECT_TYPES, effectFields, effectRanges, resolveQuality, suggestEffect } from "../../cinematic/cinematic-effects.js?v=0.2.0";
+import { CINEMATIC_EFFECT_TYPES, effectFields, effectRanges, resolveQuality, suggestEffect } from "../../cinematic/cinematic-effects.js?v=0.2.1";
 
 // A layer effect draws over at most this many features; more would cost frame rate for no visible gain.
 const LAYER_EFFECT_MAX_FEATURES = 20000;
+// Settled cinematic build-ups draw as native line layers under this source/layer prefix.
+const SETTLED_EDGES_PREFIX = "cinematic-edges:";
 import { MAX_FEATURES, describeArcGIS, featureServiceLayers, fetchFeatures, fetchGeometries, queryServiceIds } from "./arcgis-service.js?v=0.47.0";
 import { OBJECT_ID_FIELD, boundsIntersect, boundsOf, expandBounds, geometryTypeOf, inferFields, normalizeFeatures, regroupPolygon, representativePoint } from "./geojson.js?v=0.42.0";
 import { loadMaplibre } from "./maplibre-loader.js?v=0.39.0";
 import { HILLSHADE_LAYER_ID, HILLSHADE_SOURCE_ID, MAPLIBRE_GROUNDS, TERRAIN_SOURCE_ID, hillshadeLayer, maplibreGround, terrainSource } from "./terrain.js?v=0.43.0";
 import { normalizeSpatialChart, spatialChartAxis, spatialChartLayerSpecs, spatialChartLegend } from "../../spatial-chart.js?v=0.1.1";
 import { SCENE3D_TYPES, normalizeScene3d, scene3dTypeFor } from "../../scene3d.js?v=0.1.0";
-import { ThreeHost, loadThree } from "../three/three-host.js?v=0.1.2";
+import { THREE_LAYER_ID, ThreeHost, loadThree } from "../three/three-host.js?v=0.1.3";
 
 export const MAPLIBRE_CAPABILITIES = Object.freeze(["view-2d", "view-3d", "spatial-chart-3d", "three-3d", "basemaps", "basemap-themes", "ground", "layers-arcgis", "layers-files", "query", "feature-filter", "renderer-spec", "renderer-native", "identify", "highlight", "capture", "geocode", "buildings-3d", "draw", "measurement", "legend", "native"]);
 
@@ -283,9 +285,10 @@ export class MaplibreEngine {
     // "observed-boundary-glow" is the v0.1 name for the glow effect.
     const name = effect.type === "observed-boundary-glow" ? "glow" : effect.effect;
     if (!id || !["observed-effect", "observed-boundary-glow"].includes(effect.type) || !name || name === "none") return false;
+    if (effect.settled === true) return this.#drawSettledEdges(id, name, effect);
     const THREE = await loadThree();
     this.three ??= new ThreeHost({ map: this.map, THREE, notify: (message) => this.events.publish("app:error", { message }) });
-    const { buildCinematicEffect } = await import("../../cinematic/effects-three.js?v=0.2.0");
+    const { buildCinematicEffect } = await import("../../cinematic/effects-three.js?v=0.2.1");
     // Decoration is simplified to half a screen pixel at the current zoom; the map draws the exact outline.
     const simplify = Number.isFinite(effect.simplify) ? effect.simplify : 0.5 * 360 / (512 * 2 ** (this.map?.getZoom?.() ?? 0));
     const item = buildCinematicEffect(THREE, effect.items || effect.features || [], {
@@ -304,6 +307,50 @@ export class MaplibreEngine {
 
   clearCinematicEffect(uid) {
     this.three?.remove(String(uid || ""));
+    this.#removeSettledEdges(String(uid || ""));
+  }
+
+  /**
+   * A settled build-up (older records, edge only) drawn as plain MapLibre
+   * line and circle layers with a soft halo: no custom GL, nothing animating,
+   * and far cheaper than shader ribbons for thousands of outlines.
+   */
+  async #drawSettledEdges(id, name, effect) {
+    const { CINEMATIC_EFFECTS, effectParts } = await import("../../cinematic/cinematic-effects.js?v=0.2.1");
+    this.three?.remove(id);
+    const simplify = Number.isFinite(effect.simplify) ? effect.simplify : 0.5 * 360 / (512 * 2 ** (this.map?.getZoom?.() ?? 0));
+    const parts = effectParts(effect.items || [], { maxPaths: 20000, maxVertices: 400000, maxPoints: 20000, simplify });
+    const features = [
+      ...parts.paths.map((path) => ({ type: "Feature", properties: {}, geometry: { type: "LineString", coordinates: path.coordinates } })),
+      ...parts.points.map((point) => ({ type: "Feature", properties: {}, geometry: { type: "Point", coordinates: point.coordinates } })),
+    ];
+    if (!this.map || !features.length) { this.#removeSettledEdges(id); return false; }
+    const sourceId = `${SETTLED_EDGES_PREFIX}${id}`;
+    const data = { type: "FeatureCollection", features };
+    const color = /^#[0-9a-f]{6}$/i.test(effect.color || "") ? effect.color : CINEMATIC_EFFECTS[name]?.color || "#ff8136";
+    const strength = Math.min(1, Math.max(0.3, Number(effect.intensity) || 1));
+    if (this.map.getSource(sourceId)) this.map.getSource(sourceId).setData(data);
+    else this.map.addSource(sourceId, { type: "geojson", data, tolerance: 0.6 });
+    const before = this.map.getLayer(THREE_LAYER_ID) ? THREE_LAYER_ID : undefined;
+    const lines = ["==", ["geometry-type"], "LineString"], points = ["==", ["geometry-type"], "Point"];
+    const zoomed = (low, high) => ["interpolate", ["linear"], ["zoom"], 3, low, 14, high];
+    const layers = [
+      { id: `${sourceId}:halo`, type: "line", filter: lines, layout: { "line-join": "round", "line-cap": "round" }, paint: { "line-color": color, "line-width": zoomed(1.2, 9), "line-blur": zoomed(1, 6), "line-opacity": 0.16 * strength } },
+      { id: `${sourceId}:core`, type: "line", filter: lines, layout: { "line-join": "round" }, paint: { "line-color": color, "line-width": zoomed(0.4, 1.4), "line-opacity": 0.5 * strength } },
+      { id: `${sourceId}:points`, type: "circle", filter: points, paint: { "circle-color": color, "circle-radius": zoomed(2, 8), "circle-blur": 0.8, "circle-opacity": 0.3 * strength } },
+    ];
+    for (const layer of layers) {
+      if (!this.map.getLayer(layer.id)) this.map.addLayer({ ...layer, source: sourceId }, before);
+      else for (const [key, value] of Object.entries(layer.paint)) this.map.setPaintProperty(layer.id, key, value);
+    }
+    return true;
+  }
+
+  #removeSettledEdges(id) {
+    const sourceId = `${SETTLED_EDGES_PREFIX}${id}`;
+    if (!this.map?.getSource?.(sourceId)) return;
+    for (const suffix of [":halo", ":core", ":points"]) if (this.map.getLayer(`${sourceId}${suffix}`)) this.map.removeLayer(`${sourceId}${suffix}`);
+    this.map.removeSource(sourceId);
   }
 
   /** Effect load and frame timing for Cinematic's adaptive detail (null before any effect). */

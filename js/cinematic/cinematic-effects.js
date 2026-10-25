@@ -99,6 +99,15 @@ export function resolveQuality(quality, featureCount = 0) {
   return featureCount > 6000 ? "eco" : featureCount > 1200 ? "balanced" : "cinematic";
 }
 
+/** [west, south, east, north] of effect parts, or null when there is nothing to draw. */
+export function partsBounds(parts) {
+  let west = Infinity, south = Infinity, east = -Infinity, north = -Infinity;
+  const extend = ([longitude, latitude]) => { west = Math.min(west, longitude); east = Math.max(east, longitude); south = Math.min(south, latitude); north = Math.max(north, latitude); };
+  parts.paths.forEach((path) => path.coordinates.forEach(extend));
+  parts.points.forEach((point) => extend(point.coordinates));
+  return Number.isFinite(west) ? [west, south, east, north] : null;
+}
+
 /**
  * Douglas–Peucker on [lon, lat] with a tolerance in degrees. Used only for
  * decoration at sub-pixel tolerance; the observed outline itself is drawn by

@@ -48,6 +48,7 @@ function normalizeTrack(track, durationMs) {
       type: "temporalLayer", layerRef: text(track.layerRef, 2048), mode: track.mode === "cumulative" ? "cumulative" : "observed-steps",
       temporal: track.temporal && typeof track.temporal === "object" ? {
         kind: ["number", "none"].includes(track.temporal.kind) ? track.temporal.kind : "time",
+        ...(track.temporal.kind === "number" && Number.isFinite(Number(track.temporal.steps)) ? { steps: Math.max(0, Math.min(5000, Math.round(Number(track.temporal.steps)))) } : {}),
         startField: text(track.temporal.startField, 160) || null, groupField: text(track.temporal.groupField, 160) || null,
         featureIdField: text(track.temporal.featureIdField, 160) || null,
       } : null,

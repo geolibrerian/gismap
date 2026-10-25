@@ -51,19 +51,30 @@ layer if the map has none.
   the cap. The Cinematic panel shows one line: vertices, fps and whether Auto
   lightened detail. Filters and observed records are never touched.
 
+## Done in the third slice
+
+- **Steps control.** The setup dialog asks how many steps a Scenario sweep
+  takes (50, 100, 200, 500 or every value). Clips keep the choice.
+- **Off-screen idle.** Each effect knows its bounds. The three.js host skips
+  effects outside the (padded) view, and when none is on screen the map stops
+  repainting.
+- **Native settled edges.** The settled part of a build-up draws as plain
+  MapLibre line and circle layers with a soft halo, under the three.js layer.
+  On the California fire build-up, about 19,000 settled outlines draw natively
+  while three.js draws only the recent ~2,300 vertices (≈52 fps in the preview
+  pane). Settled edges no longer animate, so a paused build-up only animates its
+  recent records.
+
 ## Next phases
 
 ### Phase 1 — Performance foundation (continue)
 1. **Diagnostics panel** (Tools → Cinematic diagnostics): draw calls,
    settled/recent sizes and build ms beside the existing frame-time readout.
-   Also a Steps control for Scenario sweeps in the setup dialog.
-2. **Idle rendering:** stop continuous repaint when nothing animates (effects
-   paused or Detail = Eco with static edges; reduced motion already stops it).
-3. **Worker geometry prep:** move `effectParts` / ribbon building for settled
-   layers into a Web Worker. It's already pure, deterministic data → buffers.
-4. **Native-layer tier:** at regional zoom, draw settled fire edges as a
-   MapLibre line layer (blur + width expressions) instead of three.js.
-   That needs no custom GL and costs almost nothing.
+2. **Worker geometry prep:** move `effectParts` / ribbon building for the
+   recent layer into a Web Worker if profiling still shows build time on
+   slow devices. It's already pure, deterministic data → buffers.
+3. **Native tier for layer effects:** the same native edges for Advanced Style
+   layer effects on very large layers.
 
 ### Phase 2 — Animation primitives and tracks
 Recast effects as primitives with one interface (geometry, attribute mapping,

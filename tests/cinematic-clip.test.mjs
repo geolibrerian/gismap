@@ -168,8 +168,9 @@ test("the downloaded Clip JSON is a labelled portable recipe with a summary, cre
 });
 
 test("Scenario and Ambient scenes become Clips that replay the same way", () => {
-  const scenario = { ...cinematic, layers: [{ layerRef: "flood", temporal: { kind: "number", startField: "depth_ft" } }] };
+  const scenario = { ...cinematic, layers: [{ layerRef: "flood", temporal: { kind: "number", steps: 50, startField: "depth_ft" } }] };
   const clip = createCinematicClip({ cinematic: scenario, observationTimes: [0.5, 2, 12] });
+  assert.equal(clipToCinematicSpec(clip).cinematic.layers[0].temporal.steps, 50, "a Clip replays with the same Scenario steps");
   assert.deepEqual(clip.range, { start: "0.5", end: "12" });
   assert.equal(clip.tracks[0].temporal.kind, "number");
   assert.equal(clipToCinematicSpec(clip).cinematic.layers[0].temporal.kind, "number");

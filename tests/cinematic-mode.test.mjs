@@ -135,7 +135,7 @@ test("a large build-up redraws only its recent records each step and settles the
   const mapController = {
     getLayer: () => layer, getFeatureFilter: async () => null, setFeatureFilter: async () => true, setOpacity: async () => {},
     queryFeatures: async () => ({ features: rows }), getViewState: () => ({ zoom: 8 }),
-    setCinematicEffect: async (uid, effect) => { calls.push({ uid, count: effect.items.length, fresh: effect.items.filter((item) => item.fresh).length, quality: effect.quality }); return true; },
+    setCinematicEffect: async (uid, effect) => { calls.push({ uid, count: effect.items.length, fresh: effect.items.filter((item) => item.fresh).length, quality: effect.quality, settled: effect.settled === true }); return true; },
     clearCinematicEffect: () => {},
   };
   const mode = new CinematicModeController({ mapController });
@@ -148,6 +148,7 @@ test("a large build-up redraws only its recent records each step and settles the
   assert.ok(settled.length <= 2, `settled rebuilds stay rare (${settled.length})`);
   assert.ok(recent.every((call) => call.count <= 241 && call.fresh === 1), "recent layers are small and include the new record");
   assert.equal(settled[0].quality, "eco");
+  assert.equal(settled[0].settled, true, "settled records are flagged so the engine can draw them natively");
   // Stepping back re-settles from the new position.
   calls.length = 0;
   mode.seekObservation(300); await mode.renderTask;

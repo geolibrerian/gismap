@@ -14,7 +14,7 @@ import { createAssistantTools, summarizeMapState } from "./map-assistant.js?v=0.
 import { ENTERPRISE_CATALOGS, EnterpriseCatalog, normalizeArcGisDirectoryUrl } from "./enterprise-catalog.js?v=0.18.2";
 import { createShareUrl } from "./share.js?v=0.54.0-unified4";
 import { createShareLink, hasDataFilter } from "./map-share.js?v=0.60.0-media1";
-import { briefingLayerRef, findBriefingLayer } from "./briefing-api.js?v=0.60.4-clips1";
+import { briefingLayerRef, findBriefingLayer } from "./briefing-api.js?v=0.60.10-edges1";
 import { createEmbeddedTourUrl } from "./tour-share.js?v=0.54.0-unified4";
 import { markdownToPlainText, renderMarkdown } from "./markdown.js?v=0.18.2";
 import { formatAttributeValue } from "./attribute-format.js?v=0.18.2";
@@ -30,8 +30,8 @@ import { featureLayerUrl, locationUrl } from "./field-task-share.js?v=0.54.0-uni
 import { dockIcon } from "./dock-icons.js?v=0.24.0";
 import { serviceNameFromUrl } from "./service-name.js?v=0.26.0";
 import { decodeQrFromImage, describeGisMapLink, gisMapLinkFrom, openGisMapLink } from "./qr-import.js?v=0.25.2";
-import { BriefingSlides } from "./briefing-slides.js?v=0.60.4-clips1";
-import { addSlide, createSlide, isRoutineField, matchesFilter, normalizeBriefing, normalizeFilter } from "./briefing-document.js?v=0.60.4-clips1";
+import { BriefingSlides } from "./briefing-slides.js?v=0.60.10-edges1";
+import { addSlide, createSlide, isRoutineField, matchesFilter, normalizeBriefing, normalizeFilter } from "./briefing-document.js?v=0.60.10-edges1";
 import { conditionComplete, conditionLabel, conditionToFilter } from "./briefing-conditions.js?v=0.1.0";
 import { createFilterBuilder } from "./filter-builder.js?v=0.1.0";
 import { conditionsToWhere } from "./filter-sql.js?v=0.1.0";
@@ -44,11 +44,11 @@ import { CartographyLab } from "./cartography-lab.js?v=0.60.0-media1";
 import { CONTEXT_ACTIONS, createSuggestionPreferences, deriveWorkspace, executeContextAction, suggestionKey, summarizeFeature } from "./contextual-workspace.js?v=6";
 import { BRIEFING_WALKTHROUGH_STEPS, CINEMATIC_WALKTHROUGH_STEPS, startWorkspaceWalkthrough, waitForWalkthroughTarget } from "./workspace-walkthrough.js?v=0.58.0-cinematic1";
 import { chooseHurricaneLayer, createHazardsExampleBriefing } from "./example-hazards-briefing.js?v=0.60.0-media1";
-import { CinematicModeController } from "./cinematic/mode.js?v=0.3.1";
-import { CINEMATIC_EFFECTS, suggestEffect } from "./cinematic/cinematic-effects.js?v=0.2.0";
+import { CinematicModeController } from "./cinematic/mode.js?v=0.3.2";
+import { CINEMATIC_EFFECTS, suggestEffect } from "./cinematic/cinematic-effects.js?v=0.2.1";
 import { numericFieldCandidates, temporalFieldCandidates } from "./cinematic/temporal-adapter.js?v=0.3.1";
-import { buildClipPackage, clipToCinematicSpec, createCinematicClip, exportCinematicClip } from "./cinematic/clip-model.js?v=0.3.3";
-import { availableVideoFormats, cameraAt, CLIP_FRAME_RATES, clipFrameCount, exportCinematicVideo, observationIndexAt, renderClipPoster } from "./cinematic/clip-export.js?v=0.3.2";
+import { buildClipPackage, clipToCinematicSpec, createCinematicClip, exportCinematicClip } from "./cinematic/clip-model.js?v=0.3.4";
+import { availableVideoFormats, cameraAt, CLIP_FRAME_RATES, clipFrameCount, exportCinematicVideo, observationIndexAt, renderClipPoster } from "./cinematic/clip-export.js?v=0.3.3";
 
 const BUILDINGS_3D_KEY = "gismap-online:buildings-3d:v1";
 const DISPLAY_SETTINGS_KEY = "gismap-online:display:v1";
@@ -1707,13 +1707,14 @@ export class UIController {
     this.openDialog({
       eyebrow: "Cinematic mode",
       title: "Animate a layer",
-      content: `<p class="form-note">Play observed records through time, sweep through a number field, or just bring the layer to life with a looping effect. Playback steps between real records; it never interpolates geometry or reads numbers as dates. <button type="button" class="link-button" data-cinematic-guide>New to this? Follow the step-by-step guide.</button></p><div class="field-grid"><label class="field"><span>Layer</span><select data-cinematic-layer>${options()}</select></label><label class="field"><span>Animate by</span><select data-cinematic-kind><option value="time">A date or time field (timeline)</option><option value="number">A number field (scenario sweep)</option><option value="none">Nothing: everything at once (ambient loop)</option></select></label><label class="field" data-cinematic-needs-field><span data-cinematic-field-label>Timestamp field</span><select data-cinematic-time></select></label><label class="field" data-cinematic-needs-field><span>Group snapshots by</span><select data-cinematic-group><option value="">All observations together</option></select></label><label class="field" data-cinematic-needs-field><span>Display through time</span><select data-cinematic-time-mode><option value="instant">Current observed state</option><option value="cumulative">Build up observed records</option></select></label><label class="field"><span>Base playback duration (seconds)</span><input data-cinematic-duration type="number" min="1" max="600" value="120"></label><label class="field"><span>Initial speed</span><select data-cinematic-rate><option value="0.1">Very slow</option><option value="0.25" selected>Slow</option><option value="0.5">Steady</option><option value="1">Fast</option></select></label>${supportsBoundaryGlow ? '<label class="field"><span>Visual effect</span><select data-cinematic-effect></select><small>Decorative animation drawn on observed geometry (MapLibre). It never changes the data.</small></label>' : ""}</div><p class="form-note" data-cinematic-field-note></p>`,
+      content: `<p class="form-note">Play observed records through time, sweep through a number field, or just bring the layer to life with a looping effect. Playback steps between real records; it never interpolates geometry or reads numbers as dates. <button type="button" class="link-button" data-cinematic-guide>New to this? Follow the step-by-step guide.</button></p><div class="field-grid"><label class="field"><span>Layer</span><select data-cinematic-layer>${options()}</select></label><label class="field"><span>Animate by</span><select data-cinematic-kind><option value="time">A date or time field (timeline)</option><option value="number">A number field (scenario sweep)</option><option value="none">Nothing: everything at once (ambient loop)</option></select></label><label class="field" data-cinematic-needs-field><span data-cinematic-field-label>Timestamp field</span><select data-cinematic-time></select></label><label class="field" data-cinematic-needs-number hidden><span>Steps</span><select data-cinematic-steps><option value="50">50 (coarse)</option><option value="100">100</option><option value="200" selected>200 (default)</option><option value="500">500 (fine)</option><option value="0">Every distinct value</option></select><small>Equal-count steps through the field's range; each step shows records up to its value.</small></label><label class="field" data-cinematic-needs-field><span>Group snapshots by</span><select data-cinematic-group><option value="">All observations together</option></select></label><label class="field" data-cinematic-needs-field><span>Display through time</span><select data-cinematic-time-mode><option value="instant">Current observed state</option><option value="cumulative">Build up observed records</option></select></label><label class="field"><span>Base playback duration (seconds)</span><input data-cinematic-duration type="number" min="1" max="600" value="120"></label><label class="field"><span>Initial speed</span><select data-cinematic-rate><option value="0.1">Very slow</option><option value="0.25" selected>Slow</option><option value="0.5">Steady</option><option value="1">Fast</option></select></label>${supportsBoundaryGlow ? '<label class="field"><span>Visual effect</span><select data-cinematic-effect></select><small>Decorative animation drawn on observed geometry (MapLibre). It never changes the data.</small></label>' : ""}</div><p class="form-note" data-cinematic-field-note></p>`,
       actions: [{ label: "Cancel", handler: () => this.dialog.close() }, { label: "Start cinematic mode", primary: true, handler: async () => {
         const layer = this.mapController.getLayer(this.dialog.querySelector("[data-cinematic-layer]").value);
         const kind = this.dialog.querySelector("[data-cinematic-kind]").value;
         const timeField = kind === "none" ? null : this.dialog.querySelector("[data-cinematic-time]").value;
         if (!layer || (kind !== "none" && !timeField)) throw new Error(kind === "number" ? "Choose a layer and a number field." : "Choose a layer and a timestamp field.");
         const groupField = kind === "none" ? "" : this.dialog.querySelector("[data-cinematic-group]").value;
+        const steps = kind === "number" ? Number(this.dialog.querySelector("[data-cinematic-steps]").value) : 0;
         const timeMode = kind === "none" ? "instant" : this.dialog.querySelector("[data-cinematic-time-mode]").value;
         const durationSeconds = Number(this.dialog.querySelector("[data-cinematic-duration]").value);
         const rate = Number(this.dialog.querySelector("[data-cinematic-rate]").value);
@@ -1724,7 +1725,7 @@ export class UIController {
           intent: "explore",
           preferredEngine: this.mapController.getEngineId(),
           clock: { durationSeconds, rate, timeMode, loop: false },
-          layers: [{ layerRef: layer.uid, temporal: { kind, startField: timeField, groupField, featureIdField: layer.objectIdField, timezone: "UTC", missingTime: "exclude" }, animation: { template: layer.geometryType === "point" ? "moving-track" : "step-perimeter", transition: "step", outline: { color: "#ff8136", glow: effectType !== "none" }, effect: { type: effectType, intensity: 1 }, provenanceLabel: "Observed records" } }],
+          layers: [{ layerRef: layer.uid, temporal: { kind, steps, startField: timeField, groupField, featureIdField: layer.objectIdField, timezone: "UTC", missingTime: "exclude" }, animation: { template: layer.geometryType === "point" ? "moving-track" : "step-perimeter", transition: "step", outline: { color: "#ff8136", glow: effectType !== "none" }, effect: { type: effectType, intensity: 1 }, provenanceLabel: "Observed records" } }],
           provenance: { synthetic: false, sourceUrls: layer.url && /^https:\/\//i.test(layer.url) ? [layer.url] : [], interpolated: false },
         } };
         await this.cinematicController.load(spec);
@@ -1744,10 +1745,11 @@ export class UIController {
       const kind = kindInput.value;
       const candidates = kind === "number" ? numericFieldCandidates(layer) : temporalFieldCandidates(layer);
       this.dialog.querySelectorAll("[data-cinematic-needs-field]").forEach((label) => { label.hidden = kind === "none"; });
+      this.dialog.querySelectorAll("[data-cinematic-needs-number]").forEach((label) => { label.hidden = kind !== "number"; });
       this.dialog.querySelector("[data-cinematic-field-label]").textContent = kind === "number" ? "Number field" : "Timestamp field";
       timeInput.innerHTML = candidates.length ? candidates.map((field) => `<option value="${escapeHtml(field.name)}">${escapeHtml(field.label)}</option>`).join("") : `<option value="">${kind === "number" ? "No number field found" : "No date/timestamp field found"}</option>`;
       note.textContent = kind === "none" ? "Every feature shows at once and its effect loops. No date or number field is needed; Export movie records the loop with your camera moves."
-        : candidates.length ? (kind === "number" ? `Steps through each value of the field, lowest first. Build up shows everything up to the current value. Rows without a number are excluded.` : `Stable ID: ${layer.objectIdField}. Rows without a valid ${candidates[0].label} value will be excluded.`)
+        : candidates.length ? (kind === "number" ? `Steps through the field's values, lowest first. Build up shows everything up to the current value. Rows without a number are excluded.` : `Stable ID: ${layer.objectIdField}. Rows without a valid ${candidates[0].label} value will be excluded.`)
         : `This layer has no ${kind === "number" ? "number" : "date/timestamp"} field. Choose "Nothing" to animate it anyway, or pick another layer.`;
     };
     kindInput.addEventListener("change", fillKind);

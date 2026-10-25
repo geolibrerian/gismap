@@ -127,10 +127,13 @@ export class ThreeHost {
     const { Matrix4 } = this.THREE;
     const projection = new Matrix4().fromArray(matrix);
     const time = this.clock.time;
+    const view = paddedView(this.map);
     const started = globalThis.performance?.now?.() ?? Date.now();
     let animating = false;
     for (const item of this.#items.values()) {
       if (!item.visible) continue;
+      // Off-screen effects are neither drawn nor kept repainting.
+      if (view && item.bounds && !overlaps(item.bounds, view)) continue;
       item.update?.(time, { map: this.map });
       animating ||= item.animated === true;
       const [x, y] = item.origin, s = item.scale;
@@ -157,6 +160,23 @@ export class ThreeHost {
     frames.render += ((now - started) - frames.render) * weight;
     frames.samples += 1;
   }
+}
+
+/** The view's [west, south, east, north] grown by half its size each way (glow, terrain, pitch), or null when it can't be judged. */
+function paddedView(map) {
+  try {
+    const bounds = map.getBounds?.();
+    if (!bounds) return null;
+    const west = bounds.getWest(), east = bounds.getEast(), south = bounds.getSouth(), north = bounds.getNorth();
+    const width = east - west, height = north - south;
+    // Wide or wrapped views (world copies) are treated as showing everything.
+    if (!(width > 0) || width >= 180 || west < -180 || east > 180) return null;
+    return [west - width / 2, south - height / 2, east + width / 2, north + height / 2];
+  } catch { return null; }
+}
+
+function overlaps(a, b) {
+  return a[0] <= b[2] && a[2] >= b[0] && a[1] <= b[3] && a[3] >= b[1];
 }
 
 function countVertices(scene) {

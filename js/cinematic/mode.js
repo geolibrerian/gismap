@@ -1,7 +1,7 @@
 import { createCinematicTimeline } from "./timeline-controller.js?v=0.1.0";
 import { normalizeTemporalFeatures, observedFeatureIdsAt, observedFeaturesAt, parsePlaybackValue, temporalModelInExtent } from "./temporal-adapter.js?v=0.3.1";
 import { exportCinematicSpec, importCinematicSpec } from "./state.js?v=0.2.1";
-import { CINEMATIC_EFFECTS, effectFields, effectRanges, resolveEffect, resolveQuality } from "./cinematic-effects.js?v=0.2.0";
+import { CINEMATIC_EFFECTS, effectFields, effectRanges, resolveEffect, resolveQuality } from "./cinematic-effects.js?v=0.2.1";
 
 // In a build-up, outlines older than the newest few are "settled": drawn as a
 // cheap edge and rebuilt only now and then, while the recent ones (full
@@ -290,7 +290,7 @@ export class CinematicModeController {
       const cut = older[Math.max(0, older.length - RECENT_MIN) - 1]?.time ?? -Infinity;
       const settledItems = older.filter((observation) => observation.time <= cut);
       entry.settled = { time: cut, count: settledItems.length, zoom, effect, quality };
-      await attempt(() => this.mapController.setCinematicEffect(`${effectUid}:settled`, { ...base, quality: "eco", items: settledItems.map((observation) => ({ feature: observation.feature, fresh: false })) }), false);
+      await attempt(() => this.mapController.setCinematicEffect(`${effectUid}:settled`, { ...base, quality: "eco", settled: true, items: settledItems.map((observation) => ({ feature: observation.feature, fresh: false })) }), false);
     }
     const recent = observations.filter((observation) => observation.time > entry.settled.time);
     await attempt(() => this.mapController.setCinematicEffect(effectUid, { ...base, quality: quality === "eco" ? "eco" : "cinematic", items: asItems(recent) }), false);

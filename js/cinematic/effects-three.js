@@ -4,7 +4,7 @@
 // zoom 16, and whose motion reads one continuous clock, so stepping to the next
 // observation never restarts a flame or a ripple. Newly observed features
 // (`fresh`) flare when they appear; older ones in a build-up settle down.
-import { CINEMATIC_EFFECTS, EFFECT_QUALITY, effectFields, effectFrame, effectParts, particleSeeds, quadBuffers, ribbonBuffers } from "./cinematic-effects.js?v=0.2.0";
+import { CINEMATIC_EFFECTS, EFFECT_QUALITY, effectFields, effectFrame, effectParts, particleSeeds, partsBounds, quadBuffers, ribbonBuffers } from "./cinematic-effects.js?v=0.2.1";
 
 const EPOCH = globalThis.performance?.now?.() ?? 0;
 let externalClock = null;
@@ -502,6 +502,8 @@ export function buildCinematicEffect(THREE, items, { effect = "glow", color, int
     origin: frame.mercatorOrigin,
     scale: frame.mercatorScale,
     lngLat: { lng: origin[0], lat: origin[1] },
+    // Where the effect is, so the host can skip it (and stop repainting) when it is off screen.
+    bounds: partsBounds(parts),
     onTerrain: false,
     get animated() { return !reducedMotion && !externalClock; },
     effect,
