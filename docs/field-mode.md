@@ -13,6 +13,16 @@ and freehand screen-space sketches. Sketches are explicitly not presented as
 georeferenced geometry. Location permission is requested only after the person
 taps **Use device GPS**.
 
+## Offline spatial analysis
+
+Field Mode includes a locally vendored, version-pinned **Turf.js 7.4.0** browser
+bundle (MIT licensed) and a small shared adapter at `js/turf-offline.js`. The
+initial offline Analysis tab can measure geodesic distance and bearing, create a
+GeoJSON point buffer, inspect local GeoJSON bounds and polygon area, and find
+nearby saved point observations. These calculations are all local, use WGS84
+longitude/latitude coordinate order, and do not query DuckDB or any remote map
+service. The Field service worker caches the bundle with the application shell.
+
 ## Data and transfer
 
 Records use `gismap.field-record.v1` and retain the observation's geometry,

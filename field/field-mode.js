@@ -6,6 +6,7 @@ import { addAnimatedQrFrame, assembleAnimatedQrFrames, createAnimatedQrFrames, c
 import { brandedQrFile } from "../js/pdf-document.js";
 import { fieldRecordFileStem, fieldRecordPdf } from "../js/field-record-report.js";
 import { createSitePack, normalizeSitePack, sitePackEstimate } from "../js/field-site-pack.js";
+import { createOfflineAnalysis, formatOfflineDistance, TURF_VERSION } from "../js/turf-offline.js";
 
 const $ = (selector) => document.querySelector(selector);
 const store = new FieldRecordStore();
@@ -26,6 +27,7 @@ let qrCameraTimer = null;
 let pendingGeoPayload = null;
 let animatedQrIntake = null;
 let animatedQrTimer = null;
+let analysisBuffer = null;
 
 const toast = (message) => { const node = $("[data-toast]"); node.textContent = message; clearTimeout(toast.timer); toast.timer = setTimeout(() => { node.textContent = ""; }, 4200); };
 const escape = (value) => String(value ?? "").replace(/[&<>'"]/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", '"': "&quot;" })[character]);
@@ -37,11 +39,63 @@ const assetId = () => `asset_${globalThis.crypto?.randomUUID?.() || `${Date.now(
 function capabilities() {
   const media = Boolean(navigator.mediaDevices?.getUserMedia && globalThis.MediaRecorder);
   const recognition = Boolean(globalThis.SpeechRecognition || globalThis.webkitSpeechRecognition);
-  const entries = [["Local storage", Boolean(globalThis.indexedDB)], ["GPS", Boolean(navigator.geolocation)], ["Audio recording", media], ["Browser speech recognition", recognition], ["Camera capture", "capture" in document.createElement("input")], ["Network", navigator.onLine]];
+  const turf = Boolean(globalThis.turf?.distance && globalThis.turf?.buffer);
+  const entries = [["Local storage", Boolean(globalThis.indexedDB)], ["GPS", Boolean(navigator.geolocation)], ["Offline spatial analysis", turf], ["Audio recording", media], ["Browser speech recognition", recognition], ["Camera capture", "capture" in document.createElement("input")], ["Network", navigator.onLine]];
   const offline = navigator.onLine === false;
   $(".field-app").classList.toggle("is-offline", offline);
   $("[data-status-summary]").textContent = `Local workspace · ${offline ? "offline" : "online"} · ${records.length} note${records.length === 1 ? "" : "s"}`;
   $("[data-capabilities]").innerHTML = `<p><strong>Capture diagnostics</strong></p>${entries.map(([label, yes]) => `<p><b>${escape(label)}</b> ${yes ? "available" : "unavailable"}</p>`).join("")}<p>Dictation from the device keyboard is separate from browser speech recognition. GISMap records audio locally but does not claim offline transcription.</p>`;
+}
+
+function fieldAnalysis() {
+  return createOfflineAnalysis(globalThis.turf);
+}
+
+function analysisCoordinate(prefix) {
+  const longitude = Number($(`[data-analysis-${prefix}-longitude]`).value);
+  const latitude = Number($(`[data-analysis-${prefix}-latitude]`).value);
+  if (!Number.isFinite(longitude) || !Number.isFinite(latitude)) throw new Error(`Enter both ${prefix} longitude and latitude.`);
+  return [longitude, latitude];
+}
+
+function setAnalysisCoordinate(prefix, coordinates) {
+  $(`[data-analysis-${prefix}-longitude]`).value = coordinates?.[0] ?? "";
+  $(`[data-analysis-${prefix}-latitude]`).value = coordinates?.[1] ?? "";
+}
+
+function analysisUnits() {
+  return $("[data-analysis-units]").value;
+}
+
+function measureOfflineDistance() {
+  const measurement = fieldAnalysis().measure(analysisCoordinate("from"), analysisCoordinate("to"), analysisUnits());
+  const bearing = Math.round(((measurement.bearing % 360) + 360) % 360);
+  const midpoint = measurement.midpoint.geometry.coordinates;
+  $("[data-analysis-measurement]").textContent = `${formatOfflineDistance(measurement.distance, measurement.units)} · bearing ${bearing}° · midpoint ${midpoint[0].toFixed(5)}, ${midpoint[1].toFixed(5)}.`;
+}
+
+function createOfflineBuffer() {
+  const radius = Number($("[data-analysis-radius]").value);
+  const units = analysisUnits();
+  analysisBuffer = fieldAnalysis().buffer(analysisCoordinate("from"), radius, units);
+  $("[data-analysis-download-buffer]").disabled = false;
+  $("[data-analysis-buffer-result]").textContent = `${formatOfflineDistance(radius, units)} buffer created locally with ${analysisBuffer.geometry.type}.`;
+}
+
+async function inspectOfflineGeoJson(file) {
+  if (!file) return;
+  if (file.size > 8 * 1024 * 1024) throw new Error("Choose a GeoJSON file smaller than 8 MB for local inspection.");
+  const summary = fieldAnalysis().summarize(JSON.parse(await file.text()));
+  const [west, south, east, north] = summary.bbox.map((value) => Number(value).toFixed(5));
+  const area = summary.areaSquareMeters ? ` · polygon area ${(summary.areaSquareMeters / 1_000_000).toLocaleString(undefined, { maximumFractionDigits: 2 })} km²` : "";
+  $("[data-analysis-geometry-result]").textContent = `${summary.type} · bounds ${west}, ${south} to ${east}, ${north}${area}.`;
+}
+
+function nearbyFieldNotes() {
+  const units = analysisUnits();
+  const matches = fieldAnalysis().nearestRecords(analysisCoordinate("from"), records, { units, limit: 5 });
+  const host = $("[data-analysis-nearest-result]");
+  host.innerHTML = matches.length ? `<ol class="field-analysis-nearest">${matches.map(({ record, distance }) => `<li><strong>${escape(recordName(record))}</strong><br />${escape(formatOfflineDistance(distance, units))} away · observed ${escape(date(record.observedAt))}</li>`).join("")}</ol>` : "No saved notes with point locations are available on this device.";
 }
 
 const TASK_STATES = ["incoming", "active", "completed", "ready-to-return", "returned"];
@@ -102,7 +156,7 @@ async function refresh() {
 function switchView(view) {
   document.querySelectorAll("[data-view]").forEach((button) => button.setAttribute("aria-pressed", String(button.dataset.view === view)));
   document.querySelectorAll("[data-view-panel]").forEach((panel) => { panel.hidden = panel.dataset.viewPanel !== view; });
-  if (["records", "tasks", "transfer"].includes(view)) refresh().catch((error) => toast(error.message));
+  if (["records", "tasks", "analyze", "transfer"].includes(view)) refresh().catch((error) => toast(error.message));
 }
 
 function setLocation(location = null) {
@@ -532,7 +586,8 @@ async function readiness({ requestPersistence = false } = {}) {
   const cacheNames = "caches" in globalThis ? await caches.keys().catch(() => []) : [];
   const cacheEntries = "caches" in globalThis ? (await Promise.all(cacheNames.map(async (name) => (await caches.open(name)).keys().then((items) => items.length).catch(() => 0)))).reduce((sum, count) => sum + count, 0) : 0;
   const mapCoverage = basemaps.length ? `${basemaps.length} PMTiles file${basemaps.length === 1 ? "" : "s"} stored locally; use a compatible GISMap map viewer to render.` : "No offline basemap file is stored. App cache entries are not a licensed or reliable map-download substitute.";
-  $("[data-readiness-status]").innerHTML = `<ul class="field-readiness"><li><b>Field app shell:</b> ${escape(shell)}</li><li><b>Local records:</b> ${globalThis.indexedDB ? "IndexedDB available" : "unavailable"}</li><li><b>Persistent storage:</b> ${persisted ? "granted" : "not guaranteed—request it below and keep exports"}</li><li><b>Device storage:</b> ${escape(usage)}</li><li><b>Cached application resources:</b> ${cacheEntries} item${cacheEntries === 1 ? "" : "s"} in ${cacheNames.length} cache${cacheNames.length === 1 ? "" : "s"}</li><li><b>QR intake:</b> ${escape(scanner)}</li><li><b>Site Packs:</b> ${packages.length} stored locally</li><li><b>Map coverage:</b> ${escape(mapCoverage)}</li></ul>`;
+  const turfStatus = globalThis.turf?.distance && globalThis.turf?.buffer ? `Turf.js ${TURF_VERSION} bundled and ready for local measurements` : "Turf.js did not load; reload while online before relying on analysis";
+  $("[data-readiness-status]").innerHTML = `<ul class="field-readiness"><li><b>Field app shell:</b> ${escape(shell)}</li><li><b>Local records:</b> ${globalThis.indexedDB ? "IndexedDB available" : "unavailable"}</li><li><b>Persistent storage:</b> ${persisted ? "granted" : "not guaranteed—request it below and keep exports"}</li><li><b>Device storage:</b> ${escape(usage)}</li><li><b>Cached application resources:</b> ${cacheEntries} item${cacheEntries === 1 ? "" : "s"} in ${cacheNames.length} cache${cacheNames.length === 1 ? "" : "s"}</li><li><b>Offline analysis:</b> ${escape(turfStatus)}</li><li><b>QR intake:</b> ${escape(scanner)}</li><li><b>Site Packs:</b> ${packages.length} stored locally</li><li><b>Map coverage:</b> ${escape(mapCoverage)}</li></ul>`;
 }
 
 async function openReadiness(requestPersistence = false) {
@@ -543,6 +598,25 @@ async function openReadiness(requestPersistence = false) {
 
 function wire() {
   document.querySelectorAll("[data-view]").forEach((button) => button.addEventListener("click", () => switchView(button.dataset.view)));
+  $("[data-analysis-use-note]").addEventListener("click", () => {
+    const fields = $("[data-record-form]").elements;
+    if (fields.longitude.value === "" || fields.latitude.value === "") { toast("Add a current note location first, or enter coordinates in Analyze."); return; }
+    setAnalysisCoordinate("from", [Number(fields.longitude.value), Number(fields.latitude.value)]);
+    toast("Current note location added as the measurement start.");
+  });
+  $("[data-analysis-measure]").addEventListener("click", () => { try { measureOfflineDistance(); } catch (error) { toast(error.message); } });
+  $("[data-analysis-buffer]").addEventListener("click", () => { try { createOfflineBuffer(); } catch (error) { toast(error.message); } });
+  $("[data-analysis-download-buffer]").addEventListener("click", () => {
+    if (!analysisBuffer) { toast("Create a buffer first."); return; }
+    download("gismap-field-buffer.geojson", JSON.stringify(analysisBuffer, null, 2), "application/geo+json");
+    toast("Buffer GeoJSON downloaded.");
+  });
+  $("[data-analysis-geojson]").addEventListener("change", async (event) => {
+    const [file] = event.target.files;
+    try { await inspectOfflineGeoJson(file); } catch (error) { toast(error.message); }
+    event.target.value = "";
+  });
+  $("[data-analysis-nearest]").addEventListener("click", () => { try { nearbyFieldNotes(); } catch (error) { toast(error.message); } });
   $("[data-capture-gps]").addEventListener("click", () => {
     if (!navigator.geolocation) { toast("GPS is unavailable in this browser."); return; }
     $("[data-location-status]").textContent = "Requesting device GPS…";
