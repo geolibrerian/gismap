@@ -282,6 +282,44 @@ export function mapSelectionForRows(result, rows) {
   return featureFilterFor(selected, result.features?.length || selected.length, result.layer?.objectIdField);
 }
 
+const sqlIdentifier = (value) => `"${String(value || "").replaceAll('"', '""')}"`;
+const sqlLiteral = (value) => {
+  if (typeof value === "number" && Number.isFinite(value)) return String(value);
+  if (typeof value === "boolean") return value ? "1" : "0";
+  if (value instanceof Date && Number.isFinite(value.getTime())) return `'${value.toISOString().replaceAll("'", "''")}'`;
+  return `'${String(value ?? "").replaceAll("'", "''")}'`;
+};
+
+/**
+ * Turn one rendered chart mark into a portable map-definition expression.
+ * Category marks filter by their source dimension (including an "Other" bucket),
+ * while histogram marks retain their numeric range. This avoids relying on
+ * renderer-specific selection APIs and works for ArcGIS and MapLibre layers.
+ */
+export function chartFilterForRow(result, row) {
+  const chart = result?.chart;
+  if (!chart || !row) return null;
+  if (chart.type === "histogram") {
+    const field = chart.measure?.field;
+    const min = Number(row.min); const max = Number(row.max);
+    if (!field || !Number.isFinite(min) || !Number.isFinite(max)) return null;
+    return { kind: "range", field, min, max, label: `${min.toLocaleString()}–${max.toLocaleString()}`, where: `${sqlIdentifier(field)} >= ${min} AND ${sqlIdentifier(field)} <= ${max}` };
+  }
+  if (["scatter", "bubble", "scatter3d"].includes(chart.type)) {
+    const idField = result.layer?.objectIdField;
+    const records = result.selection?.(row) || [];
+    const values = [...new Set(records.map((record) => record.attributes?.[idField]).filter((value) => value != null))];
+    if (!idField || !values.length) return null;
+    return { kind: "records", field: idField, values, label: "selected record", where: `${sqlIdentifier(idField)} IN (${values.map(sqlLiteral).join(", ")})` };
+  }
+  if (chart.type === "kpi") return null;
+  const field = chart.dimension?.field;
+  const records = result.selection?.(row) || row.records || [];
+  const values = [...new Set(records.map((record) => record.attributes?.[field]).filter((value) => value != null && value !== ""))];
+  if (!field || !values.length) return null;
+  return { kind: "category", field, values, label: row.label || String(values[0]), where: `${sqlIdentifier(field)} IN (${values.map(sqlLiteral).join(", ")})` };
+}
+
 export function rowsAsCsv(result) {
   const scatter = ["scatter", "bubble", "scatter3d"].includes(result.chart.type);
   const headings = scatter ? [result.chart.dimension?.field || "x", result.chart.measure.field || "y", ...(["bubble", "scatter3d"].includes(result.chart.type) ? [result.chart.encoding?.sizeField || "z / size"] : [])] : ["category", "value", "record_count"];

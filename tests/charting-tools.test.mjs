@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
-import { aggregateChart, chartFields, createChartSpec, displayChartRows, normalizeCharts, recommendCharts, rowsAsCsv } from "../js/charting-tools.js";
+import { aggregateChart, chartFields, chartFilterForRow, createChartSpec, displayChartRows, normalizeCharts, recommendCharts, rowsAsCsv } from "../js/charting-tools.js";
 import { mapChartAnchor, normalizeMapChartPresentation, planMapChartDisplay, renderMapChartSvg } from "../js/map-chart-tools.js";
 
 const fields = [
@@ -96,6 +96,20 @@ test("chart data exports a compact, quoted CSV", () => {
   assert.match(rowsAsCsv(result), /"Alpha","2","2"/);
 });
 
+test("chart marks create portable map filters for categories and value ranges", () => {
+  const category = aggregateChart(records, createChartSpec({ type: "donut", dimension: "FIRE_NAME", measure: { aggregation: "count" } }));
+  category.layer = { objectIdField: "OBJECTID" };
+  const alpha = chartFilterForRow(category, category.rows.find((row) => row.label === "Alpha"));
+  assert.equal(alpha.kind, "category");
+  assert.equal(alpha.where, '"FIRE_NAME" IN (\'Alpha\')');
+  const histogram = aggregateChart(records, createChartSpec({ type: "histogram", measure: { field: "GIS_ACRES", aggregation: "count" } }));
+  histogram.layer = { objectIdField: "OBJECTID" };
+  const range = chartFilterForRow(histogram, histogram.rows[0]);
+  assert.equal(range.kind, "range");
+  assert.match(range.where, /^"GIS_ACRES" >= /);
+  assert.match(range.where, / <= /);
+});
+
 test("Chart Tools has dedicated family actions which share one persisted builder", () => {
   const html = fs.readFileSync(new URL("../index.html", import.meta.url), "utf8");
   const ui = fs.readFileSync(new URL("../js/ui.js", import.meta.url), "utf8");
@@ -135,6 +149,9 @@ test("saved charts stay inside standard panels and retain the active skin", () =
   assert.match(ui, /skin: document\.documentElement\.dataset\.skin \|\| this\.projectManager\.current\.presentation\?\.skin/);
   assert.match(runtime, /application\.chart\.create[\s\S]*?const activeSkin = String\(input\.skin \|\| this\.document\.documentElement\.dataset\.skin/);
   assert.match(runtime, /new ResizeObserver\(\(\) => chartInstance\?\.resize\?\.\(\)\)/);
+  assert.match(runtime, /chartFilterForRow\(result, row\)/);
+  assert.match(runtime, /data-dashboard-chart-clear>Show all map data/);
+  assert.match(runtime, /host\.querySelectorAll\("\[data-chart-row\]"\)/);
   assert.match(css, /\.application-panel\[data-panel-type="charts"\] \.application-panel__body \{ overflow-x:hidden; \}/);
   assert.match(css, /\.chart-dashboard \.chart-builder__canvas \{[^}]*max-height:220px/s);
   assert.doesNotMatch(html, /dashboard-settings-open/);

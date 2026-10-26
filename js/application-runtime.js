@@ -7,7 +7,7 @@ import { DuckDBBrowserClient } from "./duckdb-client.js?v=0.54.0-analysis1";
 import { normalizeDataCatalog, planNaturalLanguageQuery, validateReadOnlySQL } from "./data-catalog.js?v=0.18.2";
 import { PanelManager } from "./panel-manager.js?v=0.18.2";
 import { applyInterfaceSkin } from "./skin-catalog.js?v=0.57.0-skins2";
-import { chartOption, createChartSpec, displayChartRows, loadECharts, queryChart, renderChartFallback } from "./charting-tools.js";
+import { chartFilterForRow, chartOption, createChartSpec, displayChartRows, loadECharts, queryChart, renderChartFallback } from "./charting-tools.js";
 
 const STATIC_PANELS = {
   places: "places-panel",
@@ -355,6 +355,7 @@ export class ApplicationRuntime {
 
   #mountConfiguredChartPanel(host, context) {
     const spec = createChartSpec(context.config.settings.chart);
+    const filterId = `${context.config.instanceId}:chart`;
     let result = null;
     let chartInstance = null;
     let resizeObserver = null;
@@ -366,6 +367,11 @@ export class ApplicationRuntime {
       if (records[0]) void this.mapController.highlightFeature({ kind: "feature", layerUid: result.layer.uid, layerTitle: result.layer.title, attributes: records[0].attributes || {}, geometry: records[0].geometry || null }, { pulse: false });
       host.querySelector("[data-dashboard-chart-selection]").textContent = `${records.length.toLocaleString()} matching feature${records.length === 1 ? "" : "s"} selected on the map.`;
     };
+    const filterRow = (row) => {
+      const expression = chartFilterForRow(result, row);
+      selectRow(row);
+      if (expression?.where) context.dispatch("filters:set", { id: filterId, owner: context.config.instanceId, scope: "project", layerId: result.layer.uid, expression });
+    };
     const render = async () => {
       const token = ++request;
       const layer = this.mapController.getLayer(spec.source.layerId) || this.mapController.getLayer(context.state.value.activeLayerId) || this.mapController.getLayers()[0];
@@ -376,9 +382,18 @@ export class ApplicationRuntime {
         if (token !== request) return;
         const warning = result.quality.status === "complete" ? `${result.quality.processedRecords.toLocaleString()} matching records` : result.quality.warning;
         const displayRows = displayChartRows(result);
-        host.innerHTML = `<div class="composable-chart chart-dashboard"><span class="eyebrow">${escapeHtml(result.layer.title || "Layer")} · linked</span>${renderChartFallback(result, { rows: displayRows })}<p class="form-note">${escapeHtml(warning)}</p><p data-dashboard-chart-selection class="form-note"></p></div>`;
+        const activeFilter = context.state.value.filters[filterId];
+        const filterHint = activeFilter?.expression?.label
+          ? `Map filter active: ${activeFilter.expression.label}.`
+          : "Click a chart mark to filter the map to that group.";
+        host.innerHTML = `<div class="composable-chart chart-dashboard"><span class="eyebrow">${escapeHtml(result.layer.title || "Layer")} · linked</span>${renderChartFallback(result, { rows: displayRows })}<p class="form-note">${escapeHtml(warning)}</p><p data-dashboard-chart-filter class="form-note">${escapeHtml(filterHint)}</p><p data-dashboard-chart-selection class="form-note"></p>${activeFilter ? '<button type="button" class="chart-dashboard__clear" data-dashboard-chart-clear>Show all map data</button>' : ""}</div>`;
         const fallback = host.querySelector(".chart-fallback");
-        fallback?.querySelectorAll("[data-chart-row]").forEach((button) => button.addEventListener("click", () => selectRow(displayRows[Number(button.dataset.chartRow)])));
+        host.querySelectorAll("[data-chart-row]").forEach((mark) => {
+          const activate = () => filterRow(displayRows[Number(mark.dataset.chartRow)]);
+          mark.addEventListener("click", activate);
+          mark.addEventListener("keydown", (event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); activate(); } });
+        });
+        host.querySelector("[data-dashboard-chart-clear]")?.addEventListener("click", () => context.dispatch("filters:clear", { id: filterId }));
         try {
           const echarts = await loadECharts();
           if (token !== request || !displayRows.length || ["kpi", "bar3d", "scatter3d"].includes(result.chart.type)) return;
@@ -390,7 +405,7 @@ export class ApplicationRuntime {
             resizeObserver = new ResizeObserver(() => chartInstance?.resize?.());
             resizeObserver.observe(host);
           }
-          chartInstance.on("click", (event) => { const row = displayRows[event.dataIndex]; if (row) selectRow(row); });
+          chartInstance.on("click", (event) => { const row = displayRows[event.dataIndex]; if (row) filterRow(row); });
           fallback?.remove();
         } catch { /* Keep the accessible fallback chart. */ }
       } catch (error) {
