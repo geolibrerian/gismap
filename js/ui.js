@@ -65,6 +65,40 @@ const TABLE_POSITIONS = new Set(["overlay-bottom", "dock-left", "dock-right", "d
 // Every basemap id with its label (the menus list only the active engine's own; see #basemapOptionsMarkup).
 const BASEMAP_OPTIONS = BASEMAPS.map(({ id, label }) => [id, label]);
 const BASEMAP_IDS = new Set(BASEMAP_OPTIONS.map(([id]) => id));
+const CHART_FAMILY_LABELS = Object.freeze({
+  "line-area": "Line & Area",
+  "bar-column": "Bar & Column",
+  "scatter-bubble": "Scatter & Bubble",
+  "distribution-composition": "Distribution & Composition",
+  "3d": "3D Charts",
+  map: "Map Charts",
+  custom: "Custom Chart Builder",
+});
+
+// A deliberately small, offline-ready layer for trying every chart family.
+// The names, categories, numeric measures, and point geometry give the builder
+// useful defaults without requiring an account, network connection, or service.
+const chartExampleFeatureCollection = () => ({
+  type: "FeatureCollection",
+  features: [
+    ["Cascade", "North", 84, 126, -122.6765, 45.5231], ["Harbor", "North", 72, 111, -122.3321, 47.6062],
+    ["Juniper", "West", 65, 98, -122.4194, 37.7749], ["Mesa", "West", 58, 92, -118.2437, 34.0522],
+    ["Prairie", "Central", 76, 119, -104.9903, 39.7392], ["Riverbend", "Central", 61, 101, -96.7970, 32.7767],
+    ["Cypress", "South", 88, 138, -84.3880, 33.7490], ["Seaside", "South", 69, 108, -80.1918, 25.7617],
+    ["Maple", "East", 81, 132, -74.0060, 40.7128], ["Summit", "East", 74, 115, -71.0589, 42.3601],
+    ["Lakeside", "North", 63, 103, -87.6298, 41.8781], ["Canyon", "West", 79, 127, -112.0740, 33.4484],
+  ].map(([site, region, score, visits, longitude, latitude], index) => ({
+    type: "Feature",
+    geometry: { type: "Point", coordinates: [longitude, latitude] },
+    properties: {
+      site,
+      region,
+      score,
+      visits,
+      month: index + 1,
+    },
+  })),
+});
 
 const escapeHtml = (value) =>
   String(value ?? "").replace(/[&<>"']/g, (char) => ({
@@ -2168,7 +2202,7 @@ export class UIController {
   async #openChartsAnalytics({ family = "custom" } = {}) {
     const layers = this.mapController.getLayers().filter((layer) => layer.queryable);
     if (!layers.length) {
-      this.error("Add a queryable feature layer before creating a chart.");
+      this.#openChartDataStarter({ family });
       return;
     }
     let layer = this.mapController.getLayer(this.applicationRuntime?.state?.value?.activeLayerId) || layers[0];
@@ -2227,7 +2261,7 @@ export class UIController {
           <div class="chart-builder__controls">
             <label class="field"><span>Source layer</span><select data-chart-layer>${layers.map((item) => `<option value="${escapeHtml(item.uid)}"${item.uid === layer.uid ? " selected" : ""}>${escapeHtml(item.title || "Untitled layer")}</option>`).join("")}</select></label>
             <label class="field"><span>Chart type</span><select data-chart-type>${CHART_TYPES.map((entry) => `<option value="${entry.id}"${entry.id === type ? " selected" : ""}>${entry.label}</option>`).join("")}</select></label>
-            <label class="field"><span>Group by</span><select data-chart-dimension>${choice(roles.usable, dimension, "No grouping (metric)")}</select></label>
+            <label class="field"><span>Group by</span><select data-chart-dimension>${choice(roles.analysisFields, dimension, "No grouping (metric)")}</select></label>
             <label class="field"><span>Aggregation</span><select data-chart-aggregation>${["count", "sum", "avg", "min", "max"].map((item) => `<option value="${item}"${item === aggregation ? " selected" : ""}>${item === "avg" ? "Average" : item[0].toUpperCase() + item.slice(1)}</option>`).join("")}</select></label>
             <label class="field"><span>Value field</span><select data-chart-measure>${choice(roles.numericFields, measure, aggregation === "count" ? "No field needed for count" : "Choose a numeric field")}</select></label>
             <label class="field"><span>Data scope</span><select data-chart-scope><option value="filtered"${(spec?.source?.scope || "filtered") === "filtered" ? " selected" : ""}>Current layer filters</option><option value="all"${spec?.source?.scope === "all" ? " selected" : ""}>All source records</option><option value="viewport"${spec?.source?.scope === "viewport" ? " selected" : ""}>Features in map extent</option></select></label>
@@ -2353,6 +2387,89 @@ export class UIController {
     } catch (error) {
       this.error(error.message);
     }
+  }
+
+  /** A chart-specific way into data when a workspace has no queryable layer yet. */
+  #openChartDataStarter({ family = "custom" } = {}) {
+    const familyLabel = CHART_FAMILY_LABELS[family] || CHART_FAMILY_LABELS.custom;
+    const reopenBuilder = async () => this.#openChartsAnalytics({ family });
+    const openSource = (source) => {
+      this.dialog.close();
+      if (source === "arcgis") this.#serviceDialog("arcgis-auto", reopenBuilder);
+      else if (source === "geo-url") this.#serviceDialog("geojson", reopenBuilder);
+      else if (source === "popular") this.#popularDataDialog(reopenBuilder);
+      else if (source === "local") {
+        const input = document.querySelector("#data-file-input");
+        const existingLayerIds = new Set(this.mapController.getLayers().map((layer) => layer.uid));
+        let settled = false;
+        const subscription = this.events.subscribe("layer:added", ({ layer }) => {
+          if (settled || !layer?.queryable || existingLayerIds.has(layer.uid)) return;
+          settled = true;
+          subscription.remove();
+          void reopenBuilder();
+        });
+        input?.addEventListener("cancel", () => subscription.remove(), { once: true });
+        input?.click();
+      }
+    };
+    const startExample = async (button) => {
+      button.disabled = true;
+      button.textContent = "Loading example…";
+      try {
+        const file = new File([JSON.stringify(chartExampleFeatureCollection())], "chart-starter-example.geojson", { type: "application/geo+json" });
+        const layer = await this.mapController.addLocalFile(file);
+        this.dialog.close();
+        this.toast("Chart starter example added. Try the preset, then change its fields.");
+        await this.mapController.goToLayerOnInitialLoad(layer).catch(() => {});
+        await reopenBuilder();
+      } catch (error) {
+        button.disabled = false;
+        button.textContent = "Use the built-in example";
+        this.error(`Could not add the chart example: ${error.message}`);
+      }
+    };
+    const renderTutorial = () => {
+      const content = this.dialog.querySelector("#dialog-content");
+      content.innerHTML = `<section class="chart-data-starter chart-data-starter--tutorial">
+        <span class="eyebrow">Chart tutorial</span>
+        <h3>Build a ${escapeHtml(familyLabel)} chart in three steps</h3>
+        <ol>
+          <li><strong>Start with a layer.</strong><span>Use the local example or add a service, URL, or file.</span></li>
+          <li><strong>Choose a clear comparison.</strong><span>Pick a category or time field and a numeric value; record IDs are never selected as defaults.</span></li>
+          <li><strong>Preview, then share.</strong><span>Select a bar or point to link it to the map, then save it to a panel, dashboard, map, or brief.</span></li>
+        </ol>
+        <div class="chart-data-starter__tutorial-actions"><button type="button" data-chart-data-start="example">Use the built-in example</button><button type="button" data-chart-data-start="back">Choose another source</button></div>
+      </section>`;
+      bind();
+    };
+    const bind = () => {
+      this.dialog.querySelectorAll("[data-chart-data-start]").forEach((button) => button.addEventListener("click", () => {
+        const source = button.dataset.chartDataStart;
+        if (source === "tutorial") return renderTutorial();
+        if (source === "back") return this.#openChartDataStarter({ family });
+        if (source === "example") return void startExample(button);
+        openSource(source);
+      }));
+    };
+    this.openDialog({
+      eyebrow: "Chart tools",
+      title: "Start with data",
+      content: `<section class="chart-data-starter">
+        <span class="eyebrow">${escapeHtml(familyLabel)}</span>
+        <h3>Choose a dataset for your chart</h3>
+        <p>A chart needs one queryable feature layer. Choose a source below; the Chart Builder will continue with this chart family after it loads.</p>
+        <div class="chart-data-starter__grid">
+          <button type="button" data-chart-data-start="tutorial"><strong>Chart tutorial</strong><small>Learn the workflow, then start with an example.</small></button>
+          <button type="button" data-chart-data-start="popular"><strong>Popular data services</strong><small>Browse curated public GIS data.</small></button>
+          <button type="button" data-chart-data-start="arcgis"><strong>ArcGIS REST service</strong><small>Connect a feature service or layer URL.</small></button>
+          <button type="button" data-chart-data-start="geo-url"><strong>Geo URL</strong><small>Open a GeoJSON or GeoParquet URL.</small></button>
+          <button type="button" data-chart-data-start="local"><strong>Local data file</strong><small>Add GeoJSON, KML, Shapefile, or GeoParquet.</small></button>
+          <button type="button" data-chart-data-start="example"><strong>Example dataset</strong><small>Load an offline-ready sample and open the builder.</small></button>
+        </div>
+      </section>`,
+      actions: [{ label: "Close", primary: true, handler: () => this.dialog.close() }],
+    });
+    bind();
   }
 
   createTourFromPlaces(places = [], { title = "", open = true } = {}) {
@@ -3061,7 +3178,7 @@ export class UIController {
     }
   }
 
-  #serviceDialog(serviceType) {
+  #serviceDialog(serviceType, onLayerAdded = null) {
     const isWms = serviceType === "wms";
     const isWfs = serviceType === "wfs";
     const isGeoJson = serviceType === "geojson";
@@ -3113,6 +3230,7 @@ export class UIController {
           this.dialog.close();
           this.toast(`${layer.title} added.`);
           await this.mapController.goToLayerOnInitialLoad(layer).catch(() => {});
+          await onLayerAdded?.(layer);
         } catch (error) {
           button.disabled = false;
             button.textContent = isGeoJson ? "Add data" : isWfs ? "Add WFS layer" : "Add service";
@@ -3135,7 +3253,7 @@ export class UIController {
     urlInput.addEventListener("change", suggest);
   }
 
-  #popularDataDialog() {
+  #popularDataDialog(onLayerAdded = null) {
     this.openDialog({
       eyebrow: "Starter catalog",
       title: "Popular data services",
@@ -3184,6 +3302,7 @@ export class UIController {
           if (layer) {
             button.textContent = "Added";
             this.toast(`${service.title} added.`);
+            await onLayerAdded?.(layer);
           }
         } catch (error) {
           button.disabled = false;

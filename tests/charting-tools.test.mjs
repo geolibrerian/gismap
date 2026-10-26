@@ -112,3 +112,17 @@ test("Chart Tools has dedicated family actions which share one persisted builder
   assert.match(css, /\.app-dialog:has\(\.chart-builder\)[\s\S]*?overflow-x:hidden/);
   assert.match(project, /setCharts\(charts\)/);
 });
+
+test("Chart Tools guides an empty workspace to data instead of showing a warning", () => {
+  const ui = fs.readFileSync(new URL("../js/ui.js", import.meta.url), "utf8");
+  const css = fs.readFileSync(new URL("../css/app.css", import.meta.url), "utf8");
+  assert.match(ui, /#openChartDataStarter\(\{ family \}\)/);
+  assert.doesNotMatch(ui, /this\.error\("Add a queryable feature layer before creating a chart\."\)/);
+  for (const source of ["tutorial", "popular", "arcgis", "geo-url", "local", "example"]) assert.match(ui, new RegExp(`data-chart-data-start="${source}"`));
+  assert.match(ui, /chartExampleFeatureCollection/);
+  assert.match(ui, /new File\(\[JSON\.stringify\(chartExampleFeatureCollection\(\)\)/);
+  assert.match(ui, /#serviceDialog\("arcgis-auto", reopenBuilder\)/);
+  assert.match(ui, /#popularDataDialog\(reopenBuilder\)/);
+  assert.match(css, /\.chart-data-starter__grid/);
+  assert.match(css, /@media \(max-width: 420px\) \{ \.chart-data-starter__grid \{ grid-template-columns:1fr; \}/);
+});
