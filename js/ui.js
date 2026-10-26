@@ -752,7 +752,6 @@ export class UIController {
       const application = this.applicationRuntime.setMode("edit");
       this.projectManager.setApplication(application);
     });
-    document.querySelector("#dashboard-settings-open")?.addEventListener("click", () => this.#dashboardBuilderComingSoon());
     document.querySelector("#globe-dashboard-settings")?.addEventListener("click", () => this.#dashboardBuilderComingSoon());
   }
 
@@ -2293,7 +2292,14 @@ export class UIController {
             if (!result?.rows?.length) return this.error("Configure a chart with data before saving it.");
             const charts = this.projectManager.current.charts || [];
             this.projectManager.setCharts?.([...charts.filter((item) => item.id !== spec.id), spec]);
-            if (spec.presentation.targets.includes("dashboard")) await this.applicationRuntime.runTool("application.chart.create", { title: spec.title, binding: { layerId: layer.uid, followActiveLayer: false }, settings: { chart: spec } });
+            if (spec.presentation.targets.includes("dashboard")) await this.applicationRuntime.runTool("application.chart.create", {
+              title: spec.title,
+              binding: { layerId: layer.uid, followActiveLayer: false },
+              settings: { chart: spec },
+              // An embedded chart is content for the current workspace, not a
+              // presentation preset. Keep the active interface skin intact.
+              skin: document.documentElement.dataset.skin || this.projectManager.current.presentation?.skin,
+            });
             this.dialog.close();
             const destinations = spec.presentation.targets.map((item) => item === "panel" ? "chart panel" : item === "dashboard" ? "Instant Dashboard" : item === "map" ? "Map Charts definition" : "Brief chart definition");
             this.toast(`Chart saved for ${destinations.join(", ") || "this project"}.`);

@@ -244,9 +244,6 @@ body:has(.application-dock--bottom.is-collapsed).application-bottom-open #viewDi
   #app[data-application-layout="globe"] .sidebar, #app[data-application-layout="globe"] .application-dock--right { margin-block:0; padding-inline:0; clip-path:none; }
 }
 
-.dashboard-settings-open { position:absolute; z-index:24; right:78px; bottom:18px; display:inline-flex; align-items:center; gap:7px; padding:9px 12px; border:1px solid var(--line); border-radius:999px; color:var(--ink); background:var(--surface); box-shadow:var(--shadow); cursor:pointer; }
-.dashboard-settings-open[hidden] { display:none!important; }
-.dashboard-settings-open:hover { border-color:var(--green-2); }
 .globe-top-nav { display:none; }
 @media (min-width:881px) {
   #app[data-application-layout="globe"] .globe-top-nav { position:fixed; z-index:60; top:0; left:0; display:flex; align-items:center; gap:8px; width:100%; min-height:60px; padding:6px 16px; transform:none; border:0; border-bottom:1px solid var(--line); border-radius:0; color:var(--ink); background:color-mix(in srgb,var(--surface) 96%,transparent); box-shadow:0 5px 18px rgb(17 39 33 / 10%); backdrop-filter:blur(18px); }
@@ -257,7 +254,7 @@ body:has(.application-dock--bottom.is-collapsed).application-bottom-open #viewDi
   #app[data-application-layout="globe"] .globe-top-nav button { display:inline-grid; place-items:center; min-width:34px; height:34px; padding:0 8px; border:1px solid transparent; border-radius:999px; color:var(--ink); background:transparent; box-shadow:none; cursor:pointer; font-size:16px; }
   #app[data-application-layout="globe"] .globe-top-nav button:hover { border-color:var(--line); color:var(--green-2); background:var(--surface-2); }
   #app[data-application-layout="globe"] .globe-top-nav .globe-top-nav__settings { display:flex; gap:6px; padding-inline:12px; border-color:var(--line); color:var(--ink); background:var(--surface-2); font-size:10px; font-weight:700; }
-  #app[data-application-layout="globe"] :is(.map-nav,.dashboard-settings-open) { display:none!important; }
+  #app[data-application-layout="globe"] .map-nav { display:none!important; }
   #app[data-application-layout="globe"] .insights-overlay { display:none!important; }
 }
 .orbital-insight-details { margin-top:14px; border-top:1px solid var(--line); }
@@ -884,6 +881,23 @@ body.mobile-workflow-open .field-task-banner { left:auto; right:calc(min(440px,1
 .map-chart-glyph:hover,.map-chart-glyph:focus-visible,.map-chart-cluster:hover,.map-chart-cluster:focus-visible { z-index:2; outline:2px solid var(--gold); outline-offset:2px; background:var(--surface); }
 .map-chart-glyph svg { display:block; max-width:100%; max-height:100%; }.map-chart-cluster { width:28px; height:28px; border-radius:50%; color:white; background:var(--green-2); font:700 10px/1 var(--ui-font); }
 @media (max-width: 700px) { .chart-builder { min-width:0; }.chart-builder__gallery-grid { grid-template-columns:1fr 1fr; }.chart-builder__controls { grid-template-columns:repeat(2, minmax(0, 1fr)); }.chart-builder__title { grid-column:auto; }.chart-builder__preview { min-height:240px; }.chart-builder__canvas,.chart-builder__empty,.chart-kpi { height:240px; min-height:240px; } }
+
+/* A saved chart is an ordinary composable panel, not a second dashboard.
+   Keep its visualization within the panel body so the normal dock header,
+   collapse control, and resizing behavior remain in charge. */
+.application-panel[data-panel-type="charts"] .application-panel__body { overflow-x:hidden; }
+.application-panel[data-panel-type="charts"] .chart-dashboard { display:grid; grid-template-rows:auto minmax(0,1fr) auto auto; gap:5px; height:100%; min-height:0; padding:10px 12px; }
+.application-panel[data-panel-type="charts"] .chart-dashboard .eyebrow { overflow:hidden; font-size:8px; text-overflow:ellipsis; white-space:nowrap; }
+.application-panel[data-panel-type="charts"] .chart-dashboard .chart-builder__canvas { align-self:stretch; width:100%; height:clamp(140px,24vh,220px); min-height:140px; max-height:220px; }
+.application-panel[data-panel-type="charts"] .chart-dashboard :is(.chart-fallback,.chart-3d,.chart-kpi) { min-height:0; max-height:220px; overflow:auto; }
+.application-panel[data-panel-type="charts"] .chart-dashboard .chart-fallback { padding:8px 8px 22px; }
+.application-panel[data-panel-type="charts"] .chart-dashboard .chart-fallback--horizontal { gap:4px; padding:4px 0; }
+.application-panel[data-panel-type="charts"] .chart-dashboard .chart-fallback button { height:170px; }
+.application-panel[data-panel-type="charts"] .chart-dashboard .chart-fallback--horizontal button { height:auto; min-height:22px; }
+.application-panel[data-panel-type="charts"] .chart-dashboard .chart-3d { padding:4px; }
+.application-panel[data-panel-type="charts"] .chart-dashboard .chart-3d svg { max-height:190px; }
+.application-panel[data-panel-type="charts"] .chart-dashboard .form-note { margin:0; overflow:hidden; color:var(--muted); font-size:10px; line-height:1.25; text-overflow:ellipsis; white-space:nowrap; }
+@media (max-width:700px) { .application-panel[data-panel-type="charts"] .chart-dashboard .chart-builder__canvas { height:180px; min-height:180px; } }
 .explorer-results-table { display:grid; gap:5px; min-height:150px; }.explorer-results-table > header { display:flex; align-items:center; gap:7px; }.explorer-results-table > header span { margin-right:auto; color:var(--muted); font-size:9px; }.explorer-results-table > header label { color:var(--muted); font-size:9px; }.explorer-results-table select,.explorer-results-table header button { padding:4px; border:1px solid var(--line); color:var(--ink); background:var(--surface); }
 .results-table { max-height:260px; overflow:auto; border:1px solid var(--line); background:var(--surface); }.results-row { display:grid; grid-template-columns:minmax(130px,1.5fr) minmax(90px,1fr) 72px; width:100%; padding:7px 8px; border:0; border-bottom:1px solid var(--line); color:var(--ink); background:transparent; text-align:left; font-size:10px; cursor:pointer; }.results-row--head { position:sticky; top:0; z-index:1; color:var(--muted); background:var(--surface-2); font-weight:700; cursor:default; }.results-row.is-selected { background:color-mix(in srgb,var(--green-2) 14%,var(--surface)); box-shadow:inset 3px 0 var(--green-2); }.explorer-results-table footer { display:flex; justify-content:center; align-items:center; gap:8px; color:var(--muted); font-size:9px; }.explorer-results-table footer button { padding:4px 8px; border:1px solid var(--line); background:var(--surface); }
 .detail-actions { display:flex; flex-wrap:wrap; gap:5px; }.detail-actions button,.briefing-context button { padding:6px 8px; border:1px solid var(--green); color:var(--green); background:var(--surface); cursor:pointer; font-size:10px; }

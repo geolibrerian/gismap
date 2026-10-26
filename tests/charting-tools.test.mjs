@@ -126,3 +126,16 @@ test("Chart Tools guides an empty workspace to data instead of showing a warning
   assert.match(css, /\.chart-data-starter__grid/);
   assert.match(css, /@media \(max-width: 420px\) \{ \.chart-data-starter__grid \{ grid-template-columns:1fr; \}/);
 });
+
+test("saved charts stay inside standard panels and retain the active skin", () => {
+  const html = fs.readFileSync(new URL("../index.html", import.meta.url), "utf8");
+  const ui = fs.readFileSync(new URL("../js/ui.js", import.meta.url), "utf8");
+  const runtime = fs.readFileSync(new URL("../js/application-runtime.js", import.meta.url), "utf8");
+  const css = fs.readFileSync(new URL("../css/app.css", import.meta.url), "utf8");
+  assert.match(ui, /skin: document\.documentElement\.dataset\.skin \|\| this\.projectManager\.current\.presentation\?\.skin/);
+  assert.match(runtime, /application\.chart\.create[\s\S]*?const activeSkin = String\(input\.skin \|\| this\.document\.documentElement\.dataset\.skin/);
+  assert.match(runtime, /new ResizeObserver\(\(\) => chartInstance\?\.resize\?\.\(\)\)/);
+  assert.match(css, /\.application-panel\[data-panel-type="charts"\] \.application-panel__body \{ overflow-x:hidden; \}/);
+  assert.match(css, /\.chart-dashboard \.chart-builder__canvas \{[^}]*max-height:220px/s);
+  assert.doesNotMatch(html, /dashboard-settings-open/);
+});

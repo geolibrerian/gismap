@@ -63,8 +63,6 @@ export class ApplicationRuntime {
     applyInterfaceSkin(normalized.skin, { documentRef: this.document, colors: this.projectManager.current.presentation?.skinColors?.[normalized.skin] });
     this.document.body.dataset.applicationMode = normalized.mode;
     this.document.querySelector("#application-edit-return").hidden = normalized.mode !== "present";
-    const settingsButton = this.document.querySelector("#dashboard-settings-open");
-    if (settingsButton) settingsButton.hidden = false;
     let applied;
     if (this.mobilePanelManager?.compact) {
       this.layout.deactivate(this.#context());
@@ -96,8 +94,6 @@ export class ApplicationRuntime {
     delete app.dataset.applicationPreset;
     delete this.document.body.dataset.applicationMode;
     this.document.querySelector("#application-edit-return").hidden = true;
-    const settingsButton = this.document.querySelector("#dashboard-settings-open");
-    if (settingsButton) settingsButton.hidden = true;
     this.syncStaticPanelVisibility();
   }
 
@@ -235,6 +231,8 @@ export class ApplicationRuntime {
     applicationChange("application.layout.mode", "Change layout mode", (config, input) => ({ ...config, layout: { ...config.layout, kind: input.kind || "workspace" } }));
     applicationChange("application.skin.change", "Change skin", (config, input) => ({ ...config, skin: input.skin || config.skin }));
     applicationChange("application.chart.create", "Create chart", (config, input) => {
+      const activeSkin = String(input.skin || this.document.documentElement.dataset.skin || "").trim();
+      if (activeSkin) config.skin = activeSkin;
       config.panels.push({ instanceId: input.instanceId || `charts-${config.panels.filter((item) => item.type === "charts").length + 1}`, type: "charts", title: input.title || "Chart", placement: { region: input.region || "bottom", order: config.panels.length }, binding: input.binding || { followActiveLayer: true }, settings: input.settings || {}, audienceVisible: true });
       return config;
     });
@@ -359,6 +357,7 @@ export class ApplicationRuntime {
     const spec = createChartSpec(context.config.settings.chart);
     let result = null;
     let chartInstance = null;
+    let resizeObserver = null;
     let request = 0;
     const selectRow = (row) => {
       const records = result?.selection(row) || [];
@@ -377,7 +376,7 @@ export class ApplicationRuntime {
         if (token !== request) return;
         const warning = result.quality.status === "complete" ? `${result.quality.processedRecords.toLocaleString()} matching records` : result.quality.warning;
         const displayRows = displayChartRows(result);
-        host.innerHTML = `<div class="composable-chart chart-dashboard"><span class="eyebrow">${escapeHtml(result.layer.title || "Layer")} · linked</span><strong>${escapeHtml(spec.title)}</strong>${renderChartFallback(result, { rows: displayRows })}<p class="form-note">${escapeHtml(warning)}</p><p data-dashboard-chart-selection class="form-note"></p></div>`;
+        host.innerHTML = `<div class="composable-chart chart-dashboard"><span class="eyebrow">${escapeHtml(result.layer.title || "Layer")} · linked</span>${renderChartFallback(result, { rows: displayRows })}<p class="form-note">${escapeHtml(warning)}</p><p data-dashboard-chart-selection class="form-note"></p></div>`;
         const fallback = host.querySelector(".chart-fallback");
         fallback?.querySelectorAll("[data-chart-row]").forEach((button) => button.addEventListener("click", () => selectRow(displayRows[Number(button.dataset.chartRow)])));
         try {
@@ -386,6 +385,11 @@ export class ApplicationRuntime {
           const canvas = document.createElement("div"); canvas.className = "chart-builder__canvas";
           host.querySelector(".chart-dashboard").insertBefore(canvas, fallback);
           chartInstance?.dispose?.(); chartInstance = echarts.init(canvas); chartInstance.setOption(chartOption(result, { rows: displayRows }));
+          resizeObserver?.disconnect();
+          if (typeof ResizeObserver !== "undefined") {
+            resizeObserver = new ResizeObserver(() => chartInstance?.resize?.());
+            resizeObserver.observe(host);
+          }
           chartInstance.on("click", (event) => { const row = displayRows[event.dataIndex]; if (row) selectRow(row); });
           fallback?.remove();
         } catch { /* Keep the accessible fallback chart. */ }
@@ -394,7 +398,7 @@ export class ApplicationRuntime {
       }
     };
     const subscription = context.state.subscribe(() => void render(), (state) => state.filters);
-    context.onCleanup(() => { subscription.remove(); chartInstance?.dispose?.(); });
+    context.onCleanup(() => { subscription.remove(); resizeObserver?.disconnect(); chartInstance?.dispose?.(); });
     void render();
   }
 
