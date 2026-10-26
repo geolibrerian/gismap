@@ -82,14 +82,22 @@ test("Field Mode reserves its offline identity and QR scanner for actual offline
   assert.match(fieldJs, /previewGeoPayload/);
   assert.match(fieldJs, /encodeGeoPayload/);
   assert.match(fieldCss, /\.field-app\.is-offline \.field-header__brand-online::after/);
-  assert.match(worker, /gismap-field-v5/);
+  assert.match(worker, /gismap-field-v6/);
   assert.match(worker, /geopayload\.js/);
+  assert.match(worker, /field-site-pack\.js/);
   assert.match(worker, /caches\.delete/);
   assert.match(fieldHtml, /data-prepare-field>Prepare/);
   assert.match(fieldHtml, /data-readiness-dialog/);
+  assert.match(fieldHtml, /data-export-site-pack/);
+  assert.match(fieldHtml, /data-import-site-pack/);
+  assert.match(fieldHtml, /data-import-pmtiles/);
+  assert.match(fieldHtml, /data-animate-qr/);
   assert.match(fieldJs, /Field Inbox &amp; Outbox/);
   assert.match(fieldJs, /ready-to-return/);
   assert.match(fieldJs, /createReturnReceipt/);
+  assert.match(fieldJs, /mergeReturnReceipt/);
+  assert.match(fieldJs, /createAnimatedQrFrames/);
+  assert.match(fieldJs, /PMTiles stored locally/);
   assert.match(fieldJs, /navigator\.storage\?\.persist/);
 });
 

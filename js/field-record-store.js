@@ -2,7 +2,7 @@
 // legacy field-note sessions. This prevents a standalone install from changing
 // the version of the map app's existing IndexedDB database.
 const DB_NAME = "gismap-field-mode";
-const DB_VERSION = 3;
+const DB_VERSION = 4;
 const requestResult = (request, fallback) => new Promise((resolve, reject) => {
   request.onsuccess = () => resolve(request.result ?? fallback);
   request.onerror = () => reject(request.error || new Error("Local field storage is unavailable."));
@@ -24,6 +24,11 @@ export class FieldRecordStore {
         // task content.  A future server can reconcile this ledger without
         // changing the locally authored task or observation records.
         if (!db.objectStoreNames.contains("fieldHandoffs")) db.createObjectStore("fieldHandoffs", { keyPath: "id" });
+        // Site Packs and optional PMTiles are intentionally separate from the
+        // app shell cache. They are user-selected field data, not resources a
+        // service worker may safely fetch or retain without permission.
+        if (!db.objectStoreNames.contains("fieldPackages")) db.createObjectStore("fieldPackages", { keyPath: "id" });
+        if (!db.objectStoreNames.contains("fieldBasemaps")) db.createObjectStore("fieldBasemaps", { keyPath: "id" });
       };
       request.onsuccess = () => resolve(request.result);
       request.onerror = () => reject(request.error || new Error("Could not open Field Mode storage."));
@@ -86,5 +91,33 @@ export class FieldRecordStore {
   async getHandoff(id) {
     const db = await this.open();
     return requestResult(db.transaction("fieldHandoffs", "readonly").objectStore("fieldHandoffs").get(id), null);
+  }
+  async listPackages() {
+    const db = await this.open();
+    const items = await requestResult(db.transaction("fieldPackages", "readonly").objectStore("fieldPackages").getAll(), []);
+    return items.sort((a, b) => String(b.importedAt || b.createdAt || "").localeCompare(String(a.importedAt || a.createdAt || "")));
+  }
+  async savePackage(item) {
+    const db = await this.open(); const tx = db.transaction("fieldPackages", "readwrite"); tx.objectStore("fieldPackages").put(item);
+    await new Promise((resolve, reject) => { tx.oncomplete = resolve; tx.onerror = () => reject(tx.error || new Error("Could not save this Site Pack.")); });
+    return item;
+  }
+  async deletePackage(id) {
+    const db = await this.open(); const tx = db.transaction("fieldPackages", "readwrite"); tx.objectStore("fieldPackages").delete(id);
+    await new Promise((resolve, reject) => { tx.oncomplete = resolve; tx.onerror = () => reject(tx.error || new Error("Could not remove this Site Pack.")); });
+  }
+  async listBasemaps() {
+    const db = await this.open();
+    const items = await requestResult(db.transaction("fieldBasemaps", "readonly").objectStore("fieldBasemaps").getAll(), []);
+    return items.sort((a, b) => String(b.addedAt || "").localeCompare(String(a.addedAt || "")));
+  }
+  async saveBasemap(item) {
+    const db = await this.open(); const tx = db.transaction("fieldBasemaps", "readwrite"); tx.objectStore("fieldBasemaps").put(item);
+    await new Promise((resolve, reject) => { tx.oncomplete = resolve; tx.onerror = () => reject(tx.error || new Error("Could not store this offline basemap.")); });
+    return item;
+  }
+  async deleteBasemap(id) {
+    const db = await this.open(); const tx = db.transaction("fieldBasemaps", "readwrite"); tx.objectStore("fieldBasemaps").delete(id);
+    await new Promise((resolve, reject) => { tx.oncomplete = resolve; tx.onerror = () => reject(tx.error || new Error("Could not remove this offline basemap.")); });
   }
 }

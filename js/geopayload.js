@@ -8,9 +8,10 @@ import { decodeFieldTask, encodeFieldTask } from "./field-task-share.js";
 export const GEOPAYLOAD_SCHEMA = "gismap-geopayload";
 export const GEOPAYLOAD_VERSION = 1;
 export const GEOPAYLOAD_PREFIX = "gismap-geopayload:v1:";
-export const GEOPAYLOAD_TYPES = Object.freeze(["observation", "work-card", "return-receipt"]);
+export const GEOPAYLOAD_TYPES = Object.freeze(["observation", "work-card", "return-receipt", "site-pack"]);
 export const EMBEDDED_QR_TARGET = 2200;
 export const EMBEDDED_QR_MAXIMUM = 2953;
+export const GEOFRAME_PREFIX = "gismap-geoframe:v1:";
 const MAX_JSON_BYTES = 512 * 1024;
 
 const text = (value, max = 240) => String(value ?? "").trim().slice(0, max);
@@ -155,4 +156,90 @@ export function createReturnReceipt({ operationId = id("receipt"), payloadId, ta
   const records = Array.isArray(recordIds) ? [...new Set(recordIds.map((value) => text(value, 160)).filter(Boolean))].slice(0, 100) : [];
   const task = text(taskId, 160) || null;
   return createGeoPayload({ type: "return-receipt", id: operationId, createdAt: acknowledgedAt, data: { payloadId: originalPayloadId, taskId: task, recordIds: records, completion: completion == null ? null : jsonValue(completion), status: text(status, 48) || "accepted", acknowledgedAt: timestamp(acknowledgedAt), details: text(details, 600) } });
+}
+
+// Animated QR is deliberately an optional transport. Every frame contains an
+// integrity marker and a small XOR parity frame for each block, so a receiver
+// can recover one missed data frame per block. More than one missing frame is
+// reported plainly instead of producing a damaged handoff.
+const frameChecksum = (value) => checksum({ value: String(value) });
+const xorBytes = (parts, width) => {
+  const output = new Uint8Array(width);
+  parts.forEach((part) => {
+    const encoded = part instanceof Uint8Array ? part : new TextEncoder().encode(part);
+    for (let index = 0; index < width; index += 1) output[index] ^= encoded[index] || 0;
+  });
+  return output;
+};
+const binaryToBase64Url = (value) => {
+  const bytes = value instanceof Uint8Array ? value : new TextEncoder().encode(value); let binary = "";
+  bytes.forEach((byte) => { binary += String.fromCharCode(byte); });
+  return btoa(binary).replaceAll("+", "-").replaceAll("/", "_").replaceAll("=", "");
+};
+const base64UrlToBytes = (value) => Uint8Array.from(atob(String(value).replaceAll("-", "+").replaceAll("_", "/") + "=".repeat((4 - String(value).length % 4) % 4)), (character) => character.charCodeAt(0));
+
+/** Split an otherwise-valid GeoPayload into screen-shareable QR frames. */
+export function createAnimatedQrFrames(payload, { transferId = id("frames"), chunkSize = 640 } = {}) {
+  const source = encodeGeoPayload(payload, "qr");
+  const size = Math.max(160, Math.min(900, Math.floor(Number(chunkSize) || 640)));
+  const groupSize = 4;
+  const chunks = Array.from({ length: Math.ceil(source.length / size) }, (_, index) => source.slice(index * size, (index + 1) * size));
+  const transfer = text(transferId, 160);
+  if (!transfer || !chunks.length) throw new Error("Could not prepare animated QR frames.");
+  const digest = frameChecksum(source);
+  const frames = [];
+  chunks.forEach((chunk, index) => {
+    const block = Math.floor(index / groupSize);
+    frames.push(`${GEOFRAME_PREFIX}${transfer}:${index}/${chunks.length}:${block}:d:${source.length}:${size}:${digest}:${toBase64Url(chunk)}`);
+  });
+  for (let start = 0; start < chunks.length; start += groupSize) {
+    const block = Math.floor(start / groupSize); const group = chunks.slice(start, start + groupSize);
+    frames.push(`${GEOFRAME_PREFIX}${transfer}:${start}/${chunks.length}:${block}:p:${source.length}:${size}:${digest}:${binaryToBase64Url(xorBytes(group, size))}`);
+  }
+  return { id: transfer, frames, dataFrames: chunks.length, parityFrames: Math.ceil(chunks.length / groupSize), sourceCharacters: source.length, checksum: digest, chunkSize: size, blockSize: groupSize };
+}
+
+export function decodeAnimatedQrFrame(input) {
+  const source = String(input || "").trim();
+  if (!source.startsWith(GEOFRAME_PREFIX)) throw new Error("This is not a GISMap animated QR frame.");
+  const match = source.slice(GEOFRAME_PREFIX.length).match(/^([^:]+):(\d+)\/(\d+):(\d+):([dp]):(\d+):(\d+):([0-9a-f]{8}):([A-Za-z0-9_-]+)$/);
+  if (!match) throw new Error("This animated QR frame is malformed.");
+  const [, transferId, frameIndex, total, block, kind, sourceLength, chunkSize, digest, body] = match;
+  const decoded = kind === "d" ? fromBase64Url(body) : base64UrlToBytes(body);
+  return { transferId, index: Number(frameIndex), total: Number(total), block: Number(block), kind, sourceLength: Number(sourceLength), chunkSize: Number(chunkSize), checksum: digest, body: decoded };
+}
+
+/** Add a frame to a plain persisted accumulator. Safe to save in IndexedDB. */
+export function addAnimatedQrFrame(accumulator = {}, input) {
+  const frame = typeof input === "string" ? decodeAnimatedQrFrame(input) : input;
+  const next = { id: frame.transferId, total: frame.total, sourceLength: frame.sourceLength, chunkSize: frame.chunkSize, checksum: frame.checksum, data: { ...(accumulator.data || {}) }, parity: { ...(accumulator.parity || {}) } };
+  if (accumulator.id && accumulator.id !== frame.transferId) throw new Error("That frame belongs to a different animated transfer.");
+  if ([next.total, next.sourceLength, next.chunkSize].some((value) => !Number.isFinite(value) || value < 1)) throw new Error("This animated QR frame has invalid metadata.");
+  if (accumulator.id && (frame.total !== accumulator.total || frame.sourceLength !== accumulator.sourceLength || frame.chunkSize !== accumulator.chunkSize || frame.checksum !== accumulator.checksum)) throw new Error("That frame does not match this animated transfer.");
+  if (!Number.isInteger(frame.index) || frame.index < 0 || frame.index >= frame.total) throw new Error("This animated QR frame has an invalid frame number.");
+  if (frame.kind === "d") next.data[frame.index] = frame.body;
+  else next.parity[frame.block] = frame.body;
+  return next;
+}
+
+/** Rebuild the original payload; recovers one missing data frame per block. */
+export function assembleAnimatedQrFrames(accumulator) {
+  const state = accumulator || {}; const chunks = { ...(state.data || {}) };
+  const total = Number(state.total); const size = Number(state.chunkSize); const blockSize = 4;
+  if (!Number.isInteger(total) || total < 1 || !Number.isInteger(size) || size < 1) throw new Error("No animated transfer is ready to assemble.");
+  for (let start = 0; start < total; start += blockSize) {
+    const indexes = Array.from({ length: Math.min(blockSize, total - start) }, (_, offset) => start + offset);
+    const missing = indexes.filter((index) => chunks[index] == null);
+    if (!missing.length) continue;
+    const parity = state.parity?.[Math.floor(start / blockSize)];
+    if (missing.length !== 1 || !parity) continue;
+    const known = indexes.filter((index) => index !== missing[0]).map((index) => chunks[index]);
+    const restored = xorBytes([parity, ...known], size);
+    chunks[missing[0]] = new TextDecoder().decode(restored);
+  }
+  const missing = Array.from({ length: total }, (_, index) => index).filter((index) => chunks[index] == null);
+  if (missing.length) throw new Error(`Animated transfer is incomplete: ${missing.length} data frame${missing.length === 1 ? "" : "s"} still missing.`);
+  const source = Array.from({ length: total }, (_, index) => chunks[index]).join("").slice(0, Number(state.sourceLength));
+  if (frameChecksum(source) !== state.checksum) throw new Error("Animated transfer failed its integrity check. Scan the frames again.");
+  return decodeGeoPayload(source);
 }

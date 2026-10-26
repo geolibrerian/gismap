@@ -1,16 +1,19 @@
-import { createFieldRecord, decodeCompactFieldRecord, encodeCompactFieldRecord, makeFieldPackage, normalizeFieldPackage, recordsGeoJSON, reviseFieldRecord } from "../js/field-records.js";
+import { createFieldRecord, decodeCompactFieldRecord, encodeCompactFieldRecord, makeFieldPackage, normalizeFieldPackage, normalizeFieldRecord, recordsGeoJSON, reviseFieldRecord } from "../js/field-records.js";
 import { FieldRecordStore } from "../js/field-record-store.js";
 import { decodeQrFromImage } from "../js/qr-import.js";
 import { decodeFieldTask, readFieldTaskHash, taskSteps } from "../js/field-task-share.js";
-import { createReturnReceipt, decodeGeoPayload, encodeGeoPayload, fieldRecordFromGeoPayload, fieldTaskFromGeoPayload, geoPayloadFromFieldRecord, recommendTransports } from "../js/geopayload.js";
+import { addAnimatedQrFrame, assembleAnimatedQrFrames, createAnimatedQrFrames, createReturnReceipt, decodeGeoPayload, encodeGeoPayload, fieldRecordFromGeoPayload, fieldTaskFromGeoPayload, geoPayloadFromFieldRecord, recommendTransports } from "../js/geopayload.js";
 import { brandedQrFile } from "../js/pdf-document.js";
 import { fieldRecordFileStem, fieldRecordPdf } from "../js/field-record-report.js";
+import { createSitePack, normalizeSitePack, sitePackEstimate } from "../js/field-site-pack.js";
 
 const $ = (selector) => document.querySelector(selector);
 const store = new FieldRecordStore();
 let records = [];
 let tasks = [];
 let handoffs = [];
+let packages = [];
+let basemaps = [];
 let selectedRecordIds = new Set();
 let activeQrTransfer = null;
 let capture = null;
@@ -21,6 +24,8 @@ let installPrompt = null;
 let qrCameraStream = null;
 let qrCameraTimer = null;
 let pendingGeoPayload = null;
+let animatedQrIntake = null;
+let animatedQrTimer = null;
 
 const toast = (message) => { const node = $("[data-toast]"); node.textContent = message; clearTimeout(toast.timer); toast.timer = setTimeout(() => { node.textContent = ""; }, 4200); };
 const escape = (value) => String(value ?? "").replace(/[&<>'"]/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", '"': "&quot;" })[character]);
@@ -54,6 +59,7 @@ function taskCard(task) {
   const actions = [
     state === "incoming" ? `<button type="button" data-start-task="${taskId}">Start task</button>` : "",
     state !== "incoming" ? `<button type="button" data-note-from-task="${taskId}">Add note for task</button>` : "",
+    task.handoffId ? `<button type="button" data-ack-task="${taskId}">Show acknowledgment</button>` : "",
     complete || ready || returned ? `<button type="button" data-return-task="${taskId}">${complete ? "Prepare return" : returned ? "Show return" : "Show return QR"}</button>` : "",
   ].filter(Boolean).join("");
   return `<article class="record-card"><span class="record-card__meta">${escape(taskStateLabel(state))} · received ${escape(date(task.acceptedAt || task.importedAt || task.createdAt || Date.now()))}</span><h2>${escape(task.title || "Untitled field task")}</h2><p>${escape(task.notes || task.location || "No instructions.")}</p><p class="record-card__meta">${done}/${steps.length} steps complete${task.completedAt ? ` · completed ${escape(date(task.completedAt))}` : ""}${task.returnPreparedAt ? ` · return prepared ${escape(date(task.returnPreparedAt))}` : ""}</p><div class="task-steps">${steps.map((step, index) => `<label><input type="checkbox" data-task-step="${taskId}" value="${index}" ${step.done ? "checked" : ""} ${state !== "active" ? "disabled" : ""} /> ${escape(step.text)}</label>`).join("")}</div><div class="record-card__actions">${actions}</div></article>`;
@@ -62,7 +68,9 @@ function renderTasks() {
   if (!tasks.length) return '<div class="field-empty"><h2>Field Inbox is empty</h2><p>Scan or paste a self-contained Work Card while offline to receive work here.</p></div>';
   const groups = Object.fromEntries(TASK_STATES.map((state) => [state, tasks.filter((task) => taskState(task) === state)]));
   const incoming = groups.incoming.length; const active = groups.active.length; const outbound = handoffs.filter((item) => item.direction === "outgoing" && item.status === "ready-to-return").length; const received = handoffs.filter((item) => item.direction === "incoming" && item.type === "return-receipt").length;
-  const header = `<article class="transfer-card field-handoff-summary"><h2>Field Inbox &amp; Outbox</h2><p>${incoming} incoming · ${active} active · ${groups.completed.length} completed · ${groups["ready-to-return"].length} ready to return · ${outbound} outbound receipt${outbound === 1 ? "" : "s"} prepared locally${received ? ` · ${received} return receipt${received === 1 ? "" : "s"} received` : ""}.</p><p>Local acknowledgements are durable on this device. They are not server registrations.</p></article>`;
+  const conflicts = handoffs.filter((item) => item.status === "conflict").length;
+  const history = handoffs.filter((item) => item.direction === "incoming").slice(0, 3).map((item) => `${escape(item.type || "handoff")} · ${escape(item.status || "received")} · ${escape(date(item.updatedAt || item.receivedAt || item.createdAt))}`).join("<br />");
+  const header = `<article class="transfer-card field-handoff-summary"><h2>Field Inbox &amp; Outbox</h2><p>${incoming} incoming · ${active} active · ${groups.completed.length} completed · ${groups["ready-to-return"].length} ready to return · ${outbound} outbound receipt${outbound === 1 ? "" : "s"} prepared locally${received ? ` · ${received} return receipt${received === 1 ? "" : "s"} received` : ""}${conflicts ? ` · ${conflicts} conflict${conflicts === 1 ? "" : "s"} need review` : ""}.</p><p>Local acknowledgements are durable on this device. They are not server registrations.</p>${history ? `<p class="record-card__meta"><strong>Recent import history</strong><br />${history}</p>` : ""}</article>`;
   return header + TASK_STATES.map((state) => groups[state].length ? `<section class="field-task-group"><h2>${escape(taskStateLabel(state))} <span>${groups[state].length}</span></h2>${groups[state].map(taskCard).join("")}</section>` : "").join("");
 }
 
@@ -77,12 +85,18 @@ async function refresh() {
   records = await store.listRecords();
   tasks = await store.listTasks();
   handoffs = await store.listHandoffs();
+  packages = await store.listPackages();
+  basemaps = await store.listBasemaps();
   $("[data-record-count]").textContent = String(records.length);
   $("[data-task-count]").textContent = String(tasks.length);
   capabilities();
   const list = $("[data-record-list]");
   list.innerHTML = records.length ? `<div class="record-selection"><button type="button" data-select-all>${selectedRecordIds.size === records.length ? "Clear selection" : "Select all"}</button><span>${selectedRecordIds.size} selected</span></div>${records.map((record) => `<article class="record-card"><label class="record-card__select"><input type="checkbox" data-select-record="${escape(record.id)}" ${selectedRecordIds.has(record.id) ? "checked" : ""} /> Select for report</label><span class="record-card__meta">${escape(record.collectionId)} · observed ${escape(date(record.observedAt))}${record.geometry ? " · location attached" : " · no location"}</span><h2>${escape(recordName(record))}</h2><p>${escape(record.notes.text || "No notes.")}</p><span class="record-card__meta">Revision ${record.sync.revision} · edited ${escape(date(record.modifiedAt))} · ${record.attachments.length} attachment${record.attachments.length === 1 ? "" : "s"} · ${escape(record.sync.registeredAt ? "registered" : "local only")}</span><div class="record-card__actions"><button type="button" data-edit-record="${escape(record.id)}">Edit</button><button type="button" data-show-qr="${escape(record.id)}">Share &amp; QR</button><button type="button" data-record-pdf="${escape(record.id)}">PDF</button><button type="button" data-delete-record="${escape(record.id)}">Delete</button></div></article>`).join("")}` : '<div class="field-empty"><h2>No observations yet</h2><p>Saved observations stay securely in this browser until you export them.</p></div>';
   $("[data-task-list]").innerHTML = renderTasks();
+  const packageList = $("[data-site-pack-list]");
+  if (packageList) packageList.innerHTML = packages.length ? packages.map((item) => `<p class="field-storage-item"><strong>${escape(item.name)}</strong> · ${item.tasks?.length || 0} task${item.tasks?.length === 1 ? "" : "s"} · ${item.records?.length || 0} note${item.records?.length === 1 ? "" : "s"}<button type="button" data-remove-site-pack="${escape(item.id)}">Remove</button></p>`).join("") : "<p>No portable map packs are stored on this device.</p>";
+  const mapList = $("[data-offline-map-list]");
+  if (mapList) mapList.innerHTML = basemaps.length ? basemaps.map((item) => `<p class="field-storage-item"><strong>${escape(item.name)}</strong> · ${Math.round((item.bytes || 0) / 1024 / 1024)} MB · ${escape(item.format || "map data")}<button type="button" data-remove-basemap="${escape(item.id)}">Remove</button></p>`).join("") : "<p>No offline basemap files are stored. A compatible map viewer is still required to render PMTiles.</p>";
 }
 
 function switchView(view) {
@@ -178,6 +192,43 @@ async function importPackage(file) {
   await refresh(); toast(`Imported ${imported} observation${imported === 1 ? "" : "s"}${skipped ? `; ${skipped} already present` : ""}.`);
 }
 
+async function importSitePack(file) {
+  const pack = normalizeSitePack(JSON.parse(await file.text()));
+  const existing = packages.find((item) => item.id === pack.id);
+  if (existing) { toast("This Site Pack is already stored on this device."); return; }
+  let tasksAdded = 0; let recordsAdded = 0; let conflicts = 0; const importedAt = new Date().toISOString();
+  for (const incoming of pack.tasks) {
+    const current = tasks.find((item) => item.id === incoming.id);
+    if (current && JSON.stringify(current) !== JSON.stringify(incoming)) { conflicts++; continue; }
+    if (!current) { const id = incoming.id || `site-task:${pack.id}:${tasksAdded}`; await store.saveTask({ ...incoming, id, status: "incoming", importedAt, acceptedAt: importedAt, source: "site-pack", payloadId: pack.id, handoffId: `site:${pack.id}:${id}`, revision: 1 }); tasksAdded++; }
+  }
+  for (const incoming of pack.records) {
+    const current = records.find((item) => item.id === incoming.id);
+    if (current && JSON.stringify(current) !== JSON.stringify(incoming)) { conflicts++; continue; }
+    if (!current) { await store.saveRecord(incoming); recordsAdded++; }
+  }
+  await store.savePackage({ ...pack, importedAt, sourceFileName: file.name, importHistory: { tasksAdded, recordsAdded, conflicts } });
+  await store.saveHandoff({ id: `site-import:${pack.id}`, direction: "incoming", type: "site-pack", status: conflicts ? "conflict" : "imported", payloadId: pack.id, receivedAt: importedAt, createdAt: pack.createdAt, updatedAt: importedAt, importHistory: { tasksAdded, recordsAdded, conflicts } });
+  await refresh(); switchView("tasks"); toast(`Site Pack added: ${tasksAdded} task${tasksAdded === 1 ? "" : "s"}, ${recordsAdded} note${recordsAdded === 1 ? "" : "s"}${conflicts ? `; ${conflicts} conflict${conflicts === 1 ? "" : "s"} retained` : ""}.`);
+}
+
+function downloadSitePack() {
+  const scope = selectedRecords().length ? selectedRecords() : records;
+  const pack = createSitePack({ name: "GISMap Field Site Pack", tasks, records: scope, basemap: basemaps[0] ? { id: basemaps[0].id, name: basemaps[0].name, format: basemaps[0].format, bytes: basemaps[0].bytes, included: false, renderer: "compatible GISMap map viewer required" } : null });
+  const estimate = sitePackEstimate(pack);
+  download("gismap-field-site.gismap", JSON.stringify(pack, null, 2), "application/vnd.gismap.site-pack+json");
+  toast(`Site Pack downloaded: ${estimate.taskCount} tasks, ${estimate.recordCount} notes, about ${Math.max(1, Math.ceil(estimate.estimatedBytes / 1024))} KB manifest. Basemap files are referenced, not embedded.`);
+}
+
+async function importPmtiles(file) {
+  if (!file) return;
+  if (!/\.pmtiles$/i.test(file.name) && file.type !== "application/vnd.pmtiles") throw new Error("Choose a .pmtiles file.");
+  const id = `pmtiles:${file.name}:${file.size}:${file.lastModified}`;
+  if (basemaps.some((item) => item.id === id)) { toast("This PMTiles file is already stored on this device."); return; }
+  await store.saveBasemap({ id, name: file.name, format: "PMTiles", bytes: file.size, blob: file, addedAt: new Date().toISOString(), renderer: "requires-compatible-map-viewer" });
+  await refresh(); toast("PMTiles stored locally. Open a compatible GISMap map viewer to render it offline.");
+}
+
 async function showQr(id) {
   const record = records.find((item) => item.id === id); if (!record) return;
   await showGeoPayloadQr(geoPayloadFromFieldRecord(record), {
@@ -190,12 +241,40 @@ async function showQr(id) {
 async function showGeoPayloadQr(payload, { title, fileName = "gismap-field-handoff-qr.png", summary, lines = ["Portable GISMap Field handoff"] } = {}) {
   const text = encodeGeoPayload(payload);
   const advice = recommendTransports(payload, { qr: true });
-  if (!advice.qr.supported) throw new Error("This handoff is too large for one QR code. Download a GeoPayload file instead.");
-  activeQrTransfer = { text, title: title || "GISMap Field handoff", fileName, summary: summary || "Portable GISMap Field handoff.", lines };
+  activeQrTransfer = { text, payload, title: title || "GISMap Field handoff", fileName, summary: summary || "Portable GISMap Field handoff.", lines };
+  if (!advice.qr.supported) { await showAnimatedQr(); return; }
+  stopAnimatedQr();
+  await renderQrText(text);
+  $("[data-animate-qr]").hidden = false;
+  $("[data-download-qr]").hidden = false;
+  $("[data-share-qr]").hidden = false;
+  $("[data-qr-summary]").textContent = activeQrTransfer.summary; $("[data-qr-dialog]").showModal();
+}
+
+async function renderQrText(text) {
   const canvas = $("[data-qr-canvas]");
   if (!globalThis.QRCode?.toCanvas) throw new Error("QR generator is unavailable.");
   await globalThis.QRCode.toCanvas(canvas, text, { width: 360, margin: 2, errorCorrectionLevel: "M", color: { dark: "#123e35", light: "#fffdf8" } });
-  $("[data-qr-summary]").textContent = activeQrTransfer.summary; $("[data-qr-dialog]").showModal();
+}
+
+function stopAnimatedQr() {
+  if (animatedQrTimer) clearInterval(animatedQrTimer);
+  animatedQrTimer = null;
+}
+
+async function showAnimatedQr() {
+  if (!activeQrTransfer?.payload) throw new Error("Choose a portable handoff before starting animated QR.");
+  const transfer = createAnimatedQrFrames(activeQrTransfer.payload);
+  activeQrTransfer.animated = transfer;
+  let frame = 0;
+  const render = () => renderQrText(transfer.frames[frame++ % transfer.frames.length]).catch((error) => { stopAnimatedQr(); toast(error.message); });
+  stopAnimatedQr(); render();
+  animatedQrTimer = setInterval(render, 900);
+  $("[data-animate-qr]").hidden = true;
+  $("[data-download-qr]").hidden = true;
+  $("[data-share-qr]").hidden = true;
+  $("[data-qr-summary]").textContent = `${activeQrTransfer.summary} Animated transfer: ${transfer.dataFrames} data frames plus ${transfer.parityFrames} recovery frames repeat every ${Math.ceil(transfer.frames.length * 0.9)} seconds.`;
+  if (!$("[data-qr-dialog]").open) $("[data-qr-dialog]").showModal();
 }
 
 async function qrCard() {
@@ -225,6 +304,18 @@ function selectedRecords() {
 
 async function importQrText(text) {
   const value = String(text || "").trim();
+  if (value.startsWith("gismap-geoframe:v1:")) {
+    animatedQrIntake = addAnimatedQrFrame(animatedQrIntake || {}, value);
+    const received = Object.keys(animatedQrIntake.data).length; const total = animatedQrIntake.total;
+    try {
+      const payload = assembleAnimatedQrFrames(animatedQrIntake);
+      animatedQrIntake = null; previewGeoPayload(payload); toast("Animated QR transfer reconstructed and verified.");
+    } catch (error) {
+      if (!/incomplete/.test(error.message)) throw error;
+      toast(`Animated QR: ${received}/${total} data frames received. Keep scanning; one missed frame per group can recover.`);
+    }
+    return "waiting";
+  }
   if (value.startsWith("gismap-geopayload:v1:") || value.startsWith("{")) {
     try { previewGeoPayload(decodeGeoPayload(value)); return; }
     catch (error) { if (value.startsWith("gismap-geopayload:v1:")) throw error; }
@@ -266,6 +357,62 @@ function previewGeoPayload(payload) {
   $("[data-geopayload-dialog]").showModal();
 }
 
+const handoffOperations = () => new Set(handoffs.flatMap((item) => item.operationIds || []));
+
+async function mergeReturnReceipt(payload) {
+  const existing = handoffs.find((item) => item.id === payload.id);
+  if (existing) return { duplicate: true, imported: 0, conflicts: 0 };
+  const completion = payload.data.completion && typeof payload.data.completion === "object" ? payload.data.completion : {};
+  const operations = Array.isArray(completion.operations) ? completion.operations : [{ operationId: payload.id, entityType: "task", entityId: payload.data.taskId, baseVersion: completion.taskRevision, operation: "update", values: { status: payload.data.status, completedAt: completion.completedAt || payload.data.acknowledgedAt } }];
+  const applied = handoffOperations(); const conflicts = []; let imported = 0; let duplicates = 0;
+  for (const operation of operations) {
+    const operationId = String(operation?.operationId || "").trim();
+    if (!operationId || applied.has(operationId)) { duplicates++; continue; }
+    if (operation.entityType === "task") {
+      if (operation.operation === "acknowledge") { await updateHandoff(payload.data.payloadId, { status: "acknowledged", acknowledgedAt: payload.data.acknowledgedAt, acknowledgmentReceiptId: payload.id }); imported++; applied.add(operationId); continue; }
+      const task = tasks.find((item) => item.id === operation.entityId || item.payloadId === payload.data.payloadId || item.handoffId === payload.data.payloadId);
+      const baseVersion = Number(operation.baseVersion || 0);
+      const desired = operation.values || {};
+      if (task && baseVersion && Number(task.revision || 1) > baseVersion && desired.status && task.status !== desired.status) { conflicts.push({ operationId, entityType: "task", entityId: task.id, reason: "Task changed locally after the returned copy was issued." }); continue; }
+      if (task) {
+        await store.saveTask({ ...task, ...desired, status: desired.status === "completed" ? "returned" : (desired.status || task.status), returnedAt: payload.data.acknowledgedAt, updatedAt: new Date().toISOString(), revision: Math.max(Number(task.revision || 1), baseVersion) + 1 });
+        imported++;
+      }
+    }
+    if (operation.entityType === "observation") {
+      const source = completion.observations?.find((record) => record.id === operation.entityId);
+      if (!source) continue;
+      const record = normalizeFieldRecord(source); const local = records.find((item) => item.id === record.id);
+      if (local && JSON.stringify(local) !== JSON.stringify(record)) { conflicts.push({ operationId, entityType: "observation", entityId: record.id, reason: "Observation has different local content." }); continue; }
+      if (!local) { await store.saveRecord(record); imported++; }
+      else duplicates++;
+    }
+    applied.add(operationId);
+  }
+  await store.saveHandoff({ id: payload.id, direction: "incoming", type: "return-receipt", status: conflicts.length ? "conflict" : "reconciled", payloadId: payload.data.payloadId, taskId: payload.data.taskId, operationIds: operations.map((item) => String(item?.operationId || "").trim()).filter(Boolean), receivedAt: new Date().toISOString(), acknowledgedAt: payload.data.acknowledgedAt, createdAt: payload.createdAt, updatedAt: new Date().toISOString(), importHistory: { imported, duplicates, conflicts } });
+  return { duplicate: false, imported, duplicates, conflicts: conflicts.length };
+}
+
+function acknowledgmentPayloadForTask(task) {
+  const acknowledgedAt = task.acceptedAt || new Date().toISOString();
+  return createReturnReceipt({
+    operationId: task.acknowledgmentOperationId || `ack:${task.handoffId || task.id}:${acknowledgedAt}`,
+    payloadId: task.payloadId || task.handoffId || task.id,
+    taskId: task.id,
+    status: "accepted",
+    acknowledgedAt,
+    completion: { kind: "handoff-acknowledgment", taskRevision: task.revision || 1, acceptedAt: acknowledgedAt, operations: [{ operationId: task.acknowledgmentOperationId || `ack:${task.handoffId || task.id}:${acknowledgedAt}`, entityType: "task", entityId: task.id, baseVersion: task.revision || 1, operation: "acknowledge", values: { status: "acknowledged", acceptedAt: acknowledgedAt } }] },
+  });
+}
+
+async function showTaskAcknowledgment(task) {
+  const payload = acknowledgmentPayloadForTask(task);
+  if (!task.acknowledgmentOperationId) await store.saveTask({ ...task, acknowledgmentOperationId: payload.id, updatedAt: new Date().toISOString() });
+  await store.saveHandoff({ id: payload.id, direction: "outgoing", type: "return-receipt", status: "acknowledgment-ready", taskId: task.id, payloadId: payload.data.payloadId, operationIds: payload.data.completion.operations.map((operation) => operation.operationId), createdAt: payload.createdAt, updatedAt: new Date().toISOString() });
+  await refresh();
+  await showGeoPayloadQr(payload, { title: `${task.title || "Field task"} acknowledgment`, fileName: `gismap-field-ack-${task.id}.png`, summary: "Task received acknowledgment. It is local until the originating device imports this handoff.", lines: ["GISMap Field acknowledgment", "Not a server registration."] });
+}
+
 async function acceptGeoPayload() {
   const payload = pendingGeoPayload;
   if (!payload) return;
@@ -283,9 +430,8 @@ async function acceptGeoPayload() {
     }
     await refresh(); switchView("tasks"); toast(existing ? "This work card is already in your Field Inbox." : "Work card accepted into the Field Inbox. It has not been registered with a server.");
   } else {
-    const existing = handoffs.find((item) => item.id === payload.id);
-    if (!existing) await store.saveHandoff({ id: payload.id, direction: "incoming", type: "return-receipt", status: "received", payloadId: payload.data.payloadId, taskId: payload.data.taskId, receivedAt: new Date().toISOString(), acknowledgedAt: payload.data.acknowledgedAt, createdAt: payload.createdAt, updatedAt: new Date().toISOString() });
-    await refresh(); switchView("tasks"); toast(existing ? "This return receipt is already in the local handoff ledger." : "Return receipt saved locally for a future receiving service or desktop inbox.");
+    const result = await mergeReturnReceipt(payload);
+    await refresh(); switchView("tasks"); toast(result.duplicate ? "This return receipt was already imported." : `${result.imported} change${result.imported === 1 ? "" : "s"} merged locally${result.conflicts ? `; ${result.conflicts} conflict${result.conflicts === 1 ? "" : "s"} kept for review` : ""}.`);
   }
   pendingGeoPayload = null;
   $("[data-geopayload-dialog]").close();
@@ -319,7 +465,9 @@ async function scanQrWithCamera() {
         const codes = video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA ? await detector.detect(video) : [];
         const value = codes.find((code) => code.rawValue)?.rawValue;
         if (value) {
-          stopQrCamera(); dialog.close(); await importQrText(value); return;
+          const result = await importQrText(value);
+          if (result === "waiting") { status.textContent = "Animated QR frame received. Keep the camera pointed at the sender."; qrCameraTimer = setTimeout(detect, 450); return; }
+          stopQrCamera(); dialog.close(); return;
         }
       } catch (error) { status.textContent = error.message || "Camera scan failed. Use Take QR photo instead."; stopQrCamera(); return; }
       qrCameraTimer = setTimeout(detect, 250);
@@ -340,8 +488,14 @@ async function importQrImage(file) {
 }
 
 function returnPayloadForTask(task) {
-  const recordIds = records.filter((record) => record.relations.fieldTaskIds.includes(task.id)).map((record) => record.id);
+  const linkedRecords = records.filter((record) => record.relations.fieldTaskIds.includes(task.id));
+  const recordIds = linkedRecords.map((record) => record.id);
   const completedAt = task.completedAt || new Date().toISOString();
+  const taskOperationId = `task:${task.id}:${task.revision || 1}:completed`;
+  const operations = [
+    { operationId: taskOperationId, entityType: "task", entityId: task.id, baseVersion: Math.max(1, Number(task.revision || 1) - 1), operation: "update", values: { status: "completed", completedAt } },
+    ...linkedRecords.map((record) => ({ operationId: `observation:${record.id}:${record.sync.revision}`, entityType: "observation", entityId: record.id, baseVersion: record.sync.revision, operation: "append", values: { revision: record.sync.revision } })),
+  ];
   return createReturnReceipt({
     operationId: task.returnOperationId || `return:${task.id}:${task.revision || 1}`,
     payloadId: task.payloadId || task.handoffId || task.id,
@@ -349,7 +503,7 @@ function returnPayloadForTask(task) {
     recordIds,
     status: "completed",
     acknowledgedAt: completedAt,
-    completion: { title: task.title || "Field task", completedAt, steps: taskSteps(task), taskRevision: task.revision || 1 },
+    completion: { title: task.title || "Field task", completedAt, steps: taskSteps(task), taskRevision: task.revision || 1, operations, observations: linkedRecords },
     details: task.report || "",
   });
 }
@@ -359,7 +513,7 @@ async function prepareTaskReturn(task) {
   const payload = returnPayloadForTask(task); const preparedAt = task.returnPreparedAt || new Date().toISOString();
   const updated = { ...task, status: "ready-to-return", returnOperationId: payload.id, returnPreparedAt: preparedAt, updatedAt: new Date().toISOString(), revision: (task.revision || 1) + (task.returnOperationId ? 0 : 1) };
   await store.saveTask(updated);
-  await store.saveHandoff({ id: payload.id, direction: "outgoing", type: "return-receipt", status: "ready-to-return", taskId: task.id, payloadId: task.payloadId || task.handoffId || task.id, createdAt: preparedAt, updatedAt: new Date().toISOString() });
+  await store.saveHandoff({ id: payload.id, direction: "outgoing", type: "return-receipt", status: "ready-to-return", taskId: task.id, payloadId: task.payloadId || task.handoffId || task.id, operationIds: payload.data.completion.operations.map((operation) => operation.operationId), createdAt: preparedAt, updatedAt: new Date().toISOString() });
   await updateHandoff(task.handoffId, { status: "ready-to-return", returnOperationId: payload.id, returnPreparedAt: preparedAt });
   await refresh();
   await showGeoPayloadQr(payload, { title: `${task.title || "Field task"} return`, fileName: `gismap-field-return-${task.id}.png`, summary: `${task.title || "Field task"} · completion return · ${payload.data.recordIds.length} linked note${payload.data.recordIds.length === 1 ? "" : "s"}. This QR is not a server acknowledgement.`, lines: ["GISMap Field completion return", "Scan in a prepared GISMap Field inbox."] });
@@ -375,7 +529,10 @@ async function readiness({ requestPersistence = false } = {}) {
   const scanner = typeof globalThis.BarcodeDetector === "function" ? "Live QR scanner available" : "QR photo scanner available after the Field app shell is cached";
   const usage = estimate?.usage != null && estimate?.quota ? `${Math.round(estimate.usage / 1024 / 1024)} MB used of ${Math.round(estimate.quota / 1024 / 1024)} MB` : "Storage estimate unavailable";
   const shell = controlled && cached ? "Ready for offline launch" : registration ? "Caching is installed; reload once before leaving service" : "Not prepared; keep this screen open online until caching finishes";
-  $("[data-readiness-status]").innerHTML = `<ul class="field-readiness"><li><b>Field app shell:</b> ${escape(shell)}</li><li><b>Local records:</b> ${globalThis.indexedDB ? "IndexedDB available" : "unavailable"}</li><li><b>Persistent storage:</b> ${persisted ? "granted" : "not guaranteed—request it below and keep exports"}</li><li><b>Device storage:</b> ${escape(usage)}</li><li><b>QR intake:</b> ${escape(scanner)}</li><li><b>Map coverage:</b> not downloaded by this check. Bring a package or online map coverage separately.</li></ul>`;
+  const cacheNames = "caches" in globalThis ? await caches.keys().catch(() => []) : [];
+  const cacheEntries = "caches" in globalThis ? (await Promise.all(cacheNames.map(async (name) => (await caches.open(name)).keys().then((items) => items.length).catch(() => 0)))).reduce((sum, count) => sum + count, 0) : 0;
+  const mapCoverage = basemaps.length ? `${basemaps.length} PMTiles file${basemaps.length === 1 ? "" : "s"} stored locally; use a compatible GISMap map viewer to render.` : "No offline basemap file is stored. App cache entries are not a licensed or reliable map-download substitute.";
+  $("[data-readiness-status]").innerHTML = `<ul class="field-readiness"><li><b>Field app shell:</b> ${escape(shell)}</li><li><b>Local records:</b> ${globalThis.indexedDB ? "IndexedDB available" : "unavailable"}</li><li><b>Persistent storage:</b> ${persisted ? "granted" : "not guaranteed—request it below and keep exports"}</li><li><b>Device storage:</b> ${escape(usage)}</li><li><b>Cached application resources:</b> ${cacheEntries} item${cacheEntries === 1 ? "" : "s"} in ${cacheNames.length} cache${cacheNames.length === 1 ? "" : "s"}</li><li><b>QR intake:</b> ${escape(scanner)}</li><li><b>Site Packs:</b> ${packages.length} stored locally</li><li><b>Map coverage:</b> ${escape(mapCoverage)}</li></ul>`;
 }
 
 async function openReadiness(requestPersistence = false) {
@@ -420,6 +577,7 @@ function wire() {
     const target = event.target.closest("button"); if (!target) return;
     try {
       if (target.dataset.startTask) { const task = tasks.find((item) => item.id === target.dataset.startTask); if (!task) return; const startedAt = new Date().toISOString(); await store.saveTask({ ...task, status: "active", startedAt, updatedAt: startedAt, revision: (task.revision || 1) + 1 }); await updateHandoff(task.handoffId, { status: "active", startedAt }); await refresh(); toast("Task started locally."); return; }
+      if (target.dataset.ackTask) { const task = tasks.find((item) => item.id === target.dataset.ackTask); if (task) await showTaskAcknowledgment(task); return; }
       if (target.dataset.returnTask) { const task = tasks.find((item) => item.id === target.dataset.returnTask); if (task) await prepareTaskReturn(task); return; }
       if (!target.dataset.noteFromTask) return;
       const task = tasks.find((item) => item.id === target.dataset.noteFromTask); if (!task) return; resetEditor(); const fields = $("[data-record-form]").elements; fields.collectionId.value = "task-notes"; fields.title.value = task.title || ""; fields.notes.value = task.notes || ""; if (Number.isFinite(task.longitude) && Number.isFinite(task.latitude)) setLocation({ coordinates: [task.longitude, task.latitude], source: "field-task", accuracyMeters: null }); $("[data-record-form]").dataset.taskId = task.id; switchView("collect");
@@ -434,7 +592,12 @@ function wire() {
     toast("Portable GeoPayload downloaded. Attachments stay in the .gisfield package.");
   });
   $("[data-export-package]").addEventListener("click", async () => { try { const assets = await packageAssets(); download("gismap-field-observations.gisfield", JSON.stringify(makeFieldPackage(records, assets), null, 2), "application/vnd.gismap.field+json"); toast("Field package downloaded."); } catch (error) { toast(error.message); } });
+  $("[data-export-site-pack]").addEventListener("click", () => { try { downloadSitePack(); } catch (error) { toast(error.message); } });
   $("[data-import-package]").addEventListener("change", async (event) => { const [file] = event.target.files; if (!file) return; try { await importPackage(file); } catch (error) { toast(error.message); } event.target.value = ""; });
+  $("[data-import-site-pack]").addEventListener("change", async (event) => { const [file] = event.target.files; if (!file) return; try { await importSitePack(file); } catch (error) { toast(error.message); } event.target.value = ""; });
+  $("[data-import-pmtiles]").addEventListener("change", async (event) => { const [file] = event.target.files; try { await importPmtiles(file); } catch (error) { toast(error.message); } event.target.value = ""; });
+  $("[data-site-pack-list]").addEventListener("click", async (event) => { const button = event.target.closest("button[data-remove-site-pack]"); if (!button) return; await store.deletePackage(button.dataset.removeSitePack); await refresh(); toast("Site Pack removed from this device."); });
+  $("[data-offline-map-list]").addEventListener("click", async (event) => { const button = event.target.closest("button[data-remove-basemap]"); if (!button) return; await store.deleteBasemap(button.dataset.removeBasemap); await refresh(); toast("Offline basemap file removed from this device."); });
   $("[data-import-geopayload]").addEventListener("change", async (event) => { const [file] = event.target.files; if (!file) return; try { previewGeoPayload(decodeGeoPayload(await file.text())); } catch (error) { toast(error.message); } event.target.value = ""; });
   $("[data-export-pdf]").addEventListener("click", async () => { try { const scope = selectedRecords(); const file = await reportFile(scope.length ? scope : records); download(file.name, file, file.type); toast("Field PDF downloaded. Open its location links on desktop to add a map later."); } catch (error) { toast(error.message); } });
   $("[data-share-records]").addEventListener("click", async () => { try { const scope = selectedRecords(); const file = await reportFile(scope.length ? scope : records); await mobileShare({ title: "GISMap Field report", text: "Field observations from GISMap Field Mode.", file }); } catch (error) { if (error.name !== "AbortError") toast(error.message); } });
@@ -453,7 +616,10 @@ function wire() {
   $("[data-refresh-readiness]").addEventListener("click", () => openReadiness());
   $("[data-persist-field]").addEventListener("click", () => openReadiness(true));
   $("[data-close-qr]").addEventListener("click", () => $("[data-qr-dialog]").close());
+  $("[data-qr-dialog]").addEventListener("close", stopAnimatedQr);
+  $("[data-animate-qr]").addEventListener("click", () => showAnimatedQr().catch((error) => toast(error.message)));
   $("[data-download-qr]").addEventListener("click", async () => { try { const file = await qrCard(); download(file.name, file, file.type); } catch (error) { toast(error.message); } });
+  $("[data-download-payload]").addEventListener("click", () => { try { if (!activeQrTransfer?.payload) throw new Error("Choose a handoff first."); download(activeQrTransfer.fileName.replace(/-qr\.png$/i, ".geopayload"), encodeGeoPayload(activeQrTransfer.payload, "file"), "application/vnd.gismap.geopayload+json"); toast("Portable GeoPayload downloaded."); } catch (error) { toast(error.message); } });
   $("[data-share-qr]").addEventListener("click", async () => { try { const file = await qrCard(); await mobileShare({ title: activeQrTransfer?.title || "GISMap Field handoff", text: activeQrTransfer?.summary || "GISMap Field handoff.", file }); } catch (error) { if (error.name !== "AbortError") toast(error.message); } });
   $("[data-copy-qr]").addEventListener("click", async () => { try { if (!activeQrTransfer) throw new Error("Choose a handoff to copy first."); await navigator.clipboard.writeText(activeQrTransfer.text); toast("Portable GeoPayload copied."); } catch (error) { toast(error.message || "Copy is unavailable in this browser."); } });
   $("[data-capability-details]").addEventListener("click", () => { const detail = $("[data-capabilities]"); detail.hidden = !detail.hidden; });

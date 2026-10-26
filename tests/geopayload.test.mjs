@@ -2,6 +2,9 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   GEOPAYLOAD_PREFIX,
+  addAnimatedQrFrame,
+  assembleAnimatedQrFrames,
+  createAnimatedQrFrames,
   createGeoPayload,
   createReturnReceipt,
   decodeGeoPayload,
@@ -14,6 +17,7 @@ import {
   recommendTransports,
 } from "../js/geopayload.js";
 import { createFieldRecord } from "../js/field-records.js";
+import { createSitePack, normalizeSitePack, sitePackEstimate } from "../js/field-site-pack.js";
 
 test("a GeoPayload QR envelope round-trips and detects damage", () => {
   const payload = createGeoPayload({ type: "return-receipt", id: "receipt-1", createdAt: "2026-10-25T12:00:00Z", data: { payloadId: "work-1", status: "accepted" } });
@@ -50,4 +54,20 @@ test("work cards use the existing safe task normalizer", () => {
   const completion = createReturnReceipt({ payloadId: payload.id, taskId: task.id, recordIds: ["note-1", "note-1"], completion: { completedAt: "2026-10-25T14:00:00.000Z", steps: [{ text: "Photograph", done: true }] } });
   assert.deepEqual(completion.data.recordIds, ["note-1"]);
   assert.equal(completion.data.taskId, "task-1");
+});
+
+test("animated QR restores a single missed frame and validates the completed payload", () => {
+  const payload = createGeoPayload({ type: "return-receipt", id: "animated-receipt", data: { payloadId: "work-1", details: "x".repeat(5_000) } });
+  const transfer = createAnimatedQrFrames(payload, { transferId: "animated-smoke", chunkSize: 200 });
+  let received = {};
+  transfer.frames.filter((_, index) => index !== 1).forEach((frame) => { received = addAnimatedQrFrame(received, frame); });
+  assert.equal(assembleAnimatedQrFrames(received).id, "animated-receipt");
+  assert.throws(() => addAnimatedQrFrame(received, createAnimatedQrFrames(payload, { transferId: "other-transfer", chunkSize: 200 }).frames[0]), /different animated transfer/);
+});
+
+test("Site Packs preserve validated tasks and observations with a transparent size estimate", () => {
+  const record = createFieldRecord({ collectionId: "shoreline", properties: { title: "Railing" }, notes: { text: "Bent" } }, { recordId: "site-note", createdAt: "2026-10-25T12:00:00Z" });
+  const pack = createSitePack({ id: "site-1", name: "Shoreline check", tasks: [{ id: "site-task", title: "Inspect", steps: [{ text: "Photograph" }] }], records: [record], basemap: { id: "map-1", name: "shore.pmtiles", format: "PMTiles", bytes: 5_000, included: false } });
+  assert.equal(normalizeSitePack(pack).tasks[0].id, "site-task");
+  assert.equal(sitePackEstimate(pack).recordCount, 1);
 });
