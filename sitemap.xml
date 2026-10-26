@@ -1,6 +1,14 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url><loc>https://gismap.online/</loc></url>
+  <url><loc>https://gismap.online/discover/</loc></url>
+  <url><loc>https://gismap.online/discover/examples/</loc></url>
+  <url><loc>https://gismap.online/discover/learn/</loc></url>
+  <url><loc>https://gismap.online/discover/ai/</loc></url>
+  <url><loc>https://gismap.online/discover/data/</loc></url>
+  <url><loc>https://gismap.online/discover/demos/</loc></url>
+  <url><loc>https://gismap.online/discover/about/</loc></url>
+  <url><loc>https://gismap.online/discover/get-involved/</loc></url>
   <url><loc>https://gismap.online/examples/</loc></url>
   <url><loc>https://gismap.online/examples/data-connections/local-postgis/</loc><lastmod>2026-10-18</lastmod></url>
   <url><loc>https://gismap.online/guides/</loc></url>

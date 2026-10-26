@@ -70,6 +70,8 @@ button:disabled { cursor: not-allowed; opacity: .5; }
 .studio-header .menu-bar__categories { display: flex; gap: 2px; }
 .studio-header .menu { position: relative; }
 .studio-header .menu__trigger { padding: 10px; height: 36px; border-radius: 6px; font-size: 12px; font-weight: 500; }
+.studio-header .menu-bar__discover { height:36px; padding:10px; border-radius:6px; color:var(--text-primary); font-size:12px; font-weight:500; }
+.studio-header .menu-bar__discover:hover { color:var(--text-primary); background:var(--hover-fill); }
 .studio-header .menu__content { top: 44px; left: 0; right: auto; width: 280px; max-height: calc(100dvh - 76px); border-radius: 12px; }
 .studio-header__search { flex: 1 1 360px; min-width: 160px; max-width: 440px; margin-left: auto; }
 .studio-header .search-row { gap: 0; border: 1px solid var(--border-subtle); border-radius: 8px; background: var(--surface-app); }

@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "collections": [
+    { "id": "examples", "title": "Examples", "href": "/discover/examples/", "source": "/examples/" },
+    { "id": "learn", "title": "Learn", "href": "/discover/learn/", "source": "/guides/" },
+    { "id": "ai", "title": "AI workflows", "href": "/discover/ai/", "source": "/agent-recipes/" },
+    { "id": "data", "title": "Data", "href": "/discover/data/", "source": "/examples/" },
+    { "id": "demos", "title": "Demos", "href": "/discover/demos/" },
+    { "id": "about", "title": "About", "href": "/discover/about/" },
+    { "id": "get-involved", "title": "Get involved", "href": "/discover/get-involved/" }
+  ]
+}

@@ -126,6 +126,7 @@
               <button data-action="tools-about">About this build</button>
             </div>
           </div>
+          <a class="menu-bar__discover" href="/discover/" target="_blank" rel="noopener" title="Open the separate GISMap Discovery guide">Discover <span>↗</span></a>
           <div class="menu">
             <button class="menu__trigger" aria-expanded="false">Data <span>⌄</span></button>
             <div class="menu__content" role="menu">
@@ -296,19 +297,20 @@
         <header class="mobile-map-brand" aria-label="GISMap Online">
           <span aria-hidden="true"></span><strong>GISMap Online</strong>
         </header>
-        <section id="welcome-panel" class="welcome-panel" aria-labelledby="welcome-title">
+        <section id="welcome-panel" class="welcome-panel" aria-labelledby="welcome-title" hidden>
           <button id="welcome-close" class="welcome-panel__close" type="button" aria-label="Dismiss introduction">×</button>
           <div class="welcome-brand"><img src="./assets/gis-map-online-mark-v2.png" alt="" /><strong id="welcome-title">GIS MAP <span>ONLINE</span></strong></div>
-          <span class="eyebrow">Open source · No install</span>
-          <p>GISMap.online is a free, open-source, browser-based GIS workspace. Explore places, style your data, and share your map.</p>
-          <div class="welcome-panel__choices" aria-label="Get started">
-            <button type="button" data-action="data-popular">Browse popular data services</button>
-            <a href="/guides/">Read GISMap guides</a>
-            <button type="button" data-action="tools-walkthrough">Walk me through the tools and menus</button>
-            <button type="button" data-welcome-workflow="briefing">Create a briefing</button>
-            <button type="button" data-welcome-workflow="tours">Create a tour</button>
-            <button type="button" data-action="map-presentation">Create a dashboard</button>
+          <span class="eyebrow">Welcome to GISMap</span>
+          <h1>Start with a map, not a manual.</h1>
+          <p>Open data, make a map, and share it when you are ready. Discovery is a separate guide, so this workspace stays focused on your project.</p>
+          <div class="welcome-panel__actions" aria-label="Get started">
+            <button type="button" data-welcome-start>Start mapping</button>
+            <a href="/discover/examples/" target="_blank" rel="noopener">Explore examples</a>
+            <a href="/discover/learn/" target="_blank" rel="noopener">Learn GISMap</a>
+            <a href="/discover/ai/" target="_blank" rel="noopener">Create with AI</a>
+            <a href="/discover/about/" target="_blank" rel="noopener">About GISMap</a>
           </div>
+          <label class="welcome-panel__preference"><input id="welcome-suppress" type="checkbox" /> Don’t show this welcome automatically</label>
         </section>
         <aside id="atlas-chapter-overlay" class="atlas-chapter-overlay" hidden aria-live="polite">
           <div class="atlas-chapter-overlay__copy">

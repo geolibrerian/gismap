@@ -63,6 +63,7 @@ import { availableVideoFormats, cameraAt, CLIP_FRAME_RATES, clipFrameCount, expo
 
 const BUILDINGS_3D_KEY = "gismap-online:buildings-3d:v1";
 const DISPLAY_SETTINGS_KEY = "gismap-online:display:v1";
+const WELCOME_PREFERENCE_KEY = "gismap.welcome.v1";
 const DOCKABLE_PANELS = { places: "Places", bookmarks: "Bookmarks", draw: "Draw", intelligence: "Intelligence", layers: "Layers", observations: "Notes & Tasks" };
 const RECENT_PLACES_KEY = "gismap-online:recent-places:v1";
 const RECENT_PLACES_LIMIT = 6;
@@ -192,6 +193,7 @@ export class UIController {
     this.panelManager?.register("content:intelligence", document.querySelector("#intelligence-content"), { shell: document.querySelector("#intelligence-panel") });
     this.panelManager?.register("content:draw", document.querySelector(".draw-tools"), { shell: document.querySelector("#draw-panel") });
     this.#initDockablePanels();
+    this.#configureWelcomeStartup();
     this.#initNotesHub();
     this.#initLegendEditing();
     this.#applyDisplaySettings(this.#readDisplaySettings());
@@ -451,7 +453,13 @@ export class UIController {
 
   #bindStaticActions() {
     window.addEventListener("beforeunload", event => { if (this.captureDataMapNoteDraft?.() || this.dataMapNoteDraftDirty) { event.preventDefault(); event.returnValue = ""; } });
-    document.querySelector("#welcome-close").addEventListener("click", () => this.#dismissWelcome());
+    document.querySelector("#welcome-close").addEventListener("click", () => this.#dismissWelcome({ persist: true }));
+    document.querySelector("[data-welcome-start]")?.addEventListener("click", () => {
+      this.#dismissWelcome({ persist: Boolean(document.querySelector("#welcome-suppress")?.checked) });
+    });
+    document.querySelector("#welcome-suppress")?.addEventListener("change", (event) => {
+      this.#saveWelcomePreference({ dismissed: event.currentTarget.checked });
+    });
     document.querySelectorAll("[data-welcome-workflow]").forEach((button) => button.addEventListener("click", () => {
       this.#dismissWelcome();
       this.openMobileWorkflow(button.dataset.welcomeWorkflow);
@@ -1214,12 +1222,45 @@ export class UIController {
     }
   }
 
-  #dismissWelcome() {
+  #welcomeIsSharedLaunch() {
+    const params = new URLSearchParams(location.search);
+    if (["example", "layer", "url", "briefing", "workflow", "application"].some((key) => params.has(key))) return true;
+    return /(?:^#|&)(?:map|briefing|tour|fieldTask|fieldNote|at)=/.test(location.hash);
+  }
+
+  #readWelcomePreference() {
+    try {
+      const stored = JSON.parse(localStorage.getItem(WELCOME_PREFERENCE_KEY) || "null");
+      return stored?.version === 1 ? stored : { version: 1, dismissed: false };
+    } catch { return { version: 1, dismissed: false }; }
+  }
+
+  #saveWelcomePreference({ dismissed }) {
+    const preference = { version: 1, dismissed: Boolean(dismissed) };
+    try { localStorage.setItem(WELCOME_PREFERENCE_KEY, JSON.stringify(preference)); } catch { /* Private browsing keeps the current page behavior. */ }
+    const input = document.querySelector("#welcome-suppress");
+    if (input) input.checked = preference.dismissed;
+  }
+
+  #configureWelcomeStartup() {
+    const panel = document.querySelector("#welcome-panel");
+    if (!panel) return;
+    const preference = this.#readWelcomePreference();
+    const launchSuppressed = this.#welcomeIsSharedLaunch();
+    panel.dataset.dismissed = preference.dismissed ? "true" : "false";
+    panel.dataset.launchSuppressed = launchSuppressed ? "true" : "false";
+    panel.hidden = preference.dismissed || launchSuppressed;
+    const input = document.querySelector("#welcome-suppress");
+    if (input) input.checked = preference.dismissed;
+  }
+
+  #dismissWelcome({ persist = false } = {}) {
     const welcomePanel = document.querySelector("#welcome-panel");
     const wasVisible = !welcomePanel.hidden;
     welcomePanel.dataset.dismissed = "true";
     delete welcomePanel.dataset.reopened;
     welcomePanel.hidden = true;
+    if (persist) this.#saveWelcomePreference({ dismissed: true });
     if (wasVisible) {
       this.events.publish("welcome:visibility-changed");
       this.events.publish("context:workspace-changed");
@@ -7473,7 +7514,8 @@ export class UIController {
       if (layers.length && (!this.keepWelcomeForSharedExample || this.mobileMedia.matches)) this.#dismissWelcome();
     }
     const applicationPreset = this.applicationRuntime?.snapshot?.().preset || "standard";
-    welcomePanel.hidden = welcomePanel.dataset.reopened !== "true" && (welcomePanel.dataset.dismissed === "true" || applicationPreset !== "standard");
+    const launchSuppressed = welcomePanel.dataset.launchSuppressed === "true";
+    welcomePanel.hidden = welcomePanel.dataset.reopened !== "true" && (welcomePanel.dataset.dismissed === "true" || launchSuppressed || applicationPreset !== "standard");
     const exportable = new Set(this.exportController.listExportableLayers().map((layer) => layer.uid));
     document.querySelector("#layer-count").textContent = `${layers.length} loaded`;
     const container = document.querySelector("#layers-list");
