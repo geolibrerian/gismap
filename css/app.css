@@ -204,6 +204,9 @@ body:has(.application-dock--bottom.is-collapsed).application-bottom-open #viewDi
 .application-panel__body { min-height: 0; overflow: auto; }
 .application-panel[data-collapsed] { min-height: 0; grid-template-rows: auto; }
 .application-panel[data-collapsed] .application-panel__body { display: none; }
+.utility-content[data-utility-pane="workspace"]:has(.application-panel--workspace-chart) { padding: 0; overflow: hidden; }
+.utility-content[data-utility-pane="workspace"]:has(.application-panel--workspace-chart) > .form-note { display: none; }
+.utility-content[data-utility-pane="workspace"] > .application-panel--workspace-chart { min-height: 100%; height: 100%; border-bottom: 0; }
 .application-panel__body > .panel { border-bottom: 0; }
 .application-panel__body > .panel > summary { display: none; }
 .application-panel__repair, .panel-empty { margin: 14px; padding: 16px; border: 1px dashed var(--line); border-radius: 9px; background: var(--surface-2); }
@@ -887,7 +890,7 @@ body.mobile-workflow-open .field-task-banner { left:auto; right:calc(min(440px,1
    Keep its visualization within the panel body so the normal dock header,
    collapse control, and resizing behavior remain in charge. */
 .application-panel[data-panel-type="charts"] .application-panel__body { overflow-x:hidden; }
-.application-dock--right .application-panel[data-panel-type="charts"],.application-dock--left .application-panel[data-panel-type="charts"] { height:var(--chart-panel-height,300px); min-height:160px; max-height:calc(100% - 12px); }
+.application-dock--left .application-panel[data-panel-type="charts"] { height:var(--chart-panel-height,300px); min-height:160px; max-height:calc(100% - 12px); }
 .application-panel[data-panel-type="charts"] .chart-dashboard { display:grid; grid-template-rows:auto minmax(0,1fr) auto auto auto; gap:4px; height:100%; min-height:0; padding:8px 10px 9px; }
 .application-panel[data-panel-type="charts"] .chart-dashboard .eyebrow { overflow:hidden; color:var(--muted); font:700 9px/1.2 var(--ui-font); letter-spacing:.08em; text-overflow:ellipsis; text-transform:uppercase; white-space:nowrap; }
 .chart-panel-settings { display:grid; gap:14px; }

@@ -278,6 +278,12 @@ export class UIController {
     this.#bindMobileActionBar();
     this.#bindMapEvents();
     document.addEventListener("gismap:chart-panel-settings", (event) => this.#openChartPanelSettings(event.detail?.instanceId));
+    document.addEventListener("gismap:chart-workspace", (event) => {
+      this.chartWorkspaceOpen = Number(event.detail?.count || 0) > 0;
+      this.#syncUtilityPanel(this.chartWorkspaceOpen ? "workspace" : null);
+    });
+    this.chartWorkspaceOpen = Boolean(document.querySelector('[data-utility-pane="workspace"] > .application-panel--workspace-chart'));
+    if (this.chartWorkspaceOpen) this.#syncUtilityPanel("workspace");
     this.mapChartOverlays.initialize();
     this.#renderBookmarks();
     this.#renderLayers();
@@ -1178,7 +1184,7 @@ export class UIController {
   #syncUtilityPanel(preferredTab = null) {
     const tabs = [
       ...(this.briefingInspectorOpen ? [{ id: "briefing", label: "Slide workspace" }] : []),
-      ...(this.utilityWorkspaceOpen ? [{ id: "workspace", label: "Workspace" }] : []),
+      ...(this.utilityWorkspaceOpen || this.chartWorkspaceOpen ? [{ id: "workspace", label: "Workspace" }] : []),
       ...(this.mapNotesModeActive ? [{ id: "notes", label: "Field Notes" }] : []),
       ...(this.dataMapNotesOpen ? [{ id: "data-notes", label: "Map Notes" }] : []),
       ...this.#utilityWidgetTabs(),
@@ -1370,7 +1376,7 @@ export class UIController {
       this.#syncUtilityPanel(); return;
     }
     if (tabId === "data-notes") { if (this.captureDataMapNoteDraft?.() && !globalThis.confirm(this.dataMapNoteDraftStored ? "Close Map Notes? Your unsaved draft is kept only in this browser tab session, not in the project. Save the note and project for permanent storage." : "Close Map Notes? Session storage is unavailable and your unsaved draft will be lost.")) return; this.captureDataMapNoteDraft = null; this.dataMapNotesOpen = false; this.dataMapNotePickRevision = (this.dataMapNotePickRevision || 0) + 1; this.setDataMapNoteTarget = null; this.dataMapNotePoint = null; document.querySelector("#utility-data-notes-content")?.replaceChildren(); this.#syncUtilityPanel(); return; }
-    if (tabId === "workspace") { this.utilityWorkspaceOpen = false; this.#syncUtilityPanel(); return; }
+    if (tabId === "workspace") { this.utilityWorkspaceOpen = false; this.chartWorkspaceOpen = false; this.#syncUtilityPanel(); return; }
     if (tabId === "query") {
       this.utilityQueryOpen = false;
       document.querySelector("#utility-query-content")?.replaceChildren();

@@ -40,6 +40,7 @@ export class ApplicationRuntime {
       hosts: {
         left: documentRef.querySelector("#application-left-dock"),
         right: documentRef.querySelector("#application-right-dock"),
+        workspace: documentRef.querySelector('[data-utility-pane="workspace"]'),
         bottom: documentRef.querySelector("#application-bottom-dock"),
         floating: documentRef.querySelector("#application-floating-dock"),
       },

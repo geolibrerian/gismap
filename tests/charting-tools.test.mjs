@@ -196,3 +196,16 @@ test("saved charts stay inside standard panels and retain the active skin", () =
   assert.match(css, /\.application-panel__settings/);
   assert.doesNotMatch(html, /dashboard-settings-open/);
 });
+
+test("right-side chart panels use the expandable Workspace utility pane", () => {
+  const runtime = fs.readFileSync(new URL("../js/application-runtime.js", import.meta.url), "utf8");
+  const layout = fs.readFileSync(new URL("../js/layout-manager.js", import.meta.url), "utf8");
+  const ui = fs.readFileSync(new URL("../js/ui.js", import.meta.url), "utf8");
+  const css = fs.readFileSync(new URL("../css/app.css", import.meta.url), "utf8");
+  assert.match(runtime, /workspace: documentRef\.querySelector\('\[data-utility-pane="workspace"\]'\)/);
+  assert.match(layout, /panel\.type === "charts" && region === "right" && this\.workspaceHost/);
+  assert.match(layout, /application-panel--workspace-chart/);
+  assert.match(layout, /gismap:chart-workspace/);
+  assert.match(ui, /this\.utilityWorkspaceOpen \|\| this\.chartWorkspaceOpen/);
+  assert.match(css, /\.utility-content\[data-utility-pane="workspace"\]:has\(\.application-panel--workspace-chart\)/);
+});
