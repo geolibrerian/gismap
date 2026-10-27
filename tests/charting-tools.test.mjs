@@ -1,13 +1,14 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
-import { aggregateChart, chartFields, chartFilterForRow, createChartSpec, displayChartRows, normalizeCharts, recommendCharts, rowsAsCsv } from "../js/charting-tools.js";
+import { aggregateChart, chartFields, chartFilterForRow, createChartSpec, displayChartRows, normalizeCharts, queryChart, recommendCharts, rowsAsCsv } from "../js/charting-tools.js";
 import { mapChartAnchor, normalizeMapChartPresentation, planMapChartDisplay, renderMapChartSvg } from "../js/map-chart-tools.js";
 
 const fields = [
   { name: "OBJECTID", type: "oid" },
   { name: "YEAR_", alias: "Fire year", type: "integer" },
   { name: "GIS_ACRES", alias: "Recorded acreage", type: "double" },
+  { name: "location_id", alias: "Location ID", type: "integer" },
   { name: "FIRE_NAME", alias: "Fire name", type: "string" },
   { name: "IGNITION_DATE", type: "date" },
 ];
@@ -39,6 +40,7 @@ test("recommendations prefer temporal trends and safe project persistence only s
   const roles = chartFields(fields);
   assert.equal(roles.categoricalFields.some((field) => field.name === "OBJECTID"), false, "record IDs are never suggested as chart categories");
   assert.equal(roles.temporalFields.some((field) => field.name === "OBJECTID"), false, "record IDs are never suggested as chart time axes");
+  assert.equal(roles.numericFields.some((field) => field.name === "location_id"), false, "identifier fields are never suggested as chart measures");
   const recommendations = recommendCharts(fields);
   assert.equal(recommendations[0].type, "line");
   assert.equal(recommendations[0].dimension, "IGNITION_DATE");
@@ -110,6 +112,31 @@ test("chart marks create portable map filters for categories and value ranges", 
   assert.match(range.where, / <= /);
 });
 
+test("chart-specific filters persist and combine with current layer filters", async () => {
+  const spec = createChartSpec({
+    layerId: "fires",
+    dimension: "FIRE_NAME",
+    measure: { aggregation: "count" },
+    source: { scope: "filtered", where: "GIS_ACRES >= 10", filter: { conditions: [{ field: "GIS_ACRES", op: "gte", value: "10" }], logic: "and" } },
+  });
+  assert.deepEqual(spec.source.filter, { conditions: [{ field: "GIS_ACRES", op: "gte", value: "10" }], logic: "and" });
+  assert.equal(spec.source.where, "GIS_ACRES >= 10");
+  const calls = [];
+  const mapController = {
+    loadLayer: async () => ({ uid: "fires", queryable: true, objectIdField: "OBJECTID", fields }),
+    queryFeatures: async (uid, params, options) => {
+      calls.push({ uid, params, options });
+      return { features: records, exceededTransferLimit: false };
+    },
+  };
+  await queryChart(mapController, { uid: "fires", queryable: true }, spec);
+  assert.equal(calls[0].params.where, "GIS_ACRES >= 10");
+  assert.equal(calls[0].options.layerDefaults, true, "filtered scope retains the layer definition expression");
+  await queryChart(mapController, { uid: "fires", queryable: true }, createChartSpec({ ...spec, source: { ...spec.source, scope: "all" } }));
+  assert.equal(calls[1].params.where, "GIS_ACRES >= 10");
+  assert.equal(calls[1].options.layerDefaults, false, "all-records scope explicitly omits the layer definition expression");
+});
+
 test("Chart Tools has dedicated family actions which share one persisted builder", () => {
   const html = fs.readFileSync(new URL("../index.html", import.meta.url), "utf8");
   const ui = fs.readFileSync(new URL("../js/ui.js", import.meta.url), "utf8");
@@ -123,10 +150,15 @@ test("Chart Tools has dedicated family actions which share one persisted builder
   assert.match(ui, /data-chart-target/);
   assert.match(ui, /Chart panel on this site/);
   assert.match(ui, /Add chart panel to site/);
+  assert.match(ui, /Filter chart data/);
+  assert.match(ui, /data-chart-filter-builder/);
+  assert.match(ui, /Chart panel placement/);
+  assert.match(ui, /Top overlay \(movable\)/);
   assert.match(ui, /targets\.some\(\(target\) => \["panel", "dashboard"\]\.includes\(target\)\)/, "The Chart panel destination creates a visible site panel.");
   assert.match(css, /\.chart-builder \{ container-type:inline-size;[\s\S]*?min-width:0/);
   assert.match(css, /@container \(max-width: 560px\)/);
   assert.match(css, /\.app-dialog:has\(\.chart-builder\)[\s\S]*?overflow-x:hidden/);
+  assert.match(css, /\.chart-builder__filter/);
   assert.match(project, /setCharts\(charts\)/);
 });
 
@@ -152,10 +184,13 @@ test("saved charts stay inside standard panels and retain the active skin", () =
   assert.match(ui, /skin: document\.documentElement\.dataset\.skin \|\| this\.projectManager\.current\.presentation\?\.skin/);
   assert.match(runtime, /application\.chart\.create[\s\S]*?const activeSkin = String\(input\.skin \|\| this\.document\.documentElement\.dataset\.skin/);
   assert.match(runtime, /new ResizeObserver\(\(\) => chartInstance\?\.resize\?\.\(\)\)/);
+  assert.match(runtime, /region: input\.region \|\| "right"/);
+  assert.match(runtime, /input\.size \? \{ size: input\.size \}/);
   assert.match(runtime, /chartFilterForRow\(result, row\)/);
   assert.match(runtime, /data-dashboard-chart-clear>Show all map data/);
   assert.match(runtime, /host\.querySelectorAll\("\[data-chart-row\]"\)/);
   assert.match(css, /\.application-panel\[data-panel-type="charts"\] \.application-panel__body \{ overflow-x:hidden; \}/);
-  assert.match(css, /\.chart-dashboard \.chart-builder__canvas \{[^}]*max-height:220px/s);
+  assert.match(css, /\.chart-dashboard \.chart-builder__canvas \{[^}]*max-height:190px/s);
+  assert.match(css, /\.application-panel__options/);
   assert.doesNotMatch(html, /dashboard-settings-open/);
 });

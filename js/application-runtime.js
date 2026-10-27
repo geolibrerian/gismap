@@ -33,7 +33,10 @@ export class ApplicationRuntime {
       state: this.state,
       mapController,
       documentRef,
-      onConfigChange: (application) => this.projectManager.setApplication(application),
+      onConfigChange: (application) => {
+        this.currentConfig = application;
+        this.projectManager.setApplication(application);
+      },
       hosts: {
         left: documentRef.querySelector("#application-left-dock"),
         right: documentRef.querySelector("#application-right-dock"),
@@ -233,7 +236,7 @@ export class ApplicationRuntime {
     applicationChange("application.chart.create", "Create chart", (config, input) => {
       const activeSkin = String(input.skin || this.document.documentElement.dataset.skin || "").trim();
       if (activeSkin) config.skin = activeSkin;
-      config.panels.push({ instanceId: input.instanceId || `charts-${config.panels.filter((item) => item.type === "charts").length + 1}`, type: "charts", title: input.title || "Chart", placement: { region: input.region || "bottom", order: config.panels.length }, binding: input.binding || { followActiveLayer: true }, settings: input.settings || {}, audienceVisible: true });
+      config.panels.push({ instanceId: input.instanceId || `charts-${config.panels.filter((item) => item.type === "charts").length + 1}`, type: "charts", title: input.title || "Chart", placement: { region: input.region || "right", order: config.panels.length, ...(input.size ? { size: input.size } : {}), ...(input.position ? { position: input.position } : {}) }, binding: input.binding || { followActiveLayer: true }, settings: input.settings || {}, audienceVisible: true });
       return config;
     });
     this.tools.register({ id: "project.filter.apply", displayName: "Apply filter", execute: (input) => this.state.dispatch("filters:set", input) });

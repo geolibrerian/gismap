@@ -6,6 +6,7 @@ import { fieldKind, featureFilterFor } from "./presentation-query.js";
 export const CHART_SCHEMA_VERSION = 1;
 export const ECHARTS_URL = "https://cdn.jsdelivr.net/npm/echarts@5.5.1/dist/echarts.min.js";
 export const PRESENTATION_TARGETS = Object.freeze(["panel", "dashboard", "map", "brief"]);
+export const CHART_PANEL_PLACEMENTS = Object.freeze(["left", "right", "bottom", "floating-top"]);
 export const CHART_FAMILIES = Object.freeze([
   { id: "line-area", label: "Line & Area" },
   { id: "bar-column", label: "Bar & Column" },
@@ -37,6 +38,18 @@ const numeric = (value) => value !== "" && value != null && Number.isFinite(Numb
 const label = (value) => value == null || value === "" ? "(No value)" : String(value);
 const allowed = (value, values, fallback) => values.includes(value) ? value : fallback;
 const unique = (values) => [...new Set(values)];
+const normalizeFilter = (value) => {
+  const conditions = Array.isArray(value?.conditions) ? value.conditions.slice(0, 10).flatMap((condition) => {
+    if (!condition || typeof condition !== "object" || !String(condition.field || "").trim() || !String(condition.op || "").trim()) return [];
+    return [{
+      field: String(condition.field).slice(0, 160),
+      op: String(condition.op).slice(0, 40),
+      ...(condition.value != null ? { value: String(condition.value).slice(0, 512) } : {}),
+      ...(condition.value2 != null ? { value2: String(condition.value2).slice(0, 512) } : {}),
+    }];
+  }) : [];
+  return conditions.length ? { conditions, logic: value?.logic === "or" ? "or" : "and" } : null;
+};
 // Object IDs identify records; they are never meaningful default chart axes or
 // groupings, even when an adapter reports an OID as a text-like field.
 const objectIdField = (field = {}) => /(?:^|[_\s-])(?:object[_\s-]?id|oid|fid|global[_\s-]?id)(?:$|[_\s-])/i.test(String(field.name || "")) || /(?:^|[^a-z])oid(?:$|[^a-z])/i.test(String(field.type || ""));
@@ -45,7 +58,7 @@ export function chartFields(fields = []) {
   const usable = fields.filter((field) => field?.name);
   const analysisFields = usable.filter((field) => !objectIdField(field));
   // IDs and temporal keys can be numeric but are not meaningful default sums.
-  const numericFields = analysisFields.filter((field) => fieldKind(field) === "number" && !/(?:^|[_\s-])(year|date|time)(?:$|[_\s-])/i.test(`${field.name} ${field.alias || ""}`));
+  const numericFields = analysisFields.filter((field) => fieldKind(field) === "number" && !/(?:^|[_\s-])(year|date|time|id|identifier|code)(?:$|[_\s-])/i.test(`${field.name} ${field.alias || ""}`));
   // Real date metadata is unambiguous and is preferred over a YEAR-like
   // numeric field. YEAR remains a suggestion, never an implicit conversion.
   const dated = analysisFields.filter((field) => fieldKind(field) === "date");
@@ -68,8 +81,10 @@ export function recommendCharts(fields = [], { family = "all" } = {}) {
     add({ preset: "cumulative-area", type: "area", dimension: temporal, measure: numeric, aggregation: "sum", label: "Cumulative area", description: "A filled trend for change over time." }, ["line-area"]);
   }
   if (category && numeric) {
-    add({ preset: "category-bar", type: "bar", dimension: category, measure: numeric, aggregation: "sum", label: "Compare categories", description: "A horizontal comparison of category totals." }, ["bar-column"]);
-    add({ preset: "category-column", type: "column", dimension: category, measure: numeric, aggregation: "sum", label: "Category columns", description: "A vertical category comparison." }, ["bar-column"]);
+    const categoryLabel = categoricalFields[0]?.alias || category;
+    const measureLabel = numericFields[0]?.alias || numeric;
+    add({ preset: "category-bar", type: "bar", dimension: category, measure: numeric, aggregation: "sum", label: `${measureLabel} by ${categoryLabel}`, description: "A horizontal comparison of category totals." }, ["bar-column"]);
+    add({ preset: "category-column", type: "column", dimension: category, measure: numeric, aggregation: "sum", label: `${measureLabel} by ${categoryLabel}`, description: "A vertical category comparison." }, ["bar-column"]);
     add({ preset: "boxplot", type: "boxplot", dimension: category, measure: numeric, aggregation: "avg", label: "Distribution by category", description: "Quartiles and outliers for each category." }, ["distribution-composition"]);
   }
   if (numeric) add({ preset: "histogram", type: "histogram", dimension: null, measure: numeric, aggregation: "count", label: "Value distribution", description: "A binned distribution of a numeric field." }, ["distribution-composition"]);
@@ -96,6 +111,8 @@ export function createChartSpec(input = {}) {
   const target = allowed(input.presentation?.target || input.target, PRESENTATION_TARGETS, "panel");
   const targets = unique([...(Array.isArray(input.presentation?.targets) ? input.presentation.targets : Array.isArray(input.targets) ? input.targets : []), target]).filter((item) => PRESENTATION_TARGETS.includes(item));
   const source = input.source || input.data || {};
+  const filter = normalizeFilter(source.filter || input.filter);
+  const where = typeof source.where === "string" && source.where.trim() ? source.where.trim().slice(0, 4000) : null;
   const dimensionInput = input.dimension?.field || input.dimension || source.groupBy || null;
   const measureInput = input.measure?.field ?? input.measureField ?? input.data?.series?.[0]?.field ?? null;
   const sizeField = input.encoding?.sizeField || input.size?.field || input.size || null;
@@ -109,7 +126,7 @@ export function createChartSpec(input = {}) {
     // for existing dashboard panels and saved projects.
     chartType: type,
     preset: typeof input.preset === "string" ? input.preset.slice(0, 80) : null,
-    source: { layerId: source.layerId || input.layerId || null, scope: ["all", "filtered", "viewport", "selected"].includes(source.scope || input.scope) ? (source.scope || input.scope) : "filtered" },
+    source: { layerId: source.layerId || input.layerId || null, scope: ["all", "filtered", "viewport", "selected"].includes(source.scope || input.scope) ? (source.scope || input.scope) : "filtered", ...(filter ? { filter } : {}), ...(where ? { where } : {}) },
     data: { layerId: source.layerId || input.layerId || null, scope: ["all", "filtered", "viewport", "selected"].includes(source.scope || input.scope) ? (source.scope || input.scope) : "filtered", groupBy: dimensionInput || null, series: [{ field: measureInput, aggregation }] },
     dimension: dimensionInput ? { field: dimensionInput, interpretation: input.dimension?.interpretation || (input.preset?.includes("trend") ? "temporal" : "category") } : null,
     measure: { field: measureInput, aggregation },
@@ -122,6 +139,7 @@ export function createChartSpec(input = {}) {
       anchor: allowed(input.presentation?.anchor || input.anchor, ["point", "line-midpoint", "polygon-interior", "polygon-centroid", "feature"], "feature"),
       collision: allowed(input.presentation?.collision || input.collision, ["hide-overlap", "cluster", "reposition"], "hide-overlap"),
       display: allowed(input.presentation?.display || input.display, ["all", "progressive", "clustered"], "progressive"),
+      placement: allowed(input.presentation?.placement || input.placement, CHART_PANEL_PLACEMENTS, "right"),
       minZoom: Number.isFinite(Number(input.presentation?.minZoom)) ? Number(input.presentation.minZoom) : null,
       maxZoom: Number.isFinite(Number(input.presentation?.maxZoom)) ? Number(input.presentation.maxZoom) : null,
     },
@@ -204,7 +222,10 @@ export async function queryChart(mapController, layer, spec) {
   if (!layer?.queryable) throw new Error("Choose a queryable feature layer.");
   const loaded = await mapController.loadLayer(layer.uid, { allowTruncated: false });
   const fields = [chart.dimension?.field, chart.measure?.field, chart.encoding?.sizeField, ...(chart.encoding?.mapFields || []), loaded.objectIdField].filter(Boolean);
-  const params = { where: chart.source.scope === "all" ? "1=1" : undefined, outFields: [...new Set(fields)], returnGeometry: chart.interaction.mapHighlight === true };
+  // With the filtered scope, the engine combines this chart-only clause with
+  // the layer definition expression. "All source records" is the explicit
+  // opt-out from the layer filter, but still honors the chart's own filter.
+  const params = { where: chart.source.scope === "all" ? chart.source.where || "1=1" : chart.source.where || undefined, outFields: [...new Set(fields)], returnGeometry: chart.interaction.mapHighlight === true };
   if (chart.source.scope === "viewport") params.geometry = "view";
   const response = await mapController.queryFeatures(loaded.uid, params, { layerDefaults: chart.source.scope !== "all" });
   const result = aggregateChart(response.features, chart);
