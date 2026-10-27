@@ -70,6 +70,8 @@ button:disabled { cursor: not-allowed; opacity: .5; }
 .studio-header .menu-bar__categories { display: flex; gap: 2px; }
 .studio-header .menu { position: relative; }
 .studio-header .menu__trigger { padding: 10px; height: 36px; border-radius: 6px; font-size: 12px; font-weight: 500; }
+.studio-header .menu-bar__discover { height:36px; padding:10px; border-radius:6px; color:var(--text-primary); font-size:12px; font-weight:500; }
+.studio-header .menu-bar__discover:hover { color:var(--text-primary); background:var(--hover-fill); }
 .studio-header .menu__content { top: 44px; left: 0; right: auto; width: 280px; max-height: calc(100dvh - 76px); border-radius: 12px; }
 .studio-header__search { flex: 1 1 360px; min-width: 160px; max-width: 440px; margin-left: auto; }
 .studio-header .search-row { gap: 0; border: 1px solid var(--border-subtle); border-radius: 8px; background: var(--surface-app); }
@@ -261,8 +263,8 @@ body.fieldwork-desktop .workspace-pin[aria-pressed="true"] .workspace-pin__head 
 .connection-panel [data-connection-results]:empty { display: none; }
 .connection-panel [data-connection-results] { max-height: 220px; }
 .connection-panel [data-connection-status] { font-size: 12px; }
-body.briefing-presenting :is(.studio-header,.workspace-rail), body.shared-tour-only :is(.studio-header,.workspace-rail) { display: none; }
-body.fieldwork-desktop:is(.briefing-presenting,.shared-tour-only) { padding-top: 0; }
+body.briefing-presenting :is(.studio-header,.workspace-rail), body.shared-tour-only :is(.studio-header,.workspace-rail), body.shared-embed :is(.studio-header,.workspace-rail) { display: none; }
+body.fieldwork-desktop:is(.briefing-presenting,.shared-tour-only,.shared-embed) { padding-top: 0; }
 /* The slide player removes the sidebar and uses a single grid column. Keep the
    live map in that column instead of Fieldwork's usual second column. */
 body.fieldwork-desktop.briefing-presenting #app .map-workspace { grid-column: 1 / -1; width: 100%; height: 100%; aspect-ratio: auto; border: 0; border-radius: 0; }
@@ -506,10 +508,10 @@ body.fieldwork-desktop #app .sidebar__scroll > .panel > .panel__body { padding: 
   :root:is(:not([data-skin]),[data-skin="gismap"]):not(:where([data-layout="classic"])) .welcome-panel h1 { font-size: 26px; line-height: 1.15; }
   :root:is(:not([data-skin]),[data-skin="gismap"]):not(:where([data-layout="classic"])) .welcome-panel__actions button { min-height: 44px; font-size: 14px; }
   :root:is(:not([data-skin]),[data-skin="gismap"]):not(:where([data-layout="classic"])) :is(.mobile-panel-nav, .mobile-map-tool-strip) { border-color: var(--border-subtle); background: var(--surface-panel); }
-  :root:is(:not([data-skin]),[data-skin="gismap"]):not(:where([data-layout="classic"])) :is(.mobile-panel-nav button, .mobile-map-tool-strip button) { color: var(--text-muted); transition: background-color var(--motion-fast) var(--ease-standard), color var(--motion-fast) var(--ease-standard); }
-  :root:is(:not([data-skin]),[data-skin="gismap"]):not(:where([data-layout="classic"])) :is(.mobile-panel-nav button, .mobile-map-tool-strip button) small { font-size: 11px; font-weight: 500; }
+  :root:is(:not([data-skin]),[data-skin="gismap"]):not(:where([data-layout="classic"])) :is(.mobile-panel-nav :is(button,a), .mobile-map-tool-strip button) { color: var(--text-muted); transition: background-color var(--motion-fast) var(--ease-standard), color var(--motion-fast) var(--ease-standard); }
+  :root:is(:not([data-skin]),[data-skin="gismap"]):not(:where([data-layout="classic"])) :is(.mobile-panel-nav :is(button,a), .mobile-map-tool-strip button) small { font-size: 11px; font-weight: 500; }
   :root:is(:not([data-skin]),[data-skin="gismap"]):not(:where([data-layout="classic"])) :is(.mobile-panel-nav button.is-active, .mobile-map-tool-strip button.is-active) small { font-weight: 600; }
-  :root:is(:not([data-skin]),[data-skin="gismap"]):not(:where([data-layout="classic"])) .mobile-panel-nav button svg, :root:is(:not([data-skin]),[data-skin="gismap"]):not(:where([data-layout="classic"])) .mobile-map-tool-strip button svg { stroke-width: 1.75; }
+  :root:is(:not([data-skin]),[data-skin="gismap"]):not(:where([data-layout="classic"])) .mobile-panel-nav :is(button,a) svg, :root:is(:not([data-skin]),[data-skin="gismap"]):not(:where([data-layout="classic"])) .mobile-map-tool-strip button svg { stroke-width: 1.75; }
 }
 :root:is(:not([data-skin]),[data-skin="gismap"]):not(:where([data-layout="classic"])) .toast.toast--error { color: var(--action-on-danger, #fff); background: var(--status-danger); }
 :root[data-skin="gismap"][data-theme="dark"] { --action-on-danger: #2a0f0b; }

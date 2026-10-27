@@ -85,7 +85,7 @@
           <button type="button" data-mobile-workflow="briefing" aria-label="Briefing"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h12v18H6zM9 7h6M9 11h6M9 15h4"/></svg><small>Briefing</small></button>
           <button type="button" data-mobile-workflow="map" aria-label="Map"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m3 6 6-3 6 3 6-3v15l-6 3-6-3-6 3zM9 3v15m6-12v15"/></svg><small>Map</small></button>
           <button type="button" data-mobile-workflow="tours" aria-label="Tours"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h14v16H5zM9 8h6M9 12h6M9 16h4"/></svg><small>Tours</small></button>
-          <button type="button" data-mobile-workflow="tasks" aria-label="Field tasks"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5h10v16H5V5h4m0-2h6v4H9zM8 12l2 2 5-5"/></svg><small>Tasks</small></button>
+          <a class="mobile-panel-nav__field" href="/field/" aria-label="Open Field Mode"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5h10v16H5V5h4m0-2h6v4H9zM8 12l2 2 5-5"/></svg><small>Field</small></a>
           <button type="button" data-mobile-workflow="more" aria-label="More workflows"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></svg><small>More</small></button>
         </nav>
     <div id="app" class="app-shell">
@@ -126,6 +126,7 @@
               <button data-action="tools-about">About this build</button>
             </div>
           </div>
+          <a class="menu-bar__discover" href="/discover/" target="_blank" rel="noopener" title="Open the separate GISMap Discovery guide">Discover <span>↗</span></a>
           <div class="menu">
             <button class="menu__trigger" aria-expanded="false">Data <span>⌄</span></button>
             <div class="menu__content" role="menu">
@@ -160,6 +161,7 @@
               <button type="button" data-action="mode-cinematic">Cinematic mode</button>
               <button type="button" data-action="guide-cinematic">Cinematic guide: create an animation</button>
               <button type="button" data-mobile-workflow="tasks">Field tasks</button>
+              <a class="menu__link menu__link--field" href="/field/"><span>Field collection</span><small>Notes, tasks &amp; offline capture</small></a>
               <button type="button" data-action="mode-map-notes">Field notes</button>
               <button type="button" data-action="mode-data-map-notes">Map notes</button>
               <hr />
@@ -210,6 +212,15 @@
               <hr />
               <span class="menu__label">Games</span>
               <button data-action="game-dragons">Here be dragons</button>
+              <hr />
+              <span class="menu__label">Chart tools</span>
+              <button data-action="tools-chart-line-area">Line &amp; Area</button>
+              <button data-action="tools-chart-bar-column">Bar &amp; Column</button>
+              <button data-action="tools-chart-scatter-bubble">Scatter &amp; Bubble</button>
+              <button data-action="tools-chart-distribution-composition">Distribution &amp; Composition</button>
+              <button data-action="tools-chart-3d">3D Charts</button>
+              <button data-action="tools-chart-map">Map Charts</button>
+              <button data-action="tools-chart-custom">Custom Chart Builder</button>
               <hr />
               <span class="menu__label">Custom tools</span>
               <button data-action="tools-custom">Run JavaScript tool…</button>
@@ -297,19 +308,20 @@
         <header class="mobile-map-brand" aria-label="GISMap Online">
           <span aria-hidden="true"></span><strong>GISMap Online</strong>
         </header>
-        <section id="welcome-panel" class="welcome-panel" aria-labelledby="welcome-title">
+        <section id="welcome-panel" class="welcome-panel" aria-labelledby="welcome-title" hidden>
           <button id="welcome-close" class="welcome-panel__close" type="button" aria-label="Dismiss introduction">×</button>
           <div class="welcome-brand"><img src="./assets/gis-map-online-mark-v2.png" alt="" /><strong id="welcome-title">GIS MAP <span>ONLINE</span></strong></div>
-          <span class="eyebrow">Open source · No install</span>
-          <p>GISMap.online is a free, open-source, browser-based GIS workspace. Explore places, style your data, and share your map.</p>
-          <div class="welcome-panel__choices" aria-label="Get started">
-            <button type="button" data-action="data-popular">Browse popular data services</button>
-            <a href="/guides/">Read GISMap guides</a>
-            <button type="button" data-action="tools-walkthrough">Walk me through the tools and menus</button>
-            <button type="button" data-welcome-workflow="briefing">Create a briefing</button>
-            <button type="button" data-welcome-workflow="tours">Create a tour</button>
-            <button type="button" data-action="map-presentation">Create a dashboard</button>
+          <span class="eyebrow">Welcome to GISMap</span>
+          <h1>Start with a map, not a manual.</h1>
+          <p>Open data, make a map, and share it when you are ready. Discovery is a separate guide, so this workspace stays focused on your project.</p>
+          <div class="welcome-panel__actions" aria-label="Get started">
+            <button type="button" data-welcome-start>Start mapping</button>
+            <a href="/discover/examples/" target="_blank" rel="noopener">Explore examples</a>
+            <a href="/discover/learn/" target="_blank" rel="noopener">Learn GISMap</a>
+            <a href="/discover/ai/" target="_blank" rel="noopener">Create with AI</a>
+            <a href="/discover/about/" target="_blank" rel="noopener">About GISMap</a>
           </div>
+          <label class="welcome-panel__preference"><input id="welcome-suppress" type="checkbox" /> Don’t show this welcome automatically</label>
         </section>
         <aside id="atlas-chapter-overlay" class="atlas-chapter-overlay" hidden aria-live="polite">
           <div class="atlas-chapter-overlay__copy">
@@ -410,7 +422,6 @@
           <div id="insights-content"></div>
         </aside>
         <div id="map-status" class="map-status">Loading the map…</div>
-        <button id="dashboard-settings-open" class="dashboard-settings-open" type="button" hidden aria-label="Open Dashboard Builder information" title="Dashboard Builder (account required)"><span aria-hidden="true">⚙</span> Dashboard Builder</button>
         <section id="briefing-data-dock" class="briefing-data-dock" aria-label="Briefing data" hidden>
           <div class="briefing-data-dock__resizer" role="separator" tabindex="0" aria-orientation="horizontal" aria-label="Resize the data panel" data-briefing-dock-resize></div>
           <header class="briefing-data-dock__header"><strong>Data</strong><span data-briefing-dock-status></span><button type="button" class="icon-button" data-briefing-dock-toggle aria-expanded="true" aria-label="Collapse the data panel" title="Collapse">⌄</button></header>

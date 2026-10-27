@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { EXAMPLE_CATEGORIES, POPULAR_SERVICES } from "../js/catalog.js";
+import { mapSpecFromShareParameters } from "../js/map-spec.js";
+import { parseShareParameters } from "../js/share.js";
 
 test("catalog entries have stable, complete discovery metadata", () => {
   const ids = new Set();
@@ -38,4 +40,23 @@ test("PM2.5 3D examples provide field-driven column renderers", () => {
     const symbol = item.renderer?.symbol ?? item.renderer?.classBreakInfos?.[0]?.symbol;
     assert.equal(symbol?.symbolLayers?.[0]?.width, 650);
   }
+});
+
+test("featured discovery examples carry a deliberate portable visual", () => {
+  const examples = ["usa-wildfires", "modis-active-fires", "air-quality-pm25", "usgs-earthquakes"];
+  for (const slug of examples) {
+    const item = POPULAR_SERVICES.find((entry) => entry.slug === slug);
+    assert.ok(item, `${slug} is in the catalog`);
+    const layers = item.layers?.length ? item.layers : [item];
+    assert.ok(layers.every((layer) => (layer.renderer || item.renderer)?.type === "simple"), `${slug} has a portable simple renderer`);
+  }
+  assert.equal(POPULAR_SERVICES.find((item) => item.slug === "usa-wildfires").layers[0].animatedEffect.type, "fire");
+  assert.equal(POPULAR_SERVICES.find((item) => item.slug === "usgs-earthquakes").animatedEffect.type, "pulse");
+});
+
+test("example cinematic effects reach the launch map specification", () => {
+  const shared = parseShareParameters("?example=usa-wildfires", POPULAR_SERVICES);
+  const spec = mapSpecFromShareParameters(shared);
+  assert.equal(spec.layers[0].animatedEffect.type, "fire");
+  assert.equal(spec.layers[1].animatedEffect, undefined);
 });

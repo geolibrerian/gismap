@@ -276,6 +276,7 @@ export function mapSpecFromShareParameters(shared) {
     if (layer.refreshInterval) entry.refreshInterval = layer.refreshInterval;
     if (layer.style) entry.renderer = rendererSpecFromParameters(layer.style);
     else if (layer.renderer) entry.renderer = { type: "arcgis", json: layer.renderer };
+    if (layer.animatedEffect) entry.animatedEffect = layer.animatedEffect;
     spec.layers.push(entry);
   }
   return spec;

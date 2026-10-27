@@ -22,9 +22,10 @@ test("Atlas starts with Clean Light", () => {
 
 test("mobile navigation exposes focused workflows", async () => {
   const html = await readFile(new URL("../index.html", import.meta.url), "utf8");
-  for (const route of ["briefing", "map", "tours", "tasks", "more"]) {
+  for (const route of ["briefing", "map", "tours", "more"]) {
     assert.match(html, new RegExp(`data-mobile-workflow="${route}"`));
   }
+  assert.match(html, /class="mobile-panel-nav__field" href="\/field\/"[\s\S]*?<small>Field<\/small>/);
   assert.doesNotMatch(html, /data-mobile-workflow="updates"/);
   assert.match(html, /id="mobile-workflow-root"/);
 });
@@ -46,12 +47,66 @@ test("mobile chapter editing hides advanced fields in a fold by default", async 
 test("mobile menu nests public workflows below the standard tools", async () => {
   const ui = await readFile(new URL("../js/ui.js", import.meta.url), "utf8");
   assert.match(ui, /dashboard-builder.*map-presentation/s);
-  assert.match(ui, /mobile-workflows-menu.*Modes.*Briefing.*Tours.*Field tasks.*Map tools/s);
+  assert.match(ui, /mobile-workflows-menu.*Modes.*Briefing.*Tours.*Field Mode.*Map tools/s);
   assert.match(ui, /mobileMenu\.append\(workflows\)/);
   assert.doesNotMatch(ui, /Free workflows/);
   assert.doesNotMatch(ui.match(/workflows\.innerHTML[^;]+/s)?.[0] || "", /Updates|Compare|Watchlist/);
   // Opening a workflow never replaces the project's chosen skin.
   assert.doesNotMatch(ui, /skin: returningTo(Tour|Briefing)/);
+});
+
+test("Field Mode is a styled top-level option rather than a browser-default menu link", async () => {
+  const html = await readFile(new URL("../index.html", import.meta.url), "utf8");
+  const router = await readFile(new URL("../js/mobile-workflow-router.js", import.meta.url), "utf8");
+  const css = await readFile(new URL("../css/app.css", import.meta.url), "utf8");
+  assert.match(html, /class="menu__link menu__link--field" href="\/field\//);
+  assert.match(router, /workflow-grid__field" href="\/field\//);
+  assert.match(css, /\.menu__content \.menu__link \{ display:grid/);
+  assert.match(css, /\.mobile-panel-nav :is\(button,a\)/);
+});
+
+test("Field Mode reserves its offline identity and QR scanner for actual offline collection", async () => {
+  const fieldHtml = await readFile(new URL("../field/index.html", import.meta.url), "utf8");
+  const fieldJs = await readFile(new URL("../field/field-mode.js", import.meta.url), "utf8");
+  const fieldCss = await readFile(new URL("../field/field-mode.css", import.meta.url), "utf8");
+  const worker = await readFile(new URL("../field/service-worker.js", import.meta.url), "utf8");
+  assert.doesNotMatch(fieldHtml, /FIELD COLLECTION/);
+  assert.match(fieldHtml, /data-open-qr-import>Scan QR/);
+  assert.match(fieldHtml, /data-start-qr-camera>Scan with camera/);
+  assert.match(fieldHtml, /data-import-qr-camera-image[^>]*capture="environment"/);
+  assert.match(fieldHtml, /data-import-geopayload/);
+  assert.match(fieldHtml, /data-accept-geopayload/);
+  assert.match(fieldJs, /classList\.toggle\("is-offline", offline\)/);
+  assert.match(fieldJs, /new globalThis\.BarcodeDetector/);
+  assert.match(fieldJs, /scanQrWithCamera/);
+  assert.match(fieldJs, /previewGeoPayload/);
+  assert.match(fieldJs, /encodeGeoPayload/);
+  assert.match(fieldCss, /\.field-app\.is-offline \.field-header__brand-online::after/);
+  assert.match(worker, /gismap-field-v7/);
+  assert.match(worker, /geopayload\.js/);
+  assert.match(worker, /field-site-pack\.js/);
+  assert.match(worker, /caches\.delete/);
+  assert.match(fieldHtml, /data-prepare-field>Prepare/);
+  assert.match(fieldHtml, /data-readiness-dialog/);
+  assert.match(fieldHtml, /data-export-site-pack/);
+  assert.match(fieldHtml, /data-import-site-pack/);
+  assert.match(fieldHtml, /data-import-pmtiles/);
+  assert.match(fieldHtml, /data-animate-qr/);
+  assert.match(fieldJs, /Field Inbox &amp; Outbox/);
+  assert.match(fieldJs, /ready-to-return/);
+  assert.match(fieldJs, /createReturnReceipt/);
+  assert.match(fieldJs, /mergeReturnReceipt/);
+  assert.match(fieldJs, /createAnimatedQrFrames/);
+  assert.match(fieldJs, /PMTiles stored locally/);
+  assert.match(fieldJs, /navigator\.storage\?\.persist/);
+  assert.match(fieldHtml, /data-view="analyze">Analyze/);
+  assert.match(fieldHtml, /data-analysis-measure/);
+  assert.match(fieldHtml, /data-analysis-buffer/);
+  assert.match(fieldHtml, /data-analysis-geojson/);
+  assert.match(fieldHtml, /turf-7\.4\.0\.min\.js/);
+  assert.match(fieldJs, /createOfflineAnalysis/);
+  assert.match(worker, /turf-offline\.js/);
+  assert.match(worker, /turf-7\.4\.0\.min\.js/);
 });
 
 test("mobile navigation keeps the menu exclusive and Map active while its tools are open", async () => {
