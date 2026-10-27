@@ -44,6 +44,8 @@ ready.catch(() => {});
 
 async function start() {
   const allowHttp = location.hostname === "localhost" || location.hostname === "127.0.0.1";
+  const launchParams = new URLSearchParams(location.search);
+  const sharedEmbed = launchParams.get("embed") === "1";
   // MapLibre by default; ?engine=arcgis (or the Display settings choice) selects the ArcGIS engine.
   let sharedState = null;
   let sharedStateError = null;
@@ -273,16 +275,16 @@ async function start() {
     if (sharedStateError) throw sharedStateError;
     if (sharedState?.kind === "map-spec") {
       await within(mapSpecApi.load(sharedState.spec, { replace: false }).ready, 120);
+      if (sharedEmbed) uiController.activateSharedEmbed(sharedState.spec?.briefing ? "briefing" : "map");
       // A link whose spec carries slides opens presenting them, as a briefing link does.
       // (mapSpec.load from the API stays quiet: an agent decides when to present.)
       const briefing = projectManager.current?.presentation?.briefing;
       if (sharedState.spec?.briefing && briefing?.slides?.some((slide) => !slide.hidden)) await uiController.openBriefingDocument(briefing, { present: true });
-    } else if (sharedState) await uiController.openSharedState(sharedState, { loadLayer: loadUnifiedLayer });
+    } else if (sharedState) await uiController.openSharedState(sharedState, { loadLayer: loadUnifiedLayer, embed: sharedEmbed });
   } catch (error) {
     events.publish("app:error", { message: error.message });
   }
 
-  const launchParams = new URLSearchParams(location.search);
   const requestedWorkflow = sharedState ? null : launchParams.get("workflow");
   const sharedBriefingIds = launchParams.get("briefing");
   if (requestedWorkflow === "briefing" && sharedBriefingIds && !/^https?:/i.test(sharedBriefingIds)) {

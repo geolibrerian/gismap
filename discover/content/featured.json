@@ -1,0 +1,35 @@
+{
+  "version": 1,
+  "featured": [
+    {
+      "collection": "examples",
+      "title": "USA wildfires",
+      "summary": "Current wildfire incidents and daily fire perimeters from a public ArcGIS service.",
+      "href": "/?example=usa-wildfires"
+    },
+    {
+      "collection": "examples",
+      "title": "USGS earthquakes",
+      "summary": "A continuously updated GeoJSON feed opened as a browser map.",
+      "href": "/?example=usgs-earthquakes"
+    },
+    {
+      "collection": "learn",
+      "title": "Open public spatial data",
+      "summary": "Practical guides for ArcGIS REST, FeatureServer, MapServer, GeoJSON, and 3D data.",
+      "href": "/guides/"
+    },
+    {
+      "collection": "ai",
+      "title": "Create and share a map with AI",
+      "summary": "A public FeatureServer-to-map walkthrough with a reviewable output.",
+      "href": "/ai-arcgis-map-generator/"
+    },
+    {
+      "collection": "demos",
+      "title": "Opening day wayfinding",
+      "summary": "A portable field task and returned report.",
+      "href": "/examples/field-tasks/opening-day-wayfinding/"
+    }
+  ]
+}

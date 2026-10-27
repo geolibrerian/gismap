@@ -14,6 +14,7 @@ import { createAssistantTools, summarizeMapState } from "./map-assistant.js?v=0.
 import { ENTERPRISE_CATALOGS, EnterpriseCatalog, normalizeArcGisDirectoryUrl } from "./enterprise-catalog.js?v=0.18.2";
 import { createShareUrl } from "./share.js?v=0.54.0-unified4";
 import { createShareLink, hasDataFilter } from "./map-share.js?v=0.60.18-trains1";
+import { createEmbedIframe, createEmbedUrl } from "./embed-share.js?v=0.61.0-embed1";
 import { briefingLayerRef, findBriefingLayer } from "./briefing-api.js?v=0.60.18-trains1";
 import { createEmbeddedTourUrl } from "./tour-share.js?v=0.54.0-unified4";
 import { markdownToPlainText, renderMarkdown } from "./markdown.js?v=0.18.2";
@@ -65,6 +66,7 @@ import { MapChartOverlayController } from "./map-chart-tools.js";
 
 const BUILDINGS_3D_KEY = "gismap-online:buildings-3d:v1";
 const DISPLAY_SETTINGS_KEY = "gismap-online:display:v1";
+const WELCOME_PREFERENCE_KEY = "gismap.welcome.v1";
 const DOCKABLE_PANELS = { places: "Places", bookmarks: "Bookmarks", draw: "Draw", intelligence: "Intelligence", layers: "Layers", observations: "Notes & Tasks" };
 const RECENT_PLACES_KEY = "gismap-online:recent-places:v1";
 const RECENT_PLACES_LIMIT = 6;
@@ -243,6 +245,7 @@ export class UIController {
     this.panelManager?.register("content:intelligence", document.querySelector("#intelligence-content"), { shell: document.querySelector("#intelligence-panel") });
     this.panelManager?.register("content:draw", document.querySelector(".draw-tools"), { shell: document.querySelector("#draw-panel") });
     this.#initDockablePanels();
+    this.#configureWelcomeStartup();
     this.#initNotesHub();
     this.#initLegendEditing();
     this.#applyDisplaySettings(this.#readDisplaySettings());
@@ -510,7 +513,13 @@ export class UIController {
 
   #bindStaticActions() {
     window.addEventListener("beforeunload", event => { if (this.captureDataMapNoteDraft?.() || this.dataMapNoteDraftDirty) { event.preventDefault(); event.returnValue = ""; } });
-    document.querySelector("#welcome-close").addEventListener("click", () => this.#dismissWelcome());
+    document.querySelector("#welcome-close").addEventListener("click", () => this.#dismissWelcome({ persist: true }));
+    document.querySelector("[data-welcome-start]")?.addEventListener("click", () => {
+      this.#dismissWelcome({ persist: Boolean(document.querySelector("#welcome-suppress")?.checked) });
+    });
+    document.querySelector("#welcome-suppress")?.addEventListener("change", (event) => {
+      this.#saveWelcomePreference({ dismissed: event.currentTarget.checked });
+    });
     document.querySelectorAll("[data-welcome-workflow]").forEach((button) => button.addEventListener("click", () => {
       this.#dismissWelcome();
       this.openMobileWorkflow(button.dataset.welcomeWorkflow);
@@ -1272,12 +1281,51 @@ export class UIController {
     }
   }
 
-  #dismissWelcome() {
+  #welcomeIsSharedLaunch() {
+    const params = new URLSearchParams(location.search);
+    if (["example", "layer", "url", "briefing", "workflow", "application"].some((key) => params.has(key))) return true;
+    return /(?:^#|&)(?:map|briefing|tour|fieldTask|fieldNote|at)=/.test(location.hash);
+  }
+
+  #welcomeIsExplicitlyRequested() {
+    return new URLSearchParams(location.search).get("welcome") === "1";
+  }
+
+  #readWelcomePreference() {
+    try {
+      const stored = JSON.parse(localStorage.getItem(WELCOME_PREFERENCE_KEY) || "null");
+      return stored?.version === 1 ? stored : { version: 1, dismissed: false };
+    } catch { return { version: 1, dismissed: false }; }
+  }
+
+  #saveWelcomePreference({ dismissed }) {
+    const preference = { version: 1, dismissed: Boolean(dismissed) };
+    try { localStorage.setItem(WELCOME_PREFERENCE_KEY, JSON.stringify(preference)); } catch { /* Private browsing keeps the current page behavior. */ }
+    const input = document.querySelector("#welcome-suppress");
+    if (input) input.checked = preference.dismissed;
+  }
+
+  #configureWelcomeStartup() {
+    const panel = document.querySelector("#welcome-panel");
+    if (!panel) return;
+    const preference = this.#readWelcomePreference();
+    const explicitlyRequested = this.#welcomeIsExplicitlyRequested();
+    const launchSuppressed = !explicitlyRequested && this.#welcomeIsSharedLaunch();
+    panel.dataset.dismissed = preference.dismissed ? "true" : "false";
+    panel.dataset.launchSuppressed = launchSuppressed ? "true" : "false";
+    if (explicitlyRequested) panel.dataset.reopened = "true";
+    panel.hidden = !explicitlyRequested && (preference.dismissed || launchSuppressed);
+    const input = document.querySelector("#welcome-suppress");
+    if (input) input.checked = preference.dismissed;
+  }
+
+  #dismissWelcome({ persist = false } = {}) {
     const welcomePanel = document.querySelector("#welcome-panel");
     const wasVisible = !welcomePanel.hidden;
     welcomePanel.dataset.dismissed = "true";
     delete welcomePanel.dataset.reopened;
     welcomePanel.hidden = true;
+    if (persist) this.#saveWelcomePreference({ dismissed: true });
     if (wasVisible) {
       this.events.publish("welcome:visibility-changed");
       this.events.publish("context:workspace-changed");
@@ -2011,6 +2059,7 @@ export class UIController {
         local && `${local === 1 ? "One layer" : `${local} layers`} from this device ${local === 1 ? "is" : "are"} left out.`,
       ].filter(Boolean).join(" "),
       message: "Opens this map with the same layers, styles, filters, view, basemap and look.",
+      embed: { kind: "map", title, message: "Paste this iframe into your site to publish the configured map. The embedded map keeps the same public layers, style, filter, camera, basemap, and look." },
       card: { lines: ["Scan to open this map, or long-click the QR code", "to open it in a browser."], footer: "Complete map encoded in this QR" },
       downloads: [
         { label: "Map PDF", create: () => this.#mapPdfFile(link) },
@@ -6268,7 +6317,7 @@ export class UIController {
     }
     catch (error) { this.error(error.message); return; }
     const title = this.projectManager.current.presentation?.title || "Guided places";
-    const iframe = `<iframe src="${escapeHtml(embedUrl)}" title="${escapeHtml(title)} guided map tour" loading="lazy" allow="fullscreen; geolocation" allowfullscreen style="width:100%;height:600px;border:0"></iframe>`;
+    const iframe = createEmbedIframe(embedUrl, { title: `${title} guided map tour`, kind: "tour" });
     const selectedUrl = () => this.dialog.querySelector("[data-tour-share-url]")?.value || regularUrl;
     this.tourShareImageFile = null;
     this.openDialog({ eyebrow: "Guided places", title: "Share & export", content: `<p class="form-note">Share a camera-only link or download the complete tour file. Links omit descriptions, images, layers, and credentials; the .gmoatlas file preserves the complete authored tour.</p><fieldset class="tour-share-options"><legend>Viewer access</legend><label><input type="radio" name="tour-share-mode" value="regular" checked><span><strong>Tour with GIS tools</strong><small>Viewers can exit the tour and continue in the standard map workspace.</small></span></label><label><input type="radio" name="tour-share-mode" value="tour-only"><span><strong>Tour only</strong><small>Hide authoring menus, map tools, and the Exit tour control.</small></span></label></fieldset><label class="field"><span>Link</span><textarea readonly rows="4" data-tour-share-url>${escapeHtml(regularUrl)}</textarea></label><details class="tour-embed"><summary>Embed this tour on a website</summary><p class="form-note">Paste this iframe into your page. It opens the same camera-only tour without the GIS authoring interface.</p><textarea readonly rows="6" data-tour-embed-code>${escapeHtml(iframe)}</textarea><button type="button" data-tour-copy-embed>Copy embed HTML</button></details><div class="tour-share-card"><canvas data-tour-share-card width="760" height="960" role="img" aria-label="Branded QR card for this guided places tour"></canvas><p class="tour-share-card__status" data-tour-share-status>Building complete-link QR card…</p></div>`, actions: [
@@ -7349,6 +7398,13 @@ export class UIController {
         title = presentation.modeTitles?.[route === "tours" ? "atlas" : "briefing"] || presentation.title || "GISMap briefing";
       }
       const kind = payload.kind || ({ tasks: "field task", tours: "tour", briefing: "briefing" })[route] || "map";
+      const embed = payload.embed ? {
+        kind: payload.embed.kind === "briefing" ? "briefing" : "map",
+        title: payload.embed.title || title,
+        message: payload.embed.message || "Paste this iframe into your site. It opens the same public GISMap link without authoring controls.",
+      } : null;
+      const embedUrl = embed ? createEmbedUrl(url, { kind: embed.kind }) : null;
+      const embedIframe = embed ? createEmbedIframe(url, { kind: embed.kind, title: embed.title }) : null;
       const card = payload.card || {
         lines: [`Scan to open this ${kind}, or long-click the QR code`, "to open it in a browser."],
         footer: `Complete ${kind} link encoded in this QR`,
@@ -7373,7 +7429,7 @@ export class UIController {
       this.openDialog({
         eyebrow: payload.eyebrow || "Shareable workflow",
         title,
-        content: `<div class="workflow-share">${payload.qr === false ? `<p class="workflow-share__long">This ${kind} carries more than a QR code can hold (${url.length.toLocaleString()} characters), so it shares as a link and files instead. The link opens everything on any device.</p>` : `<div class="tour-share-card"><canvas data-workflow-share-card width="760" height="960" role="img" aria-label="Branded QR card for ${escapeHtml(title)}"></canvas><p class="tour-share-card__status" data-workflow-share-status>Building QR card…</p></div>`}${payload.notice ? `<p class="workflow-share__notice">${escapeHtml(payload.notice)}</p>` : ""}<p>${escapeHtml(payload.message || `Scan this code to open the ${kind} on another device.`)}</p><label class="field"><span>Share link</span><input data-workflow-share-url readonly value="${escapeHtml(url)}"></label>${downloads.length ? `<div class="workflow-share-downloads"><span>Report files</span><div>${downloads.map((download, index) => `<button type="button" data-share-download="${index}">${escapeHtml(download.label)}</button>`).join("")}</div></div>` : ""}</div>`,
+        content: `<div class="workflow-share">${payload.qr === false ? `<p class="workflow-share__long">This ${kind} carries more than a QR code can hold (${url.length.toLocaleString()} characters), so it shares as a link and files instead. The link opens everything on any device.</p>` : `<div class="tour-share-card"><canvas data-workflow-share-card width="760" height="960" role="img" aria-label="Branded QR card for ${escapeHtml(title)}"></canvas><p class="tour-share-card__status" data-workflow-share-status>Building QR card…</p></div>`}${payload.notice ? `<p class="workflow-share__notice">${escapeHtml(payload.notice)}</p>` : ""}<p>${escapeHtml(payload.message || `Scan this code to open the ${kind} on another device.`)}</p><label class="field"><span>Share link</span><input data-workflow-share-url readonly value="${escapeHtml(url)}"></label>${embed ? `<details class="tour-embed"><summary>Embed on a website</summary><p class="form-note">${escapeHtml(embed.message)}</p><label class="field"><span>Embed URL</span><input readonly value="${escapeHtml(embedUrl)}"></label><textarea readonly rows="6" data-workflow-embed-code>${escapeHtml(embedIframe)}</textarea><button type="button" data-workflow-copy-embed>Copy embed HTML</button></details>` : ""}${downloads.length ? `<div class="workflow-share-downloads"><span>Report files</span><div>${downloads.map((download, index) => `<button type="button" data-share-download="${index}">${escapeHtml(download.label)}</button>`).join("")}</div></div>` : ""}</div>`,
         actions: [
           ...(payload.qr === false ? [] : [{ label: "Download image", handler: () => {
             if (!this.workflowShareImageFile) return this.error("The QR image is still being prepared.");
@@ -7400,6 +7456,10 @@ export class UIController {
         try { saveFile(await fileFor(downloads[Number(button.dataset.shareDownload)])); } catch (error) { this.error(error.message); }
         finally { button.disabled = false; button.textContent = label; }
       }));
+      this.dialog.querySelector("[data-workflow-copy-embed]")?.addEventListener("click", async () => {
+        await navigator.clipboard.writeText(embedIframe);
+        this.toast("Embed HTML copied.");
+      });
       const canvas = this.dialog.querySelector("[data-workflow-share-card]");
       const status = this.dialog.querySelector("[data-workflow-share-status]");
       if (!canvas) return;
@@ -7487,6 +7547,7 @@ export class UIController {
         qr: link.qr,
         notice: filtered ? `Data filters travel with this link: ${filtered === 1 ? "one layer shows" : `${filtered} layers show`} only part of its data.` : "",
         message: `${slides ? `Opens the ${slides}-slide presentation directly` : "Opens this briefing's features"}, with the same layers, styles${filtered ? ", filters" : ""} and look.${link.qr ? "" : " To share by QR, host the briefing file on the web and link to it as ?briefing=<file address>."}`,
+        embed: { kind: "briefing", title, message: "Paste this iframe into your site to present this briefing. It keeps the same public data, selected slides, filters, camera, and visual treatment." },
         card: {
           lines: [slides ? `Scan to present ${slides} slide${slides === 1 ? "" : "s"}, or long-click the QR code` : "Scan to open this briefing, or long-click the QR code", "to open it in a browser."],
           footer: "Complete briefing encoded in this QR",
@@ -7543,7 +7604,13 @@ export class UIController {
    * with their styles and filters, applies the skin and basemap, then shows the
    * view or starts presenting the briefing's slides.
    */
-  async openSharedState(shared, { loadLayer }) {
+  activateSharedEmbed(kind = "map") {
+    const safeKind = ["map", "briefing", "tour"].includes(kind) ? kind : "map";
+    document.body.classList.add("shared-embed", `shared-embed--${safeKind}`);
+  }
+
+  async openSharedState(shared, { loadLayer, embed = false } = {}) {
+    if (embed) this.activateSharedEmbed(shared.kind === "briefing" || shared.kind === "briefing-document" ? "briefing" : "map");
     if (shared.kind === "briefing-document") return this.#openSharedBriefingDocument(shared);
     if (shared.basemap) this.mapController.setBasemap(shared.basemap);
     if (shared.ground) this.mapController.setGround(shared.ground);
@@ -7927,7 +7994,8 @@ export class UIController {
       if (layers.length && (!this.keepWelcomeForSharedExample || this.mobileMedia.matches)) this.#dismissWelcome();
     }
     const applicationPreset = this.applicationRuntime?.snapshot?.().preset || "standard";
-    welcomePanel.hidden = welcomePanel.dataset.reopened !== "true" && (welcomePanel.dataset.dismissed === "true" || applicationPreset !== "standard");
+    const launchSuppressed = welcomePanel.dataset.launchSuppressed === "true";
+    welcomePanel.hidden = welcomePanel.dataset.reopened !== "true" && (welcomePanel.dataset.dismissed === "true" || launchSuppressed || applicationPreset !== "standard");
     const exportable = new Set(this.exportController.listExportableLayers().map((layer) => layer.uid));
     document.querySelector("#layer-count").textContent = `${layers.length} loaded`;
     const container = document.querySelector("#layers-list");
@@ -8101,6 +8169,7 @@ export class UIController {
     const savedChart = layerConfig.spatialChart || null;
     let selectedSpec = savedSpec && ["simple", "categories", "choropleth", "graduated-symbols", "heatmap"].includes(savedSpec.type) ? structuredClone(savedSpec) : null;
     const representativeSymbol = renderer.symbol ?? renderer.classBreakInfos?.[0]?.symbol ?? renderer.uniqueValueInfos?.[0]?.symbol;
+    let selectedMarkerSymbol = representativeSymbol?.type === "picture-marker" && String(representativeSymbol.url || "").startsWith("/assets/symbols/") ? representativeSymbol.url : "";
     const objectSymbol = representativeSymbol?.symbolLayers?.find((symbolLayer) => symbolLayer.type === "object" || symbolLayer.type === "extrude");
     const heightVariable = renderer.visualVariables?.find((variable) => variable.type === "size" && (variable.axis === "height" || layer.geometryType === "polygon"));
     const expressionField = String(heightVariable?.valueExpression || "").match(/\$feature\[(?:"([^"]+)"|'([^']+)')\]/)?.slice(1).find(Boolean);
@@ -8117,6 +8186,9 @@ export class UIController {
       : "";
     const polygonControls = layer.geometryType === "polygon"
       ? '<label class="opacity-row"><span>Fill opacity</span><input data-symbol-fill-opacity type="range" min="0" max="1" step="0.05" value="0.35" /><output>35%</output></label><label class="display-checkbox"><input data-symbol-no-fill type="checkbox" /><span>No fill — outline only</span></label>'
+      : "";
+    const pointSymbolControls = /point/i.test(layer.geometryType || "")
+      ? `<fieldset class="feedback-settings symbol-gallery"><legend>Marker symbol <small>SVG markers</small></legend><div class="symbol-gallery__choices" role="radiogroup" aria-label="Marker symbol"><button type="button" class="symbol-gallery__choice${!selectedMarkerSymbol ? " is-selected" : ""}" data-symbol-gallery="" role="radio" aria-checked="${!selectedMarkerSymbol}"><span class="symbol-gallery__dot"></span><span>Circle</span></button>${[["/assets/symbols/fire.svg", "Fire"], ["/assets/symbols/sensor.svg", "Sensor"], ["/assets/symbols/quake.svg", "Quake"], ["/assets/symbols/pin.svg", "Place"]].map(([url, label]) => `<button type="button" class="symbol-gallery__choice${selectedMarkerSymbol === url ? " is-selected" : ""}" data-symbol-gallery="${url}" role="radio" aria-checked="${selectedMarkerSymbol === url}"><img src="${url}" alt=""><span>${label}</span></button>`).join("")}</div><p class="form-note">SVG markers render in the ArcGIS engine. MapLibre keeps the same color and size as a compatible circle marker.</p></fieldset>`
       : "";
     const extrudable = this.mapController.getEngineId() === "maplibre" ? layer.geometryType === "polygon" : ["polygon", "point", "multipoint"].includes(layer.geometryType);
     const extrusionControls = extrudable
@@ -8138,7 +8210,7 @@ export class UIController {
     const styleOptions = canSuggest
       ? `<section class="style-options" aria-label="Style options"><div class="style-options__head"><strong>Style options</strong><button type="button" class="link-button" data-suggest-styles>Suggest styles for this field</button></div><div class="field-grid"><label class="field"><span>Suggestion field</span><select data-suggestion-field>${fieldOptions(fields, "No fields available", currentField || preferredNumericField?.name)}</select></label><label class="field"><span>Colour range</span><select data-style-ramp>${Object.keys(RAMPS).map((name) => `<option value="${name}">${escapeHtml(name.replaceAll("-", " "))}</option>`).join("")}</select></label></div><div class="style-options__list" data-style-options-list aria-live="polite"></div></section>`
       : "";
-    pane.innerHTML = `<div class="workspace-tool"><p class="eyebrow">Layer presentation</p><h3>Style ${escapeHtml(layer.title || "layer")}</h3>${styleOptions}<div class="field-grid">${rendererControls}<label class="field" data-single-color><span>Symbol color</span><input data-symbol-color type="color" value="#1b7f6a" /></label><label class="field"><span>Outline</span><input data-symbol-outline type="color" value="#ffffff" /></label><label class="field"><span>Size / width</span><input data-symbol-size type="number" min="0.5" max="40" step="0.5" value="9" /></label></div><section data-class-editor hidden><h4>Classes and colors</h4><div class="field-grid"><label class="field"><span>Palette</span><select data-class-ramp>${Object.keys(RAMPS).map((name) => `<option value="${name}">${escapeHtml(name.replaceAll("-", " "))}</option>`).join("")}</select></label><label class="display-checkbox"><input type="checkbox" data-class-reverse> Reverse palette</label></div><p class="form-note">Colors can be changed individually. Apply symbology to update the map.</p><div data-class-list aria-live="polite"></div></section>${polygonControls}${extrusionControls}${effectControls}<p class="form-note">Class previews use up to 20,000 loaded values matching the layer filter. Renderer settings are stored with the project.</p><div class="workspace-tool__actions"><button type="button" class="button--primary" data-apply-symbology>Apply symbology</button></div></div>`;
+    pane.innerHTML = `<div class="workspace-tool"><p class="eyebrow">Layer presentation</p><h3>Style ${escapeHtml(layer.title || "layer")}</h3>${styleOptions}<div class="field-grid">${rendererControls}<label class="field" data-single-color><span>Symbol color</span><input data-symbol-color type="color" value="#1b7f6a" /></label><label class="field"><span>Outline</span><input data-symbol-outline type="color" value="#ffffff" /></label><label class="field"><span>Size / width</span><input data-symbol-size type="number" min="0.5" max="40" step="0.5" value="9" /></label></div>${pointSymbolControls}<section data-class-editor hidden><h4>Classes and colors</h4><div class="field-grid"><label class="field"><span>Palette</span><select data-class-ramp>${Object.keys(RAMPS).map((name) => `<option value="${name}">${escapeHtml(name.replaceAll("-", " "))}</option>`).join("")}</select></label><label class="display-checkbox"><input type="checkbox" data-class-reverse> Reverse palette</label></div><p class="form-note">Colors can be changed individually. Apply symbology to update the map.</p><div data-class-list aria-live="polite"></div></section>${polygonControls}${extrusionControls}${effectControls}<p class="form-note">Class previews use up to 20,000 loaded values matching the layer filter. Renderer settings are stored with the project.</p><div class="workspace-tool__actions"><button type="button" class="button--primary" data-apply-symbology>Apply symbology</button></div></div>`;
     const effectSelect = pane.querySelector("[data-layer-effect]");
     const effectIntensity = pane.querySelector("[data-layer-effect-intensity]");
     const applyEffect = async () => {
@@ -8158,6 +8230,13 @@ export class UIController {
     const styleMode = pane.querySelector("[data-style-mode]");
     const styleFieldControl = pane.querySelector("[data-style-field-control]");
     const styleField = pane.querySelector("[data-style-field]");
+    pane.querySelectorAll("[data-symbol-gallery]").forEach((button) => button.addEventListener("click", () => {
+      selectedMarkerSymbol = button.dataset.symbolGallery || "";
+      selectedSpec = null;
+      if (styleMode) styleMode.value = "simple";
+      pane.querySelectorAll("[data-symbol-gallery]").forEach((item) => { const selected = item === button; item.classList.toggle("is-selected", selected); item.setAttribute("aria-checked", String(selected)); });
+      syncStyleField();
+    }));
     const syncStyleField = () => {
       if (!styleMode || !styleFieldControl || !styleField) return;
       pane.querySelector("[data-single-color]").hidden = ["categorized", "color", "size-color", "heatmap"].includes(styleMode.value);
@@ -8303,7 +8382,7 @@ export class UIController {
     };
     pane.querySelector("[data-apply-symbology]").addEventListener("click", async () => {
       try {
-        if (selectedSpec && !extrusionEnabled?.checked) {
+        if (selectedSpec && !extrusionEnabled?.checked && !selectedMarkerSymbol) {
           const spec = structuredClone(selectedSpec);
           if (spec.type === "choropleth") spec.ramp = spec.ramp || classRamp.value || "greens";
           if (["simple", "graduated-symbols"].includes(spec.type)) spec.color = pane.querySelector("[data-symbol-color]").value;
@@ -8325,6 +8404,7 @@ export class UIController {
           color: pane.querySelector("[data-symbol-color]").value,
           outline: pane.querySelector("[data-symbol-outline]").value,
           size: pane.querySelector("[data-symbol-size]").value,
+          markerSymbol: selectedMarkerSymbol || undefined,
           fillOpacity: fillOpacity?.value,
           noFill: pane.querySelector("[data-symbol-no-fill]")?.checked ?? false,
           extrusionEnabled: extrusionEnabled?.checked ?? false,

@@ -75,6 +75,7 @@ export function parseShareParameters(search, catalog = [], options = {}) {
         refreshInterval: item.refreshInterval ?? entry.refreshInterval,
       };
       if (item.renderer || entry.renderer) layer.renderer = structuredClone(item.renderer || entry.renderer);
+      if (item.animatedEffect || entry.animatedEffect) layer.animatedEffect = structuredClone(item.animatedEffect || entry.animatedEffect);
       layers.push(layer);
     }
   }

@@ -22,6 +22,19 @@ const PM25_HEIGHT_VARIABLE = {
   axis: "height",
 };
 
+// Compact, portable renderer JSON for the examples.  Keep the primary visual
+// readable in both adapters; ArcGIS can add the optional cinematic effect,
+// while MapLibre retains the same data symbols without requiring an SDK-only
+// renderer.
+const pointMarker = (color, size = 10) => ({
+  type: "simple",
+  symbol: { type: "simple-marker", style: "circle", color, size, outline: { color: "#fffaf2", width: 1.5 } },
+});
+const areaFill = (color, outline = "#b84427") => ({
+  type: "simple",
+  symbol: { type: "simple-fill", color, outline: { color: outline, width: 1.5 } },
+});
+
 /**
  * Public service catalog used by Popular Data Services and generated examples.
  * Keep uncertain terms explicit and leave lastChecked null until validation runs.
@@ -34,8 +47,8 @@ export const POPULAR_SERVICES = [
     whyUseful: "Compare active incidents and mapped fire perimeters, inspect operational attributes, and relate wildfire activity to terrain and nearby places.",
     url: "https://rhvpkkiftonktxq3.svcs9.arcgis.com/RHVPKKiFTONKtxq3/ArcGIS/rest/services/USA_Wildfires_v1/FeatureServer",
     layers: [
-      { url: "https://services9.arcgis.com/RHVPKKiFTONKtxq3/ArcGIS/rest/services/USA_Wildfires_v1/FeatureServer/0", title: "Current incidents", serviceType: "feature" },
-      { url: "https://services9.arcgis.com/RHVPKKiFTONKtxq3/ArcGIS/rest/services/USA_Wildfires_v1/FeatureServer/1", title: "Current perimeters", serviceType: "feature" },
+      { url: "https://services9.arcgis.com/RHVPKKiFTONKtxq3/ArcGIS/rest/services/USA_Wildfires_v1/FeatureServer/0", title: "Current incidents", serviceType: "feature", renderer: pointMarker("#e3532d", 10), animatedEffect: { type: "fire", intensity: 0.75 } },
+      { url: "https://services9.arcgis.com/RHVPKKiFTONKtxq3/ArcGIS/rest/services/USA_Wildfires_v1/FeatureServer/1", title: "Current perimeters", serviceType: "feature", renderer: areaFill("rgba(232, 115, 67, 0.24)") },
     ],
     sourceOrganization: "Esri Disaster Response Program",
     sourcePage: "https://rhvpkkiftonktxq3.svcs9.arcgis.com/RHVPKKiFTONKtxq3/ArcGIS/rest/services/USA_Wildfires_v1/FeatureServer",
@@ -49,6 +62,8 @@ export const POPULAR_SERVICES = [
     description: "Recent thermal anomalies detected by the MODIS satellite instruments.",
     whyUseful: "Explore recent satellite-detected thermal anomalies and compare their distribution with terrain, communities, and other public layers.",
     url: "https://services9.arcgis.com/RHVPKKiFTONKtxq3/arcgis/rest/services/MODIS_Thermal_v1/FeatureServer/0",
+    renderer: pointMarker("#f2a33a", 7),
+    animatedEffect: { type: "glow", intensity: 0.65 },
     sourceOrganization: "Esri Disaster Response Program",
     sourcePage: "https://services9.arcgis.com/RHVPKKiFTONKtxq3/arcgis/rest/services/MODIS_Thermal_v1/FeatureServer/0",
     licenseOrTerms: "Review the service metadata and publisher terms before reuse.",
@@ -86,6 +101,7 @@ export const POPULAR_SERVICES = [
     whyUseful: "Inspect recent PM2.5 measurements and their attributes alongside communities, terrain, and other environmental layers.",
     url: "https://services9.arcgis.com/RHVPKKiFTONKtxq3/ArcGIS/rest/services/Air_Quality_PM25_Latest_Results/FeatureServer",
     layers: [{ url: "https://services9.arcgis.com/RHVPKKiFTONKtxq3/ArcGIS/rest/services/Air_Quality_PM25_Latest_Results/FeatureServer/0", title: "OpenAQ – PM2.5", serviceType: "feature" }],
+    renderer: pointMarker("#187b87", 9),
     sourceOrganization: "Esri Disaster Response Program",
     sourcePage: "https://services9.arcgis.com/RHVPKKiFTONKtxq3/ArcGIS/rest/services/Air_Quality_PM25_Latest_Results/FeatureServer",
     licenseOrTerms: "Review individual provider fields, service metadata, and publisher terms before reuse.",
@@ -218,6 +234,8 @@ export const POPULAR_SERVICES = [
     description: "Continuously updated GeoJSON feed of global earthquake activity.",
     whyUseful: "Explore a live global point feed, inspect magnitude and event attributes, filter records, and export selected data.",
     url: "https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_month.geojson",
+    renderer: pointMarker("#b63c4a", 8),
+    animatedEffect: { type: "pulse", intensity: 0.8 },
     sourceOrganization: "U.S. Geological Survey — Earthquake Hazards Program",
     sourcePage: "https://earthquake.usgs.gov/earthquakes/feed/v1.0/geojson.php",
     licenseOrTerms: "U.S. Geological Survey source; follow the linked feed policy and USGS usage guidance.",
