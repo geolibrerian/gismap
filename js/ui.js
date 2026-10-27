@@ -3532,10 +3532,8 @@ export class UIController {
       title: "Popular data services",
       content: `<section class="server-directory-card" aria-labelledby="server-directory-title">
         <div>
-          <span class="eyebrow">MappingSupport.com</span>
           <h3 id="server-directory-title">GIS Server Directory</h3>
           <p>Search the original directory of public government ArcGIS servers, then paste a selected top-level endpoint below.</p>
-          <a href="https://mappingsupport.com/p/surf_gis/list-federal-state-county-city-GIS-servers.pdf" target="_blank" rel="noopener noreferrer">Open the original GIS Server Directory (PDF) ↗</a>
         </div>
         <div id="server-directory-form" class="server-directory-form">
           <label class="field" for="server-directory-url"><span>ArcGIS server endpoint</span></label>
@@ -3550,7 +3548,7 @@ export class UIController {
         <article class="catalog-card">
           <div><span class="eyebrow">${escapeHtml(service.provider)}</span><h3>${escapeHtml(service.title)}</h3><p>${escapeHtml(service.description)}</p></div>
           <button type="button" data-catalog-id="${escapeHtml(service.id)}">Add</button>
-        </article>`).join("")}</div><p class="form-note">Edit <code>js/catalog.js</code> to curate this list.</p>`,
+        </article>`).join("")}</div><p class="catalog-directory-link"><a href="https://mappingsupport.com/p/surf_gis/list-federal-state-county-city-GIS-servers.pdf" target="_blank" rel="noopener noreferrer">Find more public data services here ↗</a></p><p class="form-note">Edit <code>js/catalog.js</code> to curate this list.</p>`,
     });
     this.dialog.querySelector("#server-directory-browse").addEventListener("click", async () => {
       try {

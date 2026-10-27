@@ -74,8 +74,9 @@ test('the compact welcome panel launches the separate discovery experience', asy
     readFile(new URL('../css/app.css', import.meta.url), 'utf8'),
   ]);
   const welcome = html.match(/<section id="welcome-panel"[\s\S]*?<\/section>/)[0];
-  assert.equal((welcome.match(/<(?:a|button)\b/g) || []).length, 6); // Dismiss, start, and four discovery links.
-  for (const label of ['Start mapping', 'Explore examples', 'Learn GISMap', 'Create with AI', 'About GISMap']) assert.ok(welcome.includes(label));
+  assert.equal((welcome.match(/<(?:a|button)\b/g) || []).length, 7); // Dismiss, start, catalog, and four discovery links.
+  for (const label of ['Start mapping', 'Explore examples', 'Open starter catalog', 'Learn GISMap', 'Create with AI', 'About GISMap']) assert.ok(welcome.includes(label));
+  assert.match(welcome, /data-action="data-popular"/);
   assert.match(welcome, /href="\/discover\/examples\/"/);
   assert.match(welcome, /id="welcome-suppress"/);
   assert.match(ui, /WELCOME_PREFERENCE_KEY = "gismap\.welcome\.v1"/);
