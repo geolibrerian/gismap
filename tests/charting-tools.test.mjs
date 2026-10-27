@@ -121,6 +121,9 @@ test("Chart Tools has dedicated family actions which share one persisted builder
   assert.match(ui, /case "tools-chart-line-area":[\s\S]*?#openChartsAnalytics\(\{ family: "line-area" \}\)/);
   assert.match(ui, /chart-builder__gallery/);
   assert.match(ui, /data-chart-target/);
+  assert.match(ui, /Chart panel on this site/);
+  assert.match(ui, /Add chart panel to site/);
+  assert.match(ui, /targets\.some\(\(target\) => \["panel", "dashboard"\]\.includes\(target\)\)/, "The Chart panel destination creates a visible site panel.");
   assert.match(css, /\.chart-builder \{ container-type:inline-size;[\s\S]*?min-width:0/);
   assert.match(css, /@container \(max-width: 560px\)/);
   assert.match(css, /\.app-dialog:has\(\.chart-builder\)[\s\S]*?overflow-x:hidden/);

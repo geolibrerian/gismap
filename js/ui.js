@@ -2216,6 +2216,23 @@ export class UIController {
     const selectedValue = (name) => this.dialog.querySelector(`[data-chart-${name}]`)?.value || "";
     const selectedValues = (name) => [...(this.dialog.querySelector(`[data-chart-${name}]`)?.selectedOptions || [])].map((option) => option.value).filter(Boolean);
     const selectedTargets = () => [...this.dialog.querySelectorAll("[data-chart-target]:checked")].map((control) => control.value);
+    const destinationName = (target) => target === "panel" ? "chart panel" : target === "dashboard" ? "Instant Dashboard" : target === "map" ? "map" : "Brief";
+    const primaryActionLabel = (targets) => {
+      if (targets.includes("panel")) {
+        const additional = targets.length - 1;
+        return additional ? `Add chart panel + ${additional} more` : "Add chart panel to site";
+      }
+      if (targets.length === 1) return `Add chart to ${destinationName(targets[0])}`;
+      return targets.length ? `Add chart to ${targets.length} destinations` : "Choose a destination";
+    };
+    const syncPrimaryAction = () => {
+      const targets = selectedTargets();
+      const button = this.dialog.querySelector("[data-chart-add]");
+      if (button) {
+        button.textContent = primaryActionLabel(targets);
+        button.disabled = !targets.length;
+      }
+    };
     const currentSpec = () => createChartSpec({
       id: spec?.id,
       title: selectedValue("title") || `${layer.title || "Layer"} chart`,
@@ -2266,7 +2283,7 @@ export class UIController {
             <label class="field"><span>Data scope</span><select data-chart-scope><option value="filtered"${(spec?.source?.scope || "filtered") === "filtered" ? " selected" : ""}>Current layer filters</option><option value="all"${spec?.source?.scope === "all" ? " selected" : ""}>All source records</option><option value="viewport"${spec?.source?.scope === "viewport" ? " selected" : ""}>Features in map extent</option></select></label>
             <label class="field chart-builder__title"><span>Chart title</span><input data-chart-title value="${escapeHtml(spec?.title || `${layer.title || "Layer"} chart`)}" /></label>
           </div>
-          <fieldset class="chart-builder__targets"><legend>Destinations</legend>${PRESENTATION_TARGETS.map((target) => `<label><input type="checkbox" data-chart-target value="${target}"${targets.has(target) ? " checked" : ""}> ${target === "panel" ? "Chart panel" : target === "dashboard" ? "Instant Dashboard" : target === "map" ? "On the map" : "Brief slide"}</label>`).join("")}</fieldset>
+          <fieldset class="chart-builder__targets"><legend>Where should this chart appear?</legend><p class="form-note">Choose one or more destinations. “Chart panel” adds this interactive chart to the current site.</p>${PRESENTATION_TARGETS.map((target) => `<label><input type="checkbox" data-chart-target value="${target}"${targets.has(target) ? " checked" : ""}> ${target === "panel" ? "Chart panel on this site" : target === "dashboard" ? "Instant Dashboard" : target === "map" ? "On the map" : "Brief slide"}</label>`).join("")}</fieldset>
           <details class="chart-builder__advanced"><summary>Advanced settings</summary><div class="chart-builder__controls">
             <label class="field"><span>Bubble size</span><select data-chart-size>${choice(roles.numericFields, size, "No size encoding")}</select></label>
             <label class="field"><span>Map measures <small>2–4 fields when available</small></span><select data-chart-map-fields multiple size="3">${roles.numericFields.map((field) => `<option value="${escapeHtml(field.name)}"${mapFields.includes(field.name) ? " selected" : ""}>${escapeHtml(field.alias || field.name)}</option>`).join("")}</select></label>
@@ -2287,12 +2304,16 @@ export class UIController {
             link.download = `${(spec?.title || "chart").replace(/[^a-z0-9]+/gi, "-").replace(/(^-|-$)/g, "").toLowerCase() || "chart"}.csv`;
             link.click(); setTimeout(() => URL.revokeObjectURL(link.href), 1000);
           } },
-          { label: "Save chart", handler: async () => {
+          { label: "Close", handler: () => this.dialog.close() },
+          { label: primaryActionLabel([...targets]), primary: true, handler: async () => {
             spec = currentSpec();
             if (!result?.rows?.length) return this.error("Configure a chart with data before saving it.");
             const charts = this.projectManager.current.charts || [];
             this.projectManager.setCharts?.([...charts.filter((item) => item.id !== spec.id), spec]);
-            if (spec.presentation.targets.includes("dashboard")) await this.applicationRuntime.runTool("application.chart.create", {
+            // A chart panel is a first-class site panel. Dashboard remains a
+            // compatible destination for existing saved chart definitions;
+            // selecting both still creates one panel, never duplicates.
+            if (spec.presentation.targets.some((target) => ["panel", "dashboard"].includes(target))) await this.applicationRuntime.runTool("application.chart.create", {
               title: spec.title,
               binding: { layerId: layer.uid, followActiveLayer: false },
               settings: { chart: spec },
@@ -2301,12 +2322,14 @@ export class UIController {
               skin: document.documentElement.dataset.skin || this.projectManager.current.presentation?.skin,
             });
             this.dialog.close();
-            const destinations = spec.presentation.targets.map((item) => item === "panel" ? "chart panel" : item === "dashboard" ? "Instant Dashboard" : item === "map" ? "Map Charts definition" : "Brief chart definition");
-            this.toast(`Chart saved for ${destinations.join(", ") || "this project"}.`);
+            const destinations = spec.presentation.targets.map(destinationName);
+            this.toast(`Chart added to ${destinations.join(", ") || "this project"}.`);
           } },
-          { label: "Close", primary: true, handler: () => this.dialog.close() },
         ],
       });
+      const addButton = this.dialog.querySelector(".button--primary");
+      addButton?.setAttribute("data-chart-add", "");
+      syncPrimaryAction();
       const refresh = async () => {
         const token = ++request;
         spec = currentSpec();
@@ -2364,7 +2387,10 @@ export class UIController {
         chartInstance?.dispose?.(); chartInstance = null;
         render();
       });
-      this.dialog.querySelectorAll("[data-chart-type], [data-chart-dimension], [data-chart-aggregation], [data-chart-measure], [data-chart-size], [data-chart-map-fields], [data-chart-scope], [data-chart-title], [data-chart-target], [data-chart-render-mode], [data-chart-anchor], [data-chart-collision], [data-chart-display], [data-chart-presentation-size]").forEach((control) => control.addEventListener("change", refresh));
+      this.dialog.querySelectorAll("[data-chart-type], [data-chart-dimension], [data-chart-aggregation], [data-chart-measure], [data-chart-size], [data-chart-map-fields], [data-chart-scope], [data-chart-title], [data-chart-target], [data-chart-render-mode], [data-chart-anchor], [data-chart-collision], [data-chart-display], [data-chart-presentation-size]").forEach((control) => control.addEventListener("change", () => {
+        if (control.matches("[data-chart-target]")) syncPrimaryAction();
+        void refresh();
+      }));
       this.dialog.querySelectorAll("[data-chart-suggestion]").forEach((button) => button.addEventListener("click", () => {
         const suggestion = gallery[Number(button.dataset.chartSuggestion)];
         if (!suggestion) return;
