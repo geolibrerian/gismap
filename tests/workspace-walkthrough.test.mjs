@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
-import { BRIEFING_WALKTHROUGH_STEPS, WALKTHROUGH_STEPS, waitForWalkthroughTarget } from '../js/workspace-walkthrough.js';
+import { BRIEFING_WALKTHROUGH_STEPS, WALKTHROUGH_STEPS, createExampleWalkthroughSteps, waitForWalkthroughTarget } from '../js/workspace-walkthrough.js';
 
 test('walkthrough has a concise desktop and mobile overview', () => {
   assert.ok(WALKTHROUGH_STEPS.length >= 5 && WALKTHROUGH_STEPS.length <= 10);
@@ -11,6 +11,16 @@ test('walkthrough has a concise desktop and mobile overview', () => {
   for (const title of ['The map', 'Menus', 'Layers and data', 'Map controls', 'Project and sharing']) {
     assert.ok(WALKTHROUGH_STEPS.some(step => step.title === title));
   }
+});
+
+test('examples have a focused walkthrough that connects the map, records, and styling controls', () => {
+  const steps = createExampleWalkthroughSteps({ title: 'Earthquakes — past 30 days', description: 'A live global feed.', whyUseful: 'Inspect magnitude and location.' });
+  assert.equal(steps.length, 5);
+  for (const title of ['Welcome to Earthquakes — past 30 days', 'Read the map', 'Inspect a feature', 'Open the records', 'Make it your own']) {
+    assert.ok(steps.some((step) => step.title === title));
+  }
+  assert.match(steps[0].description, /live global feed/i);
+  assert.match(steps.at(-1).description, /Style/);
 });
 
 test('briefing guide covers the workflow without requiring a loaded dataset', async () => {
@@ -84,6 +94,7 @@ test('the compact welcome panel launches the separate discovery experience', asy
   assert.match(ui, /#welcomeIsExplicitlyRequested\(\)/);
   assert.match(ui, /get\("welcome"\) === "1"/);
   assert.match(ui, /#configureWelcomeStartup\(\)/);
+  assert.match(ui, /activateExampleGuide\(example/);
   assert.match(ui, /host\.hidden = suppressed \|\| !context\.layer/);
   assert.match(css, /\.welcome-panel \{[^}]*top: 50%; left: 50%/);
 });

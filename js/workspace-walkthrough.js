@@ -11,6 +11,22 @@ export const WALKTHROUGH_STEPS = [
   { title: 'Make something', desktop: '.workspace-rail__welcome, #welcome-panel', mobile: '#mobile-menu-toggle', description: 'Open Welcome from the workspace toolbar to start a briefing, tour or dashboard. You can revisit this walkthrough from the Tools menu.' },
 ];
 
+// Examples are living public datasets, so the first guide concentrates on
+// reading the map before suggesting any authoring tools.  It is generated from
+// the catalog entry rather than being a one-off page for every example.
+export function createExampleWalkthroughSteps(example = {}) {
+  const title = String(example.title || "this example");
+  const description = String(example.description || "a public dataset prepared for exploration");
+  const whyUseful = String(example.whyUseful || "Inspect the source and symbols before drawing conclusions from a live dataset.");
+  return [
+    { title: `Welcome to ${title}`, desktop: ".example-guide", mobile: ".example-guide", description: `${description} ${whyUseful}` },
+    { title: "Read the map", desktop: "#viewDiv", mobile: "#viewDiv", description: "Pan and zoom first. The example’s symbols make the published features easier to scan, but they do not add measurements or change the source data." },
+    { title: "Inspect a feature", desktop: "#viewDiv", mobile: "#viewDiv", description: "Select a symbol on the map to see its attributes and location context. Check individual records when a pattern looks important." },
+    { title: "Open the records", desktop: '#layers-list .layer-card:first-of-type [data-layer-action="table"]', mobile: '[data-mobile-panel="layers-panel"]', description: "Use Table to browse, sort and inspect the attributes that power this map. Live services can change between visits." },
+    { title: "Make it your own", desktop: '#layers-list .layer-card:first-of-type [data-layer-action="style"]', mobile: '[data-mobile-panel="layers-panel"]', description: "Use Style to change the visual treatment, Filter map to focus the data, or Share when you are ready to send this configured map to someone else." },
+  ];
+}
+
 // The briefing guide loads its example before the hands-on steps.
 export const BRIEFING_WALKTHROUGH_STEPS = [
   { title: 'Create a briefing', desktop: '.presentation-empty', mobile: '.presentation-empty', description: 'A briefing combines an interactive map with a sequence of slides. This guide will add example layers and an editable briefing to your project.' },

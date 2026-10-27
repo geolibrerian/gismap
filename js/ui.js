@@ -43,7 +43,7 @@ import { saveEngine } from "./engine-preference.js?v=0.52.1";
 import { BASEMAPS } from "./basemap-catalog.js?v=0.53.0-gallery1";
 import { CartographyLab } from "./cartography-lab.js?v=0.60.0-media1";
 import { CONTEXT_ACTIONS, createSuggestionPreferences, deriveWorkspace, executeContextAction, suggestionKey, summarizeFeature } from "./contextual-workspace.js?v=6";
-import { BRIEFING_WALKTHROUGH_STEPS, CINEMATIC_WALKTHROUGH_STEPS, startWorkspaceWalkthrough, waitForWalkthroughTarget } from "./workspace-walkthrough.js?v=0.58.0-cinematic1";
+import { BRIEFING_WALKTHROUGH_STEPS, CINEMATIC_WALKTHROUGH_STEPS, createExampleWalkthroughSteps, startWorkspaceWalkthrough, waitForWalkthroughTarget } from "./workspace-walkthrough.js?v=0.61.1-example-guide";
 import { chooseHurricaneLayer, createHazardsExampleBriefing } from "./example-hazards-briefing.js?v=0.60.0-media1";
 import { CinematicModeController } from "./cinematic/mode.js?v=0.3.12";
 import { CINEMATIC_EFFECTS, CINEMATIC_EFFECT_CATEGORIES, suggestEffect } from "./cinematic/cinematic-effects.js?v=0.2.8";
@@ -1422,6 +1422,25 @@ export class UIController {
   #startWorkspaceWalkthrough() {
     this.#dismissWelcome();
     startWorkspaceWalkthrough({ mobile: () => this.mobileMedia.matches });
+  }
+
+  activateExampleGuide(example, { start = false } = {}) {
+    if (!example) return;
+    this.activeExampleGuide = example;
+    this.#renderLayers();
+    if (!start || this.exampleGuideStarted) return;
+    this.exampleGuideStarted = true;
+    requestAnimationFrame(() => setTimeout(() => this.#startExampleWalkthrough(example), 250));
+  }
+
+  #startExampleWalkthrough(example = this.activeExampleGuide) {
+    if (!example) return;
+    this.#dismissWelcome();
+    startWorkspaceWalkthrough({
+      steps: createExampleWalkthroughSteps(example),
+      label: `${example.title || "Example"} tutorial`,
+      mobile: () => this.mobileMedia.matches,
+    });
   }
 
   /**
@@ -3573,6 +3592,7 @@ export class UIController {
           if (layer) {
             button.textContent = "Added";
             this.toast(`${service.title} added.`);
+            this.activateExampleGuide(service);
             await onLayerAdded?.(layer);
           }
         } catch (error) {
@@ -8020,8 +8040,10 @@ export class UIController {
     const exportable = new Set(this.exportController.listExportableLayers().map((layer) => layer.uid));
     document.querySelector("#layer-count").textContent = `${layers.length} loaded`;
     const container = document.querySelector("#layers-list");
+    const exampleGuide = this.activeExampleGuide;
+    const guide = exampleGuide ? `<section class="example-guide" aria-label="Example tutorial"><div><span class="eyebrow">Example loaded</span><strong>${escapeHtml(exampleGuide.title || "Explore this map")}</strong><p>See how the data, map symbols, and controls fit together.</p></div><button type="button" data-example-guide>Start tutorial</button></section>` : "";
     container.innerHTML = layers.length
-      ? layers.map((layer) => {
+      ? `${guide}${layers.map((layer) => {
         const config = this.mapController.getLayerConfig(layer);
         const scaleMessage = this.#layerScaleMessage(layer);
         // How current the source is, from the service's own edit dates.
@@ -8034,8 +8056,9 @@ export class UIController {
           <div class="layer-card__actions layer-card__primary"><button data-layer-action="zoom">Zoom</button><button data-layer-action="table">Table</button><button data-layer-action="style">Style</button></div>
           <details class="layer-card__more" ${this.expandedLayerCards.has(layer.uid) ? "open" : ""}><summary>More layer tools</summary><div class="layer-card__actions">${layer.queryable && this.mapController.getCapabilities().includes("three-3d") ? '<button data-layer-action="animate" title="Suggested animations for this layer: a looping effect, a timeline or a sweep">Animate</button>' : ""}<button data-layer-action="filter" title="Show only matching features on the map">Filter map</button>${layer.queryable || config.sourceType === "geoparquet" ? '<button data-layer-action="query-duckdb" title="Query, join or run spatial analysis on a copy of this layer">Query data</button>' : ''}<button data-layer-action="export" title="Share this map, make a PDF or briefing, or download data">Share</button><button data-layer-action="refresh">Refresh</button><button data-layer-action="advanced-style">Advanced style</button></div></details>
         </article>`;
-      }).join("")
+      }).join("")}`
       : '<div class="empty-state empty-state--layers"><p>No layers yet. Add data to start.</p><div class="empty-state__actions"><button type="button" data-empty-action="data-arcgis">ArcGIS service</button><button type="button" data-empty-action="data-geojson">Geo URL</button><button type="button" data-empty-action="data-file">Local file</button><button type="button" data-empty-action="data-popular">Try an example</button></div></div>';
+    container.querySelector("[data-example-guide]")?.addEventListener("click", () => this.#startExampleWalkthrough());
     container.querySelectorAll(".layer-card").forEach((card) => this.#bindLayerCard(card));
   }
 

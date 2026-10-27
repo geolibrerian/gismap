@@ -11,7 +11,7 @@ import { IdentifyController } from "./identify.js?v=0.54.0-pan2";
 import { AttributeTableController } from "./attribute-table.js?v=0.60.8-table-truncation1";
 import { AIController } from "./ai.js?v=0.57.0-skins1";
 import { ToolManager } from "./tool-manager.js?v=0.37.0";
-import { UIController } from "./ui.js?v=0.60.21-draw-style1";
+import { UIController } from "./ui.js?v=0.61.1-example-guide";
 import { ExportController } from "./export/export-controller.js?v=0.37.0";
 import { SHARE_BASEMAPS, parseShareParameters } from "./share.js?v=0.54.0-unified4";
 import { readShareLocation } from "./map-share.js?v=0.60.18-trains1";
@@ -266,6 +266,7 @@ async function start() {
       const primaryLayer = sharedLayers.find((layer) => /pm2[.\s-]*5/i.test(layer.title || "")) || sharedLayers[0];
       projectManager.setPresentation({ ...example.presentation, primaryLayerId: primaryLayer.uid });
     }
+    if (example && sharedLayers.length) uiController.activateExampleGuide(example, { start: true });
   } catch (error) {
     events.publish("app:error", { message: error.message });
   }

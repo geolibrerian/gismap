@@ -1368,6 +1368,13 @@ body.shared-embed .map-workspace { grid-column:1/-1; }
 .welcome-panel__preference { display:flex; align-items:center; gap:7px; margin-top:15px; color:var(--muted); font-size:11px; cursor:pointer; }
 .welcome-panel__resources { margin-top: 12px !important; font-size: 11px !important; }
 .welcome-panel__resources a { color: var(--green); font-weight: 700; }
+.example-guide { display:flex; align-items:center; justify-content:space-between; gap:10px; margin:0 0 12px; padding:11px; border:1px solid var(--line); border-left:3px solid var(--amber); border-radius:8px; background:var(--surface-2); }
+.example-guide > div { min-width:0; }
+.example-guide .eyebrow { display:block; margin-bottom:2px; }
+.example-guide strong { display:block; font-size:13px; }
+.example-guide p { margin:3px 0 0; color:var(--muted); font-size:11px; line-height:1.4; }
+.example-guide button { flex:0 0 auto; min-height:32px; padding:6px 9px; border:1px solid var(--green); border-radius:6px; color:white; background:var(--green); font:700 11px/1.2 var(--ui-font, sans-serif); cursor:pointer; }
+.example-guide button:hover { background:var(--green-2); }
 .map-nav-shell { position:absolute; z-index:8; top:18px; right:18px; display:grid; justify-items:stretch; gap:5px; }
 .map-nav { display: grid; grid-template-columns: repeat(2, 38px); gap: 5px; }
 .map-nav button, .map-button { width: 38px; height: 38px; font-size: 19px; box-shadow: 0 6px 20px rgb(20 46 39 / 18%); }
