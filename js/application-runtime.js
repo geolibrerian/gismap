@@ -7,6 +7,7 @@ import { DuckDBBrowserClient } from "./duckdb-client.js?v=0.54.0-analysis1";
 import { normalizeDataCatalog, planNaturalLanguageQuery, validateReadOnlySQL } from "./data-catalog.js?v=0.18.2";
 import { PanelManager } from "./panel-manager.js?v=0.18.2";
 import { applyInterfaceSkin } from "./skin-catalog.js?v=0.57.0-skins2";
+import { chartFilterForRow, chartOption, createChartSpec, displayChartRows, loadECharts, queryChart, renderChartFallback } from "./charting-tools.js";
 
 const STATIC_PANELS = {
   places: "places-panel",
@@ -32,10 +33,14 @@ export class ApplicationRuntime {
       state: this.state,
       mapController,
       documentRef,
-      onConfigChange: (application) => this.projectManager.setApplication(application),
+      onConfigChange: (application) => {
+        this.currentConfig = application;
+        this.projectManager.setApplication(application);
+      },
       hosts: {
         left: documentRef.querySelector("#application-left-dock"),
         right: documentRef.querySelector("#application-right-dock"),
+        workspace: documentRef.querySelector('[data-utility-pane="workspace"]'),
         bottom: documentRef.querySelector("#application-bottom-dock"),
         floating: documentRef.querySelector("#application-floating-dock"),
       },
@@ -62,8 +67,6 @@ export class ApplicationRuntime {
     applyInterfaceSkin(normalized.skin, { documentRef: this.document, colors: this.projectManager.current.presentation?.skinColors?.[normalized.skin] });
     this.document.body.dataset.applicationMode = normalized.mode;
     this.document.querySelector("#application-edit-return").hidden = normalized.mode !== "present";
-    const settingsButton = this.document.querySelector("#dashboard-settings-open");
-    if (settingsButton) settingsButton.hidden = false;
     let applied;
     if (this.mobilePanelManager?.compact) {
       this.layout.deactivate(this.#context());
@@ -95,8 +98,6 @@ export class ApplicationRuntime {
     delete app.dataset.applicationPreset;
     delete this.document.body.dataset.applicationMode;
     this.document.querySelector("#application-edit-return").hidden = true;
-    const settingsButton = this.document.querySelector("#dashboard-settings-open");
-    if (settingsButton) settingsButton.hidden = true;
     this.syncStaticPanelVisibility();
   }
 
@@ -230,11 +231,13 @@ export class ApplicationRuntime {
     applicationChange("application.panel.remove", "Remove panel", (config, input) => ({ ...config, panels: config.panels.filter((panel) => panel.instanceId !== input.instanceId) }));
     applicationChange("application.panel.configure", "Configure panel", (config, input) => ({ ...config, panels: config.panels.map((panel) => panel.instanceId === input.instanceId ? { ...panel, ...input.changes } : panel) }));
     applicationChange("application.panel.bind", "Bind dataset", (config, input) => ({ ...config, panels: config.panels.map((panel) => panel.instanceId === input.instanceId ? { ...panel, binding: { ...panel.binding, ...input.binding } } : panel) }));
-    applicationChange("application.layout.change", "Change layout", (config, input) => ({ ...config, panels: config.panels.map((panel) => panel.instanceId === input.instanceId ? { ...panel, placement: { ...panel.placement, ...input.placement } } : panel) }));
+    applicationChange("application.layout.change", "Change layout", (config, input) => ({ ...config, ...(input.layout ? { layout: { ...config.layout, ...input.layout } } : {}), panels: config.panels.map((panel) => panel.instanceId === input.instanceId ? { ...panel, placement: { ...panel.placement, ...input.placement } } : panel) }));
     applicationChange("application.layout.mode", "Change layout mode", (config, input) => ({ ...config, layout: { ...config.layout, kind: input.kind || "workspace" } }));
     applicationChange("application.skin.change", "Change skin", (config, input) => ({ ...config, skin: input.skin || config.skin }));
     applicationChange("application.chart.create", "Create chart", (config, input) => {
-      config.panels.push({ instanceId: input.instanceId || `charts-${config.panels.filter((item) => item.type === "charts").length + 1}`, type: "charts", title: input.title || "Chart", placement: { region: input.region || "bottom", order: config.panels.length }, binding: input.binding || { followActiveLayer: true }, settings: input.settings || {}, audienceVisible: true });
+      const activeSkin = String(input.skin || this.document.documentElement.dataset.skin || "").trim();
+      if (activeSkin) config.skin = activeSkin;
+      config.panels.push({ instanceId: input.instanceId || `charts-${config.panels.filter((item) => item.type === "charts").length + 1}`, type: "charts", title: input.title || "Chart", placement: { region: input.region || "right", order: config.panels.length, ...(input.size ? { size: input.size } : {}), ...(input.position ? { position: input.position } : {}) }, binding: input.binding || { followActiveLayer: true }, settings: input.settings || {}, audienceVisible: true });
       return config;
     });
     this.tools.register({ id: "project.filter.apply", displayName: "Apply filter", execute: (input) => this.state.dispatch("filters:set", input) });
@@ -287,6 +290,7 @@ export class ApplicationRuntime {
     this.panels.register({
       type: "charts", displayName: "Charts", description: "Computed summaries with linked filters.", category: "Analysis", bindings: ["active-layer", "fixed-layer", "shared-selection", "shared-time"], placements: ["left", "right", "bottom", "floating"],
       mount: (host, context) => {
+        if (context.config.settings?.chart) return this.#mountConfiguredChartPanel(host, context);
         const id = context.config.instanceId;
         let bins = [];
         let layer = null;
@@ -351,6 +355,70 @@ export class ApplicationRuntime {
       type: "sql", displayName: "SQL Workspace", description: "Run validated read-only SQL locally with DuckDB-Wasm.", category: "Analysis", bindings: ["active-layer", "fixed-layer"], placements: ["left", "right", "bottom", "floating"], multiple: true,
       mount: (host, context) => this.#mountSQLPanel(host, context),
     });
+  }
+
+  #mountConfiguredChartPanel(host, context) {
+    const spec = createChartSpec(context.config.settings.chart);
+    const filterId = `${context.config.instanceId}:chart`;
+    let result = null;
+    let chartInstance = null;
+    let resizeObserver = null;
+    let request = 0;
+    const selectRow = (row) => {
+      const records = result?.selection(row) || [];
+      const ids = records.map((record) => record.attributes?.[result.layer.objectIdField]).filter((value) => value != null);
+      context.dispatch("selection:set", { layerId: result.layer.uid, objectIds: ids, features: records.slice(0, 100).map((record) => ({ attributes: record.attributes || {}, geometry: record.geometry || null, layerTitle: result.layer.title })) }, { undoable: false });
+      if (records[0]) void this.mapController.highlightFeature({ kind: "feature", layerUid: result.layer.uid, layerTitle: result.layer.title, attributes: records[0].attributes || {}, geometry: records[0].geometry || null }, { pulse: false });
+      host.querySelector("[data-dashboard-chart-selection]").textContent = `${records.length.toLocaleString()} matching feature${records.length === 1 ? "" : "s"} selected on the map.`;
+    };
+    const filterRow = (row) => {
+      const expression = chartFilterForRow(result, row);
+      selectRow(row);
+      if (expression?.where) context.dispatch("filters:set", { id: filterId, owner: context.config.instanceId, scope: "project", layerId: result.layer.uid, expression });
+    };
+    const render = async () => {
+      const token = ++request;
+      const layer = this.mapController.getLayer(spec.source.layerId) || this.mapController.getLayer(context.state.value.activeLayerId) || this.mapController.getLayers()[0];
+      if (!layer?.queryable) { host.innerHTML = `<div class="panel-empty"><strong>Choose a feature layer</strong><p>This chart’s source is unavailable.</p></div>`; return; }
+      host.innerHTML = `<div class="panel-empty"><strong>Computing ${escapeHtml(spec.title)}…</strong><p>Applying the current layer filter.</p></div>`;
+      try {
+        result = await queryChart(this.mapController, layer, { ...spec, source: { ...spec.source, layerId: layer.uid } });
+        if (token !== request) return;
+        const warning = result.quality.status === "complete" ? `${result.quality.processedRecords.toLocaleString()} matching records` : result.quality.warning;
+        const displayRows = displayChartRows(result);
+        const activeFilter = context.state.value.filters[filterId];
+        const filterHint = activeFilter?.expression?.label
+          ? `Map filter active: ${activeFilter.expression.label}.`
+          : "Click a chart mark to filter the map to that group.";
+        host.innerHTML = `<div class="composable-chart chart-dashboard"><span class="eyebrow">${escapeHtml(result.layer.title || "Layer")} · linked</span>${renderChartFallback(result, { rows: displayRows })}<p class="form-note">${escapeHtml(warning)}</p><p data-dashboard-chart-filter class="form-note">${escapeHtml(filterHint)}</p><p data-dashboard-chart-selection class="form-note"></p>${activeFilter ? '<button type="button" class="chart-dashboard__clear" data-dashboard-chart-clear>Show all map data</button>' : ""}</div>`;
+        const fallback = host.querySelector(".chart-fallback");
+        host.querySelectorAll("[data-chart-row]").forEach((mark) => {
+          const activate = () => filterRow(displayRows[Number(mark.dataset.chartRow)]);
+          mark.addEventListener("click", activate);
+          mark.addEventListener("keydown", (event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); activate(); } });
+        });
+        host.querySelector("[data-dashboard-chart-clear]")?.addEventListener("click", () => context.dispatch("filters:clear", { id: filterId }));
+        try {
+          const echarts = await loadECharts();
+          if (token !== request || !displayRows.length || ["kpi", "bar3d", "scatter3d"].includes(result.chart.type)) return;
+          const canvas = document.createElement("div"); canvas.className = "chart-builder__canvas";
+          host.querySelector(".chart-dashboard").insertBefore(canvas, fallback);
+          chartInstance?.dispose?.(); chartInstance = echarts.init(canvas); chartInstance.setOption(chartOption(result, { rows: displayRows }));
+          resizeObserver?.disconnect();
+          if (typeof ResizeObserver !== "undefined") {
+            resizeObserver = new ResizeObserver(() => chartInstance?.resize?.());
+            resizeObserver.observe(host);
+          }
+          chartInstance.on("click", (event) => { const row = displayRows[event.dataIndex]; if (row) filterRow(row); });
+          fallback?.remove();
+        } catch { /* Keep the accessible fallback chart. */ }
+      } catch (error) {
+        if (token === request) host.innerHTML = `<div class="panel-empty"><strong>Chart unavailable</strong><p>${escapeHtml(error.message)}</p></div>`;
+      }
+    };
+    const subscription = context.state.subscribe(() => void render(), (state) => state.filters);
+    context.onCleanup(() => { subscription.remove(); resizeObserver?.disconnect(); chartInstance?.dispose?.(); });
+    void render();
   }
 
   #catalogWithActiveLayer() {

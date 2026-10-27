@@ -4,7 +4,9 @@ export class LayoutManager {
   constructor({ registry, state, hosts = {}, mapController = null, documentRef = globalThis.document, onConfigChange = null } = {}) {
     this.registry = registry;
     this.state = state;
-    this.hosts = hosts;
+    const { workspace: workspaceHost, ...panelHosts } = hosts;
+    this.hosts = panelHosts;
+    this.workspaceHost = workspaceHost || null;
     this.mapController = mapController;
     this.document = documentRef;
     this.onConfigChange = onConfigChange;
@@ -15,7 +17,8 @@ export class LayoutManager {
     this.boundWindowResize = () => this.#recoverFloatingPanels();
     globalThis.addEventListener?.("resize", this.boundWindowResize);
     this.resizeObserver = typeof ResizeObserver === "function" ? new ResizeObserver(() => this.#resizeMap()) : null;
-    Object.values(hosts).forEach((host) => { if (host) this.resizeObserver?.observe(host); });
+    Object.values(panelHosts).forEach((host) => { if (host) this.resizeObserver?.observe(host); });
+    if (this.workspaceHost) this.resizeObserver?.observe(this.workspaceHost);
   }
 
   beginPreview() {
@@ -69,7 +72,12 @@ export class LayoutManager {
       if (definition?.multiple === false && mountedSingletons.has(panel.type)) continue;
       if (definition?.multiple === false) mountedSingletons.add(panel.type);
       const region = panel.placement.region;
-      const dock = this.hosts[region] || this.hosts.left;
+      // Charts placed on the right belong to the established Workspace utility
+      // panel. That pane has the app's normal tabs, close control and resize
+      // handle instead of creating a second, isolated right-hand dock.
+      const dock = panel.type === "charts" && region === "right" && this.workspaceHost
+        ? this.workspaceHost
+        : this.hosts[region] || this.hosts.left;
       if (!dock) continue;
       const host = this.#createPanelHost(panel);
       dock.append(host);
@@ -84,6 +92,7 @@ export class LayoutManager {
     this.#configureBottomDock(config);
     this.#recoverFloatingPanels();
     this.#syncRegions();
+    this.#syncChartWorkspace(config);
     this.#resizeMap();
     return structuredClone(config);
   }
@@ -116,14 +125,24 @@ export class LayoutManager {
     section.dataset.panelInstance = panel.instanceId;
     section.dataset.panelType = panel.type;
     section.toggleAttribute("data-collapsed", panel.collapsed);
-    section.innerHTML = `<header><strong data-panel-drag></strong><button type="button" class="application-panel__collapse" data-panel-collapse aria-label="Collapse panel" title="Collapse panel">−</button></header><div data-panel-body class="application-panel__body"></div>`;
+    const inWorkspace = panel.type === "charts" && panel.placement.region === "right" && this.workspaceHost;
+    section.classList.toggle("application-panel--workspace-chart", Boolean(inWorkspace));
+    const chartControls = panel.type === "charts"
+      ? `<button type="button" class="application-panel__settings" data-chart-panel-settings>Settings</button>`
+      : "";
+    const collapseControl = inWorkspace ? "" : `<button type="button" class="application-panel__collapse" data-panel-collapse aria-label="Collapse panel" title="Collapse panel">−</button>`;
+    section.innerHTML = `<header><strong data-panel-drag></strong><div class="application-panel__actions">${chartControls}${collapseControl}</div></header><div data-panel-body class="application-panel__body"></div>`;
     section.querySelector("strong").textContent = panel.title;
-    section.querySelector("[data-panel-collapse]").addEventListener("click", () => {
+    section.querySelector("[data-panel-collapse]")?.addEventListener("click", () => {
       panel.collapsed = !panel.collapsed;
       section.toggleAttribute("data-collapsed", panel.collapsed);
       this.#resizeMap();
       this.#persistCurrent();
     });
+    section.querySelector("[data-chart-panel-settings]")?.addEventListener("click", () => {
+      this.document.dispatchEvent(new CustomEvent("gismap:chart-panel-settings", { detail: { instanceId: panel.instanceId } }));
+    });
+    if (panel.type === "charts" && panel.placement.region !== "bottom") section.style.setProperty("--chart-panel-height", `${panel.placement.size?.height || 300}px`);
     if (panel.placement.region === "floating") {
       section.querySelector("[data-panel-drag]").classList.add("application-panel__floating-drag");
       section.querySelector("[data-panel-drag]").setAttribute("title", "Drag floating panel");
@@ -145,6 +164,17 @@ export class LayoutManager {
     const activeId = panels.some((panel) => panel.dataset.panelInstance === config.layout.activeBottomPanel)
       ? config.layout.activeBottomPanel : panels[0]?.dataset.panelInstance;
     config.layout.activeBottomPanel = activeId || null;
+    // One bottom panel already has its own title and collapse control. Adding
+    // a second, identical tab label makes it look like an unexplained chart
+    // selector rather than a panel title.
+    if (panels.length === 1) {
+      panels[0].hidden = false;
+      if (config.layout.kind !== "bottom-nav") panels[0].style.gridRow = "2 / -1";
+      config.layout.bottomCollapsed = false;
+      dock.classList.remove("is-collapsed");
+      if (config.layout.kind !== "bottom-nav") this.#bindBottomResize(dock, config);
+      return;
+    }
     const tabs = this.document.createElement("nav");
     tabs.className = "application-bottom-tabs";
     tabs.setAttribute("aria-label", config.layout.kind === "bottom-nav" ? "Bottom navigation" : "Bottom workspace tabs");
@@ -256,6 +286,12 @@ export class LayoutManager {
   #clearHosts() {
     this.panelHosts.clear();
     Object.values(this.hosts).forEach((host) => host?.replaceChildren?.());
+    this.workspaceHost?.querySelectorAll?.(":scope > .application-panel--workspace-chart").forEach((panel) => panel.remove());
+  }
+
+  #syncChartWorkspace(config) {
+    const count = config.panels.filter((panel) => panel.type === "charts" && panel.placement.region === "right").length;
+    this.document?.dispatchEvent?.(new CustomEvent("gismap:chart-workspace", { detail: { count } }));
   }
 
   #syncRegions() {
