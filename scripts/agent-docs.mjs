@@ -247,7 +247,7 @@ Readable links hold up to 8,192 characters. Inspect real fields first (\`<layer 
 
 ## What can AI agents create with GISMap?
 
-Finished maps, briefings, guided tours, field task packages, 3D maps and themed maps. Each recipe gives the interface to use (a URL you write, a standalone JavaScript module, or the in-page API; never a hosted REST endpoint), how to verify the result, and its limits: [recipe pages](${SITE}/agent-recipes/) · [recipe catalog (JSON)](${SITE}/api/agent-recipes/index.json).
+Finished maps, briefings, guided tours, field task packages, 3D maps and themed maps. Start with [Discover](${SITE}/discover/) and its [current examples](${SITE}/discover/examples/) when choosing a public workflow. Each recipe gives the interface to use (a URL you write, a standalone JavaScript module, or the in-page API; never a hosted REST endpoint), how to verify the result, and its limits: [recipe pages](${SITE}/agent-recipes/) · [recipe catalog (JSON)](${SITE}/api/agent-recipes/index.json). For engine-specific work, read the [Map engines guide](${SITE}/discover/engines/) before selecting styling or 3D behavior.
 
 
 | User asks for… | Agent selects… | Primary artifact |

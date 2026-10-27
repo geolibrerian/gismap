@@ -27,6 +27,12 @@ export function initializeFieldworkWorkspace({ ui, action, showSidebar, theme, s
   const sidebar = document.querySelector('#sidebar');
   const brand = sidebar.querySelector('.brand');
   const menu = sidebar.querySelector('.menu-bar');
+  const discover = menu.querySelector('.menu-bar__discover');
+  const discoverHome = discover ? (() => {
+    const marker = document.createComment('discover control home');
+    discover.before(marker);
+    return { node: discover, marker };
+  })() : null;
   const search = document.querySelector('.place-search-combobox');
   const homes = [brand, menu, search].map(node => { const marker = document.createComment('fieldwork control home'); node.before(marker); return { node, marker }; });
   const header = document.createElement('header');
@@ -170,8 +176,14 @@ export function initializeFieldworkWorkspace({ ui, action, showSidebar, theme, s
     const active = !ui.mobileMedia.matches && app.dataset.applicationLayout !== 'globe' && !classic();
     document.body.classList.toggle('fieldwork-desktop', active);
     header.hidden = rail.hidden = tabs.hidden = resizer.hidden = !active;
-    if (active) { header.prepend(brand, menu); header.querySelector('.studio-header__search').append(search); }
-    else homes.forEach(({node,marker}) => marker.after(node));
+    if (active) {
+      header.prepend(brand, menu);
+      header.querySelector('.studio-header__search').append(search);
+      if (discoverHome) header.querySelector('.studio-share').before(discoverHome.node);
+    } else {
+      if (discoverHome) discoverHome.marker.after(discoverHome.node);
+      homes.forEach(({node,marker}) => marker.after(node));
+    }
     syncPanels();
     if (!active) syncPanelMenu(false);
     requestAnimationFrame(() => ui.mapController.resize());

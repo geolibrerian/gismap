@@ -1,14 +1,18 @@
 ---
 name: gismap
-description: Create and share interactive geographic maps and briefings with GISMap Online. Use for geographic data visualization, ArcGIS and GeoJSON layers, thematic maps, tours, field tasks, and map or QR sharing.
+description: Create and share interactive geographic maps and briefings with GISMap Online. Use for geographic data visualization, ArcGIS and GeoJSON layers, thematic maps, tours, field tasks, map or QR sharing, and selecting current public examples from GISMap Discover.
 metadata:
   author: GISMap Online
-  version: "0.1.0"
+version: "0.1.1"
 ---
 
 # GISMap Online
 
 GISMap creates interactive maps, geographic briefings, guided tours and field tasks. Work from an existing data URL without any discovery provider. Read [API and map workflow](references/api.md), then the specific reference needed below.
+
+## Start with Discover when choosing an example
+
+Before proposing a public example, open [GISMap Discover](https://gismap.online/discover/) and its [Examples](https://gismap.online/discover/examples/) page. Discover is the current human-facing index for examples, public data starting points, engine guidance, and sharing paths; it may change independently of older `/examples/` links. Match the requested outcome to an example, then inspect its live source and fields rather than treating its presentation as proof of data quality. For engine-specific work, consult the [Map engines guide](https://gismap.online/discover/engines/) before choosing renderer or 3D behavior.
 
 ## Select and combine recipes
 

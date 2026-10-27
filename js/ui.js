@@ -464,7 +464,7 @@ export class UIController {
     const workflowTrigger = workflows?.querySelector(".menu__trigger");
     if (workflowTrigger) {
       workflowTrigger.firstChild.textContent = "Modes ";
-      workflowTrigger.querySelector("span").textContent = "⌄";
+      workflowTrigger.querySelector("span")?.textContent = "⌄";
     }
     workflows?.querySelector('[data-action="map-presentation"]')?.replaceChildren(document.createTextNode("Instant Dashboard…"));
     workflows?.querySelector('[data-mobile-workflow="briefing"]')?.replaceChildren(document.createTextNode("Briefing"));
