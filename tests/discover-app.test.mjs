@@ -41,3 +41,10 @@ test('Examples lead with visual, styled map starting points', async () => {
   assert.match(page, /engine=arcgis/);
   assert.match(page, /engine=maplibre/);
 });
+
+test('Map engine guide explains MapLibre basemap cartography without conflating it with data styling', async () => {
+  const page = await readFile(new URL('../discover/engines/index.html', import.meta.url), 'utf8');
+  assert.match(page, /MapLibre cartography/);
+  assert.match(page, /Skin — follows the look/);
+  assert.match(page, /Basemap controls never recolor your features/);
+});
