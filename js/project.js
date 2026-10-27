@@ -8,7 +8,7 @@ import { normalizeSkin, normalizeSkinColors } from "./skin-catalog.js?v=0.57.0-s
 import { normalizeMapColors } from "./basemap-themes.js?v=0.53.0-mapcolors1";
 import { normalizeMobileWorkflow } from "./mobile-feed-store.js?v=0.18.7";
 import { normalizeBriefing } from "./briefing-document.js?v=0.60.18-trains1";
-import { importCinematicSpec } from "./cinematic/state.js?v=0.2.6";
+import { importCinematicSpec } from "./cinematic/state.js?v=0.2.8";
 import { normalizeCinematicClips } from "./cinematic/clip-model.js?v=0.3.9";
 import { composeSmartImage, embedProjectInPng, readProjectFromPng } from "./smart-image.js?v=0.44.2";
 

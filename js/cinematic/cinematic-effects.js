@@ -15,6 +15,9 @@ export const CINEMATIC_EFFECTS = Object.freeze({
   tornado: { label: "Tornado", category: "Hazards & weather", color: "#aeb8c8", note: "A stylised funnel marks observed locations; it does not model a tornado's path or wind field." },
   hurricane: { label: "Hurricane spiral", category: "Hazards & weather", color: "#80d8ff", note: "A spiral marks the observed location; it is not a forecast cone or wind model." },
   storm: { label: "Storm cell", category: "Hazards & weather", color: "#8ca7ff", note: "A rotating storm-cell marker is decorative, not a radar or forecast product." },
+  rain: { label: "Falling rain", category: "Hazards & weather", color: "#8ccfff", note: "Rainfall is a looping decorative field at observed features; it is not measured precipitation." },
+  fog: { label: "Drifting fog", category: "Hazards & weather", color: "#d9e6ed", note: "Fog drifts over observed features as a decorative field; it is not a visibility observation or forecast." },
+  lava: { label: "Flowing lava", category: "Hazards & weather", color: "#ff4a16", note: "Lava decorates an observed line or edge; it is not a lava-flow model, extent, speed, or hazard forecast." },
   water: { label: "Pond ripples", category: "Water & flow", color: "#1f8fd6", note: "Ripples decorate observed water areas; they are not a flow or depth model." },
   "water-flow": { label: "Water flow", category: "Water & flow", color: "#4dcaff", note: "Light moves along observed waterways in their drawn order; it is not a current or discharge model." },
   flow: { label: "Flow", category: "Water & flow", color: "#18c7b5", note: "Light travels along observed lines in their drawn order." },
@@ -27,6 +30,7 @@ export const CINEMATIC_EFFECTS = Object.freeze({
   drones: { label: "Drones", category: "Flight", color: "#62f1d6", note: "Drone movement is decorative unless it uses recorded tracks; it does not show live aircraft operations." },
   airplanes: { label: "Airplanes", category: "Flight", color: "#c6e8ff", note: "Aircraft movement is decorative unless it uses recorded tracks; it does not show live flight positions or routes." },
   helicopters: { label: "Helicopters", category: "Flight", color: "#e5f0d7", note: "Helicopter movement is decorative unless it uses recorded tracks; it does not show live aircraft operations." },
+  walkers: { label: "Walking people", category: "Vehicles & movement", color: "#f5dca0", note: "People walk symbolically along observed paths; they do not show individual locations, trips, or counts." },
   // Native primitives (MapLibre style layers, no custom GL), for statistics and planning.
   extrude: { label: "Rise (extrude)", category: "Data transformation", color: "#4c7fd9", native: true, note: "Areas rise to their value of the chosen field; the rise is animation, the heights are the data." },
   reveal: { label: "Reveal", category: "Data transformation", color: "#f2a93b", native: true, note: "Features appear one after another in the order of a field (or their stored order); the order is not a date unless the field is one." },
@@ -91,6 +95,9 @@ export function suggestEffect({ title = "", geometryType = "", fields = [], samp
   if (/tornado|twister/.test(name)) return "tornado";
   if (/hurricane|cyclone|typhoon/.test(name)) return "hurricane";
   if (/snow|blizzard|sleet/.test(name)) return "snow";
+  if (/rain|precipitation|shower/.test(name)) return "rain";
+  if (/fog|mist|low cloud/.test(name)) return "fog";
+  if (/lava|volcan/.test(name)) return "lava";
   if (/storm|radar/.test(name)) return "storm";
   // Statistical areas (population, income, housing…) rise to their values.
   if (/polygon/i.test(geometryType) && /population|census|tract|county|counties|income|density|demograph|households|housing units|poverty/.test(name) && valueField(fields, sample)) return "extrude";
@@ -103,6 +110,7 @@ export function suggestEffect({ title = "", geometryType = "", fields = [], samp
   if (/drone|uav/.test(name)) return "drones";
   if (/airplane|aircraft|flight|airport|air traffic/.test(name)) return "airplanes";
   if (/helicopter|heliport/.test(name)) return "helicopters";
+  if (/walk|pedestrian|footpath|sidewalk|trail/.test(name)) return "walkers";
   if (/flood|water|river|stream|lake|inundat|tide|surge|coast|hydro|wetland/.test(name)) return /line/i.test(geometryType) ? "water-flow" : "water";
   if (/line/i.test(geometryType) && /rail|train|metro|subway|underground|tram|streetcar|light rail|lrt|bart|amtrak|commuter|transit line|transit route|rapid transit|railway|monorail|funicular/.test(name)) return "trains";
   if (/line/i.test(geometryType) && /road|street|highway|freeway|interstate|motorway|traffic|aadt|arterial|centerline|centreline/.test(name)) return "traffic";
@@ -441,14 +449,27 @@ export function particleSeeds(paths, frame, { count = 900 } = {}) {
 
 /**
  * A layer's saved animated effect (Advanced Style, map specs and links):
- * { type, intensity, color } or null for none. Unknown types are dropped.
+ * { type, intensity, color, opacity, style, speed, density } or null for
+ * none. These are purely visual controls: they never alter source features.
  */
 export function normalizeLayerEffect(value) {
   if (!value || typeof value !== "object") return null;
   const type = ["auto", ...CINEMATIC_EFFECT_TYPES].includes(value.type) ? value.type : null;
   if (!type || type === "none") return null;
   const intensity = Number(value.intensity);
+  const opacity = Number(value.opacity);
+  const speed = Number(value.speed);
+  const density = Number(value.density);
   // A Rise or Reveal keeps the field it reads.
   const field = typeof value.field === "string" ? value.field.trim().slice(0, 160) : "";
-  return { type, intensity: Number.isFinite(intensity) ? Math.min(2, Math.max(0.25, intensity)) : 1, color: /^#[0-9a-f]{6}$/i.test(value.color || "") ? value.color : null, ...(field ? { field } : {}) };
+  return {
+    type,
+    intensity: Number.isFinite(intensity) ? Math.min(2, Math.max(0.25, intensity)) : 1,
+    opacity: Number.isFinite(opacity) ? Math.min(1, Math.max(0.05, opacity)) : 1,
+    color: /^#[0-9a-f]{6}$/i.test(value.color || "") ? value.color : null,
+    style: ["soft", "balanced", "crisp", "vivid"].includes(value.style) ? value.style : "balanced",
+    speed: Number.isFinite(speed) ? Math.min(3, Math.max(0.1, speed)) : 1,
+    density: Number.isFinite(density) ? Math.min(2.5, Math.max(0.25, density)) : 1,
+    ...(field ? { field } : {}),
+  };
 }

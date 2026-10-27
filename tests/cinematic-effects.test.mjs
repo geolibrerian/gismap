@@ -75,8 +75,8 @@ test("auto effect follows the data and specs migrate the v0.1 glow flag", () => 
   assert.equal(resolveEffect("auto", { title: "USGS quakes", geometryType: "point" }), "pulse");
   assert.equal(resolveEffect("sparkles"), "glow");
   const layer = (animation) => normalizeCinematicSpec({ layers: [{ layerRef: "a", temporal: { startField: "t" }, animation }] }).cinematic.layers[0].animation.effect;
-  assert.deepEqual(layer({ outline: { glow: true } }), { type: "glow", color: null, intensity: 1 });
-  assert.deepEqual(layer({ effect: { type: "fire", color: "#ff0000", intensity: 9 } }), { type: "fire", color: "#ff0000", intensity: 2 });
+  assert.deepEqual(layer({ outline: { glow: true } }), { type: "glow", color: null, intensity: 1, opacity: 1, speed: 1, density: 1, style: "balanced" });
+  assert.deepEqual(layer({ effect: { type: "fire", color: "#ff0000", intensity: 9 } }), { type: "fire", color: "#ff0000", intensity: 2, opacity: 1, speed: 1, density: 1, style: "balanced" });
   assert.equal(layer({ effect: { type: "lasers" } }).type, "none");
 });
 
@@ -96,17 +96,17 @@ test("layer effects travel in map specs and share links, and bad ones are report
   const { normalizeLayerEffect } = await import("../js/cinematic/cinematic-effects.js");
   const { validateMapSpec } = await import("../js/map-spec.js");
   const { packLayer } = await import("../js/map-share.js");
-  assert.deepEqual(normalizeLayerEffect({ type: "fire", intensity: 0.1 }), { type: "fire", intensity: 0.25, color: null });
+  assert.deepEqual(normalizeLayerEffect({ type: "fire", intensity: 0.1 }), { type: "fire", intensity: 0.25, opacity: 1, color: null, style: "balanced", speed: 1, density: 1 });
   assert.equal(normalizeLayerEffect({ type: "none" }), null);
   assert.equal(normalizeLayerEffect("glow"), null);
   const ok = validateMapSpec({ version: 1, layers: [{ url: "https://example.org/quakes.geojson", animatedEffect: { type: "pulse", intensity: 1.5 } }] });
-  assert.deepEqual(ok.spec.layers[0].animatedEffect, { type: "pulse", intensity: 1.5, color: null });
+  assert.deepEqual(ok.spec.layers[0].animatedEffect, { type: "pulse", intensity: 1.5, opacity: 1, color: null, style: "balanced", speed: 1, density: 1 });
   const bad = validateMapSpec({ version: 1, layers: [{ url: "https://example.org/quakes.geojson", animatedEffect: { type: "lasers" } }] });
   assert.equal(bad.spec.layers[0].animatedEffect, undefined);
   assert.ok(bad.issues.some((issue) => issue.path === "layers[0].animatedEffect"));
   // Links prune empty values; reading one back normalizes the effect again.
-  assert.deepEqual(packLayer({ url: "https://example.org/quakes.geojson", sourceType: "geojson", animatedEffect: { type: "glow", intensity: 1 } }).e, { type: "glow", intensity: 1 });
-  assert.deepEqual(normalizeLayerEffect({ type: "glow", intensity: 1 }), { type: "glow", intensity: 1, color: null });
+  assert.deepEqual(packLayer({ url: "https://example.org/quakes.geojson", sourceType: "geojson", animatedEffect: { type: "glow", intensity: 1 } }).e, { type: "glow", intensity: 1, opacity: 1, style: "balanced", speed: 1, density: 1 });
+  assert.deepEqual(normalizeLayerEffect({ type: "glow", intensity: 1 }), { type: "glow", intensity: 1, opacity: 1, color: null, style: "balanced", speed: 1, density: 1 });
 });
 
 test("large scenes keep the newest observation, trim sub-pixel detail and pick a lighter quality", () => {
@@ -169,7 +169,7 @@ test("roads get Traffic: car lights both ways, labelled as styling", async () =>
   assert.equal(suggest({ title: "Tornado reports", geometryType: "point" }), "tornado");
   assert.notEqual(suggest({ title: "Traffic cameras", geometryType: "point" }), "traffic", "traffic points are not roads");
   assert.equal(resolve("traffic"), "traffic");
-  assert.deepEqual(normalizeLayerEffect({ type: "traffic" }), { type: "traffic", intensity: 1, color: null });
+  assert.deepEqual(normalizeLayerEffect({ type: "traffic", opacity: 0.6, style: "vivid", speed: 2.2, density: 1.4 }), { type: "traffic", intensity: 1, opacity: 0.6, color: null, style: "vivid", speed: 2.2, density: 1.4 });
   const { importCinematicSpec } = await import("../js/cinematic/state.js");
   assert.equal(importCinematicSpec({ cinematic: { layers: [{ layerRef: "roads", temporal: { kind: "none" }, animation: { effect: { type: "traffic" } } }] } }).cinematic.layers[0].animation.effect.type, "traffic");
   const { recommendAnimations } = await import("../js/cinematic/recommend.js");

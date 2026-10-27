@@ -4,7 +4,7 @@
 // zoom 16, and whose motion reads one continuous clock, so stepping to the next
 // observation never restarts a flame or a ripple. Newly observed features
 // (`fresh`) flare when they appear; older ones in a build-up settle down.
-import { CINEMATIC_EFFECTS, EFFECT_QUALITY, effectFields, effectFrame, effectParts, particleSeeds, partsBounds, quadBuffers, ribbonBuffers } from "./cinematic-effects.js?v=0.2.7";
+import { CINEMATIC_EFFECTS, EFFECT_QUALITY, effectFields, effectFrame, effectParts, particleSeeds, partsBounds, quadBuffers, ribbonBuffers } from "./cinematic-effects.js?v=0.2.8";
 import { trackTime } from "./clock.js?v=0.1.0";
 
 const EPOCH = globalThis.performance?.now?.() ?? 0;
@@ -216,6 +216,30 @@ void main() {
   float a = clamp((bolt * strand * 1.35 + spark + exp(-d * d * 20.0) * 0.12), 0.0, 1.0) * uIntensity * uOpacity;
   ${OUTPUT}
 }`,
+  lava: /* glsl */ `
+varying float vSide, vDistPx, vSeed;
+void main() {
+  float d = abs(vSide);
+  float stream = fbm(vec2(vDistPx * 0.045 - uTime * uSpeed * 0.035, vSeed * 9.0));
+  float vein = exp(-d * d * (10.0 + stream * 14.0));
+  float crust = smoothstep(0.35, 0.78, stream) * exp(-d * d * 3.0);
+  vec3 hot = mix(vec3(0.55, 0.015, 0.0), vec3(1.0, 0.66, 0.06), stream);
+  vec3 col = mix(hot, vec3(0.08, 0.02, 0.01), crust * 0.6);
+  float a = clamp(vein * 1.3 + 0.13 * exp(-d * d * 1.6), 0.0, 1.0) * uIntensity * uOpacity;
+  ${OUTPUT}
+}`,
+  walkers: /* glsl */ `
+varying float vSide, vDistPx, vSeed;
+void main() {
+  float s = fract((vDistPx - uTime * uSpeed) / uSpacing + vSeed);
+  float x = (s - 0.5) * 8.0;
+  float head = exp(-pow(x, 2.0) * 18.0) * exp(-pow(vSide - 0.30, 2.0) * 90.0);
+  float body = exp(-pow(x, 2.0) * 22.0) * smoothstep(-0.35, 0.12, vSide) * smoothstep(0.38, 0.04, vSide);
+  float legs = (exp(-pow(x - vSide * 0.32, 2.0) * 100.0) + exp(-pow(x + vSide * 0.32, 2.0) * 100.0)) * smoothstep(-0.72, -0.18, vSide);
+  float person = (head + body + legs) * smoothstep(0.50, 0.44, abs(s - 0.5));
+  float a = clamp(person, 0.0, 1.0) * uIntensity * uOpacity;
+  ${OUTPUT}
+}`,
   // Small sailing silhouettes with a triangular white sail. These travel on
   // the supplied line, never assert vessel location, heading, or speed.
   sailboats: /* glsl */ `
@@ -352,6 +376,31 @@ void main() {
   }
   vec3 col = mix(uColor, vec3(1.0), 0.7);
   a = clamp(a, 0.0, 1.0) * uIntensity * uOpacity;
+  ${OUTPUT}
+}`,
+  rain: /* glsl */ `
+varying vec2 vCorner; varying float vSeed;
+void main() {
+  vec2 q = vCorner; float a = 0.0;
+  for (int k = 0; k < 12; k++) {
+    float fk = float(k);
+    float x = hash(vec2(fk, vSeed)) * 1.9 - 0.95;
+    float y = fract(uTime * (0.6 + hash(vec2(vSeed, fk)) * 0.45) + hash(vec2(fk, 7.0))) * 2.3 - 1.15;
+    float streak = exp(-pow(q.x - x - (q.y - y) * 0.12, 2.0) * 900.0) * smoothstep(0.24, 0.0, abs(q.y - y));
+    a += streak;
+  }
+  vec3 col = mix(uColor, vec3(0.9, 0.97, 1.0), 0.45);
+  a = clamp(a, 0.0, 1.0) * uIntensity * uOpacity;
+  ${OUTPUT}
+}`,
+  fog: /* glsl */ `
+varying vec2 vCorner; varying float vSeed;
+void main() {
+  float r = length(vCorner); if (r > 1.0) discard;
+  float n = fbm(vCorner * 2.5 + vec2(uTime * 0.045, -uTime * 0.02) + vSeed * 5.0);
+  float wisp = smoothstep(0.34, 0.82, n) * smoothstep(1.0, 0.35, r);
+  vec3 col = mix(uColor * 0.75, vec3(1.0), 0.42);
+  float a = wisp * 0.48 * uIntensity * uOpacity;
   ${OUTPUT}
 }`,
   lightning: /* glsl */ `
@@ -609,7 +658,7 @@ export function cachedHeights(key, heightAt) {
  * [{ feature, fresh }] (or bare features), `effect` a CINEMATIC_EFFECTS key.
  * Returns null when nothing drawable was observed.
  */
-export function buildCinematicEffect(THREE, items, { effect = "glow", color, intensity = 1, fields = [], ranges = {}, elevationAt = () => 0, reducedMotion = false, quality = "cinematic", simplify = 0, timing = null } = {}) {
+export function buildCinematicEffect(THREE, items, { effect = "glow", color, intensity = 1, opacity = 1, style = "balanced", speed = 1, density = 1, fields = [], ranges = {}, elevationAt = () => 0, reducedMotion = false, quality = "cinematic", simplify = 0, timing = null } = {}) {
   const tier = EFFECT_QUALITY[quality] || EFFECT_QUALITY.cinematic;
   const parts = effectParts(items, { maxPaths: tier.maxPaths, maxVertices: tier.maxVertices, maxPoints: tier.maxPoints, simplify });
   const origin = parts.paths[0]?.coordinates[0] || parts.points[0]?.coordinates;
@@ -622,9 +671,13 @@ export function buildCinematicEffect(THREE, items, { effect = "glow", color, int
   // A track's own time (its rate, cycle, offset and policy) on the shared clock.
   const localTime = () => (timing ? trackTime(nowSeconds(), timing) : { seconds: nowSeconds(), settled: false });
   const builtAt = localTime().seconds, builtWall = wallSeconds();
+  const styleTone = { soft: 0.72, balanced: 1, crisp: 0.92, vivid: 1.2 }[style] || 1;
+  const styleSize = { soft: 1.22, balanced: 1, crisp: 0.82, vivid: 1.08 }[style] || 1;
+  const motion = Math.min(3, Math.max(0.1, Number(speed) || 1));
+  const spacing = Math.min(2.5, Math.max(0.25, Number(density) || 1));
   const uniforms = {
     uTime: { value: 0 }, uSince: { value: 0 }, uPx: { value: 1 }, uDpr: { value: globalThis.devicePixelRatio || 1 },
-    uOpacity: { value: 1 }, uIntensity: { value: Math.min(2, Math.max(0.25, Number(intensity) || 1)) },
+    uOpacity: { value: Math.min(1, Math.max(0.05, Number(opacity) || 1)) }, uIntensity: { value: Math.min(2, Math.max(0.25, Number(intensity) || 1)) * styleTone },
     uColor: { value: new THREE.Color(tint) }, uAdd: { value: 0.45 }, uWidth: { value: 14 }, uHeight: { value: 44 },
     uRadius: { value: 26 }, uStretch: { value: 0 }, uSpeed: { value: 70 }, uSpacing: { value: 120 }, uGust: { value: 0 }, uRate: { value: 0.32 }, uPalette: { value: 0 },
   };
@@ -634,8 +687,14 @@ export function buildCinematicEffect(THREE, items, { effect = "glow", color, int
   const quads = parts.points.length ? quadBuffers(parts.points, frame, { magnitudeField: found.magnitude, directionField: found.direction, speedField: found.speed, ranges }) : null;
   const ribbonGeometry = ribbon && geometry(THREE, ribbon, RIBBON_ATTRIBUTES);
   const quadGeometry = quads && geometry(THREE, quads, QUAD_ATTRIBUTES);
-  const ribbonMesh = (fragment, overrides) => ribbonGeometry && new THREE.Mesh(ribbonGeometry, material(THREE, uniforms, RIBBON_VERTEX, fragment, overrides));
-  const quadMesh = (fragment, overrides) => quadGeometry && new THREE.Mesh(quadGeometry, material(THREE, uniforms, QUAD_VERTEX, fragment, overrides));
+  const tune = (overrides = {}) => ({ ...overrides,
+    ...(overrides.uSpeed !== undefined ? { uSpeed: overrides.uSpeed * motion } : {}),
+    ...(overrides.uSpacing !== undefined ? { uSpacing: overrides.uSpacing / spacing } : {}),
+    ...(overrides.uWidth !== undefined ? { uWidth: overrides.uWidth * styleSize } : {}),
+    ...(overrides.uRadius !== undefined ? { uRadius: overrides.uRadius * styleSize } : {}),
+  });
+  const ribbonMesh = (fragment, overrides) => ribbonGeometry && new THREE.Mesh(ribbonGeometry, material(THREE, uniforms, RIBBON_VERTEX, fragment, tune(overrides)));
+  const quadMesh = (fragment, overrides) => quadGeometry && new THREE.Mesh(quadGeometry, material(THREE, uniforms, QUAD_VERTEX, fragment, tune(overrides)));
 
   if (effect === "fire") {
     add(ribbonMesh("fireEdge", { uWidth: 9, uAdd: 0.3 }), 1);
@@ -663,6 +722,9 @@ export function buildCinematicEffect(THREE, items, { effect = "glow", color, int
   } else if (effect === "electricity") {
     add(ribbonMesh("electricity", { uWidth: 9, uSpeed: 180, uSpacing: 96, uAdd: 0.5 }), 1);
     add(quadMesh("spot", { uRadius: 13, uColor: "#d9fbff" }), 1);
+  } else if (effect === "lava") {
+    add(ribbonMesh("lava", { uWidth: 15, uSpeed: 32, uSpacing: 120, uAdd: 0.5 }), 1);
+    add(quadMesh("spot", { uRadius: 18, uColor: "#ff5a18" }), 1);
   } else if (effect === "traffic") {
     add(ribbonMesh("traffic", { uWidth: 10, uSpeed: 55, uSpacing: 70, uAdd: 0.08 }), 1);
     add(quadMesh("spot", { uRadius: 12 }), 1);
@@ -685,13 +747,16 @@ export function buildCinematicEffect(THREE, items, { effect = "glow", color, int
     }[effect];
     add(ribbonMesh("flight", { uWidth: flight.width, uSpeed: flight.speed, uSpacing: flight.spacing, uAdd: 0.1 }), 1);
     add(quadMesh("spot", { uRadius: flight.radius }), 1);
-  } else if (["snow", "lightning", "tornado", "hurricane", "storm"].includes(effect)) {
+  } else if (effect === "walkers") {
+    add(ribbonMesh("walkers", { uWidth: 12, uSpeed: 14, uSpacing: 90, uAdd: 0.08 }), 1);
+    add(quadMesh("spot", { uRadius: 12 }), 1);
+  } else if (["snow", "rain", "fog", "lightning", "tornado", "hurricane", "storm"].includes(effect)) {
     const weather = {
-      snow: { radius: 28, stretch: 1.1 }, lightning: { radius: 38, stretch: 1.35 }, tornado: { radius: 34, stretch: 1.15 }, hurricane: { radius: 42, stretch: 1 }, storm: { radius: 38, stretch: 1 },
+      snow: { radius: 28, stretch: 1.1 }, rain: { radius: 30, stretch: 1.25 }, fog: { radius: 46, stretch: 1.15 }, lightning: { radius: 38, stretch: 1.35 }, tornado: { radius: 34, stretch: 1.15 }, hurricane: { radius: 42, stretch: 1 }, storm: { radius: 38, stretch: 1 },
     }[effect];
     add(quadMesh(effect, { uRadius: weather.radius, uStretch: weather.stretch, uAdd: 0.2 }), 1);
     // Weather line layers retain a subtle motion direction as context.
-    add(ribbonMesh(effect === "snow" ? "flow" : "glow", { uWidth: 8, uSpeed: 50, uSpacing: 110, uAdd: 0.18 }), 1);
+    add(ribbonMesh(["snow", "rain"].includes(effect) ? "flow" : "glow", { uWidth: 8, uSpeed: 50, uSpacing: 110, uAdd: 0.18 }), 1);
   } else if (effect === "flow") {
     add(ribbonMesh("flow", { uWidth: 10, uSpeed: 90, uSpacing: 160, uAdd: 0.3 }), 1);
     add(quadMesh("spot", { uRadius: 16 }), 1);
@@ -730,6 +795,7 @@ export function buildCinematicEffect(THREE, items, { effect = "glow", color, int
     // Where the effect is, so the host can skip it (and stop repainting) when it is off screen.
     bounds: partsBounds(parts),
     onTerrain: false,
+    opacity: Math.min(1, Math.max(0.05, Number(opacity) || 1)),
     // Still while the clock is paused, the track has settled (a finished "once", a "hold") or motion is reduced.
     get animated() { return !reducedMotion && clockRunning() && !localTime().settled; },
     effect,

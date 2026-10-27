@@ -2,7 +2,7 @@
 // Rules only (no AI): geometry, field names/types and the layer's title. A
 // Timeline is offered only when a real date field exists; without one the
 // suggestions are Ambient loops or a Scenario sweep, never an invented date.
-import { CINEMATIC_EFFECTS, effectFields, suggestEffect, valueField } from "./cinematic-effects.js?v=0.2.7";
+import { CINEMATIC_EFFECTS, effectFields, suggestEffect, valueField } from "./cinematic-effects.js?v=0.2.8";
 import { numericFieldCandidates, temporalFieldCandidates } from "./temporal-adapter.js?v=0.3.1";
 
 const geometryOf = (layer) => (/point/i.test(layer?.geometryType || "") ? "point" : /line/i.test(layer?.geometryType || "") ? "line" : /polygon/i.test(layer?.geometryType || "") ? "polygon" : "");
@@ -64,7 +64,7 @@ export function recommendAnimations(layer = {}, { sample = {} } = {}) {
   if (geometry === "point") {
     const pulse = found.magnitude ? ` sized by ${found.magnitude}` : "";
     const effect = themed === "glow" || themed === "extrude" ? "pulse" : themed;
-    const label = effect === "wind" ? "wind streaks" : ["snow", "lightning", "tornado", "hurricane", "storm"].includes(effect) ? CINEMATIC_EFFECTS?.[effect]?.label || effect : "pulsing points";
+    const label = effect === "wind" ? "wind streaks" : ["snow", "rain", "fog", "lightning", "tornado", "hurricane", "storm"].includes(effect) ? CINEMATIC_EFFECTS?.[effect]?.label || effect : "pulsing points";
     add({ id: `ambient-${effect}`, kind: "none", effect, label: `Ambient: ${label}`, provenance: "illustrative",
       reason: `Points without a timeline can animate in place${pulse}, with a clear illustrative label.` });
   }

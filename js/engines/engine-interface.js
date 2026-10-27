@@ -93,7 +93,7 @@ export const MAP_CONTROLLER_METHODS = Object.freeze([
   "goToLayer", "goToLayers", "goToLayerOnInitialLoad", "layerExtent", "dataBounds", "goToFeature", "goToFeatures", "goToSearchResult", "goToTaskPlaces",
   "highlightFeature", "clearFeatureHighlight", "configureInteractionFeedback", "clearClickMarker", "locateUser", "geographicCoordinates",
   "search", "reverseGeocode", "captureViews", "captureTaskMap",
-  "draw", "hasDrawings", "clearDrawings", "getDrawGraphicsForExport", "setTaskPin", "setTourMarkers", "setActiveTourMarker", "clearTourMarkers", "toggleWidget", "widgetOpen",
+  "draw", "hasDrawings", "clearDrawings", "getDrawGraphicsForExport", "getDrawingsStyle", "setDrawingsStyle", "setTaskPin", "setTourMarkers", "setActiveTourMarker", "clearTourMarkers", "toggleWidget", "widgetOpen",
   "setBasemapTheme", "getBasemapOptions", "getGroundOptions", "setBuildings3d",
   "getAttributionText", "getLegendData", "setLayerEffect", "getLayerEffect", "suspendLayerEffect",
 ]);
@@ -108,7 +108,7 @@ export const METHOD_CAPABILITIES = Object.freeze({
   goToLayer: "query", goToLayers: "query", goToLayerOnInitialLoad: "query", layerExtent: "query", dataBounds: "query",
   highlightFeature: "highlight", clearFeatureHighlight: "highlight", configureInteractionFeedback: "highlight", clearClickMarker: "highlight", locateUser: "view-2d",
   search: "geocode", reverseGeocode: "geocode", captureViews: "capture", captureTaskMap: "capture", getAttributionText: "capture", getLegendData: "capture",
-  draw: "draw", hasDrawings: "draw", clearDrawings: "draw", getDrawGraphicsForExport: "draw", setTaskPin: "draw", setTourMarkers: "tour-markers", setActiveTourMarker: "tour-markers", clearTourMarkers: "tour-markers",
+  draw: "draw", hasDrawings: "draw", clearDrawings: "draw", getDrawGraphicsForExport: "draw", getDrawingsStyle: "draw", setDrawingsStyle: "draw", setTaskPin: "draw", setTourMarkers: "tour-markers", setActiveTourMarker: "tour-markers", clearTourMarkers: "tour-markers",
   toggleWidget: "widgets", widgetOpen: "widgets", setBasemapTheme: "basemap-themes", setBuildings3d: "buildings-3d", getBasemapOptions: "basemaps", getGroundOptions: "ground",
 });
 

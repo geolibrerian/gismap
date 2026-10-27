@@ -26,7 +26,7 @@ import { chooseStyleField, compileRenderer, resolveRendererSpec, suggestRenderer
 import { rendererToPaint } from "./arcgis-renderer.js?v=0.42.0";
 import { legendForLayer } from "./legend.js?v=0.52.4";
 import { hostCredit, joinCredits, legendSwatch, plainAttribution } from "../map-credits.js?v=0.1.0";
-import { CINEMATIC_EFFECT_TYPES, effectFields, effectRanges, resolveQuality, suggestEffect } from "../../cinematic/cinematic-effects.js?v=0.2.7";
+import { CINEMATIC_EFFECT_TYPES, effectFields, effectRanges, resolveQuality, suggestEffect } from "../../cinematic/cinematic-effects.js?v=0.2.8";
 
 // A layer effect draws over at most this many features; more would cost frame rate for no visible gain.
 const LAYER_EFFECT_MAX_FEATURES = 20000;
@@ -164,6 +164,7 @@ export class MaplibreEngine {
     this.highlight = { enabled: true, color: "#00b8d9", style: "fill", feature: null };
     this.noteMarkers = [];
     this.drawings = [];
+    this.drawingsStyle = { color: "#d9951e", outline: "#ffffff", width: 3, fillOpacity: 0.18, pointRadius: 6, animatedEffect: null };
     this.drawing = null;
     this.drawPreviousCursor = null;
     this.measurement = null;
@@ -296,7 +297,7 @@ export class MaplibreEngine {
     if (name === "extrude" || name === "reveal") return this.#drawNativeEffect(id, name, effect);
     const THREE = await loadThree();
     this.three ??= new ThreeHost({ map: this.map, THREE, notify: (message) => this.events.publish("app:error", { message }) });
-    const [{ buildCinematicEffect }, { effectColor }] = await Promise.all([import("../../cinematic/effects-three.js?v=0.2.7"), import("../../cinematic/cinematic-effects.js?v=0.2.7")]);
+    const [{ buildCinematicEffect }, { effectColor }] = await Promise.all([import("../../cinematic/effects-three.js?v=0.2.8"), import("../../cinematic/cinematic-effects.js?v=0.2.8")]);
     // Decoration is simplified to half a screen pixel at the current zoom; the map draws the exact outline.
     const simplify = Number.isFinite(effect.simplify) ? effect.simplify : 0.5 * 360 / (512 * 2 ** (this.map?.getZoom?.() ?? 0));
     const item = buildCinematicEffect(THREE, effect.items || effect.features || [], {
@@ -337,7 +338,7 @@ export class MaplibreEngine {
    */
   async #drawNativeEffect(id, name, effect) {
     const [{ effectColor, nativeEffectData, valueField, riseAmount, revealAmount }, { effectSeconds, effectClockRunning }, { trackTime, normalizeTiming }] = await Promise.all([
-      import("../../cinematic/cinematic-effects.js?v=0.2.7"), import("../../cinematic/effects-three.js?v=0.2.7"), import("../../cinematic/clock.js?v=0.1.0"),
+      import("../../cinematic/cinematic-effects.js?v=0.2.8"), import("../../cinematic/effects-three.js?v=0.2.8"), import("../../cinematic/clock.js?v=0.1.0"),
     ]);
     this.#effectClockRunning = effectClockRunning;
     this.three?.remove(id);
@@ -419,7 +420,7 @@ export class MaplibreEngine {
    * and far cheaper than shader ribbons for thousands of outlines.
    */
   async #drawSettledEdges(id, name, effect) {
-    const { effectColor, effectParts } = await import("../../cinematic/cinematic-effects.js?v=0.2.7");
+    const { effectColor, effectParts } = await import("../../cinematic/cinematic-effects.js?v=0.2.8");
     this.three?.remove(id);
     const simplify = Number.isFinite(effect.simplify) ? effect.simplify : 0.5 * 360 / (512 * 2 ** (this.map?.getZoom?.() ?? 0));
     const parts = effectParts(effect.items || [], { maxPaths: 20000, maxVertices: 400000, maxPoints: 20000, simplify });
@@ -751,15 +752,20 @@ export class MaplibreEngine {
   /**
    * A decorative animated effect on a layer (Advanced Style): the same glow,
    * flames, pulses, wind, water and flow as Cinematic mode, drawn on every
-   * feature the layer shows. `effect` is { type, intensity?, color? }; type
+   * feature the layer shows. `effect` includes style, colour, opacity, motion
+   * speed and density as well as intensity; type
    * "none" (or null) removes it. Saved with the layer's configuration.
    */
   async setLayerEffect(uid, effect) {
     const record = this.#requireVector(uid);
     const type = ["auto", ...CINEMATIC_EFFECT_TYPES].includes(effect?.type) ? effect.type : "none";
     const intensity = Math.min(2, Math.max(0.25, Number(effect?.intensity) || 1));
+    const opacity = Math.min(1, Math.max(0.05, Number(effect?.opacity) || 1));
+    const speed = Math.min(3, Math.max(0.1, Number(effect?.speed) || 1));
+    const density = Math.min(2.5, Math.max(0.25, Number(effect?.density) || 1));
+    const style = ["soft", "balanced", "crisp", "vivid"].includes(effect?.style) ? effect.style : "balanced";
     const field = typeof effect?.field === "string" && effect.field ? effect.field.slice(0, 160) : null;
-    record.animatedEffect = type === "none" ? null : { type, intensity, color: /^#[0-9a-f]{6}$/i.test(effect?.color || "") ? effect.color : null, ...(field ? { field } : {}) };
+    record.animatedEffect = type === "none" ? null : { type, intensity, opacity, speed, density, style, color: /^#[0-9a-f]{6}$/i.test(effect?.color || "") ? effect.color : null, ...(field ? { field } : {}) };
     record.effectBuilt = null;
     await this.#syncLayerEffect(record);
     this.events.publish("layer:changed", { uid: record.uid });
@@ -814,7 +820,7 @@ export class MaplibreEngine {
     const built = { effect, features, where: record.where, zoom: Math.round(this.map?.getZoom?.() || 0), viewBounds };
     // Unchanged data and settings: nothing to rebuild, only opacity to follow.
     if (record.effectBuilt && Object.entries(built).every(([key, value]) => record.effectBuilt[key] === value)) {
-      this.three?.set(id, { opacity: record.opacity });
+      this.three?.set(id, { opacity: record.opacity * (effect.opacity ?? 1) });
       return;
     }
     record.effectBuilt = built;
@@ -822,13 +828,13 @@ export class MaplibreEngine {
     // Off-screen features wait for the view to reach them; detail follows how many are near it.
     const shown = (viewBounds ? nearView(features, viewBounds) : features).slice(0, LAYER_EFFECT_MAX_FEATURES);
     const drawn = await this.setCinematicEffect(id, {
-      type: "observed-effect", effect: name, color: effect.color, intensity: effect.intensity, field: effect.field || null, fields: record.fields, quality: resolveQuality(effect.quality || "auto", shown.length),
+      type: "observed-effect", effect: name, color: effect.color, intensity: effect.intensity, opacity: record.opacity * (effect.opacity ?? 1), speed: effect.speed, density: effect.density, style: effect.style, field: effect.field || null, fields: record.fields, quality: resolveQuality(effect.quality || "auto", shown.length),
       ranges: effectRanges(features, effectFields(record.fields, shown[0]?.properties)),
       items: shown.map((feature) => ({ feature, fresh: true })),
     });
     // The layer may have changed (or gone) while three.js loaded.
     if (record.effectBuilt !== built || !this.#records.has(record.uid)) return;
-    if (drawn) this.three?.set(id, { opacity: record.opacity });
+    if (drawn) this.three?.set(id, { opacity: record.opacity * (effect.opacity ?? 1) });
   }
 
   /** A new layer record, drawn and announced. */
@@ -1592,11 +1598,12 @@ export class MaplibreEngine {
   }
 
   #drawingSpecs() {
-    const color = this.basemapTheme?.accent || "#d9951e";
+    const style = this.drawingsStyle;
+    const color = style.color || this.basemapTheme?.accent || "#d9951e";
     return [
-      { id: DRAW_LAYER_IDS[0], type: "fill", source: DRAW_SOURCE, filter: ["==", ["geometry-type"], "Polygon"], paint: { "fill-color": color, "fill-opacity": 0.18 } },
-      { id: DRAW_LAYER_IDS[1], type: "line", source: DRAW_SOURCE, paint: { "line-color": color, "line-width": 3 } },
-      { id: DRAW_LAYER_IDS[2], type: "circle", source: DRAW_SOURCE, filter: ["==", ["geometry-type"], "Point"], paint: { "circle-color": color, "circle-radius": 6, "circle-stroke-color": "#ffffff", "circle-stroke-width": 1.5 } },
+      { id: DRAW_LAYER_IDS[0], type: "fill", source: DRAW_SOURCE, filter: ["==", ["geometry-type"], "Polygon"], paint: { "fill-color": color, "fill-opacity": style.fillOpacity } },
+      { id: DRAW_LAYER_IDS[1], type: "line", source: DRAW_SOURCE, paint: { "line-color": color, "line-width": style.width } },
+      { id: DRAW_LAYER_IDS[2], type: "circle", source: DRAW_SOURCE, filter: ["==", ["geometry-type"], "Point"], paint: { "circle-color": color, "circle-radius": style.pointRadius, "circle-stroke-color": style.outline, "circle-stroke-width": 1.5 } },
     ];
   }
 
@@ -1606,7 +1613,10 @@ export class MaplibreEngine {
     try {
       if (!source) this.map.addSource(DRAW_SOURCE, this.#drawingSource());
       else source.setData(this.#drawingSource().data);
-      this.#drawingSpecs().forEach((spec) => { if (!this.map.getLayer(spec.id)) this.map.addLayer(spec); });
+      this.#drawingSpecs().forEach((spec) => {
+        if (!this.map.getLayer(spec.id)) this.map.addLayer(spec);
+        else Object.entries(spec.paint).forEach(([property, value]) => this.map.setPaintProperty(spec.id, property, value));
+      });
     } catch (error) {
       this.events.publish("app:error", { message: `Could not display drawings: ${error.message}` });
     }
@@ -1628,6 +1638,7 @@ export class MaplibreEngine {
     this.drawing = null;
     this.#restoreDrawCursor();
     this.#drawDrawings();
+    if (this.drawingsStyle.animatedEffect) void this.setDrawingsStyle({ animatedEffect: this.drawingsStyle.animatedEffect });
     this.map?.dragPan.enable();
     this.events.publish("draw:complete", { feature });
   }
@@ -1652,6 +1663,25 @@ export class MaplibreEngine {
   }
 
   hasDrawings() { return this.drawings.length > 0; }
+  getDrawingsStyle() { return structuredClone(this.drawingsStyle); }
+  async setDrawingsStyle(next = {}) {
+    const effect = next.animatedEffect;
+    this.drawingsStyle = {
+      ...this.drawingsStyle,
+      ...( /^#[0-9a-f]{6}$/i.test(next.color || "") ? { color: next.color } : {}),
+      ...( /^#[0-9a-f]{6}$/i.test(next.outline || "") ? { outline: next.outline } : {}),
+      ...(Number.isFinite(Number(next.width)) ? { width: Math.min(20, Math.max(0.5, Number(next.width))) } : {}),
+      ...(Number.isFinite(Number(next.fillOpacity)) ? { fillOpacity: Math.min(1, Math.max(0, Number(next.fillOpacity))) } : {}),
+      ...(Number.isFinite(Number(next.pointRadius)) ? { pointRadius: Math.min(40, Math.max(1, Number(next.pointRadius))) } : {}),
+      ...(effect !== undefined ? { animatedEffect: effect?.type && effect.type !== "none" ? { ...effect } : null } : {}),
+    };
+    this.#drawDrawings();
+    const animated = this.drawingsStyle.animatedEffect;
+    if (!animated || !this.drawings.length) this.clearCinematicEffect("drawings-effect");
+    else await this.setCinematicEffect("drawings-effect", { type: "observed-effect", effect: animated.type, color: animated.color, intensity: animated.intensity, opacity: animated.opacity, speed: animated.speed, density: animated.density, style: animated.style, items: this.drawings.map((feature) => ({ feature, fresh: true })), fields: [], quality: "cinematic" });
+    this.events.publish("draw:style-changed", { style: this.getDrawingsStyle() });
+    return this.getDrawingsStyle();
+  }
   #restoreDrawCursor() {
     const canvas = this.map?.getCanvas?.();
     if (canvas && this.drawPreviousCursor !== null) canvas.style.cursor = this.drawPreviousCursor;
@@ -1663,6 +1693,7 @@ export class MaplibreEngine {
     this.drawings = [];
     this.map?.dragPan.enable();
     this.map?.getSource?.(DRAW_SOURCE)?.setData(this.#drawingSource().data);
+    this.clearCinematicEffect("drawings-effect");
   }
   getDrawGraphicsForExport(scope = "all") {
     const extent = scope === "extent" ? this.getViewExtent() : null;

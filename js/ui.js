@@ -44,8 +44,8 @@ import { CartographyLab } from "./cartography-lab.js?v=0.60.0-media1";
 import { CONTEXT_ACTIONS, createSuggestionPreferences, deriveWorkspace, executeContextAction, suggestionKey, summarizeFeature } from "./contextual-workspace.js?v=6";
 import { BRIEFING_WALKTHROUGH_STEPS, CINEMATIC_WALKTHROUGH_STEPS, startWorkspaceWalkthrough, waitForWalkthroughTarget } from "./workspace-walkthrough.js?v=0.58.0-cinematic1";
 import { chooseHurricaneLayer, createHazardsExampleBriefing } from "./example-hazards-briefing.js?v=0.60.0-media1";
-import { CinematicModeController } from "./cinematic/mode.js?v=0.3.11";
-import { CINEMATIC_EFFECTS, CINEMATIC_EFFECT_CATEGORIES, suggestEffect } from "./cinematic/cinematic-effects.js?v=0.2.7";
+import { CinematicModeController } from "./cinematic/mode.js?v=0.3.12";
+import { CINEMATIC_EFFECTS, CINEMATIC_EFFECT_CATEGORIES, suggestEffect } from "./cinematic/cinematic-effects.js?v=0.2.8";
 import { PROVENANCE_STATUSES } from "./cinematic/clock.js?v=0.1.0";
 import { recommendAnimations } from "./cinematic/recommend.js?v=0.1.3";
 
@@ -533,6 +533,7 @@ export class UIController {
     document.querySelectorAll("[data-draw]").forEach((button) =>
       button.addEventListener("click", () => this.mapController.draw(button.dataset.draw)),
     );
+    document.querySelector("#draw-style")?.addEventListener("click", () => this.#openDrawingStyle());
 
     document.querySelector("#draw-export").addEventListener("click", () => {
       const drawings = this.exportController.listExportableLayers().find((item) => item.kind === "drawings");
@@ -716,6 +717,29 @@ export class UIController {
     });
     document.querySelector("#dashboard-settings-open")?.addEventListener("click", () => this.#dashboardBuilderComingSoon());
     document.querySelector("#globe-dashboard-settings")?.addEventListener("click", () => this.#dashboardBuilderComingSoon());
+  }
+
+  #openDrawingStyle() {
+    const style = this.mapController.getDrawingsStyle?.() || {};
+    const effect = style.animatedEffect || {};
+    const suggested = "glow";
+    this.openDialog({
+      eyebrow: "Drawings",
+      title: "Advanced drawing style",
+      content: `<div class="workspace-tool"><p class="form-note">Applies to every point, line, polygon, and rectangle in this drawing layer.</p><div class="field-grid"><label class="field"><span>Drawing colour</span><input type="color" data-drawing-color value="${escapeHtml(style.color || "#d9951e")}"></label><label class="field"><span>Outline colour</span><input type="color" data-drawing-outline value="${escapeHtml(style.outline || "#ffffff")}"></label><label class="field"><span>Line width</span><input type="number" min="0.5" max="20" step="0.5" data-drawing-width value="${Number(style.width || 3)}"></label><label class="field"><span>Point size</span><input type="number" min="1" max="40" step="1" data-drawing-radius value="${Number(style.pointRadius || 6)}"></label><label class="opacity-row"><span>Polygon fill</span><input type="range" min="0" max="1" step="0.05" data-drawing-fill value="${Number(style.fillOpacity ?? 0.18)}"><output data-drawing-fill-output>${Math.round(Number(style.fillOpacity ?? 0.18) * 100)}%</output></label></div><fieldset class="feedback-settings layer-effect"><legend>Cinematic effect</legend><div class="field-grid"><label class="field"><span>Effect</span><select data-drawing-effect>${this.#cinematicEffectOptions(effect.type || "none", suggested)}</select></label><label class="field"><span>Style</span><select data-drawing-effect-style><option value="soft"${effect.style === "soft" ? " selected" : ""}>Soft glow</option><option value="balanced"${!effect.style || effect.style === "balanced" ? " selected" : ""}>Balanced</option><option value="crisp"${effect.style === "crisp" ? " selected" : ""}>Crisp</option><option value="vivid"${effect.style === "vivid" ? " selected" : ""}>Vivid</option></select></label><label class="field"><span>Effect colour</span><input type="color" data-drawing-effect-color value="${escapeHtml(effect.color || "#ff8136")}"></label><label class="opacity-row"><span>Effect opacity</span><input type="range" min="0.05" max="1" step="0.05" data-drawing-effect-opacity value="${Number(effect.opacity ?? 1)}"><output data-drawing-effect-opacity-output>${Math.round(Number(effect.opacity ?? 1) * 100)}%</output></label><label class="opacity-row"><span>Intensity</span><input type="range" min="0.25" max="2" step="0.25" data-drawing-effect-intensity value="${Number(effect.intensity ?? 1)}"><output data-drawing-effect-intensity-output>${Number(effect.intensity ?? 1).toFixed(2).replace(/\.00$/, "")}×</output></label><label class="opacity-row"><span>Motion speed</span><input type="range" min="0.1" max="3" step="0.1" data-drawing-effect-speed value="${Number(effect.speed ?? 1)}"><output data-drawing-effect-speed-output>${Number(effect.speed ?? 1).toFixed(1)}×</output></label><label class="opacity-row"><span>Density</span><input type="range" min="0.25" max="2.5" step="0.05" data-drawing-effect-density value="${Number(effect.density ?? 1)}"><output data-drawing-effect-density-output>${Number(effect.density ?? 1).toFixed(2).replace(/0$/, "")}×</output></label></div><p class="form-note">Effects decorate your drawings. They do not represent observed fire, traffic, weather, or movement.</p></fieldset><div class="workspace-tool__actions"><button type="button" class="button--primary" data-apply-drawing-style>Apply drawing style</button></div></div>`,
+    });
+    const root = this.dialog;
+    const output = (input, target, format) => root.querySelector(input)?.addEventListener("input", (event) => { root.querySelector(target).value = format(Number(event.currentTarget.value)); });
+    output("[data-drawing-fill]", "[data-drawing-fill-output]", (value) => `${Math.round(value * 100)}%`);
+    output("[data-drawing-effect-opacity]", "[data-drawing-effect-opacity-output]", (value) => `${Math.round(value * 100)}%`);
+    output("[data-drawing-effect-intensity]", "[data-drawing-effect-intensity-output]", (value) => `${value.toFixed(2).replace(/\.00$/, "")}×`);
+    output("[data-drawing-effect-speed]", "[data-drawing-effect-speed-output]", (value) => `${value.toFixed(1)}×`);
+    output("[data-drawing-effect-density]", "[data-drawing-effect-density-output]", (value) => `${value.toFixed(2).replace(/0$/, "")}×`);
+    root.querySelector("[data-apply-drawing-style]")?.addEventListener("click", async () => {
+      const get = (selector) => root.querySelector(selector).value;
+      await this.mapController.setDrawingsStyle({ color: get("[data-drawing-color]"), outline: get("[data-drawing-outline]"), width: Number(get("[data-drawing-width]")), pointRadius: Number(get("[data-drawing-radius]")), fillOpacity: Number(get("[data-drawing-fill]")), animatedEffect: { type: get("[data-drawing-effect]"), style: get("[data-drawing-effect-style]"), color: get("[data-drawing-effect-color]"), opacity: Number(get("[data-drawing-effect-opacity]")), intensity: Number(get("[data-drawing-effect-intensity]")), speed: Number(get("[data-drawing-effect-speed]")), density: Number(get("[data-drawing-effect-density]")) } });
+      this.toast("Drawing style applied.");
+    });
   }
 
   #syncMapToolsToggle(open) {
@@ -7679,7 +7703,7 @@ export class UIController {
       return resolved && resolved !== "none" ? `${CINEMATIC_EFFECTS[resolved]?.note || ""} Applies right away and is saved with the layer.` : "Animate this layer with glow, flames, seismic pulses, wind, water or flow. Decorative only; it never changes the data.";
     };
     const effectControls = effectsAvailable
-      ? `<fieldset class="feedback-settings layer-effect"><legend>Animated effect</legend><div class="field-grid"><label class="field"><span>Effect</span><select data-layer-effect>${this.#cinematicEffectOptions(savedEffect?.type || "none", suggestedEffect)}</select></label><label class="field"><span>Intensity</span><input type="range" data-layer-effect-intensity min="0.25" max="2" step="0.25" value="${savedEffect?.intensity ?? 1}"${savedEffect ? "" : " disabled"} aria-label="Effect intensity"></label></div><p class="form-note" data-layer-effect-note>${escapeHtml(effectNote(savedEffect?.type || "none"))}</p></fieldset>`
+      ? `<fieldset class="feedback-settings layer-effect"><legend>Animated effect</legend><div class="field-grid"><label class="field"><span>Effect</span><select data-layer-effect>${this.#cinematicEffectOptions(savedEffect?.type || "none", suggestedEffect)}</select></label><label class="field"><span>Visual style</span><select data-layer-effect-style${savedEffect ? "" : " disabled"}><option value="soft"${savedEffect?.style === "soft" ? " selected" : ""}>Soft glow</option><option value="balanced"${!savedEffect?.style || savedEffect.style === "balanced" ? " selected" : ""}>Balanced</option><option value="crisp"${savedEffect?.style === "crisp" ? " selected" : ""}>Crisp</option><option value="vivid"${savedEffect?.style === "vivid" ? " selected" : ""}>Vivid</option></select></label><label class="field"><span>Effect colour</span><input type="color" data-layer-effect-color value="${escapeHtml(savedEffect?.color || CINEMATIC_EFFECTS[savedEffect?.type === "auto" ? suggestedEffect : savedEffect?.type]?.color || "#ff8136")}"${savedEffect ? "" : " disabled"}></label><label class="opacity-row"><span>Effect opacity</span><input type="range" data-layer-effect-opacity min="0.05" max="1" step="0.05" value="${savedEffect?.opacity ?? 1}"${savedEffect ? "" : " disabled"}><output data-layer-effect-opacity-output>${Math.round((savedEffect?.opacity ?? 1) * 100)}%</output></label><label class="opacity-row"><span>Intensity</span><input type="range" data-layer-effect-intensity min="0.25" max="2" step="0.25" value="${savedEffect?.intensity ?? 1}"${savedEffect ? "" : " disabled"} aria-label="Effect intensity"><output data-layer-effect-intensity-output>${Number(savedEffect?.intensity ?? 1).toFixed(2).replace(/\.00$/, "")}×</output></label><label class="opacity-row"><span>Motion speed</span><input type="range" data-layer-effect-speed min="0.1" max="3" step="0.1" value="${savedEffect?.speed ?? 1}"${savedEffect ? "" : " disabled"}><output data-layer-effect-speed-output>${Number(savedEffect?.speed ?? 1).toFixed(1)}×</output></label><label class="opacity-row"><span>Symbol density</span><input type="range" data-layer-effect-density min="0.25" max="2.5" step="0.05" value="${savedEffect?.density ?? 1}"${savedEffect ? "" : " disabled"}><output data-layer-effect-density-output>${Number(savedEffect?.density ?? 1).toFixed(2).replace(/0$/, "")}×</output></label></div><p class="form-note" data-layer-effect-note>${escapeHtml(effectNote(savedEffect?.type || "none"))}</p></fieldset>`
       : `<fieldset class="feedback-settings layer-effect"><legend>Animated effect</legend><p class="form-note">${layer.geometryType ? "Animated effects need the MapLibre engine (Display settings → Map engine)." : "Animated effects need a layer with features."}</p></fieldset>`;
     // Ranked styles computed from the field's values (renderer-spec.js suggestRenderers).
     const canSuggest = fields.length && layer.queryable;
@@ -7689,16 +7713,29 @@ export class UIController {
     pane.innerHTML = `<div class="workspace-tool"><p class="eyebrow">Layer presentation</p><h3>Style ${escapeHtml(layer.title || "layer")}</h3>${styleOptions}<div class="field-grid">${rendererControls}<label class="field" data-single-color><span>Symbol color</span><input data-symbol-color type="color" value="#1b7f6a" /></label><label class="field"><span>Outline</span><input data-symbol-outline type="color" value="#ffffff" /></label><label class="field"><span>Size / width</span><input data-symbol-size type="number" min="0.5" max="40" step="0.5" value="9" /></label></div><section data-class-editor hidden><h4>Classes and colors</h4><div class="field-grid"><label class="field"><span>Palette</span><select data-class-ramp>${Object.keys(RAMPS).map((name) => `<option value="${name}">${escapeHtml(name.replaceAll("-", " "))}</option>`).join("")}</select></label><label class="display-checkbox"><input type="checkbox" data-class-reverse> Reverse palette</label></div><p class="form-note">Colors can be changed individually. Apply symbology to update the map.</p><div data-class-list aria-live="polite"></div></section>${polygonControls}${extrusionControls}${effectControls}<p class="form-note">Class previews use up to 20,000 loaded values matching the layer filter. Renderer settings are stored with the project.</p><div class="workspace-tool__actions"><button type="button" class="button--primary" data-apply-symbology>Apply symbology</button></div></div>`;
     const effectSelect = pane.querySelector("[data-layer-effect]");
     const effectIntensity = pane.querySelector("[data-layer-effect-intensity]");
+    const effectControlsInputs = [...pane.querySelectorAll("[data-layer-effect-style], [data-layer-effect-color], [data-layer-effect-opacity], [data-layer-effect-intensity], [data-layer-effect-speed], [data-layer-effect-density]")];
     const applyEffect = async () => {
       const type = effectSelect.value;
-      effectIntensity.disabled = type === "none";
+      effectControlsInputs.forEach((input) => { input.disabled = type === "none"; });
       pane.querySelector("[data-layer-effect-note]").textContent = effectNote(type);
       try {
-        await this.mapController.setLayerEffect(uid, { type, intensity: Number(effectIntensity.value) || 1 });
+        await this.mapController.setLayerEffect(uid, { type,
+          intensity: Number(effectIntensity.value) || 1,
+          color: pane.querySelector("[data-layer-effect-color]").value,
+          opacity: Number(pane.querySelector("[data-layer-effect-opacity]").value) || 1,
+          style: pane.querySelector("[data-layer-effect-style]").value,
+          speed: Number(pane.querySelector("[data-layer-effect-speed]").value) || 1,
+          density: Number(pane.querySelector("[data-layer-effect-density]").value) || 1,
+        });
       } catch (error) { this.error(`Could not apply the animated effect: ${error.message}`); }
     };
     effectSelect?.addEventListener("change", () => void applyEffect());
-    effectIntensity?.addEventListener("change", () => void applyEffect());
+    const effectOutput = (selector, output, format) => pane.querySelector(selector)?.addEventListener("input", (event) => { pane.querySelector(output).value = format(Number(event.currentTarget.value)); });
+    effectOutput("[data-layer-effect-opacity]", "[data-layer-effect-opacity-output]", (value) => `${Math.round(value * 100)}%`);
+    effectOutput("[data-layer-effect-intensity]", "[data-layer-effect-intensity-output]", (value) => `${value.toFixed(2).replace(/\.00$/, "")}×`);
+    effectOutput("[data-layer-effect-speed]", "[data-layer-effect-speed-output]", (value) => `${value.toFixed(1)}×`);
+    effectOutput("[data-layer-effect-density]", "[data-layer-effect-density-output]", (value) => `${value.toFixed(2).replace(/0$/, "")}×`);
+    effectControlsInputs.forEach((input) => input.addEventListener("change", () => void applyEffect()));
     const fillOpacity = pane.querySelector("[data-symbol-fill-opacity]");
     fillOpacity?.addEventListener("input", () => {
       fillOpacity.nextElementSibling.value = `${Math.round(Number(fillOpacity.value) * 100)}%`;

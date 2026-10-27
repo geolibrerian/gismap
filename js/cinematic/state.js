@@ -3,7 +3,7 @@ import { PROVENANCE_STATUSES, normalizeTiming } from "./clock.js?v=0.1.0";
 // null and "" are "not set", not 0: a saved spec re-normalized must keep an unset opacity unset.
 const finite = (value, fallback = null) => value !== null && value !== "" && Number.isFinite(Number(value)) ? Number(value) : fallback;
 const string = (value, fallback = "") => typeof value === "string" ? value : fallback;
-const EFFECTS = Object.freeze(["auto", "none", "glow", "fire", "pulse", "wind", "snow", "lightning", "tornado", "hurricane", "storm", "water", "water-flow", "flow", "electricity", "traffic", "trains", "sailboats", "ships", "birds", "drones", "airplanes", "helicopters", "extrude", "reveal"]);
+const EFFECTS = Object.freeze(["auto", "none", "glow", "fire", "pulse", "wind", "snow", "rain", "fog", "lightning", "tornado", "hurricane", "storm", "lava", "water", "water-flow", "flow", "electricity", "traffic", "trains", "sailboats", "ships", "walkers", "birds", "drones", "airplanes", "helicopters", "extrude", "reveal"]);
 
 export const CINEMATIC_SCHEMA_VERSION = "0.1";
 export const CINEMATIC_TEMPLATES = Object.freeze(["step-perimeter", "moving-track"]);
@@ -84,9 +84,13 @@ function normalizeEffect(animation = {}) {
   const effect = animation?.effect && typeof animation.effect === "object" ? animation.effect : {};
   const type = EFFECTS.includes(effect.type) ? effect.type : animation?.outline?.glow === true ? "glow" : "none";
   const color = /^#[0-9a-f]{6}$/i.test(string(effect.color)) ? effect.color : null;
+  const opacity = Math.min(1, Math.max(0.05, finite(effect.opacity, 1)));
+  const speed = Math.min(3, Math.max(0.1, finite(effect.speed, 1)));
+  const density = Math.min(2.5, Math.max(0.25, finite(effect.density, 1)));
+  const style = ["soft", "balanced", "crisp", "vivid"].includes(effect.style) ? effect.style : "balanced";
   // `field`: the attribute a Rise or a Reveal reads (null = chosen from the layer).
   const field = string(effect.field).slice(0, 160);
-  return { type, color, intensity: Math.min(2, Math.max(0.25, finite(effect.intensity, 1))), ...(field ? { field } : {}) };
+  return { type, color, intensity: Math.min(2, Math.max(0.25, finite(effect.intensity, 1))), opacity, speed, density, style, ...(field ? { field } : {}) };
 }
 
 export function exportCinematicSpec(spec) { return structuredClone(normalizeCinematicSpec(spec)); }
