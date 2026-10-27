@@ -14,6 +14,7 @@ import { createAssistantTools, summarizeMapState } from "./map-assistant.js?v=0.
 import { ENTERPRISE_CATALOGS, EnterpriseCatalog, normalizeArcGisDirectoryUrl } from "./enterprise-catalog.js?v=0.18.2";
 import { createShareUrl } from "./share.js?v=0.54.0-unified4";
 import { createShareLink, hasDataFilter } from "./map-share.js?v=0.60.18-trains1";
+import { createEmbedIframe, createEmbedUrl } from "./embed-share.js?v=0.61.0-embed1";
 import { briefingLayerRef, findBriefingLayer } from "./briefing-api.js?v=0.60.18-trains1";
 import { createEmbeddedTourUrl } from "./tour-share.js?v=0.54.0-unified4";
 import { markdownToPlainText, renderMarkdown } from "./markdown.js?v=0.18.2";
@@ -1978,6 +1979,7 @@ export class UIController {
         local && `${local === 1 ? "One layer" : `${local} layers`} from this device ${local === 1 ? "is" : "are"} left out.`,
       ].filter(Boolean).join(" "),
       message: "Opens this map with the same layers, styles, filters, view, basemap and look.",
+      embed: { kind: "map", title, message: "Paste this iframe into your site to publish the configured map. The embedded map keeps the same public layers, style, filter, camera, basemap, and look." },
       card: { lines: ["Scan to open this map, or long-click the QR code", "to open it in a browser."], footer: "Complete map encoded in this QR" },
       downloads: [
         { label: "Map PDF", create: () => this.#mapPdfFile(link) },
@@ -5861,7 +5863,7 @@ export class UIController {
     }
     catch (error) { this.error(error.message); return; }
     const title = this.projectManager.current.presentation?.title || "Guided places";
-    const iframe = `<iframe src="${escapeHtml(embedUrl)}" title="${escapeHtml(title)} guided map tour" loading="lazy" allow="fullscreen; geolocation" allowfullscreen style="width:100%;height:600px;border:0"></iframe>`;
+    const iframe = createEmbedIframe(embedUrl, { title: `${title} guided map tour`, kind: "tour" });
     const selectedUrl = () => this.dialog.querySelector("[data-tour-share-url]")?.value || regularUrl;
     this.tourShareImageFile = null;
     this.openDialog({ eyebrow: "Guided places", title: "Share & export", content: `<p class="form-note">Share a camera-only link or download the complete tour file. Links omit descriptions, images, layers, and credentials; the .gmoatlas file preserves the complete authored tour.</p><fieldset class="tour-share-options"><legend>Viewer access</legend><label><input type="radio" name="tour-share-mode" value="regular" checked><span><strong>Tour with GIS tools</strong><small>Viewers can exit the tour and continue in the standard map workspace.</small></span></label><label><input type="radio" name="tour-share-mode" value="tour-only"><span><strong>Tour only</strong><small>Hide authoring menus, map tools, and the Exit tour control.</small></span></label></fieldset><label class="field"><span>Link</span><textarea readonly rows="4" data-tour-share-url>${escapeHtml(regularUrl)}</textarea></label><details class="tour-embed"><summary>Embed this tour on a website</summary><p class="form-note">Paste this iframe into your page. It opens the same camera-only tour without the GIS authoring interface.</p><textarea readonly rows="6" data-tour-embed-code>${escapeHtml(iframe)}</textarea><button type="button" data-tour-copy-embed>Copy embed HTML</button></details><div class="tour-share-card"><canvas data-tour-share-card width="760" height="960" role="img" aria-label="Branded QR card for this guided places tour"></canvas><p class="tour-share-card__status" data-tour-share-status>Building complete-link QR card…</p></div>`, actions: [
@@ -6942,6 +6944,13 @@ export class UIController {
         title = presentation.modeTitles?.[route === "tours" ? "atlas" : "briefing"] || presentation.title || "GISMap briefing";
       }
       const kind = payload.kind || ({ tasks: "field task", tours: "tour", briefing: "briefing" })[route] || "map";
+      const embed = payload.embed ? {
+        kind: payload.embed.kind === "briefing" ? "briefing" : "map",
+        title: payload.embed.title || title,
+        message: payload.embed.message || "Paste this iframe into your site. It opens the same public GISMap link without authoring controls.",
+      } : null;
+      const embedUrl = embed ? createEmbedUrl(url, { kind: embed.kind }) : null;
+      const embedIframe = embed ? createEmbedIframe(url, { kind: embed.kind, title: embed.title }) : null;
       const card = payload.card || {
         lines: [`Scan to open this ${kind}, or long-click the QR code`, "to open it in a browser."],
         footer: `Complete ${kind} link encoded in this QR`,
@@ -6966,7 +6975,7 @@ export class UIController {
       this.openDialog({
         eyebrow: payload.eyebrow || "Shareable workflow",
         title,
-        content: `<div class="workflow-share">${payload.qr === false ? `<p class="workflow-share__long">This ${kind} carries more than a QR code can hold (${url.length.toLocaleString()} characters), so it shares as a link and files instead. The link opens everything on any device.</p>` : `<div class="tour-share-card"><canvas data-workflow-share-card width="760" height="960" role="img" aria-label="Branded QR card for ${escapeHtml(title)}"></canvas><p class="tour-share-card__status" data-workflow-share-status>Building QR card…</p></div>`}${payload.notice ? `<p class="workflow-share__notice">${escapeHtml(payload.notice)}</p>` : ""}<p>${escapeHtml(payload.message || `Scan this code to open the ${kind} on another device.`)}</p><label class="field"><span>Share link</span><input data-workflow-share-url readonly value="${escapeHtml(url)}"></label>${downloads.length ? `<div class="workflow-share-downloads"><span>Report files</span><div>${downloads.map((download, index) => `<button type="button" data-share-download="${index}">${escapeHtml(download.label)}</button>`).join("")}</div></div>` : ""}</div>`,
+        content: `<div class="workflow-share">${payload.qr === false ? `<p class="workflow-share__long">This ${kind} carries more than a QR code can hold (${url.length.toLocaleString()} characters), so it shares as a link and files instead. The link opens everything on any device.</p>` : `<div class="tour-share-card"><canvas data-workflow-share-card width="760" height="960" role="img" aria-label="Branded QR card for ${escapeHtml(title)}"></canvas><p class="tour-share-card__status" data-workflow-share-status>Building QR card…</p></div>`}${payload.notice ? `<p class="workflow-share__notice">${escapeHtml(payload.notice)}</p>` : ""}<p>${escapeHtml(payload.message || `Scan this code to open the ${kind} on another device.`)}</p><label class="field"><span>Share link</span><input data-workflow-share-url readonly value="${escapeHtml(url)}"></label>${embed ? `<details class="tour-embed"><summary>Embed on a website</summary><p class="form-note">${escapeHtml(embed.message)}</p><label class="field"><span>Embed URL</span><input readonly value="${escapeHtml(embedUrl)}"></label><textarea readonly rows="6" data-workflow-embed-code>${escapeHtml(embedIframe)}</textarea><button type="button" data-workflow-copy-embed>Copy embed HTML</button></details>` : ""}${downloads.length ? `<div class="workflow-share-downloads"><span>Report files</span><div>${downloads.map((download, index) => `<button type="button" data-share-download="${index}">${escapeHtml(download.label)}</button>`).join("")}</div></div>` : ""}</div>`,
         actions: [
           ...(payload.qr === false ? [] : [{ label: "Download image", handler: () => {
             if (!this.workflowShareImageFile) return this.error("The QR image is still being prepared.");
@@ -6993,6 +7002,10 @@ export class UIController {
         try { saveFile(await fileFor(downloads[Number(button.dataset.shareDownload)])); } catch (error) { this.error(error.message); }
         finally { button.disabled = false; button.textContent = label; }
       }));
+      this.dialog.querySelector("[data-workflow-copy-embed]")?.addEventListener("click", async () => {
+        await navigator.clipboard.writeText(embedIframe);
+        this.toast("Embed HTML copied.");
+      });
       const canvas = this.dialog.querySelector("[data-workflow-share-card]");
       const status = this.dialog.querySelector("[data-workflow-share-status]");
       if (!canvas) return;
@@ -7080,6 +7093,7 @@ export class UIController {
         qr: link.qr,
         notice: filtered ? `Data filters travel with this link: ${filtered === 1 ? "one layer shows" : `${filtered} layers show`} only part of its data.` : "",
         message: `${slides ? `Opens the ${slides}-slide presentation directly` : "Opens this briefing's features"}, with the same layers, styles${filtered ? ", filters" : ""} and look.${link.qr ? "" : " To share by QR, host the briefing file on the web and link to it as ?briefing=<file address>."}`,
+        embed: { kind: "briefing", title, message: "Paste this iframe into your site to present this briefing. It keeps the same public data, selected slides, filters, camera, and visual treatment." },
         card: {
           lines: [slides ? `Scan to present ${slides} slide${slides === 1 ? "" : "s"}, or long-click the QR code` : "Scan to open this briefing, or long-click the QR code", "to open it in a browser."],
           footer: "Complete briefing encoded in this QR",
@@ -7136,7 +7150,13 @@ export class UIController {
    * with their styles and filters, applies the skin and basemap, then shows the
    * view or starts presenting the briefing's slides.
    */
-  async openSharedState(shared, { loadLayer }) {
+  activateSharedEmbed(kind = "map") {
+    const safeKind = ["map", "briefing", "tour"].includes(kind) ? kind : "map";
+    document.body.classList.add("shared-embed", `shared-embed--${safeKind}`);
+  }
+
+  async openSharedState(shared, { loadLayer, embed = false } = {}) {
+    if (embed) this.activateSharedEmbed(shared.kind === "briefing" || shared.kind === "briefing-document" ? "briefing" : "map");
     if (shared.kind === "briefing-document") return this.#openSharedBriefingDocument(shared);
     if (shared.basemap) this.mapController.setBasemap(shared.basemap);
     if (shared.ground) this.mapController.setGround(shared.ground);

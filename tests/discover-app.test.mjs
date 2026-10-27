@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile, stat } from 'node:fs/promises';
 
-const routes = ['/', '/examples/', '/engines/', '/learn/', '/ai/', '/data/', '/demos/', '/about/', '/get-involved/'];
+const routes = ['/', '/examples/', '/engines/', '/learn/', '/ai/', '/data/', '/demos/', '/embed/', '/about/', '/get-involved/'];
 
 test('Discover is a standalone static application with all public routes', async () => {
   const root = new URL('../discover/', import.meta.url);
@@ -47,4 +47,13 @@ test('Map engine guide explains MapLibre basemap cartography without conflating 
   assert.match(page, /MapLibre cartography/);
   assert.match(page, /Skin — follows the look/);
   assert.match(page, /Basemap controls never recolor your features/);
+});
+
+test('Embed guide distinguishes maps, briefings, and tours with public-source safeguards', async () => {
+  const page = await readFile(new URL('../discover/embed/index.html', import.meta.url), 'utf8');
+  assert.match(page, /Configured web map/);
+  assert.match(page, /Briefing/);
+  assert.match(page, /Guided tour/);
+  assert.match(page, /Only public remote layers/);
+  assert.match(page, /Keep the generated URL intact/);
 });
