@@ -463,8 +463,7 @@ export class UIController {
     workflows?.removeAttribute("data-desktop-only");
     const workflowTrigger = workflows?.querySelector(".menu__trigger");
     if (workflowTrigger) {
-      workflowTrigger.firstChild.textContent = "Modes ";
-      workflowTrigger.querySelector("span")?.textContent = "⌄";
+      workflowTrigger.firstChild.textContent = "Modes";
     }
     workflows?.querySelector('[data-action="map-presentation"]')?.replaceChildren(document.createTextNode("Instant Dashboard…"));
     workflows?.querySelector('[data-mobile-workflow="briefing"]')?.replaceChildren(document.createTextNode("Briefing"));
