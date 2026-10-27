@@ -32,3 +32,10 @@ test('Discover stays separate from the mapping workspace and is linked from it',
   assert.ok(entries.featured.length >= 4);
   assert.ok(entries.featured.every((item) => item.title && item.href?.startsWith('/')));
 });
+
+test('Examples lead with visual, styled map starting points', async () => {
+  const page = await readFile(new URL('../discover/examples/index.html', import.meta.url), 'utf8');
+  assert.match(page, /example-art--fire/);
+  assert.match(page, /Open styled map/);
+  assert.match(page, /cinematic-ready/);
+});

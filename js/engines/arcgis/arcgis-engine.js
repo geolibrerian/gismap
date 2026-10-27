@@ -1678,6 +1678,10 @@ export class ArcGISEngine {
           }],
         };
       }
+      if (options.markerSymbol) {
+        const markerSize = Math.min(48, Math.max(10, Number.isFinite(size) ? size * 2.2 : 20));
+        return { type: "picture-marker", url: options.markerSymbol, width: markerSize, height: markerSize };
+      }
       return { type: "simple-marker", color: options.color, size: Number.isFinite(size) ? size : 9, outline: { color: outline, width: 1 } };
     }
     if (geometryType === "polyline") {

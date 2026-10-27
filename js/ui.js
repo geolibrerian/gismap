@@ -7695,6 +7695,7 @@ export class UIController {
     const savedChart = layerConfig.spatialChart || null;
     let selectedSpec = savedSpec && ["simple", "categories", "choropleth", "graduated-symbols", "heatmap"].includes(savedSpec.type) ? structuredClone(savedSpec) : null;
     const representativeSymbol = renderer.symbol ?? renderer.classBreakInfos?.[0]?.symbol ?? renderer.uniqueValueInfos?.[0]?.symbol;
+    let selectedMarkerSymbol = representativeSymbol?.type === "picture-marker" && String(representativeSymbol.url || "").startsWith("/assets/symbols/") ? representativeSymbol.url : "";
     const objectSymbol = representativeSymbol?.symbolLayers?.find((symbolLayer) => symbolLayer.type === "object" || symbolLayer.type === "extrude");
     const heightVariable = renderer.visualVariables?.find((variable) => variable.type === "size" && (variable.axis === "height" || layer.geometryType === "polygon"));
     const expressionField = String(heightVariable?.valueExpression || "").match(/\$feature\[(?:"([^"]+)"|'([^']+)')\]/)?.slice(1).find(Boolean);
@@ -7711,6 +7712,9 @@ export class UIController {
       : "";
     const polygonControls = layer.geometryType === "polygon"
       ? '<label class="opacity-row"><span>Fill opacity</span><input data-symbol-fill-opacity type="range" min="0" max="1" step="0.05" value="0.35" /><output>35%</output></label><label class="display-checkbox"><input data-symbol-no-fill type="checkbox" /><span>No fill — outline only</span></label>'
+      : "";
+    const pointSymbolControls = /point/i.test(layer.geometryType || "")
+      ? `<fieldset class="feedback-settings symbol-gallery"><legend>Marker symbol <small>SVG markers</small></legend><div class="symbol-gallery__choices" role="radiogroup" aria-label="Marker symbol"><button type="button" class="symbol-gallery__choice${!selectedMarkerSymbol ? " is-selected" : ""}" data-symbol-gallery="" role="radio" aria-checked="${!selectedMarkerSymbol}"><span class="symbol-gallery__dot"></span><span>Circle</span></button>${[["/assets/symbols/fire.svg", "Fire"], ["/assets/symbols/sensor.svg", "Sensor"], ["/assets/symbols/quake.svg", "Quake"], ["/assets/symbols/pin.svg", "Place"]].map(([url, label]) => `<button type="button" class="symbol-gallery__choice${selectedMarkerSymbol === url ? " is-selected" : ""}" data-symbol-gallery="${url}" role="radio" aria-checked="${selectedMarkerSymbol === url}"><img src="${url}" alt=""><span>${label}</span></button>`).join("")}</div><p class="form-note">SVG markers render in the ArcGIS engine. MapLibre keeps the same color and size as a compatible circle marker.</p></fieldset>`
       : "";
     const extrudable = this.mapController.getEngineId() === "maplibre" ? layer.geometryType === "polygon" : ["polygon", "point", "multipoint"].includes(layer.geometryType);
     const extrusionControls = extrudable
@@ -7732,7 +7736,7 @@ export class UIController {
     const styleOptions = canSuggest
       ? `<section class="style-options" aria-label="Style options"><div class="style-options__head"><strong>Style options</strong><button type="button" class="link-button" data-suggest-styles>Suggest styles for this field</button></div><div class="field-grid"><label class="field"><span>Suggestion field</span><select data-suggestion-field>${fieldOptions(fields, "No fields available", currentField || preferredNumericField?.name)}</select></label><label class="field"><span>Colour range</span><select data-style-ramp>${Object.keys(RAMPS).map((name) => `<option value="${name}">${escapeHtml(name.replaceAll("-", " "))}</option>`).join("")}</select></label></div><div class="style-options__list" data-style-options-list aria-live="polite"></div></section>`
       : "";
-    pane.innerHTML = `<div class="workspace-tool"><p class="eyebrow">Layer presentation</p><h3>Style ${escapeHtml(layer.title || "layer")}</h3>${styleOptions}<div class="field-grid">${rendererControls}<label class="field" data-single-color><span>Symbol color</span><input data-symbol-color type="color" value="#1b7f6a" /></label><label class="field"><span>Outline</span><input data-symbol-outline type="color" value="#ffffff" /></label><label class="field"><span>Size / width</span><input data-symbol-size type="number" min="0.5" max="40" step="0.5" value="9" /></label></div><section data-class-editor hidden><h4>Classes and colors</h4><div class="field-grid"><label class="field"><span>Palette</span><select data-class-ramp>${Object.keys(RAMPS).map((name) => `<option value="${name}">${escapeHtml(name.replaceAll("-", " "))}</option>`).join("")}</select></label><label class="display-checkbox"><input type="checkbox" data-class-reverse> Reverse palette</label></div><p class="form-note">Colors can be changed individually. Apply symbology to update the map.</p><div data-class-list aria-live="polite"></div></section>${polygonControls}${extrusionControls}${effectControls}<p class="form-note">Class previews use up to 20,000 loaded values matching the layer filter. Renderer settings are stored with the project.</p><div class="workspace-tool__actions"><button type="button" class="button--primary" data-apply-symbology>Apply symbology</button></div></div>`;
+    pane.innerHTML = `<div class="workspace-tool"><p class="eyebrow">Layer presentation</p><h3>Style ${escapeHtml(layer.title || "layer")}</h3>${styleOptions}<div class="field-grid">${rendererControls}<label class="field" data-single-color><span>Symbol color</span><input data-symbol-color type="color" value="#1b7f6a" /></label><label class="field"><span>Outline</span><input data-symbol-outline type="color" value="#ffffff" /></label><label class="field"><span>Size / width</span><input data-symbol-size type="number" min="0.5" max="40" step="0.5" value="9" /></label></div>${pointSymbolControls}<section data-class-editor hidden><h4>Classes and colors</h4><div class="field-grid"><label class="field"><span>Palette</span><select data-class-ramp>${Object.keys(RAMPS).map((name) => `<option value="${name}">${escapeHtml(name.replaceAll("-", " "))}</option>`).join("")}</select></label><label class="display-checkbox"><input type="checkbox" data-class-reverse> Reverse palette</label></div><p class="form-note">Colors can be changed individually. Apply symbology to update the map.</p><div data-class-list aria-live="polite"></div></section>${polygonControls}${extrusionControls}${effectControls}<p class="form-note">Class previews use up to 20,000 loaded values matching the layer filter. Renderer settings are stored with the project.</p><div class="workspace-tool__actions"><button type="button" class="button--primary" data-apply-symbology>Apply symbology</button></div></div>`;
     const effectSelect = pane.querySelector("[data-layer-effect]");
     const effectIntensity = pane.querySelector("[data-layer-effect-intensity]");
     const applyEffect = async () => {
@@ -7752,6 +7756,13 @@ export class UIController {
     const styleMode = pane.querySelector("[data-style-mode]");
     const styleFieldControl = pane.querySelector("[data-style-field-control]");
     const styleField = pane.querySelector("[data-style-field]");
+    pane.querySelectorAll("[data-symbol-gallery]").forEach((button) => button.addEventListener("click", () => {
+      selectedMarkerSymbol = button.dataset.symbolGallery || "";
+      selectedSpec = null;
+      if (styleMode) styleMode.value = "simple";
+      pane.querySelectorAll("[data-symbol-gallery]").forEach((item) => { const selected = item === button; item.classList.toggle("is-selected", selected); item.setAttribute("aria-checked", String(selected)); });
+      syncStyleField();
+    }));
     const syncStyleField = () => {
       if (!styleMode || !styleFieldControl || !styleField) return;
       pane.querySelector("[data-single-color]").hidden = ["categorized", "color", "size-color", "heatmap"].includes(styleMode.value);
@@ -7897,7 +7908,7 @@ export class UIController {
     };
     pane.querySelector("[data-apply-symbology]").addEventListener("click", async () => {
       try {
-        if (selectedSpec && !extrusionEnabled?.checked) {
+        if (selectedSpec && !extrusionEnabled?.checked && !selectedMarkerSymbol) {
           const spec = structuredClone(selectedSpec);
           if (spec.type === "choropleth") spec.ramp = spec.ramp || classRamp.value || "greens";
           if (["simple", "graduated-symbols"].includes(spec.type)) spec.color = pane.querySelector("[data-symbol-color]").value;
@@ -7919,6 +7930,7 @@ export class UIController {
           color: pane.querySelector("[data-symbol-color]").value,
           outline: pane.querySelector("[data-symbol-outline]").value,
           size: pane.querySelector("[data-symbol-size]").value,
+          markerSymbol: selectedMarkerSymbol || undefined,
           fillOpacity: fillOpacity?.value,
           noFill: pane.querySelector("[data-symbol-no-fill]")?.checked ?? false,
           extrusionEnabled: extrusionEnabled?.checked ?? false,
