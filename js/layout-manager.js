@@ -117,7 +117,7 @@ export class LayoutManager {
     section.dataset.panelType = panel.type;
     section.toggleAttribute("data-collapsed", panel.collapsed);
     const chartControls = panel.type === "charts"
-      ? `<details class="application-panel__options"><summary aria-label="Chart panel options" title="Chart panel options">•••</summary><div><button type="button" data-chart-panel-move="left">Left side</button><button type="button" data-chart-panel-move="right">Right side</button><button type="button" data-chart-panel-move="bottom">Bottom strip</button><button type="button" data-chart-panel-move="floating-top">Top overlay</button><hr><button type="button" data-chart-panel-size="compact">Compact</button><button type="button" data-chart-panel-size="regular">Regular</button><button type="button" data-chart-panel-size="expanded">Expanded</button></div></details>`
+      ? `<button type="button" class="application-panel__settings" data-chart-panel-settings>Settings</button>`
       : "";
     section.innerHTML = `<header><strong data-panel-drag></strong><div class="application-panel__actions">${chartControls}<button type="button" class="application-panel__collapse" data-panel-collapse aria-label="Collapse panel" title="Collapse panel">−</button></div></header><div data-panel-body class="application-panel__body"></div>`;
     section.querySelector("strong").textContent = panel.title;
@@ -127,25 +127,9 @@ export class LayoutManager {
       this.#resizeMap();
       this.#persistCurrent();
     });
-    const chartSize = (size) => size === "compact" ? { width: 360, height: 220 } : size === "expanded" ? { width: 620, height: 420 } : { width: 460, height: 300 };
-    const applyChartPlacement = (region) => {
-      const size = panel.placement.size || chartSize("regular");
-      panel.placement = {
-        ...panel.placement,
-        region: region === "floating-top" ? "floating" : region,
-        ...(region === "floating-top" ? { size, position: { x: Math.max(16, Math.round((globalThis.innerWidth - size.width) / 2)), y: 76 } } : {}),
-      };
-      this.apply(this.current);
-      this.#persistCurrent();
-    };
-    section.querySelectorAll("[data-chart-panel-move]").forEach((button) => button.addEventListener("click", () => applyChartPlacement(button.dataset.chartPanelMove)));
-    section.querySelectorAll("[data-chart-panel-size]").forEach((button) => button.addEventListener("click", () => {
-      const size = chartSize(button.dataset.chartPanelSize);
-      panel.placement = { ...panel.placement, size };
-      if (panel.placement.region === "bottom") this.current.layout.bottomHeight = size.height;
-      this.apply(this.current);
-      this.#persistCurrent();
-    }));
+    section.querySelector("[data-chart-panel-settings]")?.addEventListener("click", () => {
+      this.document.dispatchEvent(new CustomEvent("gismap:chart-panel-settings", { detail: { instanceId: panel.instanceId } }));
+    });
     if (panel.type === "charts" && panel.placement.region !== "bottom") section.style.setProperty("--chart-panel-height", `${panel.placement.size?.height || 300}px`);
     if (panel.placement.region === "floating") {
       section.querySelector("[data-panel-drag]").classList.add("application-panel__floating-drag");

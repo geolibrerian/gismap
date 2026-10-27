@@ -154,6 +154,8 @@ test("Chart Tools has dedicated family actions which share one persisted builder
   assert.match(ui, /data-chart-filter-builder/);
   assert.match(ui, /Chart panel placement/);
   assert.match(ui, /Top overlay \(movable\)/);
+  assert.match(ui, /Chart panel settings/);
+  assert.match(ui, /gismap:chart-panel-settings/);
   assert.match(ui, /targets\.some\(\(target\) => \["panel", "dashboard"\]\.includes\(target\)\)/, "The Chart panel destination creates a visible site panel.");
   assert.match(css, /\.chart-builder \{ container-type:inline-size;[\s\S]*?min-width:0/);
   assert.match(css, /@container \(max-width: 560px\)/);
@@ -191,6 +193,6 @@ test("saved charts stay inside standard panels and retain the active skin", () =
   assert.match(runtime, /host\.querySelectorAll\("\[data-chart-row\]"\)/);
   assert.match(css, /\.application-panel\[data-panel-type="charts"\] \.application-panel__body \{ overflow-x:hidden; \}/);
   assert.match(css, /\.chart-dashboard \.chart-builder__canvas \{[^}]*max-height:190px/s);
-  assert.match(css, /\.application-panel__options/);
+  assert.match(css, /\.application-panel__settings/);
   assert.doesNotMatch(html, /dashboard-settings-open/);
 });

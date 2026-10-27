@@ -230,7 +230,7 @@ export class ApplicationRuntime {
     applicationChange("application.panel.remove", "Remove panel", (config, input) => ({ ...config, panels: config.panels.filter((panel) => panel.instanceId !== input.instanceId) }));
     applicationChange("application.panel.configure", "Configure panel", (config, input) => ({ ...config, panels: config.panels.map((panel) => panel.instanceId === input.instanceId ? { ...panel, ...input.changes } : panel) }));
     applicationChange("application.panel.bind", "Bind dataset", (config, input) => ({ ...config, panels: config.panels.map((panel) => panel.instanceId === input.instanceId ? { ...panel, binding: { ...panel.binding, ...input.binding } } : panel) }));
-    applicationChange("application.layout.change", "Change layout", (config, input) => ({ ...config, panels: config.panels.map((panel) => panel.instanceId === input.instanceId ? { ...panel, placement: { ...panel.placement, ...input.placement } } : panel) }));
+    applicationChange("application.layout.change", "Change layout", (config, input) => ({ ...config, ...(input.layout ? { layout: { ...config.layout, ...input.layout } } : {}), panels: config.panels.map((panel) => panel.instanceId === input.instanceId ? { ...panel, placement: { ...panel.placement, ...input.placement } } : panel) }));
     applicationChange("application.layout.mode", "Change layout mode", (config, input) => ({ ...config, layout: { ...config.layout, kind: input.kind || "workspace" } }));
     applicationChange("application.skin.change", "Change skin", (config, input) => ({ ...config, skin: input.skin || config.skin }));
     applicationChange("application.chart.create", "Create chart", (config, input) => {

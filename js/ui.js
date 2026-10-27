@@ -277,6 +277,7 @@ export class UIController {
     this.#bindMobileSheetResize();
     this.#bindMobileActionBar();
     this.#bindMapEvents();
+    document.addEventListener("gismap:chart-panel-settings", (event) => this.#openChartPanelSettings(event.detail?.instanceId));
     this.mapChartOverlays.initialize();
     this.#renderBookmarks();
     this.#renderLayers();
@@ -2195,6 +2196,39 @@ export class UIController {
     this.#closeMenus();
     this.cartographyLab.render(document.querySelector("#utility-lab-content"), uid);
     this.#syncUtilityPanel("lab");
+  }
+
+  /** Standard dialog for moving and sizing a saved chart panel. */
+  #openChartPanelSettings(instanceId) {
+    const config = this.applicationRuntime.snapshot();
+    const panel = config.panels.find((item) => item.instanceId === instanceId && item.type === "charts");
+    if (!panel) return;
+    const placement = panel.placement.region === "floating" ? "floating-top" : panel.placement.region;
+    const initialSize = panel.placement.size?.height <= 240 ? "compact" : panel.placement.size?.height >= 380 ? "expanded" : "regular";
+    const sizeFor = (size) => size === "compact" ? { width: 360, height: 220 } : size === "expanded" ? { width: 620, height: 420 } : { width: 460, height: 300 };
+    this.openDialog({
+      eyebrow: "Chart panel",
+      title: "Chart panel settings",
+      content: `<section class="chart-panel-settings"><p class="form-note">Choose where this chart sits in the workspace. Top overlay panels can be dragged and resized directly on the map.</p><div class="field-grid"><label class="field"><span>Placement</span><select data-chart-panel-placement><option value="right"${placement === "right" ? " selected" : ""}>Right side</option><option value="left"${placement === "left" ? " selected" : ""}>Left side</option><option value="bottom"${placement === "bottom" ? " selected" : ""}>Bottom strip</option><option value="floating-top"${placement === "floating-top" ? " selected" : ""}>Top overlay</option></select></label><label class="field"><span>Panel size</span><select data-chart-panel-size><option value="compact"${initialSize === "compact" ? " selected" : ""}>Compact</option><option value="regular"${initialSize === "regular" ? " selected" : ""}>Regular</option><option value="expanded"${initialSize === "expanded" ? " selected" : ""}>Expanded</option></select></label></div></section>`,
+      actions: [
+        { label: "Cancel", handler: () => this.dialog.close() },
+        { label: "Apply", primary: true, handler: async () => {
+          const nextPlacement = this.dialog.querySelector("[data-chart-panel-placement]").value;
+          const size = sizeFor(this.dialog.querySelector("[data-chart-panel-size]").value);
+          const region = nextPlacement === "floating-top" ? "floating" : nextPlacement;
+          const position = nextPlacement === "floating-top"
+            ? { x: Math.max(16, Math.round((window.innerWidth - size.width) / 2)), y: 76 }
+            : panel.placement.position;
+          await this.applicationRuntime.runTool("application.layout.change", {
+            instanceId,
+            placement: { region, size, ...(position ? { position } : {}) },
+            ...(region === "bottom" ? { layout: { bottomHeight: size.height } } : {}),
+          });
+          this.dialog.close();
+          this.toast("Chart panel settings applied.");
+        } },
+      ],
+    });
   }
 
   /** Tools › Chart tools: one layer-aware builder with family presets. */
