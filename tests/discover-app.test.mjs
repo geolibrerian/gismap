@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile, stat } from 'node:fs/promises';
 
-const routes = ['/', '/examples/', '/learn/', '/ai/', '/data/', '/demos/', '/about/', '/get-involved/'];
+const routes = ['/', '/examples/', '/engines/', '/learn/', '/ai/', '/data/', '/demos/', '/about/', '/get-involved/'];
 
 test('Discover is a standalone static application with all public routes', async () => {
   const root = new URL('../discover/', import.meta.url);
@@ -38,4 +38,6 @@ test('Examples lead with visual, styled map starting points', async () => {
   assert.match(page, /example-art--fire/);
   assert.match(page, /Open styled map/);
   assert.match(page, /cinematic-ready/);
+  assert.match(page, /engine=arcgis/);
+  assert.match(page, /engine=maplibre/);
 });
