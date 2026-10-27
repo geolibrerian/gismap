@@ -1228,6 +1228,10 @@ export class UIController {
     return /(?:^#|&)(?:map|briefing|tour|fieldTask|fieldNote|at)=/.test(location.hash);
   }
 
+  #welcomeIsExplicitlyRequested() {
+    return new URLSearchParams(location.search).get("welcome") === "1";
+  }
+
   #readWelcomePreference() {
     try {
       const stored = JSON.parse(localStorage.getItem(WELCOME_PREFERENCE_KEY) || "null");
@@ -1246,10 +1250,12 @@ export class UIController {
     const panel = document.querySelector("#welcome-panel");
     if (!panel) return;
     const preference = this.#readWelcomePreference();
-    const launchSuppressed = this.#welcomeIsSharedLaunch();
+    const explicitlyRequested = this.#welcomeIsExplicitlyRequested();
+    const launchSuppressed = !explicitlyRequested && this.#welcomeIsSharedLaunch();
     panel.dataset.dismissed = preference.dismissed ? "true" : "false";
     panel.dataset.launchSuppressed = launchSuppressed ? "true" : "false";
-    panel.hidden = preference.dismissed || launchSuppressed;
+    if (explicitlyRequested) panel.dataset.reopened = "true";
+    panel.hidden = !explicitlyRequested && (preference.dismissed || launchSuppressed);
     const input = document.querySelector("#welcome-suppress");
     if (input) input.checked = preference.dismissed;
   }

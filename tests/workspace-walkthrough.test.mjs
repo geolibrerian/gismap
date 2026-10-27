@@ -80,6 +80,8 @@ test('the compact welcome panel launches the separate discovery experience', asy
   assert.match(welcome, /id="welcome-suppress"/);
   assert.match(ui, /WELCOME_PREFERENCE_KEY = "gismap\.welcome\.v1"/);
   assert.match(ui, /#welcomeIsSharedLaunch\(\)/);
+  assert.match(ui, /#welcomeIsExplicitlyRequested\(\)/);
+  assert.match(ui, /get\("welcome"\) === "1"/);
   assert.match(ui, /#configureWelcomeStartup\(\)/);
   assert.match(ui, /host\.hidden = suppressed \|\| !context\.layer/);
   assert.match(css, /\.welcome-panel \{[^}]*top: 50%; left: 50%/);
