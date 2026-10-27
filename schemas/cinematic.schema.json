@@ -60,7 +60,7 @@
                     "type": "object",
                     "description": "Decorative animation drawn on observed geometry; never data. 'auto' picks one from the layer title, geometry and fields.",
                     "properties": {
-                      "type": { "enum": ["auto", "none", "glow", "fire", "pulse", "wind", "water", "flow", "traffic", "trains", "extrude", "reveal"] },
+                      "type": { "enum": ["auto", "none", "glow", "fire", "pulse", "wind", "snow", "lightning", "tornado", "hurricane", "storm", "water", "water-flow", "flow", "electricity", "traffic", "trains", "sailboats", "ships", "birds", "drones", "airplanes", "helicopters", "extrude", "reveal"] },
                       "color": { "type": ["string", "null"], "pattern": "^#[0-9a-fA-F]{6}$" },
                       "intensity": { "type": "number", "minimum": 0.25, "maximum": 2 },
                       "field": { "type": "string", "maxLength": 160 }

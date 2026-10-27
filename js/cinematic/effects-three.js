@@ -4,7 +4,7 @@
 // zoom 16, and whose motion reads one continuous clock, so stepping to the next
 // observation never restarts a flame or a ripple. Newly observed features
 // (`fresh`) flare when they appear; older ones in a build-up settle down.
-import { CINEMATIC_EFFECTS, EFFECT_QUALITY, effectFields, effectFrame, effectParts, particleSeeds, partsBounds, quadBuffers, ribbonBuffers } from "./cinematic-effects.js?v=0.2.5";
+import { CINEMATIC_EFFECTS, EFFECT_QUALITY, effectFields, effectFrame, effectParts, particleSeeds, partsBounds, quadBuffers, ribbonBuffers } from "./cinematic-effects.js?v=0.2.7";
 import { trackTime } from "./clock.js?v=0.1.0";
 
 const EPOCH = globalThis.performance?.now?.() ?? 0;
@@ -201,6 +201,63 @@ void main() {
   col = mix(uColor * 0.8, col, body);
   ${OUTPUT}
 }`,
+  // A bright, broken pulse that races along a line. The short gaps and tiny
+  // forks read as energy without claiming a measured electrical quantity.
+  electricity: /* glsl */ `
+varying float vSide, vDistPx, vFresh, vSeed;
+void main() {
+  float d = abs(vSide);
+  float phase = fract((vDistPx - uTime * uSpeed) / uSpacing + vSeed);
+  float bolt = smoothstep(0.08, 0.22, phase) * smoothstep(0.72, 0.48, phase);
+  float jag = noise(vec2(vDistPx * 0.08, floor(uTime * 8.0) + vSeed * 21.0));
+  float strand = exp(-pow((vSide + (jag - 0.5) * 0.36) * 4.5, 2.0));
+  float spark = exp(-pow((phase - 0.64) * 15.0, 2.0)) * exp(-d * d * 7.0);
+  vec3 col = mix(uColor, vec3(1.0), clamp(bolt + spark, 0.0, 1.0));
+  float a = clamp((bolt * strand * 1.35 + spark + exp(-d * d * 20.0) * 0.12), 0.0, 1.0) * uIntensity * uOpacity;
+  ${OUTPUT}
+}`,
+  // Small sailing silhouettes with a triangular white sail. These travel on
+  // the supplied line, never assert vessel location, heading, or speed.
+  sailboats: /* glsl */ `
+varying float vSide, vDistPx, vSeed;
+void main() {
+  float d = abs(vSide), s = fract((vDistPx - uTime * uSpeed) / uSpacing + vSeed);
+  float x = (s - 0.5) * 6.0;
+  float hull = smoothstep(0.12, 0.02, abs(vSide + 0.34)) * smoothstep(1.0, 0.65, abs(x));
+  float sail = step(-0.2, vSide) * smoothstep(0.75, 0.05, abs(vSide - 0.25) + abs(x) * 0.28) * smoothstep(1.1, 0.7, abs(x));
+  float boat = (hull + sail) * smoothstep(0.50, 0.44, abs(s - 0.5));
+  vec3 col = mix(uColor * 0.55, vec3(1.0), sail);
+  float a = clamp(boat + 0.08 * exp(-d * d * 12.0), 0.0, 1.0) * uIntensity * uOpacity;
+  ${OUTPUT}
+}`,
+  // Broader merchant-vessel marks, including a warm bridge light. The route
+  // itself remains the observed geometry; the ship is intentionally symbolic.
+  ships: /* glsl */ `
+varying float vSide, vDistPx, vSeed;
+void main() {
+  float d = abs(vSide), s = fract((vDistPx - uTime * uSpeed) / uSpacing + vSeed);
+  float x = (s - 0.5) * 5.0;
+  float hull = smoothstep(0.30, 0.08, abs(vSide)) * smoothstep(1.0, 0.60, abs(x));
+  float bridge = smoothstep(0.22, 0.05, abs(vSide - 0.33)) * smoothstep(0.5, 0.10, abs(x + 0.25));
+  float present = smoothstep(0.49, 0.42, abs(s - 0.5));
+  vec3 col = mix(uColor * 0.45, vec3(1.0, 0.78, 0.38), bridge);
+  float a = clamp((hull + bridge) * present + 0.05 * exp(-d * d * 10.0), 0.0, 1.0) * uIntensity * uOpacity;
+  ${OUTPUT}
+}`,
+  // A generic airborne marker used by the four flight presets. It moves along
+  // a supplied corridor; point layers use the matching flight-point glyph.
+  flight: /* glsl */ `
+varying float vSide, vDistPx, vSeed;
+void main() {
+  float d = abs(vSide), s = fract((vDistPx - uTime * uSpeed) / uSpacing + vSeed);
+  float x = (s - 0.5) * 6.0;
+  float fuselage = smoothstep(0.13, 0.03, abs(vSide)) * smoothstep(1.0, 0.5, abs(x));
+  float wings = smoothstep(0.12, 0.02, abs(x + 0.08)) * smoothstep(0.80, 0.25, abs(vSide));
+  float present = smoothstep(0.50, 0.43, abs(s - 0.5));
+  vec3 col = mix(uColor, vec3(1.0), fuselage * 0.45);
+  float a = clamp((fuselage + wings) * present + 0.04 * exp(-d * d * 10.0), 0.0, 1.0) * uIntensity * uOpacity;
+  ${OUTPUT}
+}`,
   // Comets running along the line in its drawn order over a faint base line.
   flow: /* glsl */ `
 varying float vSide, vDistPx, vFresh, vSeed;
@@ -280,6 +337,64 @@ void main() {
   a *= smoothstep(0.0, 0.18, s) * smoothstep(1.0, 0.8, s) * gust * mix(0.4, 1.0, vFresh);
   vec3 col = mix(uColor, vec3(0.92, 0.98, 1.0), clamp(a - 0.4, 0.0, 1.0));
   a = clamp(a, 0.0, 1.0) * uIntensity * uOpacity;
+  ${OUTPUT}
+}`,
+  snow: /* glsl */ `
+varying vec2 vCorner; varying float vSpeed, vSeed;
+void main() {
+  vec2 q = vCorner;
+  float a = 0.0;
+  for (int k = 0; k < 9; k++) {
+    float fk = float(k);
+    vec2 p = vec2(hash(vec2(fk, vSeed)) * 1.8 - 0.9, fract(uTime * (0.18 + hash(vec2(vSeed, fk)) * 0.25) + hash(vec2(fk, 11.0))) * 2.0 - 1.0);
+    p.x += sin(uTime * 1.6 + fk * 7.0) * 0.16;
+    a += exp(-dot(q - p, q - p) * 240.0);
+  }
+  vec3 col = mix(uColor, vec3(1.0), 0.7);
+  a = clamp(a, 0.0, 1.0) * uIntensity * uOpacity;
+  ${OUTPUT}
+}`,
+  lightning: /* glsl */ `
+varying vec2 vCorner; varying float vSeed;
+void main() {
+  float flash = step(0.91, fract(uTime * (0.55 + vSeed * 0.35) + vSeed));
+  float x = vCorner.x - sin(vCorner.y * 18.0 + vSeed * 30.0) * 0.12 - sin(vCorner.y * 47.0) * 0.04;
+  float bolt = exp(-x * x * 850.0) * smoothstep(-0.92, 0.65, vCorner.y) * smoothstep(0.98, 0.70, vCorner.y);
+  float branch = exp(-pow(vCorner.x + vCorner.y * 0.32, 2.0) * 700.0) * smoothstep(-0.15, -0.45, vCorner.y);
+  vec3 col = mix(uColor, vec3(1.0), 0.85);
+  float a = clamp((bolt + branch) * flash * 1.35, 0.0, 1.0) * uIntensity * uOpacity;
+  ${OUTPUT}
+}`,
+  tornado: /* glsl */ `
+varying vec2 vCorner; varying float vSeed;
+void main() {
+  vec2 q = vCorner; float y = q.y * 0.5 + 0.5;
+  float width = mix(0.10, 0.65, y) * (0.8 + 0.2 * sin(uTime * 2.0 + vSeed * 8.0));
+  float spiral = sin(atan(q.y, q.x) * 5.0 - uTime * 4.0 + y * 15.0) * 0.5 + 0.5;
+  float funnel = smoothstep(width, width * 0.55, abs(q.x)) * smoothstep(-0.92, 0.85, q.y) * (0.35 + 0.65 * spiral);
+  vec3 col = mix(uColor * 0.55, vec3(0.92), y);
+  float a = clamp(funnel * 0.72, 0.0, 1.0) * uIntensity * uOpacity;
+  ${OUTPUT}
+}`,
+  hurricane: /* glsl */ `
+varying vec2 vCorner; varying float vSeed;
+void main() {
+  float r = length(vCorner), a = atan(vCorner.y, vCorner.x);
+  float spiral = abs(sin(a * 2.0 + r * 18.0 - uTime * 1.8 + vSeed * 6.0));
+  float band = smoothstep(0.94, 0.54, r) * smoothstep(0.18, 0.28, r) * smoothstep(0.72, 0.93, spiral);
+  float eye = smoothstep(0.18, 0.28, r) * exp(-r * r * 8.0);
+  vec3 col = mix(uColor * 0.55, vec3(0.95), band);
+  float alpha = clamp(band * 0.88 + eye * 0.12, 0.0, 1.0) * uIntensity * uOpacity;
+  gl_FragColor = vec4(col * alpha, alpha);
+}`,
+  storm: /* glsl */ `
+varying vec2 vCorner; varying float vSeed;
+void main() {
+  float r = length(vCorner); if (r > 1.0) discard;
+  float cloud = fbm(vCorner * 3.5 + vec2(uTime * 0.08, -uTime * 0.04) + vSeed);
+  float rim = exp(-pow(r - 0.72, 2.0) * 38.0) * (0.5 + 0.5 * sin(uTime * 1.3 + vSeed * 9.0));
+  vec3 col = mix(uColor * 0.32, uColor, cloud) + rim * vec3(0.42, 0.55, 1.0);
+  float a = clamp((0.15 + cloud * 0.5 + rim * 0.5) * smoothstep(1.0, 0.78, r), 0.0, 1.0) * uIntensity * uOpacity;
   ${OUTPUT}
 }`,
   // Moving caustic ridges over a deep-to-shallow tint.
@@ -542,6 +657,12 @@ export function buildCinematicEffect(THREE, items, { effect = "glow", color, int
     add(parts.polygons.length && waterFill(THREE, uniforms, parts.polygons, frame), 0);
     add(ribbonMesh("flow", { uWidth: 7, uSpeed: 28, uSpacing: 60, uColor: "#bfefff" }), 1);
     add(quadMesh("pulse", { uRadius: 30, uPalette: 1, uRate: 0.18 }), 1);
+  } else if (effect === "water-flow") {
+    add(ribbonMesh("flow", { uWidth: 11, uSpeed: 64, uSpacing: 130, uColor: "#4dcaff", uAdd: 0.24 }), 1);
+    add(quadMesh("pulse", { uRadius: 18, uPalette: 1, uRate: 0.24 }), 1);
+  } else if (effect === "electricity") {
+    add(ribbonMesh("electricity", { uWidth: 9, uSpeed: 180, uSpacing: 96, uAdd: 0.5 }), 1);
+    add(quadMesh("spot", { uRadius: 13, uColor: "#d9fbff" }), 1);
   } else if (effect === "traffic") {
     add(ribbonMesh("traffic", { uWidth: 10, uSpeed: 55, uSpacing: 70, uAdd: 0.08 }), 1);
     add(quadMesh("spot", { uRadius: 12 }), 1);
@@ -549,6 +670,28 @@ export function buildCinematicEffect(THREE, items, { effect = "glow", color, int
     add(ribbonMesh("trains", { uWidth: 9, uSpeed: 42, uSpacing: 520, uAdd: 0.06 }), 1);
     // Stations (points on the layer) glow softly.
     add(quadMesh("spot", { uRadius: 14 }), 1);
+  } else if (effect === "sailboats") {
+    add(ribbonMesh("sailboats", { uWidth: 13, uSpeed: 18, uSpacing: 260, uAdd: 0.08 }), 1);
+    add(quadMesh("spot", { uRadius: 18 }), 1);
+  } else if (effect === "ships") {
+    add(ribbonMesh("ships", { uWidth: 14, uSpeed: 24, uSpacing: 480, uAdd: 0.08 }), 1);
+    add(quadMesh("spot", { uRadius: 20 }), 1);
+  } else if (["birds", "drones", "airplanes", "helicopters"].includes(effect)) {
+    const flight = {
+      birds: { speed: 55, spacing: 160, width: 9, radius: 18 },
+      drones: { speed: 34, spacing: 220, width: 9, radius: 17 },
+      airplanes: { speed: 150, spacing: 560, width: 11, radius: 24 },
+      helicopters: { speed: 42, spacing: 300, width: 10, radius: 21 },
+    }[effect];
+    add(ribbonMesh("flight", { uWidth: flight.width, uSpeed: flight.speed, uSpacing: flight.spacing, uAdd: 0.1 }), 1);
+    add(quadMesh("spot", { uRadius: flight.radius }), 1);
+  } else if (["snow", "lightning", "tornado", "hurricane", "storm"].includes(effect)) {
+    const weather = {
+      snow: { radius: 28, stretch: 1.1 }, lightning: { radius: 38, stretch: 1.35 }, tornado: { radius: 34, stretch: 1.15 }, hurricane: { radius: 42, stretch: 1 }, storm: { radius: 38, stretch: 1 },
+    }[effect];
+    add(quadMesh(effect, { uRadius: weather.radius, uStretch: weather.stretch, uAdd: 0.2 }), 1);
+    // Weather line layers retain a subtle motion direction as context.
+    add(ribbonMesh(effect === "snow" ? "flow" : "glow", { uWidth: 8, uSpeed: 50, uSpacing: 110, uAdd: 0.18 }), 1);
   } else if (effect === "flow") {
     add(ribbonMesh("flow", { uWidth: 10, uSpeed: 90, uSpacing: 160, uAdd: 0.3 }), 1);
     add(quadMesh("spot", { uRadius: 16 }), 1);

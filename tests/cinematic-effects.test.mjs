@@ -163,7 +163,10 @@ test("roads get Traffic: car lights both ways, labelled as styling", async () =>
   assert.equal(catalog.traffic.label, "Traffic");
   assert.match(catalog.traffic.note, /not measured traffic/);
   for (const title of ["Major roads", "Street centerlines", "Interstate highways", "Traffic counts (AADT)"]) assert.equal(suggest({ title, geometryType: "polyline" }), "traffic", title);
-  assert.equal(suggest({ title: "Transmission lines", geometryType: "polyline" }), "flow", "other lines keep Flow");
+  assert.equal(suggest({ title: "Transmission lines", geometryType: "polyline" }), "electricity", "utility lines get Electric flow");
+  assert.equal(suggest({ title: "Pacific shipping lanes", geometryType: "polyline" }), "ships");
+  assert.equal(suggest({ title: "Airport flight corridors", geometryType: "polyline" }), "airplanes");
+  assert.equal(suggest({ title: "Tornado reports", geometryType: "point" }), "tornado");
   assert.notEqual(suggest({ title: "Traffic cameras", geometryType: "point" }), "traffic", "traffic points are not roads");
   assert.equal(resolve("traffic"), "traffic");
   assert.deepEqual(normalizeLayerEffect({ type: "traffic" }), { type: "traffic", intensity: 1, color: null });
@@ -172,6 +175,16 @@ test("roads get Traffic: car lights both ways, labelled as styling", async () =>
   const { recommendAnimations } = await import("../js/cinematic/recommend.js");
   const first = recommendAnimations({ title: "Major roads", geometryType: "polyline", fields: [] })[0];
   assert.deepEqual([first.effect, first.kind, first.provenance], ["traffic", "none", "illustrative"]);
+});
+
+test("the expanded effects catalogue is categorized and remains explicitly illustrative", async () => {
+  const { CINEMATIC_EFFECTS: catalog, CINEMATIC_EFFECT_CATEGORIES: categories } = await import("../js/cinematic/cinematic-effects.js");
+  for (const key of ["snow", "lightning", "tornado", "hurricane", "storm", "water-flow", "electricity", "sailboats", "ships", "birds", "drones", "airplanes", "helicopters"]) {
+    assert.ok(catalog[key], key);
+    assert.ok(categories.includes(catalog[key].category), `${key} category`);
+    assert.match(catalog[key].note, /not|decorative|illustrative/i, `${key} disclosure`);
+  }
+  assert.deepEqual([...new Set(categories)], categories, "categories are unique and menu-ready");
 });
 
 test("rail and transit lines get Trains, labelled as not real positions", async () => {

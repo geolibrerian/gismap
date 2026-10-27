@@ -2,7 +2,7 @@
 // Rules only (no AI): geometry, field names/types and the layer's title. A
 // Timeline is offered only when a real date field exists; without one the
 // suggestions are Ambient loops or a Scenario sweep, never an invented date.
-import { effectFields, suggestEffect, valueField } from "./cinematic-effects.js?v=0.2.5";
+import { CINEMATIC_EFFECTS, effectFields, suggestEffect, valueField } from "./cinematic-effects.js?v=0.2.7";
 import { numericFieldCandidates, temporalFieldCandidates } from "./temporal-adapter.js?v=0.3.1";
 
 const geometryOf = (layer) => (/point/i.test(layer?.geometryType || "") ? "point" : /line/i.test(layer?.geometryType || "") ? "line" : /polygon/i.test(layer?.geometryType || "") ? "polygon" : "");
@@ -36,6 +36,19 @@ export function recommendAnimations(layer = {}, { sample = {} } = {}) {
     add({ id: "ambient-trains", kind: "none", effect: "trains", label: "Ambient: trains along the lines", provenance: "illustrative",
       reason: "A rail or transit network suits trains running both ways along each line. They are not real vehicle positions or timetables." });
   }
+  if (geometry === "line" && themed === "electricity") {
+    add({ id: "ambient-electricity", kind: "none", effect: "electricity", label: "Ambient: electric flow along the lines", provenance: "illustrative",
+      reason: "Utility lines suit decorative energy pulses. They do not show measured voltage, load, direction, or outages." });
+  }
+  if (geometry === "line" && ["sailboats", "ships"].includes(themed)) {
+    const vessel = themed === "sailboats" ? "sailboats" : "ships";
+    add({ id: `ambient-${themed}`, kind: "none", effect: themed, label: `Ambient: ${vessel} along the routes`, provenance: "illustrative",
+      reason: `The named water routes suit symbolic ${vessel}; they are not observed vessel positions, AIS tracks, or schedules.` });
+  }
+  if (geometry === "line" && ["birds", "drones", "airplanes", "helicopters"].includes(themed)) {
+    add({ id: `ambient-${themed}`, kind: "none", effect: themed, label: `Ambient: ${themed} along the routes`, provenance: "illustrative",
+      reason: `The line geometry can host symbolic ${themed}; their movement is decorative unless the layer is an observed track dataset.` });
+  }
   if (geometry === "line" && themed === "traffic") {
     add({ id: "ambient-traffic", kind: "none", effect: "traffic", label: "Ambient: traffic along the roads", provenance: "illustrative",
       reason: "A road network suits car lights moving both ways along each road. Their speed and spacing are styling, not measured traffic." });
@@ -50,8 +63,10 @@ export function recommendAnimations(layer = {}, { sample = {} } = {}) {
   }
   if (geometry === "point") {
     const pulse = found.magnitude ? ` sized by ${found.magnitude}` : "";
-    add({ id: `ambient-${themed === "extrude" ? "pulse" : themed === "glow" ? "pulse" : themed}`, kind: "none", effect: themed === "glow" || themed === "extrude" ? "pulse" : themed, label: `Ambient: ${themed === "wind" ? "wind streaks" : "pulsing points"}`, provenance: "illustrative",
-      reason: `Points without a timeline can pulse in place${pulse}, all at once and looping.` });
+    const effect = themed === "glow" || themed === "extrude" ? "pulse" : themed;
+    const label = effect === "wind" ? "wind streaks" : ["snow", "lightning", "tornado", "hurricane", "storm"].includes(effect) ? CINEMATIC_EFFECTS?.[effect]?.label || effect : "pulsing points";
+    add({ id: `ambient-${effect}`, kind: "none", effect, label: `Ambient: ${label}`, provenance: "illustrative",
+      reason: `Points without a timeline can animate in place${pulse}, with a clear illustrative label.` });
   }
   if (numbers.length && !dates.length) {
     const sweep = numbers.find((field) => field.name === value) || numbers[0];

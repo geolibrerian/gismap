@@ -45,7 +45,7 @@ import { CONTEXT_ACTIONS, createSuggestionPreferences, deriveWorkspace, executeC
 import { BRIEFING_WALKTHROUGH_STEPS, CINEMATIC_WALKTHROUGH_STEPS, startWorkspaceWalkthrough, waitForWalkthroughTarget } from "./workspace-walkthrough.js?v=0.58.0-cinematic1";
 import { chooseHurricaneLayer, createHazardsExampleBriefing } from "./example-hazards-briefing.js?v=0.60.0-media1";
 import { CinematicModeController } from "./cinematic/mode.js?v=0.3.11";
-import { CINEMATIC_EFFECTS, suggestEffect } from "./cinematic/cinematic-effects.js?v=0.2.5";
+import { CINEMATIC_EFFECTS, CINEMATIC_EFFECT_CATEGORIES, suggestEffect } from "./cinematic/cinematic-effects.js?v=0.2.7";
 import { PROVENANCE_STATUSES } from "./cinematic/clock.js?v=0.1.0";
 import { recommendAnimations } from "./cinematic/recommend.js?v=0.1.3";
 
@@ -4500,8 +4500,10 @@ export class UIController {
   }
 
   #cinematicEffectOptions(selected, suggested) {
-    const options = [["auto", `Auto · ${CINEMATIC_EFFECTS[suggested]?.label || "Glow"}`], ...Object.entries(CINEMATIC_EFFECTS).map(([type, { label }]) => [type, label])];
-    return options.map(([type, label]) => `<option value="${type}"${type === selected ? " selected" : ""}>${escapeHtml(label)}</option>`).join("");
+    const one = (type, label) => `<option value="${type}"${type === selected ? " selected" : ""}>${escapeHtml(label)}</option>`;
+    return one("auto", `Auto · ${CINEMATIC_EFFECTS[suggested]?.label || "Glow"}`)
+      + one("none", "None")
+      + CINEMATIC_EFFECT_CATEGORIES.map((category) => `<optgroup label="${escapeHtml(category)}">${Object.entries(CINEMATIC_EFFECTS).filter(([type, effect]) => type !== "none" && effect.category === category).map(([type, effect]) => one(type, effect.label)).join("")}</optgroup>`).join("");
   }
 
   #rememberCinematicDisclosureState(root = document) {

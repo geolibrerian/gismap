@@ -4,14 +4,14 @@ import { recommendAnimations } from "../js/cinematic/recommend.js";
 
 const ids = (list) => list.map((item) => item.id);
 
-test("a line layer with no date field gets Ambient Flow first, and no Timeline", () => {
+test("utility lines with no date field get Ambient Electric flow first, and no Timeline", () => {
   const lines = { title: "Transmission lines", geometryType: "polyline", fields: [{ name: "OBJECTID", type: "esriFieldTypeOID" }, { name: "VOLTAGE", type: "esriFieldTypeDouble" }] };
   const suggestions = recommendAnimations(lines);
-  assert.equal(suggestions[0].id, "ambient-flow");
+  assert.equal(suggestions[0].id, "ambient-electricity");
   assert.equal(suggestions[0].kind, "none");
   assert.equal(suggestions[0].provenance, "illustrative");
   assert.ok(!suggestions.some((item) => item.kind === "time"), "no Timeline without real dates");
-  assert.match(suggestions[0].reason, /not a measured flow/);
+  assert.match(suggestions[0].reason, /do not show measured voltage/);
 });
 
 test("dated points lead with an observed Timeline; statistical areas rise to their value", () => {
