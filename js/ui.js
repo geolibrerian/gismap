@@ -45,7 +45,7 @@ import { CartographyLab } from "./cartography-lab.js?v=0.60.0-media1";
 import { CONTEXT_ACTIONS, createSuggestionPreferences, deriveWorkspace, executeContextAction, suggestionKey, summarizeFeature } from "./contextual-workspace.js?v=6";
 import { BRIEFING_WALKTHROUGH_STEPS, CINEMATIC_WALKTHROUGH_STEPS, createExampleWalkthroughSteps, startWorkspaceWalkthrough, waitForWalkthroughTarget } from "./workspace-walkthrough.js?v=0.61.1-example-guide";
 import { chooseHurricaneLayer, createHazardsExampleBriefing } from "./example-hazards-briefing.js?v=0.60.0-media1";
-import { CinematicModeController } from "./cinematic/mode.js?v=0.3.13-fire-points";
+import { CinematicModeController } from "./cinematic/mode.js?v=0.3.14-cinematic-cleanup";
 import { CINEMATIC_EFFECTS, CINEMATIC_EFFECT_CATEGORIES, suggestEffect } from "./cinematic/cinematic-effects.js?v=0.2.8";
 import { PROVENANCE_STATUSES } from "./cinematic/clock.js?v=0.1.0";
 import { recommendAnimations } from "./cinematic/recommend.js?v=0.1.3";
@@ -931,6 +931,20 @@ export class UIController {
     ["layer:added", "layer:removed", "layer:changed", "layers:reset"].forEach((topic) =>
       this.events.subscribe(topic, () => this.#renderLayers()),
     );
+    // Cinematic owns separate, transient effect IDs. A layer delete must tell
+    // it to release those IDs before a Three.js overlay can outlive its source.
+    this.events.subscribe("layer:removed", ({ uid } = {}) => {
+      if (!uid) return;
+      void this.cinematicController.removeDeletedLayer(uid).then((removed) => {
+        if (!removed) return;
+        const cinematic = this.cinematicController.exportCinematicSpec()?.cinematic;
+        if (cinematic) this.projectManager.patchPresentation({ cinematic });
+        else if (this.projectManager.current.presentation?.template === "cinematic") {
+          this.projectManager.setPresentation({ ...this.projectManager.current.presentation, template: "standard", primaryLayerId: null, cinematic: null });
+          this.toast("The final cinematic layer was removed, so Cinematic mode has closed.");
+        }
+      }).catch((error) => this.error(`Could not clear the cinematic layer: ${error.message}`));
+    });
     // Removing the layer a briefing (or other mode) was built on drops its feature context, dock and
     // Slide workspace; the mode then shows "Start with a dataset". The slides stay with the project.
     this.events.subscribe("layer:removed", ({ uid } = {}) => {

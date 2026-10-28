@@ -146,6 +146,10 @@ function layerHandle(record) {
 
 export class MaplibreEngine {
   #records = new Map();
+  // Each asynchronous effect build receives a revision. Clearing or replacing
+  // an effect advances it, so a late module/shader load cannot revive a layer
+  // that has already been removed.
+  #cinematicEffectRevisions = new Map();
   #count = 0;
   #loaded = null;
   #styleJson = new Map();
@@ -293,11 +297,14 @@ export class MaplibreEngine {
     // "observed-boundary-glow" is the v0.1 name for the glow effect.
     const name = effect.type === "observed-boundary-glow" ? "glow" : effect.effect;
     if (!id || !["observed-effect", "observed-boundary-glow"].includes(effect.type) || !name || name === "none") return false;
-    if (effect.settled === true) return this.#drawSettledEdges(id, name, effect);
-    if (name === "extrude" || name === "reveal") return this.#drawNativeEffect(id, name, effect);
+    const revision = this.#nextCinematicEffectRevision(id);
+    if (effect.settled === true) return this.#drawSettledEdges(id, name, effect, revision);
+    if (name === "extrude" || name === "reveal") return this.#drawNativeEffect(id, name, effect, revision);
     const THREE = await loadThree();
+    if (!this.#cinematicEffectIsCurrent(id, revision)) return false;
     this.three ??= new ThreeHost({ map: this.map, THREE, notify: (message) => this.events.publish("app:error", { message }) });
     const [{ buildCinematicEffect }, { effectColor }] = await Promise.all([import("../../cinematic/effects-three.js?v=0.2.9-fire-points"), import("../../cinematic/cinematic-effects.js?v=0.2.8")]);
+    if (!this.#cinematicEffectIsCurrent(id, revision)) return false;
     // Decoration is simplified to half a screen pixel at the current zoom; the map draws the exact outline.
     const simplify = Number.isFinite(effect.simplify) ? effect.simplify : 0.5 * 360 / (512 * 2 ** (this.map?.getZoom?.() ?? 0));
     const item = buildCinematicEffect(THREE, effect.items || effect.features || [], {
@@ -308,9 +315,10 @@ export class MaplibreEngine {
       elevationAt: (longitude, latitude) => (this.map?.getTerrain?.() ? this.map.queryTerrainElevation?.([longitude, latitude]) || 0 : 0),
     });
     if (!item) {
-      this.three.remove(id);
+      if (this.#cinematicEffectIsCurrent(id, revision)) this.three.remove(id);
       return false;
     }
+    if (!this.#cinematicEffectIsCurrent(id, revision)) return false;
     this.three.add(id, item);
     return true;
   }
@@ -322,10 +330,20 @@ export class MaplibreEngine {
   }
 
   clearCinematicEffect(uid) {
-    this.three?.remove(String(uid || ""));
-    this.#removeSettledEdges(String(uid || ""));
-    this.#removeNativeEffect(String(uid || ""));
+    const id = String(uid || "");
+    this.#nextCinematicEffectRevision(id);
+    this.three?.remove(id);
+    this.#removeSettledEdges(id);
+    this.#removeNativeEffect(id);
   }
+
+  #nextCinematicEffectRevision(id) {
+    const next = (this.#cinematicEffectRevisions.get(id) || 0) + 1;
+    this.#cinematicEffectRevisions.set(id, next);
+    return next;
+  }
+
+  #cinematicEffectIsCurrent(id, revision) { return this.#cinematicEffectRevisions.get(id) === revision; }
 
   #nativeEffects = new Map();
   #nativeFrame = null;
@@ -336,10 +354,11 @@ export class MaplibreEngine {
    * by order) as plain MapLibre layers. One paint value follows the track's time
    * on the master clock, so pause, seek and export agree; data stay unchanged.
    */
-  async #drawNativeEffect(id, name, effect) {
+  async #drawNativeEffect(id, name, effect, revision) {
     const [{ effectColor, nativeEffectData, valueField, riseAmount, revealAmount }, { effectSeconds, effectClockRunning }, { trackTime, normalizeTiming }] = await Promise.all([
       import("../../cinematic/cinematic-effects.js?v=0.2.8"), import("../../cinematic/effects-three.js?v=0.2.9-fire-points"), import("../../cinematic/clock.js?v=0.1.0"),
     ]);
+    if (!this.#cinematicEffectIsCurrent(id, revision)) return false;
     this.#effectClockRunning = effectClockRunning;
     this.three?.remove(id);
     const items = effect.items || [];
@@ -419,8 +438,9 @@ export class MaplibreEngine {
    * line and circle layers with a soft halo: no custom GL, nothing animating,
    * and far cheaper than shader ribbons for thousands of outlines.
    */
-  async #drawSettledEdges(id, name, effect) {
+  async #drawSettledEdges(id, name, effect, revision) {
     const { effectColor, effectParts } = await import("../../cinematic/cinematic-effects.js?v=0.2.8");
+    if (!this.#cinematicEffectIsCurrent(id, revision)) return false;
     this.three?.remove(id);
     const simplify = Number.isFinite(effect.simplify) ? effect.simplify : 0.5 * 360 / (512 * 2 ** (this.map?.getZoom?.() ?? 0));
     const parts = effectParts(effect.items || [], { maxPaths: 20000, maxVertices: 400000, maxPoints: 20000, simplify });

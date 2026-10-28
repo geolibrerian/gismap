@@ -114,14 +114,50 @@ export class CinematicModeController {
     return true;
   }
 
+  /**
+   * A map layer can be deleted from the Layers panel while it is a cinematic
+   * track. Its MapLibre source has already gone at that point, so restoring a
+   * filter or opacity is neither useful nor safe. Remove just the controller's
+   * transient overlays and forget the track instead.
+   */
+  async removeDeletedLayer(layerUid) {
+    const entry = this.layers.get(layerUid);
+    if (!entry) return false;
+    // Finish any queued render before clearing its effect IDs. This keeps a
+    // pending shader build from surviving the deletion cleanup.
+    await this.renderTask?.catch(() => {});
+    if (!this.layers.has(layerUid)) return false;
+    this.pendingSnapshot = null;
+    await this.#clearTrackEffects(entry);
+    this.layers.delete(layerUid);
+    this.localModels.delete(layerUid);
+    if (this.spec) this.spec.cinematic.layers = this.spec.cinematic.layers.filter((config) => config !== entry.config);
+    if (!this.layers.size) {
+      if (this.effectsClock) { setEffectClock(null); this.effectsClock = null; }
+      this.unsubscribe?.(); this.unsubscribe = null;
+      this.timeline?.destroy(); this.timeline = null;
+      this.localWindow = false; this.localEmpty = false;
+      this.spec = null;
+      this.renderedObservationTime = null; this.renderedTimeMode = null;
+      this.onState(this.state());
+      return true;
+    }
+    this.#resetTimeline();
+    await this.renderTask;
+    return true;
+  }
+
   async #restoreLayer({ layer, effectUid, previousFilter, previousOpacity }) {
     await attempt(() => this.mapController.setFeatureFilter(layer.uid, previousFilter), false);
     await attempt(() => this.mapController.setOpacity(layer.uid, previousOpacity), false);
     await attempt(() => this.mapController.suspendLayerEffect?.(layer.uid, false), false);
-    if (typeof this.mapController.clearCinematicEffect === "function") {
-      await attempt(() => this.mapController.clearCinematicEffect(effectUid), false);
-      await attempt(() => this.mapController.clearCinematicEffect(`${effectUid}:settled`), false);
-    }
+    await this.#clearTrackEffects({ effectUid });
+  }
+
+  async #clearTrackEffects({ effectUid }) {
+    if (typeof this.mapController.clearCinematicEffect !== "function") return;
+    await attempt(() => this.mapController.clearCinematicEffect(effectUid), false);
+    await attempt(() => this.mapController.clearCinematicEffect(`${effectUid}:settled`), false);
   }
 
   /** An Ambient track beside a stepping one: always fully shown, its effect looping. */

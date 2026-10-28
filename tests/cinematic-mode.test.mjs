@@ -66,6 +66,27 @@ test("cinematic mode applies transient observed IDs and restores the prior filte
   assert.equal(opacity.at(-1), 0.8);
 });
 
+test("deleting a cinematic source clears its transient effects and ends a one-layer scene", async () => {
+  let exists = true;
+  const cleared = [];
+  const layer = { uid: "fires", title: "Fires", queryable: true, objectIdField: "OBJECTID", fields: [] };
+  const mapController = {
+    getLayer: () => (exists ? layer : null), getFeatureFilter: async () => null,
+    setFeatureFilter: async () => true, setOpacity: async () => {},
+    queryFeatures: async () => ({ features: [{ attributes: { OBJECTID: 1 }, geometry: { type: "Point", coordinates: [0, 0] } }] }),
+    setCinematicEffect: async () => true,
+    clearCinematicEffect: (uid) => { cleared.push(uid); },
+  };
+  const mode = new CinematicModeController({ mapController });
+  await mode.load({ cinematic: { id: "fire-scene", layers: [{ layerRef: "fires", temporal: { kind: "none" }, animation: { effect: { type: "fire" } } }] } });
+  cleared.length = 0;
+  exists = false;
+  assert.equal(await mode.removeDeletedLayer("fires"), true);
+  assert.deepEqual(cleared, ["cinematic:fire-scene:fires", "cinematic:fire-scene:fires:settled"]);
+  assert.equal(mode.state().spec, null);
+  assert.deepEqual(mode.state().layers, []);
+});
+
 test("cinematic mode loads every page so playback starts at the earliest record", async () => {
   // A newest-first feed of 25 records served 10 at a time.
   const rows = Array.from({ length: 25 }, (_, index) => ({ attributes: { OBJECTID: index + 1, time: Date.UTC(2026, 8, 1 + index) }, geometry: { type: "Point", coordinates: [0, 0] } })).reverse();
