@@ -297,7 +297,7 @@ export class MaplibreEngine {
     if (name === "extrude" || name === "reveal") return this.#drawNativeEffect(id, name, effect);
     const THREE = await loadThree();
     this.three ??= new ThreeHost({ map: this.map, THREE, notify: (message) => this.events.publish("app:error", { message }) });
-    const [{ buildCinematicEffect }, { effectColor }] = await Promise.all([import("../../cinematic/effects-three.js?v=0.2.8"), import("../../cinematic/cinematic-effects.js?v=0.2.8")]);
+    const [{ buildCinematicEffect }, { effectColor }] = await Promise.all([import("../../cinematic/effects-three.js?v=0.2.9-fire-points"), import("../../cinematic/cinematic-effects.js?v=0.2.8")]);
     // Decoration is simplified to half a screen pixel at the current zoom; the map draws the exact outline.
     const simplify = Number.isFinite(effect.simplify) ? effect.simplify : 0.5 * 360 / (512 * 2 ** (this.map?.getZoom?.() ?? 0));
     const item = buildCinematicEffect(THREE, effect.items || effect.features || [], {
@@ -338,7 +338,7 @@ export class MaplibreEngine {
    */
   async #drawNativeEffect(id, name, effect) {
     const [{ effectColor, nativeEffectData, valueField, riseAmount, revealAmount }, { effectSeconds, effectClockRunning }, { trackTime, normalizeTiming }] = await Promise.all([
-      import("../../cinematic/cinematic-effects.js?v=0.2.8"), import("../../cinematic/effects-three.js?v=0.2.8"), import("../../cinematic/clock.js?v=0.1.0"),
+      import("../../cinematic/cinematic-effects.js?v=0.2.8"), import("../../cinematic/effects-three.js?v=0.2.9-fire-points"), import("../../cinematic/clock.js?v=0.1.0"),
     ]);
     this.#effectClockRunning = effectClockRunning;
     this.three?.remove(id);

@@ -1,7 +1,15 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import { effectFields, effectFrame, effectParts, particleSeeds, quadBuffers, resolveEffect, resolveQuality, ribbonBuffers, simplifyPath, suggestEffect } from "../js/cinematic/cinematic-effects.js";
 import { normalizeCinematicSpec } from "../js/cinematic/state.js";
+
+test("point fire uses a compact upright flame marker", async () => {
+  const source = await readFile(new URL("../js/cinematic/effects-three.js", import.meta.url), "utf8");
+  assert.match(source, /float y = gl_PointCoord\.y;/);
+  assert.match(source, /float size = uHeight \* \(0\.42 \+ aMagnitude \* 0\.34\)/);
+  assert.match(source, /float outerWidth = 0\.035 \+ 0\.29/);
+});
 
 test("effect parts keep only valid observed coordinates, tagged fresh, within budget", () => {
   const parts = effectParts([

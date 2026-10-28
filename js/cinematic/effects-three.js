@@ -532,7 +532,7 @@ void main() {
 }
 
 function flamePoints(THREE, uniforms, quads) {
-  // One upright camera-facing flame per point (four quad vertices share a point; keep one).
+  // One compact, upright incident flame per point (four quad vertices share a point; keep one).
   const position = [], seed = [], magnitude = [], fresh = [], lngLat = [];
   for (let i = 0; i < quads.position.length / 3; i += 4) {
     position.push(...quads.position.slice(i * 3, i * 3 + 3));
@@ -552,9 +552,12 @@ attribute float aSeed, aMagnitude, aFresh;
 uniform float uPx, uHeight, uDpr, uSince;
 varying float vSeed, vFresh;
 void main() {
-  float size = uHeight * (0.7 + aMagnitude * 0.7) * mix(0.55, 1.0, aFresh) * (1.0 + 0.8 * aFresh * exp(-uSince));
+  // Incident points need a readable marker, not the large fire curtain used
+  // for a perimeter. Keep this intentionally compact so clustered events do
+  // not turn into a field of triangular hats at small map scales.
+  float size = uHeight * (0.42 + aMagnitude * 0.34) * mix(0.64, 1.0, aFresh) * (1.0 + 0.35 * aFresh * exp(-uSince));
   vec3 p = position;
-  p.z += size * 0.42 * uPx;
+  p.z += size * 0.31 * uPx;
   gl_PointSize = size * uDpr;
   vSeed = aSeed; vFresh = aFresh;
   gl_Position = projectionMatrix * modelViewMatrix * vec4(p, 1.0);
@@ -562,15 +565,25 @@ void main() {
     fragmentShader: `${COMMON_UNIFORMS}${NOISE}
 varying float vSeed, vFresh;
 void main() {
-  float y = 1.0 - gl_PointCoord.y;
+  // gl_PointCoord starts at the marker's base. The previous implementation
+  // inverted this axis, tapering points downward into a yellow hat. A real
+  // flame is broad and warm at its base, then narrows to a flickering tip.
+  float y = gl_PointCoord.y;
   float x = gl_PointCoord.x - 0.5;
-  float n = fbm(vec2(x * 3.0 + vSeed * 11.0, y * 2.4 - uTime * 2.6));
-  float sway = (n - 0.5) * 0.3 * y;
-  float width = (1.0 - y) * 0.36 * (0.7 + 0.6 * n);
-  float body = smoothstep(width, width * 0.25, abs(x + sway));
-  float heat = clamp(body * (1.05 - y * 0.85) * (0.7 + 0.6 * n) * 1.4, 0.0, 1.0) * mix(0.55, 1.0, vFresh);
-  vec3 col = fireRamp(heat);
-  float a = smoothstep(0.05, 0.4, heat) * uIntensity * uOpacity;
+  float n = fbm(vec2(x * 5.0 + vSeed * 11.0, y * 3.0 - uTime * 2.1));
+  float sway = (n - 0.5) * (0.035 + 0.075 * y);
+  float outerWidth = 0.035 + 0.29 * pow(max(0.0, 1.0 - y), 0.56) * (0.9 + 0.16 * n);
+  float outer = 1.0 - smoothstep(outerWidth, outerWidth + 0.022, abs(x + sway));
+  float base = smoothstep(-0.02, 0.08, y);
+  float tip = 1.0 - smoothstep(0.82, 1.0, y);
+  float flame = outer * base * tip;
+  float innerWidth = 0.018 + 0.155 * pow(max(0.0, 1.0 - y), 0.78);
+  float inner = (1.0 - smoothstep(innerWidth, innerWidth + 0.024, abs(x + sway - 0.035 * sin(uTime * 3.0 + vSeed * 29.0))))
+    * smoothstep(0.02, 0.13, y) * (1.0 - smoothstep(0.52, 0.88, y));
+  vec3 outerColor = mix(vec3(0.82, 0.06, 0.015), vec3(1.0, 0.36, 0.025), smoothstep(0.05, 0.72, y));
+  vec3 coreColor = mix(vec3(1.0, 0.42, 0.025), vec3(1.0, 0.91, 0.36), smoothstep(0.0, 0.7, y));
+  vec3 col = mix(outerColor, coreColor, inner);
+  float a = flame * (0.76 + 0.24 * n) * uIntensity * uOpacity;
   ${OUTPUT}
 }`,
     transparent: true, depthTest: false, depthWrite: false,

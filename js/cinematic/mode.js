@@ -3,7 +3,7 @@ import { normalizeTemporalFeatures, observedFeaturesAt, parsePlaybackValue, temp
 import { exportCinematicSpec, importCinematicSpec } from "./state.js?v=0.2.6";
 import { CINEMATIC_EFFECTS, NATIVE_EFFECTS, effectFields, effectRanges, resolveEffect, resolveQuality } from "./cinematic-effects.js?v=0.2.8";
 import { PROVENANCE_STATUSES, createEffectsClock, normalizeTiming } from "./clock.js?v=0.1.0";
-import { setEffectClock } from "./effects-three.js?v=0.2.8";
+import { setEffectClock } from "./effects-three.js?v=0.2.9-fire-points";
 
 // In a build-up, outlines older than the newest few are "settled": drawn as a
 // cheap edge and rebuilt only now and then, while the recent ones (full
