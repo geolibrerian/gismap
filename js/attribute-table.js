@@ -61,6 +61,7 @@ export class AttributeTableController {
     });
     this.#bindResize();
     this.events.subscribe("table:open", ({ uid }) => this.open(uid));
+    this.events.subscribe("table:toggle", ({ uid }) => this.toggle(uid));
     this.events.subscribe("identify:start", () => this.#cancelAndReset());
     this.events.subscribe("layer:removed", ({ uid }) => {
       if (this.state.rootUid === uid) this.#cancelAndReset();
@@ -103,6 +104,15 @@ export class AttributeTableController {
       this.#cancelAndReset();
       this.events.publish("app:error", { message: error.message });
     }
+  }
+
+  /** Open a layer table, or close it when that same layer is already visible. */
+  toggle(uid) {
+    if (this.dialog.open && this.state.rootUid === uid) {
+      this.#cancelAndReset();
+      return;
+    }
+    return this.open(uid);
   }
 
   async #applySearch(value) {

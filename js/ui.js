@@ -142,6 +142,9 @@ export class UIController {
     this.utilityIntelligenceOpen = false;
     this.utilityDrawOpen = false;
     this.utilityStyleLayerUid = null;
+    this.utilitySourceLayerUid = null;
+    this.utilityQueryLayerUid = null;
+    this.utilityDialogLayerTool = null;
     this.activeUtilityTab = null;
     this.utilityModalPane = null;
     this.utilityDialogOpen = false;
@@ -723,6 +726,7 @@ export class UIController {
       this.exportController.cancel();
       this.#restoreUtilityModal();
       this.#undockDialogShell();
+      this.utilityDialogLayerTool = null;
       if (wasDocked) this.#syncUtilityPanel();
     });
     document.querySelector("#dialog-dock").addEventListener("click", () => {
@@ -1248,6 +1252,7 @@ export class UIController {
       ...(this.utilityDrawOpen ? [{ id: "draw", label: "Draw" }] : []),
       ...(this.cartographyLabOpen ? [{ id: "lab", label: "Style layer" }] : []),
       ...(this.utilityStyleLayerUid ? [{ id: "style", label: `Style: ${this.mapController.getLayer(this.utilityStyleLayerUid)?.title || "Layer"}` }] : []),
+      ...(this.utilitySourceLayerUid ? [{ id: "source", label: `Source: ${this.mapController.getLayer(this.utilitySourceLayerUid)?.title || "Layer"}` }] : []),
       ...(this.utilityIntelligenceOpen ? [{ id: "intelligence", label: "Intelligence" }] : []),
       ...(this.utilityAssistantOpen ? [{ id: "assistant", label: "Map assistant" }] : []),
       ...(this.utilityPresentationOpen ? [{ id: "presentation", label: this.projectManager.current.presentation?.template === "briefing" ? "Context briefing" : this.projectManager.current.presentation?.template === "explorer" ? "Dataset explorer" : this.projectManager.current.presentation?.title || "Guided places" }] : []),
@@ -1545,6 +1550,7 @@ export class UIController {
     if (tabId === "workspace") { this.utilityWorkspaceOpen = false; this.chartWorkspaceOpen = false; this.#syncUtilityPanel(); return; }
     if (tabId === "query") {
       this.utilityQueryOpen = false;
+      this.utilityQueryLayerUid = null;
       document.querySelector("#utility-query-content")?.replaceChildren();
       this.#syncUtilityPanel();
       return;
@@ -1563,6 +1569,7 @@ export class UIController {
     }
     if (tabId === "dialog") {
       this.utilityDialogOpen = false;
+      this.utilityDialogLayerTool = null;
       this.dialog.close();
       this.#syncUtilityPanel();
       return;
@@ -1619,6 +1626,12 @@ export class UIController {
     if (tabId === "style") {
       this.utilityStyleLayerUid = null;
       document.querySelector("#utility-style-content").replaceChildren();
+      this.#syncUtilityPanel();
+      return;
+    }
+    if (tabId === "source") {
+      this.utilitySourceLayerUid = null;
+      document.querySelector("#utility-source-content")?.replaceChildren();
       this.#syncUtilityPanel();
       return;
     }
@@ -8029,6 +8042,11 @@ export class UIController {
       document.querySelector("#utility-style-content").replaceChildren();
       this.#syncUtilityPanel();
     }
+    if (this.utilitySourceLayerUid && !this.mapController.getLayer(this.utilitySourceLayerUid)) {
+      this.utilitySourceLayerUid = null;
+      document.querySelector("#utility-source-content")?.replaceChildren();
+      this.#syncUtilityPanel();
+    }
     const welcomePanel = document.querySelector("#welcome-panel");
     // On a phone the map is the point once data is loaded; keep the intro only on desktop shared-example landings.
     if (welcomePanel.dataset.reopened !== "true") {
@@ -8054,7 +8072,7 @@ export class UIController {
           <div class="layer-scale-note" data-layer-scale-note ${scaleMessage ? "" : "hidden"}><span data-scale-text>${escapeHtml(scaleMessage || "")}</span><button type="button" data-layer-action="ignore-scale" title="Draw this layer at every zoom level">Show anyway</button></div>
           <label class="opacity-row"><span>Opacity</span><input data-layer-opacity type="range" min="0" max="1" step="0.05" value="${layer.opacity}" /><output>${Math.round(layer.opacity * 100)}%</output></label>
           <div class="layer-card__actions layer-card__primary"><button data-layer-action="zoom">Zoom</button><button data-layer-action="table">Table</button><button data-layer-action="style">Style</button></div>
-          <details class="layer-card__more" ${this.expandedLayerCards.has(layer.uid) ? "open" : ""}><summary>More layer tools</summary><div class="layer-card__actions">${layer.queryable && this.mapController.getCapabilities().includes("three-3d") ? '<button data-layer-action="animate" title="Suggested animations for this layer: a looping effect, a timeline or a sweep">Animate</button>' : ""}<button data-layer-action="filter" title="Show only matching features on the map">Filter map</button>${layer.queryable || config.sourceType === "geoparquet" ? '<button data-layer-action="query-duckdb" title="Query, join or run spatial analysis on a copy of this layer">Query data</button>' : ''}<button data-layer-action="export" title="Share this map, make a PDF or briefing, or download data">Share</button><button data-layer-action="refresh">Refresh</button><button data-layer-action="advanced-style">Advanced style</button></div></details>
+          <details class="layer-card__more" ${this.expandedLayerCards.has(layer.uid) ? "open" : ""}><summary>More layer tools</summary><div class="layer-card__actions">${layer.queryable && this.mapController.getCapabilities().includes("three-3d") ? '<button data-layer-action="animate" title="Suggested animations for this layer: a looping effect, a timeline or a sweep">Animate</button>' : ""}<button data-layer-action="filter" title="Show only matching features on the map">Filter map</button>${layer.queryable || config.sourceType === "geoparquet" ? '<button data-layer-action="query-duckdb" title="Query, join or run spatial analysis on a copy of this layer">Query data</button>' : ''}<button data-layer-action="source" title="Inspect this data source and open its publisher page">Source</button><button data-layer-action="refresh">Refresh</button><button data-layer-action="advanced-style">Advanced style</button></div></details>
         </article>`;
       }).join("")}`
       : '<div class="empty-state empty-state--layers"><p>No layers yet. Add data to start.</p><div class="empty-state__actions"><button type="button" data-empty-action="data-arcgis">ArcGIS service</button><button type="button" data-empty-action="data-geojson">Geo URL</button><button type="button" data-empty-action="data-file">Local file</button><button type="button" data-empty-action="data-popular">Try an example</button></div></div>';
@@ -8107,27 +8125,96 @@ export class UIController {
           if (!zoomed) this.toast("This layer has a near-global or invalid extent. Use a filter or select a feature to zoom safely.");
           break;
         }
-        case "table": this.events.publish("table:open", { uid }); break;
+        case "table": this.events.publish("table:toggle", { uid }); break;
         case "query-duckdb": {
+          if (this.utilityQueryOpen && this.utilityQueryLayerUid === uid) {
+            if (this.activeUtilityTab === "query") this.#closeUtilityTab("query");
+            else this.#syncUtilityPanel("query");
+            break;
+          }
           button.disabled = true;
           try {
+            this.utilityQueryLayerUid = uid;
             const { openLayerInDuckdb } = await import("./layer-duckdb.js?v=0.57.0-spatial2");
             await openLayerInDuckdb(this, uid);
-          } catch (error) { this.error(error.message); }
+          } catch (error) { this.utilityQueryLayerUid = null; this.error(error.message); }
           finally { button.disabled = false; }
           break;
         }
-        case "filter": try { await this.#filterDialog(uid); } catch (error) { this.error(error.message); } break;
-        case "export": this.#shareExportDialog(uid); break;
-        case "style":
-          if (layer?.queryable && layer.fields?.length) this.openCartographyLab(uid);
-          else this.#openSymbologyUtility(uid);
+        case "filter":
+          if (this.utilityDialogOpen && this.utilityDialogLayerTool?.action === "filter" && this.utilityDialogLayerTool.uid === uid) {
+            if (this.activeUtilityTab === "dialog") this.#closeUtilityTab("dialog");
+            else this.#syncUtilityPanel("dialog");
+            break;
+          }
+          try {
+            this.utilityDialogLayerTool = { action: "filter", uid };
+            await this.#filterDialog(uid);
+          } catch (error) { this.utilityDialogLayerTool = null; this.error(error.message); }
           break;
-        case "advanced-style": this.#openSymbologyUtility(uid); break;
+        case "source":
+          if (this.utilitySourceLayerUid === uid) {
+            if (this.activeUtilityTab === "source") this.#closeUtilityTab("source");
+            else this.#syncUtilityPanel("source");
+          } else this.#openLayerSource(uid);
+          break;
+        case "style":
+          if (layer?.queryable && layer.fields?.length) {
+            if (this.cartographyLabOpen && this.activeUtilityTab === "lab") this.#closeUtilityTab("lab");
+            else this.openCartographyLab(uid);
+          } else if (this.utilityStyleLayerUid === uid) {
+            if (this.activeUtilityTab === "style") this.#closeUtilityTab("style");
+            else this.#syncUtilityPanel("style");
+          } else this.#openSymbologyUtility(uid);
+          break;
+        case "advanced-style":
+          if (this.utilityStyleLayerUid === uid) {
+            if (this.activeUtilityTab === "style") this.#closeUtilityTab("style");
+            else this.#syncUtilityPanel("style");
+          } else this.#openSymbologyUtility(uid);
+          break;
         case "animate": this.#openAnimateLayer(uid); break;
         case "refresh": this.#refreshDialog(uid); break;
       }
     }));
+  }
+
+  /** Show the loaded layer's provenance without making people hunt for its service URL. */
+  #openLayerSource(uid) {
+    const layer = this.mapController.getLayer(uid);
+    if (!layer) return;
+    const config = this.mapController.getLayerConfig(layer) || {};
+    const metadata = this.mapController.layerMetadata?.(layer) || {};
+    const rawUrl = String(config.url || layer.url || metadata.url || "");
+    let sourceUrl = "";
+    try {
+      const parsed = new URL(rawUrl, location.href);
+      if (["https:", "http:"].includes(parsed.protocol)) sourceUrl = parsed.href;
+    } catch { /* Local files and non-web source references deliberately have no external link. */ }
+    const sourceType = config.sourceType === "geoparquet"
+      ? "GeoParquet file"
+      : metadata.kind === "arcgis-layer" ? "ArcGIS feature layer"
+        : metadata.kind === "arcgis-service" ? "ArcGIS map service"
+          : metadata.kind === "geojson" ? "GeoJSON"
+            : config.sourceType || layer.type || "Map layer";
+    const localLabel = config.fileName || (config.local ? "Local file" : "");
+    const formatDate = (value) => {
+      const date = value ? new Date(value) : null;
+      return date && !Number.isNaN(date.valueOf()) ? date.toLocaleString() : "";
+    };
+    const details = [
+      ["Source type", sourceType],
+      ["Layer", metadata.title || layer.title || config.title],
+      ["Publisher attribution", metadata.attribution],
+      ["Last data update", formatDate(metadata.dataLastEditDate || metadata.lastEditDate)],
+      ["Features", Number.isFinite(metadata.featureCount) ? metadata.featureCount.toLocaleString() : ""],
+      ["Local asset", localLabel],
+    ].filter(([, value]) => value);
+    const pane = document.querySelector("#utility-source-content");
+    if (!pane) return;
+    pane.innerHTML = `<section class="layer-source"><span class="eyebrow">Data source</span><h3>${escapeHtml(layer.title || config.title || "Layer source")}</h3>${metadata.description ? `<p class="layer-source__description">${escapeHtml(metadata.description)}</p>` : `<p class="form-note">This panel keeps the source details for the layer currently on your map.</p>`}<dl class="layer-source__details">${details.map(([label, value]) => `<div><dt>${escapeHtml(label)}</dt><dd>${escapeHtml(value)}</dd></div>`).join("")}</dl>${sourceUrl ? `<div class="layer-source__endpoint"><span>Publisher endpoint</span><code>${escapeHtml(sourceUrl)}</code></div><a class="button--primary layer-source__open" href="${escapeHtml(sourceUrl)}" target="_blank" rel="noopener noreferrer">Open source in a new tab ↗</a>` : `<p class="form-note">This source is stored locally, so it does not have a publisher page to open.</p>`}</section>`;
+    this.utilitySourceLayerUid = uid;
+    this.#syncUtilityPanel("source");
   }
 
   async #filterDialog(uid) {

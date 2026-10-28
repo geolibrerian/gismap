@@ -404,6 +404,18 @@ body:has(.application-dock--bottom.is-collapsed).application-bottom-open #viewDi
 .workspace-tool h3 { margin: 0; font: 600 22px/1.2 "Newsreader", Georgia, serif; }
 .workspace-tool__actions { display: flex; justify-content: flex-end; }
 .workspace-tool__actions button { border: 1px solid var(--green); border-radius: 6px; padding: 9px 12px; color: white; background: var(--green); cursor: pointer; }
+.layer-source { display: grid; align-content: start; gap: 14px; }
+.layer-source h3 { margin: 0; font: 600 24px/1.15 "Newsreader", Georgia, serif; }
+.layer-source__description { margin: -5px 0 0; color: var(--muted); line-height: 1.45; }
+.layer-source__details { display: grid; gap: 0; margin: 0; border-top: 1px solid var(--line); }
+.layer-source__details > div { display: grid; grid-template-columns: minmax(105px, 36%) minmax(0, 1fr); gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--line); }
+.layer-source__details dt { color: var(--muted); font-size: 12px; font-weight: 700; }
+.layer-source__details dd { min-width: 0; margin: 0; overflow-wrap: anywhere; color: var(--ink); font-size: 13px; }
+.layer-source__endpoint { display: grid; gap: 6px; padding: 11px; border: 1px solid var(--line); border-radius: var(--ui-radius-small); background: var(--surface); }
+.layer-source__endpoint > span { color: var(--muted); font-size: 11px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; }
+.layer-source__endpoint code { overflow-wrap: anywhere; color: var(--ink); font-size: 12px; line-height: 1.4; }
+.layer-source__open { justify-self: start; padding: 9px 12px; border: 1px solid var(--green); border-radius: 6px; color: var(--on-accent, #fff); background: var(--green); font-size: 13px; font-weight: 700; text-decoration: none; }
+.layer-source__open:hover { color: var(--on-accent, #fff); background: var(--green-2); border-color: var(--green-2); }
 .utility-resizer { position: absolute; z-index: 3; inset: 0 auto 0 -5px; width: 10px; cursor: col-resize; touch-action: none; }
 .utility-resizer::after { content: ""; position: absolute; inset: 0 4px; background: var(--line); }
 .mobile-sheet-resize { display:none; }
