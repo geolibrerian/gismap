@@ -28,6 +28,17 @@
       "default": "pan",
       "description": "How the map moves between slides: pan flies from one view to the next; cut jumps straight there (better when slides are far apart)."
     },
+    "playerSettings": {
+      "type": "object",
+      "description": "Optional preferences used while this briefing is presented.",
+      "properties": {
+        "basemap": { "type": "string", "maxLength": 80 },
+        "animations": { "type": "boolean", "default": true },
+        "motion": { "enum": ["fly", "pan"], "default": "pan" },
+        "mapDetails": { "enum": ["popup", "slide"], "default": "popup" }
+      },
+      "additionalProperties": false
+    },
     "queries": {
       "type": "object",
       "propertyNames": {

@@ -18,7 +18,7 @@ Readable links hold up to 8,192 characters. Inspect real fields first (`<layer U
 
 ## What can AI agents create with GISMap?
 
-Finished maps, briefings, guided tours, field task packages, 3D maps and themed maps. Start with [Discover](https://gismap.online/discover/) and its [current examples](https://gismap.online/discover/examples/) when choosing a public workflow. Each recipe gives the interface to use (a URL you write, a standalone JavaScript module, or the in-page API; never a hosted REST endpoint), how to verify the result, and its limits: [recipe pages](https://gismap.online/agent-recipes/) · [recipe catalog (JSON)](https://gismap.online/api/agent-recipes/index.json). For engine-specific work, read the [Map engines guide](https://gismap.online/discover/engines/) before selecting styling or 3D behavior.
+Finished maps, linked charts and Instant Dashboards, briefings, guided tours, field task packages, 3D maps, cinematic presentations and themed maps. Start with [Discover](https://gismap.online/discover/) and its [current examples](https://gismap.online/discover/examples/) when choosing a public workflow. Each recipe gives the interface to use (a URL you write, a standalone JavaScript module, or the in-page API; never a hosted REST endpoint), how to verify the result, and its limits: [recipe pages](https://gismap.online/agent-recipes/) · [recipe catalog (JSON)](https://gismap.online/api/agent-recipes/index.json). For engine-specific work, read the [Map engines guide](https://gismap.online/discover/engines/) before selecting styling or 3D behavior.
 
 
 | User asks for… | Agent selects… | Primary artifact |
@@ -31,8 +31,23 @@ Finished maps, briefings, guided tours, field task packages, 3D maps and themed 
 | Separate overlapping events by year and height | [spatial-3d-chart](https://gismap.online/skills/#recipe-spatial-3d-chart) | 3D spatial chart and five-scene Brief |
 | Show this LiDAR or CAD model in 3D | [lidar-and-3d-models](https://gismap.online/skills/#recipe-lidar-and-3d-models) | Point cloud or 3D model map |
 | Make the map feel like Halloween in California | [vibe-map](https://gismap.online/skills/#recipe-vibe-map) | Coordinated theme and styled map |
+| Turn this layer into an interactive dashboard | [dashboard workflow](https://gismap.online/skills/gismap/references/dashboard-chart-animation.md) | Linked chart panel, skin, basemap and map filtering |
+| Animate observed changes in this layer | [cinematic animation](https://gismap.online/skills/gismap/references/dashboard-chart-animation.md#cinematic-animation) | Evidence-preserving playback, clip or poster |
+| Put this configured map on my website | [embedding](https://gismap.online/skills/gismap/references/sharing.md#embeds) | Public map link and ready-to-paste iframe |
 
-Combine recipes for one request: a 3D fire-history map with chronological strata, a five-slide briefing and a QR uses interactive-map, spatial-3d-chart and interactive-briefing. Check compatibility, virtual-Z semantics, actual outputs and reopening; do not assume every combination is portable.
+Combine recipes for one request: a 3D fire-history map with chronological strata, a linked dashboard, a five-slide briefing and a QR uses interactive-map, spatial-3d-chart, vibe-map and interactive-briefing. Check compatibility, virtual-Z semantics, actual outputs and reopening; do not assume every combination is portable.
+
+## Charts, Instant Dashboards and animation
+
+Inspect the actual layer before choosing a chart. Use category or time values for grouping and a verified numeric measure for sum/mean/min/max; otherwise use count. Chart Builder supports bar, column, line, area, histogram, scatter, bubble, box, donut, metric, conventional 3D bar/scatter and map-chart presets. Its destinations are Chart panel, Instant Dashboard, On the map and Brief slide. A chart scope can be filtered, all, viewport or selected data; label a bounded browser query, sample or partial response honestly.
+
+For a fast, coherent dashboard in an active GISMap session, use `create_instant_dashboard` only after inspecting a loaded queryable layer. Choose a skin and basemap based on the subject and data density: `skin` basemap follows the selected skin on MapLibre, while the renderer must still keep meaningful data colours and readable contrast. The resulting chart marks must filter/select the matching map records; activate a bar, donut segment or grouped mark, then clear the map filter and verify both states. Do not call a dashboard layout portable in a map-only share until it has been reopened and checked.
+
+Cinematic mode is for observed records or explicit numeric scenarios, not an inference engine. Confirm the source date/time or numeric field, units and time zone; disclose whether playback is instant, cumulative, rolling or scenario-based. Keep effects subordinate to the source data, test local and overview scales, respect reduced-motion behavior, and pause/remove an effect before removing its layer. Verify that no derived or ghost overlay remains. Effects are primarily a MapLibre capability; another engine may render the source without the animated effect.
+
+## Embed a configured public map
+
+When a user wants to publish a configured map on another site, use `get_map_embed` in a running assistant session or `createEmbedUrl` / `createEmbedIframe` from [embed-share.js](https://gismap.online/js/embed-share.js). A map embed preserves public layers, styles, filters, camera, basemap and skin from the share URL. It cannot carry local files, device-only layers, private service URLs, credentials or tokens. Test the final iframe in its destination page; generating its HTML is only prepared, not verified.
 
 ## Make a map from a URL (no code)
 - One layer: `https://gismap.online/?layer=<HTTPS service URL>&layerType=feature`
@@ -58,6 +73,7 @@ Follow-up refinement: [derive year and acreage maps from one filtered California
 - [Layer style schema](https://gismap.online/schemas/layer-style-v1.schema.json): a reusable 2D or 3D layer file from the Cartography Lab (colour, 3D height, filter, opacity); `gisMapOnline.layerStyles` saves, applies and turns it into a map link or briefing
 - [Agent recipe schema](https://gismap.online/schemas/agent-recipe-v1.schema.json): the format of /api/agent-recipes/*.json
 - Tours and field tasks without the app: `createEmbeddedTourUrl` from [tour-share.js](https://gismap.online/js/tour-share.js) and `createFieldTaskUrl` from [field-task-share.js](https://gismap.online/js/field-task-share.js) build their links (see the [tour](https://gismap.online/agent-recipes/geographic-tour/) and [field task](https://gismap.online/agent-recipes/field-tasks/) recipes)
+- Public embeds: `createEmbedUrl` and `createEmbedIframe` from [embed-share.js](https://gismap.online/js/embed-share.js) make map, briefing or tour iframe URLs; the share URL remains authoritative
 - [URL parameters](https://gismap.online/api/url-parameters.json): every query and fragment parameter
 - [Capabilities](https://gismap.online/api/capabilities.json): in-page API, tools, error codes, limits
 - [Application manifest](https://gismap.online/api/manifest.json) and [API explorer](https://gismap.online/api/explorer/): privacy-safe state and live registry discovery

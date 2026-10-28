@@ -20,13 +20,25 @@ test("cut survives a briefing link and QR, and the player jumps instead of flyin
   const opened = await readShareLocation(new URL(link.url));
   assert.equal(opened.briefing.transition, "cut");
   const slides = await text("js/briefing-slides.js");
-  assert.match(slides, /const animate = this\.briefing\.transition !== "cut";/);
-  assert.match(slides, /setView\(\{ center: slide\.camera\.center[^)]*\}, \{ animate \}\)/);
-  assert.match(slides, /goToFeature\(record, \{ animate \}\)/);
+  assert.match(slides, /this\.briefing\.playerSettings\?\.animations/);
+  assert.match(slides, /const viewOptions = \{ animate, motion \}/);
+  assert.match(slides, /setView\(\{ center: slide\.camera\.center[^)]*\}, viewOptions\)/);
+  assert.match(slides, /goToFeature\(record, viewOptions\)/);
   assert.match(slides, /data-slides-transition/);
   assert.match(await text("js/engines/arcgis/arcgis-engine.js"), /async goToFeature\(feature, \{ animate = true \} = \{\}\)/);
   const schema = JSON.parse(await text("schemas/briefing-v1.schema.json"));
   assert.deepEqual(schema.properties.transition.enum, ["pan", "cut"]);
+});
+
+test("player settings travel with a briefing while default links remain compact", () => {
+  assert.deepEqual(normalizeBriefing({ slides: [] }).playerSettings, undefined);
+  const configured = normalizeBriefing({
+    slides: [],
+    playerSettings: { basemap: "liberty", animations: false, motion: "fly", mapDetails: "slide", ignored: true },
+  });
+  assert.deepEqual(configured.playerSettings, { basemap: "liberty", animations: false, motion: "fly", mapDetails: "slide" });
+  const cutWithAnimation = normalizeBriefing({ transition: "cut", slides: [], playerSettings: { animations: true } });
+  assert.equal(cutWithAnimation.playerSettings.animations, true, "a viewer can opt an older cut briefing back into animation");
 });
 
 test("filter conditions combine with AND or OR, each parenthesised", () => {

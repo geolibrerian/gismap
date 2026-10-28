@@ -5,11 +5,12 @@
   "title": "Vibe-matched map and presentation skin",
   "status": "available",
   "question": "Can an AI agent make a map whose look matches the subject, like a Halloween map of California colleges?",
-  "answer": "Yes, within the preset skins. The agent picks an interface skin, draws the basemap in the skin's colors (basemap \"skin\" on MapLibre) and colors the data with its own renderer, then shares one link that keeps all three.",
+  "answer": "Yes, within the preset skins. The agent picks an interface skin, draws the basemap in the skin's colors (basemap \"skin\" on MapLibre) and colors the data with its own renderer. In an active map session it can also create an Instant Dashboard with linked chart filtering, then share a public-map embed when the map is ready.",
   "triggers": [
     "Make the map feel like Halloween in California",
     "Theme this map in team colors",
-    "Give this forest map an autumn look"
+    "Give this forest map an autumn look",
+    "Create an instant dashboard with a skin and basemap that suit this data"
   ],
   "inputTypes": [
     "Any styled layer"
@@ -97,34 +98,40 @@
     },
     {
       "stage": "execute",
-      "action": "Write the #map=json: link with skin, basemap \"skin\" and the renderer colors.",
+      "action": "Write the #map=json: link with skin, basemap \"skin\" and the renderer colors. In an active assistant session, use create_instant_dashboard after inspecting a loaded queryable layer when the requested outcome includes a dashboard; it creates a linked chart panel, skin and basemap.",
       "interfaces": [
         "declarative-url",
-        "standalone-js"
+        "standalone-js",
+        "in-browser-api"
       ],
       "references": [
-        "mapSpec.createLink"
+        "mapSpec.createLink",
+        "create_instant_dashboard"
       ]
     },
     {
       "stage": "verify",
-      "action": "Open the link: skin applied to panels, basemap drawn in skin colors (MapLibre), symbols in the requested colors, labels readable.",
+      "action": "Open the link: skin applied to panels, basemap drawn in skin colors (MapLibre), symbols in the requested colors, labels readable. For an Instant Dashboard, activate a grouped chart mark, verify the matching map filter/selection, then clear it.",
       "interfaces": [
         "in-browser-api"
       ],
       "references": [
         "describe",
-        "mapSpec.fromCurrent"
+        "mapSpec.fromCurrent",
+        "create_instant_dashboard"
       ]
     },
     {
       "stage": "share",
-      "action": "Return the link; say which palette parts were approximated by a preset.",
+      "action": "Return the link; say which palette parts were approximated by a preset. If the user wants a web embed, use get_map_embed or createEmbedIframe only for public layers, then test the iframe in its destination page.",
       "interfaces": [
-        "declarative-url"
+        "declarative-url",
+        "in-browser-api"
       ],
       "references": [
-        "mapSpec.createLink"
+        "mapSpec.createLink",
+        "get_map_embed",
+        "embed-share.js"
       ]
     }
   ],
@@ -145,6 +152,13 @@
       "interface": "external-adapter",
       "interactive": true,
       "notes": "Custom skin and basemap palettes made in the app's skin editor are saved in projects but not in links."
+    },
+    {
+      "format": "Public map embed iframe",
+      "interface": "in-browser-api",
+      "interactive": true,
+      "reference": "get_map_embed",
+      "notes": "Preserves public map configuration; local, private and credentialed sources cannot be embedded."
     }
   ],
   "verification": [
@@ -153,6 +167,8 @@
     "Data colors and legend match",
     "Labels and data readable",
     "Theme persists on reopening",
+    "Instant Dashboard chart selection filters and clears matching map data when requested",
+    "Embed tested in the destination page when requested",
     "Unsupported parts reported"
   ],
   "limitations": [

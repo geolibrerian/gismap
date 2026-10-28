@@ -1,4 +1,4 @@
-import { normalizeBriefing } from "./briefing-document.js?v=0.60.0-media1";
+import { normalizeBriefing } from "./briefing-document.js?v=0.61.0-briefing-player";
 
 export const BRIEFING_SHARE_VERSION = 1;
 export const BRIEFING_SHARE_LIMITS = Object.freeze({

@@ -26,7 +26,7 @@ import {
   isRoutineField,
   DISTANCE_UNITS,
   SPATIAL_RELATIONSHIPS,
-} from "./briefing-document.js?v=0.60.18-trains1";
+} from "./briefing-document.js?v=0.61.0-briefing-player";
 import { compileWhere } from "./engines/maplibre/where.js?v=0.40.0-timeline";
 import { generateTimeline, previewTimeline, isYearField } from "./briefing-timeline.js?v=0.60.0-media1";
 import { isDateField, previewDateTimeline } from "./briefing-timeline-dates.js?v=0.60.0-media1";
@@ -35,7 +35,7 @@ import { generateSpatialChartBrief } from "./briefing-spatial-chart.js?v=0.60.0-
 import { previewFilterSeries, formatSeriesTitle } from "./briefing-series-preview.js?v=0.60.0-media1";
 import { briefingLayerRef } from "./briefing-api.js?v=0.60.0-media1";
 import { renderMarkdown } from "./markdown.js?v=0.18.2";
-import { BriefingPlayer, slideHasMap } from "./briefing-player.js?v=0.60.4-clips1";
+import { BriefingPlayer, slideHasMap } from "./briefing-player.js?v=0.61.0-settings";
 import { expandTimelinePdfSlides } from "./briefing-timeline-pdf.js?v=0.1.0";
 import { briefingFileStem, briefingPdf, markdownToText } from "./briefing-pdf.js?v=0.44.2";
 import { featureId } from "./presentation-query.js?v=0.30.0";
@@ -78,12 +78,16 @@ export class BriefingSlides {
     this.player = new BriefingPlayer({
       getSlides: () => this.briefing.slides.filter((slide) => !slide.hidden),
       slideHtml: (slide, options) => this.slideHtml(slide, options),
-      showSlide: (slide) => this.showSlideMap(slide),
+      showSlide: (slide, options) => this.showSlideMap(slide, options),
       mapController: api.mapController,
       compact: () => api.compact?.() ?? false,
       title: () => api.data().title,
       fields: () => api.data().fields?.fields || api.data().layer?.fields || [],
       slideTitle: slide => formatSeriesTitle(slide, api.data().fields?.fields || api.data().layer?.fields || []),
+      // Older cut briefings predate playerSettings. Treat their cut as the
+      // initial animation preference until a viewer explicitly changes it.
+      getSettings: () => ({ ...(this.briefing.transition === "cut" ? { animations: false } : {}), ...this.briefing.playerSettings }),
+      saveSettings: (playerSettings) => this.#save({ ...this.briefing, playerSettings }, { render: false }),
       onClose: () => void this.restoreLayers(),
       playCinematicClip: (slide, options) => this.api.playCinematicClip?.(slide, options),
       stopCinematicClip: () => this.api.stopCinematicClip?.(),
@@ -427,19 +431,23 @@ export class BriefingSlides {
   }
 
   /** Moves the map to a slide's saved view, or frames its feature. */
-  async showSlideMap(slide) {
+  async showSlideMap(slide, options = {}) {
     const { mapController } = this.api;
     const record = this.#recordFor(slide);
     const viewToken = ++this.mapViewToken;
     // A "cut" briefing jumps between views; slides far apart would otherwise fly out and back in.
-    const animate = this.briefing.transition !== "cut";
+    // Player settings can override that legacy authored choice for a viewing session.
+    const legacyAnimation = this.briefing.transition !== "cut";
+    const animate = options.animate ?? (this.briefing.playerSettings?.animations ?? legacyAnimation);
+    const motion = options.motion === "fly" ? "fly" : "pan";
+    const viewOptions = { animate, motion };
     // Other layers change alongside the camera move, not after it: an interrupted or slow
     // move (advancing quickly, a hidden map) must not leave the previous slide's layers.
     const layers = this.applySlideLayers(slide, record).catch((error) => this.api.notify?.(error.message));
     try {
       const framing = this.#autoFraming(slide);
       if (framing?.kind === 'grid') {
-        await mapController.setView({ bounds:framing.bounds }, { animate });
+        await mapController.setView({ bounds:framing.bounds }, viewOptions);
       } else if (framing?.kind === 'features') {
         const data = this.api.data(), layer = data.layer;
         const ref = briefingLayerRef(mapController, layer);
@@ -459,16 +467,16 @@ export class BriefingSlides {
           } catch (error) { if (viewToken === this.mapViewToken) this.api.notify?.(`Could not find features to frame: ${error.message}`); }
         }
         if (viewToken !== this.mapViewToken) return;
-        if (matching.length === 1) await mapController.goToFeature(matching[0], {animate});
-        else if (matching.length) await mapController.goToFeatures(matching, {animate});
+        if (matching.length === 1) await mapController.goToFeature(matching[0], viewOptions);
+        else if (matching.length) await mapController.goToFeatures(matching, viewOptions);
         else if (slide.camera) {
-          await mapController.setView({center:slide.camera.center, zoom:slide.camera.zoom, heading:slide.camera.heading, tilt:slide.camera.tilt}, {animate});
+          await mapController.setView({center:slide.camera.center, zoom:slide.camera.zoom, heading:slide.camera.heading, tilt:slide.camera.tilt}, viewOptions);
           this.api.notify?.('No matching feature geometry is available for this frame; showing its saved map view.');
         }
       } else if (slide.camera) {
-        await mapController.setView({ center: slide.camera.center, zoom: slide.camera.zoom, heading: slide.camera.heading, tilt: slide.camera.tilt }, { animate });
+        await mapController.setView({ center: slide.camera.center, zoom: slide.camera.zoom, heading: slide.camera.heading, tilt: slide.camera.tilt }, viewOptions);
       } else if (slide.fit === "feature" && record?.geometry) {
-        await mapController.goToFeature(record, { animate });
+        await mapController.goToFeature(record, viewOptions);
       }
       if (viewToken !== this.mapViewToken) return;
       if (record) await mapController.highlightFeature?.(record, { pulse: false });

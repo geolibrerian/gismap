@@ -19,3 +19,9 @@ const briefing = gisMapOnline.layerStyles.toBriefing(style.id);      // title, f
 Outside the page, put the same `renderer`, `spatialChart`, `where` and `opacity` on a map-v1 layer: a style is exactly that layer entry plus a name. Styles are saved with the project and in the browser's style library, and download as `.gismap-style.json`. Vector tile export is planned, not available.
 
 3D extrusion and renderer compatibility differ between engines. Do not invent a normalized extrusion schema or claim a renderer works on both engines; verify the actual engine and rendered heights, including null/negative data. Unsupported renderers or dropped configuration require an explicit warning or a verified fallback.
+
+## Skin, basemap and data colours
+
+The interface skin, basemap and data renderer are separate decisions. A skin changes the application chrome; on MapLibre the `skin` basemap can borrow that skin's cartographic palette. It does **not** recolour a layer's renderer. Choose the three together, then check data/label contrast and preserve official source colours when they are meaningful. Do not claim an arbitrary custom theme survives all engines or a shared link; only supported preset skins and basemap choices are portable.
+
+For an Instant Dashboard, inspect the layer's subject, geometry, field kinds and value distribution first. Choose a calm, high-contrast basemap for dense or multicolour data; choose `skin` only when the selected skin improves the surrounding visual hierarchy without obscuring data. A dashboard chart should have a real category/time field and an appropriate numeric measure (or use a count). Its chart mark must filter or select the corresponding map features, not merely decorate the page. Verify both the initial map and one selected chart group.

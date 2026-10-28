@@ -246,8 +246,32 @@ export function normalizeBriefing(value = {}) {
   const seen = new Set();
   const slides = array(source.slides).map(normalizeSlide).filter((slide) => slide && !seen.has(slide.id) && seen.add(slide.id)).slice(0, MAX_SLIDES);
   // "pan" is the default and is left out, so older documents and links stay byte-identical.
-  const { transition, ...rest } = source;
-  return { ...rest, schemaVersion: BRIEFING_SCHEMA_VERSION, ...(transition === "cut" ? { transition: "cut" } : {}), queries, slides };
+  // Player settings are intentionally sparse for the same reason: omitted means
+  // the familiar animated pan, popup insight and project basemap behavior.
+  const { transition, playerSettings: rawPlayerSettings, ...rest } = source;
+  const playerSettings = normalizeBriefingPlayerSettings(rawPlayerSettings, { preserveAnimation: transition === "cut" });
+  return {
+    ...rest,
+    schemaVersion: BRIEFING_SCHEMA_VERSION,
+    ...(transition === "cut" ? { transition: "cut" } : {}),
+    ...(Object.keys(playerSettings).length ? { playerSettings } : {}),
+    queries,
+    slides,
+  };
+}
+
+/**
+ * Portable preferences for the briefing player. Defaults are omitted from the
+ * saved document so existing shared links remain compact and unmodified.
+ */
+export function normalizeBriefingPlayerSettings(value = {}, { preserveAnimation = false } = {}) {
+  const source = value && typeof value === "object" ? value : {};
+  const next = {};
+  if (typeof source.basemap === "string" && /^[\w-]{1,80}$/.test(source.basemap)) next.basemap = source.basemap;
+  if (source.animations === false || (preserveAnimation && source.animations === true)) next.animations = source.animations;
+  if (source.motion === "fly") next.motion = "fly";
+  if (source.mapDetails === "slide") next.mapDetails = "slide";
+  return next;
 }
 
 /** A new slide from a template, prefilled from what the briefing already knows. */

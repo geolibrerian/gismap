@@ -2200,14 +2200,15 @@ export class MaplibreEngine {
     return null;
   }
 
-  async #move(camera, { animate = true, duration, padding } = {}) {
+  async #move(camera, { animate = true, duration, padding, motion = "pan" } = {}) {
     if (!this.map) return;
     const options = { ...camera, ...(padding !== undefined ? { padding: typeof padding === "number" ? { top: padding, right: padding, bottom: padding, left: padding } : padding } : {}) };
     if (animate === false) {
       this.map.jumpTo(options);
       return;
     }
-    await this.#untilMoved(() => this.map.easeTo({ ...options, ...(duration !== undefined ? { duration } : {}) }));
+    const move = motion === "fly" ? "flyTo" : "easeTo";
+    await this.#untilMoved(() => this.map[move]({ ...options, ...(duration !== undefined ? { duration } : {}) }));
   }
 
   /** Runs a camera move and waits for it to end (or a few seconds, when the map is not drawing). */
@@ -2219,7 +2220,7 @@ export class MaplibreEngine {
     });
   }
 
-  async #fit(bounds, { animate = true, padding = 40, maxZoom, heading, tilt } = {}) {
+  async #fit(bounds, { animate = true, padding = 40, maxZoom, heading, tilt, duration, motion = "pan" } = {}) {
     if (!this.map || !bounds) return;
     const [west, south, east, north] = bounds;
     const options = { padding: typeof padding === "number" ? padding : { top: 0, right: 0, bottom: 0, left: 0, ...padding }, animate: animate !== false, ...(Number.isFinite(maxZoom) ? { maxZoom: toEngineZoom(maxZoom) } : {}), ...(Number.isFinite(heading) ? { bearing: heading } : {}), ...(Number.isFinite(tilt) ? { pitch: tilt } : {}) };
@@ -2227,13 +2228,20 @@ export class MaplibreEngine {
       this.map.fitBounds([[west, south], [east, north]], options);
       return;
     }
+    // cameraForBounds lets a Briefing use the same fly/pan choice for
+    // feature and bounds framing. Older MapLibre builds simply use fitBounds.
+    if (motion === "fly" && typeof this.map.cameraForBounds === "function") {
+      const { animate: _animate, ...cameraOptions } = options;
+      const camera = this.map.cameraForBounds([[west, south], [east, north]], cameraOptions);
+      if (camera) return this.#move(camera, { animate, duration, motion: "fly" });
+    }
     await this.#untilMoved(() => this.map.fitBounds([[west, south], [east, north]], options));
   }
 
   /** Moves the camera (engine-interface.js ViewTarget). */
   async setView(target, options = {}) {
     if (!this.map || !target) return;
-    const animation = { animate: options?.animate, duration: options?.duration, padding: options?.padding };
+    const animation = { animate: options?.animate, duration: options?.duration, padding: options?.padding, motion: options?.motion };
     if (target.camera || target.viewpoint) {
       const viewpoint = target.viewpoint;
       const camera = this.#fromCamera(target.camera || viewpoint?.camera);

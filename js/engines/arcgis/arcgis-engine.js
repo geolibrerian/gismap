@@ -1943,7 +1943,10 @@ export class ArcGISEngine {
    */
   async setView(target, options = undefined) {
     if (!this.view || !target) return;
-    await this.view.goTo(this.#goToTarget(target), options);
+    // `motion` is an engine-neutral Briefing preference. ArcGIS chooses its
+    // native goTo path, while MapLibre can distinguish flyTo from easeTo.
+    const { motion: _motion, ...goToOptions } = options || {};
+    await this.view.goTo(this.#goToTarget(target), goToOptions);
   }
 
   /** A ViewTarget as an SDK goTo target. */

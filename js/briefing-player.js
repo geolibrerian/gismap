@@ -7,6 +7,12 @@ const escapeHtml = (value) => String(value ?? "").replace(/[&<>"']/g, (char) => 
 // Slides that show the map get a content column and a window onto the live map.
 const MAP_TEMPLATES = new Set(["feature", "map-narrative", "title", "cinematic"]);
 const hasMap = (slide) => MAP_TEMPLATES.has(slide.template) && Boolean(slide.camera || slide.fit);
+const playerSettings = (value = {}) => ({
+  basemap: typeof value?.basemap === "string" && value.basemap ? value.basemap : null,
+  animations: value?.animations !== false,
+  motion: value?.motion === "fly" ? "fly" : "pan",
+  mapDetails: value?.mapDetails === "slide" ? "slide" : "popup",
+});
 /** Whether a slide shows the map (the player, cards and PDF agree on this). */
 export const slideHasMap = hasMap;
 export function timelineIndices(slides, index, fields = []) {
@@ -26,7 +32,8 @@ export function timelineIndices(slides, index, fields = []) {
 
 /**
  * `api`: getSlides() -> visible slides, slideHtml(slide, { index, count }),
- * showSlide(slide) -> moves the map, mapController, compact() -> phone layout?,
+ * showSlide(slide, options) -> moves the map, getSettings()/saveSettings()
+ * store portable player preferences, mapController, compact() -> phone layout?,
  * title() -> briefing title.
  */
 export class BriefingPlayer {
@@ -50,6 +57,8 @@ export class BriefingPlayer {
       padding: this.api.mapController.getViewPadding(),
       cleanups: [],
       exploring: false,
+      settings: playerSettings(this.api.getSettings?.()),
+      originalBasemap: this.api.mapController.getBasemapId?.() || null,
     };
     document.body.classList.add("briefing-presenting", this.state.compact ? "briefing-presenting--cards" : "briefing-presenting--stage");
     if (this.state.compact) this.#openCards();
@@ -58,7 +67,7 @@ export class BriefingPlayer {
     setTimeout(() => {
       if (!this.state) return;
       this.api.mapController.resize();
-      this.#go(this.state.index, { force: true });
+      void this.#applyBasemap().finally(() => this.#go(this.state.index, { force: true }));
     }, 60);
     return true;
   }
@@ -67,12 +76,15 @@ export class BriefingPlayer {
     if (!this.state) return;
     this.#stopTimeline();
     void this.api.stopCinematicClip?.();
-    const { root, cleanups, padding } = this.state;
+    const { root, cleanups, padding, originalBasemap, settings } = this.state;
     cleanups.forEach((cleanup) => cleanup());
     root?.remove();
     document.body.classList.remove("briefing-presenting", "briefing-presenting--stage", "briefing-presenting--cards", "briefing-exploring");
     if (document.fullscreenElement) void document.exitFullscreen?.().catch(() => {});
     this.api.mapController.setViewPadding(padding);
+    // A presentation may use a purpose-built basemap, but exiting returns the
+    // authoring map to the basemap it had before the player opened.
+    if (settings.basemap && originalBasemap) this.api.mapController.setBasemap?.(originalBasemap);
     this.#writeHash(null);
     this.state = null;
     requestAnimationFrame(() => this.api.mapController.resize());
@@ -88,17 +100,80 @@ export class BriefingPlayer {
     if (!state?.root) return;
     this.hideInsight();
     const card = document.createElement("aside");
-    card.className = "briefing-insight";
+    const insideSlide = state.settings.mapDetails === "slide";
+    card.className = `briefing-insight${insideSlide ? " briefing-insight--inline" : ""}`;
     card.setAttribute("aria-live", "polite");
     card.setAttribute("aria-label", "Map insight");
     const rows = (insight.rows || []).map(([label, value]) => `<div><dt>${escapeHtml(label)}</dt><dd>${escapeHtml(value)}</dd></div>`).join("");
     card.innerHTML = `<header><span><small>Map insight</small><strong>${escapeHtml(insight.title || "Location")}</strong>${insight.subtitle ? `<span>${escapeHtml(insight.subtitle)}</span>` : ""}</span><button type="button" data-insight-close aria-label="Close map insight" title="Close (Esc)">×</button></header>${rows ? `<dl>${rows}</dl>` : ""}${insight.note ? `<p>${escapeHtml(insight.note)}</p>` : ""}`;
     card.querySelector("[data-insight-close]").addEventListener("click", () => this.hideInsight());
-    state.root.append(card);
+    const slide = insideSlide ? this.#currentSlideElement() : null;
+    (slide || state.root).append(card);
+    if (insideSlide && state.compact) {
+      const briefingCard = slide?.closest(".briefing-card");
+      briefingCard?.classList.add("is-expanded");
+      const more = briefingCard?.querySelector("[data-card-more]");
+      if (more) { more.hidden = false; more.textContent = "Less"; }
+      this.#applyPadding();
+    }
   }
 
   hideInsight() {
-    this.state?.root?.querySelector(".briefing-insight")?.remove();
+    this.state?.root?.querySelectorAll(".briefing-insight").forEach((element) => element.remove());
+  }
+
+  #currentSlideElement() {
+    const state = this.state;
+    if (!state?.root) return null;
+    return state.compact
+      ? state.root.querySelector(`[data-card="${state.index}"] .briefing-slide`)
+      : state.root.querySelector(".briefing-stage__panel .briefing-slide");
+  }
+
+  #settingsMarkup() {
+    const settings = this.state.settings;
+    const basemaps = this.api.mapController.getBasemapOptions?.().options || [];
+    const options = basemaps.map((item) => `<option value="${escapeHtml(item.id)}"${settings.basemap === item.id ? " selected" : ""}>${escapeHtml(item.label || item.id)}</option>`).join("");
+    return `<header><span><small>Briefing player</small><strong>Settings</strong></span><button type="button" data-stage-settings-close aria-label="Close briefing settings">×</button></header>
+      <label><span>Basemap</span><select data-player-setting="basemap"><option value=""${settings.basemap ? "" : " selected"}>Use project basemap</option>${options}</select></label>
+      <label class="briefing-player-settings__check"><input type="checkbox" data-player-setting="animations"${settings.animations ? " checked" : ""}> Animate changes between slides</label>
+      <label><span>Camera movement</span><select data-player-setting="motion"${settings.animations ? "" : " disabled"}><option value="pan"${settings.motion === "pan" ? " selected" : ""}>Pan to each slide</option><option value="fly"${settings.motion === "fly" ? " selected" : ""}>Fly to each slide</option></select></label>
+      <label><span>Map click details</span><select data-player-setting="mapDetails"><option value="popup"${settings.mapDetails === "popup" ? " selected" : ""}>Floating Map Insight</option><option value="slide"${settings.mapDetails === "slide" ? " selected" : ""}>Inside the current slide</option></select><small>Applies to both Intelligence location clicks and Map Insights.</small></label>`;
+  }
+
+  #toggleSettings(force) {
+    const panel = this.state?.root?.querySelector(".briefing-player-settings");
+    if (!panel) return;
+    panel.hidden = force === undefined ? !panel.hidden : !force;
+    this.state.root.querySelector('[data-stage="settings"], [data-cards-settings]')?.setAttribute("aria-pressed", String(!panel.hidden));
+  }
+
+  #syncSettings() {
+    const state = this.state;
+    if (!state?.root) return;
+    const panel = state.root.querySelector(".briefing-player-settings");
+    if (!panel) return;
+    panel.querySelector('[data-player-setting="animations"]')?.toggleAttribute("checked", state.settings.animations);
+    const motion = panel.querySelector('[data-player-setting="motion"]');
+    if (motion) motion.disabled = !state.settings.animations;
+  }
+
+  async #applyBasemap() {
+    const state = this.state;
+    if (!state) return;
+    const wanted = state.settings.basemap || state.originalBasemap;
+    if (wanted && this.api.mapController.getBasemapId?.() !== wanted) {
+      await Promise.resolve(this.api.mapController.setBasemap?.(wanted));
+      await Promise.resolve(this.api.mapController.whenBasemapLoaded?.()).catch(() => {});
+    }
+  }
+
+  #saveSettings(patch) {
+    const state = this.state;
+    if (!state) return;
+    state.settings = playerSettings({ ...state.settings, ...patch });
+    this.api.saveSettings?.(state.settings);
+    this.#syncSettings();
   }
 
   #listen(target, type, handler, options) {
@@ -129,7 +204,7 @@ export class BriefingPlayer {
     else this.#renderStage();
     this.#syncTimeline();
     this.#applyPadding();
-    await this.api.showSlide(slide);
+    await this.api.showSlide(slide, { animate: state.settings.animations, motion: state.settings.motion });
     if (slide.template === "cinematic") await this.api.playCinematicClip?.(slide, { autoplay: slide.autoplay === true });
     else await this.api.stopCinematicClip?.();
   }
@@ -170,12 +245,14 @@ export class BriefingPlayer {
       <div class="briefing-stage__thumbs" hidden></div>
       <button type="button" class="briefing-stage__back" data-stage-back hidden>← Back to the slide</button>
       <aside class="briefing-stage__notes" hidden><header><strong>Presenter notes</strong><button type="button" data-stage-notes-close aria-label="Close notes">×</button></header><div data-stage-notes-body></div></aside>
+      <aside class="briefing-player-settings" hidden>${this.#settingsMarkup()}</aside>
       <nav class="briefing-stage__controls" aria-label="Briefing controls">
         <button type="button" data-stage="thumbs" aria-pressed="false" title="Slides (T)">▦</button>
         <button type="button" data-stage="previous" aria-label="Previous slide" title="Previous (←)">←</button>
         <span class="briefing-stage__count" data-stage-count></span>
         <button type="button" data-stage="next" aria-label="Next slide" title="Next (→)">→</button>
         <button type="button" data-stage="notes" aria-pressed="false" title="Presenter notes (N)">Notes</button>
+        <button type="button" data-stage="settings" aria-pressed="false" title="Briefing settings">Settings</button>
         <button type="button" data-stage="reset" title="Reset slide: return its map to the saved view">Reset</button>
         <button type="button" data-stage="restart" title="Back to the first slide (Home)">Restart</button>
         <button type="button" data-stage="fullscreen" title="Fullscreen (F)">⛶</button>
@@ -188,14 +265,24 @@ export class BriefingPlayer {
       previous: () => this.#go(this.state.index - 1),
       next: () => this.#go(this.state.index + 1),
       restart: () => this.#go(0),
-      reset: () => this.api.showSlide(this.state.slides[this.state.index]),
+      reset: () => this.#resetSlide(),
       thumbs: () => this.#toggle("thumbs"),
       notes: () => this.#toggle("notes"),
+      settings: () => this.#toggleSettings(),
       fullscreen: () => this.#toggleFullscreen(),
       exit: () => this.close(),
     };
     root.querySelectorAll("[data-stage]").forEach((button) => button.addEventListener("click", () => actions[button.dataset.stage]?.()));
     root.querySelector("[data-stage-notes-close]").addEventListener("click", () => this.#toggle("notes", false));
+    root.querySelector("[data-stage-settings-close]").addEventListener("click", () => this.#toggleSettings(false));
+    root.querySelector(".briefing-player-settings").addEventListener("change", (event) => {
+      const input = event.target.closest("[data-player-setting]");
+      if (!input) return;
+      const key = input.dataset.playerSetting;
+      const value = input.type === "checkbox" ? input.checked : input.value;
+      this.#saveSettings({ [key]: key === "basemap" ? value || null : value });
+      if (key === "basemap") void this.#applyBasemap();
+    });
     root.querySelector("[data-stage-back]").addEventListener("click", () => this.#explore(false));
     this.#bindSlideContent(root);
     // Only the controls and keys change slides; clicks and drags on the map stay with the map.
@@ -210,6 +297,7 @@ export class BriefingPlayer {
       else if (key === "Home") actions.restart();
       else if (key === "End") this.#go(this.state.slides.length - 1);
       else if (key === "Escape" && this.state.root.querySelector(".briefing-insight")) this.hideInsight();
+      else if (key === "Escape" && !this.state.root.querySelector(".briefing-player-settings")?.hidden) this.#toggleSettings(false);
       else if (key === "Escape" && !document.fullscreenElement) actions.exit();
       else if (key.toLowerCase() === "f") actions.fullscreen();
       else if (key.toLowerCase() === "t") actions.thumbs();
@@ -341,6 +429,23 @@ export class BriefingPlayer {
     else void document.documentElement.requestFullscreen?.().catch(() => {});
   }
 
+  async #resetSlide() {
+    const state = this.state;
+    if (!state) return;
+    this.hideInsight();
+    this.#stopTimeline();
+    state.timelineFrame = 0;
+    if (state.compact) {
+      const content = state.root.querySelector(`[data-card="${state.index}"] .briefing-card__content`);
+      if (content) content.innerHTML = this.api.slideHtml(state.slides[state.index], { index: state.index, count: state.slides.length });
+      this.#syncCards();
+    } else this.#renderStage();
+    this.#syncTimeline();
+    this.#applyPadding();
+    await this.api.showSlide(state.slides[state.index], { animate: false, motion: "pan", reset: true });
+    if (state.slides[state.index].template === "cinematic") await this.api.playCinematicClip?.(state.slides[state.index], { autoplay: state.slides[state.index].autoplay === true });
+  }
+
   #renderStage() {
     const { root, slides, index } = this.state;
     const slide = slides[index];
@@ -370,7 +475,8 @@ export class BriefingPlayer {
         ${hasMap(slide) ? `<button type="button" class="briefing-card__map" data-card-explore aria-label="Explore the map for this slide"><span>Tap the map to explore</span></button>` : ""}
         <div class="briefing-card__body"><div class="briefing-card__content">${this.api.slideHtml(slide, { index, count: slides.length })}</div><button type="button" class="briefing-card__more" data-card-more hidden>More</button></div>
       </article>`).join("")}</div>
-      <header class="briefing-cards__top"><span class="briefing-cards__progress" data-cards-progress></span><button type="button" data-cards-exit aria-label="Close slides">×</button></header>
+      <header class="briefing-cards__top"><span class="briefing-cards__progress" data-cards-progress></span><span class="briefing-cards__actions"><button type="button" data-cards-settings aria-label="Briefing settings" title="Briefing settings">⚙</button><button type="button" data-cards-exit aria-label="Close slides">×</button></span></header>
+      <aside class="briefing-player-settings" hidden>${this.#settingsMarkup()}</aside>
       <div class="briefing-cards__hint" data-cards-hint>Swipe up for the next slide</div>
       <button type="button" class="briefing-cards__done" data-cards-done hidden>Done exploring</button>${this.#timelineControls()}`;
     document.body.append(root);
@@ -378,6 +484,16 @@ export class BriefingPlayer {
     this.#bindTimeline(root);
     const deck = root.querySelector(".briefing-cards__deck");
     root.querySelector("[data-cards-exit]").addEventListener("click", () => this.close());
+    root.querySelector("[data-cards-settings]").addEventListener("click", () => this.#toggleSettings());
+    root.querySelector("[data-stage-settings-close]").addEventListener("click", () => this.#toggleSettings(false));
+    root.querySelector(".briefing-player-settings").addEventListener("change", (event) => {
+      const input = event.target.closest("[data-player-setting]");
+      if (!input) return;
+      const key = input.dataset.playerSetting;
+      const value = input.type === "checkbox" ? input.checked : input.value;
+      this.#saveSettings({ [key]: key === "basemap" ? value || null : value });
+      if (key === "basemap") void this.#applyBasemap();
+    });
     root.querySelectorAll("[data-card-explore]").forEach((button) => button.addEventListener("click", () => this.#explore(true)));
     root.querySelector("[data-cards-done]").addEventListener("click", () => this.#explore(false));
     this.#bindSlideContent(root);

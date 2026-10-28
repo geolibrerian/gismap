@@ -349,8 +349,8 @@ export function agentRecipes(links) {
     {
       id: "vibe-map", title: "Vibe-matched map and presentation skin", status: "available",
       question: "Can an AI agent make a map whose look matches the subject, like a Halloween map of California colleges?",
-      answer: "Yes, within the preset skins. The agent picks an interface skin, draws the basemap in the skin's colors (basemap \"skin\" on MapLibre) and colors the data with its own renderer, then shares one link that keeps all three.",
-      triggers: ["Make the map feel like Halloween in California", "Theme this map in team colors", "Give this forest map an autumn look"],
+      answer: "Yes, within the preset skins. The agent picks an interface skin, draws the basemap in the skin's colors (basemap \"skin\" on MapLibre) and colors the data with its own renderer. In an active map session it can also create an Instant Dashboard with linked chart filtering, then share a public-map embed when the map is ready.",
+      triggers: ["Make the map feel like Halloween in California", "Theme this map in team colors", "Give this forest map an autumn look", "Create an instant dashboard with a skin and basemap that suit this data"],
       inputTypes: ["Any styled layer"],
       inputs: {
         required: [{ name: "source", description: "The data layer." }, { name: "theme", description: "Subject, place, season or mood." }],
@@ -362,16 +362,17 @@ export function agentRecipes(links) {
         common.discover, common.inspectSource,
         { stage: "plan", action: "Write a semantic palette (background, land, water, roads, labels, highlights, data colors, panel accent), then map it onto: a preset skin (map-v1 skin), the skin basemap, and the data renderer's colors. Check text and data contrast.", interfaces: ["declarative-url"], references: [MAP_SCHEMA, "map-v1 skin", "map-v1 basemap: skin"] },
         { stage: "validate", action: "Validate the spec; an unknown skin or basemap is reported.", interfaces: ["standalone-js", "in-browser-api"], references: ["mapSpec.validate"] },
-        { stage: "execute", action: "Write the #map=json: link with skin, basemap \"skin\" and the renderer colors.", interfaces: ["declarative-url", "standalone-js"], references: ["mapSpec.createLink"] },
-        { stage: "verify", action: "Open the link: skin applied to panels, basemap drawn in skin colors (MapLibre), symbols in the requested colors, labels readable.", interfaces: ["in-browser-api"], references: ["describe", "mapSpec.fromCurrent"] },
-        { stage: "share", action: "Return the link; say which palette parts were approximated by a preset.", interfaces: ["declarative-url"], references: ["mapSpec.createLink"] },
+        { stage: "execute", action: "Write the #map=json: link with skin, basemap \"skin\" and the renderer colors. In an active assistant session, use create_instant_dashboard after inspecting a loaded queryable layer when the requested outcome includes a dashboard; it creates a linked chart panel, skin and basemap.", interfaces: ["declarative-url", "standalone-js", "in-browser-api"], references: ["mapSpec.createLink", "create_instant_dashboard"] },
+        { stage: "verify", action: "Open the link: skin applied to panels, basemap drawn in skin colors (MapLibre), symbols in the requested colors, labels readable. For an Instant Dashboard, activate a grouped chart mark, verify the matching map filter/selection, then clear it.", interfaces: ["in-browser-api"], references: ["describe", "mapSpec.fromCurrent", "create_instant_dashboard"] },
+        { stage: "share", action: "Return the link; say which palette parts were approximated by a preset. If the user wants a web embed, use get_map_embed or createEmbedIframe only for public layers, then test the iframe in its destination page.", interfaces: ["declarative-url", "in-browser-api"], references: ["mapSpec.createLink", "get_map_embed", "embed-share.js"] },
       ],
       artifact: { type: "map", schema: MAP_SCHEMA, structure: "map-v1 with skin, basemap (often \"skin\") and renderer colors." },
       outputs: [
         { format: "Themed interactive map link", interface: "declarative-url", interactive: true, reference: "mapSpec.createLink" },
         { format: "Project file with custom colors", interface: "external-adapter", interactive: true, notes: "Custom skin and basemap palettes made in the app's skin editor are saved in projects but not in links." },
+        { format: "Public map embed iframe", interface: "in-browser-api", interactive: true, reference: "get_map_embed", notes: "Preserves public map configuration; local, private and credentialed sources cannot be embedded." },
       ],
-      verification: ["Skin applied", "Basemap themed where supported (MapLibre skin basemap)", "Data colors and legend match", "Labels and data readable", "Theme persists on reopening", "Unsupported parts reported"],
+      verification: ["Skin applied", "Basemap themed where supported (MapLibre skin basemap)", "Data colors and legend match", "Labels and data readable", "Theme persists on reopening", "Instant Dashboard chart selection filters and clears matching map data when requested", "Embed tested in the destination page when requested", "Unsupported parts reported"],
       limitations: ["Links carry only the 12 preset skins; exact custom panel and basemap colors are not portable yet.", "The ArcGIS engine draws the skin basemap as light or dark gray.", "Raster basemaps (satellite, hybrid) cannot be recolored.", "Map labels are not configurable in map-v1.", "Category legends show coded values; RendererSpec categories have no labels."],
       recovery: ["If a requested color cannot be matched, choose the closest preset skin and state the difference.", "On ArcGIS, switch to MapLibre for a themed basemap or accept the gray canvas."],
       examples: [

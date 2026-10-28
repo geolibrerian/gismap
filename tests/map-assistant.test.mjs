@@ -17,6 +17,8 @@ test("the instructions teach the model to work from data, and carry the live map
   assert.match(text, /use field names exactly/);
   assert.match(text, /Sentinel codes/);
   assert.match(text, /query_features/);
+  assert.match(text, /Instant Dashboards/);
+  assert.match(text, /get_map_embed/);
   assert.match(text, /only when the user asks to present/);
   assert.match(text, /"title":"Corn"/);
   assert.doesNotMatch(text, /```tool/, "native tool calling needs no text protocol");
@@ -131,6 +133,8 @@ test("tool handlers call the in-page API and the app's hooks", async () => {
     api,
     catalog: [{ title: "USA Wildfires", description: "Current wildfire incidents", tags: ["wildfire"], url: "https://w/FeatureServer", layers: [{ title: "Incidents", url: "https://w/FeatureServer/0" }] }],
     setBasemap: (id) => calls.push(["basemap", id]),
+    createInstantDashboard: ({ layer, skin, basemap }) => ({ dashboard: "Corn dashboard", layer: layer.title, skin, basemap }),
+    createMapEmbed: ({ title, height }) => ({ url: "https://gismap.online/?embed=1", iframe: `<iframe title="${title}" height="${height}"></iframe>` }),
     createTour: (places, options) => calls.push(["tour", places, options]),
     featurePlace: async (layer, objectId, label) => ({ layerUrl: CORN, objectId, latitude: 41, longitude: -93, label: label || "County" }),
     draftFieldTask: (draft) => calls.push(["task", draft]),
@@ -148,6 +152,8 @@ test("tool handlers call the in-page API and the app's hooks", async () => {
   assert.throws(() => tools.set_basemap({ basemap: "moon" }), /Unknown basemap/);
   tools.set_basemap({ basemap: "gray-vector" });
   assert.deepEqual(calls.at(-1), ["basemap", "gray-vector"]);
+  assert.deepEqual(await tools.create_instant_dashboard({ layer: "l1", skin: "gismap", basemap: "skin" }), { dashboard: "Corn dashboard", layer: "Corn", skin: "gismap", basemap: "skin" });
+  assert.match((await tools.get_map_embed({ title: "Corn", height: 500 })).iframe, /iframe/);
   assert.deepEqual(tools.search_datasets({ query: "wildfires" }).map((item) => item.title), ["USA Wildfires"]);
   assert.deepEqual(await tools.load_map({ spec: { version: 1, layers: [{ url: CORN }] } }), { layers: [{ id: "l1", title: "Corn" }], issues: [] });
   tools.create_tour({ title: "Parks", places: [{ title: "Fenway Park", caption: "Opened 1912", longitude: -71.0977, latitude: 42.3462, tilt: 55 }, { title: "Nowhere" }] });

@@ -161,7 +161,8 @@
       "triggers": [
         "Make the map feel like Halloween in California",
         "Theme this map in team colors",
-        "Give this forest map an autumn look"
+        "Give this forest map an autumn look",
+        "Create an instant dashboard with a skin and basemap that suit this data"
       ],
       "artifact": "map",
       "engines": [

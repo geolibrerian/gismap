@@ -1,7 +1,7 @@
 // Stable application-facing map facade. It owns engine selection and the
 // higher-level workflows that can be expressed with provider-neutral
 // primitives. Renderer adapters stay focused on drawing and interaction.
-import { createEngine, getEngineDefinition, listEngines } from "./engines/engine-registry.js?v=0.57.12-cinematic-cleanup";
+import { createEngine, getEngineDefinition, listEngines } from "./engines/engine-registry.js?v=0.61.0-briefing-player";
 import { MAP_CONTROLLER_METHODS, METHOD_CAPABILITIES, unsupported } from "./engines/engine-interface.js?v=0.54.3-draw-style1";
 import { GisMapError } from "./gismap-errors.js?v=0.28.0";
 
@@ -142,9 +142,9 @@ export class MapController {
     return this.setView({ center: state.center, zoom: state.zoom, heading: state.heading, tilt: state.tilt }, { animate: false });
   }
 
-  async goToFeature(feature, { animate = true } = {}) {
+  async goToFeature(feature, options = {}) {
     if (!feature?.geometry) throw new Error("This record does not have a geometry to zoom to.");
-    return this.setView({ geometry: feature.geometry, fit: "feature" }, { animate });
+    return this.setView({ geometry: feature.geometry, fit: "feature" }, { animate: options.animate ?? true, ...options });
   }
 
   async goToFeatures(features = [], options = undefined) {

@@ -10,12 +10,12 @@ import { refreshNoteRelationships } from "./note-relationships-ui.js?v=0.1.0";
 import { googleMapsLinkForChapter } from "./google-maps-link.js?v=0.53.0";
 import { POPULAR_SERVICES } from "./catalog.js?v=0.18.2";
 import { MapAssistantPanel } from "./assistant-panel.js?v=0.57.0-skins1";
-import { createAssistantTools, summarizeMapState } from "./map-assistant.js?v=0.57.0-skins1";
+import { createAssistantTools, summarizeMapState } from "./map-assistant.js?v=0.61.1-dashboard-agent";
 import { ENTERPRISE_CATALOGS, EnterpriseCatalog, normalizeArcGisDirectoryUrl } from "./enterprise-catalog.js?v=0.18.2";
 import { createShareUrl } from "./share.js?v=0.54.0-unified4";
-import { createShareLink, hasDataFilter } from "./map-share.js?v=0.60.18-trains1";
+import { createShareLink, hasDataFilter } from "./map-share.js?v=0.61.0-briefing-player";
 import { createEmbedIframe, createEmbedUrl } from "./embed-share.js?v=0.61.0-embed1";
-import { briefingLayerRef, findBriefingLayer } from "./briefing-api.js?v=0.60.18-trains1";
+import { briefingLayerRef, findBriefingLayer } from "./briefing-api.js?v=0.61.0-briefing-player";
 import { createEmbeddedTourUrl } from "./tour-share.js?v=0.54.0-unified4";
 import { markdownToPlainText, renderMarkdown } from "./markdown.js?v=0.18.2";
 import { formatAttributeValue } from "./attribute-format.js?v=0.18.2";
@@ -31,8 +31,8 @@ import { featureLayerUrl, locationUrl } from "./field-task-share.js?v=0.54.0-uni
 import { dockIcon } from "./dock-icons.js?v=0.24.0";
 import { serviceNameFromUrl } from "./service-name.js?v=0.26.0";
 import { decodeQrFromImage, describeGisMapLink, gisMapLinkFrom, openGisMapLink } from "./qr-import.js?v=0.25.2";
-import { BriefingSlides } from "./briefing-slides.js?v=0.60.18-trains1";
-import { addSlide, createSlide, isRoutineField, matchesFilter, normalizeBriefing, normalizeFilter } from "./briefing-document.js?v=0.60.18-trains1";
+import { BriefingSlides } from "./briefing-slides.js?v=0.61.0-briefing-player";
+import { addSlide, createSlide, isRoutineField, matchesFilter, normalizeBriefing, normalizeFilter } from "./briefing-document.js?v=0.61.0-briefing-player";
 import { conditionComplete, conditionLabel, conditionToFilter } from "./briefing-conditions.js?v=0.1.0";
 import { createFilterBuilder } from "./filter-builder.js?v=0.1.0";
 import { conditionsToWhere } from "./filter-sql.js?v=0.1.0";
@@ -2357,8 +2357,53 @@ export class UIController {
       },
       setMode: (mode) => document.querySelector(`[data-mobile-workflow="${mode}"]`)?.click(),
       setSkin: (skin) => this.applySkinChoice(skin),
+      createInstantDashboard: async ({ layer: layerInfo, title, skin, basemap }) => {
+        const layer = this.mapController.getLayer(layerInfo.id);
+        if (!layer?.queryable) throw Object.assign(new Error(`The layer “${layerInfo.title || layerInfo.id}” cannot be charted.`), { hint: "Choose a loaded feature layer with attributes." });
+        const fields = layer.fields || [];
+        const category = fields.find((field) => /string|guid|oid/i.test(String(field.type || "")) && field.name !== layer.objectIdField);
+        const numeric = fields.find((field) => /integer|double|single|number|decimal|float/i.test(String(field.type || "")));
+        const type = category ? "bar" : "histogram";
+        const chart = createChartSpec({
+          title: String(title || `${layer.title || "Map data"} dashboard`).slice(0, 160),
+          type,
+          source: { layerId: layer.uid, scope: "filtered" },
+          dimension: category?.name || null,
+          measure: { field: numeric?.name || null, aggregation: numeric ? "sum" : "count" },
+          presentation: { target: "dashboard", targets: ["panel", "dashboard"], placement: "bottom", size: "regular" },
+          interaction: { mapHighlight: true, crossFilter: true },
+        });
+        this.applySkinChoice(skin);
+        this.mapController.setBasemap(basemap);
+        this.projectManager.setCharts?.([...(this.projectManager.current.charts || []), chart]);
+        await this.applicationRuntime.runTool("application.chart.create", {
+          title: chart.title,
+          region: "bottom",
+          binding: { layerId: layer.uid, followActiveLayer: false },
+          settings: { chart },
+          skin,
+        });
+        return {
+          dashboard: chart.title,
+          layer: layer.title || layer.uid,
+          chart: { type, dimension: category?.name || null, measure: numeric?.name || null, aggregation: numeric ? "sum" : "count" },
+          skin,
+          basemap,
+          interaction: "Click a chart mark to filter and select matching map features.",
+        };
+      },
       saveProject: (name) => { this.projectManager.save(name); return this.projectManager.current.name; },
       openShareMenu: () => this.#shareExportDialog(),
+      createMapEmbed: async ({ title, height } = {}) => {
+        const shared = await this.#mapShareLink();
+        const embedTitle = String(title || this.projectManager.current.name || "GISMap map").slice(0, 160);
+        return {
+          url: createEmbedUrl(shared.url, { kind: "map" }),
+          iframe: createEmbedIframe(shared.url, { kind: "map", title: embedTitle, height }),
+          fitsQrCode: shared.qr,
+          note: "Only public web layers are included. Local data and URLs with credentials are excluded from an embed.",
+        };
+      },
       download: async (format) => {
         if (format === "pdf") return this.#downloadMapPdf();
         if (format === "smart-image") return this.projectManager.exportSmartImage();

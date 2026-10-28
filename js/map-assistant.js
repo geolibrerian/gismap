@@ -12,7 +12,7 @@ import { DISPLAY_SETTINGS, guideOutline, searchGuide, validateDisplaySetting } f
 
 const MAX_RESULT = 6000;
 const STEP_LIMIT = 10;
-const BASEMAPS = ["topo-3d", "navigation-3d", "navigation-dark-3d", "osm-3d", "gray-3d", "dark-gray-3d", "streets-3d", "streets-dark-3d", "topo-vector", "streets-vector", "navigation", "gray-vector", "dark-gray-vector", "osm", "satellite", "hybrid"];
+const BASEMAPS = ["topo-3d", "navigation-3d", "navigation-dark-3d", "osm-3d", "gray-3d", "dark-gray-3d", "streets-3d", "streets-dark-3d", "topo-vector", "streets-vector", "navigation", "gray-vector", "dark-gray-vector", "osm", "satellite", "hybrid", "skin"];
 const RELATIONS = ["intersects", "contains", "crosses", "envelope-intersects", "index-intersects", "overlaps", "touches", "within", "disjoint", "relation"];
 
 const layerRef = { type: "string", description: "The layer's id (from get_map_state), service URL or title." };
@@ -35,6 +35,16 @@ export const ASSISTANT_TOOLS = Object.freeze([
   { name: "suggest_styles", description: "Rank the styles that suit one of a layer's fields, computed from its values. Apply one with update_layer and its pinnedSpec.", parameters: { type: "object", required: ["layer"], properties: { layer: layerRef, field: { type: "string" } } } },
   { name: "set_view", description: "Move the map: to a layer's data, or to a place by longitude and latitude.", parameters: { type: "object", properties: { layer: layerRef, longitude: { type: "number" }, latitude: { type: "number" }, zoom: { type: "number", description: "About 4 = a country, 10 = a city, 16 = a street." } } } },
   { name: "set_basemap", description: "Change the background map.", parameters: { type: "object", required: ["basemap"], properties: { basemap: { enum: BASEMAPS } } } },
+  {
+    name: "create_instant_dashboard",
+    description: "Create a linked Instant Dashboard for one loaded feature layer. It applies a matching interface skin and basemap, adds a data-aware chart panel, and makes chart marks filter and select the corresponding map data. Inspect the layer first; use the Skin basemap when the selected skin should also colour the basemap.",
+    parameters: { type: "object", required: ["layer"], properties: {
+      layer: layerRef,
+      title: { type: "string", description: "Short dashboard and chart title." },
+      skin: { enum: INTERFACE_SKINS.map(({ id }) => id), description: "Choose a preset skin that supports the subject and audience." },
+      basemap: { enum: BASEMAPS, description: "Use skin for a skin-coloured MapLibre basemap, otherwise choose a readable geographic basemap." },
+    } },
+  },
   {
     name: "load_map",
     description: "Open a whole map from one map-v1 spec: layers with styles and filters, basemap, camera, and optionally a briefing. Use it to build a complete map in one step. replace (default true) removes the current layers first.",
@@ -66,6 +76,7 @@ export const ASSISTANT_TOOLS = Object.freeze([
   { name: "open_share_menu", description: "Open the Share & export dialog for the user (links, QR code, exports).", parameters: { type: "object", properties: {} } },
   { name: "download", description: "Download the map for the user: pdf (Map PDF), smart-image (a PNG that opens as the project), gmo (project file) or gmop (project package with local files).", parameters: { type: "object", required: ["format"], properties: { format: { enum: ["pdf", "smart-image", "gmo", "gmop"] } } } },
   { name: "get_share_link", description: "A link (and whether it fits a QR code) that opens the map as it is now, with its briefing.", parameters: { type: "object", properties: {} } },
+  { name: "get_map_embed", description: "Return a ready-to-paste iframe and embed URL for the currently configured public map. The embed preserves public layers, styles, filters, view, basemap and skin; local or credentialed data cannot be embedded.", parameters: { type: "object", properties: { title: { type: "string" }, height: { type: "integer", minimum: 280, maximum: 1200 } } } },
 ]);
 
 /** The model's instructions: how GIS Map Online works, the rules for using it well, and the map right now. */
@@ -81,12 +92,13 @@ export function buildAssistantInstructions({ state = null, textTools = false } =
     "- Sentinel codes (such as -1 for \"Not Disclosed\") are not measurements: add them to the style's exclude list.",
     "- For a number field prefer { \"type\": \"choropleth\", \"method\": \"auto\" } (points: \"graduated-symbols\"), or { \"type\": \"auto\", \"field\" } to let the app choose; suggest_styles explains the options.",
     "- A whole map in one step: load_map with a map-v1 spec. Small changes: add_layer, update_layer, set_view.",
+    "- Charts and Instant Dashboards: after inspecting a loaded layer, create_instant_dashboard makes a linked chart workspace with an appropriate skin and basemap. Choose the skin and basemap deliberately: a skin basemap follows the selected skin on MapLibre, while the data renderer still needs its own readable colours. Chart marks select and filter the matching map records; never describe a chart aggregate as a geographic total without checking coverage.",
     "- Briefings: create_briefing for slides you write, generate_briefing for a quick draft from a layer. Present (present_briefing, or present: true) only when the user asks to present. Feature slides use the feature's object ID. Slides can show the briefing's other layers, limited to features related to the slide's feature (relation types: " + RELATIONS.join(", ") + ").",
     "- Places, IDs and facts come from data: use query_features on a layer (add one first if needed) for real names, coordinates and object IDs. Captions and slide text say only what the data shows or what you are certain of; never fill gaps with guesses.",
     "- Tours: create_tour with places (longitude, latitude), short captions, zoom about 15-17 and tilt about 45-60 for a 3D look.",
     "- Field tasks: draft_field_task. The user reviews it before it is shared.",
     "- When a tool returns an error, read its hint and fix the call; do not repeat the same call.",
-    "- After acting, reply in two or three sentences: what you did, and anything the user should check (data caveats, missing fields, sample-based numbers). Offer get_share_link when the user wants to share.",
+    "- After acting, reply in two or three sentences: what you did, and anything the user should check (data caveats, missing fields, sample-based numbers). Offer get_share_link when the user wants to share, and get_map_embed when they want to publish the configured map on another site.",
     "- Questions about the app itself (menus, settings, where something is): call app_help and answer with the exact menu path it gives. Display settings (selection style, highlight colour, appearance, panel positions) can be changed for the user with change_display_setting; say where the setting lives too.",
     "- The app itself: set_mode switches modes, set_skin changes the look, save_project saves, open_share_menu opens Share & export, and download gives a Map PDF, Smart map image, .gmo project file or .gmop package. Do these only when the user asks.",
     "- Keep the conversation in the user's language. Do not claim to have done something a tool did not do.",
@@ -359,6 +371,14 @@ export function createAssistantTools(host) {
       host.setBasemap(basemap);
       return { basemap };
     },
+    async create_instant_dashboard({ layer, title = "", skin = "gismap", basemap = "skin" }) {
+      const found = findLayer(api, layer);
+      const skinChoice = INTERFACE_SKINS.find(({ id }) => id === skin);
+      if (!skinChoice) throw Object.assign(new Error(`Unknown skin "${skin}".`), { hint: `Use one of: ${INTERFACE_SKINS.map(({ id }) => id).join(", ")}.` });
+      if (!BASEMAPS.includes(basemap)) throw Object.assign(new Error(`Unknown basemap "${basemap}".`), { hint: `Use one of: ${BASEMAPS.join(", ")}.` });
+      if (typeof host.createInstantDashboard !== "function") throw Object.assign(new Error("Instant Dashboard is not available in this GISMap session."), { hint: "Open the map workspace and try again after it has finished loading." });
+      return host.createInstantDashboard({ layer: found, title, skin: skinChoice.id, basemap });
+    },
     async load_map({ spec, replace = true }) {
       const result = api.mapSpec.load(spec, { replace, showIssues: false });
       if (!result.spec) return { valid: false, issues: result.issues };
@@ -430,6 +450,10 @@ export function createAssistantTools(host) {
     async get_share_link() {
       const { url, qr } = await api.mapSpec.createLink(api.mapSpec.fromCurrent());
       return { url, fitsQrCode: qr };
+    },
+    async get_map_embed({ title, height } = {}) {
+      if (typeof host.createMapEmbed !== "function") throw Object.assign(new Error("Map embeds are not available in this GISMap session."), { hint: "Open Share & export to create a map link, then choose Embed." });
+      return host.createMapEmbed({ title, height });
     },
   };
 }
