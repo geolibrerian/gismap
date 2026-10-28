@@ -11,7 +11,7 @@ import { IdentifyController } from "./identify.js?v=0.54.0-pan2";
 import { AttributeTableController } from "./attribute-table.js?v=0.61.2-layer-tools";
 import { AIController } from "./ai.js?v=0.57.0-skins1";
 import { ToolManager } from "./tool-manager.js?v=0.37.0";
-import { UIController } from "./ui.js?v=0.61.5-briefing-player";
+import { UIController } from "./ui.js?v=0.62.1-quakes-guide";
 import { ExportController } from "./export/export-controller.js?v=0.37.0";
 import { SHARE_BASEMAPS, parseShareParameters } from "./share.js?v=0.54.0-unified4";
 import { readShareLocation } from "./map-share.js?v=0.61.0-briefing-player";
@@ -269,6 +269,13 @@ async function start() {
     if (example && sharedLayers.length) uiController.activateExampleGuide(example, { start: true });
   } catch (error) {
     events.publish("app:error", { message: error.message });
+  }
+
+  // A documented, no-payload launcher for the finished Historical Quakes
+  // briefing. Unlike ?example=historical-quakes, it loads the bounded source,
+  // slides and observed-time clip as one editable briefing.
+  if (!sharedState && launchParams.get("briefingExample") === "historical-quakes") {
+    await uiController.openHistoricalQuakesBriefingExample({ startTutorial: launchParams.get("tutorial") === "1" });
   }
 
   // A styled map or briefing link (`#map=…`, `#briefing=…`, or `?briefing=<file URL>`).

@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
-import { BRIEFING_WALKTHROUGH_STEPS, WALKTHROUGH_STEPS, createExampleWalkthroughSteps, waitForWalkthroughTarget } from '../js/workspace-walkthrough.js';
+import { BRIEFING_WALKTHROUGH_STEPS, HISTORICAL_QUAKES_BRIEFING_TUTORIAL_STEPS, WALKTHROUGH_STEPS, createExampleWalkthroughSteps, waitForWalkthroughTarget } from '../js/workspace-walkthrough.js';
 
 test('walkthrough has a concise desktop and mobile overview', () => {
   assert.ok(WALKTHROUGH_STEPS.length >= 5 && WALKTHROUGH_STEPS.length <= 10);
@@ -34,10 +34,27 @@ test('briefing guide covers the workflow without requiring a loaded dataset', as
   assert.match(ui, /'Find a dataset'/);
   assert.match(ui, /beforeStep: async \(index, \{ signal \}\)/);
   assert.match(ui, /if \(index < 3\) return true/);
-  assert.match(ui, /#openExampleHazardsBriefing\(\{ signal \}\)/);
+  assert.match(ui, /#openExampleHistoricalQuakesBriefing\(\{ signal, startTutorial = false \}/);
   assert.match(ui, /waitForWalkthroughTarget\(this\.mobileMedia\.matches \? step\.mobile : step\.desktop/);
   assert.match(ui, /index === 3 \? 'features' : 'slides'/);
   assert.match(BRIEFING_WALKTHROUGH_STEPS[2].description, /Next will load/);
+});
+
+test('Historical Quakes has a finished-example walkthrough from source to share', async () => {
+  assert.equal(HISTORICAL_QUAKES_BRIEFING_TUTORIAL_STEPS.length, 7);
+  for (const title of ['Start with the finished briefing', 'Check the source', 'Keep the publisher’s symbols', 'Focus the story', 'Read the slide deck', 'Play the observed timeline', 'Preview, share, and adapt']) {
+    assert.ok(HISTORICAL_QUAKES_BRIEFING_TUTORIAL_STEPS.some((step) => step.title === title));
+  }
+  assert.match(HISTORICAL_QUAKES_BRIEFING_TUTORIAL_STEPS[1].desktop, /data-layer-action="source"/);
+  assert.match(HISTORICAL_QUAKES_BRIEFING_TUTORIAL_STEPS[5].desktop, /nth-child\(3\)/);
+  assert.match(HISTORICAL_QUAKES_BRIEFING_TUTORIAL_STEPS[5].description, /observed-time cinematic/i);
+  const ui = await readFile(new URL('../js/ui.js', import.meta.url), 'utf8');
+  assert.match(ui, /HISTORICAL_QUAKES_BRIEFING_TUTORIAL_STEPS/);
+  assert.match(ui, /tutorial === "historical-quakes-briefing"/);
+  assert.match(ui, /#startHistoricalQuakesBriefingTutorial\(\)/);
+  assert.match(ui, /openHistoricalQuakesBriefingExample\(\{ startTutorial = false \} = \{\}\)/);
+  assert.match(ui, /data-presentation-setup="example-briefing-tutorial"/);
+  assert.match(ui, /Opening the next part of the Historical Quakes briefing/);
 });
 
 test('walkthrough target waiting resolves on rendering and aborts or times out safely', async () => {

@@ -34,6 +34,7 @@ GISMap supports MapLibre (the default, with three.js for point clouds and models
 
 - [Browse public GIS data examples](https://gismap.online/examples/), including
   curated ArcGIS REST services and GeoJSON feeds that open directly in GISMap.
+- Take the [Historical Quakes briefing tutorial](https://gismap.online/?briefingExample=historical-quakes&tutorial=1): a finished, editable story that explains source provenance, publisher symbols, a focused map filter, slides, cinematic playback, and sharing.
 - Browse the [viewer guide index](https://gismap.online/guides/) or read about [ArcGIS REST services](https://gismap.online/arcgis-rest-service-viewer/),
   [FeatureServers](https://gismap.online/arcgis-feature-service-viewer/),
   [MapServers](https://gismap.online/arcgis-map-service-viewer/),

@@ -31,11 +31,26 @@ export function createExampleWalkthroughSteps(example = {}) {
 export const BRIEFING_WALKTHROUGH_STEPS = [
   { title: 'Create a briefing', desktop: '.presentation-empty', mobile: '.presentation-empty', description: 'A briefing combines an interactive map with a sequence of slides. This guide will add example layers and an editable briefing to your project.' },
   { title: 'Start with data', desktop: '[data-presentation-setup="data-popular"]', mobile: '[data-presentation-setup="data-popular"]', description: 'Find a dataset, connect a service, or add a file. Choose a feature layer with the places or events you want to explain.' },
-  { title: 'Try a finished example', desktop: '[data-presentation-setup="example-briefing"]', mobile: '[data-presentation-setup="example-briefing"]', description: 'Next will load hurricane and earthquake services and an editable example briefing. Existing slides are replaced only with your confirmation.' },
+  { title: 'Try a finished example', desktop: '[data-presentation-setup="example-briefing"]', mobile: '[data-presentation-setup="example-briefing"]', description: 'Next will load a filtered Historical Quakes Feature Service with the publisher’s symbols, finished slides, and an observed cinematic timeline. Existing slides are replaced only with your confirmation.' },
   { title: 'Choose your features', desktop: '#briefing-data-dock:not([hidden]), body:not(.briefing-v2) .briefing-select', mobile: '.briefing-select', description: 'Use the Data panel to search, filter, group, or select features. Use all matching features, or include only those you need.' },
   { title: 'Build your slides', desktop: '.briefing-new-slides, .briefing-slides__add', mobile: '.briefing-slides__add', description: 'Create slides from the map or your selected features, or start with a blank title, map, numbers or actions slide. Choose a slide in the list to edit its content and map view.' },
   { title: 'Arrange and review', desktop: '.briefing-slide-list', mobile: '.briefing-slide-list', description: 'Reorder, duplicate or hide slides in the list. Review each slide’s text, map view and layer visibility before presenting.' },
   { title: 'Preview and share', desktop: '.briefing-data-dock__actions:not([hidden]), body:not(.briefing-v2) .briefing-slides__actions', mobile: '.briefing-slides__actions', description: 'Use Preview slides to play the briefing. Share offers a link, QR code and PDF export. Exit the preview to keep editing.' },
+];
+
+// The finished Historical Quakes briefing is deliberately different from the
+// blank-briefing guide above. It is a short, read-first walkthrough of the
+// working example: where its data comes from, why the publisher renderer is
+// preserved, how its M6.5+ scope stays legible, and how the slide deck turns
+// those choices into a shareable story.
+export const HISTORICAL_QUAKES_BRIEFING_TUTORIAL_STEPS = [
+  { title: 'Start with the finished briefing', desktop: '.example-guide', mobile: '.example-guide', description: 'This example uses the stable Historical Quakes Feature Service. It is already a complete, editable briefing—not a screenshot or a separate demo.' },
+  { title: 'Check the source', desktop: '#layers-list .layer-card:first-of-type [data-layer-action="source"]', mobile: '[data-mobile-panel="layers-panel"]', description: 'Open Source to see the publisher endpoint and its metadata. The map keeps a direct link to the public Feature Service, so the provenance stays clear.' },
+  { title: 'Keep the publisher’s symbols', desktop: '#layers-list .layer-card:first-of-type [data-layer-action="style"]', mobile: '[data-mobile-panel="layers-panel"]', description: 'Select Style to inspect or adjust the layer. This example starts with the service’s own magnitude renderer, preserving the colors and symbol sizes supplied by the publisher.' },
+  { title: 'Focus the story', desktop: '#layers-list .layer-card:first-of-type [data-layer-action="filter"]', mobile: '[data-mobile-panel="layers-panel"]', description: 'Filter map controls the geographic data you see. This briefing begins at magnitude 6.5 and above, making the global pattern readable while leaving the source service intact.' },
+  { title: 'Read the slide deck', desktop: '.briefing-slide-list', mobile: '.briefing-slide-list', description: 'The opening slides explain the archive and the source styling. The event slides are ordinary briefing slides, so you can rewrite them, reorder them, or add your own.' },
+  { title: 'Play the observed timeline', desktop: '.briefing-slide-list li:nth-child(3) [data-slide-select]', mobile: '.briefing-slide-list li:nth-child(3) [data-slide-select]', description: 'The third slide is an observed-time cinematic clip. It builds the selected earthquakes over time and moves from a global view toward the Ring of Fire; it does not invent in-between observations.' },
+  { title: 'Preview, share, and adapt', desktop: '.briefing-data-dock__actions:not([hidden]), body:not(.briefing-v2) .briefing-slides__actions', mobile: '.briefing-slides__actions', description: 'Preview plays the briefing as your audience will see it. From Share, create a link, QR code, PDF, or embed—then return here to adapt the data, map view, and slides for your own story.' },
 ];
 
 // "Create an animation": a hands-on Cinematic guide. Each step's `prepare`

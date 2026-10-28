@@ -219,14 +219,18 @@ export const POPULAR_SERVICES = [
   {
     id: "esri-historical-quakes", slug: "historical-quakes", provider: "Esri Disaster Response",
     title: "Historical Quakes", category: "Earthquakes", serviceType: "feature",
-    description: "Historical earthquake records available as ArcGIS FeatureServer layers.",
-    whyUseful: "Explore seismic history, identify large events, and compare historic activity with current geographic context.",
+    description: "A stable historical earthquake archive published as an ArcGIS FeatureServer, with source-authored magnitude symbols.",
+    whyUseful: "Explore seismic history, identify large events, and build a source-styled, observed-time briefing without relying on a changing feed.",
     url: "https://rhvpkkiftonktxq3.svcs9.arcgis.com/RHVPKKiFTONKtxq3/ArcGIS/rest/services/Historical_Quakes/FeatureServer",
     sourceOrganization: "Esri Disaster Response Program",
     sourcePage: "https://rhvpkkiftonktxq3.svcs9.arcgis.com/RHVPKKiFTONKtxq3/ArcGIS/rest/services/Historical_Quakes/FeatureServer",
+    // This service is also the stable, finished briefing tutorial. Keep the
+    // launcher in the catalog so generated Examples pages can link to the
+    // authored briefing rather than only opening the raw layer.
+    briefingTutorial: "historical-quakes",
     licenseOrTerms: "Review the service metadata and publisher terms before reuse.",
     tags: ["earthquake", "historical", "seismic", "hazards", "FeatureServer"],
-    lastChecked: null, featured: false,
+    lastChecked: null, featured: true,
   },
   {
     id: "usgs-earthquakes-month", slug: "usgs-earthquakes", provider: "USGS",

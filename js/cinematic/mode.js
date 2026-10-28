@@ -63,7 +63,7 @@ export class CinematicModeController {
 
   /** Query, model and take over one track's layer (filter, opacity, its own effect paused). */
   async #loadLayer(config, featuresByLayer = {}) {
-    const layer = this.mapController.getLayer(config.layerRef);
+    const layer = this.#layerForRef(config.layerRef);
     if (!layer?.queryable) throw new Error(`Cinematic layer “${config.layerRef}” is not queryable.`);
     if (this.layers.has(layer.uid)) throw new Error(`${layer.title} is already a track in this scene.`);
     const loaded = featuresByLayer[config.layerRef] ? { features: featuresByLayer[config.layerRef], truncated: false } : await this.#queryAll(layer, config.temporal.startField);
@@ -82,6 +82,24 @@ export class CinematicModeController {
     if (config.animation.opacity != null) await attempt(() => this.mapController.setOpacity(layer.uid, config.animation.opacity), false);
     // The layer's own Advanced Style effect would double the cinematic one; it returns on exit.
     await attempt(() => this.mapController.suspendLayerEffect?.(layer.uid, true), false);
+  }
+
+  /**
+   * A project-local cinematic scene normally names a layer uid. A Clip inside
+   * a shared Brief instead names its durable FeatureServer URL, because a new
+   * browser session necessarily assigns a new uid. Resolve both forms before
+   * loading the track so a portable Brief can play its embedded Clip.
+   */
+  #layerForRef(ref) {
+    const direct = this.mapController.getLayer(ref);
+    if (direct) return direct;
+    const clean = (value) => String(value || '').replace(/\/+$/, '').toLowerCase();
+    const wanted = clean(ref);
+    if (!wanted || !/^https?:\/\//.test(wanted)) return null;
+    return (this.mapController.getLayers?.() || []).find((candidate) => {
+      const config = this.mapController.getLayerConfig?.(candidate) || {};
+      return [config.url, candidate.url].some((url) => clean(url) === wanted);
+    }) || null;
   }
 
   /**

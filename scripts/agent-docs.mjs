@@ -51,6 +51,8 @@ export function buildUrlParameters() {
       scale: { type: "number", minimum: 1, description: "Map scale denominator, with center.", example: "500000" },
       level: { type: "number", minimum: 0, maximum: 24, description: "Zoom level, with center.", example: "7" },
       example: { type: "string", values: POPULAR_SERVICES.map((item) => item.slug || item.id), description: "A curated dataset (see /api/catalog.json).", example: "usa-wildfires" },
+      briefingExample: { type: "string", values: ["historical-quakes"], description: "Launch a finished, editable briefing example. historical-quakes loads the bounded Historical Quakes layer, source style, slides, and observed cinematic clip.", example: "historical-quakes" },
+      tutorial: { type: "string", values: ["1"], description: "With briefingExample=historical-quakes, begin its step-by-step walkthrough after the finished briefing loads.", example: "1" },
       spec: { type: "string", format: "uri", description: "HTTPS URL of a CORS-enabled map-v1 JSON file.", example: "https://example.org/corn.map.json" },
       briefing: { type: "string", format: "uri", description: "HTTPS URL of a briefing file (briefing-v1 document, project or the app's briefing file).", example: "https://example.org/corn.briefing.json" },
     },
@@ -82,6 +84,7 @@ export function buildCatalog() {
       link: `${SITE}/?example=${encodeURIComponent(item.slug || item.id)}`,
       layerLink: layerLink(item),
       ...(item.featured ? { page: `${SITE}/examples/${item.slug}/` } : {}),
+      ...(item.briefingTutorial ? { briefingTutorial: `${SITE}/?briefingExample=${encodeURIComponent(item.briefingTutorial)}&tutorial=1` } : {}),
     })),
   };
 }

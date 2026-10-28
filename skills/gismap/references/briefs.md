@@ -4,6 +4,10 @@ Without code, a chatbot can put a whole briefing in one link: add `"briefing": {
 
 Use briefing-v1: https://gismap.online/schemas/briefing-v1.schema.json and the `briefing` namespace of the core or in-page API. `briefing.validate` is static; its success does not verify the data, scene, or mobile presentation. A map-v1 can include a briefing document. Existing examples at https://gismap.online/examples/ai/ demonstrate this model. Validate slide layer references, camera and visibility after reopening. Full independent per-slide styling/filter and publishing parity is not guaranteed; test what is retained rather than claiming it.
 
+## Start with a finished briefing tutorial
+
+The [Historical Quakes briefing tutorial](https://gismap.online/?briefingExample=historical-quakes&tutorial=1) loads a stable public ArcGIS Feature Service as an editable briefing rather than only opening a dataset. It uses the publisher's magnitude renderer, limits the map to M6.5+ events for a readable global story, includes event slides, and carries an observed-time Cinematic Clip. The in-app guide then walks through source provenance, styling, filtering, slides, cinematic playback, preview, and sharing. Use it to learn the workflow; do not treat its map scope or event selection as a complete seismic analysis.
+
 ## Generate data-driven templates in an active GISMap page
 
 `gisMapOnline.briefing.generateTemplate(options)` is an **experimental in-page JavaScript API**, not an HTTP endpoint or a function of the standalone core module. First load a queryable layer in GISMap and await `gisMapOnline.ready`. Supply its loaded `layerId` (UID, ID, URL or title), or use the current primary layer. The method queries at most 500 features using the layer's existing definition filter and appends slides to the current briefing. It does not use the Features tab's selected IDs or search. Use `previewOnly: true` to validate and construct a candidate without saving:

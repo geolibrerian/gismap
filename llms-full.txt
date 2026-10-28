@@ -335,6 +335,8 @@ Query (after ?):
 - `scale`: Map scale denominator, with center. Example: `500000`.
 - `level`: Zoom level, with center. Example: `7`.
 - `example`: A curated dataset (see /api/catalog.json). Values: usa-wildfires, modis-active-fires, active-hurricanes, recent-hurricanes, air-quality-pm25, air-quality-pm25-3d-columns, air-quality-pm25-3d-graduated, usgs-seismic-activity, usgs-recent-earthquakes-map-service, ndfd-wind-gusts, ndfd-precipitation, ndfd-daily-temperature, historical-quakes, usgs-earthquakes, world-countries-generalized. Example: `usa-wildfires`.
+- `briefingExample`: Launch a finished, editable briefing example. historical-quakes loads the bounded Historical Quakes layer, source style, slides, and observed cinematic clip. Values: historical-quakes. Example: `historical-quakes`.
+- `tutorial`: With briefingExample=historical-quakes, begin its step-by-step walkthrough after the finished briefing loads. Values: 1. Example: `1`.
 - `spec`: HTTPS URL of a CORS-enabled map-v1 JSON file. Example: `https://example.org/corn.map.json`.
 - `briefing`: HTTPS URL of a briefing file (briefing-v1 document, project or the app's briefing file). Example: `https://example.org/corn.briefing.json`.
 

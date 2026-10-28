@@ -100,6 +100,8 @@ test("url-parameters.json documents the parameters the app reads", async () => {
   const shared = parseShareParameters(`?${query}`);
   assert.equal(shared.layers.length, 1);
   assert.equal(shared.basemap, "gray-vector");
+  assert.equal(parameters.query.briefingExample.example, "historical-quakes");
+  assert.equal(parameters.query.tutorial.example, "1");
 });
 
 test("catalog.json links open their datasets", () => {

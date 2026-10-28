@@ -87,6 +87,24 @@ test("deleting a cinematic source clears its transient effects and ends a one-la
   assert.deepEqual(mode.state().layers, []);
 });
 
+test("a Clip can resolve its durable service URL after a shared Brief gives the layer a new uid", async () => {
+  const url = "https://example.test/arcgis/rest/services/Historical_Quakes/FeatureServer/0";
+  const layer = { uid: "new-session-uid", title: "Historical Quakes", url, queryable: true, objectIdField: "OBJECTID", opacity: 0.9 };
+  const mapController = {
+    getLayer: (ref) => ref === layer.uid ? layer : null,
+    getLayers: () => [layer],
+    getLayerConfig: () => ({ url }),
+    getFeatureFilter: async () => null,
+    setFeatureFilter: async () => true,
+    setOpacity: async () => {},
+    queryFeatures: async () => ({ features: [{ attributes: { OBJECTID: 1, time: Date.UTC(2026, 0, 1) }, geometry: { type: "Point", coordinates: [0, 0] } }] }),
+  };
+  const mode = new CinematicModeController({ mapController });
+  await mode.load({ cinematic: { layers: [{ layerRef: url, temporal: { startField: "time" } }] } });
+  assert.equal(mode.state().layers[0].uid, layer.uid);
+  await mode.destroy();
+});
+
 test("cinematic mode loads every page so playback starts at the earliest record", async () => {
   // A newest-first feed of 25 records served 10 at a time.
   const rows = Array.from({ length: 25 }, (_, index) => ({ attributes: { OBJECTID: index + 1, time: Date.UTC(2026, 8, 1 + index) }, geometry: { type: "Point", coordinates: [0, 0] } })).reverse();

@@ -226,6 +226,22 @@
       "description": "A curated dataset (see /api/catalog.json).",
       "example": "usa-wildfires"
     },
+    "briefingExample": {
+      "type": "string",
+      "values": [
+        "historical-quakes"
+      ],
+      "description": "Launch a finished, editable briefing example. historical-quakes loads the bounded Historical Quakes layer, source style, slides, and observed cinematic clip.",
+      "example": "historical-quakes"
+    },
+    "tutorial": {
+      "type": "string",
+      "values": [
+        "1"
+      ],
+      "description": "With briefingExample=historical-quakes, begin its step-by-step walkthrough after the finished briefing loads.",
+      "example": "1"
+    },
     "spec": {
       "type": "string",
       "format": "uri",

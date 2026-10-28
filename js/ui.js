@@ -43,9 +43,9 @@ import { saveEngine } from "./engine-preference.js?v=0.52.1";
 import { BASEMAPS } from "./basemap-catalog.js?v=0.53.0-gallery1";
 import { CartographyLab } from "./cartography-lab.js?v=0.60.0-media1";
 import { CONTEXT_ACTIONS, createSuggestionPreferences, deriveWorkspace, executeContextAction, suggestionKey, summarizeFeature } from "./contextual-workspace.js?v=6";
-import { BRIEFING_WALKTHROUGH_STEPS, CINEMATIC_WALKTHROUGH_STEPS, createExampleWalkthroughSteps, startWorkspaceWalkthrough, waitForWalkthroughTarget } from "./workspace-walkthrough.js?v=0.61.1-example-guide";
-import { chooseHurricaneLayer, createHazardsExampleBriefing } from "./example-hazards-briefing.js?v=0.60.0-media1";
-import { CinematicModeController } from "./cinematic/mode.js?v=0.3.14-cinematic-cleanup";
+import { BRIEFING_WALKTHROUGH_STEPS, CINEMATIC_WALKTHROUGH_STEPS, HISTORICAL_QUAKES_BRIEFING_TUTORIAL_STEPS, createExampleWalkthroughSteps, startWorkspaceWalkthrough, waitForWalkthroughTarget } from "./workspace-walkthrough.js?v=0.62.1-quakes-guide";
+import { HISTORICAL_QUAKES_SOURCE, HISTORICAL_QUAKES_WHERE, createHistoricalQuakesCinematicClip, createHistoricalQuakesExampleBriefing } from "./example-hazards-briefing.js?v=0.62.0-historical-quakes";
+import { CinematicModeController } from "./cinematic/mode.js?v=0.3.15-clip-ref";
 import { CINEMATIC_EFFECTS, CINEMATIC_EFFECT_CATEGORIES, suggestEffect } from "./cinematic/cinematic-effects.js?v=0.2.8";
 import { PROVENANCE_STATUSES } from "./cinematic/clock.js?v=0.1.0";
 import { recommendAnimations } from "./cinematic/recommend.js?v=0.1.3";
@@ -1325,7 +1325,7 @@ export class UIController {
 
   #welcomeIsSharedLaunch() {
     const params = new URLSearchParams(location.search);
-    if (["example", "layer", "url", "briefing", "workflow", "application"].some((key) => params.has(key))) return true;
+    if (["example", "layer", "url", "briefing", "briefingExample", "workflow", "application"].some((key) => params.has(key))) return true;
     return /(?:^#|&)(?:map|briefing|tour|fieldTask|fieldNote|at)=/.test(location.hash);
   }
 
@@ -1455,11 +1455,45 @@ export class UIController {
   #startExampleWalkthrough(example = this.activeExampleGuide) {
     if (!example) return;
     this.#dismissWelcome();
+    if (example.tutorial === "historical-quakes-briefing") {
+      this.#startHistoricalQuakesBriefingTutorial();
+      return;
+    }
     startWorkspaceWalkthrough({
       steps: createExampleWalkthroughSteps(example),
       label: `${example.title || "Example"} tutorial`,
       mobile: () => this.mobileMedia.matches,
     });
+  }
+
+  #startHistoricalQuakesBriefingTutorial() {
+    const prepare = async (index, { signal }) => {
+      const step = HISTORICAL_QUAKES_BRIEFING_TUTORIAL_STEPS[index];
+      if (index === 0) return true;
+      if (index < 4) {
+        const card = await waitForWalkthroughTarget("#layers-list .layer-card:first-of-type", { signal });
+        if (index === 1 || index === 3) card.querySelector(".layer-card__more")?.setAttribute("open", "");
+      } else {
+        const presentation = this.projectManager.current.presentation;
+        if (presentation?.template !== "briefing") throw new Error("The Historical Quakes briefing is no longer open. Reopen the example and start the tutorial again.");
+        this.briefingTab = "slides";
+        this.#renderPresentationDashboard(presentation);
+      }
+      await waitForWalkthroughTarget(this.mobileMedia.matches ? step.mobile : step.desktop, { signal });
+      return true;
+    };
+    startWorkspaceWalkthrough({
+      steps: HISTORICAL_QUAKES_BRIEFING_TUTORIAL_STEPS,
+      label: "Historical Quakes briefing tutorial",
+      mobile: () => this.mobileMedia.matches,
+      beforeStep: prepare,
+      preparingLabel: "Opening the next part of the Historical Quakes briefing…",
+    });
+  }
+
+  /** A stable public launcher for the documented Historical Quakes tutorial URL. */
+  async openHistoricalQuakesBriefingExample({ startTutorial = false } = {}) {
+    return this.#openExampleHistoricalQuakesBriefing({ startTutorial });
   }
 
   /**
@@ -3687,42 +3721,60 @@ export class UIController {
     return this.mapController.addService(config);
   }
 
-  async #openExampleHazardsBriefing({ signal } = {}) {
+  async #openExampleHistoricalQuakesBriefing({ signal, startTutorial = false } = {}) {
     if (this.exampleBriefingLoading) return false;
     const project = this.projectManager.current;
     if (project.presentation?.briefing?.slides?.length && !confirm('Replace the current briefing slides with the example? Your map layers will be kept.')) return false;
     const originalBriefing = JSON.stringify(project.presentation?.briefing || null);
     this.exampleBriefingLoading = true;
-    this.toast('Loading the hurricane and earthquake example services…');
+    this.toast('Loading the Historical Quakes briefing example…');
     try {
-      const hurricane = POPULAR_SERVICES.find(service => service.slug === 'active-hurricanes');
-      const earthquake = POPULAR_SERVICES.find(service => service.slug === 'usgs-recent-earthquakes-map-service');
-      if (!hurricane || !earthquake) throw new Error('The example services are missing from the catalog.');
-      const discovered = await this.mapController.discoverFeatureServiceLayers(hurricane.url);
-      if (signal?.aborted) return false;
-      const hurricaneSource = chooseHurricaneLayer(discovered);
-      if (!hurricaneSource) throw new Error('The Active Hurricanes service did not advertise a feature layer.');
-      const earthquakeUrl = `${earthquake.url.replace(/\/+$/, '')}/0`;
-      const load = async (url, title) => {
-        const existing = this.mapController.getLayers().find(layer => String(this.mapController.getLayerConfig(layer)?.url || '').replace(/\/+$/, '').toLowerCase() === url.replace(/\/+$/, '').toLowerCase());
+      const load = async () => {
+        const existing = this.mapController.getLayers().find((layer) => {
+          const config = this.mapController.getLayerConfig(layer) || {};
+          return String(config.url || '').replace(/\/+$/, '').toLowerCase() === HISTORICAL_QUAKES_SOURCE.toLowerCase()
+            && String(config.definitionExpression || '').trim() === HISTORICAL_QUAKES_WHERE;
+        });
         if (existing) return existing;
-        const [layer] = await this.loadLayer({ url, title, serviceType: 'arcgis-auto' });
+        const [layer] = await this.loadLayer({
+          url: HISTORICAL_QUAKES_SOURCE,
+          title: 'Historical Quakes — M6.5+',
+          serviceType: 'arcgis-auto',
+          definitionExpression: HISTORICAL_QUAKES_WHERE,
+        });
         return layer;
       };
-      const hurricaneLayer = await load(hurricaneSource.url, `Active Hurricanes — ${hurricaneSource.name || 'features'}`);
-      if (signal?.aborted) return false;
-      const earthquakeLayer = await load(earthquakeUrl, 'Recent Earthquakes (M2.5+)');
+      const earthquakeLayer = await load();
       if (signal?.aborted) return false;
       if (this.projectManager.current !== project) throw new Error('The project changed while the example was loading.');
       if (JSON.stringify(project.presentation?.briefing || null) !== originalBriefing) throw new Error('The briefing changed while the example was loading, so it was not replaced.');
       const earthquakeRef = briefingLayerRef(this.mapController, earthquakeLayer);
-      const hurricaneRef = briefingLayerRef(this.mapController, hurricaneLayer);
-      const briefing = createHazardsExampleBriefing({ earthquakeRef, hurricaneRef, hurricaneLayerName: hurricaneSource.name || 'selected layer' });
+      const [{ features: featuredEvents = [] }, observationTimes] = await Promise.all([
+        this.mapController.queryFeatures(earthquakeLayer.uid, {
+          where: HISTORICAL_QUAKES_WHERE,
+          outFields: ['OBJECTID', 'title', 'place', 'mag', 'time', 'depth', 'sig'],
+          returnGeometry: true,
+          orderByFields: ['mag DESC', 'time DESC'],
+          num: 3,
+        }, { layerDefaults: false }),
+        this.mapController.fieldValues(earthquakeLayer, 'time', { limit: 6000 }),
+      ]);
+      if (signal?.aborted) return false;
+      const clip = createHistoricalQuakesCinematicClip({ quakeRef: earthquakeRef, projectId: project.id, observationTimes });
+      const briefing = createHistoricalQuakesExampleBriefing({ quakeRef: earthquakeRef, clip, featuredEvents });
       this.briefingTab = 'slides';
       const current = this.projectManager.current.presentation || {};
-      this.projectManager.setPresentation({ ...current, template: 'briefing', title: 'A changing hazards picture', primaryLayerId: earthquakeLayer.uid, briefing, briefingSelection: { layerId: earthquakeLayer.uid, ids: [], useAll: true } });
+      const cinematicClips = [...(current.cinematicClips || []).filter((item) => item.id !== clip.id), clip];
+      this.projectManager.setPresentation({ ...current, template: 'briefing', title: 'Historical earthquakes', primaryLayerId: earthquakeLayer.uid, briefing, cinematicClips, briefingSelection: { layerId: earthquakeLayer.uid, ids: [], useAll: true } });
+      this.activateExampleGuide({
+        id: 'historical-quakes-briefing',
+        title: 'Historical Quakes briefing',
+        description: 'A stable earthquake archive with publisher-authored magnitude symbols, finished slides, and an observed-time cinematic clip.',
+        whyUseful: 'Follow the step-by-step guide to inspect the source, focus the data, play the timeline, and adapt the briefing.',
+        tutorial: 'historical-quakes-briefing',
+      }, { start: startTutorial });
       this.events.publish('mobile:workflow-route', { route: 'briefing' });
-      this.toast('Example briefing ready. The public feeds can change or be temporarily unavailable.');
+      this.toast('Historical Quakes briefing ready. It uses a stable Feature Service and an observed timeline.');
       return true;
     } catch (error) {
       this.error(`Could not open the example briefing: ${error.message}. Any layers already added remain on the map.`);
@@ -4579,16 +4631,17 @@ export class UIController {
     root.hidden = false;
     const layer = this.mapController.getLayer(this.presentationState.layerUid);
     if (!layer && template !== "atlas") {
-      root.innerHTML = `<section class="presentation-empty"><span class="eyebrow">${escapeHtml(template)}</span><h2>Start with a dataset</h2><p>This mode becomes interactive after you add a feature layer. Your project and map remain unchanged.</p><div>${template === 'briefing' ? '<button type="button" data-presentation-setup="briefing-guide">Guide to creating a briefing</button><button type="button" data-presentation-setup="example-briefing">Try an example briefing</button>' : ''}<button type="button" data-presentation-setup="data-arcgis">Connect a service</button><button type="button" data-presentation-setup="data-file">Add a file</button><button type="button" data-presentation-setup="data-popular">${template === 'briefing' ? 'Find a dataset' : 'Open an example'}</button></div>${template === 'briefing' ? '<p class="form-note">The example adds live hurricane and earthquake layers and opens an editable briefing.</p>' : ''}</section>`;
+      root.innerHTML = `<section class="presentation-empty"><span class="eyebrow">${escapeHtml(template)}</span><h2>Start with a dataset</h2><p>This mode becomes interactive after you add a feature layer. Your project and map remain unchanged.</p><div>${template === 'briefing' ? '<button type="button" data-presentation-setup="briefing-guide">Guide to creating a briefing</button><button type="button" data-presentation-setup="example-briefing">Open Historical Quakes briefing</button><button type="button" data-presentation-setup="example-briefing-tutorial">Start step-by-step example</button>' : ''}<button type="button" data-presentation-setup="data-arcgis">Connect a service</button><button type="button" data-presentation-setup="data-file">Add a file</button><button type="button" data-presentation-setup="data-popular">${template === 'briefing' ? 'Find a dataset' : 'Open an example'}</button></div>${template === 'briefing' ? '<p class="form-note">Historical Quakes is a finished, editable example with the publisher’s symbols, event slides, and an observed cinematic timeline. The step-by-step option opens the same example and guides you through it.</p>' : ''}</section>`;
       root.querySelectorAll("[data-presentation-setup]").forEach((button) => button.addEventListener("click", () => {
-        if (button.dataset.presentationSetup === 'example-briefing') return this.#openExampleHazardsBriefing();
+        if (button.dataset.presentationSetup === 'example-briefing') return this.#openExampleHistoricalQuakesBriefing();
+        if (button.dataset.presentationSetup === 'example-briefing-tutorial') return this.#openExampleHistoricalQuakesBriefing({ startTutorial: true });
         if (button.dataset.presentationSetup === 'briefing-guide') {
           this.#dismissWelcome();
           let exampleProject = null;
           return startWorkspaceWalkthrough({ mobile: () => this.mobileMedia.matches, steps: BRIEFING_WALKTHROUGH_STEPS, label: 'Briefing creation guide', beforeStep: async (index, { signal }) => {
             if (index < 3) return true;
             if (!exampleProject) {
-              if (!await this.#openExampleHazardsBriefing({ signal })) return false;
+              if (!await this.#openExampleHistoricalQuakesBriefing({ signal })) return false;
               exampleProject = this.projectManager.current;
             }
             if (this.projectManager.current !== exampleProject || this.projectManager.current.presentation?.template !== 'briefing') throw new Error('The briefing workspace changed. Reopen the guide to continue.');

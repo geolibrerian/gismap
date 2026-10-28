@@ -231,7 +231,7 @@
       "type": "feature",
       "category": "Earthquakes",
       "provider": "Esri Disaster Response",
-      "description": "Historical earthquake records available as ArcGIS FeatureServer layers.",
+      "description": "A stable historical earthquake archive published as an ArcGIS FeatureServer, with source-authored magnitude symbols.",
       "tags": [
         "earthquake",
         "historical",
@@ -240,7 +240,9 @@
         "FeatureServer"
       ],
       "link": "https://gismap.online/?example=historical-quakes",
-      "layerLink": "https://gismap.online/?layer=https%3A%2F%2Frhvpkkiftonktxq3.svcs9.arcgis.com%2FRHVPKKiFTONKtxq3%2FArcGIS%2Frest%2Fservices%2FHistorical_Quakes%2FFeatureServer&layerType=arcgis-auto"
+      "layerLink": "https://gismap.online/?layer=https%3A%2F%2Frhvpkkiftonktxq3.svcs9.arcgis.com%2FRHVPKKiFTONKtxq3%2FArcGIS%2Frest%2Fservices%2FHistorical_Quakes%2FFeatureServer&layerType=arcgis-auto",
+      "page": "https://gismap.online/examples/historical-quakes/",
+      "briefingTutorial": "https://gismap.online/?briefingExample=historical-quakes&tutorial=1"
     },
     {
       "slug": "usgs-earthquakes",
