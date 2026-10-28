@@ -28,6 +28,8 @@ test('Historical Quakes example is an editable, source-styled briefing with a po
   assert.equal(briefing.slides[2].clip.tracks[0].animation.effect.type, 'none');
   assert.equal(briefing.slides[2].clip.tracks[0].temporal.startField, 'time');
   assert.equal(briefing.slides[2].clip.tracks[0].provenance.status, 'observed');
+  assert.ok(briefing.slides[2].clip.cameraTrack[0].camera.zoom >= 5, 'the cinematic begins inside the service visibility scale');
+  assert.ok(briefing.slides[2].clip.cameraTrack.at(-1).camera.zoom > briefing.slides[2].clip.cameraTrack[0].camera.zoom, 'the clip has a visible camera move');
   assert.ok(briefing.slides.some((slide) => slide.template === 'feature' && slide.featureId === '1'));
   assert.match(briefing.slides[1].blocks[0].markdown, /publisher’s own magnitude renderer/);
   assert.ok(briefing.slides.every((slide) => !/hurricane/i.test(`${slide.title} ${JSON.stringify(slide.blocks)}`)));
@@ -44,6 +46,7 @@ test('briefing entry point preserves an existing briefing and uses the bounded s
   assert.match(ui, /HISTORICAL_QUAKES_WHERE/);
   assert.match(ui, /Historical Quakes — M6\.5\+/);
   assert.match(ui, /definitionExpression: HISTORICAL_QUAKES_WHERE/);
+  assert.match(ui, /ignoreScaleRange\?\.\(earthquakeLayer\.uid, true\)/);
   assert.match(ui, /title: 'Historical Quakes briefing'/);
   assert.match(ui, /tutorial: 'historical-quakes-briefing'/);
   assert.match(ui, /this\.activateExampleGuide\(/);

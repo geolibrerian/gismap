@@ -3745,6 +3745,11 @@ export class UIController {
         return layer;
       };
       const earthquakeLayer = await load();
+      // The completed example deliberately starts in a map-scale view so its
+      // first timeline frame is legible.  Keep the service available while the
+      // cinematic camera moves; otherwise its publisher scale threshold can
+      // turn the opening of the Brief into an empty globe.
+      this.mapController.ignoreScaleRange?.(earthquakeLayer.uid, true);
       if (signal?.aborted) return false;
       if (this.projectManager.current !== project) throw new Error('The project changed while the example was loading.');
       if (JSON.stringify(project.presentation?.briefing || null) !== originalBriefing) throw new Error('The briefing changed while the example was loading, so it was not replaced.');
@@ -6992,7 +6997,11 @@ export class UIController {
     if (!clip) throw new Error("This Brief slide refers to a Clip that is not in the project.");
     // Play on the slide already loaded resumes it rather than starting over.
     if (this.briefingClip?.slideId === slide.id && this.cinematicController.timeline) {
-      if (autoplay && slide.presentation !== "poster") this.cinematicController.play();
+      if (autoplay && slide.presentation !== "poster") {
+        // Play is also a replay control once a non-looping Clip has finished.
+        if (this.cinematicController.timeline.state()?.progress >= 0.999) this.cinematicController.seekObservation(0);
+        this.cinematicController.play();
+      }
       return;
     }
     const token = await this.#stopBriefingCinematicClip();

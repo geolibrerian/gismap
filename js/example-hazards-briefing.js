@@ -7,8 +7,12 @@ import { createCinematicClip } from './cinematic/clip-model.js?v=0.3.9';
 export const HISTORICAL_QUAKES_WHERE = 'mag >= 6.5';
 export const HISTORICAL_QUAKES_SOURCE = 'https://rhvpkkiftonktxq3.svcs9.arcgis.com/RHVPKKiFTONKtxq3/ArcGIS/rest/services/Historical_Quakes/FeatureServer/0';
 
-const overviewCamera = { center: [-151, 18], zoom: 1.8, heading: 0, tilt: 0 };
-const ringOfFireCamera = { center: [-151, 32], zoom: 2.35, heading: -12, tilt: 28 };
+// The service publishes a useful scale range.  A globe-wide view can therefore
+// be perfectly valid cartographically while hiding every earthquake symbol.
+// Start inside the north-east Pacific instead: it makes the first timeline
+// frame immediately legible and leaves enough room for the camera to travel.
+const overviewCamera = { center: [-132, 31], zoom: 5.35, heading: -8, tilt: 20 };
+const ringOfFireCamera = { center: [-118, 27], zoom: 6.15, heading: -18, tilt: 32 };
 
 const finite = (value) => Number.isFinite(Number(value)) ? Number(value) : null;
 const attribute = (feature, field) => feature?.attributes?.[field];
@@ -51,7 +55,7 @@ export function createHistoricalQuakesCinematicClip({ quakeRef, projectId = null
     title: 'Historical Quakes — observed timeline',
     options: {
       id: 'historical-quakes-observed-timeline',
-      durationMs: 32000,
+      durationMs: 28000,
       easing: 'ease-in-out',
       startCamera: { longitude: overviewCamera.center[0], latitude: overviewCamera.center[1], zoom: overviewCamera.zoom, bearing: overviewCamera.heading, pitch: overviewCamera.tilt },
       endCamera: { longitude: ringOfFireCamera.center[0], latitude: ringOfFireCamera.center[1], zoom: ringOfFireCamera.zoom, bearing: ringOfFireCamera.heading, pitch: ringOfFireCamera.tilt },

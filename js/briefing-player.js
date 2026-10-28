@@ -554,7 +554,23 @@ export class BriefingPlayer {
         void this.api.showSlide(slide);
         return;
       }
-      if (event.target.closest("[data-cinematic-slide-play]")) this.api.playCinematicClip?.(this.state?.slides[this.state.index], { autoplay: true });
+      const play = event.target.closest("[data-cinematic-slide-play]");
+      if (play) {
+        // Loading a remote Feature Service can take a moment.  Keep the
+        // control honest while it happens and surface an actionable failure
+        // instead of leaving a click that appears to do nothing.
+        const label = play.textContent;
+        play.disabled = true;
+        play.textContent = "Loading clip…";
+        void Promise.resolve(this.api.playCinematicClip?.(this.state?.slides[this.state.index], { autoplay: true }))
+          .catch((error) => this.api.notify?.(`Could not play this clip: ${error?.message || "unknown error"}`))
+          .finally(() => {
+            if (!play.isConnected) return;
+            play.disabled = false;
+            play.textContent = label;
+          });
+        return;
+      }
       if (event.target.closest("[data-cinematic-slide-pause]")) this.api.pauseCinematicClip?.();
     });
     // Scroll events do not bubble; capture them to keep the dots in step with swipes.

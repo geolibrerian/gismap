@@ -84,6 +84,7 @@ export class BriefingSlides {
       title: () => api.data().title,
       fields: () => api.data().fields?.fields || api.data().layer?.fields || [],
       slideTitle: slide => formatSeriesTitle(slide, api.data().fields?.fields || api.data().layer?.fields || []),
+      notify: (message) => api.notify?.(message),
       // Older cut briefings predate playerSettings. Treat their cut as the
       // initial animation preference until a viewer explicitly changes it.
       getSettings: () => ({ ...(this.briefing.transition === "cut" ? { animations: false } : {}), ...this.briefing.playerSettings }),
