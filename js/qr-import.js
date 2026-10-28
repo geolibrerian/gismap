@@ -91,7 +91,11 @@ export function gisMapLinkFrom(text, { here = globalThis.location } = {}) {
   }
   if (!["https:", "http:"].includes(url.protocol)) return null;
   if (url.hostname !== here.hostname && !GISMAP_HOSTS.test(url.hostname)) return null;
-  if (url.protocol === "http:" && !/^(localhost|127\.0\.0\.1)$/i.test(url.hostname)) return null;
+  // A QR card may have been created from an http:// visit before the host
+  // upgraded the page. Never follow that address: only reuse its path, query
+  // and fragment on this app's current (normally HTTPS) origin. The hostname
+  // above is already restricted to GISMap hosts, so this keeps import safe
+  // while making existing share cards portable.
   return new URL(`${url.pathname}${url.search}${url.hash}`, here.origin).href;
 }
 
