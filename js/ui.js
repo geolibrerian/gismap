@@ -44,7 +44,7 @@ import { BASEMAPS } from "./basemap-catalog.js?v=0.53.0-gallery1";
 import { CartographyLab } from "./cartography-lab.js?v=0.60.0-media1";
 import { CONTEXT_ACTIONS, createSuggestionPreferences, deriveWorkspace, executeContextAction, suggestionKey, summarizeFeature } from "./contextual-workspace.js?v=6";
 import { BRIEFING_WALKTHROUGH_STEPS, CINEMATIC_WALKTHROUGH_STEPS, HISTORICAL_QUAKES_BRIEFING_TUTORIAL_STEPS, createExampleWalkthroughSteps, startWorkspaceWalkthrough, waitForWalkthroughTarget } from "./workspace-walkthrough.js?v=0.62.1-quakes-guide";
-import { HISTORICAL_QUAKES_SOURCE, HISTORICAL_QUAKES_WHERE, createHistoricalQuakesCinematicClip, createHistoricalQuakesExampleBriefing } from "./example-hazards-briefing.js?v=0.62.0-historical-quakes";
+import { HISTORICAL_QUAKES_SOURCE, HISTORICAL_QUAKES_WHERE, createHistoricalQuakesExampleBriefing } from "./example-hazards-briefing.js?v=0.62.1-historical-quakes-pulse";
 import { CinematicModeController } from "./cinematic/mode.js?v=0.3.15-clip-ref";
 import { CINEMATIC_EFFECTS, CINEMATIC_EFFECT_CATEGORIES, suggestEffect } from "./cinematic/cinematic-effects.js?v=0.2.8";
 import { PROVENANCE_STATUSES } from "./cinematic/clock.js?v=0.1.0";
@@ -3745,41 +3745,35 @@ export class UIController {
         return layer;
       };
       const earthquakeLayer = await load();
-      // The completed example deliberately starts in a map-scale view so its
-      // first timeline frame is legible.  Keep the service available while the
-      // cinematic camera moves; otherwise its publisher scale threshold can
-      // turn the opening of the Brief into an empty globe.
+      // The completed example deliberately starts in a map-scale view. Keep
+      // the service available while its opening views move; otherwise its
+      // publisher scale threshold can turn the Brief into an empty globe.
       this.mapController.ignoreScaleRange?.(earthquakeLayer.uid, true);
       if (signal?.aborted) return false;
       if (this.projectManager.current !== project) throw new Error('The project changed while the example was loading.');
       if (JSON.stringify(project.presentation?.briefing || null) !== originalBriefing) throw new Error('The briefing changed while the example was loading, so it was not replaced.');
       const earthquakeRef = briefingLayerRef(this.mapController, earthquakeLayer);
-      const [{ features: featuredEvents = [] }, observationTimes] = await Promise.all([
-        this.mapController.queryFeatures(earthquakeLayer.uid, {
-          where: HISTORICAL_QUAKES_WHERE,
-          outFields: ['OBJECTID', 'title', 'place', 'mag', 'time', 'depth', 'sig'],
-          returnGeometry: true,
-          orderByFields: ['mag DESC', 'time DESC'],
-          num: 3,
-        }, { layerDefaults: false }),
-        this.mapController.fieldValues(earthquakeLayer, 'time', { limit: 6000 }),
-      ]);
+      const { features: featuredEvents = [] } = await this.mapController.queryFeatures(earthquakeLayer.uid, {
+        where: HISTORICAL_QUAKES_WHERE,
+        outFields: ['OBJECTID', 'title', 'place', 'mag', 'time', 'depth', 'sig'],
+        returnGeometry: true,
+        orderByFields: ['mag DESC', 'time DESC'],
+        num: 3,
+      }, { layerDefaults: false });
       if (signal?.aborted) return false;
-      const clip = createHistoricalQuakesCinematicClip({ quakeRef: earthquakeRef, projectId: project.id, observationTimes });
-      const briefing = createHistoricalQuakesExampleBriefing({ quakeRef: earthquakeRef, clip, featuredEvents });
+      const briefing = createHistoricalQuakesExampleBriefing({ quakeRef: earthquakeRef, featuredEvents });
       this.briefingTab = 'slides';
       const current = this.projectManager.current.presentation || {};
-      const cinematicClips = [...(current.cinematicClips || []).filter((item) => item.id !== clip.id), clip];
-      this.projectManager.setPresentation({ ...current, template: 'briefing', title: 'Historical earthquakes', primaryLayerId: earthquakeLayer.uid, briefing, cinematicClips, briefingSelection: { layerId: earthquakeLayer.uid, ids: [], useAll: true } });
+      this.projectManager.setPresentation({ ...current, template: 'briefing', title: 'Historical earthquakes', primaryLayerId: earthquakeLayer.uid, briefing, briefingSelection: { layerId: earthquakeLayer.uid, ids: [], useAll: true } });
       this.activateExampleGuide({
         id: 'historical-quakes-briefing',
         title: 'Historical Quakes briefing',
-        description: 'A stable earthquake archive with publisher-authored magnitude symbols, finished slides, and an observed-time cinematic clip.',
-        whyUseful: 'Follow the step-by-step guide to inspect the source, focus the data, play the timeline, and adapt the briefing.',
+        description: 'A stable earthquake archive with finished slides, moving map views, and a presentation-only seismic pulse.',
+        whyUseful: 'Follow the step-by-step guide to inspect the source, focus the data, see the pulse effect, and adapt the briefing.',
         tutorial: 'historical-quakes-briefing',
       }, { start: startTutorial });
       this.events.publish('mobile:workflow-route', { route: 'briefing' });
-      this.toast('Historical Quakes briefing ready. It uses a stable Feature Service and an observed timeline.');
+      this.toast('Historical Quakes briefing ready. It uses a stable Feature Service, moving map views, and a seismic pulse.');
       return true;
     } catch (error) {
       this.error(`Could not open the example briefing: ${error.message}. Any layers already added remain on the map.`);

@@ -139,6 +139,11 @@ export class BriefingSlides {
       state.primary = null;
     }
     if (state.spatialChart) await mapController.setSpatialChart(state.spatialChart.uid, state.spatialChart.chart);
+    for (const [uid, effect] of state.effects || []) {
+      if (!mapController.getLayer(uid) || typeof mapController.setLayerEffect !== "function") continue;
+      await mapController.setLayerEffect(uid, effect || { type: "none" });
+    }
+    state.effects?.clear();
     if (!keep) this.layerState = null;
   }
 
@@ -158,7 +163,7 @@ export class BriefingSlides {
     const entries = Array.isArray(slide?.layers) ? slide.layers : null;
     if (!entries && !slide?.dataView && !(slide && Object.hasOwn(slide, "spatialChart")) && !this.layerState) return;
     const { mapController } = this.api;
-    this.layerState ??= { visible: new Map((mapController.getLayers?.() || []).map((layer) => [layer.uid, layer.visible !== false])), filtered: new Set() };
+    this.layerState ??= { visible: new Map((mapController.getLayers?.() || []).map((layer) => [layer.uid, layer.visible !== false])), filtered: new Set(), effects: new Map() };
     await this.#restoreLayersNow({ keep: true });
     if (token !== this.layerToken) return;
     if (slide && Object.hasOwn(slide, "spatialChart")) {
@@ -210,6 +215,24 @@ export class BriefingSlides {
         this.api.notify?.(`${layer.title || "A layer"}: the relationship could not be checked (${error.message || "the service refused the query"}).`);
       }
     }
+    // A map-effect slide is intentionally not a Cinematic Clip. It presents
+    // the actual map at one saved view with a temporary, clearly decorative
+    // MapLibre effect, then restores the previous layer treatment on advance.
+    const mapEffect = slide?.mapEffect;
+    if (!mapEffect || typeof mapEffect !== "object" || mapController.getCapabilities?.().includes("three-3d") !== true) return;
+    const effectLayer = this.#findLayer(mapEffect.layer);
+    if (!effectLayer || mapEffect.type !== "pulse" || typeof mapController.setLayerEffect !== "function") return;
+    if (!this.layerState.effects.has(effectLayer.uid)) this.layerState.effects.set(effectLayer.uid, mapController.getLayerEffect?.(effectLayer.uid) || null);
+    await mapController.setLayerEffect(effectLayer.uid, {
+      type: "pulse",
+      color: mapEffect.color,
+      intensity: mapEffect.intensity,
+      opacity: mapEffect.opacity,
+      speed: mapEffect.speed,
+      density: mapEffect.density,
+      style: mapEffect.style,
+      field: mapEffect.field,
+    });
   }
 
   get briefing() {

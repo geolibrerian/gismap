@@ -42,12 +42,12 @@ test('briefing guide covers the workflow without requiring a loaded dataset', as
 
 test('Historical Quakes has a finished-example walkthrough from source to share', async () => {
   assert.equal(HISTORICAL_QUAKES_BRIEFING_TUTORIAL_STEPS.length, 7);
-  for (const title of ['Start with the finished briefing', 'Check the source', 'Keep the publisher’s symbols', 'Focus the story', 'Read the slide deck', 'Play the observed timeline', 'Preview, share, and adapt']) {
+  for (const title of ['Start with the finished briefing', 'Check the source', 'Keep the publisher’s symbols', 'Focus the story', 'Read the slide deck', 'See the seismic pulse', 'Preview, share, and adapt']) {
     assert.ok(HISTORICAL_QUAKES_BRIEFING_TUTORIAL_STEPS.some((step) => step.title === title));
   }
   assert.match(HISTORICAL_QUAKES_BRIEFING_TUTORIAL_STEPS[1].desktop, /data-layer-action="source"/);
   assert.match(HISTORICAL_QUAKES_BRIEFING_TUTORIAL_STEPS[5].desktop, /nth-child\(3\)/);
-  assert.match(HISTORICAL_QUAKES_BRIEFING_TUTORIAL_STEPS[5].description, /observed-time cinematic/i);
+  assert.match(HISTORICAL_QUAKES_BRIEFING_TUTORIAL_STEPS[5].description, /MapLibre seismic pulse/i);
   const ui = await readFile(new URL('../js/ui.js', import.meta.url), 'utf8');
   assert.match(ui, /HISTORICAL_QUAKES_BRIEFING_TUTORIAL_STEPS/);
   assert.match(ui, /tutorial === "historical-quakes-briefing"/);

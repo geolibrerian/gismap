@@ -514,8 +514,8 @@ test("an animated layer effect is saved with the layer, normalized, and removabl
   const layer = await engine.addLocalFile({ name: "quakes.geojson", text: async () => JSON.stringify({ type: "FeatureCollection", features: [{ type: "Feature", properties: { mag: 3 }, geometry: { type: "Point", coordinates: [0, 0] } }] }) });
   // Hidden, so no three.js scene is built here; the setting is still recorded.
   engine.setVisibility(layer.uid, false, { silent: true });
-  assert.deepEqual(await engine.setLayerEffect(layer.uid, { type: "pulse", intensity: 9, color: "red" }), { type: "pulse", intensity: 2, color: null });
-  assert.deepEqual(engine.getLayerConfig(layer.uid).animatedEffect, { type: "pulse", intensity: 2, color: null });
+  assert.deepEqual(await engine.setLayerEffect(layer.uid, { type: "pulse", intensity: 9, color: "red" }), { type: "pulse", intensity: 2, opacity: 1, speed: 1, density: 1, style: "balanced", color: null });
+  assert.deepEqual(engine.getLayerConfig(layer.uid).animatedEffect, { type: "pulse", intensity: 2, opacity: 1, speed: 1, density: 1, style: "balanced", color: null });
   assert.equal(await engine.setLayerEffect(layer.uid, { type: "sparkles" }), null);
   assert.equal(engine.getLayerConfig(layer.uid).animatedEffect, null);
 });

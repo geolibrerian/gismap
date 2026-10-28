@@ -50,7 +50,14 @@ async function start() {
   let sharedState = null;
   let sharedStateError = null;
   try { sharedState = await readShareLocation(location, { allowHttp }); } catch (error) { sharedStateError = error; }
-  const engineId = sharedState?.engine || chooseEngine({ search: location.search, storage: globalThis.localStorage, available: listEngines().map((engine) => engine.id) });
+  // The Historical Quakes briefing has a presentation-only seismic pulse on
+  // its third slide. It opens in MapLibre unless a link explicitly asks for a
+  // different engine, so the effect works without asking a viewer to change a
+  // global engine preference mid-briefing.
+  const historicalQuakesBriefing = launchParams.get("briefingExample") === "historical-quakes";
+  const engineId = sharedState?.engine || (historicalQuakesBriefing && !launchParams.has("engine")
+    ? "maplibre"
+    : chooseEngine({ search: location.search, storage: globalThis.localStorage, available: listEngines().map((engine) => engine.id) }));
   document.documentElement.dataset.mapEngine = engineId;
   const authController = new AuthController(events);
   // Saved ArcGIS sign-ins load the ArcGIS identity runtime only when ArcGIS draws the map (or a connection is used).

@@ -4,7 +4,6 @@ import { readFile } from 'node:fs/promises';
 import {
   HISTORICAL_QUAKES_SOURCE,
   HISTORICAL_QUAKES_WHERE,
-  createHistoricalQuakesCinematicClip,
   createHistoricalQuakesExampleBriefing,
 } from '../js/example-hazards-briefing.js';
 import { normalizeBriefing } from '../js/briefing-document.js';
@@ -15,27 +14,21 @@ const featuredEvents = [
   { attributes: { OBJECTID: 2, title: 'M 9.2 — Example event', place: 'Another place', mag: 9.2, depth: 30, time: -181859024000, sig: 1713 }, geometry: { x: -147.3, y: 60.9 } },
 ];
 
-test('Historical Quakes example is an editable, source-styled briefing with a portable cinematic clip', () => {
-  const clip = createHistoricalQuakesCinematicClip({ quakeRef, projectId: 'project-1', observationTimes: featuredEvents.map((event) => event.attributes.time) });
-  const briefing = createHistoricalQuakesExampleBriefing({ quakeRef, clip, featuredEvents });
+test('Historical Quakes example is an editable briefing with moving opening views and a temporary seismic pulse', () => {
+  const briefing = createHistoricalQuakesExampleBriefing({ quakeRef, featuredEvents });
   assert.equal(briefing.layerId, quakeRef);
   assert.equal(briefing.playerSettings.basemap, 'topo-vector');
   assert.equal(briefing.slides.length, 7);
   assert.ok(briefing.slides.every((slide) => slide.layers?.every((layer) => layer.layer === quakeRef && layer.visible)));
-  assert.equal(briefing.slides[2].template, 'cinematic');
-  assert.equal(briefing.slides[2].clipRef, clip.id);
-  assert.equal(briefing.slides[2].clip.tracks[0].layerRef, quakeRef);
-  assert.equal(briefing.slides[2].clip.tracks[0].animation.effect.type, 'none');
-  assert.equal(briefing.slides[2].clip.tracks[0].temporal.startField, 'time');
-  assert.equal(briefing.slides[2].clip.tracks[0].provenance.status, 'observed');
-  assert.ok(briefing.slides[2].clip.cameraTrack[0].camera.zoom >= 5, 'the cinematic begins inside the service visibility scale');
-  assert.ok(briefing.slides[2].clip.cameraTrack.at(-1).camera.zoom > briefing.slides[2].clip.cameraTrack[0].camera.zoom, 'the clip has a visible camera move');
+  assert.equal(briefing.slides[2].template, 'map-narrative');
+  assert.deepEqual(briefing.slides[2].mapEffect, { layer: quakeRef, type: 'pulse', color: '#ff4a3d', intensity: 1.25, opacity: 0.88, speed: 0.8, density: 0.8, style: 'balanced' });
+  assert.notDeepEqual(briefing.slides[0].camera, briefing.slides[1].camera, 'the first two slides deliberately move the map');
+  assert.notDeepEqual(briefing.slides[1].camera, briefing.slides[2].camera, 'the pulse slide moves to a closer view');
   assert.ok(briefing.slides.some((slide) => slide.template === 'feature' && slide.featureId === '1'));
-  assert.match(briefing.slides[1].blocks[0].markdown, /publisher’s own magnitude renderer/);
+  assert.match(briefing.slides[1].blocks[0].markdown, /MapLibre pulse for presentation/);
   assert.ok(briefing.slides.every((slide) => !/hurricane/i.test(`${slide.title} ${JSON.stringify(slide.blocks)}`)));
   assert.deepEqual(normalizeBriefing(JSON.parse(JSON.stringify(briefing))), briefing);
-  assert.throws(() => createHistoricalQuakesExampleBriefing({ quakeRef, featuredEvents }), /cinematic Clip/);
-  assert.throws(() => createHistoricalQuakesCinematicClip(), /Historical Quakes layer/);
+  assert.throws(() => createHistoricalQuakesExampleBriefing({ featuredEvents }), /Historical Quakes layer/);
 });
 
 test('briefing entry point preserves an existing briefing and uses the bounded stable service query', async () => {
@@ -60,6 +53,7 @@ test('the public Historical Quakes URL launches the finished briefing and its wa
     readFile(new URL('../discover/learn/index.html', import.meta.url), 'utf8'),
   ]);
   assert.match(app, /briefingExample"\) === "historical-quakes"/);
+  assert.match(app, /historicalQuakesBriefing && !launchParams\.has\("engine"\)/);
   assert.match(app, /openHistoricalQuakesBriefingExample\(\{ startTutorial: launchParams\.get\("tutorial"\) === "1" \}\)/);
   for (const page of [examples, learn]) assert.match(page, /briefingExample=historical-quakes&amp;tutorial=1/);
 });

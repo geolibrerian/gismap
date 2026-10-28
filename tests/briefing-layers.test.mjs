@@ -115,6 +115,35 @@ test("a slide shows its layers, asks each service which features relate, and the
   assert.deepEqual(notes, []);
 });
 
+test("a map-effect slide applies a temporary pulse and restores the prior layer effect", async () => {
+  const { BriefingSlides } = await import("../js/briefing-slides.js");
+  const quake = { uid: "quakes", id: "quakes", title: "Historical Quakes", url: STADIUMS, visible: true };
+  let effect = { type: "flames", intensity: 1 };
+  const effects = [];
+  const mapController = {
+    getLayers: () => [quake],
+    getLayer: (uid) => uid === quake.uid ? quake : null,
+    getLayerConfig: () => ({ url: quake.url }),
+    getCapabilities: () => ["three-3d"],
+    setVisibility() {},
+    getLayerEffect: () => effect,
+    setLayerEffect: async (_uid, next) => { effect = next.type === "none" ? null : next; effects.push(effect); },
+  };
+  const slides = new BriefingSlides({
+    getBriefing: () => ({}), saveBriefing() {}, notify() {},
+    data: () => ({ layer: quake, records: [], fields: { fields: [] } }), mapController,
+  });
+  await slides.applySlideLayers({
+    id: "pulse", layers: [{ layer: STADIUMS, visible: true }],
+    mapEffect: { layer: STADIUMS, type: "pulse", color: "#ff4a3d", intensity: 1.25, opacity: 0.88, speed: 0.8, density: 0.8, style: "balanced" },
+  });
+  assert.equal(effect.type, "pulse");
+  assert.equal(effect.color, "#ff4a3d");
+  await slides.applySlideLayers({ id: "next", layers: [{ layer: STADIUMS, visible: true }] });
+  assert.deepEqual(effect, { type: "flames", intensity: 1 }, "advancing removes the presentation-only pulse");
+  assert.equal(effects.length, 2);
+});
+
 test("the slide editor offers every relationship and the player restores layers when it closes", async () => {
   const source = await readFile(new URL("../js/briefing-slides.js", import.meta.url), "utf8");
   assert.match(source, /Slide layers <small>/);
