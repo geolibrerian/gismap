@@ -16,5 +16,5 @@ export function createEmbedIframe(sharedUrl, { title = "GISMap map", kind = "map
   const url = createEmbedUrl(sharedUrl, { kind });
   const escape = (value) => String(value).replaceAll("&", "&amp;").replaceAll('"', "&quot;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
   const safeHeight = Math.min(1200, Math.max(280, Number(height) || 600));
-  return `<iframe src="${escape(url.href)}" title="${escape(title || "GISMap map")}" loading="lazy" allow="fullscreen; geolocation" allowfullscreen style="width:100%;height:${safeHeight}px;border:0"></iframe>`;
+  return `<iframe src="${escape(url)}" title="${escape(title || "GISMap map")}" loading="lazy" allow="fullscreen; geolocation" allowfullscreen style="width:100%;height:${safeHeight}px;border:0"></iframe>`;
 }

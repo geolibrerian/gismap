@@ -15,7 +15,7 @@ test("every menu item the guide names is in the app", () => {
       assert.ok(html.includes(`<span>${items.split(" (")[0]}</span>`), `${path}: no such panel`);
       continue;
     }
-    assert.match(html, new RegExp(`class="menu__trigger"[^>]*>${menu} `), `${menu}: no such menu`);
+    assert.match(html, new RegExp(`class="menu__trigger"[^>]*>${menu}(?: <span>⌄</span>)?</button>`), `${menu}: no such menu`);
     for (const item of items.replace(/ \(skins\)$/, "").split(" · ")) assert.ok(decode(html).includes(`>${item}`), `${path}: "${item}" is not in index.html`);
   }
 });

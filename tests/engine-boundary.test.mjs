@@ -26,7 +26,8 @@ const LEAKS = [
   [/\.(?:findLayer|getOperationalLayers|takeMapScreenshot|searchPlaces|representativePoint|dataExtent)\s*\(/, "calls a pre-engine MapController method that handed out SDK objects"],
   [/(?<!mapController|host)\.(?:createQuery|queryExtent|queryFeatures|queryFeatureCount|queryObjectIds|whenLayerView|hitTest|takeScreenshot|toMap|goTo|zoomIn|zoomOut)\s*\(/, "calls an SDK layer or view method"],
   [/typeof [\w.?]+\.(?:queryFeatures|queryFeatureCount|queryObjectIds|createQuery|queryExtent)\b/, "detects SDK layer methods (use the handle's queryable / countable / objectIdQueryable)"],
-  [/\blayerView\b|\.sublayers\b|\.sourceLayer\b|\.allLayers\b|declaredClass|\.graphic\b/, "reaches into SDK layers, layer views or graphics"],
+  // (`sourceLayer` is not listed: it is the vector-tile layer name in GISMap's own layer config.)
+  [/\blayerView\b|\.sublayers\b|\.allLayers\b|declaredClass|\.graphic\b/, "reaches into SDK layers, layer views or graphics"],
   [/renderer\??\.toJSON\b|\.loadError\.|\blayer\??\.load\??\(/, "uses SDK layer internals (the handle has renderer JSON; use loadLayer)"],
 ];
 

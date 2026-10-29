@@ -55,19 +55,23 @@ test("each engine lists only its own basemaps and selects the one it draws", () 
 
 test("menus: Modes, map tools in Tools, settings in Project, an engine choice and dropdowns that fit the panel", async () => {
   const [html, css, ui] = await Promise.all([read("index.html"), read("css/app.css"), read("js/ui.js")]);
-  const menu = (name) => html.match(new RegExp(`aria-expanded="false">${name} <span>⌄</span></button>\\s*<div class="menu__content" role="menu">([\\s\\S]*?)\\n            </div>`))[1];
+  const menu = (name) => html.match(new RegExp(`aria-expanded="false">${name}(?: <span>⌄</span>)?</button>\\s*<div class="menu__content" role="menu">([\\s\\S]*?)\\n            </div>`))[1];
   assert.doesNotMatch(html, />Workflows </);
   assert.match(menu("Modes"), /data-mobile-workflow="briefing"/);
   for (const widget of ["legend", "measurement", "elevationProfile", "compass"]) assert.match(menu("Tools"), new RegExp(`data-widget="${widget}"`), widget);
   assert.doesNotMatch(menu("Tools"), /data-widget="basemapGallery"/);
-  for (const action of ["tools-display", "tools-connections", "tools-ai", "tools-custom", "tools-about"]) assert.match(menu("Project"), new RegExp(`data-action="${action}"`), action);
+  // Layout & display sits with the panel toggles in Modes; connections, AI and custom tools in Tools.
+  assert.match(menu("Project"), /data-action="tools-about"/);
+  assert.match(menu("Modes"), /data-action="tools-display"/);
+  for (const action of ["tools-connections", "tools-ai", "tools-custom"]) assert.match(menu("Tools"), new RegExp(`data-action="${action}"`), action);
   assert.match(menu("Map"), /data-engine-picker/);
   assert.match(menu("Map"), /<select data-basemap-picker><\/select>/, "the basemap list comes from the engine");
   assert.match(menu("Map"), /data-requires-capability="ground"/);
   assert.match(menu("Map"), /<button type="button" data-widget="basemapGallery">Basemap gallery<\/button>/);
   assert.match(css, /\.menu \{ position: static; \}/, "dropdowns hang from the menu bar");
   assert.match(css, /\.menu__content \{[^}]*left: 8px; right: 8px;/);
-  assert.match(ui, /mobile-workflows-menu.*>Modes </s);
+  // The phone menu is the desktop menu copied, with its modes renamed for small screens.
+  assert.match(ui, /desktopMenu\.cloneNode\(true\)[\s\S]*?textContent = "Modes"/);
   assert.match(ui, /#syncMapMenu\(\)/);
 });
 

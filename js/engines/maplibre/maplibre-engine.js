@@ -495,6 +495,11 @@ export class MaplibreEngine {
   }
 
   /** Screen pixels (relative to the container) of [longitude, latitude, z]. */
+  /** Reads a PMTiles/TileJSON/XYZ source's layers and fields without adding it to the map. */
+  inspectExternalTiles(value, options = {}) {
+    return inspectExternalTiles(value, { ...options, maplibre: globalThis.maplibregl });
+  }
+
   /** With `aboveGround`, Z is metres above the terrain rather than above sea level. */
   mapToScreen([longitude, latitude, z = null, aboveGround = false] = []) {
     if (!this.map || !Number.isFinite(longitude) || !Number.isFinite(latitude)) return null;

@@ -1,11 +1,11 @@
 // Stable application-facing map facade. It owns engine selection and the
 // higher-level workflows that can be expressed with provider-neutral
 // primitives. Renderer adapters stay focused on drawing and interaction.
-import { createEngine, getEngineDefinition, listEngines } from "./engines/engine-registry.js?v=0.64.2-labels";
+import { createEngine, getEngineDefinition, listEngines } from "./engines/engine-registry.js?v=0.64.3-tests";
 import { MAP_CONTROLLER_METHODS, METHOD_CAPABILITIES, unsupported } from "./engines/engine-interface.js?v=0.62.4-silent-engine-handoff";
 import { GisMapError } from "./gismap-errors.js?v=0.28.0";
-import { TextBoxLayer } from "./text-boxes.js?v=0.64.2-labels";
-import { LayerLabeler, normalizeLabeling } from "./layer-labels.js?v=0.64.2-labels";
+import { TextBoxLayer } from "./text-boxes.js?v=0.64.3-tests";
+import { LayerLabeler, normalizeLabeling } from "./layer-labels.js?v=0.64.3-tests";
 
 const wait = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
 const nothing = () => undefined;
@@ -288,6 +288,15 @@ export class MapController {
   clearTextBoxes() { this.textBoxes.clear(); }
   selectTextBox(id) { this.textBoxes.select(id); }
   pickMapCoordinate() { return this.textBoxes.pickCoordinate(); }
+  /** Screen pixels (in the map container) of [longitude, latitude, z?], or null. */
+  mapToScreen(coordinates) { return this.engine?.mapToScreen?.(coordinates) ?? null; }
+
+  /** Inspects an external tile archive; only engines that draw vector tiles can. */
+  inspectExternalTiles(value, options = {}) {
+    if (typeof this.engine?.inspectExternalTiles !== "function") throw new GisMapError("UNSUPPORTED", "Switch to the MapLibre engine to inspect tile archives.");
+    return this.engine.inspectExternalTiles(value, options);
+  }
+
   /** [longitude, latitude, z] under a map-container pixel, or null. */
   screenToMap(x, y) { return this.engine?.screenToMap?.(x, y) ?? null; }
   /** The map container's size in CSS pixels. */

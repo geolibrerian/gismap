@@ -3,7 +3,6 @@ import { initializeStudioTabs } from "./studio-tabs.js?v=0.55.0-fieldwork1";
 // These panels never serialize runtime objects, file contents, or credentials.
 import { ConnectionRegistry, connectionUrl, resolveRemoteParquetUrl, discoverOgcCollections, filterOgcCollections, inspectOgcSpatial, fetchOgcItems, validateOgcGeometry, ogcHasLocalBounds } from './data-connections.js?v=0.54.0-parquet1';
 import { openDuckdbQueryWorkspace } from './duckdb-query-workspace.js?v=0.57.0-spatial2';
-import { inspectExternalTiles } from './engines/maplibre/external-tiles.js?v=0.54.0';
 
 const registry = () => new ConnectionRegistry();
 // Binary geometry can be very large; a preview should not expand every byte.
@@ -219,7 +218,7 @@ export function openPmtilesPanel(ui, mapController, switchEngine) {
   bind('switch', () => switchEngine('maplibre'));
   bind('test', async () => {
     status('Inspecting archive…');
-    const result = await inspectExternalTiles(field('url').value, { type: 'pmtiles', maplibre: globalThis.maplibregl });
+    const result = await mapController.inspectExternalTiles(field('url').value, { type: 'pmtiles' });
     const summary = { ...result, layers: result.layers.map(({ id, fields }) => ({ id, fieldCount: fields.length, sampleFields: fields.slice(0, 12) })) };
     field('results').textContent = JSON.stringify(summary, null, 2);
     status(`Archive inspected: ${result.kind} tiles. This does not add a layer to the map.`);

@@ -12,7 +12,8 @@ test('Discover is a standalone static application with all public routes', async
     const page = await readFile(new URL(file, root), 'utf8');
     assert.match(page, /<main(?:\s|>)/, route);
     assert.match(page, /\/discover\/discovery\.css/, route);
-    assert.doesNotMatch(page, /js\.arcgis\.com|maplibre|three\.module|duckdb/i, route);
+    // Discover loads no mapping libraries (it may still name them in its copy).
+    assert.doesNotMatch(page, /<(?:script|link)\b[^>]*(?:src|href)="[^"]*(?:js\.arcgis\.com|maplibre|three\.module|duckdb)/i, route);
   }
 });
 

@@ -55,5 +55,6 @@ test("utility modal docking returns an existing pane instead of creating a dupli
   const ui = readFileSync(new URL("../js/ui.js", import.meta.url), "utf8");
   assert.match(ui, /if \(this\.utilityModalPane\)[\s\S]*?#restoreUtilityModal\(\)[\s\S]*?#syncUtilityPanel\(returnTab\)/);
   // Panes that own their own layout (presentation, field tasks) cannot be popped out as a modal.
-  assert.match(ui, /utilityModalButton\.hidden = \["presentation", "tasks"\]\.includes\(this\.activeUtilityTab\)/);
+  // Tabs that are workspaces of their own (presentation, tasks, notes) have no pop-out button.
+  assert.match(ui, /utilityModalButton\.hidden = \["presentation", "tasks", "notes", "data-notes"\]\.includes\(this\.activeUtilityTab\)/);
 });

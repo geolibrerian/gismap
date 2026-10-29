@@ -6,7 +6,7 @@ const ui = await readFile(new URL("../js/ui.js", import.meta.url), "utf8");
 
 assert.doesNotMatch(html, /data-action="map-guided-tours"/, "The simplified Map menu must not duplicate the Tours workflow.");
 assert.match(html, /data-action="map-presentation">Instant Dashboard…</, "The Modes menu must expose the quick presentation picker.");
-const picker = ui.slice(ui.indexOf("  #presentationDialog()"), ui.indexOf("  #openGuidedTours()"));
+const picker = ui.slice(ui.indexOf("  #presentationDialog("), ui.indexOf("  #openGuidedTours()"));
 assert.match(picker, /title: "Instant Dashboard"/);
 assert.match(picker, /<legend>Dashboard skin<\/legend>/);
 assert.doesNotMatch(picker, /data-presentation-template|presentation-title|presentation-primary/, "The skin picker must not change the mode, title, or layer.");

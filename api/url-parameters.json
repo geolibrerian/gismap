@@ -32,7 +32,8 @@
         "wfs",
         "kml",
         "pointcloud",
-        "model"
+        "model",
+        "vector-tiles"
       ],
       "default": "arcgis-auto"
     },

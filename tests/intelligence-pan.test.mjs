@@ -74,7 +74,7 @@ test('late results after exceeding the limit do not reopen Map Insight', async (
 
 test('menus organize existing actions and clearly mark unimplemented tools', async () => {
   const html = await readFile(new URL('../index.html', import.meta.url), 'utf8');
-  const menu = (name) => html.match(new RegExp(`<button class="menu__trigger" aria-expanded="false">${name} [\\s\\S]*?<div class="menu__content" role="menu">([\\s\\S]*?)</div>`))[1];
+  const menu = (name) => html.match(new RegExp(`<button class="menu__trigger" aria-expanded="false">${name}(?: <span>⌄</span>)?</button>[\\s\\S]*?<div class="menu__content" role="menu">([\\s\\S]*?)</div>`))[1];
   const project = menu('Project'), data = menu('Data'), map = menu('Map'), modes = menu('Modes'), tools = menu('Tools');
   assert.doesNotMatch(project, /tools-display|tools-connections|tools-ai|tools-custom/);
   assert.doesNotMatch(data, /data-duckdb|data-postgis/);

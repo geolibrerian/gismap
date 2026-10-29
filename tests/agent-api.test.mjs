@@ -24,16 +24,19 @@ test("the API version is the same in VERSION, capabilities.json and gismap-core"
   assert.equal(coreCapabilities.apiVersion, GISMAP_CORE_VERSION);
 });
 
-test("the app entry point and About dialog use the current build version", async () => {
-  const version = (await read("../VERSION")).trim();
+// VERSION is the public API version. Script URLs carry a separate cache tag
+// (version plus a change name) that moves with every deploy; the entry points
+// must share it so one release never mixes old and new modules.
+test("the app entry point shares one cache tag and the About dialog shows the API version", async () => {
   const html = await read("../index.html");
   const app = await read("../js/app.js");
   const ui = await read("../js/ui.js");
   const briefingApi = await read("../js/briefing-api.js");
-  assert.ok(html.includes(`./js/app.js?v=${version}`));
-  assert.ok(app.includes(`./ui.js?v=${version}`));
-  assert.ok(app.includes(`./briefing-api.js?v=${version}`));
-  assert.ok(briefingApi.includes(`./gismap-core.js?v=${version}`));
+  const tag = html.match(/\.\/js\/app\.js\?v=([^"]+)"/)?.[1];
+  assert.match(tag || "", /^\d+\.\d+\.\d+(?:-[\w.-]+)?$/, "index.html loads app.js with a version cache tag");
+  assert.ok(app.includes(`./ui.js?v=${tag}`), "app.js loads ui.js with the same cache tag");
+  assert.ok(app.includes(`./briefing-api.js?v=${tag}`), "app.js loads briefing-api.js with the same cache tag");
+  assert.match(briefingApi, /\.\/gismap-core\.js\?v=\d+\.\d+\.\d+/);
   assert.match(ui, /<dt>Version<\/dt><dd>\$\{APP_VERSION\}<\/dd>/);
 });
 

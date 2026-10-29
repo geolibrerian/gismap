@@ -128,7 +128,7 @@ export const MAP_CHART_ADAPTER_CONTRACT = Object.freeze(["mount", "update", "des
 
 /**
  * Small, engine-neutral HTML/SVG overlay layer for the first Map Charts MVP.
- * Both map engines expose a screen projection through their native escape hatch;
+ * The map controller projects anchors to the screen on either engine;
  * the chart data, anchors, collision plan, and DOM glyphs stay provider-neutral.
  */
 export class MapChartOverlayController {
@@ -191,20 +191,17 @@ export class MapChartOverlayController {
     this.render();
   }
 
-  #native() { try { return this.mapController?.native?.() || null; } catch { return null; } }
+  // Engine-neutral: the map controller places points and reports the container and zoom.
+  #surface() { try { return this.mapController?.getContainer?.() || null; } catch { return null; } }
 
-  #surface(native) { return native?.engine === "maplibre" ? native.map?.getContainer?.() : native?.view?.container; }
-
-  #screen(native, coordinate) {
+  #screen(coordinate) {
     try {
-      if (native?.engine === "maplibre") {
-        const projected = native.map?.project?.({ lng: coordinate[0], lat: coordinate[1] });
-        return projected && Number.isFinite(projected.x) ? { x: projected.x, y: projected.y } : null;
-      }
-      const projected = native?.view?.toScreen?.({ longitude: coordinate[0], latitude: coordinate[1] });
+      const projected = this.mapController?.mapToScreen?.([coordinate[0], coordinate[1]]);
       return projected && Number.isFinite(projected.x) ? { x: projected.x, y: projected.y } : null;
     } catch { return null; }
   }
+
+  #zoom() { try { return Number(this.mapController?.getCamera?.()?.zoom); } catch { return NaN; } }
 
   #ensureRoot(surface) {
     if (!surface) return null;
@@ -218,12 +215,12 @@ export class MapChartOverlayController {
   }
 
   render() {
-    const native = this.#native(); const surface = this.#surface(native); const root = this.#ensureRoot(surface);
+    const root = this.#ensureRoot(this.#surface());
     if (!root) return;
-    const zoom = native?.engine === "maplibre" ? Number(native.map?.getZoom?.()) : Number(native?.view?.zoom);
+    const zoom = this.#zoom();
     const candidates = this.items.filter((item) => (item.presentation.minZoom == null || zoom >= item.presentation.minZoom) && (item.presentation.maxZoom == null || zoom <= item.presentation.maxZoom)).map((item) => {
       const size = item.presentation.size === "expanded" ? [112, 70] : item.presentation.size === "regular" ? [84, 52] : [62, 38];
-      const screen = this.#screen(native, item.anchor);
+      const screen = this.#screen(item.anchor);
       return { ...item, screen: screen && { x: screen.x - size[0] / 2, y: screen.y - size[1] - 10, width: size[0], height: size[1] }, glyphSize: size };
     }).filter((item) => item.screen);
     const grouped = new Map();

@@ -317,7 +317,7 @@ Named ramps: greens, blues, reds, oranges, purples, viridis, magma, red-blue-div
 Query (after ?):
 
 - `layer`: HTTPS URL of a public layer, service or GeoJSON file. No tokens or keys. Example: `https://services.arcgis.com/P3ePLMYs2RVChkJx/ArcGIS/rest/services/Corn/FeatureServer/0`.
-- `layerType` (index-aligned with layer): Layer type; arcgis-auto detects it. Values: arcgis-auto, feature, map-image, imagery, geojson, geoparquet, wms, wfs, kml, pointcloud, model. Example: `feature`.
+- `layerType` (index-aligned with layer): Layer type; arcgis-auto detects it. Values: arcgis-auto, feature, map-image, imagery, geojson, geoparquet, wms, wfs, kml, pointcloud, model, vector-tiles. Example: `feature`.
 - `title` (index-aligned with layer): Layer title. Example: `Corn sales`.
 - `where` (index-aligned with layer): Read-only SQL filter on the layer's fields. Example: `CORN_SALES_IN_DOLLARS >= 0`.
 - `style` (index-aligned with layer): A style without JSON. Values: service, simple, choropleth, graduated, categories, heatmap, auto. Example: `choropleth`.

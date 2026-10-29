@@ -97,7 +97,7 @@ export class ProjectManager {
 
   async create(name = "Untitled project") {
     await this.mapController.clearOperationalLayers();
-    this.mapController.clearDrawings();
+    this.mapController.clearDrawings?.();
     this.mapController.clearTextBoxes?.();
     this.mapController.setBasemap(this.mapController.getDefaultBasemapId());
     this.mapController.setGround("world-elevation");
@@ -198,7 +198,7 @@ export class ProjectManager {
     const noteRelationships = normalizeNoteRelationships(project.noteRelationships ?? []);
     this.authController?.importConnections(project.connections ?? []);
     await this.mapController.clearOperationalLayers();
-    this.mapController.clearDrawings();
+    this.mapController.clearDrawings?.();
     // Reopen on the engine the project was made with; layers are cleared first so nothing blocks the switch.
     if (project.engine && project.engine !== this.mapController.getEngineId?.()) {
       try {

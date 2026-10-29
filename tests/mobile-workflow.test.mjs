@@ -47,8 +47,11 @@ test("mobile chapter editing hides advanced fields in a fold by default", async 
 test("mobile menu nests public workflows below the standard tools", async () => {
   const ui = await readFile(new URL("../js/ui.js", import.meta.url), "utf8");
   assert.match(ui, /dashboard-builder.*map-presentation/s);
-  assert.match(ui, /mobile-workflows-menu.*Modes.*Briefing.*Tours.*Field Mode.*Map tools/s);
-  assert.match(ui, /mobileMenu\.append\(workflows\)/);
+  // The phone menu copies the desktop menu and renames its modes, in this order.
+  const mobile = ui.slice(ui.indexOf("#buildMobileMenu() {"), ui.indexOf("#bindMenus() {"));
+  assert.match(mobile, /desktopMenu\.cloneNode\(true\)/);
+  assert.match(mobile, /"Modes"[\s\S]*"Briefing"[\s\S]*"Tours"[\s\S]*"Field Mode"[\s\S]*"Map tools"/);
+  assert.match(mobile, /drawer\.replaceChildren\(header, mobileMenu\)/);
   assert.doesNotMatch(ui, /Free workflows/);
   assert.doesNotMatch(ui.match(/workflows\.innerHTML[^;]+/s)?.[0] || "", /Updates|Compare|Watchlist/);
   // Opening a workflow never replaces the project's chosen skin.
