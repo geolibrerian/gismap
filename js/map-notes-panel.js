@@ -1,6 +1,7 @@
 import { refreshNoteRelationships } from './note-relationships-ui.js?v=0.1.0';
 import { FieldSessionController } from './field-session-store.js?v=0.4.0';
 import { makeFieldBundle, normalizeFieldBundle } from './field-session-bundle.js?v=0.2.0';
+import { APP_ROOT } from './app-root.js?v=0.65.0-paths';
 import { createFieldNoteUrl } from './field-note-link.js?v=0.1.0';
 // A deliberately small first UI for project-owned location notes. The shared
 // workspace supplies docking and mobile behavior. All note text is escaped.
@@ -66,7 +67,7 @@ export function openMapNotesPanel(ui, { point = null, editId = null, locationSou
   host.querySelectorAll('[data-note-share]').forEach((button) => button.addEventListener('click', () => {
     const selected = registry.get(button.dataset.noteShare); if (!selected) return;
     let url;
-    try { url = createFieldNoteUrl(new URL('/', location.href).href, field.session, selected); }
+    try { url = createFieldNoteUrl(APP_ROOT, field.session, selected); }
     catch (error) { ui.error(error.message); return; }
     ui.openDialog({ eyebrow: 'Field Notes · sharing', title: 'Share this observation?',
       content: '<p>This link contains the complete observation, its location, feature references, and field session details. Anyone with the link can read and share them. Do not share sensitive observations unless you intend to disclose them.</p><p class="form-note">The data is embedded in the link; no account or server stores it. Linked features may need a separately accessible source.</p>',
@@ -152,7 +153,7 @@ export function openMapNotesPanel(ui, { point = null, editId = null, locationSou
         const progress = ui.dialog.querySelector('[data-report-progress]');
         try {
           const { createMapNotesReport } = await import('./map-notes-report.js?v=0.1.0');
-          const blob = await createMapNotesReport(new URL('/', location.href).href, field.session, registry.list(), { onProgress: (current, total) => { if (progress?.isConnected) progress.textContent = `Preparing observation ${current} of ${total}…`; } });
+          const blob = await createMapNotesReport(APP_ROOT, field.session, registry.list(), { onProgress: (current, total) => { if (progress?.isConnected) progress.textContent = `Preparing observation ${current} of ${total}…`; } });
           const url = URL.createObjectURL(blob); const link = document.createElement('a'); link.href = url; link.download = 'gismap-field-report.pdf'; link.click(); setTimeout(() => URL.revokeObjectURL(url), 5000);
           if (progress?.isConnected) ui.dialog.close(); ui.toast('Field report created locally. Keep a JSON backup.');
         } catch (error) { if (progress?.isConnected) progress.textContent = `Report not created: ${error.message}`; button.disabled = false; }

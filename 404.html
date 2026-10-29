@@ -2,26 +2,47 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
+  <script>
+    // This page can be served for any missing address, at any depth, and GISMap may
+    // be installed in a subfolder. Find the app's folder (the nearest parent that has
+    // its manifest) and resolve this page's relative links from there.
+    (() => {
+      const parts = location.pathname.split("/").slice(1, -1);
+      let root = "/";
+      for (let depth = parts.length; depth >= 0; depth -= 1) {
+        const candidate = `/${parts.slice(0, depth).map((part) => `${part}/`).join("")}`;
+        try {
+          const request = new XMLHttpRequest();
+          request.open("HEAD", `${candidate}manifest.webmanifest`, false);
+          request.send();
+          if (request.status === 200) { root = candidate; break; }
+        } catch { /* Keep looking. */ }
+      }
+      const base = document.createElement("base");
+      base.href = root;
+      document.head.append(base);
+    })();
+  </script>
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="robots" content="noindex">
   <title>Page not found | GISMap Online</title>
-  <link rel="icon" href="/assets/gis-map-online-mark-v2.png" type="image/png">
-  <link rel="stylesheet" href="/css/dragon-game.css?v=12">
+  <link rel="icon" href="assets/gis-map-online-mark-v2.png" type="image/png">
+  <link rel="stylesheet" href="css/dragon-game.css?v=12">
 </head>
 <body>
 <main>
-  <a class="logo" href="/"><img src="/assets/gis-map-online-mark-v2.png" alt="">GISMap Online</a>
+  <a class="logo" href="./"><img src="assets/gis-map-online-mark-v2.png" alt="">GISMap Online</a>
   <p class="kicker">404 · Uncharted territory</p>
   <h1>Here be dragons.</h1>
   <p class="intro">We couldn’t find that page. Help our dragon cross the kingdom, or return to the map.</p>
-  <div class="actions"><a href="/">Open GISMap Online</a><a href="/examples/">See examples</a><a href="/skills/">Explore agent skills</a></div>
+  <div class="actions"><a href="./">Open GISMap Online</a><a href="examples/">See examples</a><a href="skills/">Explore agent skills</a></div>
   <section class="game-wrap" id="game" tabindex="0" role="group" aria-label="Dragon game. Tap, click, or press Space to flap. Avoid hazards and collect maidens.">
     <canvas id="canvas" width="960" height="480">Your browser does not support the dragon game.</canvas>
     <div class="hud" aria-hidden="true"><span id="score">MAIDENS 0</span><span id="distance">DISTANCE 0</span><span id="lives">♥ ♥ ♥</span></div>
     <div class="overlay" id="overlay"><div class="panel" id="gamePanel"><h2 id="overlayTitle">Ready to fly?</h2><p id="overlayText">Click, tap, or press Space to flap. Avoid serpents, krakens, and knights. Fly into the glowing maiden above each castle to collect her!</p><div class="legend-scroll" id="legendScroll" hidden tabindex="0" aria-label="The dragon legend; scroll to read"><p id="legendStory" class="legend-story"></p></div><p id="legendScore" class="legend-score" hidden></p><p id="sharedChallenge" class="shared-challenge" hidden></p><div class="game-actions"><button class="button" id="start" type="button">Take flight ↗</button><button class="button share-results" id="shareResults" type="button" hidden>Share results</button></div></div></div>
   </section>
   <div class="game-controls"><button class="flap-button" id="flapButton" type="button" aria-label="Flap dragon wings">🪽 TAP TO FLAP</button><button class="pause-button" id="pauseButton" type="button" disabled>Pause</button></div>
-  <div class="below"><p>🪽 <strong>Click / tap / Space</strong> to flap · <kbd>P</kbd> to pause</p><a class="back" href="/">Return to GISMap Online →</a></div>
+  <div class="below"><p>🪽 <strong>Click / tap / Space</strong> to flap · <kbd>P</kbd> to pause</p><a class="back" href="./">Return to GISMap Online →</a></div>
   <dialog id="recordDialog" class="share-dialog" aria-labelledby="recordTitle">
     <form id="recordForm">
       <h2 id="recordTitle">Record your score</h2>
@@ -30,7 +51,7 @@
       <p id="recordScore"></p>
       <label for="recordName">Name</label>
       <input id="recordName" name="recordName" type="text" maxlength="32" placeholder="e.g. Sir Flapsalot" required autocomplete="off">
-      <div class="dialog-actions"><button class="button" type="submit">Share your legend</button><button class="dialog-secondary" id="recordFlyAgain" type="button">Fly again</button><a class="dialog-secondary" href="/">Open GISMap</a></div>
+      <div class="dialog-actions"><button class="button" type="submit">Share your legend</button><button class="dialog-secondary" id="recordFlyAgain" type="button">Fly again</button><a class="dialog-secondary" href="./">Open GISMap</a></div>
     </form>
   </dialog>
   <dialog id="shareDialog" class="share-dialog" aria-labelledby="shareTitle">
@@ -45,12 +66,12 @@
   </dialog>
   <noscript><p class="help">Enable JavaScript to play. Navigation links are still available.</p></noscript>
   <section id="suggestions" hidden aria-labelledby="suggestions-title"><h2 id="suggestions-title">Were you looking for…</h2><ul id="suggested-pages"></ul></section>
-  <p class="footer">Or browse the <a href="/examples/">examples</a> and <a href="/guides/">guides</a>.</p>
+  <p class="footer">Or browse the <a href="examples/">examples</a> and <a href="guides/">guides</a>.</p>
 </main>
-<script src="/js/vendor/qrcode-1.5.4.js?v=1" defer></script>
-<script src="/js/dragon-art.js?v=1" defer></script>
-<script src="/js/dragon-results.js?v=12" defer></script>
-<script src="/js/dragon-game.js?v=13" defer></script>
-<script type="module" src="/js/not-found.js?v=1"></script>
+<script src="js/vendor/qrcode-1.5.4.js?v=1" defer></script>
+<script src="js/dragon-art.js?v=1" defer></script>
+<script src="js/dragon-results.js?v=12" defer></script>
+<script src="js/dragon-game.js?v=13" defer></script>
+<script type="module" src="js/not-found.js?v=1"></script>
 </body>
 </html>

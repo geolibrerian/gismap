@@ -6,9 +6,11 @@ import { buildSiteOutputs } from "../scripts/site-outputs.mjs";
 import { mapSpec, sources } from "../js/gismap-core.js";
 import { mapSpecFromShareParameters } from "../js/map-spec.js";
 import { parseShareParameters } from "../js/share.js";
+// Pages link relative to themselves; these checks read them as root paths.
+import { rootLinksHtml } from "../scripts/relative-links.mjs";
 import { POPULAR_SERVICES } from "../js/catalog.js";
 
-const text = (path) => readFile(new URL(`../${path}`, import.meta.url), "utf8");
+const text = (path) => readFile(new URL(`../${path}`, import.meta.url), "utf8").then((text) => (path.endsWith(".html") ? rootLinksHtml(path, text) : text));
 const json = async (path) => JSON.parse(await text(path));
 const AsyncFunction = (async () => {}).constructor;
 

@@ -3,6 +3,7 @@ import { MobileFeedStore } from "./mobile-feed-store.js?v=0.18.7";
 import { compactMedia } from "./viewport.js?v=0.18.2";
 import { INTERFACE_SKINS, applyInterfaceSkin, normalizeSkin } from "./skin-catalog.js?v=0.57.0-skins2";
 import { FIELD_TASK_LIMITS, addressDetails, createFieldTaskUrl, featureLayerUrl, taskSteps } from "./field-task-share.js?v=0.41.0";
+import { appUrl } from "./app-root.js?v=0.65.0-paths";
 import { fieldTaskCsv, fieldTaskFileStem, fieldTaskPdf, fieldTaskPoints, photoDataUrl } from "./field-task-report.js?v=0.44.2";
 
 const escapeHtml = (value) => String(value ?? "").replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char]);
@@ -234,7 +235,7 @@ export class MobileWorkflowRouter {
   }
 
   #more() {
-    return `<p class="mobile-workflow__subtitle">The mobile app keeps the map and its shareable workflows focused and easy to reach.</p><div class="workflow-grid"><button data-route="briefing"><strong>Briefing</strong><span>Selected features and context · share by QR</span></button><button data-route="tours"><strong>Tours</strong><span>Guided places and chapters · share by QR</span></button><button data-route="tasks"><strong>Field tasks</strong><span>Assignments and drafts · share by QR</span></button><button data-open-field-notes><strong>Field notes</strong><span>Observations at a place or feature · share by QR</span></button><a class="workflow-grid__field" href="/field/"><strong>Field Mode</strong><span>Offline notes, tasks &amp; sharing</span></a><button data-route="map"><strong>Map tools</strong><span>Places, bookmarks, draw, layers, and intelligence</span></button><button data-open-image class="workflow-grid__photo"><strong>Open from a photo</strong><span>A Smart map image or a picture of a GIS Map QR code</span></button></div>${this.#skinPicker()}<section class="account-workflows"><span>With an account · coming soon</span><p>Updates, Compare, Watchlist, custom dashboards, and their desktop authoring tools.</p></section>`;
+    return `<p class="mobile-workflow__subtitle">The mobile app keeps the map and its shareable workflows focused and easy to reach.</p><div class="workflow-grid"><button data-route="briefing"><strong>Briefing</strong><span>Selected features and context · share by QR</span></button><button data-route="tours"><strong>Tours</strong><span>Guided places and chapters · share by QR</span></button><button data-route="tasks"><strong>Field tasks</strong><span>Assignments and drafts · share by QR</span></button><button data-open-field-notes><strong>Field notes</strong><span>Observations at a place or feature · share by QR</span></button><a class="workflow-grid__field" href="${appUrl("field/")}"><strong>Field Mode</strong><span>Offline notes, tasks &amp; sharing</span></a><button data-route="map"><strong>Map tools</strong><span>Places, bookmarks, draw, layers, and intelligence</span></button><button data-open-image class="workflow-grid__photo"><strong>Open from a photo</strong><span>A Smart map image or a picture of a GIS Map QR code</span></button></div>${this.#skinPicker()}<section class="account-workflows"><span>With an account · coming soon</span><p>Updates, Compare, Watchlist, custom dashboards, and their desktop authoring tools.</p></section>`;
   }
 
   async #click(event) {

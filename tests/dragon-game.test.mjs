@@ -1,6 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
+// Pages link relative to themselves; these checks read them as root paths.
+import { rootLinksHtml } from "../scripts/relative-links.mjs";
 import { runInNewContext } from 'node:vm';
 
 const code = await readFile(new URL('../js/dragon-game.js', import.meta.url), 'utf8');
@@ -49,8 +51,10 @@ test('keyboard shortcuts do not steal space from links or buttons', () => {
 test('the direct dragon page is up to date and uses the same game without a 404 message', async () => {
   const { renderDragonPage } = await import('../scripts/build-dragon-page.mjs');
   const source = await readFile(new URL('../404.html', import.meta.url), 'utf8');
-  const direct = await readFile(new URL('../dragons/index.html', import.meta.url), 'utf8');
-  assert.equal(direct, renderDragonPage(source));
+  const page = await readFile(new URL('../dragons/index.html', import.meta.url), 'utf8');
+  assert.equal(page, renderDragonPage(source));
+  assert.doesNotMatch(page, /(?:href|src)="\/(?!\/)/, "no links from the server root");
+  const direct = rootLinksHtml('dragons/index.html', page);
   assert.match(direct, /<title>Here be dragons \| GISMap Online<\/title>/);
   assert.match(direct, /rel="icon" href="\/assets\/gis-map-online-mark-v2\.png" type="image\/png"/);
   assert.doesNotMatch(direct, /404 ·|couldn’t find that page|content="noindex"/);
@@ -186,7 +190,7 @@ test('workspace embed uses a compact responsive game without changing the standa
   const ui = await readFile(new URL('../js/ui.js', import.meta.url), 'utf8');
   const appCss = await readFile(new URL('../css/app.css', import.meta.url), 'utf8');
   const gameCss = await readFile(new URL('../css/dragon-game.css', import.meta.url), 'utf8');
-  assert.match(ui, /src="\/dragons\/\?embed=1"/);
+  assert.match(ui, /src="\$\{appUrl\("dragons\/\?embed=1"\)\}"/);
   assert.match(code, /location\.search==='\?embed=1'/);
   assert.match(gameCss, /\.dragon-embedded :is\(\.logo,\.kicker,h1,\.intro,\.actions,\.below\)/);
   assert.match(gameCss, /@media \(min-width:651px\)\s*\{\s*\.dragon-embedded \.logo \{ display:inline-flex/);

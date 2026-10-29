@@ -82,7 +82,7 @@ export async function photoDataUrl(file) {
 export async function fieldTaskPdf(task, { mapImage = null, reportUrl = null, skin = null } = {}) {
   const palette = printPalette(skin);
   const logo = await loadBrandLogo(palette);
-  const report = new PdfDocument({ heading: "FIELD TASK REPORT", logo, palette, homeUrl: reportUrl ? new URL("/", reportUrl).href : undefined });
+  const report = new PdfDocument({ heading: "FIELD TASK REPORT", logo, palette, homeUrl: reportUrl ? new URL("./", reportUrl).href : undefined });
   const focusLink = (place) => (reportUrl ? withFocus(reportUrl, place) : null);
   const muted = { size: 9, leading: 14, color: PDF_COLORS.muted };
   report.addLines(task.title || "Field task", { size: 16, leading: 22, bold: true });

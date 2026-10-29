@@ -1,23 +1,28 @@
 // Keep the playable page and the 404 game in sync: one canonical HTML source.
 import { readFile, writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
+import { relativizeHtml } from './relative-links.mjs';
 
 export function renderDragonPage(notFound) {
   const replacements = [
     ['  <meta name="robots" content="noindex">\n', ''],
     ['<title>Page not found | GISMap Online</title>', '<title>Here be dragons | GISMap Online</title>'],
     ['  <p class="kicker">404 · Uncharted territory</p>\n', ''],
-    ['<a href="/examples/">See examples</a><a href="/skills/">Explore agent skills</a>', ''],
+    ['<a href="examples/">See examples</a><a href="skills/">Explore agent skills</a>', ''],
     ['<p class="intro">We couldn’t find that page. Help our dragon cross the kingdom, or return to the map.</p>', '<p class="intro">Help our dragon cross the kingdom and collect maidens, or return to the map.</p>'],
     ['  <section id="suggestions" hidden aria-labelledby="suggestions-title"><h2 id="suggestions-title">Were you looking for…</h2><ul id="suggested-pages"></ul></section>\n', ''],
-    ['<script type="module" src="/js/not-found.js?v=1"></script>\n', ''],
+    ['<script type="module" src="js/not-found.js?v=1"></script>\n', ''],
   ];
   let page = notFound;
   for (const [oldText, newText] of replacements) {
     if (!page.includes(oldText)) throw new Error(`404 template changed; update dragon-page generator: ${oldText}`);
     page = page.replace(oldText, newText);
   }
-  return page;
+  // The 404 page finds the app folder at run time (<base>); this page has a fixed
+  // place, dragons/, so its links are made relative to it instead.
+  page = page.replace(/  <script>\n    \/\/ This page can be served for any missing address[\s\S]*?<\/script>\n/, '');
+  page = page.replace(/(\b(?:href|src)=")(?![a-z][\w+.-]*:|[#/]|\.\.\/)(?:\.\/)?([^"]*)"/gi, (_, attribute, link) => `${attribute}/${link}"`);
+  return relativizeHtml('dragons/index.html', page);
 }
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {

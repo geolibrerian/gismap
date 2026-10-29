@@ -4,9 +4,11 @@ import test from "node:test";
 import { WORKFLOW_EXAMPLES, workflowExampleLinks, workflowExamplePath } from "../scripts/workflow-examples.mjs";
 import { decodeEmbeddedTour } from "../js/tour-share.js";
 import { decodeFieldTask, readFieldTaskHash } from "../js/field-task-share.js";
+// Pages link relative to themselves; these checks read them as root paths.
+import { rootLinksHtml } from "../scripts/relative-links.mjs";
 import { SHARE_BASEMAPS } from "../js/share.js";
 
-const text = (path) => readFile(new URL(`../${path}`, import.meta.url), "utf8");
+const text = (path) => readFile(new URL(`../${path}`, import.meta.url), "utf8").then((text) => (path.endsWith(".html") ? rootLinksHtml(path, text) : text));
 const links = await workflowExampleLinks(text);
 
 test("each tour and field task example has its links and QR codes", async () => {

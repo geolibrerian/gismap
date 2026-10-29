@@ -1,6 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
+// Pages link relative to themselves; these checks read them as root paths.
+import { rootLinksHtml } from "../scripts/relative-links.mjs";
 import { BRIEFING_WALKTHROUGH_STEPS, HISTORICAL_QUAKES_BRIEFING_TUTORIAL_STEPS, WALKTHROUGH_STEPS, createExampleWalkthroughSteps, waitForWalkthroughTarget } from '../js/workspace-walkthrough.js';
 
 test('walkthrough has a concise desktop and mobile overview', () => {
@@ -90,7 +92,7 @@ test('walkthrough target waiting resolves on rendering and aborts or times out s
 test('walkthrough can be started from suggestions or the Tools menu', async () => {
   const [ui, html] = await Promise.all([
     readFile(new URL('../js/ui.js', import.meta.url), 'utf8'),
-    readFile(new URL('../index.html', import.meta.url), 'utf8'),
+    readFile(new URL('../index.html', import.meta.url), 'utf8').then((html) => rootLinksHtml('index.html', html)),
   ]);
   assert.match(ui, /Walk me through the tools and menus/);
   assert.match(ui, /case "tools-walkthrough"/);
@@ -102,7 +104,7 @@ test('walkthrough can be started from suggestions or the Tools menu', async () =
 test('the compact welcome panel launches the separate discovery experience', async () => {
   const [ui, html, css] = await Promise.all([
     readFile(new URL('../js/ui.js', import.meta.url), 'utf8'),
-    readFile(new URL('../index.html', import.meta.url), 'utf8'),
+    readFile(new URL('../index.html', import.meta.url), 'utf8').then((html) => rootLinksHtml('index.html', html)),
     readFile(new URL('../css/app.css', import.meta.url), 'utf8'),
   ]);
   const welcome = html.match(/<section id="welcome-panel"[\s\S]*?<\/section>/)[0];

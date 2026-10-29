@@ -57,15 +57,15 @@
     <meta name="theme-color" content="#f5f5ef" media="(prefers-color-scheme: light)" />
     <meta name="theme-color" content="#0b231e" media="(prefers-color-scheme: dark)" />
     <!-- For language models and agents: a Markdown summary, the machine-readable API, and the agent guide. -->
-    <link rel="alternate" type="text/plain" href="/llms.txt" title="GIS Map Online for language models" />
-    <link rel="describedby" type="text/plain" href="/llms.txt" />
-    <link rel="describedby" type="application/json" href="/api/capabilities.json" />
-    <link rel="help" href="/guides/ai-agents/" />
+    <link rel="alternate" type="text/plain" href="./llms.txt" title="GIS Map Online for language models" />
+    <link rel="describedby" type="text/plain" href="./llms.txt" />
+    <link rel="describedby" type="application/json" href="./api/capabilities.json" />
+    <link rel="help" href="./guides/ai-agents/" />
     <link rel="preconnect" href="https://js.arcgis.com" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link rel="stylesheet" href="./css/app.css?v=0.64.3-tests" />
-    <link rel="stylesheet" href="./css/fieldwork.css?v=0.64.3-tests" />
+    <link rel="stylesheet" href="./css/app.css?v=0.65.0-paths" />
+    <link rel="stylesheet" href="./css/fieldwork.css?v=0.65.0-paths" />
     <!-- three.js for point clouds, models and 3D animation; loaded only when a 3D layer is added. -->
     <script type="importmap">{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.min.js", "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/" } }</script>
     <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
@@ -85,7 +85,7 @@
           <button type="button" data-mobile-workflow="briefing" aria-label="Briefing"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h12v18H6zM9 7h6M9 11h6M9 15h4"/></svg><small>Briefing</small></button>
           <button type="button" data-mobile-workflow="map" aria-label="Map"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m3 6 6-3 6 3 6-3v15l-6 3-6-3-6 3zM9 3v15m6-12v15"/></svg><small>Map</small></button>
           <button type="button" data-mobile-workflow="tours" aria-label="Tours"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h14v16H5zM9 8h6M9 12h6M9 16h4"/></svg><small>Tours</small></button>
-          <a class="mobile-panel-nav__field" href="/field/" aria-label="Open Field Mode"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5h10v16H5V5h4m0-2h6v4H9zM8 12l2 2 5-5"/></svg><small>Field</small></a>
+          <a class="mobile-panel-nav__field" href="./field/" aria-label="Open Field Mode"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5h10v16H5V5h4m0-2h6v4H9zM8 12l2 2 5-5"/></svg><small>Field</small></a>
           <button type="button" data-mobile-workflow="more" aria-label="More workflows"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></svg><small>More</small></button>
         </nav>
     <div id="app" class="app-shell">
@@ -126,7 +126,7 @@
               <button data-action="tools-about">About this build</button>
             </div>
           </div>
-          <a class="menu-bar__discover" href="/discover/" target="_blank" rel="noopener" title="Open the separate GISMap Discovery guide">Discover <span>↗</span></a>
+          <a class="menu-bar__discover" href="./discover/" target="_blank" rel="noopener" title="Open the separate GISMap Discovery guide">Discover <span>↗</span></a>
           <div class="menu">
             <button class="menu__trigger" aria-expanded="false">Data</button>
             <div class="menu__content" role="menu">
@@ -162,7 +162,7 @@
               <button type="button" data-action="mode-cinematic">Cinematic mode</button>
               <button type="button" data-action="guide-cinematic">Cinematic guide: create an animation</button>
               <button type="button" data-mobile-workflow="tasks">Field tasks</button>
-              <a class="menu__link menu__link--field" href="/field/"><span>Field collection</span><small>Notes, tasks &amp; offline capture</small></a>
+              <a class="menu__link menu__link--field" href="./field/"><span>Field collection</span><small>Notes, tasks &amp; offline capture</small></a>
               <button type="button" data-action="mode-map-notes">Field notes</button>
               <button type="button" data-action="mode-data-map-notes">Map notes</button>
               <hr />
@@ -324,11 +324,11 @@
           <p>Open data, make a map, and share it when you are ready. Discovery is a separate guide, so this workspace stays focused on your project.</p>
           <div class="welcome-panel__actions" aria-label="Get started">
             <button type="button" data-welcome-start>Start mapping</button>
-            <a href="/discover/examples/" target="_blank" rel="noopener">Explore examples</a>
+            <a href="./discover/examples/" target="_blank" rel="noopener">Explore examples</a>
             <button type="button" data-action="data-popular">Open starter catalog</button>
-            <a href="/discover/learn/" target="_blank" rel="noopener">Learn GISMap</a>
-            <a href="/discover/ai/" target="_blank" rel="noopener">Create with AI</a>
-            <a href="/discover/about/" target="_blank" rel="noopener">About GISMap</a>
+            <a href="./discover/learn/" target="_blank" rel="noopener">Learn GISMap</a>
+            <a href="./discover/ai/" target="_blank" rel="noopener">Create with AI</a>
+            <a href="./discover/about/" target="_blank" rel="noopener">About GISMap</a>
           </div>
           <label class="welcome-panel__preference"><input id="welcome-suppress" type="checkbox" /> Don’t show this welcome automatically</label>
         </section>
@@ -518,15 +518,15 @@
       <p>GISMap.online is a free, open-source, browser-based GIS workspace for exploring, styling and sharing geographic data in 2D and 3D.</p>
       <p>A map opens from a link: write one map-v1 JSON object after <code>#map=json:</code> in this page's address, or use <code>?layer=&lt;HTTPS service URL&gt;</code>. No key or account is needed.</p>
       <ul>
-        <li><a href="/llms.txt">llms.txt: a summary for language models</a></li>
-        <li><a href="/ai-arcgis-map-generator/">Create a shareable ArcGIS map with AI</a></li>
-        <li><a href="/guides/ai-agents/">Making maps with an AI agent</a></li>
-        <li><a href="/schemas/map-v1.schema.json">Map spec schema (map-v1)</a></li>
-        <li><a href="/api/capabilities.json">API capabilities</a> and <a href="/api/url-parameters.json">URL parameters</a></li>
-        <li><a href="/api/catalog.json">Curated public datasets</a></li>
+        <li><a href="./llms.txt">llms.txt: a summary for language models</a></li>
+        <li><a href="./ai-arcgis-map-generator/">Create a shareable ArcGIS map with AI</a></li>
+        <li><a href="./guides/ai-agents/">Making maps with an AI agent</a></li>
+        <li><a href="./schemas/map-v1.schema.json">Map spec schema (map-v1)</a></li>
+        <li><a href="./api/capabilities.json">API capabilities</a> and <a href="./api/url-parameters.json">URL parameters</a></li>
+        <li><a href="./api/catalog.json">Curated public datasets</a></li>
       </ul>
     </section>
-    <noscript>GISMap Online is a geospatial application and needs JavaScript. Without it, a map can still be described as a link: see <a href="/llms.txt">/llms.txt</a> and the <a href="/guides/ai-agents/">guide for AI agents</a>.</noscript>
-<script type="module" src="./js/app.js?v=0.64.3-tests"></script>
+    <noscript>GISMap Online is a geospatial application and needs JavaScript. Without it, a map can still be described as a link: see <a href="./llms.txt">/llms.txt</a> and the <a href="./guides/ai-agents/">guide for AI agents</a>.</noscript>
+<script type="module" src="./js/app.js?v=0.65.0-paths"></script>
   </body>
 </html>

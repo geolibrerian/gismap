@@ -1,6 +1,6 @@
 // Markup and form reading for a layer's Labels editor.
-import { TEXT_BOX_FONTS } from "./text-boxes.js?v=0.64.3-tests";
-import { normalizeLabeling } from "./layer-labels.js?v=0.64.3-tests";
+import { TEXT_BOX_FONTS } from "./text-boxes.js?v=0.65.0-paths";
+import { normalizeLabeling } from "./layer-labels.js?v=0.65.0-paths";
 
 const escape = (value) => String(value ?? "").replace(/[&<>"']/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[character]);
 const checked = (value) => (value ? " checked" : "");

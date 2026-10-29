@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { readFile } from "node:fs/promises";
 import { normalizeMobileWorkflow } from "../js/mobile-feed-store.js";
+// Pages link relative to themselves; these checks read them as root paths.
+import { rootLinksHtml } from "../scripts/relative-links.mjs";
 import { APPLICATION_PRESETS } from "../js/application-config.js";
 
 test("mobile workflow state normalizes independently of desktop dashboards", () => {
@@ -21,7 +23,7 @@ test("Atlas starts with Clean Light", () => {
 });
 
 test("mobile navigation exposes focused workflows", async () => {
-  const html = await readFile(new URL("../index.html", import.meta.url), "utf8");
+  const html = rootLinksHtml("index.html", await readFile(new URL("../index.html", import.meta.url), "utf8"));
   for (const route of ["briefing", "map", "tours", "more"]) {
     assert.match(html, new RegExp(`data-mobile-workflow="${route}"`));
   }
@@ -59,11 +61,11 @@ test("mobile menu nests public workflows below the standard tools", async () => 
 });
 
 test("Field Mode is a styled top-level option rather than a browser-default menu link", async () => {
-  const html = await readFile(new URL("../index.html", import.meta.url), "utf8");
+  const html = rootLinksHtml("index.html", await readFile(new URL("../index.html", import.meta.url), "utf8"));
   const router = await readFile(new URL("../js/mobile-workflow-router.js", import.meta.url), "utf8");
   const css = await readFile(new URL("../css/app.css", import.meta.url), "utf8");
   assert.match(html, /class="menu__link menu__link--field" href="\/field\//);
-  assert.match(router, /workflow-grid__field" href="\/field\//);
+  assert.match(router, /workflow-grid__field" href="\$\{appUrl\("field\/"\)\}"/);
   assert.match(css, /\.menu__content \.menu__link \{ display:grid/);
   assert.match(css, /\.mobile-panel-nav :is\(button,a\)/);
 });
@@ -122,7 +124,7 @@ test("mobile navigation keeps the menu exclusive and Map active while its tools 
 });
 
 test("map tool strip is mobile-only and limited to the Map route", async () => {
-  const html = await readFile(new URL("../index.html", import.meta.url), "utf8");
+  const html = rootLinksHtml("index.html", await readFile(new URL("../index.html", import.meta.url), "utf8"));
   const css = await readFile(new URL("../css/app.css", import.meta.url), "utf8");
   assert.match(css, /mobile-panel-nav, \.mobile-map-tool-strip \{ display: none; \}/);
   assert.match(css, /body\.mobile-map-route \.mobile-map-tool-strip[\s\S]*?display: grid/);
@@ -163,7 +165,7 @@ test("mobile Atlas authoring uses a content-sized bottom workspace above its con
 });
 
 test("mobile map tools open in a content-sized, resizable sheet capped at sixty percent", async () => {
-  const html = await readFile(new URL("../index.html", import.meta.url), "utf8");
+  const html = rootLinksHtml("index.html", await readFile(new URL("../index.html", import.meta.url), "utf8"));
   const ui = await readFile(new URL("../js/ui.js", import.meta.url), "utf8");
   const css = await readFile(new URL("../css/app.css", import.meta.url), "utf8");
   assert.match(html, /id="mobile-drawer-handle"/);
@@ -179,7 +181,7 @@ test("Clean Light keeps the full-screen mobile menu legible", async () => {
 });
 
 test("on desktop the Tasks screen is a right-panel tab, so docked dialogs tab beside it", async () => {
-  const html = await readFile(new URL("../index.html", import.meta.url), "utf8");
+  const html = rootLinksHtml("index.html", await readFile(new URL("../index.html", import.meta.url), "utf8"));
   const ui = await readFile(new URL("../js/ui.js", import.meta.url), "utf8");
   const router = await readFile(new URL("../js/mobile-workflow-router.js", import.meta.url), "utf8");
   assert.match(html, /id="utility-tasks-content"[^>]*data-utility-pane="tasks"/);

@@ -16,19 +16,24 @@ test('missing URLs use the 404 page and retain proper not-found handling', async
   assert.equal(config.assets.not_found_handling, '404-page');
   const html = await file('404.html');
   assert.match(html, /Here be dragons/);
-  assert.match(html, /rel="icon" href="\/assets\/gis-map-online-mark-v2\.png" type="image\/png"/);
-  assert.match(html, /href="\/"/);
+  // Served for any missing address and possibly in a subfolder: links are relative
+  // to the app folder, which the page finds (its manifest) and sets as <base>.
+  assert.match(html, /manifest\.webmanifest[\s\S]*document\.createElement\("base"\)/);
+  assert.ok(html.indexOf('createElement("base")') < html.indexOf('rel="stylesheet"'), "the base is set before any link loads");
+  assert.doesNotMatch(html, /(?:href|src)="\/(?!\/)/, "no links from the server root");
+  assert.match(html, /rel="icon" href="assets\/gis-map-online-mark-v2\.png" type="image\/png"/);
+  assert.match(html, /href="\.\/"/);
   assert.match(await file("css/dragon-game.css"), /prefers-reduced-motion/);
   assert.match(html, /id="canvas"/);
   assert.match(html, /id="pauseButton"/);
   assert.match(html, /name="robots" content="noindex"/);
-  for (const { path } of DESTINATIONS) assert.ok(await file(`${path.slice(1)}index.html`), path);
+  for (const { path } of DESTINATIONS) assert.ok(await file(`${path}index.html`), path);
 });
 
 test('suggestions match misspellings without creating untrusted links', () => {
-  assert.equal(suggestDestinations('/skils')[0].path, '/skills/');
-  assert.equal(suggestDestinations('/guids')[0].path, '/guides/');
-  assert.equal(suggestDestinations('/exampels')[0].path, '/examples/');
+  assert.equal(suggestDestinations('/skils')[0].path, 'skills/');
+  assert.equal(suggestDestinations('/guids')[0].path, 'guides/');
+  assert.equal(suggestDestinations('/exampels')[0].path, 'examples/');
   assert.deepEqual(suggestDestinations('/zzzzzzzzzzz'), []);
   assert.ok(suggestDestinations('/<script>alert(1)</script>').every(({ path }) => DESTINATIONS.some((known) => known.path === path)));
   assert.ok(suggestDestinations('/' + 'x'.repeat(100000)).length === 0);

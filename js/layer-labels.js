@@ -2,7 +2,7 @@
 // drawn by the same renderer, so they appear on screen, in PDFs, Smart Images
 // and every Print Editor template. A label comes from one field, the same text
 // for every feature, or a template of text or simple HTML with {FIELD} wildcards.
-import { TEXT_BOX_FONTS, normalizeRun } from "./text-boxes.js?v=0.64.3-tests";
+import { TEXT_BOX_FONTS, normalizeRun } from "./text-boxes.js?v=0.65.0-paths";
 
 export const LABEL_MODES = Object.freeze(["field", "template", "single"]);
 const MAX_QUERY = 3000;

@@ -13,6 +13,13 @@ import { basemapOnEngine, basemapsForEngine } from "../../basemap-catalog.js?v=0
 import { normalizeSpatialChart } from "../../spatial-chart.js?v=0.1.1";
 import { spatialChartArcgis } from "../../spatial-chart-arcgis.js?v=0.1.0";
 import { legendForLayer } from "../maplibre/legend.js?v=0.52.4";
+
+// GISMap's own symbols are stored as "/assets/…" so projects move between hosts;
+// they load from wherever this app is installed (it may live in a subfolder).
+const APP_ROOT = new URL("../../../", import.meta.url).href;
+const assetUrls = (value, from, to) => JSON.parse(JSON.stringify(value), (key, item) => (key === "url" && typeof item === "string" && item.startsWith(from) ? to + item.slice(from.length) : item));
+const loadableAssets = (value) => (value ? assetUrls(value, "/assets/", `${APP_ROOT}assets/`) : value);
+const portableAssets = (value) => (value ? assetUrls(value, `${APP_ROOT}assets/`, "/assets/") : value);
 import { hostCredit, joinCredits, legendSwatch, plainAttribution } from "../map-credits.js?v=0.1.0";
 
 const ARCGIS_WORLD_GEOCODER =
@@ -1165,7 +1172,7 @@ export class ArcGISEngine {
       customParameters: source.customParameters ?? layer.customParameters ?? null,
       // While a spatial chart is drawn, projects and links keep the style it was made from, plus the chart.
       elevationInfo: source.spatialChart ? source.chartRestore?.elevationInfo?.toJSON?.() ?? null : layer.elevationInfo?.toJSON?.() ?? source.elevationInfo ?? null,
-      renderer: source.spatialChart ? source.chartRestore?.renderer?.toJSON?.() ?? null : layer.renderer?.toJSON?.() ?? null,
+      renderer: portableAssets(source.spatialChart ? source.chartRestore?.renderer?.toJSON?.() ?? null : layer.renderer?.toJSON?.() ?? null),
       spatialChart: source.spatialChart ? structuredClone(source.spatialChart) : null,
       // True when the style was set in GISMap (or arrived with a shared map), not the service's own.
       styled: Boolean(source.renderer),
@@ -1514,6 +1521,7 @@ export class ArcGISEngine {
   }
 
   restoreRenderer(ref, rendererJson) {
+    rendererJson = loadableAssets(rendererJson);
     const layer = this.#layer(ref);
     if (!layer || !("renderer" in layer) || !rendererJson) return;
     this.#dropSpatialChart(layer);
@@ -1706,7 +1714,7 @@ export class ArcGISEngine {
       }
       if (options.markerSymbol) {
         const markerSize = Math.min(48, Math.max(10, Number.isFinite(size) ? size * 2.2 : 20));
-        return { type: "picture-marker", url: options.markerSymbol, width: markerSize, height: markerSize };
+        return { type: "picture-marker", url: loadableAssets({ url: options.markerSymbol }).url, width: markerSize, height: markerSize };
       }
       return { type: "simple-marker", color: options.color, size: Number.isFinite(size) ? size : 9, outline: { color: outline, width: 1 } };
     }

@@ -1,12 +1,12 @@
 // Suggestions are a fixed allowlist of real public pages, never a URL derived
 // from the request. Missing asset requests still retain their HTTP 404 status.
 export const DESTINATIONS = Object.freeze([
-  { label: "Agent skills", path: "/skills/", keywords: ["skill", "skills", "agent", "agents", "codex", "claude"] },
-  { label: "Examples", path: "/examples/", keywords: ["example", "examples", "maps", "map"] },
-  { label: "Guides", path: "/guides/", keywords: ["guide", "guides", "help", "documentation", "docs"] },
-  { label: "AI agent guide", path: "/guides/ai-agents/", keywords: ["ai", "agent", "agents", "api"] },
-  { label: "GeoJSON viewer", path: "/geojson-viewer/", keywords: ["geojson", "geojsonviewer"] },
-  { label: "ArcGIS REST viewer", path: "/arcgis-rest-service-viewer/", keywords: ["arcgis", "rest", "service"] },
+  { label: "Agent skills", path: "skills/", keywords: ["skill", "skills", "agent", "agents", "codex", "claude"] },
+  { label: "Examples", path: "examples/", keywords: ["example", "examples", "maps", "map"] },
+  { label: "Guides", path: "guides/", keywords: ["guide", "guides", "help", "documentation", "docs"] },
+  { label: "AI agent guide", path: "guides/ai-agents/", keywords: ["ai", "agent", "agents", "api"] },
+  { label: "GeoJSON viewer", path: "geojson-viewer/", keywords: ["geojson", "geojsonviewer"] },
+  { label: "ArcGIS REST viewer", path: "arcgis-rest-service-viewer/", keywords: ["arcgis", "rest", "service"] },
 ]);
 
 function distance(a, b) {
@@ -41,7 +41,7 @@ if (typeof document !== "undefined") {
     for (const { label, path } of suggestions) {
       const item = document.createElement("li");
       const link = document.createElement("a");
-      link.href = path;
+      link.href = path; // relative to the app folder (404.html sets <base>)
       link.textContent = label;
       item.append(link);
       list.append(item);

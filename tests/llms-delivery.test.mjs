@@ -1,6 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
+// Pages link relative to themselves; these checks read them as root paths.
+import { rootLinksHtml } from "../scripts/relative-links.mjs";
 import { smokeLlms } from '../scripts/smoke-llms.mjs';
 
 const root = new URL('../', import.meta.url);
@@ -22,7 +24,7 @@ test('Cloudflare static delivery config uses plain text and the canonical 301 al
   }
   assert.match(headers, /^\/skills\/\*\.md\n  Content-Type: text\/plain; charset=utf-8$/m);
   assert.match(await read('_redirects'), /^\/llm\.txt\s+\/llms\.txt\s+301\s*$/m);
-  assert.match(await read('skills/index.html'), /href="\/llms\.txt"/);
+  assert.match(rootLinksHtml('skills/index.html', await read('skills/index.html')), /href="\/llms\.txt"/);
 });
 
 test('deployment smoke test detects content type, stale content, redirects and fallbacks', async () => {

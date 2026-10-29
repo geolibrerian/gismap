@@ -1,4 +1,4 @@
-import { initializeFieldworkWorkspace } from "./fieldwork-workspace.js?v=0.64.3-tests";
+import { initializeFieldworkWorkspace } from "./fieldwork-workspace.js?v=0.65.0-paths";
 import { timelinePdfFrames, expandTimelinePdfSlides, parseTimelineFrameSelection } from "./briefing-timeline-pdf.js?v=0.1.0";
 import { renderNotesHub } from "./notes-hub.js?v=0.55.0-fieldwork1";
 import { refreshMapNoteFilters } from './map-note-filters.js?v=0.4.1';
@@ -13,8 +13,8 @@ import { MapAssistantPanel } from "./assistant-panel.js?v=0.57.0-skins1";
 import { createAssistantTools, summarizeMapState } from "./map-assistant.js?v=0.61.1-dashboard-agent";
 import { ENTERPRISE_CATALOGS, EnterpriseCatalog, normalizeArcGisDirectoryUrl } from "./enterprise-catalog.js?v=0.18.2";
 import { createShareUrl } from "./share.js?v=0.54.0-unified4";
-import { createShareLink, hasDataFilter, readBriefingFile } from "./map-share.js?v=0.64.3-tests";
-import { createEmbedIframe, createEmbedUrl } from "./embed-share.js?v=0.64.3-tests";
+import { createShareLink, hasDataFilter, readBriefingFile } from "./map-share.js?v=0.65.0-paths";
+import { createEmbedIframe, createEmbedUrl } from "./embed-share.js?v=0.65.0-paths";
 import { briefingLayerRef, findBriefingLayer } from "./briefing-api.js?v=0.61.0-briefing-player";
 import { createEmbeddedTourUrl } from "./tour-share.js?v=0.54.0-unified4";
 import { markdownToPlainText, renderMarkdown } from "./markdown.js?v=0.18.2";
@@ -26,8 +26,8 @@ import { applyMapColors, MAP_COLOR_COMPONENTS, SKIN_BASEMAP, themeFromComputedSt
 import { compactMedia } from "./viewport.js?v=0.18.2";
 import { APP_VERSION } from "./version.js?v=0.53.0";
 import { bindMobileSheetResize } from "./mobile-sheet-resize.js?v=0.52.7";
-import { BRAND_LOGO, PdfDocument, brandedMapImage, brandedQrCanvas, imageToJpeg, loadBrandLogo, printPalette, qrAsset } from "./pdf-document.js?v=0.64.3-tests";
-import { DEFAULT_PAGE_FRAME, IMAGE_ANCHORS, MAP_TEMPLATES, getTemplate, loadImage, renderTemplate, templateCompact, templateMapAspect } from "./map-templates.js?v=0.64.3-tests";
+import { BRAND_LOGO, PdfDocument, brandedMapImage, brandedQrCanvas, imageToJpeg, loadBrandLogo, printPalette, qrAsset } from "./pdf-document.js?v=0.65.0-paths";
+import { DEFAULT_PAGE_FRAME, IMAGE_ANCHORS, MAP_TEMPLATES, getTemplate, loadImage, renderTemplate, templateCompact, templateMapAspect } from "./map-templates.js?v=0.65.0-paths";
 import { featureLayerUrl, locationUrl } from "./field-task-share.js?v=0.54.0-unified4";
 import { dockIcon } from "./dock-icons.js?v=0.24.0";
 import { serviceNameFromUrl } from "./service-name.js?v=0.26.0";
@@ -63,11 +63,12 @@ import { numericFieldCandidates, temporalFieldCandidates } from "./cinematic/tem
 import { buildClipPackage, clipToCinematicSpec, createCinematicClip, exportCinematicClip, normalizeCinematicClip } from "./cinematic/clip-model.js?v=0.3.9";
 import { availableVideoFormats, cameraAt, CLIP_FRAME_RATES, clipFrameCount, exportCinematicVideo, observationIndexAt, renderClipPoster } from "./cinematic/clip-export.js?v=0.3.8-fire-points";
 import { CHART_PANEL_PLACEMENTS, CHART_TYPES, PRESENTATION_TARGETS, chartFields, chartOption, createChartSpec, displayChartRows, loadECharts, queryChart, recommendCharts, renderChartFallback, rowsAsCsv } from "./charting-tools.js";
-import { MapChartOverlayController } from "./map-chart-tools.js?v=0.64.3-tests";
-import { readTextBoxEditor, textBoxEditorMarkup, textBoxRunMarkup, textBoxSummary } from "./text-box-editor.js?v=0.64.3-tests";
-import { labelEditorMarkup, labelableFields, readLabelEditor, syncLabelEditor } from "./label-editor.js?v=0.64.3-tests";
-import { normalizeLabeling } from "./layer-labels.js?v=0.64.3-tests";
-import { defaultRun } from "./text-boxes.js?v=0.64.3-tests";
+import { MapChartOverlayController } from "./map-chart-tools.js?v=0.65.0-paths";
+import { readTextBoxEditor, textBoxEditorMarkup, textBoxRunMarkup, textBoxSummary } from "./text-box-editor.js?v=0.65.0-paths";
+import { labelEditorMarkup, labelableFields, readLabelEditor, syncLabelEditor } from "./label-editor.js?v=0.65.0-paths";
+import { normalizeLabeling } from "./layer-labels.js?v=0.65.0-paths";
+import { APP_ROOT, appUrl } from "./app-root.js?v=0.65.0-paths";
+import { defaultRun } from "./text-boxes.js?v=0.65.0-paths";
 
 const BUILDINGS_3D_KEY = "gismap-online:buildings-3d:v1";
 const DISPLAY_SETTINGS_KEY = "gismap-online:display:v1";
@@ -2011,12 +2012,12 @@ export class UIController {
           this.#serviceDialog("vector-tiles");
           break;
         case "data-pmtiles": {
-          const { openPmtilesPanel } = await import("./data-connections-panel.js?v=0.64.3-tests");
+          const { openPmtilesPanel } = await import("./data-connections-panel.js?v=0.65.0-paths");
           openPmtilesPanel(this, this.mapController, (engine) => this.#switchEngine(engine));
           break;
         }
         case "data-duckdb": {
-          const { openDuckdbPanel } = await import("./data-connections-panel.js?v=0.64.3-tests");
+          const { openDuckdbPanel } = await import("./data-connections-panel.js?v=0.65.0-paths");
           openDuckdbPanel(this, this.applicationRuntime.duckdb);
           break;
         }
@@ -2037,7 +2038,7 @@ export class UIController {
           break;
         }
         case "data-postgis": {
-          const { openPostgisPanel } = await import("./data-connections-panel.js?v=0.64.3-tests");
+          const { openPostgisPanel } = await import("./data-connections-panel.js?v=0.65.0-paths");
           openPostgisPanel(this);
           break;
         }
@@ -2070,7 +2071,7 @@ export class UIController {
           openMapNotesPanel(this);
           break;
         case "game-dragons":
-          this.openDialog({ eyebrow: "Games", title: "Here be dragons", content: '<iframe class="dragon-game-frame" src="/dragons/?embed=1" title="Here be dragons game"></iframe>' });
+          this.openDialog({ eyebrow: "Games", title: "Here be dragons", content: `<iframe class="dragon-game-frame" src="${appUrl("dragons/?embed=1")}" title="Here be dragons game"></iframe>` });
           if (this.dialog.classList.contains("app-dialog--docked")) this.#reopenDialog(false);
           {
             const stopGame = () => {
@@ -4792,7 +4793,7 @@ export class UIController {
         </section>
         <div id="ai-connection-status" class="connection-status" hidden></div>
         <p class="form-note">Provider, endpoint, and model may be remembered locally. API tokens remain only in page memory and are never saved or exported; re-enter them after a reload. Direct browser keys are appropriate only for personal testing. Use a controlled proxy for a public paid service.</p>
-        <p class="form-note"><a href="/ai-connection-guide/" target="_blank" rel="noopener">Read the AI connection guide ↗</a></p>`,
+        <p class="form-note"><a href="${appUrl("ai-connection-guide/")}" target="_blank" rel="noopener">Read the AI connection guide ↗</a></p>`,
       actions,
     });
     const providerInput = this.dialog.querySelector("#ai-provider");
@@ -4818,7 +4819,7 @@ export class UIController {
     this.openDialog({
       eyebrow: "About this build",
       title: "GISMap Online",
-      content: `<div class="about-copy"><p>A free browser-based geospatial application for mapping, analysis, briefings, tours and field tasks.</p><p><a href="/examples/">Browse public GIS examples</a> or read the <a href="/guides/">GISMap guides</a>.</p><dl><div><dt>Version</dt><dd>${APP_VERSION}</dd></div><div><dt>Map engine</dt><dd>${escapeHtml(this.mapController.getEngineId() === "maplibre" ? "MapLibre" : "ArcGIS")}</dd></div><div><dt>Runtime</dt><dd>Static HTML + ES modules</dd></div><div><dt>Persistence</dt><dd>localStorage + portable ZIP</dd></div><div><dt>Identity</dt><dd>Optional ArcGIS OAuth / token authentication</dd></div><div><dt>Privacy</dt><dd>No GISMap Online account or database; credentials are excluded from projects</dd></div></dl></div>`,
+      content: `<div class="about-copy"><p>A free browser-based geospatial application for mapping, analysis, briefings, tours and field tasks.</p><p><a href="${appUrl("examples/")}">Browse public GIS examples</a> or read the <a href="${appUrl("guides/")}">GISMap guides</a>.</p><dl><div><dt>Version</dt><dd>${APP_VERSION}</dd></div><div><dt>Map engine</dt><dd>${escapeHtml(this.mapController.getEngineId() === "maplibre" ? "MapLibre" : "ArcGIS")}</dd></div><div><dt>Runtime</dt><dd>Static HTML + ES modules</dd></div><div><dt>Persistence</dt><dd>localStorage + portable ZIP</dd></div><div><dt>Identity</dt><dd>Optional ArcGIS OAuth / token authentication</dd></div><div><dt>Privacy</dt><dd>No GISMap Online account or database; credentials are excluded from projects</dd></div></dl></div>`,
     });
   }
 
@@ -9660,7 +9661,7 @@ export class UIController {
     const mapImage = mapCapture?.dataUrl
       ? await brandedMapImage(mapCapture, { title: String(location).split(",")[0] || "Location", subtitle: `Location intelligence map · ${new Date().toLocaleString()}` })
       : null;
-    const report = new PdfDocument({ heading: "LOCATION INTELLIGENCE REPORT", logo, homeUrl: new URL("/", globalThis.location.href).href });
+    const report = new PdfDocument({ heading: "LOCATION INTELLIGENCE REPORT", logo, homeUrl: APP_ROOT });
     const addLines = (text, options) => report.addLines(text, options);
     addLines(`Generated ${new Date().toLocaleString()}`, { size: 9, leading: 14, color: "0.36 0.44 0.41" });
     report.gap(10);

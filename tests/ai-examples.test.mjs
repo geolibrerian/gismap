@@ -5,9 +5,11 @@ import { AI_EXAMPLES, CORN_EXAMPLE_SPEC, aiExampleLinks } from "../scripts/ai-ex
 import { CORN_LINK } from "../scripts/agent-docs.mjs";
 import { mapSpec } from "../js/gismap-core.js";
 import { normalizeBriefing } from "../js/briefing-document.js";
+// Pages link relative to themselves; these checks read them as root paths.
+import { rootLinksHtml } from "../scripts/relative-links.mjs";
 import { readShareLocation } from "../js/map-share.js";
 
-const text = (path) => readFile(new URL(`../${path}`, import.meta.url), "utf8");
+const text = (path) => readFile(new URL(`../${path}`, import.meta.url), "utf8").then((text) => (path.endsWith(".html") ? rootLinksHtml(path, text) : text));
 const json = async (path) => JSON.parse(await text(path));
 const example = (slug) => AI_EXAMPLES.find((item) => item.slug === slug);
 const links = await aiExampleLinks(text);
