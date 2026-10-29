@@ -13,7 +13,7 @@ import { MapAssistantPanel } from "./assistant-panel.js?v=0.57.0-skins1";
 import { createAssistantTools, summarizeMapState } from "./map-assistant.js?v=0.61.1-dashboard-agent";
 import { ENTERPRISE_CATALOGS, EnterpriseCatalog, normalizeArcGisDirectoryUrl } from "./enterprise-catalog.js?v=0.18.2";
 import { createShareUrl } from "./share.js?v=0.54.0-unified4";
-import { createShareLink, hasDataFilter, readBriefingFile } from "./map-share.js?v=0.63.6-text-boxes";
+import { createShareLink, hasDataFilter, readBriefingFile } from "./map-share.js?v=0.63.7-text-boxes";
 import { createEmbedIframe, createEmbedUrl } from "./embed-share.js?v=0.61.0-embed1";
 import { briefingLayerRef, findBriefingLayer } from "./briefing-api.js?v=0.61.0-briefing-player";
 import { createEmbeddedTourUrl } from "./tour-share.js?v=0.54.0-unified4";
@@ -26,8 +26,8 @@ import { applyMapColors, MAP_COLOR_COMPONENTS, SKIN_BASEMAP, themeFromComputedSt
 import { compactMedia } from "./viewport.js?v=0.18.2";
 import { APP_VERSION } from "./version.js?v=0.53.0";
 import { bindMobileSheetResize } from "./mobile-sheet-resize.js?v=0.52.7";
-import { BRAND_LOGO, PdfDocument, brandedMapImage, brandedQrCanvas, imageToJpeg, loadBrandLogo, printPalette, qrAsset } from "./pdf-document.js?v=0.63.6-text-boxes";
-import { IMAGE_ANCHORS, MAP_TEMPLATES, getTemplate, loadImage, renderTemplate, templateMapAspect } from "./map-templates.js?v=0.63.6-text-boxes";
+import { BRAND_LOGO, PdfDocument, brandedMapImage, brandedQrCanvas, imageToJpeg, loadBrandLogo, printPalette, qrAsset } from "./pdf-document.js?v=0.63.7-text-boxes";
+import { IMAGE_ANCHORS, MAP_TEMPLATES, getTemplate, loadImage, renderTemplate, templateMapAspect } from "./map-templates.js?v=0.63.7-text-boxes";
 import { featureLayerUrl, locationUrl } from "./field-task-share.js?v=0.54.0-unified4";
 import { dockIcon } from "./dock-icons.js?v=0.24.0";
 import { serviceNameFromUrl } from "./service-name.js?v=0.26.0";
@@ -64,8 +64,8 @@ import { buildClipPackage, clipToCinematicSpec, createCinematicClip, exportCinem
 import { availableVideoFormats, cameraAt, CLIP_FRAME_RATES, clipFrameCount, exportCinematicVideo, observationIndexAt, renderClipPoster } from "./cinematic/clip-export.js?v=0.3.8-fire-points";
 import { CHART_PANEL_PLACEMENTS, CHART_TYPES, PRESENTATION_TARGETS, chartFields, chartOption, createChartSpec, displayChartRows, loadECharts, queryChart, recommendCharts, renderChartFallback, rowsAsCsv } from "./charting-tools.js";
 import { MapChartOverlayController } from "./map-chart-tools.js";
-import { readTextBoxEditor, textBoxEditorMarkup, textBoxRunMarkup, textBoxSummary } from "./text-box-editor.js?v=0.63.6-text-boxes";
-import { defaultRun } from "./text-boxes.js?v=0.63.6-text-boxes";
+import { readTextBoxEditor, textBoxEditorMarkup, textBoxRunMarkup, textBoxSummary } from "./text-box-editor.js?v=0.63.7-text-boxes";
+import { defaultRun } from "./text-boxes.js?v=0.63.7-text-boxes";
 
 const BUILDINGS_3D_KEY = "gismap-online:buildings-3d:v1";
 const DISPLAY_SETTINGS_KEY = "gismap-online:display:v1";
@@ -1976,7 +1976,14 @@ export class UIController {
           this.shareMap().catch((error) => this.error(error.message));
           break;
         case "map-pdf":
-          this.#downloadMapPdf().catch((error) => this.error(error.message));
+        case "export-pdf-editor":
+          this.#openMapTemplates("pdf").catch((error) => this.error(error.message));
+          break;
+        case "export-pdf-images":
+          this.#openMapTemplates("pdf", "image-overlay").catch((error) => this.error(error.message));
+          break;
+        case "export-smart-image":
+          this.#openMapTemplates("smart-image").catch((error) => this.error(error.message));
           break;
         case "data-popular":
           this.#popularDataDialog();
@@ -2327,8 +2334,8 @@ export class UIController {
    * Smart Image. Templates are code, not project data; images added to the
    * "Map with images" template stay in this browser session.
    */
-  async #openMapTemplates(output = "pdf") {
-    const remembered = (() => { try { return localStorage.getItem("gismap.mapTemplate"); } catch { return null; } })();
+  async #openMapTemplates(output = "pdf", startTemplate = null) {
+    const remembered = startTemplate || (() => { try { return localStorage.getItem("gismap.mapTemplate"); } catch { return null; } })();
     let templateId = getTemplate(remembered).id;
     this.templateImages ||= [];
     const project = this.projectManager.current;

@@ -568,6 +568,7 @@ body.mobile-workflow-open .field-task-banner { left:auto; right:calc(min(440px,1
 .menu__content .menu__link:hover small { color:currentColor; }
 .menu__content button:disabled { color: var(--muted); opacity: .6; cursor: not-allowed; background: transparent; }
 .menu__label { padding: 8px 10px 3px; color: var(--amber); font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: .1em; }
+.menu__sublabel { display: block; padding: 6px 10px 2px 14px; color: var(--muted); font-size: 10px; font-weight: 700; }
 .menu__content hr { width: 100%; border: 0; border-top: 1px solid var(--line); margin: 5px 0; }
 .menu__field { display: grid; gap: 5px; padding: 7px 8px; color: var(--muted); font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; }
 .menu__field[hidden] { display: none; }
