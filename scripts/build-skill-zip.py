@@ -16,8 +16,13 @@ with zipfile.ZipFile(buffer, 'w', compression=zipfile.ZIP_DEFLATED, compressleve
         info.external_attr = 0o100644 << 16
         archive.writestr(info, path.read_bytes())
 data = buffer.getvalue()
+def entries(source):
+    """Names and uncompressed contents: compressed bytes differ between zlib builds (macOS, Linux)."""
+    with zipfile.ZipFile(source) as archive:
+        return [(info.filename, archive.read(info)) for info in archive.infolist()]
+
 if '--check' in sys.argv:
-    if not out.exists() or out.read_bytes() != data:
+    if not out.exists() or entries(out) != entries(BytesIO(data)):
         print('Skill ZIP is missing or out of date', file=sys.stderr); sys.exit(1)
     print('Skill ZIP verified')
 else:
