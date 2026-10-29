@@ -13,7 +13,7 @@ import { MapAssistantPanel } from "./assistant-panel.js?v=0.57.0-skins1";
 import { createAssistantTools, summarizeMapState } from "./map-assistant.js?v=0.61.1-dashboard-agent";
 import { ENTERPRISE_CATALOGS, EnterpriseCatalog, normalizeArcGisDirectoryUrl } from "./enterprise-catalog.js?v=0.18.2";
 import { createShareUrl } from "./share.js?v=0.54.0-unified4";
-import { createShareLink, hasDataFilter, readBriefingFile } from "./map-share.js?v=0.63.2-text-boxes";
+import { createShareLink, hasDataFilter, readBriefingFile } from "./map-share.js?v=0.63.6-text-boxes";
 import { createEmbedIframe, createEmbedUrl } from "./embed-share.js?v=0.61.0-embed1";
 import { briefingLayerRef, findBriefingLayer } from "./briefing-api.js?v=0.61.0-briefing-player";
 import { createEmbeddedTourUrl } from "./tour-share.js?v=0.54.0-unified4";
@@ -26,7 +26,8 @@ import { applyMapColors, MAP_COLOR_COMPONENTS, SKIN_BASEMAP, themeFromComputedSt
 import { compactMedia } from "./viewport.js?v=0.18.2";
 import { APP_VERSION } from "./version.js?v=0.53.0";
 import { bindMobileSheetResize } from "./mobile-sheet-resize.js?v=0.52.7";
-import { PdfDocument, brandedMapImage, brandedQrCanvas, loadBrandLogo, printPalette, qrAsset } from "./pdf-document.js?v=0.44.2";
+import { BRAND_LOGO, PdfDocument, brandedMapImage, brandedQrCanvas, imageToJpeg, loadBrandLogo, printPalette, qrAsset } from "./pdf-document.js?v=0.63.6-text-boxes";
+import { IMAGE_ANCHORS, MAP_TEMPLATES, getTemplate, loadImage, renderTemplate, templateMapAspect } from "./map-templates.js?v=0.63.6-text-boxes";
 import { featureLayerUrl, locationUrl } from "./field-task-share.js?v=0.54.0-unified4";
 import { dockIcon } from "./dock-icons.js?v=0.24.0";
 import { serviceNameFromUrl } from "./service-name.js?v=0.26.0";
@@ -63,8 +64,8 @@ import { buildClipPackage, clipToCinematicSpec, createCinematicClip, exportCinem
 import { availableVideoFormats, cameraAt, CLIP_FRAME_RATES, clipFrameCount, exportCinematicVideo, observationIndexAt, renderClipPoster } from "./cinematic/clip-export.js?v=0.3.8-fire-points";
 import { CHART_PANEL_PLACEMENTS, CHART_TYPES, PRESENTATION_TARGETS, chartFields, chartOption, createChartSpec, displayChartRows, loadECharts, queryChart, recommendCharts, renderChartFallback, rowsAsCsv } from "./charting-tools.js";
 import { MapChartOverlayController } from "./map-chart-tools.js";
-import { readTextBoxEditor, textBoxEditorMarkup, textBoxRunMarkup, textBoxSummary } from "./text-box-editor.js?v=0.63.2-text-boxes";
-import { defaultRun } from "./text-boxes.js?v=0.63.2-text-boxes";
+import { readTextBoxEditor, textBoxEditorMarkup, textBoxRunMarkup, textBoxSummary } from "./text-box-editor.js?v=0.63.6-text-boxes";
+import { defaultRun } from "./text-boxes.js?v=0.63.6-text-boxes";
 
 const BUILDINGS_3D_KEY = "gismap-online:buildings-3d:v1";
 const DISPLAY_SETTINGS_KEY = "gismap-online:display:v1";
@@ -2252,8 +2253,8 @@ export class UIController {
       content: `<div class="share-export">${notices.map((notice) => `<p class="workflow-share__notice">${notice}</p>`).join("")}
         <div class="share-export__grid">
           ${card("share", "Share map", "Link and QR code with the layers, styles, filters, view, basemap and skin.", { icon: "⌗", disabled: layers.length > local.length ? "" : "Add a web layer to share a link." })}
-          ${card("pdf", "Map PDF", "A branded PDF of this view with a layer key and a QR code back to the live map.", { icon: "▤" })}
-          ${card("smart-image", "Smart map image", "A PNG of this map that anyone can view, and that reopens the whole project when dropped on GIS Map Online.", { icon: "◩" })}
+          ${card("pdf", "Map PDF", "Choose a page template (report, poster, field sheet, slide and more) and download it as a PDF.", { icon: "▤" })}
+          ${card("smart-image", "Smart map image", "Any page template as a PNG that anyone can view, and that reopens the whole project when dropped on GIS Map Online.", { icon: "◩" })}
           ${card("briefing-share", "Share as a briefing", `One click: slides from ${layer ? `“${escapeHtml(layer.title || "this layer")}”` : "the layer"}'s ${styled ? "style, " : ""}filter and top features${this.aiController.isConfigured() ? ", described by AI" : ""}, ready to share.`, { icon: "✦", disabled: queryable ? "" : "Choose a feature layer to brief on." })}
           ${card("briefing", "Create briefing", `Start a briefing on ${layer ? `“${escapeHtml(layer.title || "this layer")}”` : "a layer"}${styled ? " with its style" : ""} and write the slides yourself.`, { icon: "▣", disabled: queryable ? "" : "Choose a feature layer to brief on." })}
           ${card("tour", "Start a tour here", "Save this view as the first chapter of a guided tour.", { icon: "➤" })}
@@ -2267,11 +2268,7 @@ export class UIController {
         if (action === "share") return await this.shareMap();
         if (action === "data") return this.#exportDialog(exportable.some((item) => item.uid === layer?.uid) ? layer.uid : null);
         this.dialog.close();
-        if (action === "pdf") return await this.#downloadMapPdf();
-        if (action === "smart-image") {
-          this.toast("Rendering the Smart map image…");
-          return await this.projectManager.exportSmartImage();
-        }
+        if (action === "pdf" || action === "smart-image") return await this.#openMapTemplates(action);
         if (action === "briefing") return this.createBriefingFromLayer(layer.uid);
         if (action === "briefing-share") return await this.generateBriefingFromView({ uid: layer.uid, share: true });
         if (action === "tour") return await this.#startTourHere();
@@ -2323,6 +2320,227 @@ export class UIController {
         ...(this.mapSpec ? [{ label: "Map spec (JSON)", create: () => new File([JSON.stringify({ $schema: "https://gismap.online/schemas/map-v1.schema.json", ...this.mapSpec.fromCurrent({ title }) }, null, 2)], `${title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "map"}.map.json`, { type: "application/json" }) }] : []),
       ],
     });
+  }
+
+  /**
+   * Map templates: pick a prebuilt page, preview it, and download it as a PDF or
+   * Smart Image. Templates are code, not project data; images added to the
+   * "Map with images" template stay in this browser session.
+   */
+  async #openMapTemplates(output = "pdf") {
+    const remembered = (() => { try { return localStorage.getItem("gismap.mapTemplate"); } catch { return null; } })();
+    let templateId = getTemplate(remembered).id;
+    this.templateImages ||= [];
+    const project = this.projectManager.current;
+    const now = new Date();
+    const fields = {
+      title: project.name || "Map",
+      subtitle: `${now.toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" })} · ${this.#basemapLabel(this.mapController.getBasemapId())}`,
+      description: "",
+    };
+    const options = MAP_TEMPLATES.map((template) => `<label class="map-template"><input type="radio" name="map-template" value="${template.id}"${template.id === templateId ? " checked" : ""}><strong>${escapeHtml(template.label)}</strong><small>${escapeHtml(template.description)}</small><small class="map-template__size">${template.page.width} × ${template.page.height} in</small></label>`).join("");
+    const anchors = (selected) => IMAGE_ANCHORS.map((anchor) => `<option value="${anchor}"${anchor === selected ? " selected" : ""}>${anchor.replace("-", " ")}</option>`).join("");
+    this.openDialog({
+      eyebrow: "Map PDF & Smart Image",
+      title: "Map templates",
+      content: `<div class="map-templates">
+        <div class="map-templates__list" role="radiogroup" aria-label="Page template">${options}</div>
+        <div class="map-templates__side">
+          <div class="map-templates__preview"><canvas data-template-preview aria-label="Page preview"></canvas><p class="form-note" data-template-status>Capturing the map…</p></div>
+          <label class="field"><span>Title</span><input type="text" maxlength="120" data-template-title value="${escapeHtml(fields.title)}"></label>
+          <label class="field"><span>Subtitle</span><input type="text" maxlength="160" data-template-subtitle value="${escapeHtml(fields.subtitle)}"></label>
+          <label class="field"><span>Description (report and poster)</span><textarea rows="3" maxlength="900" data-template-description></textarea></label>
+          <fieldset class="feedback-settings map-templates__images" data-template-images-panel hidden><legend>Images on the map</legend>
+            <p class="form-note">Add logos, photos or callouts. They stay in this browser session and are not saved in the project.</p>
+            <div data-template-images></div>
+            <label class="map-templates__add"><input type="file" accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml" multiple data-template-image-input> Add images…</label>
+          </fieldset>
+          <p class="form-note">The map is captured as it looks now, shaped to the template's frame. Pan or zoom first, then reopen to recapture.</p>
+          <div class="workspace-tool__actions map-templates__actions"><button type="button" data-template-export="smart-image"${output === "smart-image" ? ' class="button--primary"' : ""}>Download Smart Image</button><button type="button" data-template-export="pdf"${output === "pdf" ? ' class="button--primary"' : ""}>Download PDF</button></div>
+        </div></div>`,
+    });
+    const root = this.dialog;
+    const session = this.dialogSession;
+    const status = root.querySelector("[data-template-status]");
+    const captures = new Map();
+    // Controls work at once; the capture and project details arrive in the background.
+    const details = this.#templateData().catch(() => null);
+    const capture = async (id) => {
+      const aspect = templateMapAspect(id);
+      const key = aspect.toFixed(3);
+      if (!captures.has(key)) captures.set(key, this.#templateCapture(aspect));
+      return captures.get(key);
+    };
+    const data = async () => {
+      const [base, shot] = await Promise.all([details, capture(templateId)]);
+      if (!base) throw new Error("The map is not ready yet.");
+      return {
+        ...base,
+        ...shot,
+        title: root.querySelector("[data-template-title]").value.trim(),
+        subtitle: root.querySelector("[data-template-subtitle]").value.trim(),
+        description: root.querySelector("[data-template-description]").value.trim(),
+        images: getTemplate(templateId).images ? this.templateImages : [],
+      };
+    };
+    let pending = 0;
+    const preview = () => draw().catch((error) => { status.textContent = error.message; });
+    const draw = async () => {
+      const ticket = ++pending;
+      root.querySelector("[data-template-images-panel]").hidden = !getTemplate(templateId).images;
+      status.textContent = "Capturing the map…";
+      const page = renderTemplate(templateId, await data(), { ppi: 48 });
+      if (ticket !== pending || this.dialogSession !== session) return;
+      const canvas = root.querySelector("[data-template-preview]");
+      canvas.width = page.canvas.width;
+      canvas.height = page.canvas.height;
+      canvas.getContext("2d").drawImage(page.canvas, 0, 0);
+      status.textContent = `${page.template.label} · ${page.template.page.width} × ${page.template.page.height} in`;
+    };
+    const renderImages = () => {
+      root.querySelector("[data-template-images]").innerHTML = this.templateImages.map((item, index) => `<div class="map-templates__image" data-template-image="${index}">
+        <img src="${item.image.src}" alt="">
+        <label class="field"><span>Position</span><select data-image-anchor>${anchors(item.anchor)}</select></label>
+        <label class="opacity-row"><span>Size</span><input type="range" min="5" max="80" step="1" data-image-size value="${item.size}"><output>${item.size}%</output></label>
+        <label class="opacity-row"><span>Opacity</span><input type="range" min="0.1" max="1" step="0.05" data-image-opacity value="${item.opacity}"><output>${Math.round(item.opacity * 100)}%</output></label>
+        <button type="button" class="button--quiet" data-image-remove>Remove</button></div>`).join("");
+    };
+    renderImages();
+    root.querySelector(".map-templates__list").addEventListener("change", (event) => {
+      templateId = event.target.value;
+      try { localStorage.setItem("gismap.mapTemplate", templateId); } catch { /* Preference only. */ }
+      preview();
+    });
+    for (const selector of ["[data-template-title]", "[data-template-subtitle]", "[data-template-description]"]) root.querySelector(selector).addEventListener("input", () => preview());
+    root.querySelector("[data-template-image-input]").addEventListener("change", async (event) => {
+      for (const file of [...event.target.files].slice(0, 8)) {
+        if (file.size > 15 * 1024 * 1024) { this.error(`${file.name} is larger than 15 MB.`); continue; }
+        const image = await loadImage(URL.createObjectURL(file));
+        if (!image) { this.error(`${file.name} could not be read as an image.`); continue; }
+        this.templateImages.push({ image, anchor: ["top-right", "bottom-left", "top-left", "bottom-right"][this.templateImages.length % 4], size: 22, opacity: 1 });
+      }
+      event.target.value = "";
+      renderImages();
+      preview();
+    });
+    const images = root.querySelector("[data-template-images]");
+    images.addEventListener("input", (event) => {
+      const row = event.target.closest("[data-template-image]");
+      const item = row && this.templateImages[Number(row.dataset.templateImage)];
+      if (!item) return;
+      if (event.target.matches("[data-image-anchor]")) item.anchor = event.target.value;
+      if (event.target.matches("[data-image-size]")) { item.size = Number(event.target.value); event.target.nextElementSibling.value = `${item.size}%`; }
+      if (event.target.matches("[data-image-opacity]")) { item.opacity = Number(event.target.value); event.target.nextElementSibling.value = `${Math.round(item.opacity * 100)}%`; }
+      preview();
+    });
+    images.addEventListener("click", (event) => {
+      if (!event.target.closest("[data-image-remove]")) return;
+      this.templateImages.splice(Number(event.target.closest("[data-template-image]").dataset.templateImage), 1);
+      renderImages();
+      preview();
+    });
+    root.querySelectorAll("[data-template-export]").forEach((button) => button.addEventListener("click", async () => {
+      const kind = button.dataset.templateExport;
+      button.disabled = true;
+      try {
+        this.toast(kind === "pdf" ? "Making the map PDF…" : "Rendering the Smart Image…");
+        const page = renderTemplate(templateId, await data(), { ppi: kind === "pdf" ? 150 : 120 });
+        const stem = (page.template.id === "branded" ? "" : `-${page.template.id}`);
+        if (kind === "pdf") this.#download(await this.#templatePdf(page, `${this.#fileStem()}${stem}-map.pdf`));
+        else {
+          const blob = await new Promise((resolve) => page.canvas.toBlob(resolve, "image/png"));
+          await this.projectManager.exportSmartImage({ visual: blob, suffix: `smart-map${stem}` });
+        }
+      } catch (error) {
+        this.error(error.message);
+      } finally {
+        button.disabled = false;
+      }
+    }));
+    await preview();
+  }
+
+  /** Project details every template can use. */
+  async #templateData() {
+    const skin = document.documentElement.dataset.skin || this.projectManager.current.presentation?.skin;
+    const palette = printPalette(skin);
+    const link = await this.#mapShareLink().catch(() => null);
+    let qr = null;
+    if (link?.url && link.qr && globalThis.QRCode?.toCanvas) {
+      qr = document.createElement("canvas");
+      await globalThis.QRCode.toCanvas(qr, link.url, { width: 600, margin: 1, errorCorrectionLevel: "L", color: { dark: palette.band, light: "#ffffff" } }).catch(() => { qr = null; });
+    }
+    const logo = await loadImage(BRAND_LOGO);
+    const [longitude, latitude] = this.mapController.getViewState().center || [];
+    let heading = 0;
+    try { heading = this.mapController.getCamera()?.heading || 0; } catch { /* Flat default. */ }
+    const credits = (() => { try { return String(this.mapController.getAttributionText?.() || "").replace(/\s+/g, " ").slice(0, 220); } catch { return ""; } })();
+    return {
+      palette,
+      logo,
+      qr,
+      linkUrl: link?.url || null,
+      heading,
+      center: Number.isFinite(latitude) ? { longitude, latitude } : null,
+      date: new Date().toLocaleString(),
+      credits,
+      layers: this.mapController.getAllLayerConfigs().filter((config) => config.visible !== false).map((config) => ({ title: config.title || "Layer" })),
+      legend: (() => { try { return this.mapController.getLegendData?.() || []; } catch { return []; } })(),
+    };
+  }
+
+  /** The map shaped to a template's frame, with its ground width and extent when the view is flat. */
+  async #templateCapture(aspect) {
+    const shot = await this.mapController.captureImage({ format: "jpg", quality: 92, width: 2400, aspect });
+    const image = shot?.dataUrl ? await loadImage(shot.dataUrl) : null;
+    const size = this.mapController.getContainerSize();
+    let tilt = 0;
+    try { tilt = this.mapController.getCamera()?.tilt || 0; } catch { /* Flat default. */ }
+    let groundWidth = null;
+    let extent = null;
+    if (size && tilt < 3) {
+      const cropWidth = Math.min(size.width, size.height * aspect);
+      const cropHeight = cropWidth / aspect;
+      const left = (size.width - cropWidth) / 2;
+      const top = (size.height - cropHeight) / 2;
+      const west = this.mapController.screenToMap(left, size.height / 2);
+      const east = this.mapController.screenToMap(left + cropWidth, size.height / 2);
+      const north = this.mapController.screenToMap(size.width / 2, top);
+      const south = this.mapController.screenToMap(size.width / 2, top + cropHeight);
+      if (west && east) {
+        const radians = Math.PI / 180;
+        const lat = ((west[1] + east[1]) / 2) * radians;
+        groundWidth = 6371008.8 * Math.abs(east[0] - west[0]) * radians * Math.cos(lat);
+      }
+      const heading = (() => { try { return Math.abs(this.mapController.getCamera()?.heading || 0); } catch { return 0; } })();
+      if (west && east && north && south && (heading < 0.5 || heading > 359.5)) extent = { west: west[0], east: east[0], north: north[1], south: south[1] };
+    }
+    return { map: image, groundWidth, extent };
+  }
+
+  /** A template page as a one-page PDF: the page image plus its clickable areas. */
+  async #templatePdf(page, name) {
+    const { canvas, links, template } = page;
+    const asset = await imageToJpeg(canvas.toDataURL("image/png"), { width: canvas.width, height: canvas.height, quality: 0.9 });
+    const width = template.page.width * 72;
+    const height = template.page.height * 72;
+    const pdf = new PdfDocument({ header: false, homeUrl: null, pageWidth: width, pageHeight: height, margin: 0 });
+    pdf.addImageAt(asset, { x: 0, y: height, width, height });
+    const scale = 72 / (canvas.width / template.page.width);
+    for (const link of links) pdf.addLink([link.x * scale, height - (link.y + link.h) * scale, (link.x + link.w) * scale, height - link.y * scale], link.url);
+    return new File([pdf.toBlob()], name, { type: "application/pdf" });
+  }
+
+  #fileStem() {
+    return (this.projectManager.current.name || "map").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "map";
+  }
+
+  #download(file) {
+    const anchor = document.createElement("a");
+    anchor.href = URL.createObjectURL(file);
+    anchor.download = file.name;
+    anchor.click();
+    setTimeout(() => URL.revokeObjectURL(anchor.href), 1000);
   }
 
   async #downloadMapPdf() {

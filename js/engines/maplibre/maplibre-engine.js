@@ -2419,6 +2419,11 @@ export class MaplibreEngine {
       this.map.loaded() ? Promise.resolve() : new Promise((resolve) => this.map.once("idle", resolve)),
       new Promise((resolve) => setTimeout(resolve, 8000)),
     ]);
+    // Read a freshly drawn frame, not whatever the buffer held mid-load.
+    await Promise.race([
+      new Promise((resolve) => { this.map.once("render", resolve); this.map.triggerRepaint(); }),
+      new Promise((resolve) => setTimeout(resolve, 1000)),
+    ]);
     const canvas = this.map.getCanvas();
     const shape = Number.isFinite(aspect) && aspect > 0 ? aspect : Number.isFinite(height) && height > 0 ? width / height : canvas.width / canvas.height;
     const cropWidth = Math.min(canvas.width, Math.round(canvas.height * shape));

@@ -322,9 +322,12 @@ export class TextBoxLayer {
     if (!capture?.dataUrl || !this.boxes.length || typeof document === "undefined") return capture;
     const container = this.project.container();
     if (!container?.clientWidth || !container?.clientHeight) return capture;
-    const image = new Image();
-    image.src = capture.dataUrl;
-    await image.decode();
+    const image = await new Promise((resolve, reject) => {
+      const element = new Image();
+      element.onload = () => resolve(element);
+      element.onerror = () => reject(new Error("The map capture could not be read."));
+      element.src = capture.dataUrl;
+    });
     const canvas = document.createElement("canvas");
     canvas.width = capture.width || image.naturalWidth;
     canvas.height = capture.height || image.naturalHeight;

@@ -287,11 +287,12 @@ export class ProjectManager {
   }
 
   /** With `download: false` the PNG is only returned (as `file`), for share dialogs. */
-  async exportSmartImage({ width = 1600, height = 1000, download = true } = {}) {
+  /** With `visual` (a finished PNG Blob, such as a map template page) the map is not captured again. */
+  async exportSmartImage({ width = 1600, height = 1000, download = true, visual: page = null, suffix = "smart-map" } = {}) {
     const project = this.snapshot();
-    const capture = await this.mapController.captureImage({ format: "png", width, height });
-    if (!capture?.dataUrl) throw new Error("The map is not ready to create a Smart Image.");
-    const visual = await composeSmartImage({
+    const capture = page ? null : await this.mapController.captureImage({ format: "png", width, height });
+    if (!page && !capture?.dataUrl) throw new Error("The map is not ready to create a Smart Image.");
+    const visual = page || await composeSmartImage({
       dataUrl: capture.dataUrl,
       title: project.name,
       layerCount: project.layers.length,
@@ -301,7 +302,7 @@ export class ProjectManager {
       skin: globalThis.document?.documentElement?.dataset.skin || project.presentation?.skin,
     });
     const blob = await embedProjectInPng(visual, project);
-    const name = `${this.#exportName(project)}-smart-map.png`;
+    const name = `${this.#exportName(project)}-${suffix}.png`;
     if (download) {
       downloadBlob(blob, name);
       this.events.publish("project:exported", { kind: "smart-image" });
