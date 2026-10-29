@@ -2355,11 +2355,10 @@ export class UIController {
         if (action === "tour") return await this.#startTourHere();
         if (action === "feed") {
           const link = await this.#mapShareLink();
-          const destination = new URL("/feed/publish/", location.origin);
-          // Keep long Smart Map payloads out of a second query string. The Feed
-          // also accepts a direct `?source=` link when a creator arrives from
-          // outside the GISMap workspace.
-          try { sessionStorage.setItem("gismap.feed.source", link.url); } catch { destination.searchParams.set("source", link.url); }
+          // Feed is an SI product. Pass only the public Smart Map URL across
+          // origins; browser session storage cannot cross into gismap.si.
+          const destination = new URL("https://gismap.si/feed/publish/");
+          destination.searchParams.set("source", link.url);
           location.assign(destination.href);
           return;
         }
