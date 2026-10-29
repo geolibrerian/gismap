@@ -45,7 +45,9 @@ test('Historical Quakes has a finished-example walkthrough from source to share'
   for (const title of ['Start with the finished briefing', 'Check the source', 'Keep the publisher’s symbols', 'Focus the story', 'Read the slide deck', 'See the seismic pulse', 'Preview, share, and adapt']) {
     assert.ok(HISTORICAL_QUAKES_BRIEFING_TUTORIAL_STEPS.some((step) => step.title === title));
   }
-  assert.match(HISTORICAL_QUAKES_BRIEFING_TUTORIAL_STEPS[1].desktop, /data-layer-action="source"/);
+  assert.match(HISTORICAL_QUAKES_BRIEFING_TUTORIAL_STEPS[1].desktop, /utility-source-content/);
+  assert.match(HISTORICAL_QUAKES_BRIEFING_TUTORIAL_STEPS[2].desktop, /utility-style-content/);
+  assert.match(HISTORICAL_QUAKES_BRIEFING_TUTORIAL_STEPS[3].desktop, /data-layer-filter-builder/);
   assert.match(HISTORICAL_QUAKES_BRIEFING_TUTORIAL_STEPS[5].desktop, /nth-child\(3\)/);
   assert.match(HISTORICAL_QUAKES_BRIEFING_TUTORIAL_STEPS[5].description, /MapLibre seismic pulse/i);
   const ui = await readFile(new URL('../js/ui.js', import.meta.url), 'utf8');
@@ -55,6 +57,9 @@ test('Historical Quakes has a finished-example walkthrough from source to share'
   assert.match(ui, /openHistoricalQuakesBriefingExample\(\{ startTutorial = false \} = \{\}\)/);
   assert.match(ui, /data-presentation-setup="example-briefing-tutorial"/);
   assert.match(ui, /Opening the next part of the Historical Quakes briefing/);
+  assert.match(ui, /this\.#openLayerSource\(layer\.uid\)/);
+  assert.match(ui, /this\.#openSymbologyUtility\(layer\.uid\)/);
+  assert.match(ui, /await this\.#filterDialog\(layer\.uid\)/);
 });
 
 test('walkthrough target waiting resolves on rendering and aborts or times out safely', async () => {

@@ -1470,14 +1470,20 @@ export class UIController {
     const prepare = async (index, { signal }) => {
       const step = HISTORICAL_QUAKES_BRIEFING_TUTORIAL_STEPS[index];
       if (index === 0) return true;
-      if (index < 4) {
-        const card = await waitForWalkthroughTarget("#layers-list .layer-card:first-of-type", { signal });
-        if (index === 1 || index === 3) card.querySelector(".layer-card__more")?.setAttribute("open", "");
+      const presentation = this.projectManager.current.presentation;
+      const layer = this.mapController.getLayer(presentation?.primaryLayerId || this.presentationState.layerUid);
+      if (!layer) throw new Error("The Historical Quakes layer is no longer available. Reopen the example and start the tutorial again.");
+      if (index === 1) {
+        this.#openLayerSource(layer.uid);
+      } else if (index === 2) {
+        this.#openSymbologyUtility(layer.uid);
+      } else if (index === 3) {
+        await this.#filterDialog(layer.uid);
       } else {
-        const presentation = this.projectManager.current.presentation;
         if (presentation?.template !== "briefing") throw new Error("The Historical Quakes briefing is no longer open. Reopen the example and start the tutorial again.");
         this.briefingTab = "slides";
         this.#renderPresentationDashboard(presentation);
+        this.#openBriefingInspector();
       }
       await waitForWalkthroughTarget(this.mobileMedia.matches ? step.mobile : step.desktop, { signal });
       return true;
