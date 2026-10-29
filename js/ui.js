@@ -2339,7 +2339,6 @@ export class UIController {
           ${card("briefing-share", "Share as a briefing", `One click: slides from ${layer ? `“${escapeHtml(layer.title || "this layer")}”` : "the layer"}'s ${styled ? "style, " : ""}filter and top features${this.aiController.isConfigured() ? ", described by AI" : ""}, ready to share.`, { icon: "✦", disabled: queryable ? "" : "Choose a feature layer to brief on." })}
           ${card("briefing", "Create briefing", `Start a briefing on ${layer ? `“${escapeHtml(layer.title || "this layer")}”` : "a layer"}${styled ? " with its style" : ""} and write the slides yourself.`, { icon: "▣", disabled: queryable ? "" : "Choose a feature layer to brief on." })}
           ${card("tour", "Start a tour here", "Save this view as the first chapter of a guided tour.", { icon: "➤" })}
-          ${card("feed", "Publish to GISMap Feed", "Prepare this public Smart Map for a moderator-reviewed Feed submission.", { icon: "↗", disabled: layers.length > local.length ? "" : "Add a public web layer to create a Feed link." })}
           ${card("data", "Export data", "Download features as GeoJSON, KML, KMZ or Shapefile.", { icon: "⤓", disabled: exportable.length ? "" : "Add a queryable vector layer first." })}
         </div></div>`,
       actions: [{ label: "Close", handler: () => this.dialog.close() }],
@@ -2354,15 +2353,6 @@ export class UIController {
         if (action === "briefing") return this.createBriefingFromLayer(layer.uid);
         if (action === "briefing-share") return await this.generateBriefingFromView({ uid: layer.uid, share: true });
         if (action === "tour") return await this.#startTourHere();
-        if (action === "feed") {
-          const link = await this.#mapShareLink();
-          // Feed is an SI product. Pass only the public Smart Map URL across
-          // origins; browser session storage cannot cross into gismap.si.
-          const destination = new URL("https://gismap.si/feed/publish/");
-          destination.searchParams.set("source", link.url);
-          location.assign(destination.href);
-          return;
-        }
       } catch (error) {
         this.error(error.message);
       }
