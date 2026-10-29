@@ -25,6 +25,7 @@ import { OpenGeocoder } from "./geocoder.js?v=0.47.0";
 import { chooseStyleField, compileRenderer, resolveRendererSpec, suggestRenderers, validateRendererSpec } from "../../renderer-spec.js?v=0.29.1";
 import { rendererToPaint } from "./arcgis-renderer.js?v=0.42.0";
 import { legendForLayer } from "./legend.js?v=0.52.4";
+import { inspectExternalTiles } from "./external-tiles.js?v=0.54.0";
 import { hostCredit, joinCredits, legendSwatch, plainAttribution } from "../map-credits.js?v=0.1.0";
 import { CINEMATIC_EFFECT_TYPES, effectFields, effectRanges, resolveQuality, suggestEffect } from "../../cinematic/cinematic-effects.js?v=0.2.8";
 
@@ -658,6 +659,7 @@ export class MaplibreEngine {
 
   #requireVector(ref) {
     const record = this.#require(ref);
+    if (record.kind === "tiles") throw new GisMapError("UNSUPPORTED_LAYER_TYPE", `${record.title || "This layer"} is a vector tile layer; its features arrive tile by tile and cannot be queried or restyled here yet.`);
     if (record.kind !== "vector") throw new GisMapError("UNSUPPORTED_LAYER_TYPE", `${record.title || "This layer"} is drawn by its service as an image; it has no features to query or restyle here.`);
     return record;
   }
@@ -673,6 +675,10 @@ export class MaplibreEngine {
   #sourceSpec(record) {
     if (record.kind === "raster") {
       return { type: "raster", tiles: record.tiles.urls, tileSize: record.tiles.tileSize || 256, ...(record.tiles.maxzoom != null ? { maxzoom: record.tiles.maxzoom } : {}), ...(record.attribution ? { attribution: record.attribution } : {}) };
+    }
+    if (record.kind === "tiles") {
+      const { tiles, minzoom, maxzoom, bounds } = record.tiles;
+      return { type: "vector", tiles, ...(Number.isFinite(minzoom) ? { minzoom } : {}), ...(Number.isFinite(maxzoom) ? { maxzoom } : {}), ...(bounds ? { bounds } : {}), ...(record.attribution ? { attribution: record.attribution } : {}) };
     }
     return { type: "geojson", data: { type: "FeatureCollection", features: this.#visibleFeatures(record) } };
   }
@@ -702,6 +708,7 @@ export class MaplibreEngine {
     if (record.kind === "raster") {
       return [{ id: `${source}-raster`, type: "raster", source, ...range, layout: { visibility }, paint: { "raster-opacity": opacity * (1 - (record.transparency || 0) / 100) } }];
     }
+    if (record.kind === "tiles") return this.#tileLayerSpecs(record, { source, visibility, opacity, range });
     const color = this.#dataColor();
     const halo = this.basemapTheme?.labelHalo || "#ffffff";
     const styled = this.#paintFor(record) || {};
@@ -735,8 +742,29 @@ export class MaplibreEngine {
     return specs;
   }
 
+  /**
+   * Vector tiles carry no geometry type in their metadata, so every source layer
+   * gets fill, outline, line and circle layers filtered by each feature's geometry.
+   */
+  #tileLayerSpecs(record, { source, visibility, opacity, range }) {
+    const color = this.#dataColor();
+    const halo = this.basemapTheme?.labelHalo || "#ffffff";
+    const polygons = ["match", ["geometry-type"], ["Polygon", "MultiPolygon"], true, false];
+    return record.sourceLayers.flatMap((name, index) => {
+      const id = `${source}-${index}`;
+      const common = { source, "source-layer": name, ...range };
+      return [
+        { id: `${id}-fill`, type: "fill", ...common, filter: polygons, layout: { visibility }, paint: { "fill-color": color, "fill-opacity": 0.35 * opacity } },
+        { id: `${id}-outline`, type: "line", ...common, filter: polygons, layout: { visibility }, paint: { "line-color": color, "line-width": 1.5, "line-opacity": opacity } },
+        { id: `${id}-line`, type: "line", ...common, filter: ["match", ["geometry-type"], ["LineString", "MultiLineString"], true, false], layout: { visibility, "line-cap": "round", "line-join": "round" }, paint: { "line-color": color, "line-width": 2.5, "line-opacity": opacity } },
+        { id: `${id}-circle`, type: "circle", ...common, filter: ["match", ["geometry-type"], ["Point", "MultiPoint"], true, false], layout: { visibility }, paint: { "circle-color": color, "circle-radius": 4.5, "circle-stroke-color": halo, "circle-stroke-width": 1.5, "circle-opacity": opacity, "circle-stroke-opacity": opacity } },
+      ];
+    });
+  }
+
   #layerIds(record) {
     if (record.kind === "three") return [];
+    if (record.kind === "tiles" && !record.renderLayerIds?.length) return this.#layerSpecs(record).map((spec) => spec.id);
     return record.renderLayerIds?.length ? [...record.renderLayerIds] : record.kind === "raster" ? [`${this.#sourceId(record)}-raster`] : ["fill", "extrusion", "outline", "line", "circle"].map((suffix) => `${this.#sourceId(record)}-${suffix}`);
   }
 
@@ -944,6 +972,7 @@ export class MaplibreEngine {
       return this.#addRecord({ ...this.#common(config), title: config.title?.trim() || titleFromUrl(url), url, features, fields: inferFields(features), geometryType: geometryTypeOf(features), where: config.definitionExpression, config: { sourceType: "geojson", url } });
     }
     if (type === "wms") return this.#addWms(url, config);
+    if (type === "vector-tiles") return this.#addVectorTiles(url, config);
     if (type === "wfs" || type === "kml") {
       throw unsupported("layers-ogc", `The MapLibre engine (preview) does not draw ${type.toUpperCase()} services yet. Switch to the ArcGIS engine under Map → Map engine.`);
     }
@@ -1105,6 +1134,39 @@ export class MaplibreEngine {
     return this.#addRecord({ ...this.#common(config), title, url: base, kind: "raster", type: "wms", tiles: { urls: [getMap.href.replace("BBOX=BBOX", "BBOX={bbox-epsg-3857}")], tileSize: 512 }, config: { sourceType: "wms", url } });
   }
 
+  /**
+   * Mapbox Vector Tiles from any server: a TileJSON endpoint (Martin, tileserver-gl,
+   * pg_tileserv) or an XYZ template, which needs its source-layer name. Tiles are
+   * clipped and zoom-dependent, so the layer is drawn but not queried as a dataset.
+   */
+  async #addVectorTiles(url, config) {
+    const allowHttp = /^http:\/\/(localhost|127\.0\.0\.1|\[::1\])(:|\/)/i.test(url);
+    const xyz = /\{z\}/i.test(url);
+    const info = await inspectExternalTiles(url, { type: xyz ? "vector-xyz" : "auto", allowHttp });
+    if (info.kind !== "vector") throw new Error("This endpoint serves raster tiles, not vector (MVT) tiles.");
+    const requested = String(config.sourceLayer || "").split(",").map((name) => name.trim()).filter(Boolean);
+    const known = info.layers.map((layer) => layer.id);
+    const missing = known.length ? requested.filter((name) => !known.includes(name)) : [];
+    if (missing.length) throw new Error(`The tile source has no layer named “${missing[0]}”. Available layers: ${known.join(", ")}.`);
+    const sourceLayers = requested.length ? requested : known;
+    if (!sourceLayers.length) throw new Error("This tile URL has no metadata naming its layers. Enter the source-layer name under Advanced settings.");
+    const fields = (requested.length ? info.layers.filter((layer) => requested.includes(layer.id)) : info.layers).flatMap((layer) => layer.fields);
+    const attribution = plainAttribution(info.attribution).replace(/[<>]/g, "") || undefined;
+    return this.#addRecord({
+      ...this.#common(config),
+      title: config.title?.trim() || info.title || (sourceLayers.length === 1 ? sourceLayers[0] : titleFromUrl(url)),
+      url,
+      kind: "tiles",
+      type: "vector-tiles",
+      sourceLayers,
+      fields: [...new Map(fields.map((field) => [field.name, { name: field.name, alias: field.name, type: /number|int|float|double/i.test(field.type) ? "esriFieldTypeDouble" : "esriFieldTypeString" }])).values()],
+      tiles: { tiles: xyz ? [info.url] : info.tiles, minzoom: info.minzoom, maxzoom: info.maxzoom, bounds: info.bounds },
+      bounds: info.bounds,
+      attribution,
+      config: { sourceType: "vector-tiles", url, sourceLayer: requested.length ? requested.join(",") : null },
+    });
+  }
+
   /** A point cloud or model drawn with three.js (js/engines/three/). */
   async #addScene3d(config, type, { file = null, projectPath = null } = {}) {
     const options = normalizeScene3d(config.scene3d, type);
@@ -1260,6 +1322,7 @@ export class MaplibreEngine {
       animatedEffect: record.animatedEffect ? { ...record.animatedEffect } : null,
       scene3d: record.scene3d ? structuredClone(record.scene3d) : null,
       ignoreServiceScaleRange: record.ignoreScaleRange,
+      sourceLayer: record.config.sourceLayer ?? null,
     };
   }
 
@@ -2074,13 +2137,20 @@ export class MaplibreEngine {
 
   async identify(click) {
     if (!this.map || !Number.isFinite(click?.x)) return [];
-    const layers = [...this.#records.values()].filter((record) => record.visible && record.kind === "vector").flatMap((record) => this.#layerIds(record)).filter((id) => this.map.getLayer(id));
+    const layers = [...this.#records.values()].filter((record) => record.visible && (record.kind === "vector" || record.kind === "tiles")).flatMap((record) => this.#layerIds(record)).filter((id) => this.map.getLayer(id));
     if (!layers.length) return [];
     const box = [[click.x - 5, click.y - 5], [click.x + 5, click.y + 5]];
     const seen = new Set();
     const results = [];
     for (const hit of this.map.queryRenderedFeatures(box, { layers })) {
       const record = this.#records.get(String(hit.source).slice("gismap-".length));
+      if (record?.kind === "tiles") {
+        const key = `${record.uid}:${hit.sourceLayer}:${hit.id ?? JSON.stringify(hit.properties)}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        results.push({ kind: "feature", layerTitle: record.title || "Layer", layerUid: record.uid, attributes: { ...hit.properties }, geometry: hit.geometry, source: { url: record.url, layerId: hit.sourceLayer, title: record.title, objectIdField: null, displayField: null } });
+        continue;
+      }
       const id = Number(hit.id ?? hit.properties?.[OBJECT_ID_FIELD]);
       if (!record || seen.has(`${record.uid}:${id}`)) continue;
       seen.add(`${record.uid}:${id}`);
@@ -2309,7 +2379,7 @@ export class MaplibreEngine {
   /** [west, south, east, north] of the layers' filtered data (all data layers when none are given), or null. */
   async dataBounds(layers = null) {
     const chosen = layers ? layers.map((ref) => this.#record(ref)) : [...this.#records.values()];
-    const scenes = chosen.filter((record) => record?.kind === "three").map((record) => record.bounds);
+    const scenes = chosen.filter((record) => (record?.kind === "three" || record?.kind === "tiles") && record.bounds).map((record) => record.bounds);
     if (scenes.length) {
       const vector = chosen.some((record) => record?.kind === "vector") ? await this.dataBounds(chosen.filter((record) => record?.kind === "vector").map((record) => record.uid)) : null;
       return [...scenes, ...(vector ? [vector] : [])].reduce((a, b) => [Math.min(a[0], b[0]), Math.min(a[1], b[1]), Math.max(a[2], b[2]), Math.max(a[3], b[3])]);

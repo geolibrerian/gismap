@@ -88,7 +88,8 @@ export async function inspectExternalTiles(value, { type = "auto", allowHttp = f
   if (!TYPES.has(type)) throw new Error("Unsupported external tile format.");
   const url = tileUrl(value, { allowHttp });
   let format = type === "auto" ? detectTileType(url) : type;
-  if (!format && /\.json(?:$|[?#])/i.test(url)) format = "tilejson-auto";
+  // Endpoints without a template (Martin, tileserver-gl, pg_tileserv) serve TileJSON at a bare path.
+  if (!format && (/\.json(?:$|[?#])/i.test(url) || !/\{z\}/i.test(url))) format = "tilejson-auto";
   if (!format) throw new Error("Could not detect the tile format. Choose a format manually.");
   if (format === "pmtiles") {
     const response = await fetchChecked(url, { headers: { Range: "bytes=0-126" }, signal }, fetchImpl);

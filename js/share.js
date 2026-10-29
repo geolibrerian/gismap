@@ -2,7 +2,7 @@ import { BASEMAP_IDS } from "./basemap-catalog.js?v=0.53.0-gallery1";
 
 const ALLOWED_PROTOCOLS = new Set(["https:", "http:"]);
 const SENSITIVE_PARAMETER = /^(?:token|oauth[_-]?token|access[_-]?token|api[_-]?key|apikey|key|client[_-]?secret|password|passwd|pwd|authorization|auth|signature|sig)$/i;
-const SUPPORTED_TYPES = new Set(["arcgis-auto", "feature", "map-image", "imagery", "geojson", "geoparquet", "wms", "wfs", "kml", "pointcloud", "model"]);
+const SUPPORTED_TYPES = new Set(["arcgis-auto", "feature", "map-image", "imagery", "geojson", "geoparquet", "wms", "wfs", "kml", "pointcloud", "model", "vector-tiles"]);
 const SUPPORTED_BASEMAPS = new Set(BASEMAP_IDS);
 const MAX_LAYERS = 10;
 const CAMERA_ZOOM_MODES = new Set(["layers", "none"]);

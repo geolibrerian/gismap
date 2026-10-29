@@ -242,6 +242,7 @@ export class ProjectManager {
             ignoreServiceScaleRange: layer.ignoreServiceScaleRange === true,
             animatedEffect: layer.animatedEffect ?? null,
             scene3d: layer.scene3d ?? null,
+            sourceLayer: layer.sourceLayer ?? null,
           });
           await this.#restoreLayerPresentation(added, layer);
         }
@@ -303,6 +304,7 @@ export class ProjectManager {
       kml: "kml",
       geojson: "geojson",
       wfs: "wfs",
+      "vector-tiles": "vector-tiles",
     };
     return lookup[type] || "arcgis-auto";
   }

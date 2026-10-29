@@ -531,6 +531,7 @@ export class ArcGISEngine {
   async addService(config) {
     const cleanUrl = config.url?.trim().replace(/\/$/, "");
     if (!cleanUrl) throw new Error("A service URL is required.");
+    if (config.serviceType === "vector-tiles") throw new Error("Vector tile (MVT) layers need the MapLibre engine. Switch under Map → Map engine.");
     if (!["wms", "wfs", "kml", "geojson"].includes(config.serviceType)) {
       await this.authController?.prepareService(cleanUrl);
     }

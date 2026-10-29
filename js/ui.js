@@ -1867,6 +1867,9 @@ export class UIController {
         case "data-wfs":
           this.#serviceDialog("wfs");
           break;
+        case "data-vector-tiles":
+          this.#serviceDialog("vector-tiles");
+          break;
         case "data-pmtiles": {
           const { openPmtilesPanel } = await import("./data-connections-panel.js?v=0.57.0-spatial2");
           openPmtilesPanel(this, this.mapController, (engine) => this.#switchEngine(engine));
@@ -3615,8 +3618,11 @@ export class UIController {
     const isWms = serviceType === "wms";
     const isWfs = serviceType === "wfs";
     const isGeoJson = serviceType === "geojson";
-    const title = isWms ? "Add WMS service" : isWfs ? "Add WFS service" : isGeoJson ? "Add Geo URL" : "Add ArcGIS REST service";
-    const placeholder = isWms
+    const isTiles = serviceType === "vector-tiles";
+    const title = isTiles ? "Add vector tiles (MVT)" : isWms ? "Add WMS service" : isWfs ? "Add WFS service" : isGeoJson ? "Add Geo URL" : "Add ArcGIS REST service";
+    const placeholder = isTiles
+      ? "https://tiles.example.com/my_table"
+      : isWms
       ? "https://server.example/geoserver/wms"
       : isWfs
         ? "https://server.example/geoserver/wfs?SERVICE=WFS&REQUEST=GetFeature&TYPENAMES=workspace:layer"
@@ -3624,16 +3630,17 @@ export class UIController {
         ? "https://example.org/data/feed.geojson"
         : "https://server.example/arcgis/rest/services/...";
     this.openDialog({
-      eyebrow: isGeoJson ? "Open vector data feed" : isWms || isWfs ? "Open geospatial service" : "ArcGIS Enterprise / Online",
+      eyebrow: isTiles ? "Tiled data" : isGeoJson ? "Open vector data feed" : isWms || isWfs ? "Open geospatial service" : "ArcGIS Enterprise / Online",
       title,
-      content: `<label class="field"><span>${isGeoJson ? "GeoJSON or GeoParquet URL" : isWfs ? "WFS endpoint or GetFeature URL" : "Service URL"}</span><input id="service-url" type="url" placeholder="${placeholder}" /></label>
+      content: `<label class="field"><span>${isTiles ? "TileJSON endpoint or XYZ tile URL" : isGeoJson ? "GeoJSON or GeoParquet URL" : isWfs ? "WFS endpoint or GetFeature URL" : "Service URL"}</span><input id="service-url" type="url" placeholder="${placeholder}" /></label>
         <label class="field"><span>Layer title <small>optional</small></span><input id="service-title" /></label>
         <details class="studio-disclosure"><summary>Advanced settings</summary>
         ${isWfs ? '<label class="field"><span>Feature type <small>optional when included as TYPENAME in the URL</small></span><input id="wfs-name" placeholder="workspace:layer_name" /></label>' : ""}
-        ${isWms || isWfs || isGeoJson ? "" : `<label class="field"><span>Service type</span><select id="service-type"><option value="arcgis-auto">Detect automatically</option><option value="feature">Feature service / layer</option><option value="map-image">Map service</option><option value="imagery">Image service</option></select></label>`}
-        <label class="field"><span>Refresh every <small>minutes; 0 disables</small></span><input id="service-refresh" type="number" min="0" step="0.5" value="0" /></label>
-        <p class="form-note">${isGeoJson ? "Use a direct GeoJSON or GeoParquet file URL. The provider must permit CORS; GeoParquet also requires byte-range requests. Large GeoParquet files are shown as a bounded snapshot. Refresh settings apply to GeoJSON feeds, not GeoParquet snapshots." : isWfs ? "Requires WFS 2.0, GeoJSON output advertised by the server, and browser CORS access. Full GetFeature URLs are reduced to the service endpoint and their TYPENAME is detected automatically." : "Layer URLs and FeatureServer /query URLs are supported. Query URLs apply their where and outFields parameters; geometry is projected into the map automatically. The remote server must allow cross-origin browser requests (CORS)."}</p></details><p class="form-note" role="status" id="service-status"></p>`,
-      actions: [{ label: isGeoJson ? "Add data" : isWfs ? "Add WFS layer" : "Add service", primary: true, handler: async () => {
+        ${isTiles ? '<label class="field"><span>Source layer <small>optional; comma-separated. Required for XYZ URLs without metadata</small></span><input id="tiles-source-layer" placeholder="All layers in the TileJSON" /></label>' : ""}
+        ${isWms || isWfs || isGeoJson || isTiles ? "" : `<label class="field"><span>Service type</span><select id="service-type"><option value="arcgis-auto">Detect automatically</option><option value="feature">Feature service / layer</option><option value="map-image">Map service</option><option value="imagery">Image service</option></select></label>`}
+        ${isTiles ? "" : '<label class="field"><span>Refresh every <small>minutes; 0 disables</small></span><input id="service-refresh" type="number" min="0" step="0.5" value="0" /></label>'}
+        <p class="form-note">${isTiles ? "Works with any Mapbox Vector Tile server: a TileJSON endpoint such as Martin, tileserver-gl or pg_tileserv, or an XYZ template like https://host/{z}/{x}/{y}.pbf. The server must allow CORS. Requires the MapLibre engine. Tiles are drawn, not downloaded as a dataset, so filtering, styling and tables are not available for them yet." : isGeoJson ? "Use a direct GeoJSON or GeoParquet file URL. The provider must permit CORS; GeoParquet also requires byte-range requests. Large GeoParquet files are shown as a bounded snapshot. Refresh settings apply to GeoJSON feeds, not GeoParquet snapshots." : isWfs ? "Requires WFS 2.0, GeoJSON output advertised by the server, and browser CORS access. Full GetFeature URLs are reduced to the service endpoint and their TYPENAME is detected automatically." : "Layer URLs and FeatureServer /query URLs are supported. Query URLs apply their where and outFields parameters; geometry is projected into the map automatically. The remote server must allow cross-origin browser requests (CORS)."}</p></details><p class="form-note" role="status" id="service-status"></p>`,
+      actions: [{ label: isTiles ? "Add tiles" : isGeoJson ? "Add data" : isWfs ? "Add WFS layer" : "Add service", primary: true, handler: async () => {
         const button = this.dialog.querySelector(".button--primary");
         button.disabled = true;
         button.textContent = "Adding…";
@@ -3655,9 +3662,10 @@ export class UIController {
           const layer = await this.#addServiceOrBrowse({
             url: sourceUrl,
             title: this.dialog.querySelector("#service-title").value,
-            serviceType: isWms ? "wms" : isWfs ? "wfs" : isGeoJson ? "geojson" : this.dialog.querySelector("#service-type").value,
+            serviceType: isTiles ? "vector-tiles" : isWms ? "wms" : isWfs ? "wfs" : isGeoJson ? "geojson" : this.dialog.querySelector("#service-type").value,
             wfsName: isWfs ? this.dialog.querySelector("#wfs-name").value : undefined,
-            refreshInterval: Number(this.dialog.querySelector("#service-refresh").value),
+            sourceLayer: isTiles ? this.dialog.querySelector("#tiles-source-layer").value : undefined,
+            refreshInterval: Number(this.dialog.querySelector("#service-refresh")?.value || 0),
           });
           if (!layer) return;
           this.dialog.close();
@@ -3666,7 +3674,7 @@ export class UIController {
           await onLayerAdded?.(layer);
         } catch (error) {
           button.disabled = false;
-            button.textContent = isGeoJson ? "Add data" : isWfs ? "Add WFS layer" : "Add service";
+            button.textContent = isTiles ? "Add tiles" : isGeoJson ? "Add data" : isWfs ? "Add WFS layer" : "Add service";
           this.dialog.querySelector("#service-status").textContent = error.message;
           this.error(error.message);
         }
