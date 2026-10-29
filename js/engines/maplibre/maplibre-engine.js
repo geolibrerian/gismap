@@ -495,7 +495,8 @@ export class MaplibreEngine {
   }
 
   /** Screen pixels (relative to the container) of [longitude, latitude, z]. */
-  mapToScreen([longitude, latitude, z = null] = []) {
+  /** With `aboveGround`, Z is metres above the terrain rather than above sea level. */
+  mapToScreen([longitude, latitude, z = null, aboveGround = false] = []) {
     if (!this.map || !Number.isFinite(longitude) || !Number.isFinite(latitude)) return null;
     // An altitude needs the camera's 3D pixel matrix; map.project() only knows the ground.
     const transform = this.map.transform;
@@ -504,7 +505,9 @@ export class MaplibreEngine {
     // No Z: on the ground, which map.project() places on the terrain.
     if (z !== null && z !== undefined && typeof transform?.coordinatePoint === "function" && matrix && Mercator) {
       const exaggeration = this.map.getTerrain?.()?.exaggeration ?? 1;
-      const point = transform.coordinatePoint(Mercator.fromLngLat([longitude, latitude]), (Number(z) || 0) * exaggeration, matrix);
+      // The terrain's own height is already exaggerated as drawn.
+      const ground = aboveGround ? (this.map.queryTerrainElevation?.([longitude, latitude]) ?? 0) : 0;
+      const point = transform.coordinatePoint(Mercator.fromLngLat([longitude, latitude]), ground + (Number(z) || 0) * exaggeration, matrix);
       if (Number.isFinite(point?.x) && Number.isFinite(point?.y)) return { x: point.x, y: point.y };
     }
     const point = this.map.project([longitude, latitude]);

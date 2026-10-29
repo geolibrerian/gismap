@@ -1,6 +1,6 @@
 // Markup and form reading for a layer's Labels editor.
-import { TEXT_BOX_FONTS } from "./text-boxes.js?v=0.64.1-labels";
-import { normalizeLabeling } from "./layer-labels.js?v=0.64.1-labels";
+import { TEXT_BOX_FONTS } from "./text-boxes.js?v=0.64.2-labels";
+import { normalizeLabeling } from "./layer-labels.js?v=0.64.2-labels";
 
 const escape = (value) => String(value ?? "").replace(/[&<>"']/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[character]);
 const checked = (value) => (value ? " checked" : "");
@@ -46,9 +46,10 @@ export function labelEditorMarkup(layer, spec) {
 <label class="field"><span>Corner radius</span><input type="number" min="0" max="30" step="1" data-label-frame-radius value="${frame.radius}"></label>
 </div></fieldset>
 <fieldset class="feedback-settings"><legend>Placement</legend><div class="field-grid">
-<label class="field"><span>Height (Z)</span><select data-label-z-mode>${option("ground", "On the ground", spec.zMode)}${option("geometry", "Feature's own Z", spec.zMode)}${option("field", "From a field (metres)", spec.zMode)}${option("constant", "Fixed height (metres)", spec.zMode)}</select></label>
+<label class="field"><span>Height (Z)</span><select data-label-z-mode>${option("ground", "On the ground", spec.zMode)}${option("above", "Height above the ground", spec.zMode)}${option("constant", "Height above sea level", spec.zMode)}${option("geometry", "Feature's own Z", spec.zMode)}${option("field", "From a field (metres)", spec.zMode)}</select></label>
 <label class="field" data-label-z-field-row><span>Z field</span><select data-label-z-field><option value="">Choose a field…</option>${fieldOptions(spec.zField, numeric.length ? numeric : fields)}</select></label>
-<label class="field" data-label-z-value-row><span>Z (metres)</span><input type="number" step="1" data-label-z-value value="${spec.zValue}"></label>
+<label class="menu__toggle" data-label-z-field-ground-row><input type="checkbox" data-label-z-field-ground${checked(spec.zFieldAboveGround)}><span>Field values are above the ground</span></label>
+<label class="field" data-label-z-value-row><span>Metres</span><input type="number" step="1" data-label-z-value value="${spec.zValue}"></label>
 <label class="field"><span>Min zoom (optional)</span><input type="number" min="0" max="24" step="0.5" placeholder="Any" data-label-min-zoom value="${spec.minZoom ?? ""}"></label>
 <label class="field"><span>Max zoom (optional)</span><input type="number" min="0" max="24" step="0.5" placeholder="Any" data-label-max-zoom value="${spec.maxZoom ?? ""}"></label>
 <label class="field"><span>Most labels shown</span><input type="number" min="1" max="2000" step="1" data-label-max value="${spec.maxLabels}"></label>
@@ -69,7 +70,8 @@ export function syncLabelEditor(root) {
   root.querySelector("[data-label-template-title]").textContent = mode === "single" ? "Text (plain or HTML)" : "Template";
   const zMode = root.querySelector("[data-label-z-mode]").value;
   root.querySelector("[data-label-z-field-row]").hidden = zMode !== "field";
-  root.querySelector("[data-label-z-value-row]").hidden = zMode !== "constant";
+  root.querySelector("[data-label-z-field-ground-row]").hidden = zMode !== "field";
+  root.querySelector("[data-label-z-value-row]").hidden = !["constant", "above"].includes(zMode);
   const opacity = root.querySelector("[data-label-frame-opacity]");
   opacity.nextElementSibling.value = `${Math.round(Number(opacity.value) * 100)}%`;
 }
@@ -103,6 +105,7 @@ export function readLabelEditor(root) {
     },
     zMode: value("[data-label-z-mode]"),
     zField: value("[data-label-z-field]"),
+    zFieldAboveGround: on("[data-label-z-field-ground]"),
     zValue: Number(value("[data-label-z-value]")),
     minZoom: value("[data-label-min-zoom]"),
     maxZoom: value("[data-label-max-zoom]"),

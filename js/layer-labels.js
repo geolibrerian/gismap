@@ -2,7 +2,7 @@
 // drawn by the same renderer, so they appear on screen, in PDFs, Smart Images
 // and every Print Editor template. A label comes from one field, the same text
 // for every feature, or a template of text or simple HTML with {FIELD} wildcards.
-import { TEXT_BOX_FONTS, normalizeRun } from "./text-boxes.js?v=0.64.1-labels";
+import { TEXT_BOX_FONTS, normalizeRun } from "./text-boxes.js?v=0.64.2-labels";
 
 export const LABEL_MODES = Object.freeze(["field", "template", "single"]);
 const MAX_QUERY = 3000;
@@ -31,8 +31,9 @@ export function normalizeLabeling(spec = {}) {
       padding: clamp(frame.padding, 0, 40, 4),
       radius: clamp(frame.radius, 0, 30, 3),
     },
-    // Height: on the ground, from the feature's own Z, from a field, or a fixed value (metres).
-    zMode: ["ground", "geometry", "field", "constant"].includes(spec.zMode) ? spec.zMode : "ground",
+    // Height: on the ground, a height above it, the feature's own Z, a field, or a fixed height above sea level (metres).
+    zMode: ["ground", "above", "geometry", "field", "constant"].includes(spec.zMode) ? spec.zMode : "ground",
+    zFieldAboveGround: spec.zFieldAboveGround === true,
     zField: String(spec.zField || ""),
     zValue: clamp(spec.zValue, -12000, 1e7, 0),
     minZoom: optionalZoom(spec.minZoom),
@@ -254,12 +255,12 @@ export class LayerLabeler {
       if (!anchor || !Number.isFinite(anchor[0]) || !Number.isFinite(anchor[1])) continue;
       const runs = labelRuns(spec, feature.attributes || {});
       if (!runs.length) continue;
-      const z = spec.zMode === "constant" ? spec.zValue
+      const z = spec.zMode === "constant" || spec.zMode === "above" ? spec.zValue
         : spec.zMode === "field" ? (Number.isFinite(Number(feature.attributes?.[spec.zField])) ? Number(feature.attributes[spec.zField]) : null)
           : spec.zMode === "geometry" && Number.isFinite(anchor[2]) ? anchor[2] : null;
       boxes.push({
         id: `label-${layer.uid}-${index}`,
-        coordinates: [anchor[0], anchor[1], z],
+        coordinates: [anchor[0], anchor[1], z, z !== null && (spec.zMode === "above" || (spec.zMode === "field" && spec.zFieldAboveGround))],
         align: spec.align,
         runs,
         frame: spec.frame,

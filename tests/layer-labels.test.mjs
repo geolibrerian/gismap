@@ -50,3 +50,18 @@ test("layer labels travel in share links", () => {
   assert.equal(restored.template, "<b>{NAME}</b>");
   assert.equal(restored.avoidOverlap, false);
 });
+
+test("a label height can be above the ground or above sea level", async () => {
+  const { LayerLabeler } = await import("../js/layer-labels.js");
+  const feature = { attributes: { NAME: "Hill", H: 40 }, geometry: { type: "Point", coordinates: [1, 2] } };
+  const run = async (spec) => {
+    const mapController = { getLayers: () => [{ uid: "a", visible: true, queryable: true }], getLayerLabeling: () => normalizeLabeling({ enabled: true, field: "NAME", ...spec }), queryFeatures: async () => ({ features: [feature] }) };
+    const labeler = new LayerLabeler({ mapController });
+    await labeler.refresh();
+    return labeler.boxes()[0].coordinates;
+  };
+  assert.deepEqual(await run({ zMode: "above", zValue: 500 }), [1, 2, 500, true]);
+  assert.deepEqual(await run({ zMode: "constant", zValue: 500 }), [1, 2, 500, false]);
+  assert.deepEqual(await run({ zMode: "field", zField: "H", zFieldAboveGround: true }), [1, 2, 40, true]);
+  assert.deepEqual(await run({ zMode: "ground" }), [1, 2, null, false]);
+});

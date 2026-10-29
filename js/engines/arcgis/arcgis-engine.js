@@ -2014,14 +2014,16 @@ export class ArcGISEngine {
   }
 
   /** Screen pixels (relative to the container) of [longitude, latitude, z], or null when off-view. */
-  mapToScreen([longitude, latitude, z = null] = []) {
+  /** With `aboveGround`, Z is metres above the ground surface rather than above sea level. */
+  mapToScreen([longitude, latitude, z = null, aboveGround = false] = []) {
     if (!this.view?.toScreen || !this.modules.geometryJsonUtils) return null;
     // No Z: on the ground surface, sampled from the view's elevation.
     let height = Number(z);
-    if (z === null || z === undefined || !Number.isFinite(height)) {
+    if (z === null || z === undefined || !Number.isFinite(height) || aboveGround) {
+      const offset = aboveGround && Number.isFinite(height) ? height : 0;
       const sampler = this.view.groundView?.elevationSampler;
       const ground = sampler ? this.modules.geometryJsonUtils.fromJSON({ x: longitude, y: latitude, spatialReference: { wkid: 4326 } }) : null;
-      try { height = ground ? sampler.queryElevation(ground)?.z ?? 0 : 0; } catch { height = 0; }
+      try { height = (ground ? sampler.queryElevation(ground)?.z ?? 0 : 0) + offset; } catch { height = offset; }
     }
     const point = this.modules.geometryJsonUtils.fromJSON({ x: longitude, y: latitude, z: height, spatialReference: { wkid: 4326 } });
     const screen = this.view.toScreen(point);
