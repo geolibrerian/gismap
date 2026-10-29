@@ -1478,7 +1478,9 @@ export class UIController {
       } else if (index === 2) {
         this.#openSymbologyUtility(layer.uid);
       } else if (index === 3) {
-        await this.#filterDialog(layer.uid);
+        // The briefing already has its M6.5+ source scope. Explain it in the
+        // visible Data dock instead of opening a filter modal over the guide.
+        this.#openBriefingInspector();
       } else {
         if (presentation?.template !== "briefing") throw new Error("The Historical Quakes briefing is no longer open. Reopen the example and start the tutorial again.");
         this.briefingTab = "slides";

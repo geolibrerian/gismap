@@ -47,7 +47,7 @@ test('Historical Quakes has a finished-example walkthrough from source to share'
   }
   assert.match(HISTORICAL_QUAKES_BRIEFING_TUTORIAL_STEPS[1].desktop, /utility-source-content/);
   assert.match(HISTORICAL_QUAKES_BRIEFING_TUTORIAL_STEPS[2].desktop, /utility-style-content/);
-  assert.match(HISTORICAL_QUAKES_BRIEFING_TUTORIAL_STEPS[3].desktop, /data-layer-filter-builder/);
+  assert.match(HISTORICAL_QUAKES_BRIEFING_TUTORIAL_STEPS[3].desktop, /briefing-data-dock__filters/);
   assert.match(HISTORICAL_QUAKES_BRIEFING_TUTORIAL_STEPS[5].desktop, /nth-child\(3\)/);
   assert.match(HISTORICAL_QUAKES_BRIEFING_TUTORIAL_STEPS[5].description, /MapLibre seismic pulse/i);
   const ui = await readFile(new URL('../js/ui.js', import.meta.url), 'utf8');
@@ -59,7 +59,7 @@ test('Historical Quakes has a finished-example walkthrough from source to share'
   assert.match(ui, /Opening the next part of the Historical Quakes briefing/);
   assert.match(ui, /this\.#openLayerSource\(layer\.uid\)/);
   assert.match(ui, /this\.#openSymbologyUtility\(layer\.uid\)/);
-  assert.match(ui, /await this\.#filterDialog\(layer\.uid\)/);
+  assert.match(ui, /this\.#openBriefingInspector\(\);/);
 });
 
 test('walkthrough target waiting resolves on rendering and aborts or times out safely', async () => {
