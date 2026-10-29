@@ -105,6 +105,16 @@ function roundedRect(context, x, y, width, height, radius) {
   context.closePath();
 }
 
+const measured = new WeakMap();
+/** A box's size at `scale` (cached at scale 1, the live map). */
+export function measureTextBox(context, box, scale = 1) {
+  if (scale === 1 && measured.has(box)) return measured.get(box);
+  const { width, height } = layout(context, box, scale);
+  const size = { width, height };
+  if (scale === 1) measured.set(box, size);
+  return size;
+}
+
 /** Draws one text box centred on (x, y). `scale` multiplies every size. Returns its bounds. */
 export function drawTextBox(context, box, x, y, scale = 1) {
   const metrics = layout(context, box, scale);
@@ -179,6 +189,49 @@ export class TextBoxLayer {
     this.frame = 0;
     this.placing = null;
     this.selectedId = null;
+    this.sources = [];
+  }
+
+  /** Adds a provider of extra boxes drawn after the text boxes (layer labels). */
+  addSource(provider) {
+    this.sources.push(provider);
+    this.#changed();
+  }
+
+  /** Text boxes then label boxes, as drawn. */
+  #drawable() {
+    return [...this.boxes, ...this.sources.flatMap((provider) => provider() || [])];
+  }
+
+  /**
+   * Draws every visible box at `scale` through `toCanvas`. Labels marked
+   * `collide` skip places another label already took, and each label set
+   * stops at its own limit; text boxes are always drawn.
+   */
+  #drawAll(context, toCanvas, scale, bounds, onDrawn = () => {}) {
+    const zoom = this.project.zoom?.();
+    const taken = [];
+    const counts = new Map();
+    for (const box of this.#drawable()) {
+      if (!visibleAtZoom(box, zoom)) continue;
+      const point = this.project.mapToScreen(box.coordinates);
+      if (!point) continue;
+      const [x, y] = toCanvas(point);
+      if (x < -2000 || y < -2000 || x > bounds.width + 2000 || y > bounds.height + 2000) continue;
+      if (box.limitKey) {
+        if (x < 0 || y < 0 || x > bounds.width || y > bounds.height) continue;
+        const count = counts.get(box.limitKey) || 0;
+        if (count >= box.limit) continue;
+        if (box.collide) {
+          const { width, height } = measureTextBox(context, box, scale);
+          const rect = { left: x - width / 2 - 2, top: y - height / 2 - 2, right: x + width / 2 + 2, bottom: y + height / 2 + 2 };
+          if (taken.some((other) => rect.left < other.right && rect.right > other.left && rect.top < other.bottom && rect.bottom > other.top)) continue;
+          taken.push(rect);
+        }
+        counts.set(box.limitKey, count + 1);
+      }
+      onDrawn(box, drawTextBox(context, box, x, y, scale));
+    }
   }
 
   list() { return structuredClone(this.boxes); }
@@ -272,7 +325,13 @@ export class TextBoxLayer {
   #changed() {
     this.render();
     this.events?.publish?.("text-boxes:changed", { count: this.boxes.length });
-    if (this.boxes.length && !this.frame) this.#loop();
+    this.wake();
+  }
+
+  /** Starts following the camera when there is anything to draw. */
+  wake() {
+    this.render();
+    if (this.#drawable().length && !this.frame) this.#loop();
   }
 
   // The camera can move every frame; the boxes follow while any exist.
@@ -280,7 +339,7 @@ export class TextBoxLayer {
     if (typeof requestAnimationFrame !== "function") return;
     this.frame = requestAnimationFrame(() => {
       this.frame = 0;
-      if (!this.boxes.length) { this.render(); return; }
+      if (!this.#drawable().length) { this.render(); return; }
       this.render();
       this.#loop();
     });
@@ -300,12 +359,7 @@ export class TextBoxLayer {
     context.setTransform(1, 0, 0, 1, 0, 0);
     context.clearRect(0, 0, canvas.width, canvas.height);
     context.setTransform(ratio, 0, 0, ratio, 0, 0);
-    const zoom = this.project.zoom?.();
-    for (const box of this.boxes) {
-      if (!visibleAtZoom(box, zoom)) continue;
-      const point = this.project.mapToScreen(box.coordinates);
-      if (!point || point.x < -2000 || point.y < -2000 || point.x > width + 2000 || point.y > height + 2000) continue;
-      const bounds = drawTextBox(context, box, point.x, point.y);
+    this.#drawAll(context, (point) => [point.x, point.y], 1, { width, height }, (box, bounds) => {
       if (box.id === this.selectedId) {
         context.save();
         context.setLineDash([4, 3]);
@@ -314,12 +368,12 @@ export class TextBoxLayer {
         context.strokeRect(bounds.left - 4, bounds.top - 4, bounds.width + 8, bounds.height + 8);
         context.restore();
       }
-    }
+    });
   }
 
   /** The capture with every visible box drawn where it sits in the view. */
   async composite(capture, format = "jpg", quality = 82) {
-    if (!capture?.dataUrl || !this.boxes.length || typeof document === "undefined") return capture;
+    if (!capture?.dataUrl || !this.#drawable().length || typeof document === "undefined") return capture;
     const container = this.project.container();
     if (!container?.clientWidth || !container?.clientHeight) return capture;
     const image = await new Promise((resolve, reject) => {
@@ -334,13 +388,7 @@ export class TextBoxLayer {
     const context = canvas.getContext("2d");
     context.drawImage(image, 0, 0, canvas.width, canvas.height);
     const { scale, offsetX, offsetY } = captureTransform(container.clientWidth, container.clientHeight, canvas.width, canvas.height);
-    const zoom = this.project.zoom?.();
-    for (const box of this.boxes) {
-      if (!visibleAtZoom(box, zoom)) continue;
-      const point = this.project.mapToScreen(box.coordinates);
-      if (!point) continue;
-      drawTextBox(context, box, (point.x - offsetX) * scale, (point.y - offsetY) * scale, scale);
-    }
+    this.#drawAll(context, (point) => [(point.x - offsetX) * scale, (point.y - offsetY) * scale], scale, canvas);
     const dataUrl = canvas.toDataURL(format === "png" ? "image/png" : "image/jpeg", Math.max(0, Math.min(1, quality / 100)));
     return { ...capture, dataUrl, width: canvas.width, height: canvas.height };
   }

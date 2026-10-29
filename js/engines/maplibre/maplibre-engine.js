@@ -495,13 +495,14 @@ export class MaplibreEngine {
   }
 
   /** Screen pixels (relative to the container) of [longitude, latitude, z]. */
-  mapToScreen([longitude, latitude, z = 0] = []) {
+  mapToScreen([longitude, latitude, z = null] = []) {
     if (!this.map || !Number.isFinite(longitude) || !Number.isFinite(latitude)) return null;
     // An altitude needs the camera's 3D pixel matrix; map.project() only knows the ground.
     const transform = this.map.transform;
     const matrix = transform?.pixelMatrix3D ?? transform?._pixelMatrix3D;
     const Mercator = globalThis.maplibregl?.MercatorCoordinate;
-    if (typeof transform?.coordinatePoint === "function" && matrix && Mercator) {
+    // No Z: on the ground, which map.project() places on the terrain.
+    if (z !== null && z !== undefined && typeof transform?.coordinatePoint === "function" && matrix && Mercator) {
       const exaggeration = this.map.getTerrain?.()?.exaggeration ?? 1;
       const point = transform.coordinatePoint(Mercator.fromLngLat([longitude, latitude]), (Number(z) || 0) * exaggeration, matrix);
       if (Number.isFinite(point?.x) && Number.isFinite(point?.y)) return { x: point.x, y: point.y };

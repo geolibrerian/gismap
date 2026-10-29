@@ -1,10 +1,11 @@
 // Stable application-facing map facade. It owns engine selection and the
 // higher-level workflows that can be expressed with provider-neutral
 // primitives. Renderer adapters stay focused on drawing and interaction.
-import { createEngine, getEngineDefinition, listEngines } from "./engines/engine-registry.js?v=0.63.22-print-links";
+import { createEngine, getEngineDefinition, listEngines } from "./engines/engine-registry.js?v=0.64.1-labels";
 import { MAP_CONTROLLER_METHODS, METHOD_CAPABILITIES, unsupported } from "./engines/engine-interface.js?v=0.62.4-silent-engine-handoff";
 import { GisMapError } from "./gismap-errors.js?v=0.28.0";
-import { TextBoxLayer } from "./text-boxes.js?v=0.63.22-print-links";
+import { TextBoxLayer } from "./text-boxes.js?v=0.64.1-labels";
+import { LayerLabeler, normalizeLabeling } from "./layer-labels.js?v=0.64.1-labels";
 
 const wait = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
 const nothing = () => undefined;
@@ -14,7 +15,7 @@ const nothing = () => undefined;
  * absence is harmless (no click marker, no tour pins, no address lookup).
  * Anything not listed reports the missing capability instead.
  */
-const CARRIED_LAYER_FIELDS = ["wfsName", "customParameters", "elevationInfo", "animatedEffect", "scene3d"];
+const CARRIED_LAYER_FIELDS = ["wfsName", "customParameters", "elevationInfo", "animatedEffect", "scene3d", "labeling"];
 
 /** An ArcGIS JSON or GeoJSON geometry (EPSG:4326) as GeoJSON. */
 function toGeoJsonGeometry(geometry) {
@@ -78,6 +79,10 @@ export class MapController {
         zoom: () => { try { return this.engine?.getCamera?.()?.zoom ?? null; } catch { return null; } },
       },
     });
+    // Layer labels are drawn by the text-box renderer, so captures and exports include them.
+    this.labeler = new LayerLabeler({ mapController: this, events });
+    this.textBoxes.addSource(() => this.labeler.boxes());
+    this.events?.subscribe?.("labels:changed", () => this.textBoxes.wake());
     this.events?.subscribe?.("layer:removed", ({ uid }) => { this.geoParquetSources.delete(uid); this.carriedLayerFields.delete(uid); });
   }
 
@@ -257,6 +262,21 @@ export class MapController {
     const valid = (Array.isArray(features) ? features : []).filter((feature) => feature?.geometry?.type && Array.isArray(feature.geometry.coordinates)).slice(0, 5000);
     if (typeof this.engine?.setDrawings !== "function") return;
     await this.engine.setDrawings(valid.map((feature) => ({ type: "Feature", geometry: feature.geometry, properties: {} })));
+  }
+
+  /** A layer's label settings (normalized), or null when it has none. */
+  getLayerLabeling(uid) {
+    const spec = this.carriedLayerFields.get(uid)?.labeling;
+    return spec ? normalizeLabeling(spec) : null;
+  }
+
+  /** Labels a layer from its fields; saved with the layer in projects and kept across engines. */
+  setLayerLabeling(uid, spec) {
+    const carried = this.carriedLayerFields.get(uid) || {};
+    if (spec) carried.labeling = normalizeLabeling(spec); else delete carried.labeling;
+    this.carriedLayerFields.set(uid, carried);
+    this.labeler.schedule(0);
+    this.events?.publish?.("layer:labels-changed", { uid });
   }
 
   /** Map text boxes: rich labels anchored at [longitude, latitude, z], kept across engines. */

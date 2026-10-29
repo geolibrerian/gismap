@@ -8,7 +8,7 @@ import { normalizeBriefing } from "./briefing-document.js?v=0.61.0-briefing-play
 import { SHARE_BASEMAPS, SHARE_LAYER_TYPES, sanitizeSharedResourceUrl } from "./share.js?v=0.54.0-unified4";
 import { normalizeSkin } from "./skin-catalog.js?v=0.57.0-skins2";
 import { decodeBriefing } from "./briefing-share.js?v=0.60.0-media1";
-import { normalizeTextBoxes } from "./text-boxes.js?v=0.63.22-print-links";
+import { normalizeTextBoxes } from "./text-boxes.js?v=0.64.1-labels";
 
 const MAX_TEXT_BOXES = 50;
 
@@ -23,6 +23,7 @@ export const MAP_SPEC_JSON_LIMIT = 8192;
 /** Version-40 QR codes hold a little under 3 KB, so only links this short get a QR. */
 export const QR_SAFE_LENGTH = 2800;
 const MAX_LAYERS = 10;
+const MAX_LABELING = 4500;
 const MAX_RENDERER = 60000;
 const MAX_SPATIAL_CHART = 12000;
 const MAX_SELECTION = 300;
@@ -78,6 +79,7 @@ export function packLayer(config = {}) {
     o: Number.isFinite(config.opacity) && config.opacity < 1 ? round(config.opacity, 2) : null,
     h: config.visible === false ? 1 : null,
     s: config.ignoreServiceScaleRange ? 1 : null,
+    l: config.labeling?.enabled && JSON.stringify(config.labeling).length <= MAX_LABELING ? { ...config.labeling, avoidOverlap: config.labeling.avoidOverlap === false ? 0 : 1 } : null,
   });
 }
 
@@ -97,6 +99,7 @@ function unpackLayer(layer, options) {
     opacity: Number.isFinite(layer.o) ? Math.min(1, Math.max(0, layer.o)) : undefined,
     visible: layer.h !== 1,
     ignoreServiceScaleRange: layer.s === 1,
+    labeling: layer.l && typeof layer.l === "object" && !Array.isArray(layer.l) && JSON.stringify(layer.l).length <= MAX_LABELING ? { ...layer.l, enabled: true } : undefined,
   };
 }
 

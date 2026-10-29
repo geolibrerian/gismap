@@ -2014,9 +2014,16 @@ export class ArcGISEngine {
   }
 
   /** Screen pixels (relative to the container) of [longitude, latitude, z], or null when off-view. */
-  mapToScreen([longitude, latitude, z = 0] = []) {
+  mapToScreen([longitude, latitude, z = null] = []) {
     if (!this.view?.toScreen || !this.modules.geometryJsonUtils) return null;
-    const point = this.modules.geometryJsonUtils.fromJSON({ x: longitude, y: latitude, z: Number(z) || 0, spatialReference: { wkid: 4326 } });
+    // No Z: on the ground surface, sampled from the view's elevation.
+    let height = Number(z);
+    if (z === null || z === undefined || !Number.isFinite(height)) {
+      const sampler = this.view.groundView?.elevationSampler;
+      const ground = sampler ? this.modules.geometryJsonUtils.fromJSON({ x: longitude, y: latitude, spatialReference: { wkid: 4326 } }) : null;
+      try { height = ground ? sampler.queryElevation(ground)?.z ?? 0 : 0; } catch { height = 0; }
+    }
+    const point = this.modules.geometryJsonUtils.fromJSON({ x: longitude, y: latitude, z: height, spatialReference: { wkid: 4326 } });
     const screen = this.view.toScreen(point);
     return screen && Number.isFinite(screen.x) && Number.isFinite(screen.y) ? { x: screen.x, y: screen.y } : null;
   }

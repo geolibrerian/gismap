@@ -1,4 +1,4 @@
-import { initializeFieldworkWorkspace } from "./fieldwork-workspace.js?v=0.63.22-print-links";
+import { initializeFieldworkWorkspace } from "./fieldwork-workspace.js?v=0.64.1-labels";
 import { timelinePdfFrames, expandTimelinePdfSlides, parseTimelineFrameSelection } from "./briefing-timeline-pdf.js?v=0.1.0";
 import { renderNotesHub } from "./notes-hub.js?v=0.55.0-fieldwork1";
 import { refreshMapNoteFilters } from './map-note-filters.js?v=0.4.1';
@@ -13,7 +13,7 @@ import { MapAssistantPanel } from "./assistant-panel.js?v=0.57.0-skins1";
 import { createAssistantTools, summarizeMapState } from "./map-assistant.js?v=0.61.1-dashboard-agent";
 import { ENTERPRISE_CATALOGS, EnterpriseCatalog, normalizeArcGisDirectoryUrl } from "./enterprise-catalog.js?v=0.18.2";
 import { createShareUrl } from "./share.js?v=0.54.0-unified4";
-import { createShareLink, hasDataFilter, readBriefingFile } from "./map-share.js?v=0.63.22-print-links";
+import { createShareLink, hasDataFilter, readBriefingFile } from "./map-share.js?v=0.64.1-labels";
 import { createEmbedIframe, createEmbedUrl } from "./embed-share.js?v=0.61.0-embed1";
 import { briefingLayerRef, findBriefingLayer } from "./briefing-api.js?v=0.61.0-briefing-player";
 import { createEmbeddedTourUrl } from "./tour-share.js?v=0.54.0-unified4";
@@ -26,8 +26,8 @@ import { applyMapColors, MAP_COLOR_COMPONENTS, SKIN_BASEMAP, themeFromComputedSt
 import { compactMedia } from "./viewport.js?v=0.18.2";
 import { APP_VERSION } from "./version.js?v=0.53.0";
 import { bindMobileSheetResize } from "./mobile-sheet-resize.js?v=0.52.7";
-import { BRAND_LOGO, PdfDocument, brandedMapImage, brandedQrCanvas, imageToJpeg, loadBrandLogo, printPalette, qrAsset } from "./pdf-document.js?v=0.63.22-print-links";
-import { DEFAULT_PAGE_FRAME, IMAGE_ANCHORS, MAP_TEMPLATES, getTemplate, loadImage, renderTemplate, templateCompact, templateMapAspect } from "./map-templates.js?v=0.63.22-print-links";
+import { BRAND_LOGO, PdfDocument, brandedMapImage, brandedQrCanvas, imageToJpeg, loadBrandLogo, printPalette, qrAsset } from "./pdf-document.js?v=0.64.1-labels";
+import { DEFAULT_PAGE_FRAME, IMAGE_ANCHORS, MAP_TEMPLATES, getTemplate, loadImage, renderTemplate, templateCompact, templateMapAspect } from "./map-templates.js?v=0.64.1-labels";
 import { featureLayerUrl, locationUrl } from "./field-task-share.js?v=0.54.0-unified4";
 import { dockIcon } from "./dock-icons.js?v=0.24.0";
 import { serviceNameFromUrl } from "./service-name.js?v=0.26.0";
@@ -64,8 +64,10 @@ import { buildClipPackage, clipToCinematicSpec, createCinematicClip, exportCinem
 import { availableVideoFormats, cameraAt, CLIP_FRAME_RATES, clipFrameCount, exportCinematicVideo, observationIndexAt, renderClipPoster } from "./cinematic/clip-export.js?v=0.3.8-fire-points";
 import { CHART_PANEL_PLACEMENTS, CHART_TYPES, PRESENTATION_TARGETS, chartFields, chartOption, createChartSpec, displayChartRows, loadECharts, queryChart, recommendCharts, renderChartFallback, rowsAsCsv } from "./charting-tools.js";
 import { MapChartOverlayController } from "./map-chart-tools.js";
-import { readTextBoxEditor, textBoxEditorMarkup, textBoxRunMarkup, textBoxSummary } from "./text-box-editor.js?v=0.63.22-print-links";
-import { defaultRun } from "./text-boxes.js?v=0.63.22-print-links";
+import { readTextBoxEditor, textBoxEditorMarkup, textBoxRunMarkup, textBoxSummary } from "./text-box-editor.js?v=0.64.1-labels";
+import { labelEditorMarkup, labelableFields, readLabelEditor, syncLabelEditor } from "./label-editor.js?v=0.64.1-labels";
+import { normalizeLabeling } from "./layer-labels.js?v=0.64.1-labels";
+import { defaultRun } from "./text-boxes.js?v=0.64.1-labels";
 
 const BUILDINGS_3D_KEY = "gismap-online:buildings-3d:v1";
 const DISPLAY_SETTINGS_KEY = "gismap-online:display:v1";
@@ -804,6 +806,50 @@ export class UIController {
       this.projectManager.setApplication(application);
     });
     document.querySelector("#globe-dashboard-settings")?.addEventListener("click", () => this.#dashboardBuilderComingSoon());
+  }
+
+  /** Labels for a layer: from a field, a text/HTML template with {FIELD} wildcards, or fixed text. */
+  #openLabelEditor(uid) {
+    const layer = this.mapController.getLayer(uid);
+    if (!layer) return;
+    const fields = labelableFields(layer);
+    const nameField = fields.find((field) => /^(name|title|label)$/i.test(field.name)) || fields.find((field) => /string/i.test(String(field.type || ""))) || fields[0];
+    const spec = this.mapController.getLayerLabeling(uid) || normalizeLabeling({ enabled: true, field: nameField?.name || "" });
+    this.openDialog({ eyebrow: layer.title || "Layer", title: "Labels", content: labelEditorMarkup(layer, spec) });
+    const root = this.dialog.querySelector(".label-editor");
+    let timer = 0;
+    const apply = () => {
+      syncLabelEditor(root);
+      clearTimeout(timer);
+      timer = setTimeout(() => this.mapController.setLayerLabeling(uid, readLabelEditor(root)), 150);
+    };
+    syncLabelEditor(root);
+    this.mapController.setLayerLabeling(uid, readLabelEditor(root));
+    root.addEventListener("input", apply);
+    root.addEventListener("change", apply);
+    root.querySelector("[data-label-mode]").addEventListener("change", (event) => {
+      const template = root.querySelector("[data-label-template]");
+      const field = root.querySelector("[data-label-field]").value || nameField?.name;
+      if (!template.value.trim() && event.target.value === "template" && field) template.value = `<b>{${field}}</b>`;
+      apply();
+    });
+    root.querySelector("[data-label-chips]").addEventListener("click", (event) => {
+      const name = event.target.closest("[data-insert-field]")?.dataset.insertField;
+      if (!name) return;
+      const template = root.querySelector("[data-label-template]");
+      const start = template.selectionStart ?? template.value.length;
+      const end = template.selectionEnd ?? start;
+      template.value = `${template.value.slice(0, start)}{${name}}${template.value.slice(end)}`;
+      template.focus();
+      template.selectionStart = template.selectionEnd = start + name.length + 2;
+      apply();
+    });
+    root.querySelector("[data-label-remove]").addEventListener("click", () => {
+      clearTimeout(timer);
+      this.mapController.setLayerLabeling(uid, null);
+      this.dialog.close();
+    });
+    root.querySelector("[data-label-done]").addEventListener("click", () => this.dialog.close());
   }
 
   async #placeTextBox() {
@@ -8749,7 +8795,7 @@ export class UIController {
           <div class="layer-scale-note" data-layer-scale-note ${scaleMessage ? "" : "hidden"}><span data-scale-text>${escapeHtml(scaleMessage || "")}</span><button type="button" data-layer-action="ignore-scale" title="Draw this layer at every zoom level">Show anyway</button></div>
           <label class="opacity-row"><span>Opacity</span><input data-layer-opacity type="range" min="0" max="1" step="0.05" value="${layer.opacity}" /><output>${Math.round(layer.opacity * 100)}%</output></label>
           <div class="layer-card__actions layer-card__primary"><button data-layer-action="zoom">Zoom</button><button data-layer-action="table">Table</button><button data-layer-action="style">Style</button></div>
-          <details class="layer-card__more" ${this.expandedLayerCards.has(layer.uid) ? "open" : ""}><summary>More layer tools</summary><div class="layer-card__actions">${layer.queryable && this.mapController.getCapabilities().includes("three-3d") ? '<button data-layer-action="animate" title="Suggested animations for this layer: a looping effect, a timeline or a sweep">Animate</button>' : ""}<button data-layer-action="filter" title="Show only matching features on the map">Filter map</button>${layer.queryable || config.sourceType === "geoparquet" ? '<button data-layer-action="query-duckdb" title="Query, join or run spatial analysis on a copy of this layer">Query data</button>' : ''}<button data-layer-action="source" title="Inspect this data source and open its publisher page">Source</button><button data-layer-action="refresh">Refresh</button><button data-layer-action="advanced-style">Advanced style</button></div></details>
+          <details class="layer-card__more" ${this.expandedLayerCards.has(layer.uid) ? "open" : ""}><summary>More layer tools</summary><div class="layer-card__actions">${layer.queryable && this.mapController.getCapabilities().includes("three-3d") ? '<button data-layer-action="animate" title="Suggested animations for this layer: a looping effect, a timeline or a sweep">Animate</button>' : ""}<button data-layer-action="filter" title="Show only matching features on the map">Filter map</button>${layer.queryable || config.sourceType === "geoparquet" ? '<button data-layer-action="query-duckdb" title="Query, join or run spatial analysis on a copy of this layer">Query data</button>' : ''}${layer.queryable ? '<button data-layer-action="labels" title="Label features from their fields, a template or fixed text">Labels</button>' : ""}<button data-layer-action="source" title="Inspect this data source and open its publisher page">Source</button><button data-layer-action="refresh">Refresh</button><button data-layer-action="advanced-style">Advanced style</button></div></details>
         </article>`;
       }).join("")}`
       : '<div class="empty-state empty-state--layers"><p>No layers yet. Add data to start.</p><div class="empty-state__actions"><button type="button" data-empty-action="data-arcgis">ArcGIS service</button><button type="button" data-empty-action="data-geojson">Geo URL</button><button type="button" data-empty-action="data-file">Local file</button><button type="button" data-empty-action="data-popular">Try an example</button></div></div>';
@@ -8843,6 +8889,9 @@ export class UIController {
             if (this.activeUtilityTab === "style") this.#closeUtilityTab("style");
             else this.#syncUtilityPanel("style");
           } else this.#openSymbologyUtility(uid);
+          break;
+        case "labels":
+          this.#openLabelEditor(uid);
           break;
         case "advanced-style":
           if (this.utilityStyleLayerUid === uid) {

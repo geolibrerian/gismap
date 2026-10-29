@@ -752,6 +752,11 @@ body.mobile-workflow-open .field-task-banner { left:auto; right:calc(min(440px,1
 .app-dialog--docked .map-templates { grid-template-columns: 1fr; }
 .app-dialog--docked .map-templates__side { order: -1; }
 .text-box-list { grid-column: 1 / -1; display: grid; gap: 4px; }
+.label-editor textarea { width: 100%; resize: vertical; font-family: ui-monospace, Menlo, monospace; font-size: 0.85rem; }
+.label-editor__chips { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; margin: 6px 0; font-size: 0.8rem; color: var(--muted); }
+.label-editor__chips button { padding: 2px 7px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); color: var(--ink); font: inherit; font-size: 0.78rem; cursor: pointer; }
+.label-editor__chips button:hover { border-color: var(--green-2); color: var(--green-2); }
+.label-editor [hidden] { display: none !important; }
 .text-box-list__item { display: grid; grid-template-columns: 1fr auto auto; gap: 6px; align-items: center; }
 .text-box-list__item span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.85rem; }
 .text-box-editor .text-box-run { border: 1px solid var(--line, #d0d5dd); border-radius: 6px; padding: 8px; margin: 0 0 8px; }
