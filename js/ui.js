@@ -1,4 +1,4 @@
-import { initializeFieldworkWorkspace } from "./fieldwork-workspace.js?v=0.63.21-print-options";
+import { initializeFieldworkWorkspace } from "./fieldwork-workspace.js?v=0.63.22-print-links";
 import { timelinePdfFrames, expandTimelinePdfSlides, parseTimelineFrameSelection } from "./briefing-timeline-pdf.js?v=0.1.0";
 import { renderNotesHub } from "./notes-hub.js?v=0.55.0-fieldwork1";
 import { refreshMapNoteFilters } from './map-note-filters.js?v=0.4.1';
@@ -13,7 +13,7 @@ import { MapAssistantPanel } from "./assistant-panel.js?v=0.57.0-skins1";
 import { createAssistantTools, summarizeMapState } from "./map-assistant.js?v=0.61.1-dashboard-agent";
 import { ENTERPRISE_CATALOGS, EnterpriseCatalog, normalizeArcGisDirectoryUrl } from "./enterprise-catalog.js?v=0.18.2";
 import { createShareUrl } from "./share.js?v=0.54.0-unified4";
-import { createShareLink, hasDataFilter, readBriefingFile } from "./map-share.js?v=0.63.21-print-options";
+import { createShareLink, hasDataFilter, readBriefingFile } from "./map-share.js?v=0.63.22-print-links";
 import { createEmbedIframe, createEmbedUrl } from "./embed-share.js?v=0.61.0-embed1";
 import { briefingLayerRef, findBriefingLayer } from "./briefing-api.js?v=0.61.0-briefing-player";
 import { createEmbeddedTourUrl } from "./tour-share.js?v=0.54.0-unified4";
@@ -26,8 +26,8 @@ import { applyMapColors, MAP_COLOR_COMPONENTS, SKIN_BASEMAP, themeFromComputedSt
 import { compactMedia } from "./viewport.js?v=0.18.2";
 import { APP_VERSION } from "./version.js?v=0.53.0";
 import { bindMobileSheetResize } from "./mobile-sheet-resize.js?v=0.52.7";
-import { BRAND_LOGO, PdfDocument, brandedMapImage, brandedQrCanvas, imageToJpeg, loadBrandLogo, printPalette, qrAsset } from "./pdf-document.js?v=0.63.21-print-options";
-import { DEFAULT_PAGE_FRAME, IMAGE_ANCHORS, MAP_TEMPLATES, getTemplate, loadImage, renderTemplate, templateCompact, templateMapAspect } from "./map-templates.js?v=0.63.21-print-options";
+import { BRAND_LOGO, PdfDocument, brandedMapImage, brandedQrCanvas, imageToJpeg, loadBrandLogo, printPalette, qrAsset } from "./pdf-document.js?v=0.63.22-print-links";
+import { DEFAULT_PAGE_FRAME, IMAGE_ANCHORS, MAP_TEMPLATES, getTemplate, loadImage, renderTemplate, templateCompact, templateMapAspect } from "./map-templates.js?v=0.63.22-print-links";
 import { featureLayerUrl, locationUrl } from "./field-task-share.js?v=0.54.0-unified4";
 import { dockIcon } from "./dock-icons.js?v=0.24.0";
 import { serviceNameFromUrl } from "./service-name.js?v=0.26.0";
@@ -64,8 +64,8 @@ import { buildClipPackage, clipToCinematicSpec, createCinematicClip, exportCinem
 import { availableVideoFormats, cameraAt, CLIP_FRAME_RATES, clipFrameCount, exportCinematicVideo, observationIndexAt, renderClipPoster } from "./cinematic/clip-export.js?v=0.3.8-fire-points";
 import { CHART_PANEL_PLACEMENTS, CHART_TYPES, PRESENTATION_TARGETS, chartFields, chartOption, createChartSpec, displayChartRows, loadECharts, queryChart, recommendCharts, renderChartFallback, rowsAsCsv } from "./charting-tools.js";
 import { MapChartOverlayController } from "./map-chart-tools.js";
-import { readTextBoxEditor, textBoxEditorMarkup, textBoxRunMarkup, textBoxSummary } from "./text-box-editor.js?v=0.63.21-print-options";
-import { defaultRun } from "./text-boxes.js?v=0.63.21-print-options";
+import { readTextBoxEditor, textBoxEditorMarkup, textBoxRunMarkup, textBoxSummary } from "./text-box-editor.js?v=0.63.22-print-links";
+import { defaultRun } from "./text-boxes.js?v=0.63.22-print-links";
 
 const BUILDINGS_3D_KEY = "gismap-online:buildings-3d:v1";
 const DISPLAY_SETTINGS_KEY = "gismap-online:display:v1";
@@ -2365,7 +2365,7 @@ export class UIController {
     const remembered = startTemplate || this.printState?.templateId || (() => { try { return localStorage.getItem("gismap.mapTemplate"); } catch { return null; } })();
     let templateId = getTemplate(remembered).id;
     this.templateImages ||= [];
-    const frame = { ...DEFAULT_PAGE_FRAME, showQr: true, showNorth: true, showScale: true, ...(() => { try { return JSON.parse(localStorage.getItem("gismap.mapTemplateFrame")) || {}; } catch { return {}; } })() };
+    const frame = { ...DEFAULT_PAGE_FRAME, showQr: true, showNorth: true, showScale: true, links: true, ...(() => { try { return JSON.parse(localStorage.getItem("gismap.mapTemplateFrame")) || {}; } catch { return {}; } })() };
     const project = this.projectManager.current;
     const now = new Date();
     const fields = {
@@ -2394,7 +2394,7 @@ export class UIController {
             <label class="field"><span>Margin colour</span><input type="color" data-frame-margin-color value="${escapeHtml(frame.marginColor)}"></label>
             <label class="opacity-row"><span>Border</span><input type="range" min="0" max="12" step="0.5" data-frame-border value="${frame.borderWidth}"><output>${frame.borderWidth} pt</output></label>
             <label class="field"><span>Border colour</span><input type="color" data-frame-border-color value="${escapeHtml(frame.borderColor)}"></label>
-          </div><label class="menu__toggle map-templates__qr"><input type="checkbox" data-frame-qr${frame.showQr !== false ? " checked" : ""}><span>Show QR code</span></label><label class="menu__toggle"><input type="checkbox" data-frame-north${frame.showNorth !== false ? " checked" : ""}><span>Show north arrow</span></label><label class="menu__toggle"><input type="checkbox" data-frame-scale${frame.showScale !== false ? " checked" : ""}><span>Show scale bar</span></label><p class="form-note" data-frame-qr-note hidden>No QR code: the live-map link needs a public web layer or a text box on the map.</p></fieldset>
+          </div><label class="menu__toggle map-templates__qr"><input type="checkbox" data-frame-qr${frame.showQr !== false ? " checked" : ""}><span>Show QR code</span></label><label class="menu__toggle"><input type="checkbox" data-frame-north${frame.showNorth !== false ? " checked" : ""}><span>Show north arrow</span></label><label class="menu__toggle"><input type="checkbox" data-frame-scale${frame.showScale !== false ? " checked" : ""}><span>Show scale bar</span></label><label class="menu__toggle"><input type="checkbox" data-frame-links${frame.links !== false ? " checked" : ""}><span>Clickable links in the PDF</span></label><p class="form-note" data-frame-qr-note hidden>No QR code: the live-map link needs a public web layer or a text box on the map.</p></fieldset>
           <fieldset class="feedback-settings map-templates__images" data-template-images-panel hidden><legend>Images on the map</legend>
             <p class="form-note">Add logos, photos or callouts. They stay in this browser session and are not saved in the project.</p>
             <div data-template-images></div>
@@ -2497,6 +2497,7 @@ export class UIController {
       frame.showQr = frameInputs.querySelector("[data-frame-qr]").checked;
       frame.showNorth = frameInputs.querySelector("[data-frame-north]").checked;
       frame.showScale = frameInputs.querySelector("[data-frame-scale]").checked;
+      frame.links = frameInputs.querySelector("[data-frame-links]").checked;
       frameInputs.querySelector("[data-frame-margin] + output").value = `${frame.margin.toFixed(2)} in`;
       frameInputs.querySelector("[data-frame-border] + output").value = `${frame.borderWidth} pt`;
       try { localStorage.setItem("gismap.mapTemplateFrame", JSON.stringify(frame)); } catch { /* Preference only. */ }
@@ -2610,6 +2611,7 @@ export class UIController {
       logo,
       heading,
       center: Number.isFinite(latitude) ? { longitude, latitude } : null,
+      centerUrl: Number.isFinite(latitude) ? locationUrl(location.href, { latitude, longitude }) : null,
       date: new Date().toLocaleString(),
       credits,
       layers: this.mapController.getAllLayerConfigs().filter((config) => config.visible !== false).map((config) => ({ title: config.title || "Layer" })),
@@ -2702,6 +2704,7 @@ export class UIController {
           title: bookmark.name || base.title,
           subtitle: bookmark.description || base.subtitle,
           center: (() => { const [longitude, latitude] = this.mapController.getViewState().center || []; return Number.isFinite(latitude) ? { longitude, latitude } : base.center; })(),
+          centerUrl: (() => { const [longitude, latitude] = this.mapController.getViewState().center || []; return Number.isFinite(latitude) ? locationUrl(location.href, { latitude, longitude }) : base.centerUrl; })(),
         }, { ppi: this.#templatePpi(templateId, 150), frame }));
       }
     } finally {

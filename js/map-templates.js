@@ -59,7 +59,11 @@ function band(context, x, y, width, height, palette) {
 }
 
 /** The GIS Map Online mark and wordmark, `size` tall. */
+// Links the page adds on its own (the wordmark, a centre coordinate), collected per render.
+let pageLinks = [];
+
 function brand(context, x, y, size, data, { light = true } = {}) {
+  pageLinks.push({ x, y, w: size * 3.2, h: size, url: "https://gismap.online/" });
   if (data.logo) context.drawImage(data.logo, x, y, size, size);
   context.save();
   context.textBaseline = "alphabetic";
@@ -368,7 +372,8 @@ const templates = [
       let y = legend(context, data, column.x, 1.5 * k, column.w, { size: 0.13 * k, bottom: 4.7 * k, heading: "Layers" });
       if (data.center) {
         y = text(context, "Centre", column.x, y + 0.1 * k, column.w, { size: 0.13 * k, weight: 700 });
-        text(context, centreText(data), column.x, y, column.w, { size: 0.12 * k, color: "#0d6680" });
+        const end = text(context, centreText(data), column.x, y, column.w, { size: 0.12 * k, color: "#0d6680" });
+        if (data.centerUrl) pageLinks.push({ x: column.x, y, w: column.w * 0.7, h: end - y, url: data.centerUrl });
       }
       const link = qr(context, data, column.x, 5.45 * k, 1.5 * k);
       scaleBar(context, data, rect, column.x, 7.45 * k, 1.8 * k, 0.13 * k);
@@ -603,7 +608,12 @@ export function renderTemplate(id, data, { ppi = 150, frame = DEFAULT_PAGE_FRAME
   context.fillStyle = "#ffffff";
   context.fillRect(0, 0, width * k, height * k);
   const page = { legend: [], layers: [], images: [], ...data };
-  const links = (template.draw(context, k, page) || []).filter((link) => link?.url)
+  pageLinks = [];
+  const drawn = (template.draw(context, k, page) || []).filter((link) => link?.url);
+  // Every page links its map to the live map, whatever the template returned.
+  const mapRect = template.mapRect(k, page);
+  if (page.linkUrl && !drawn.some((link) => link.x === mapRect.x && link.y === mapRect.y)) drawn.push({ ...mapRect, url: page.linkUrl });
+  const links = frame.links === false ? [] : [...pageLinks, ...drawn]
     .map((link) => ({ ...link, x: link.x + offsetX, y: link.y + offsetY }));
   context.restore();
   if (border > 0) {
