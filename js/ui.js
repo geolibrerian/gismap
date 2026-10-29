@@ -1,4 +1,4 @@
-import { initializeFieldworkWorkspace } from "./fieldwork-workspace.js?v=0.58.1-cinematic1";
+import { initializeFieldworkWorkspace } from "./fieldwork-workspace.js?v=0.63.16-text-boxes";
 import { timelinePdfFrames, expandTimelinePdfSlides, parseTimelineFrameSelection } from "./briefing-timeline-pdf.js?v=0.1.0";
 import { renderNotesHub } from "./notes-hub.js?v=0.55.0-fieldwork1";
 import { refreshMapNoteFilters } from './map-note-filters.js?v=0.4.1';
@@ -13,7 +13,7 @@ import { MapAssistantPanel } from "./assistant-panel.js?v=0.57.0-skins1";
 import { createAssistantTools, summarizeMapState } from "./map-assistant.js?v=0.61.1-dashboard-agent";
 import { ENTERPRISE_CATALOGS, EnterpriseCatalog, normalizeArcGisDirectoryUrl } from "./enterprise-catalog.js?v=0.18.2";
 import { createShareUrl } from "./share.js?v=0.54.0-unified4";
-import { createShareLink, hasDataFilter, readBriefingFile } from "./map-share.js?v=0.63.10-text-boxes";
+import { createShareLink, hasDataFilter, readBriefingFile } from "./map-share.js?v=0.63.16-text-boxes";
 import { createEmbedIframe, createEmbedUrl } from "./embed-share.js?v=0.61.0-embed1";
 import { briefingLayerRef, findBriefingLayer } from "./briefing-api.js?v=0.61.0-briefing-player";
 import { createEmbeddedTourUrl } from "./tour-share.js?v=0.54.0-unified4";
@@ -26,8 +26,8 @@ import { applyMapColors, MAP_COLOR_COMPONENTS, SKIN_BASEMAP, themeFromComputedSt
 import { compactMedia } from "./viewport.js?v=0.18.2";
 import { APP_VERSION } from "./version.js?v=0.53.0";
 import { bindMobileSheetResize } from "./mobile-sheet-resize.js?v=0.52.7";
-import { BRAND_LOGO, PdfDocument, brandedMapImage, brandedQrCanvas, imageToJpeg, loadBrandLogo, printPalette, qrAsset } from "./pdf-document.js?v=0.63.10-text-boxes";
-import { DEFAULT_PAGE_FRAME, IMAGE_ANCHORS, MAP_TEMPLATES, getTemplate, loadImage, renderTemplate, templateMapAspect } from "./map-templates.js?v=0.63.10-text-boxes";
+import { BRAND_LOGO, PdfDocument, brandedMapImage, brandedQrCanvas, imageToJpeg, loadBrandLogo, printPalette, qrAsset } from "./pdf-document.js?v=0.63.16-text-boxes";
+import { DEFAULT_PAGE_FRAME, IMAGE_ANCHORS, MAP_TEMPLATES, getTemplate, loadImage, renderTemplate, templateMapAspect } from "./map-templates.js?v=0.63.16-text-boxes";
 import { featureLayerUrl, locationUrl } from "./field-task-share.js?v=0.54.0-unified4";
 import { dockIcon } from "./dock-icons.js?v=0.24.0";
 import { serviceNameFromUrl } from "./service-name.js?v=0.26.0";
@@ -64,8 +64,8 @@ import { buildClipPackage, clipToCinematicSpec, createCinematicClip, exportCinem
 import { availableVideoFormats, cameraAt, CLIP_FRAME_RATES, clipFrameCount, exportCinematicVideo, observationIndexAt, renderClipPoster } from "./cinematic/clip-export.js?v=0.3.8-fire-points";
 import { CHART_PANEL_PLACEMENTS, CHART_TYPES, PRESENTATION_TARGETS, chartFields, chartOption, createChartSpec, displayChartRows, loadECharts, queryChart, recommendCharts, renderChartFallback, rowsAsCsv } from "./charting-tools.js";
 import { MapChartOverlayController } from "./map-chart-tools.js";
-import { readTextBoxEditor, textBoxEditorMarkup, textBoxRunMarkup, textBoxSummary } from "./text-box-editor.js?v=0.63.10-text-boxes";
-import { defaultRun } from "./text-boxes.js?v=0.63.10-text-boxes";
+import { readTextBoxEditor, textBoxEditorMarkup, textBoxRunMarkup, textBoxSummary } from "./text-box-editor.js?v=0.63.16-text-boxes";
+import { defaultRun } from "./text-boxes.js?v=0.63.16-text-boxes";
 
 const BUILDINGS_3D_KEY = "gismap-online:buildings-3d:v1";
 const DISPLAY_SETTINGS_KEY = "gismap-online:display:v1";
@@ -1686,7 +1686,7 @@ export class UIController {
       });
       summary.append(button);
       const close = document.createElement("button");
-      close.type = "button"; close.className = "panel-close"; close.textContent = "×";
+      close.type = "button"; close.className = "panel-close"; close.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M6 6l12 12M18 6 6 18"/></svg>';
       close.setAttribute("aria-label", `Close ${label} panel`); close.title = `Close ${label} panel`;
       close.addEventListener("click", (event) => {
         event.preventDefault(); event.stopPropagation();
@@ -2365,13 +2365,14 @@ export class UIController {
             <label class="field"><span>Margin colour</span><input type="color" data-frame-margin-color value="${escapeHtml(frame.marginColor)}"></label>
             <label class="opacity-row"><span>Border</span><input type="range" min="0" max="12" step="0.5" data-frame-border value="${frame.borderWidth}"><output>${frame.borderWidth} pt</output></label>
             <label class="field"><span>Border colour</span><input type="color" data-frame-border-color value="${escapeHtml(frame.borderColor)}"></label>
-          </div><label class="menu__toggle map-templates__qr"><input type="checkbox" data-frame-qr${frame.showQr !== false ? " checked" : ""}><span>Show QR code</span></label></fieldset>
+          </div><label class="menu__toggle map-templates__qr"><input type="checkbox" data-frame-qr${frame.showQr !== false ? " checked" : ""}><span>Show QR code</span></label><p class="form-note" data-frame-qr-note hidden>No QR code: the live-map link needs a public web layer or a text box on the map.</p></fieldset>
           <fieldset class="feedback-settings map-templates__images" data-template-images-panel hidden><legend>Images on the map</legend>
             <p class="form-note">Add logos, photos or callouts. They stay in this browser session and are not saved in the project.</p>
             <div data-template-images></div>
             <label class="map-templates__add"><input type="file" accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml" multiple data-template-image-input> Add images…</label>
           </fieldset>
-          <p class="form-note">The map is captured as it looks now, shaped to the template's frame. Pan or zoom first, then reopen to recapture.</p>
+          <label class="field"><span>Pages</span><select data-template-pages><option value="view">Current map view</option><option value="bookmarks"${(this.projectManager.current.bookmarks ?? []).length ? "" : " disabled"}>One page per bookmark (${(this.projectManager.current.bookmarks ?? []).length})</option></select></label>
+          <p class="form-note" data-template-pages-note>The preview follows the map. Dock the editor in the workspace panel to pan and zoom while you watch.</p>
           <div class="workspace-tool__actions map-templates__actions"><button type="button" data-template-export="smart-image"${output === "smart-image" ? ' class="button--primary"' : ""}>Download Smart Image</button><button type="button" data-template-export="pdf"${output === "pdf" ? ' class="button--primary"' : ""}>Download PDF</button></div>
         </div></div></div>`,
     });
@@ -2381,6 +2382,7 @@ export class UIController {
     const captures = new Map();
     // Controls work at once; the capture and project details arrive in the background.
     const details = this.#templateData().catch(() => null);
+
     const capture = async (id) => {
       const aspect = templateMapAspect(id);
       const key = aspect.toFixed(3);
@@ -2390,9 +2392,13 @@ export class UIController {
     const data = async () => {
       const [base, shot] = await Promise.all([details, capture(templateId)]);
       if (!base) throw new Error("The map is not ready yet.");
+      const link = await this.#templateLink(base.palette);
+      root.querySelector("[data-frame-qr]").disabled = !link.qr;
+      root.querySelector("[data-frame-qr-note]").hidden = Boolean(link.qr);
       return {
         ...base,
         ...shot,
+        ...link,
         title: root.querySelector("[data-template-title]").value.trim(),
         subtitle: root.querySelector("[data-template-subtitle]").value.trim(),
         description: root.querySelector("[data-template-description]").value.trim(),
@@ -2468,7 +2474,28 @@ export class UIController {
       preview();
     };
     expand.addEventListener("click", () => setFullWindow(!this.dialog.classList.contains("app-dialog--fullwindow")));
+    // The preview follows the map: a moved view or edited label recaptures it.
+    let refresh = 0;
+    let exporting = false;
+    const follow = () => {
+      // Docking closes and reopens the dialog, so the editor stops following only once replaced or closed.
+      if (this.dialogSession !== session || !this.dialog.open) { followers.forEach((follower) => follower.remove()); return; }
+      if (exporting) return;
+      clearTimeout(refresh);
+      refresh = setTimeout(() => { captures.clear(); preview(); }, 350);
+    };
+    const followers = ["view:stationary", "text-boxes:changed", "layer:changed", "map:basemap-changed"].map((topic) => this.events.subscribe(topic, follow));
     this.dialog.addEventListener("close", () => this.dialog.classList.remove("app-dialog--fullwindow"), { once: true });
+    const pagesSelect = root.querySelector("[data-template-pages]");
+    const smartButton = root.querySelector('[data-template-export="smart-image"]');
+    pagesSelect.addEventListener("change", () => {
+      const many = pagesSelect.value === "bookmarks";
+      smartButton.disabled = many;
+      smartButton.title = many ? "A Smart Image holds one page; choose Current map view." : "";
+      root.querySelector("[data-template-pages-note]").textContent = many
+        ? "The PDF gets one page per bookmark, each titled with its name. The map visits every bookmark while it is made, then returns here."
+        : "The preview follows the map. Dock the editor in the workspace panel to pan and zoom while you watch.";
+    });
     if ((() => { try { return localStorage.getItem("gismap.mapTemplateFullWindow") === "1"; } catch { return false; } })()) setFullWindow(true);
     const images = root.querySelector("[data-template-images]");
     images.addEventListener("input", (event) => {
@@ -2490,6 +2517,13 @@ export class UIController {
       const kind = button.dataset.templateExport;
       button.disabled = true;
       try {
+        if (kind === "pdf" && pagesSelect.value === "bookmarks") {
+          exporting = true;
+          const pages = await this.#bookmarkPages(templateId, data, frame, status);
+          const stem = templateId === "branded" ? "" : `-${templateId}`;
+          this.#download(await this.#templatePdf(pages, `${this.#fileStem()}${stem}-bookmarks.pdf`));
+          return;
+        }
         this.toast(kind === "pdf" ? "Making the map PDF…" : "Rendering the Smart Image…");
         const page = renderTemplate(templateId, await data(), { ppi: kind === "pdf" ? 150 : 120, frame });
         const stem = (page.template.id === "branded" ? "" : `-${page.template.id}`);
@@ -2501,7 +2535,8 @@ export class UIController {
       } catch (error) {
         this.error(error.message);
       } finally {
-        button.disabled = false;
+        button.disabled = kind === "smart-image" && pagesSelect.value === "bookmarks";
+        exporting = false;
       }
     }));
     await preview();
@@ -2511,12 +2546,6 @@ export class UIController {
   async #templateData() {
     const skin = document.documentElement.dataset.skin || this.projectManager.current.presentation?.skin;
     const palette = printPalette(skin);
-    const link = await this.#mapShareLink().catch(() => null);
-    let qr = null;
-    if (link?.url && link.qr && globalThis.QRCode?.toCanvas) {
-      qr = document.createElement("canvas");
-      await globalThis.QRCode.toCanvas(qr, link.url, { width: 600, margin: 1, errorCorrectionLevel: "L", color: { dark: palette.band, light: "#ffffff" } }).catch(() => { qr = null; });
-    }
     const logo = await loadImage(BRAND_LOGO);
     const [longitude, latitude] = this.mapController.getViewState().center || [];
     let heading = 0;
@@ -2525,8 +2554,6 @@ export class UIController {
     return {
       palette,
       logo,
-      qr,
-      linkUrl: link?.url || null,
       heading,
       center: Number.isFinite(latitude) ? { longitude, latitude } : null,
       date: new Date().toLocaleString(),
@@ -2534,6 +2561,21 @@ export class UIController {
       layers: this.mapController.getAllLayerConfigs().filter((config) => config.visible !== false).map((config) => ({ title: config.title || "Layer" })),
       legend: (() => { try { return this.mapController.getLegendData?.() || []; } catch { return []; } })(),
     };
+  }
+
+  /** The live-map link and its QR code, rebuilt only when the link changes. */
+  async #templateLink(palette) {
+    const link = await this.#mapShareLink().catch(() => null);
+    if (!link?.url) return { qr: null, linkUrl: null };
+    if (this.templateQr?.url !== link.url) {
+      let qr = null;
+      if (link.qr && globalThis.QRCode?.toCanvas) {
+        qr = document.createElement("canvas");
+        await globalThis.QRCode.toCanvas(qr, link.url, { width: 600, margin: 1, errorCorrectionLevel: "L", color: { dark: palette.band, light: "#ffffff" } }).catch(() => { qr = null; });
+      }
+      this.templateQr = { url: link.url, qr };
+    }
+    return { qr: this.templateQr.qr, linkUrl: link.url };
   }
 
   /** The map shaped to a template's frame, with its ground width and extent when the view is flat. */
@@ -2566,16 +2608,53 @@ export class UIController {
   }
 
   /** A template page as a one-page PDF: the page image plus its clickable areas. */
-  async #templatePdf(page, name) {
-    const { canvas, links, template } = page;
-    const asset = await imageToJpeg(canvas.toDataURL("image/png"), { width: canvas.width, height: canvas.height, quality: 0.9 });
+  /** Template pages as a PDF: each page image plus its clickable areas. */
+  async #templatePdf(pages, name) {
+    const list = Array.isArray(pages) ? pages : [pages];
+    const { template } = list[0];
     const width = template.page.width * 72;
     const height = template.page.height * 72;
     const pdf = new PdfDocument({ header: false, homeUrl: null, pageWidth: width, pageHeight: height, margin: 0 });
-    pdf.addImageAt(asset, { x: 0, y: height, width, height });
-    const scale = 72 / (canvas.width / template.page.width);
-    for (const link of links) pdf.addLink([link.x * scale, height - (link.y + link.h) * scale, (link.x + link.w) * scale, height - link.y * scale], link.url);
+    for (const [index, { canvas, links }] of list.entries()) {
+      if (index) pdf.newPage();
+      const asset = await imageToJpeg(canvas.toDataURL("image/png"), { width: canvas.width, height: canvas.height, quality: 0.9 });
+      pdf.addImageAt(asset, { x: 0, y: height, width, height });
+      const scale = 72 / (canvas.width / template.page.width);
+      for (const link of links) pdf.addLink([link.x * scale, height - (link.y + link.h) * scale, (link.x + link.w) * scale, height - link.y * scale], link.url);
+    }
     return new File([pdf.toBlob()], name, { type: "application/pdf" });
+  }
+
+  /** One rendered page per bookmark; the map visits each and then returns to where it was. */
+  async #bookmarkPages(templateId, data, frame, status) {
+    const bookmarks = (this.projectManager.current.bookmarks ?? []).filter((bookmark) => bookmark.viewpoint);
+    if (!bookmarks.length) throw new Error("Add a bookmark first.");
+    const base = await data();
+    const previous = this.mapController.getViewState();
+    const aspect = templateMapAspect(templateId);
+    const pages = [];
+    try {
+      for (const [index, bookmark] of bookmarks.entries()) {
+        status.textContent = `Page ${index + 1} of ${bookmarks.length}: ${bookmark.name}`;
+        await this.mapController.restoreView(bookmark.viewpoint);
+        await new Promise((resolve) => setTimeout(resolve, 250));
+        const shot = await this.#templateCapture(aspect);
+        const link = await this.#templateLink(base.palette);
+        pages.push(renderTemplate(templateId, {
+          ...base,
+          ...shot,
+          ...link,
+          ...(frame.showQr === false ? { qr: null } : {}),
+          title: bookmark.name || base.title,
+          subtitle: bookmark.description || base.subtitle,
+          center: (() => { const [longitude, latitude] = this.mapController.getViewState().center || []; return Number.isFinite(latitude) ? { longitude, latitude } : base.center; })(),
+        }, { ppi: 150, frame }));
+      }
+    } finally {
+      await this.mapController.restoreView(previous).catch(() => {});
+      status.textContent = `${pages.length} bookmark page${pages.length === 1 ? "" : "s"} ready`;
+    }
+    return pages;
   }
 
   #fileStem() {

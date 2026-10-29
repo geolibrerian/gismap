@@ -168,27 +168,30 @@ function niceDistance(meters) {
 }
 
 /** A two-segment scale bar at most `maxWidth` wide; skipped when the map is tilted. */
-function scaleBar(context, data, rect, x, y, maxWidth, size) {
+function scaleBar(context, data, rect, x, y, maxWidth, size, { light = false } = {}) {
   if (!Number.isFinite(data.groundWidth) || data.groundWidth <= 0) return;
   const metersPerPx = data.groundWidth / rect.w;
   const meters = niceDistance(maxWidth * metersPerPx);
   const width = meters / metersPerPx;
   const label = meters >= 1000 ? `${meters / 1000} km` : `${meters} m`;
   const miles = meters / 1609.344;
+  const ink = light ? "#ffffff" : "#17201d";
   context.save();
-  context.fillStyle = "#17201d";
+  context.fillStyle = ink;
   context.fillRect(x, y, width / 2, size * 0.35);
-  context.fillStyle = "#ffffff";
+  context.fillStyle = light ? "transparent" : "#ffffff";
   context.fillRect(x + width / 2, y, width / 2, size * 0.35);
-  context.strokeStyle = "#17201d";
+  context.strokeStyle = ink;
   context.lineWidth = Math.max(1, size / 14);
   context.strokeRect(x, y, width, size * 0.35);
   context.restore();
-  text(context, `0`, x - size, y + size * 0.45, size * 2, { size: size * 0.8, align: "center" });
-  text(context, `${label} (${miles >= 1 ? miles.toFixed(1) : (miles * 5280).toFixed(0)} ${miles >= 1 ? "mi" : "ft"})`, x + width - size * 6, y + size * 0.45, size * 12, { size: size * 0.8, align: "center" });
+  text(context, `0`, x - size, y + size * 0.45, size * 2, { size: size * 0.8, align: "center", color: ink });
+  text(context, `${label} (${miles >= 1 ? miles.toFixed(1) : (miles * 5280).toFixed(0)} ${miles >= 1 ? "mi" : "ft"})`, x + width - size * 6, y + size * 0.45, size * 12, { size: size * 0.8, align: "center", color: ink });
 }
 
-function northArrow(context, cx, cy, size, heading = 0) {
+function northArrow(context, cx, cy, size, heading = 0, { light = false } = {}) {
+  const ink = light ? "#ffffff" : "#17201d";
+  const paper = light ? "transparent" : "#ffffff";
   context.save();
   context.translate(cx, cy);
   context.rotate((-(Number(heading) || 0) * Math.PI) / 180);
@@ -197,20 +200,20 @@ function northArrow(context, cx, cy, size, heading = 0) {
   context.lineTo(size * 0.3, size * 0.4);
   context.lineTo(0, size * 0.22);
   context.closePath();
-  context.fillStyle = "#17201d";
+  context.fillStyle = ink;
   context.fill();
   context.beginPath();
   context.moveTo(0, -size / 2);
   context.lineTo(-size * 0.3, size * 0.4);
   context.lineTo(0, size * 0.22);
   context.closePath();
-  context.fillStyle = "#ffffff";
+  context.fillStyle = paper;
   context.fill();
-  context.strokeStyle = "#17201d";
+  context.strokeStyle = ink;
   context.lineWidth = Math.max(1, size / 20);
   context.stroke();
   context.font = font(size * 0.38, 700);
-  context.fillStyle = "#17201d";
+  context.fillStyle = ink;
   context.textAlign = "center";
   context.textBaseline = "bottom";
   context.fillText("N", 0, -size / 2 - size * 0.04);
@@ -317,9 +320,9 @@ const templates = [
         y = text(context, "Centre", column.x, y + 0.1 * k, column.w, { size: 0.13 * k, weight: 700 });
         text(context, centreText(data), column.x, y, column.w, { size: 0.12 * k, color: "#0d6680" });
       }
-      scaleBar(context, data, rect, column.x, 5.0 * k, 1.8 * k, 0.14 * k);
-      northArrow(context, column.x + 2.35 * k, 5.1 * k, 0.4 * k, data.heading);
-      const link = qr(context, data, column.x, 5.6 * k, 1.55 * k);
+      const link = qr(context, data, column.x, 5.45 * k, 1.5 * k);
+      scaleBar(context, data, rect, column.x, 7.45 * k, 1.8 * k, 0.13 * k);
+      northArrow(context, column.x + 2.35 * k, 7.55 * k, 0.36 * k, data.heading);
       footer(context, data, 0.5 * k, 7.85 * k, 7.1 * k, 0.1 * k);
       return [link, data.linkUrl && { ...rect, url: data.linkUrl }];
     },
@@ -339,19 +342,17 @@ const templates = [
       context.fillRect(0.35 * k, 0.35 * k, 0.06 * k, (data.subtitle ? 1.0 : 0.75) * k);
       const y = text(context, data.title, 0.55 * k, 0.48 * k, 4.3 * k, { size: 0.3 * k, family: SERIF, weight: 700, color: data.palette.accent, maxLines: 1 });
       text(context, data.subtitle, 0.55 * k, y + 0.04 * k, 4.3 * k, { size: 0.13 * k, color: "#3a4744", maxLines: 1 });
-      if (Number.isFinite(data.groundWidth)) {
-        plate(context, 0.35 * k, 7.55 * k, 2.9 * k, 0.6 * k, 0.06 * k);
-        scaleBar(context, data, rect, 0.65 * k, 7.72 * k, 1.9 * k, 0.14 * k);
-      }
-      plate(context, 3.35 * k, 7.55 * k, 0.6 * k, 0.6 * k, 0.3 * k);
-      northArrow(context, 3.65 * k, 7.88 * k, 0.38 * k, data.heading);
+      const scaled = Number.isFinite(data.groundWidth);
+      plate(context, 0.35 * k, 7.6 * k, (scaled ? 3.55 : 0.6) * k, 0.55 * k, 0.06 * k);
+      if (scaled) scaleBar(context, data, rect, 0.6 * k, 7.72 * k, 1.9 * k, 0.13 * k);
+      northArrow(context, (scaled ? 3.6 : 0.65) * k, 7.9 * k, 0.34 * k, data.heading);
       let link = null;
       if (data.qr) {
         plate(context, 9.35 * k, 6.45 * k, 1.3 * k, 1.7 * k, 0.08 * k, 0.94);
         link = qr(context, data, 9.45 * k, 6.55 * k, 1.1 * k);
       }
-      plate(context, 4.15 * k, 7.95 * k, 5 * k, 0.24 * k, 0.04 * k, 0.75);
-      footer(context, data, 4.25 * k, 7.99 * k, 4.8 * k, 0.1 * k);
+      plate(context, 4.1 * k, 7.91 * k, 5 * k, 0.24 * k, 0.04 * k, 0.75);
+      footer(context, data, 4.2 * k, 7.95 * k, 4.8 * k, 0.1 * k);
       return [link];
     },
   },
@@ -449,8 +450,10 @@ const templates = [
       band(context, 0, 0, 13.333 * k, 1.1 * k, data.palette);
       context.fillStyle = data.palette.edge;
       context.fillRect(0, 0, 0.1 * k, 1.1 * k);
-      const y = text(context, data.title, 0.45 * k, 0.2 * k, 9.5 * k, { size: 0.42 * k, family: SERIF, weight: 700, color: "#ffffff", maxLines: 1 });
-      text(context, data.subtitle, 0.45 * k, y, 9.5 * k, { size: 0.16 * k, color: "rgba(255,255,255,.85)", maxLines: 1 });
+      const y = text(context, data.title, 0.45 * k, 0.2 * k, 6.8 * k, { size: 0.42 * k, family: SERIF, weight: 700, color: "#ffffff", maxLines: 1 });
+      text(context, data.subtitle, 0.45 * k, y, 6.8 * k, { size: 0.16 * k, color: "rgba(255,255,255,.85)", maxLines: 1 });
+      scaleBar(context, data, this.mapRect(k), 7.6 * k, 0.42 * k, 2.1 * k, 0.15 * k, { light: true });
+      northArrow(context, 10.6 * k, 0.6 * k, 0.5 * k, data.heading, { light: true });
       brand(context, 11.2 * k, 0.25 * k, 0.6 * k, data);
       const rect = this.mapRect(k);
       map(context, rect, data);
@@ -459,10 +462,6 @@ const templates = [
       if (layers) {
         plate(context, 0.3 * k, 5.0 * k, 3.4 * k, 2.2 * k, 0.08 * k, 0.92);
         legend(context, data, 0.45 * k, 5.12 * k, 3.1 * k, { size: 0.13 * k, bottom: 7.05 * k });
-      }
-      if (Number.isFinite(data.groundWidth)) {
-        plate(context, 3.9 * k, 6.75 * k, 2.6 * k, 0.5 * k, 0.06 * k);
-        scaleBar(context, data, rect, 4.1 * k, 6.86 * k, 1.8 * k, 0.13 * k);
       }
       let link = null;
       if (data.qr) {

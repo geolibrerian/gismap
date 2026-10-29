@@ -10,6 +10,7 @@ const paths = {
   briefs: '<rect x="3" y="4" width="18" height="13" rx="2"/><path d="M12 17v4m-4 0h8M7 8h10M7 12h6"/>',
   tours: '<circle cx="6" cy="6" r="3"/><circle cx="18" cy="18" r="3"/><path d="M9 6h6a4 4 0 0 1 0 8H9a4 4 0 0 0-4 4h10"/>',
   cinematic: '<path d="M3 8h18v12H3zM3 8l3-5h3l-3 5m3 0 3-5h3l-3 5m3 0 3-5h3l-3 5M9 12l5 3-5 3z"/>',
+  print: '<path d="M7 8V3h10v5M7 17H4v-7a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v7h-3M7 14h10v7H7z"/>',
   ai: '<path d="m12 3 2.5 6.5L21 12l-6.5 2.5L12 21l-2.5-6.5L3 12l6.5-2.5Z"/>',
   welcome: '<path d="m3 10 9-7 9 7v10H3zM9 20v-6h6v6"/>',
   settings: '<path d="M4 7h16M4 17h16"/><circle cx="8" cy="7" r="3"/><circle cx="16" cy="17" r="3"/>',
@@ -42,7 +43,7 @@ export function initializeFieldworkWorkspace({ ui, action, showSidebar, theme, s
   const rail = document.createElement('nav');
   rail.className = 'workspace-rail';
   rail.setAttribute('aria-label', 'Workspaces');
-  rail.innerHTML = [['explore','Explore'],['layers','Layers'],['notes','Notes & tasks'],['draw','Draw'],['briefs','Briefings'],['tours','Tours'],['cinematic','Cinematic mode'],['ai','Ask GISMap']].map(([id,label]) => `<button type="button" data-workspace="${id}" aria-label="${label}" title="${label}" aria-pressed="false">${workspaceIcon(id)}<span>${label}</span></button>`).join('') + `<button type="button" class="workspace-rail__welcome" aria-label="Open welcome panel" title="Open welcome panel" aria-controls="welcome-panel" aria-expanded="false" hidden>${workspaceIcon('welcome')}<span>Welcome · open anytime</span></button><button type="button" class="workspace-rail__settings" aria-label="Display settings" title="Display settings">${workspaceIcon('settings')}<span>Settings</span></button>`;
+  rail.innerHTML = [['explore','Explore'],['layers','Layers'],['notes','Notes & tasks'],['draw','Draw'],['briefs','Briefings'],['tours','Tours'],['cinematic','Cinematic mode'],['print','Print Editor'],['ai','Ask GISMap']].map(([id,label]) => `<button type="button" data-workspace="${id}" aria-label="${label}" title="${label}" aria-pressed="false">${workspaceIcon(id)}<span>${label}</span></button>`).join('') + `<button type="button" class="workspace-rail__welcome" aria-label="Open welcome panel" title="Open welcome panel" aria-controls="welcome-panel" aria-expanded="false" hidden>${workspaceIcon('welcome')}<span>Welcome · open anytime</span></button><button type="button" class="workspace-rail__settings" aria-label="Display settings" title="Display settings">${workspaceIcon('settings')}<span>Settings</span></button>`;
   const tabs = document.createElement('nav');
   tabs.className = 'workspace-tabs';
   tabs.setAttribute('aria-label', 'Workspace panels');
@@ -122,6 +123,7 @@ export function initializeFieldworkWorkspace({ ui, action, showSidebar, theme, s
     // Choosing a workspace replaces the introduction, including one reopened from the rail.
     if (document.querySelector('#welcome-panel')?.hidden === false) action('welcome-dismiss');
     if (id === 'ai') { action('tools-assistant'); return; }
+    if (id === 'print') { action('export-pdf-editor'); return; }
     if (id === 'briefs' || id === 'tours') {
       document.querySelector(`.desktop-workflows-menu [data-mobile-workflow="${id === 'briefs' ? 'briefing' : 'tours'}"]`)?.click();
       return;

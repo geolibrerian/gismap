@@ -558,6 +558,15 @@ body.fieldwork-desktop .welcome-panel { z-index: 8; }
 body.fieldwork-desktop #app .sidebar__scroll > .panel > summary > span { flex: 0 0 auto; }
 body.fieldwork-desktop #app .sidebar__scroll > .panel > summary > small { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 body.fieldwork-desktop .panel > summary > .workspace-pin { order: 1; margin-left: auto; }
+/* Panel headers: a disclosure chevron before the title, then two matching icon buttons (pin, close). */
+body.fieldwork-desktop .sidebar__scroll > .panel > summary::after { display: none; }
+body.fieldwork-desktop .sidebar__scroll > .panel > summary::before { content: ""; order: -1; flex: 0 0 auto; width: 7px; height: 7px; margin: 0 10px 0 2px; border-right: 2px solid var(--text-muted); border-bottom: 2px solid var(--text-muted); transform: rotate(-45deg); transition: transform .15s; }
+body.fieldwork-desktop .sidebar__scroll > .panel[open] > summary::before { transform: translateY(-2px) rotate(45deg); }
+body.fieldwork-desktop .panel > summary > .panel-close { order: 2; display: inline-grid; place-items: center; flex: 0 0 28px; width: 28px; height: 28px; align-self: center; margin-left: 4px; padding: 5px; border: 1px solid transparent; border-radius: 6px; color: var(--text-muted); background: transparent; cursor: pointer; }
+body.fieldwork-desktop .panel > summary > .panel-close svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.9; stroke-linecap: round; }
+body.fieldwork-desktop .panel > summary > .panel-close:is(:hover, :focus-visible) { color: var(--text-primary); border-color: var(--border-subtle); background: var(--surface-raised); }
+body.fieldwork-desktop .panel > summary > .workspace-pin:not([aria-pressed="true"]) { border-color: transparent; background: transparent; }
+body.fieldwork-desktop .sidebar__scroll > .panel > summary > .panel-dock { display: none; }
 body.fieldwork-desktop .panel > summary > .panel-dock { order: 2; }
 body.fieldwork-desktop .panel > summary > .panel-close { order: 3; margin-left: 0; }
 
