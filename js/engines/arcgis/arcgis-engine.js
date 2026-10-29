@@ -479,6 +479,31 @@ export class ArcGISEngine {
     this.drawLayer?.removeAll();
   }
 
+  /** Replaces the drawings with saved GeoJSON features (EPSG:4326), styled like new sketches. */
+  setDrawings(features = []) {
+    if (!this.drawLayer) return;
+    this.drawLayer.removeAll();
+    const spatialReference = { wkid: 4326 };
+    const symbols = {
+      point: this.sketch?.pointSymbol ?? { type: "simple-marker", color: "#d9951e", outline: { color: "#ffffff", width: 1.5 }, size: 9 },
+      multipoint: this.sketch?.pointSymbol ?? { type: "simple-marker", color: "#d9951e", size: 9 },
+      polyline: this.sketch?.polylineSymbol ?? { type: "simple-line", color: "#d9951e", width: 3 },
+      polygon: this.sketch?.polygonSymbol ?? { type: "simple-fill", color: [217, 149, 30, 0.18], outline: { color: "#d9951e", width: 2 } },
+    };
+    const toArcGIS = ({ type, coordinates }) => ({
+      Point: { type: "point", x: coordinates[0], y: coordinates[1], spatialReference },
+      MultiPoint: { type: "multipoint", points: coordinates, spatialReference },
+      LineString: { type: "polyline", paths: [coordinates], spatialReference },
+      MultiLineString: { type: "polyline", paths: coordinates, spatialReference },
+      Polygon: { type: "polygon", rings: coordinates, spatialReference },
+      MultiPolygon: { type: "polygon", rings: coordinates.flat(), spatialReference },
+    })[type] ?? null;
+    for (const feature of features) {
+      const geometry = toArcGIS(feature.geometry);
+      if (geometry) this.drawLayer.add(new this.modules.Graphic({ geometry, symbol: symbols[geometry.type], attributes: {} }));
+    }
+  }
+
   getDrawGraphicsForExport(scope = "all") {
     const extent = this.view?.extent;
     return (this.drawLayer?.graphics?.toArray?.() ?? [])

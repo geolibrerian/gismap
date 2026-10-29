@@ -1,7 +1,7 @@
 // Stable application-facing map facade. It owns engine selection and the
 // higher-level workflows that can be expressed with provider-neutral
 // primitives. Renderer adapters stay focused on drawing and interaction.
-import { createEngine, getEngineDefinition, listEngines } from "./engines/engine-registry.js?v=0.62.5-amd-safe";
+import { createEngine, getEngineDefinition, listEngines } from "./engines/engine-registry.js?v=0.62.7-save-all";
 import { MAP_CONTROLLER_METHODS, METHOD_CAPABILITIES, unsupported } from "./engines/engine-interface.js?v=0.62.4-silent-engine-handoff";
 import { GisMapError } from "./gismap-errors.js?v=0.28.0";
 
@@ -13,6 +13,22 @@ const nothing = () => undefined;
  * absence is harmless (no click marker, no tour pins, no address lookup).
  * Anything not listed reports the missing capability instead.
  */
+const CARRIED_LAYER_FIELDS = ["wfsName", "customParameters", "elevationInfo", "animatedEffect", "scene3d"];
+
+/** An ArcGIS JSON or GeoJSON geometry (EPSG:4326) as GeoJSON. */
+function toGeoJsonGeometry(geometry) {
+  if (!geometry) return null;
+  if (typeof geometry.type === "string" && Array.isArray(geometry.coordinates)) return { type: geometry.type, coordinates: geometry.coordinates };
+  if (Number.isFinite(geometry.x) && Number.isFinite(geometry.y)) return { type: "Point", coordinates: [geometry.x, geometry.y] };
+  if (Array.isArray(geometry.points)) return { type: "MultiPoint", coordinates: geometry.points.map((point) => point.slice(0, 2)) };
+  if (Array.isArray(geometry.paths)) {
+    const paths = geometry.paths.map((path) => path.map((point) => point.slice(0, 2)));
+    return paths.length === 1 ? { type: "LineString", coordinates: paths[0] } : { type: "MultiLineString", coordinates: paths };
+  }
+  if (Array.isArray(geometry.rings)) return { type: "Polygon", coordinates: geometry.rings.map((ring) => ring.map((point) => point.slice(0, 2))) };
+  return null;
+}
+
 const FALLBACKS = Object.freeze({
   configureInteractionFeedback: nothing,
   clearClickMarker: nothing,
@@ -51,7 +67,8 @@ export class MapController {
     this.defaultBasemapId = null;
     this.groundId = "world-elevation";
     this.geoParquetSources = new Map();
-    this.events?.subscribe?.("layer:removed", ({ uid }) => this.geoParquetSources.delete(uid));
+    this.carriedLayerFields = new Map();
+    this.events?.subscribe?.("layer:removed", ({ uid }) => { this.geoParquetSources.delete(uid); this.carriedLayerFields.delete(uid); });
   }
 
   availableEngines() { return listEngines(); }
@@ -96,6 +113,8 @@ export class MapController {
     const view = this.getViewState();
     const basemap = this.getBasemapId();
     const ground = this.getGroundId();
+    const drawings = this.getDrawings();
+    const drawingsStyle = this.engine.getDrawingsStyle?.() ?? null;
     const previousEngine = this.engine;
     const oldEngineId = this.engineId;
 
@@ -120,8 +139,11 @@ export class MapController {
         // JSON is intentionally not replayed across different SDKs.
         if (config.rendererSpec) await Promise.resolve(this.applyRendererSpec(layer.uid, config.rendererSpec)).catch(() => {});
         if (config.ignoreServiceScaleRange) await Promise.resolve(this.ignoreScaleRange(layer.uid, true)).catch(() => {});
+        if (config.animatedEffect && this.getCapabilities().includes("three-3d")) await Promise.resolve(this.setLayerEffect(layer.uid, config.animatedEffect)).catch(() => {});
         layers.push({ from: config.uid, to: layer.uid, layer, config });
       }
+      if (drawingsStyle && Object.keys(drawingsStyle).length) await Promise.resolve(engine.setDrawingsStyle?.(drawingsStyle)).catch(() => {});
+      if (drawings.length) await this.setDrawings(drawings).catch(() => {});
       await this.restoreView(view);
       this.events?.publish?.("layers:reset", {});
       this.events?.publish?.("engine:changed", { from: previousId, engine: target, layers });
@@ -183,6 +205,8 @@ export class MapController {
     const config = this._delegate("getLayerConfig", [ref]);
     if (!config) return config;
     const source = this.geoParquetSources.get(config.uid);
+    const carried = this.carriedLayerFields.get(config.uid);
+    if (carried) for (const [key, value] of Object.entries(carried)) if (config[key] == null) config[key] = structuredClone(value);
     if (!source) return config;
     return { ...config, sourceType: "geoparquet", type: "geoparquet", local: Boolean(source.file),
       url: source.url || null, fileName: source.file?.name || null,
@@ -192,6 +216,36 @@ export class MapController {
   getLocalAsset(ref) {
     const uid = typeof ref === "string" ? ref : ref?.uid;
     return this.geoParquetSources.get(uid)?.file || this._delegate("getLocalAsset", [ref]);
+  }
+
+  /**
+   * Engines keep settings they cannot draw (a WFS name on MapLibre, an effect on
+   * ArcGIS) so a project saved on one engine loses nothing on the other.
+   */
+  async addService(config = {}) {
+    const layer = await this._delegate("addService", [config]);
+    const carried = Object.fromEntries(CARRIED_LAYER_FIELDS.filter((key) => config[key] != null).map((key) => [key, structuredClone(config[key])]));
+    if (layer?.uid && Object.keys(carried).length) this.carriedLayerFields.set(layer.uid, carried);
+    return layer;
+  }
+
+  async setLayerEffect(uid, effect) {
+    const result = await this._delegate("setLayerEffect", [uid, effect]);
+    delete this.carriedLayerFields.get(uid)?.animatedEffect;
+    return result;
+  }
+
+  /** Drawings as GeoJSON features in EPSG:4326, the same on every engine. */
+  getDrawings() {
+    return (this._delegate("getDrawGraphicsForExport", ["all"]) || [])
+      .map(({ geometry }) => ({ type: "Feature", geometry: toGeoJsonGeometry(geometry), properties: {} }))
+      .filter((feature) => feature.geometry);
+  }
+
+  async setDrawings(features = []) {
+    const valid = (Array.isArray(features) ? features : []).filter((feature) => feature?.geometry?.type && Array.isArray(feature.geometry.coordinates)).slice(0, 5000);
+    if (typeof this.engine?.setDrawings !== "function") return;
+    await this.engine.setDrawings(valid.map((feature) => ({ type: "Feature", geometry: feature.geometry, properties: {} })));
   }
 
   getAllLayerConfigs() { return this.getLayers().map((layer) => this.getLayerConfig(layer)); }

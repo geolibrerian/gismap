@@ -562,6 +562,8 @@ export class UIController {
     document.querySelectorAll("[data-buildings-toggle]").forEach((input) =>
       input.addEventListener("change", () => {
         try { localStorage.setItem(BUILDINGS_3D_KEY, input.checked ? "on" : "off"); } catch { /* Not kept. */ }
+        this.projectManager.current.buildings3d = input.checked;
+        this.projectManager.persistCurrentIfSaved();
         this.mapController.setBuildings3d(input.checked);
         this.toast(input.checked ? "3D buildings on." : "3D buildings off.");
       }),
@@ -965,8 +967,15 @@ export class UIController {
       this.events.subscribe(topic, () => { refreshMapNoteWorkflow(this); refreshMapNoteFilters(this); }),
     );
     ["project:saved", "project:loaded"].forEach((topic) => this.events.subscribe(topic, () => this.#syncBriefingSave()));
+    // Projects reopen on their own engine through the same in-place switch as the Map menu.
+    this.projectManager.engineSwitcher = (engine) => this.#switchEngineSilently(engine, { updateUrl: true });
     this.events.subscribe("project:loaded", ({ project, missingFiles }) => {
       this.mapNotePoint = null;
+      if (typeof project.buildings3d === "boolean") {
+        try { localStorage.setItem(BUILDINGS_3D_KEY, project.buildings3d ? "on" : "off"); } catch { /* Not kept. */ }
+        document.querySelectorAll("[data-buildings-toggle]").forEach((input) => { input.checked = project.buildings3d; });
+        if (this.mapController.getCapabilities().includes("buildings-3d")) this.mapController.setBuildings3d(project.buildings3d);
+      }
       if (this.mapNotesModeActive) { this.mapNotesSessionDraft = null; this.fieldSessionController.session = null; openMapNotesPanel(this); }
       if (this.dataMapNotesOpen) openDataMapNotesPanel(this);
       if (project.application?.configured) {
@@ -1141,6 +1150,7 @@ export class UIController {
       if (connection && status?.signedIn) this.toast(`Connected to ${connection.name}${status.userId ? ` as ${status.userId}` : ""}.`);
     });
     this.events.subscribe("app:error", ({ message }) => this.error(message));
+    this.events.subscribe("project:credentials-removed", ({ message }) => this.toast(message));
     this.events.subscribe("widget:toggled", ({ name, open }) => {
       document.querySelectorAll(`[data-widget="${name}"]`).forEach((button) => button.classList.toggle("is-active", open));
       if (!["basemapGallery", "elevationProfile", "legend"].includes(name) && !(name === "measurement" && this.mapController.getEngineId() === "maplibre")) return;

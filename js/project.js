@@ -12,6 +12,7 @@ import { importCinematicSpec } from "./cinematic/state.js?v=0.2.8";
 import { normalizeCinematicClips } from "./cinematic/clip-model.js?v=0.3.9";
 import { composeSmartImage, embedProjectInPng, readProjectFromPng } from "./smart-image.js?v=0.44.2";
 import { normalizeCharts } from "./charting-tools.js";
+import { stripProjectCredentials } from "./project-privacy.js?v=0.62.7-save-all";
 
 const STORAGE_KEY = "gismap-online:projects:v1";
 const CURRENT_KEY = "gismap-online:current-project:v1";
@@ -112,11 +113,26 @@ export class ProjectManager {
       basemap: this.mapController.getBasemapId(),
       defaultBasemap: this.mapController.getDefaultBasemapId(),
       ground: this.mapController.getGroundId(),
+      engine: this.mapController.getEngineId?.() ?? this.current.engine ?? null,
       view: this.mapController.getViewState(),
       layers: this.mapController.getAllLayerConfigs().map(({ uid, ...layer }) => layer),
+      drawings: this.mapController.getDrawings?.() ?? [],
+      drawingsStyle: this.#drawingsStyle(),
       connections: this.authController?.exportConnections() ?? this.current.connections ?? [],
     };
     return structuredClone(this.current);
+  }
+
+  #drawingsStyle() {
+    const style = this.mapController.getDrawingsStyle?.() ?? {};
+    return Object.keys(style).length ? style : this.current.drawingsStyle ?? null;
+  }
+
+  /** The current project without credentials, for files that leave this browser. */
+  #shareableSnapshot() {
+    const { project, removed } = stripProjectCredentials(this.snapshot());
+    if (removed.length) this.events.publish("project:credentials-removed", { message: `Credentials were left out of the file for: ${removed.join(", ")}. Sign in again after opening it.` });
+    return project;
   }
 
   save(name = null) {
@@ -180,6 +196,15 @@ export class ProjectManager {
     const noteRelationships = normalizeNoteRelationships(project.noteRelationships ?? []);
     this.authController?.importConnections(project.connections ?? []);
     await this.mapController.clearOperationalLayers();
+    this.mapController.clearDrawings();
+    // Reopen on the engine the project was made with; layers are cleared first so nothing blocks the switch.
+    if (project.engine && project.engine !== this.mapController.getEngineId?.()) {
+      try {
+        await (this.engineSwitcher ? this.engineSwitcher(project.engine) : this.mapController.switchEngine(project.engine));
+      } catch (error) {
+        this.events.publish("app:error", { message: `The project was made with the ${project.engine} engine, which could not start: ${error.message}` });
+      }
+    }
     this.mapController.setDefaultBasemap(project.defaultBasemap || this.mapController.getDefaultBasemapId());
     this.mapController.setBasemap(project.basemap || this.mapController.getDefaultBasemapId());
     this.mapController.setGround(project.ground || "world-elevation");
@@ -215,6 +240,8 @@ export class ProjectManager {
             wfsName: layer.wfsName,
             customParameters: layer.customParameters,
             ignoreServiceScaleRange: layer.ignoreServiceScaleRange === true,
+            animatedEffect: layer.animatedEffect ?? null,
+            scene3d: layer.scene3d ?? null,
           });
           await this.#restoreLayerPresentation(added, layer);
         }
@@ -237,6 +264,14 @@ export class ProjectManager {
     this.current.mobile = normalizeMobileWorkflow(project.mobile);
     this.current.layerStyles = Array.isArray(project.layerStyles) ? project.layerStyles.slice(0, 200) : [];
     this.current.charts = normalizeCharts(project.charts);
+    if (project.drawingsStyle && typeof project.drawingsStyle === "object") {
+      try { await this.mapController.setDrawingsStyle(project.drawingsStyle); } catch { /* Default style. */ }
+    }
+    if (Array.isArray(project.drawings) && project.drawings.length) {
+      try { await this.mapController.setDrawings(project.drawings); } catch (error) {
+        this.events.publish("app:error", { message: `Could not restore drawings: ${error.message}` });
+      }
+    }
     await this.mapController.restoreView(project.view);
     this.events.publish("project:loaded", { project: this.current, missingFiles });
     return { project: this.current, missingFiles };
@@ -273,7 +308,7 @@ export class ProjectManager {
   }
 
   exportJson() {
-    const project = this.snapshot();
+    const project = this.#shareableSnapshot();
     const blob = new Blob([JSON.stringify(project, null, 2)], {
       type: "application/vnd.gismap.online.project+json",
     });
@@ -283,7 +318,7 @@ export class ProjectManager {
 
   /** With `download: false` the PNG is only returned (as `file`), for share dialogs. */
   async exportSmartImage({ width = 1600, height = 1000, download = true } = {}) {
-    const project = this.snapshot();
+    const project = this.#shareableSnapshot();
     const capture = await this.mapController.captureImage({ format: "png", width, height });
     if (!capture?.dataUrl) throw new Error("The map is not ready to create a Smart Image.");
     const visual = await composeSmartImage({
@@ -305,7 +340,7 @@ export class ProjectManager {
   }
 
   exportAtlas() {
-    const project = this.snapshot();
+    const project = this.#shareableSnapshot();
     const presentation = this.#presentation({ ...project.presentation, template: "atlas" });
     const tour = {
       ...project,
@@ -322,7 +357,7 @@ export class ProjectManager {
 
   async exportPackage() {
     if (!globalThis.JSZip) throw new Error("The ZIP library did not load.");
-    const project = this.snapshot();
+    const project = this.#shareableSnapshot();
     const zip = new JSZip();
     for (const layer of this.mapController.getLayers()) {
       const asset = this.mapController.getLocalAsset(layer.uid);

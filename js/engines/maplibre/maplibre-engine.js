@@ -1683,6 +1683,13 @@ export class MaplibreEngine {
   }
 
   hasDrawings() { return this.drawings.length > 0; }
+  /** Replaces the drawings with saved GeoJSON features. */
+  async setDrawings(features = []) {
+    this.drawing = null;
+    this.drawings = features.map((feature, index) => ({ type: "Feature", geometry: structuredClone(feature.geometry), properties: { drawing_id: index + 1 } }));
+    if (this.map?.getSource?.(DRAW_SOURCE) || this.map?.isStyleLoaded?.()) this.#drawDrawings();
+    if (this.drawingsStyle.animatedEffect) await this.setDrawingsStyle({ animatedEffect: this.drawingsStyle.animatedEffect });
+  }
   getDrawingsStyle() { return structuredClone(this.drawingsStyle); }
   async setDrawingsStyle(next = {}) {
     const effect = next.animatedEffect;
