@@ -2,8 +2,8 @@ import { buildManifest, createPublicStateApi } from "./application-manifest.js?v
 import { createActionsApi } from "./application-actions.js?v=0.57.0-skins1";
 import { events } from "./events.js?v=0.18.2";
 import { AuthController } from "./engines/arcgis/arcgis-auth.js?v=0.39.0";
-import { MapController } from "./map-controller.js?v=0.62.4-silent-engine-handoff";
-import { listEngines } from "./engines/engine-registry.js?v=0.61.0-briefing-player";
+import { MapController } from "./map-controller.js?v=0.62.5-amd-safe";
+import { listEngines } from "./engines/engine-registry.js?v=0.62.5-amd-safe";
 import { chooseEngine } from "./engine-preference.js?v=0.52.5";
 import { BASEMAP_IDS } from "./basemap-catalog.js?v=0.53.0-gallery1";
 import { ProjectManager } from "./project.js?v=0.61.0-briefing-player";
@@ -11,7 +11,7 @@ import { IdentifyController } from "./identify.js?v=0.54.0-pan2";
 import { AttributeTableController } from "./attribute-table.js?v=0.61.2-layer-tools";
 import { AIController } from "./ai.js?v=0.57.0-skins1";
 import { ToolManager } from "./tool-manager.js?v=0.37.0";
-import { UIController } from "./ui.js?v=0.62.4-silent-engine-handoff";
+import { UIController } from "./ui.js?v=0.62.6-dashboard-engine";
 import { ExportController } from "./export/export-controller.js?v=0.37.0";
 import { SHARE_BASEMAPS, parseShareParameters } from "./share.js?v=0.54.0-unified4";
 import { readShareLocation } from "./map-share.js?v=0.61.0-briefing-player";
@@ -364,7 +364,7 @@ async function start() {
     } catch (error) { events.publish("app:error", { message: error.message }); }
   }
 
-  // Installed as an app, double-clicking a .gmo / .gmop / .gmoatlas file opens it here.
+  // Installed as an app, double-clicking a .gis / .gisx / .gisatlas / .gisbrief / .gisclip file opens it here.
   globalThis.launchQueue?.setConsumer?.(async ({ files = [] }) => {
     for (const handle of files) await uiController.importProjectFile(await handle.getFile());
   });

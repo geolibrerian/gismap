@@ -34,12 +34,12 @@ async function transform(bytes, format, mode) {
 /** Encode a normalized briefing for a URL fragment. Deflate is preferred, with a versioned JSON fallback. */
 export async function encodeBriefing(briefing, { compress = true } = {}) {
   const json = encoder.encode(JSON.stringify(normalizeBriefing(briefing)));
-  if (json.byteLength > BRIEFING_SHARE_LIMITS.maxJsonBytes) throw new Error("This briefing is too large for a link. Export a .gmo file instead.");
+  if (json.byteLength > BRIEFING_SHARE_LIMITS.maxJsonBytes) throw new Error("This briefing is too large for a link. Export a .gis file instead.");
   const compressed = compress ? await transform(json, "deflate-raw", "compress") : null;
   const value = compressed && compressed.byteLength < json.byteLength
     ? `b${BRIEFING_SHARE_VERSION}.${bytesToBase64Url(compressed)}`
     : `j${BRIEFING_SHARE_VERSION}.${bytesToBase64Url(json)}`;
-  if (value.length > BRIEFING_SHARE_LIMITS.maxEncodedLength) throw new Error("This briefing is too large for a browser link. Export a .gmo file instead.");
+  if (value.length > BRIEFING_SHARE_LIMITS.maxEncodedLength) throw new Error("This briefing is too large for a browser link. Export a .gis file instead.");
   return value;
 }
 
@@ -66,7 +66,7 @@ export async function createBriefingUrl({ baseUrl, briefing, qrSafe = false, com
   const url = new URL(baseUrl);
   url.hash = new URLSearchParams({ briefing: await encodeBriefing(briefing, { compress }) }).toString();
   if (qrSafe && url.href.length > BRIEFING_SHARE_LIMITS.maxQrUrlLength) {
-    throw new Error("This briefing exceeds the QR-safe link limit. Copy a link or export a .gmo file instead.");
+    throw new Error("This briefing exceeds the QR-safe link limit. Copy a link or export a .gis file instead.");
   }
   return url.href;
 }

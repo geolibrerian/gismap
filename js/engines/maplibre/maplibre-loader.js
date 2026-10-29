@@ -17,13 +17,20 @@ export async function loadMaplibre() {
     document.head.append(link);
   }
   loading = new Promise((resolve, reject) => {
+    // After a switch from ArcGIS, its AMD loader's global `define` would make the
+    // UMD build register as an AMD module instead of setting `maplibregl`.
+    const amdDefine = globalThis.define?.amd ? globalThis.define : null;
+    if (amdDefine) globalThis.define = undefined;
+    const restore = () => { if (amdDefine && globalThis.define === undefined) globalThis.define = amdDefine; };
     const script = document.createElement("script");
     script.src = SCRIPT_URL;
     script.dataset.gismapMaplibre = "";
-    script.addEventListener("load", () => globalThis.maplibregl?.Map
-      ? resolve(globalThis.maplibregl)
-      : reject(new Error("MapLibre GL JS loaded without exposing maplibregl.")), { once: true });
-    script.addEventListener("error", () => reject(new Error("MapLibre GL JS did not load. Check the network connection.")), { once: true });
+    script.addEventListener("load", () => {
+      restore();
+      if (globalThis.maplibregl?.Map) resolve(globalThis.maplibregl);
+      else reject(new Error("MapLibre GL JS loaded without exposing maplibregl."));
+    }, { once: true });
+    script.addEventListener("error", () => { restore(); reject(new Error("MapLibre GL JS did not load. Check the network connection.")); }, { once: true });
     document.head.append(script);
   }).catch((error) => { loading = null; throw error; });
   return loading;

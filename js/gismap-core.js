@@ -53,7 +53,7 @@ export const capabilities = Object.freeze({
   authoringCommands: AUTHORING_TOOL_DEFINITIONS,
   authoringCommandSchema: "https://gismap.online/schemas/agent-command-v1.schema.json",
   sourceTypes: ["arcgis-rest", "geojson", "loaded-records"],
-  outputs: ["briefing-json", "briefing-link", "briefing-pdf", "briefing-qr-png", "gmo-project", "smart-image-png"],
+  outputs: ["briefing-json", "briefing-link", "briefing-pdf", "briefing-qr-png", "gis-project", "smart-image-png"],
   filters: ["eq", "neq", "gt", "gte", "lt", "lte", "in", "not_in", "contains", "starts_with", "is_null", "is_not_null", "and", "or", "not", "feature_ids"],
   limits: { maxSlides: MAX_SLIDES, maxLayers: SHARE_LIMITS.maxLayers, readableMapSpecCharacters: MAP_SPEC_JSON_LIMIT, ...BRIEFING_SHARE_LIMITS },
   layerTypes: [...SHARE_LAYER_TYPES],

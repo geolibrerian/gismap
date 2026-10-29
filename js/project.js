@@ -277,7 +277,7 @@ export class ProjectManager {
     const blob = new Blob([JSON.stringify(project, null, 2)], {
       type: "application/vnd.gismap.online.project+json",
     });
-    downloadBlob(blob, `${this.#exportName(project)}.gmo`);
+    downloadBlob(blob, `${this.#exportName(project)}.gis`);
     this.events.publish("project:exported", { kind: "json" });
   }
 
@@ -316,7 +316,7 @@ export class ProjectManager {
     const blob = new Blob([JSON.stringify(tour, null, 2)], {
       type: "application/vnd.gismap.online.guided-tour+json",
     });
-    downloadBlob(blob, `${this.#exportName(project)}.gmoatlas`);
+    downloadBlob(blob, `${this.#exportName(project)}.gisatlas`);
     this.events.publish("project:exported", { kind: "atlas" });
   }
 
@@ -335,7 +335,7 @@ export class ProjectManager {
       "GIS Map Online project package\nOpen https://gismap.online and choose Project > Import project file.\n",
     );
     const blob = await zip.generateAsync({ type: "blob", compression: "DEFLATE" });
-    downloadBlob(blob, `${this.#exportName(project)}.gmop`);
+    downloadBlob(blob, `${this.#exportName(project)}.gisx`);
     this.events.publish("project:exported", { kind: "package" });
   }
 
@@ -344,7 +344,7 @@ export class ProjectManager {
       const manifest = await readProjectFromPng(file);
       return this.load(manifest.project);
     }
-    if (/\.(?:zip|gmop|gismap)$/i.test(file.name)) {
+    if (/\.(?:zip|gisx|gmop|gismap)$/i.test(file.name)) {
       if (!globalThis.JSZip) throw new Error("The ZIP library did not load.");
       const zip = await JSZip.loadAsync(file);
       const projectEntry = zip.file("project.json");

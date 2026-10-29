@@ -13,7 +13,7 @@ import { MapAssistantPanel } from "./assistant-panel.js?v=0.57.0-skins1";
 import { createAssistantTools, summarizeMapState } from "./map-assistant.js?v=0.61.1-dashboard-agent";
 import { ENTERPRISE_CATALOGS, EnterpriseCatalog, normalizeArcGisDirectoryUrl } from "./enterprise-catalog.js?v=0.18.2";
 import { createShareUrl } from "./share.js?v=0.54.0-unified4";
-import { createShareLink, hasDataFilter } from "./map-share.js?v=0.61.0-briefing-player";
+import { createShareLink, hasDataFilter, readBriefingFile } from "./map-share.js?v=0.61.0-briefing-player";
 import { createEmbedIframe, createEmbedUrl } from "./embed-share.js?v=0.61.0-embed1";
 import { briefingLayerRef, findBriefingLayer } from "./briefing-api.js?v=0.61.0-briefing-player";
 import { createEmbeddedTourUrl } from "./tour-share.js?v=0.54.0-unified4";
@@ -59,7 +59,7 @@ const PROVENANCE_HELP = Object.freeze({
   illustrative: "Illustrative: decorative motion that does not measure anything.",
 });
 import { numericFieldCandidates, temporalFieldCandidates } from "./cinematic/temporal-adapter.js?v=0.3.1";
-import { buildClipPackage, clipToCinematicSpec, createCinematicClip, exportCinematicClip } from "./cinematic/clip-model.js?v=0.3.9";
+import { buildClipPackage, clipToCinematicSpec, createCinematicClip, exportCinematicClip, normalizeCinematicClip } from "./cinematic/clip-model.js?v=0.3.9";
 import { availableVideoFormats, cameraAt, CLIP_FRAME_RATES, clipFrameCount, exportCinematicVideo, observationIndexAt, renderClipPoster } from "./cinematic/clip-export.js?v=0.3.8-fire-points";
 import { CHART_PANEL_PLACEMENTS, CHART_TYPES, PRESENTATION_TARGETS, chartFields, chartOption, createChartSpec, displayChartRows, loadECharts, queryChart, recommendCharts, renderChartFallback, rowsAsCsv } from "./charting-tools.js";
 import { MapChartOverlayController } from "./map-chart-tools.js";
@@ -755,7 +755,7 @@ export class UIController {
     projectDropTarget.addEventListener("drop", (event) => {
       event.preventDefault();
       projectDropTarget.classList.remove("is-project-drop-target");
-      const file = [...event.dataTransfer?.files || []].find((item) => /\.(?:png|jpe?g|webp|gif|heic|heif|gmo|gmop|gmoatlas|gismap|json|zip)$/i.test(item.name) || item.type.startsWith("image/"));
+      const file = [...event.dataTransfer?.files || []].find((item) => /\.(?:png|jpe?g|webp|gif|heic|heif|gis|gisx|gisbrief|gisclip|gmo|gmop|gisatlas|gmoatlas|gismap|json|zip)$/i.test(item.name) || item.type.startsWith("image/"));
       if (file) void this.importProjectFile(file);
       else this.error("Drop a GISMap project, package, tour, Smart Image, or a picture of a GIS Map QR code.");
     });
@@ -1017,7 +1017,7 @@ export class UIController {
       if (this.presentationState.template === "briefing" && this.presentationState.mapSelect) return this.#toggleBriefingInclude(result);
       this.#selectPresentationResult(result);
     });
-    this.events.subscribe("project:exported", ({ kind }) => this.toast(`${kind === "smart-image" ? "Smart map image (.png)" : kind === "package" ? "Project package (.gmop)" : kind === "atlas" ? "Guided tour (.gmoatlas)" : "Project file (.gmo)"} downloaded.`));
+    this.events.subscribe("project:exported", ({ kind }) => this.toast(`${kind === "smart-image" ? "Smart map image (.png)" : kind === "package" ? "Project package (.gisx)" : kind === "atlas" ? "Guided tour (.gisatlas)" : "Project file (.gis)"} downloaded.`));
     this.events.subscribe("export:progress", ({ stage, completed, total }) => {
       const progress = this.dialog.querySelector("[data-export-progress]");
       const status = this.dialog.querySelector("[data-export-status]");
@@ -2513,7 +2513,7 @@ export class UIController {
       download: async (format) => {
         if (format === "pdf") return this.#downloadMapPdf();
         if (format === "smart-image") return this.projectManager.exportSmartImage();
-        if (format === "gmop") return this.projectManager.exportPackage();
+        if (format === "gisx") return this.projectManager.exportPackage();
         return this.projectManager.exportJson();
       },
       createTour: (places, options) => this.createTourFromPlaces(places, { ...options, open: true }),
@@ -2990,8 +2990,8 @@ export class UIController {
       content: `<div class="smart-image-intro"><strong>A map that opens like a project</strong><p>Smart Image creates a polished PNG that works in ordinary image viewers while carrying this GISMap project invisibly. Import the original PNG into GISMap Online to restore its layers, styling, camera, bookmarks, workflows, and Briefing slides.</p></div>
         <dl class="project-download-formats">
           <div><dt>Smart map image (.png)</dt><dd>Best for email, AirDrop, chat attachments, and shared drives. Services must remain publicly reachable. Some social networks remove image metadata.</dd></div>
-          <div><dt>Project file (.gmo)</dt><dd>The compact editable project configuration without local source files.</dd></div>
-          <div><dt>Project package (.gmop)</dt><dd>The complete portable package for projects that use local files.</dd></div>
+          <div><dt>Project file (.gis)</dt><dd>The compact editable project configuration without local source files.</dd></div>
+          <div><dt>Project package (.gisx)</dt><dd>The complete portable package for projects that use local files.</dd></div>
         </dl>
         <p class="form-note">Smart Images contain configuration and public data references, never sign-in tokens. Use the package option when local datasets must travel with the project.</p>`,
       actions: [
@@ -3009,8 +3009,8 @@ export class UIController {
             button.textContent = label;
           }
         } },
-        { label: "Project file (.gmo)", handler: () => { this.projectManager.exportJson(); this.dialog.close(); } },
-        { label: "Project package (.gmop)", handler: async () => {
+        { label: "Project file (.gis)", handler: () => { this.projectManager.exportJson(); this.dialog.close(); } },
+        { label: "Project package (.gisx)", handler: async () => {
           try { await this.projectManager.exportPackage(); this.dialog.close(); } catch (error) { this.error(error.message); }
         } },
       ],
@@ -4013,7 +4013,7 @@ export class UIController {
 
           <section id="connection-test-report" class="connection-report" hidden></section>
 
-          <div class="warning-box connection-security"><strong>Project portability and security</strong><p>Connection names, URLs, and public Client IDs are saved locally and included in project exports. Credentials and access tokens are never added to a .gmo or .gmop file. Imported projects require a fresh sign-in. The Portal/Server must use HTTPS and allow this site through CORS.</p></div>
+          <div class="warning-box connection-security"><strong>Project portability and security</strong><p>Connection names, URLs, and public Client IDs are saved locally and included in project exports. Credentials and access tokens are never added to a .gis or .gisx file. Imported projects require a fresh sign-in. The Portal/Server must use HTTPS and allow this site through CORS.</p></div>
         </section>`,
       actions: connections.length ? [{ label: "Sign out all", handler: () => {
         this.authController.signOutAll();
@@ -6515,8 +6515,8 @@ export class UIController {
     const iframe = createEmbedIframe(embedUrl, { title: `${title} guided map tour`, kind: "tour" });
     const selectedUrl = () => this.dialog.querySelector("[data-tour-share-url]")?.value || regularUrl;
     this.tourShareImageFile = null;
-    this.openDialog({ eyebrow: "Guided places", title: "Share & export", content: `<p class="form-note">Share a camera-only link or download the complete tour file. Links omit descriptions, images, layers, and credentials; the .gmoatlas file preserves the complete authored tour.</p><fieldset class="tour-share-options"><legend>Viewer access</legend><label><input type="radio" name="tour-share-mode" value="regular" checked><span><strong>Tour with GIS tools</strong><small>Viewers can exit the tour and continue in the standard map workspace.</small></span></label><label><input type="radio" name="tour-share-mode" value="tour-only"><span><strong>Tour only</strong><small>Hide authoring menus, map tools, and the Exit tour control.</small></span></label></fieldset><label class="field"><span>Link</span><textarea readonly rows="4" data-tour-share-url>${escapeHtml(regularUrl)}</textarea></label><details class="tour-embed"><summary>Embed this tour on a website</summary><p class="form-note">Paste this iframe into your page. It opens the same camera-only tour without the GIS authoring interface.</p><textarea readonly rows="6" data-tour-embed-code>${escapeHtml(iframe)}</textarea><button type="button" data-tour-copy-embed>Copy embed HTML</button></details><div class="tour-share-card"><canvas data-tour-share-card width="760" height="960" role="img" aria-label="Branded QR card for this guided places tour"></canvas><p class="tour-share-card__status" data-tour-share-status>Building complete-link QR card…</p></div>`, actions: [
-      { label: "Download .gmoatlas", handler: () => this.projectManager.exportAtlas() },
+    this.openDialog({ eyebrow: "Guided places", title: "Share & export", content: `<p class="form-note">Share a camera-only link or download the complete tour file. Links omit descriptions, images, layers, and credentials; the .gisatlas file preserves the complete authored tour.</p><fieldset class="tour-share-options"><legend>Viewer access</legend><label><input type="radio" name="tour-share-mode" value="regular" checked><span><strong>Tour with GIS tools</strong><small>Viewers can exit the tour and continue in the standard map workspace.</small></span></label><label><input type="radio" name="tour-share-mode" value="tour-only"><span><strong>Tour only</strong><small>Hide authoring menus, map tools, and the Exit tour control.</small></span></label></fieldset><label class="field"><span>Link</span><textarea readonly rows="4" data-tour-share-url>${escapeHtml(regularUrl)}</textarea></label><details class="tour-embed"><summary>Embed this tour on a website</summary><p class="form-note">Paste this iframe into your page. It opens the same camera-only tour without the GIS authoring interface.</p><textarea readonly rows="6" data-tour-embed-code>${escapeHtml(iframe)}</textarea><button type="button" data-tour-copy-embed>Copy embed HTML</button></details><div class="tour-share-card"><canvas data-tour-share-card width="760" height="960" role="img" aria-label="Branded QR card for this guided places tour"></canvas><p class="tour-share-card__status" data-tour-share-status>Building complete-link QR card…</p></div>`, actions: [
+      { label: "Download .gisatlas", handler: () => this.projectManager.exportAtlas() },
       { label: "Download image", handler: () => {
         if (!this.tourShareImageFile) return this.error("The tour image is still being prepared.");
         const link = document.createElement("a");
@@ -6828,7 +6828,7 @@ export class UIController {
     const file = new Blob([JSON.stringify(recipe, null, 2)], { type: "application/json" });
     const link = document.createElement("a");
     link.href = URL.createObjectURL(file);
-    link.download = `${String(clip.title || "cinematic-clip").replace(/[^a-z0-9]+/gi, "-").replace(/^-|-$/g, "").toLowerCase() || "cinematic-clip"}.cinematic.json`;
+    link.download = `${String(clip.title || "cinematic-clip").replace(/[^a-z0-9]+/gi, "-").replace(/^-|-$/g, "").toLowerCase() || "cinematic-clip"}.gisclip`;
     link.click();
     setTimeout(() => URL.revokeObjectURL(link.href), 5000);
     this.toast(recipe.package.playableElsewhere ? "Clip JSON downloaded: a portable recipe that plays where its online services are reachable." : "Clip JSON downloaded. It uses local data that is not included, so it will not play elsewhere until that data is added.");
@@ -7396,9 +7396,10 @@ export class UIController {
     });
   }
 
-  #presentationDialog() {
+  /** `draft` carries an unsaved skin choice across the engine switch offered in the dialog. */
+  #presentationDialog(draft = null) {
     const previous = structuredClone(this.projectManager.current.presentation || {});
-    const current = { template: "standard", skin: DEFAULT_SKIN, ...previous };
+    const current = { template: "standard", skin: DEFAULT_SKIN, ...previous, ...draft };
     const palettes = structuredClone(current.skinColors || {});
     const mapPalettes = structuredClone(current.mapColors || {});
     const maplibre = this.mapController.getEngineId() === "maplibre";
@@ -7407,7 +7408,7 @@ export class UIController {
     this.openDialog({
       eyebrow: "Dashboard",
       title: "Instant Dashboard",
-      content: `<div class="presentation-picker"><p class="form-note">Choose a look for your map and dashboard. Your mode, layers, map symbols, and camera stay as they are.</p><fieldset class="skin-picker"><legend>Dashboard skin</legend>${INTERFACE_SKINS.map(({ id,label,description }) => `<button type="button" class="skin-card skin-card--${id}" data-skin-choice="${id}" aria-pressed="false"><span class="skin-mini"><i></i><b></b><em></em><small></small></span><strong>${label}</strong><small>${description}</small></button>`).join("")}<select id="presentation-skin" hidden>${skinOptionsMarkup(current.skin)}</select></fieldset><fieldset class="skin-customize"><legend>Customize skin colors</legend><p class="form-note">Adjust the interface accents. Colors are saved with this project.</p><div>${["primary", "secondary", "tertiary"].map((name) => `<label><span>${name[0].toUpperCase() + name.slice(1)}</span><input type="color" data-skin-color="${name}" aria-label="${name} color"></label>`).join("")}</div><button type="button" class="button--quiet" data-skin-reset>Reset colors</button></fieldset>${maplibre ? `<fieldset class="skin-customize map-color-customize"><legend>Customize map colors</legend><p class="form-note">Choose which components to override for this skin. These colors apply to the MapLibre Skin basemap, including 3D buildings—not imagery, other basemaps, or your data layers. Colors are saved with this project. Selecting the Skin basemap changes the map immediately, even if you cancel. Check label contrast after changing colors.</p><button type="button" class="button--quiet" data-use-skin-basemap>Use Skin basemap</button><div>${Object.entries(MAP_COLOR_COMPONENTS).map(([key, label]) => `<label><input type="checkbox" data-map-toggle="${key}"><span>${label}</span><input type="color" data-map-color="${key}" aria-label="${label} color"></label>`).join("")}</div><button type="button" class="button--quiet" data-map-reset>Reset map colors</button></fieldset>` : ""}</div>`,
+      content: `<div class="presentation-picker"><p class="form-note">Choose a look for your map and dashboard. Your mode, layers, map symbols, and camera stay as they are.</p><fieldset class="skin-picker"><legend>Dashboard skin</legend>${INTERFACE_SKINS.map(({ id,label,description }) => `<button type="button" class="skin-card skin-card--${id}" data-skin-choice="${id}" aria-pressed="false"><span class="skin-mini"><i></i><b></b><em></em><small></small></span><strong>${label}</strong><small>${description}</small></button>`).join("")}<select id="presentation-skin" hidden>${skinOptionsMarkup(current.skin)}</select></fieldset><fieldset class="skin-customize"><legend>Customize skin colors</legend><p class="form-note">Adjust the interface accents. Colors are saved with this project.</p><div>${["primary", "secondary", "tertiary"].map((name) => `<label><span>${name[0].toUpperCase() + name.slice(1)}</span><input type="color" data-skin-color="${name}" aria-label="${name} color"></label>`).join("")}</div><button type="button" class="button--quiet" data-skin-reset>Reset colors</button></fieldset>${maplibre ? `<fieldset class="skin-customize map-color-customize"><legend>Customize map colors</legend><p class="form-note">Choose which components to override for this skin. These colors apply to the MapLibre Skin basemap, including 3D buildings—not imagery, other basemaps, or your data layers. Colors are saved with this project. Selecting the Skin basemap changes the map immediately, even if you cancel. Check label contrast after changing colors.</p><button type="button" class="button--quiet" data-use-skin-basemap>Use Skin basemap</button><div>${Object.entries(MAP_COLOR_COMPONENTS).map(([key, label]) => `<label><input type="checkbox" data-map-toggle="${key}"><span>${label}</span><input type="color" data-map-color="${key}" aria-label="${label} color"></label>`).join("")}</div><button type="button" class="button--quiet" data-map-reset>Reset map colors</button></fieldset>` : `<fieldset class="skin-customize map-engine-offer"><legend>Customize map colors</legend><p class="form-note">Map colors for land, water, roads, buildings, parks and labels can be set on the MapLibre engine. Switching keeps this page, your layers and the camera; layers stored only in this browser stay on ArcGIS.</p><button type="button" class="button--quiet" data-switch-maplibre>Switch to MapLibre</button></fieldset>`}</div>`,
       actions: [
         { label: "Cancel", handler: () => this.dialog.close() },
         { label: "Apply", primary: true, handler: () => {
@@ -7481,6 +7482,13 @@ export class UIController {
       this.dialog.querySelector("[data-use-skin-basemap]").addEventListener("click", () => {
         this.mapController.setBasemap(SKIN_BASEMAP);
         this.toast("Skin basemap selected.");
+      });
+    } else {
+      this.dialog.querySelector("[data-switch-maplibre]").addEventListener("click", async () => {
+        const draftSkin = { skin: skin.value, skinColors: palettes };
+        this.dialog.close();
+        await this.#switchEngine("maplibre");
+        this.#presentationDialog(draftSkin);
       });
     }
     chooseSkin(normalizeSkin(current.skin));
@@ -7737,7 +7745,7 @@ export class UIController {
           return this.briefingSlides.createPdf({link:link.url, qr:link.qr, skin, timelineFrames:"selected", selectedFrames});
         }});
       }
-      downloads.push({ label: "Briefing file", create: () => new File([JSON.stringify(link.payload, null, 2)], `${stem}.briefing.json`, { type: "application/json" }) });
+      downloads.push({ label: "Briefing file", create: () => new File([JSON.stringify(link.payload, null, 2)], `${stem}.gisbrief`, { type: "application/json" }) });
       await this.shareMobileWorkflow("briefing", {
         url: link.url,
         title,
@@ -7900,11 +7908,42 @@ export class UIController {
       return;
     }
     try {
+      if (/\.gisbrief$/i.test(file.name)) return await this.#importBriefingFile(file);
+      if (/\.gisclip$/i.test(file.name)) return await this.#importCinematicClipFile(file);
       const { project } = await this.projectManager.importFile(file);
       this.toast(`${project.name} imported from ${/\.png$/i.test(file.name) ? "Smart Image" : "project file"}.`);
     } catch (error) {
       this.error(error.message);
     }
+  }
+
+  /** A .gisbrief file opens like a `?briefing=` link: its layers load and the slides start presenting. */
+  async #importBriefingFile(file) {
+    const shared = readBriefingFile(JSON.parse(await file.text()));
+    await this.openSharedState(shared, { loadLayer: this.loadLayer || (async (config) => [await this.mapController.addService(config)]) });
+  }
+
+  /** A .gisclip file is saved as a Clip in this project; its public layers load when they are not on the map. */
+  async #importCinematicClipFile(file) {
+    const raw = JSON.parse(await file.text());
+    const clip = normalizeCinematicClip(raw);
+    if (!clip.tracks.length && !clip.cameraTrack.length) throw new Error("This file does not contain a cinematic clip.");
+    const load = this.loadLayer || (async (config) => [await this.mapController.addService(config)]);
+    const missing = [];
+    for (const dependency of (raw.package?.dependencies || []).filter((item) => item.layerRef)) {
+      let layer = findBriefingLayer(this.mapController, dependency.layerRef) || (dependency.url && findBriefingLayer(this.mapController, dependency.url));
+      if (!layer && dependency.url) {
+        try { [layer] = await load({ url: dependency.url, title: dependency.title || undefined, serviceType: "arcgis-auto" }); } catch { /* Reported below. */ }
+      }
+      if (!layer) { missing.push(dependency.title || "a layer"); continue; }
+      // The Clip was made against another map: point its tracks at this map's layer.
+      for (const track of clip.tracks) if (track.layerRef === dependency.layerRef) track.layerRef = layer.uid;
+    }
+    const clips = [...(this.projectManager.current.presentation?.cinematicClips || []).filter((item) => item.id !== clip.id), clip];
+    this.projectManager.patchPresentation({ cinematicClips: clips });
+    this.lastCinematicClipId = clip.id;
+    this.#renderPresentationDashboard(this.projectManager.current.presentation);
+    this.toast(missing.length ? `Clip “${clip.title}” imported. Add ${missing.join(", ")} to the map to play it.` : `Clip “${clip.title}” imported.`);
   }
 
   async #addFiles(event) {
@@ -8116,7 +8155,7 @@ export class UIController {
       content: `<div class="bookmark-manager"><p class="form-note">Edit saved places, export a location spreadsheet, or turn this set directly into a Guided Places atlas.</p><div class="bookmark-editor-list">${rows}</div></div>`,
       actions: [
         { label: "Download CSV", handler: () => this.#downloadBookmarksCsv() },
-        { label: "Download .gmoatlas", handler: () => { this.#saveBookmarkEdits(); this.#createAtlasFromBookmarks(); this.projectManager.exportAtlas(); this.dialog.close(); } },
+        { label: "Download .gisatlas", handler: () => { this.#saveBookmarkEdits(); this.#createAtlasFromBookmarks(); this.projectManager.exportAtlas(); this.dialog.close(); } },
         { label: "Create Atlas", handler: () => { this.#saveBookmarkEdits(); this.#createAtlasFromBookmarks(); this.dialog.close(); } },
         { label: "Save changes", primary: true, handler: () => { this.#saveBookmarkEdits(); this.dialog.close(); } },
       ],

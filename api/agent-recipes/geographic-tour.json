@@ -121,7 +121,7 @@
     },
     {
       "stage": "share",
-      "action": "Return the link; add &autoplay=1 to start playing. Longer tours export as .gmoatlas from the app.",
+      "action": "Return the link; add &autoplay=1 to start playing. Longer tours export as .gisatlas from the app.",
       "interfaces": [
         "declarative-url"
       ],
@@ -150,7 +150,7 @@
       "notes": "Links are kept under 2,800 characters so any QR encoder can carry them; the app's Share tour dialog also draws one."
     },
     {
-      "format": ".gmoatlas file",
+      "format": ".gisatlas file",
       "interface": "external-adapter",
       "interactive": true,
       "notes": "Exported in the app (Export guided tour) when a tour is too long for a link."
@@ -170,7 +170,7 @@
     "On the MapLibre engine (the default), satellite and hybrid are drawn as an OpenFreeMap street map; usgs-imagery is real aerial imagery for the United States."
   ],
   "recovery": [
-    "If the link exceeds 2,800 characters, shorten captions or split the tour, or export .gmoatlas.",
+    "If the link exceeds 2,800 characters, shorten captions or split the tour, or export .gisatlas.",
     "An unknown basemap id is dropped and the stop falls back to the current basemap; use ids from map-v1."
   ],
   "examples": [

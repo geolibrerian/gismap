@@ -51,7 +51,7 @@
       }
     </script>
     <link rel="icon" href="./assets/gis-map-online-mark-v2.png" type="image/png" />
-    <!-- Installed as an app, GIS Map Online opens .gmo, .gmop and .gmoatlas files and shows its icon on them. -->
+    <!-- Installed as an app, GIS Map Online opens .gis, .gisx, .gisatlas, .gisbrief and .gisclip files and shows its icon on them. -->
     <link rel="manifest" href="./manifest.webmanifest" />
     <link rel="apple-touch-icon" href="./assets/icons/apple-touch-icon.png" />
     <meta name="theme-color" content="#f5f5ef" media="(prefers-color-scheme: light)" />
@@ -119,7 +119,7 @@
               <button data-action="share-export">Share &amp; export…</button>
               <button data-action="share-map">Share map link &amp; QR…</button>
               <button data-action="map-pdf">Map PDF</button>
-              <button data-action="atlas-export">Export guided tour (.gmoatlas)</button>
+              <button data-action="atlas-export">Export guided tour (.gisatlas)</button>
               <button data-action="project-import">Import project, tour, or Smart Image</button>
               <button data-action="open-image">Open from a photo or QR code…</button>
               <hr />
@@ -499,7 +499,7 @@
       </div>
     </dialog>
 
-    <input id="project-file-input" type="file" accept=".gmo,.gmop,.gmoatlas,.json,.gismap,.zip,.png,image/png" hidden />
+    <input id="project-file-input" type="file" accept=".gis,.gisx,.gisbrief,.gisclip,.gmo,.gmop,.gisatlas,.gmoatlas,.json,.gismap,.zip,.png,image/png" hidden />
     <!-- Any picture: phones offer the photo library and camera. -->
     <input id="image-file-input" type="file" accept="image/*" hidden />
     <input id="data-file-input" type="file" accept=".json,.geojson,.kml,.kmz,.zip,.parquet,.geoparquet,.las,.laz,.xyz,.glb,.gltf,.obj,.ply" multiple hidden />
@@ -518,6 +518,6 @@
       </ul>
     </section>
     <noscript>GISMap Online is a geospatial application and needs JavaScript. Without it, a map can still be described as a link: see <a href="/llms.txt">/llms.txt</a> and the <a href="/guides/ai-agents/">guide for AI agents</a>.</noscript>
-<script type="module" src="./js/app.js?v=0.62.4-silent-engine-handoff"></script>
+<script type="module" src="./js/app.js?v=0.62.6-dashboard-engine"></script>
   </body>
 </html>

@@ -238,7 +238,7 @@ export function createBriefingApi({ projectManager, mapController, host = null, 
           useAll: presentation.briefingSelection?.useAll === true,
           slide: options.slide || null,
         });
-        if (options.qrSafe === true && !link.qr) throw new GisMapError("INVALID_SPEC", "This briefing exceeds the QR-safe link limit. Copy the link or export a .gmo file instead.");
+        if (options.qrSafe === true && !link.qr) throw new GisMapError("INVALID_SPEC", "This briefing exceeds the QR-safe link limit. Copy the link or export a .gis file instead.");
         return link.url;
       }
       if (options.documentOnly !== true) throw new GisMapError("INVALID_SPEC", "A complete briefing link needs public web layers. Export a project, or explicitly request a slides-only link with documentOnly: true.");
@@ -249,7 +249,7 @@ export function createBriefingApi({ projectManager, mapController, host = null, 
       project.presentation = { ...project.presentation, briefing: normalizeBriefing(document) };
       const text = JSON.stringify(project, null, 2);
       return {
-        fileName: `${cleanName(options.fileName || project.presentation?.modeTitles?.briefing || project.name)}.gmo`,
+        fileName: `${cleanName(options.fileName || project.presentation?.modeTitles?.briefing || project.name)}.gis`,
         mimeType: "application/vnd.gismap.online.project+json",
         text,
         blob: new Blob([text], { type: "application/vnd.gismap.online.project+json" }),

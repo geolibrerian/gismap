@@ -74,7 +74,7 @@ export const ASSISTANT_TOOLS = Object.freeze([
   { name: "set_skin", description: "Change the interface skin (the app's look, also used by the Skin basemap on MapLibre). Kept with the project.", parameters: { type: "object", required: ["skin"], properties: { skin: { enum: INTERFACE_SKINS.map(({ id }) => id), description: INTERFACE_SKINS.map(({ id, label, description }) => `${id} = ${label} (${description})`).join("; ") } } } },
   { name: "save_project", description: "Save the current map as a project in this browser, optionally under a new name.", parameters: { type: "object", properties: { name: { type: "string" } } } },
   { name: "open_share_menu", description: "Open the Share & export dialog for the user (links, QR code, exports).", parameters: { type: "object", properties: {} } },
-  { name: "download", description: "Download the map for the user: pdf (Map PDF), smart-image (a PNG that opens as the project), gmo (project file) or gmop (project package with local files).", parameters: { type: "object", required: ["format"], properties: { format: { enum: ["pdf", "smart-image", "gmo", "gmop"] } } } },
+  { name: "download", description: "Download the map for the user: pdf (Map PDF), smart-image (a PNG that opens as the project), gis (project file) or gisx (project package with local files).", parameters: { type: "object", required: ["format"], properties: { format: { enum: ["pdf", "smart-image", "gis", "gisx"] } } } },
   { name: "get_share_link", description: "A link (and whether it fits a QR code) that opens the map as it is now, with its briefing.", parameters: { type: "object", properties: {} } },
   { name: "get_map_embed", description: "Return a ready-to-paste iframe and embed URL for the currently configured public map. The embed preserves public layers, styles, filters, view, basemap and skin; local or credentialed data cannot be embedded.", parameters: { type: "object", properties: { title: { type: "string" }, height: { type: "integer", minimum: 280, maximum: 1200 } } } },
 ]);
@@ -100,7 +100,7 @@ export function buildAssistantInstructions({ state = null, textTools = false } =
     "- When a tool returns an error, read its hint and fix the call; do not repeat the same call.",
     "- After acting, reply in two or three sentences: what you did, and anything the user should check (data caveats, missing fields, sample-based numbers). Offer get_share_link when the user wants to share, and get_map_embed when they want to publish the configured map on another site.",
     "- Questions about the app itself (menus, settings, where something is): call app_help and answer with the exact menu path it gives. Display settings (selection style, highlight colour, appearance, panel positions) can be changed for the user with change_display_setting; say where the setting lives too.",
-    "- The app itself: set_mode switches modes, set_skin changes the look, save_project saves, open_share_menu opens Share & export, and download gives a Map PDF, Smart map image, .gmo project file or .gmop package. Do these only when the user asks.",
+    "- The app itself: set_mode switches modes, set_skin changes the look, save_project saves, open_share_menu opens Share & export, and download gives a Map PDF, Smart map image, .gis project file or .gisx package. Do these only when the user asks.",
     "- Keep the conversation in the user's language. Do not claim to have done something a tool did not do.",
     "",
     "The app's menus:",
@@ -443,7 +443,7 @@ export function createAssistantTools(host) {
       return { opened: "Share & export" };
     },
     async download({ format }) {
-      if (!["pdf", "smart-image", "gmo", "gmop"].includes(format)) throw Object.assign(new Error(`Unknown format "${format}".`), { hint: "Use pdf, smart-image, gmo or gmop." });
+      if (!["pdf", "smart-image", "gis", "gisx"].includes(format)) throw Object.assign(new Error(`Unknown format "${format}".`), { hint: "Use pdf, smart-image, gis or gisx." });
       await host.download(format);
       return { downloaded: format };
     },

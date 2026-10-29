@@ -178,7 +178,7 @@
       "reference": "briefing.exportQrCard"
     },
     {
-      "format": "Project file (.gmo)",
+      "format": "Project file (.gis)",
       "interface": "in-browser-api",
       "interactive": true,
       "reference": "briefing.exportGmo"
@@ -199,7 +199,7 @@
   ],
   "recovery": [
     "If a relation query fails, the slide notes it; show both layers and say the analysis is incomplete.",
-    "If the link is too long, host the JSON and use ?briefing=<URL>, or export a .gmo project."
+    "If the link is too long, host the JSON and use ?briefing=<URL>, or export a .gis project."
   ],
   "examples": [
     {

@@ -225,15 +225,21 @@ export async function readShareLocation(location, { fetchJson = (url) => fetch(u
   }
   const file = new URLSearchParams(String(location.search || "")).get("briefing");
   if (file && /^https?:\/\//i.test(file)) {
-    const raw = await fetchJson(sanitizeSharedResourceUrl(file, options));
-    // Either the app's own briefing file (a share payload) or a briefing document
-    // written against schemas/briefing-v1.schema.json, alone or inside a project.
-    const document = raw?.k ? null : raw?.presentation?.briefing || raw;
-    if (document && (document.schemaVersion !== undefined || Array.isArray(document.slides))) {
-      if (document.schemaVersion !== undefined && document.schemaVersion !== 1) throw new Error("This briefing file uses a newer schema version than this app supports.");
-      return { kind: "briefing-document", briefing: normalizeBriefing(document), layers: [], slide };
-    }
-    return { ...readShare(raw, options), slide };
+    return { ...readBriefingFile(await fetchJson(sanitizeSharedResourceUrl(file, options)), options), slide };
   }
   return null;
+}
+
+/**
+ * Reads a parsed briefing file (`?briefing=` or a `.gisbrief`): either the app's
+ * own briefing file (a share payload) or a briefing document written against
+ * schemas/briefing-v1.schema.json, alone or inside a project.
+ */
+export function readBriefingFile(raw, options = {}) {
+  const document = raw?.k ? null : raw?.presentation?.briefing || raw;
+  if (document && (document.schemaVersion !== undefined || Array.isArray(document.slides))) {
+    if (document.schemaVersion !== undefined && document.schemaVersion !== 1) throw new Error("This briefing file uses a newer schema version than this app supports.");
+    return { kind: "briefing-document", briefing: normalizeBriefing(document), layers: [] };
+  }
+  return readShare(raw, options);
 }

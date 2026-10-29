@@ -92,6 +92,6 @@ export function createEmbeddedTourUrl({ baseUrl, presentation, allowedBasemaps, 
   if (tourOnly || embed) url.searchParams.set("tourOnly", "1");
   if (embed) url.searchParams.set("embed", "1");
   // Readable links are for chatbots and people, not QR codes: they get the larger map-link budget.
-  if (url.href.length > (readable ? 8192 : MAX_URL_LENGTH)) throw new Error("This camera-only tour exceeds the QR-safe link limit. Export a .gmoatlas file instead.");
+  if (url.href.length > (readable ? 8192 : MAX_URL_LENGTH)) throw new Error("This camera-only tour exceeds the QR-safe link limit. Export a .gisatlas file instead.");
   return url.href;
 }

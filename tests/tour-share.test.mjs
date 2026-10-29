@@ -28,7 +28,7 @@ assert.match(ui, /Tour name/);
 assert.match(ui, /data-atlas-settings/);
 assert.match(ui, /Add a chapter/);
 assert.match(ui, /Share & export/);
-assert.match(ui, /Download \.gmoatlas/);
+assert.match(ui, /Download \.gisatlas/);
 assert.match(ui, /#renderTourShareCard\(regularUrl, title\)/);
 assert.match(ui, /title: title \|\| "Guided places",/, "Tour cards fall back to the default tour name.");
 assert.match(ui, /const safeTitle = String\(title \|\| "GIS Map Online"\)\.slice\(0, 54\)/);

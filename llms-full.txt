@@ -446,7 +446,7 @@ await gisMapOnline.smartImages.downloadCurrent();
 
 `createCurrent()` gives an agent the PNG without forcing a browser download and also returns `share`, the equivalent live-map link with public layers, styles, filters, camera, basemap, and skin. `createShareLink()` returns that link directly. Its `qr` flag says whether it fits safely in GISMap's separate branded QR image. Keeping the QR as a separate artifact leaves the Smart Image clean while providing a reliable route back to the live map; GISMap can also reopen QR screenshots and photos.
 
-The embedded payload is versioned, deflate-compressed when supported, protected by PNG CRC and SHA-256 integrity checks, and bounded by explicit input limits. Remote URLs containing credentials are rejected. Smart Images reference public services and do not make those services offline; use `.gmop` when local datasets must travel with the project. Keep the original PNG—social networks and image editors may resize it or remove ancillary metadata. When another service strips the private PNG chunk, share the companion live link or QR image alongside it.
+The embedded payload is versioned, deflate-compressed when supported, protected by PNG CRC and SHA-256 integrity checks, and bounded by explicit input limits. Remote URLs containing credentials are rejected. Smart Images reference public services and do not make those services offline; use `.gisx` when local datasets must travel with the project. Keep the original PNG—social networks and image editors may resize it or remove ancillary metadata. When another service strips the private PNG chunk, share the companion live link or QR image alongside it.
 
 ### Composable application preview
 

@@ -56,7 +56,7 @@ test("the in-page API can load, update and export the current briefing", async (
   api.briefing.saveCurrentCamera(slide.id);
   assert.deepEqual(api.briefing.get().slides[0].camera.center, [-122.27, 37.8]);
   const output = api.briefing.exportGmo();
-  assert.match(output.fileName, /Oakland-projects\.gmo$/);
+  assert.match(output.fileName, /Oakland-projects\.gis$/);
   assert.equal(JSON.parse(output.text).presentation.briefing.slides.length, 1);
 });
 

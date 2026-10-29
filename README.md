@@ -157,7 +157,7 @@ await gisMapOnline.smartImages.downloadCurrent();
 
 `createCurrent()` gives an agent the PNG without forcing a browser download and also returns `share`, the equivalent live-map link with public layers, styles, filters, camera, basemap, and skin. `createShareLink()` returns that link directly. Its `qr` flag says whether it fits safely in GISMap's separate branded QR image. Keeping the QR as a separate artifact leaves the Smart Image clean while providing a reliable route back to the live map; GISMap can also reopen QR screenshots and photos.
 
-The embedded payload is versioned, deflate-compressed when supported, protected by PNG CRC and SHA-256 integrity checks, and bounded by explicit input limits. Remote URLs containing credentials are rejected. Smart Images reference public services and do not make those services offline; use `.gmop` when local datasets must travel with the project. Keep the original PNG—social networks and image editors may resize it or remove ancillary metadata. When another service strips the private PNG chunk, share the companion live link or QR image alongside it.
+The embedded payload is versioned, deflate-compressed when supported, protected by PNG CRC and SHA-256 integrity checks, and bounded by explicit input limits. Remote URLs containing credentials are rejected. Smart Images reference public services and do not make those services offline; use `.gisx` when local datasets must travel with the project. Keep the original PNG—social networks and image editors may resize it or remove ancillary metadata. When another service strips the private PNG chunk, share the companion live link or QR image alongside it.
 
 ### Composable application preview
 
@@ -189,7 +189,7 @@ versions are independent and need not match the application version.
 - `js/engines/arcgis/arcgis-engine.js` — the ArcGIS renderer adapter: 3D scene/camera lifecycle, elevation ground, layer adapters, queries, identify, drawing, refresh, rendering, navigation, capture and geocoding
 - `js/identify.js` — popup-free identify results from the engine, de-duplicated across layer types
 - `js/ui.js` — sidebar, menus, tabbed workspace tools, layer controls, places, and insight rendering
-- `js/project.js` — local projects plus `.gmo` project and `.gmop` package import/export (legacy JSON/ZIP files remain supported)
+- `js/project.js` — local projects plus `.gis` project and `.gisx` package import/export (legacy JSON/ZIP files remain supported)
 - `js/attribute-table.js` — searchable, paginated queryable layer table in a non-modal map drawer
 - `js/ai.js` — optional Ollama, OpenAI, Anthropic, and OpenAI-compatible adapters; online tokens stay in memory only
 - `js/tool-manager.js` — opt-in local JavaScript tool registration

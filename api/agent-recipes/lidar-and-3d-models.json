@@ -132,7 +132,7 @@
     },
     {
       "stage": "share",
-      "action": "Return the link. Local files need a project package (.gmop); links only reference public URLs.",
+      "action": "Return the link. Local files need a project package (.gisx); links only reference public URLs.",
       "interfaces": [
         "declarative-url"
       ],
@@ -154,7 +154,7 @@
       "reference": "mapSpec.createLink"
     },
     {
-      "format": "Project with local LiDAR or CAD files (.gmop)",
+      "format": "Project with local LiDAR or CAD files (.gisx)",
       "interface": "external-adapter",
       "interactive": true,
       "notes": "Made in the app; local files never go into links."

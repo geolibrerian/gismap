@@ -130,7 +130,7 @@
     "briefing-link",
     "briefing-pdf",
     "briefing-qr-png",
-    "gmo-project",
+    "gis-project",
     "smart-image-png"
   ],
   "unavailableWithoutHost": [
@@ -201,7 +201,7 @@
     },
     "getProject": {
       "stability": "stable",
-      "description": "The current project as saved in a .gmo file."
+      "description": "The current project as saved in a .gis file."
     },
     "events": {
       "stability": "experimental",

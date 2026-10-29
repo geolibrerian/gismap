@@ -94,7 +94,7 @@ test("the app opens shared links, shares from one Share & export place, and conn
   assert.match(router, /data-task-tour/);
   assert.match(router, /data-task-briefing/);
   assert.match(pdf, /PRINT_PALETTES/);
-  assert.deepEqual(Object.values(manifest.file_handlers[0].accept).flat().sort(), [".gmo", ".gmoatlas", ".gmop"]);
+  assert.deepEqual(Object.values(manifest.file_handlers[0].accept).flat().sort(), [".gis", ".gisatlas", ".gisbrief", ".gisclip", ".gisx", ".gmo", ".gmoatlas", ".gmop"]);
 });
 
 test("one reader opens both briefing link forms: full app links and the API's slides-only links", async () => {
