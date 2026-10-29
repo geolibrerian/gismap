@@ -1502,25 +1502,65 @@ export class UIController {
 
   /**
    * The Historical Quakes example is ArcGIS-first, except for its deliberately
-   * isolated MapLibre pulse slide. A reload keeps the engines independent and
-   * preserves the requested slide through its stable example slide ID.
+   * isolated MapLibre pulse slide. The renderer changes below the live app;
+   * the player, route, panels, and current slide never reload.
    */
-  #ensureHistoricalQuakesSlideEngine(slide) {
+  async #ensureHistoricalQuakesSlideEngine(slide) {
     if (new URLSearchParams(location.search).get('briefingExample') !== 'historical-quakes') return false;
     const target = slide?.mapEngine;
     if (!['arcgis', 'maplibre'].includes(target) || target === this.mapController.getEngineId()) return false;
-    const url = new URL(location.href);
-    url.searchParams.set('engine', target);
-    url.searchParams.set('briefingPresent', '1');
-    // The guide is an authoring aid. Do not restart it at step one merely
-    // because the player is changing renderer for its one visual effect.
-    url.searchParams.delete('tutorial');
-    const fragment = new URLSearchParams(url.hash.replace(/^#/, ''));
-    fragment.set('slide', slide.id);
-    url.hash = fragment.toString();
-    this.toast(`Opening ${target === 'maplibre' ? 'the MapLibre pulse' : 'the ArcGIS map'} for this slide…`);
-    location.assign(url.href);
-    return true;
+    await this.#switchEngineSilently(target, { updateUrl: true });
+    return false;
+  }
+
+  #remapEngineLayerReferences(layers = []) {
+    const ids = new Map(layers.map(({ from, to }) => [from, to]).filter(([from, to]) => from && to));
+    if (!ids.size) return;
+    const current = this.projectManager.current.presentation || {};
+    const primaryLayerId = ids.get(current.primaryLayerId) || current.primaryLayerId;
+    const selection = current.briefingSelection;
+    const selectionLayerId = ids.get(selection?.layerId) || selection?.layerId;
+    if (primaryLayerId !== current.primaryLayerId || selectionLayerId !== selection?.layerId) {
+      this.projectManager.setPresentation({
+        ...current,
+        primaryLayerId,
+        ...(selection ? { briefingSelection: { ...selection, layerId: selectionLayerId } } : {}),
+      });
+    }
+    const active = ids.get(this.presentationState?.layerUid);
+    if (active) this.presentationState.layerUid = active;
+    const workspaceLayer = this.briefingWorkspace?.layer;
+    const workspaceUid = ids.get(workspaceLayer?.uid);
+    if (workspaceUid && this.briefingWorkspace) this.briefingWorkspace.layer = this.mapController.getLayer(workspaceUid) || workspaceLayer;
+  }
+
+  /** Switch only the renderer canvas, retaining the application and its state. */
+  async #switchEngineSilently(engine, { persist = false, updateUrl = false } = {}) {
+    if (engine === this.mapController.getEngineId()) return { switched: false, engine, layers: [] };
+    this.toast(`Switching to ${engine === 'maplibre' ? 'MapLibre' : 'ArcGIS'}…`);
+    const result = await this.mapController.switchEngine(engine);
+    this.#remapEngineLayerReferences(result.layers);
+    this.syncBasemapTheme?.();
+    this.mapController.resize();
+    if (updateUrl) {
+      const url = new URL(location.href);
+      url.searchParams.set('engine', engine);
+      history.replaceState(null, '', url.href);
+    }
+    if (persist) saveEngine(globalThis.localStorage, engine);
+    return result;
+  }
+
+  /**
+   * Changes the renderer in place. A local-only layer is rejected by the map
+   * controller before anything is removed, so this never silently loses work.
+   */
+  async #switchEngine(engine) {
+    try {
+      await this.#switchEngineSilently(engine, { persist: true, updateUrl: true });
+    } catch (error) {
+      this.error(error.message || 'The map engine could not be switched.');
+    }
   }
 
   /** A stable public launcher for the documented Historical Quakes tutorial URL. */
@@ -3123,53 +3163,6 @@ export class UIController {
       this.#closeMenus();
       await this.#switchEngine(select.value);
     });
-  }
-
-  /**
-   * Switches the map engine at once: saves the choice and reopens this map
-   * (from its map spec link, or its basemap and view) with the other engine,
-   * which is chosen when the page opens. The address names the engine too, so
-   * the switch holds even where storage is blocked. No confirmation prompt:
-   * choosing an engine is the request, and a suppressed browser dialog would
-   * otherwise cancel it silently.
-   */
-  async #switchEngine(engine) {
-    if (this.projectManager.current.notes?.length || this.projectManager.current.mapNotes?.length) {
-      if (!globalThis.confirm("Switching engines reloads the map without carrying Map Notes or Field Notes. Save or download this project first, then reopen it after switching. Continue?")) return;
-    }
-    this.toast(`Opening this map with ${engine === "maplibre" ? "MapLibre" : "ArcGIS"}…`);
-    const url = new URL(location.href);
-    url.searchParams.delete("engine");
-    let target = url.href;
-    try {
-      const spec = this.mapSpec.fromCurrent();
-      // Blob/local-only layers cannot be reconstructed by a share link; do not silently discard them.
-      if (this.mapController.getLayers().length > spec.layers.length) throw new Error("Some local layers cannot survive an engine switch. Save or export them first.");
-      let preferred;
-      try { preferred = localStorage.getItem(`gismap-online:basemap:${engine}`); } catch { /* optional */ }
-      if (preferred && BASEMAPS.some((item) => item.id === preferred && (item.engine === engine || item.engine === "any"))) spec.basemap = preferred;
-      target = (await this.mapSpec.createLink(spec))?.url || target;
-    } catch (error) {
-      if (this.mapController.getLayers().length) { this.error(error.message || "This map could not be preserved for the engine switch."); return; }
-      // A map without layers has no map spec; its basemap and view still travel as link parameters.
-      const plain = new URL(url.origin + url.pathname);
-      const view = this.mapController.getViewState();
-      const scale = this.mapController.getScale?.();
-      let preferred;
-      try { preferred = localStorage.getItem(`gismap-online:basemap:${engine}`); } catch { /* optional */ }
-      if (preferred || this.mapController.getBasemapId()) plain.searchParams.set("basemap", preferred || this.mapController.getBasemapId());
-      if (view?.center && Number.isFinite(scale)) {
-        plain.searchParams.set("center", view.center.map((value) => Number(value).toFixed(5)).join(","));
-        plain.searchParams.set("scale", String(Math.round(scale)));
-      }
-      target = plain.href;
-    }
-    const reopen = new URL(target);
-    reopen.searchParams.set("engine", engine);
-    try { if (this.mapController.widgetOpen("basemapGallery")) sessionStorage.setItem("gismap-online:reopen-basemap-gallery", "1"); } catch { /* optional */ }
-    saveEngine(globalThis.localStorage, engine);
-    history.replaceState(null, "", reopen.href);
-    location.reload();
   }
 
   /**

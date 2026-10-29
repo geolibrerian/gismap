@@ -200,8 +200,8 @@ export class BriefingPlayer {
     state.index = next;
     const slide = state.slides[next];
     // A rare presentation-only effect can request a different renderer for
-    // this one slide. The host owns the safe reload; do not render or move the
-    // outgoing engine after it has started that transition.
+    // this one slide. The host hands the renderer off in place, then this same
+    // player continues rendering and moving the requested slide.
     if (await this.api.ensureSlideEngine?.(slide)) return;
     this.#writeHash(slide.id);
     if (state.compact) this.#syncCards();

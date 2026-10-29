@@ -119,6 +119,66 @@ test("the leak patterns catch what they are for", () => {
   ]) assert.ok(!caught(code), code);
 });
 
+test("MapController switches renderers in place and carries portable map state", async () => {
+  const published = [];
+  const calls = [];
+  const makeEngine = (id, initial = []) => {
+    const layers = [...initial];
+    return {
+      id,
+      async initialize(container) { calls.push([id, "initialize", container]); },
+      destroy() { calls.push([id, "destroy"]); },
+      getContainer() { return "map-host"; },
+      getLayers() { return layers; },
+      getLayerConfig(layer) { return layer.config; },
+      getViewState() { return { center: [-122.4, 37.8], zoom: 9, heading: 12, tilt: 0 }; },
+      async setBasemap(value) { calls.push([id, "basemap", value]); },
+      setGround(value) { calls.push([id, "ground", value]); },
+      async addService(config) {
+        calls.push([id, "add", config.url]);
+        const layer = { uid: `${id}-${layers.length + 1}`, title: config.title, config: { ...config, uid: `${id}-${layers.length + 1}` } };
+        layers.push(layer);
+        return layer;
+      },
+      async applyRendererSpec(uid, spec) { calls.push([id, "style", uid, spec.type]); },
+      ignoreScaleRange(uid, on) { calls.push([id, "scale", uid, on]); },
+      async setView(view) { calls.push([id, "view", view.center]); },
+    };
+  };
+  const sourceLayer = {
+    uid: "arcgis-1",
+    title: "Earthquakes",
+    config: {
+      uid: "arcgis-1",
+      title: "Earthquakes",
+      url: "https://example.test/FeatureServer/0",
+      serviceType: "arcgis-auto",
+      visible: true,
+      opacity: 0.8,
+      rendererSpec: { type: "simple", color: "#d55" },
+      ignoreServiceScaleRange: true,
+    },
+  };
+  const engines = { arcgis: makeEngine("arcgis", [sourceLayer]), maplibre: makeEngine("maplibre") };
+  const controller = new MapController({ publish: (topic, payload) => published.push([topic, payload]) }, null, {
+    engineId: "arcgis",
+    engineFactory: async (id) => engines[id],
+  });
+  await controller.initialize("map-host");
+  const result = await controller.switchEngine("maplibre");
+
+  assert.equal(result.switched, true);
+  assert.equal(controller.getEngineId(), "maplibre");
+  assert.deepEqual(result.layers.map(({ from, to }) => [from, to]), [["arcgis-1", "maplibre-1"]]);
+  assert.ok(calls.some((call) => call.join(":") === "arcgis:destroy"));
+  assert.ok(calls.some((call) => call.join(":") === "maplibre:initialize:map-host"));
+  assert.ok(calls.some((call) => call.join(":") === "maplibre:add:https://example.test/FeatureServer/0"));
+  assert.ok(calls.some((call) => call.slice(0, 2).join(":") === "maplibre:style"));
+  assert.ok(calls.some((call) => call.slice(0, 2).join(":") === "maplibre:view"));
+  assert.ok(published.some(([topic]) => topic === "layers:reset"));
+  assert.ok(published.some(([topic, payload]) => topic === "engine:changed" && payload.from === "arcgis" && payload.engine === "maplibre"));
+});
+
 test("the ArcGIS engine implements the small renderer contract and the controller owns the app facade", () => {
   for (const name of ENGINE_METHODS) assert.equal(typeof ArcGISEngine.prototype[name], "function", `ArcGISEngine.${name}`);
   for (const name of MAP_CONTROLLER_METHODS) assert.equal(typeof MapController.prototype[name], "function", `MapController.${name}`);

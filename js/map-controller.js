@@ -2,7 +2,7 @@
 // higher-level workflows that can be expressed with provider-neutral
 // primitives. Renderer adapters stay focused on drawing and interaction.
 import { createEngine, getEngineDefinition, listEngines } from "./engines/engine-registry.js?v=0.61.0-briefing-player";
-import { MAP_CONTROLLER_METHODS, METHOD_CAPABILITIES, unsupported } from "./engines/engine-interface.js?v=0.54.3-draw-style1";
+import { MAP_CONTROLLER_METHODS, METHOD_CAPABILITIES, unsupported } from "./engines/engine-interface.js?v=0.62.4-silent-engine-handoff";
 import { GisMapError } from "./gismap-errors.js?v=0.28.0";
 
 const wait = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
@@ -46,6 +46,7 @@ export class MapController {
     this.engineId = engineId;
     this.engineFactory = engineFactory;
     this.engine = null;
+    this.container = null;
     this.initialBasemapId = null;
     this.defaultBasemapId = null;
     this.groundId = "world-elevation";
@@ -66,8 +67,87 @@ export class MapController {
   }
 
   async initialize(container = "viewDiv") {
+    this.container = container;
     await this.prepare();
     return this.engine.initialize(container);
+  }
+
+  /**
+   * Replaces the renderer beneath the existing workspace without navigating
+   * away from the application. Remote layers, their GISMap styles, basemap,
+   * terrain choice, and camera are rebuilt in the new engine. Callers receive
+   * the old-to-new layer IDs so their own selection state can follow along.
+   *
+   * Local browser files deliberately fail before the old engine is removed:
+   * their File handles cannot safely cross an engine boundary.
+   */
+  async switchEngine(engineId) {
+    const target = String(engineId || "").toLowerCase();
+    const previousId = this.getEngineId();
+    if (!target || target === previousId) return { switched: false, engine: previousId, layers: [] };
+    if (!getEngineDefinition(target)) throw new GisMapError("UNKNOWN_ENGINE", `Unknown map engine: ${target}.`);
+    if (!this.engine) throw new GisMapError("NOT_READY", "The map engine has not been initialized yet.");
+
+    const configs = this.getAllLayerConfigs();
+    const local = configs.find((config) => config.local || this.geoParquetSources.has(config.uid));
+    if (local) throw new GisMapError("UNSUPPORTED_LAYER_TYPE", `“${local.title || "A local layer"}” is stored only in this browser and cannot move between map engines.`);
+
+    const container = this.container || this.getContainer?.() || "viewDiv";
+    const view = this.getViewState();
+    const basemap = this.getBasemapId();
+    const ground = this.getGroundId();
+    const previousEngine = this.engine;
+    const oldEngineId = this.engineId;
+
+    // Destroying only the map view leaves the workspace, player, panels, and
+    // route in place. The container is reused, so this is a renderer handoff,
+    // not an application reload.
+    previousEngine.destroy?.();
+    this.engine = null;
+    this.engineId = target;
+    try {
+      const engine = await this.engineFactory(target, { events: this.events, authController: this.authController });
+      this.engine = engine;
+      await engine.initialize(container);
+      if (this.defaultBasemapId) engine.setDefaultBasemap?.(this.defaultBasemapId);
+      if (basemap) await Promise.resolve(engine.setBasemap?.(basemap)).catch(() => {});
+      if (ground) await Promise.resolve(this.setGround(ground)).catch(() => {});
+
+      const layers = [];
+      for (const config of configs) {
+        const layer = await this.addService(config);
+        // Renderer specs are GISMap's portable styling format. Native renderer
+        // JSON is intentionally not replayed across different SDKs.
+        if (config.rendererSpec) await Promise.resolve(this.applyRendererSpec(layer.uid, config.rendererSpec)).catch(() => {});
+        if (config.ignoreServiceScaleRange) await Promise.resolve(this.ignoreScaleRange(layer.uid, true)).catch(() => {});
+        layers.push({ from: config.uid, to: layer.uid, layer, config });
+      }
+      await this.restoreView(view);
+      this.events?.publish?.("layers:reset", {});
+      this.events?.publish?.("engine:changed", { from: previousId, engine: target, layers });
+      return { switched: true, engine: target, layers };
+    } catch (error) {
+      // The old renderer has already released its WebGL context; restore a
+      // working renderer rather than leave the live app without a map.
+      this.engine?.destroy?.();
+      this.engine = null;
+      this.engineId = oldEngineId;
+      try {
+        const engine = await this.engineFactory(oldEngineId, { events: this.events, authController: this.authController });
+        this.engine = engine;
+        await engine.initialize(container);
+        if (basemap) await Promise.resolve(engine.setBasemap?.(basemap)).catch(() => {});
+        if (ground) await Promise.resolve(this.setGround(ground)).catch(() => {});
+        for (const config of configs) {
+          const layer = await this.addService(config);
+          if (config.rendererSpec) await Promise.resolve(this.applyRendererSpec(layer.uid, config.rendererSpec)).catch(() => {});
+          if (config.ignoreServiceScaleRange) await Promise.resolve(this.ignoreScaleRange(layer.uid, true)).catch(() => {});
+        }
+        await this.restoreView(view);
+        this.events?.publish?.("layers:reset", {});
+      } catch { /* Surface the original error; a failed recovery is handled by the app error boundary. */ }
+      throw error;
+    }
   }
 
   destroy() {

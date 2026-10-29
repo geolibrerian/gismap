@@ -47,7 +47,9 @@ test('briefing entry point preserves an existing briefing and uses the bounded s
   assert.match(ui, /tutorial: 'historical-quakes-briefing'/);
   assert.match(ui, /this\.activateExampleGuide\(/);
   assert.match(ui, /#ensureHistoricalQuakesSlideEngine\(slide\)/);
-  assert.match(ui, /url\.searchParams\.set\('engine', target\)/);
+  assert.match(ui, /await this\.\#switchEngineSilently\(target, \{ updateUrl: true \}\)/);
+  assert.match(ui, /this\.mapController\.switchEngine\(engine\)/);
+  assert.doesNotMatch(ui, /location\.reload\(\)/);
   assert.equal(HISTORICAL_QUAKES_WHERE, 'mag >= 6.5');
 });
 

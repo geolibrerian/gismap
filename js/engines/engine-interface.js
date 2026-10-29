@@ -84,7 +84,7 @@ export const ENGINE_METHODS = Object.freeze([
  */
 export const MAP_CONTROLLER_METHODS = Object.freeze([
   ...ENGINE_METHODS,
-  "native", "setInitialBasemap", "setDefaultBasemap", "getDefaultBasemapId", "setGround", "getGroundId",
+  "native", "switchEngine", "setInitialBasemap", "setDefaultBasemap", "getDefaultBasemapId", "setGround", "getGroundId",
   "setCinematicEffect", "clearCinematicEffect", "getCinematicEffectStats", "requestEffectFrame",
   "addLocalFile", "discoverFeatureServiceLayers", "getQueryableLayer", "getAllLayerConfigs",
   "setTitle", "setOutFields", "setRefreshInterval", "refreshLayer", "ignoreScaleRange", "scaleState", "layerMetadata", "getLocalAsset",
