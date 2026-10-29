@@ -8,7 +8,7 @@ import { normalizeBriefing } from "./briefing-document.js?v=0.61.0-briefing-play
 import { SHARE_BASEMAPS, SHARE_LAYER_TYPES, sanitizeSharedResourceUrl } from "./share.js?v=0.54.0-unified4";
 import { normalizeSkin } from "./skin-catalog.js?v=0.57.0-skins2";
 import { decodeBriefing } from "./briefing-share.js?v=0.60.0-media1";
-import { normalizeTextBoxes } from "./text-boxes.js?v=0.63.16-text-boxes";
+import { normalizeTextBoxes } from "./text-boxes.js?v=0.63.18-print-sizes";
 
 const MAX_TEXT_BOXES = 50;
 

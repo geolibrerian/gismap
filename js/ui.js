@@ -1,4 +1,4 @@
-import { initializeFieldworkWorkspace } from "./fieldwork-workspace.js?v=0.63.16-text-boxes";
+import { initializeFieldworkWorkspace } from "./fieldwork-workspace.js?v=0.63.18-print-sizes";
 import { timelinePdfFrames, expandTimelinePdfSlides, parseTimelineFrameSelection } from "./briefing-timeline-pdf.js?v=0.1.0";
 import { renderNotesHub } from "./notes-hub.js?v=0.55.0-fieldwork1";
 import { refreshMapNoteFilters } from './map-note-filters.js?v=0.4.1';
@@ -13,7 +13,7 @@ import { MapAssistantPanel } from "./assistant-panel.js?v=0.57.0-skins1";
 import { createAssistantTools, summarizeMapState } from "./map-assistant.js?v=0.61.1-dashboard-agent";
 import { ENTERPRISE_CATALOGS, EnterpriseCatalog, normalizeArcGisDirectoryUrl } from "./enterprise-catalog.js?v=0.18.2";
 import { createShareUrl } from "./share.js?v=0.54.0-unified4";
-import { createShareLink, hasDataFilter, readBriefingFile } from "./map-share.js?v=0.63.16-text-boxes";
+import { createShareLink, hasDataFilter, readBriefingFile } from "./map-share.js?v=0.63.18-print-sizes";
 import { createEmbedIframe, createEmbedUrl } from "./embed-share.js?v=0.61.0-embed1";
 import { briefingLayerRef, findBriefingLayer } from "./briefing-api.js?v=0.61.0-briefing-player";
 import { createEmbeddedTourUrl } from "./tour-share.js?v=0.54.0-unified4";
@@ -26,8 +26,8 @@ import { applyMapColors, MAP_COLOR_COMPONENTS, SKIN_BASEMAP, themeFromComputedSt
 import { compactMedia } from "./viewport.js?v=0.18.2";
 import { APP_VERSION } from "./version.js?v=0.53.0";
 import { bindMobileSheetResize } from "./mobile-sheet-resize.js?v=0.52.7";
-import { BRAND_LOGO, PdfDocument, brandedMapImage, brandedQrCanvas, imageToJpeg, loadBrandLogo, printPalette, qrAsset } from "./pdf-document.js?v=0.63.16-text-boxes";
-import { DEFAULT_PAGE_FRAME, IMAGE_ANCHORS, MAP_TEMPLATES, getTemplate, loadImage, renderTemplate, templateMapAspect } from "./map-templates.js?v=0.63.16-text-boxes";
+import { BRAND_LOGO, PdfDocument, brandedMapImage, brandedQrCanvas, imageToJpeg, loadBrandLogo, printPalette, qrAsset } from "./pdf-document.js?v=0.63.18-print-sizes";
+import { DEFAULT_PAGE_FRAME, IMAGE_ANCHORS, MAP_TEMPLATES, getTemplate, loadImage, renderTemplate, templateMapAspect } from "./map-templates.js?v=0.63.18-print-sizes";
 import { featureLayerUrl, locationUrl } from "./field-task-share.js?v=0.54.0-unified4";
 import { dockIcon } from "./dock-icons.js?v=0.24.0";
 import { serviceNameFromUrl } from "./service-name.js?v=0.26.0";
@@ -64,8 +64,8 @@ import { buildClipPackage, clipToCinematicSpec, createCinematicClip, exportCinem
 import { availableVideoFormats, cameraAt, CLIP_FRAME_RATES, clipFrameCount, exportCinematicVideo, observationIndexAt, renderClipPoster } from "./cinematic/clip-export.js?v=0.3.8-fire-points";
 import { CHART_PANEL_PLACEMENTS, CHART_TYPES, PRESENTATION_TARGETS, chartFields, chartOption, createChartSpec, displayChartRows, loadECharts, queryChart, recommendCharts, renderChartFallback, rowsAsCsv } from "./charting-tools.js";
 import { MapChartOverlayController } from "./map-chart-tools.js";
-import { readTextBoxEditor, textBoxEditorMarkup, textBoxRunMarkup, textBoxSummary } from "./text-box-editor.js?v=0.63.16-text-boxes";
-import { defaultRun } from "./text-boxes.js?v=0.63.16-text-boxes";
+import { readTextBoxEditor, textBoxEditorMarkup, textBoxRunMarkup, textBoxSummary } from "./text-box-editor.js?v=0.63.18-print-sizes";
+import { defaultRun } from "./text-boxes.js?v=0.63.18-print-sizes";
 
 const BUILDINGS_3D_KEY = "gismap-online:buildings-3d:v1";
 const DISPLAY_SETTINGS_KEY = "gismap-online:display:v1";
@@ -2425,7 +2425,9 @@ export class UIController {
       const ticket = ++pending;
       root.querySelector("[data-template-images-panel]").hidden = !getTemplate(templateId).images;
       status.textContent = "Capturing the map…";
-      const page = renderTemplate(templateId, await data(), { ppi: this.dialog.classList.contains("app-dialog--fullwindow") ? 96 : 48, frame });
+      const sheet = getTemplate(templateId).page;
+      const ppi = Math.min(this.dialog.classList.contains("app-dialog--fullwindow") ? 96 : 48, 1100 / Math.max(sheet.width, sheet.height));
+      const page = renderTemplate(templateId, await data(), { ppi, frame });
       if (ticket !== pending || this.dialogSession !== session) return;
       const canvas = root.querySelector("[data-template-preview]");
       canvas.width = page.canvas.width;
@@ -2538,7 +2540,7 @@ export class UIController {
           return;
         }
         this.toast(kind === "pdf" ? "Making the map PDF…" : "Rendering the Smart Image…");
-        const page = renderTemplate(templateId, await data(), { ppi: kind === "pdf" ? 150 : 120, frame });
+        const page = renderTemplate(templateId, await data(), { ppi: this.#templatePpi(templateId, kind === "pdf" ? 150 : 120), frame });
         const stem = (page.template.id === "branded" ? "" : `-${page.template.id}`);
         if (kind === "pdf") this.#download(await this.#templatePdf(page, `${this.#fileStem()}${stem}-map.pdf`));
         else {
@@ -2661,13 +2663,19 @@ export class UIController {
           title: bookmark.name || base.title,
           subtitle: bookmark.description || base.subtitle,
           center: (() => { const [longitude, latitude] = this.mapController.getViewState().center || []; return Number.isFinite(latitude) ? { longitude, latitude } : base.center; })(),
-        }, { ppi: 150, frame }));
+        }, { ppi: this.#templatePpi(templateId, 150), frame }));
       }
     } finally {
       await this.mapController.restoreView(previous).catch(() => {});
       status.textContent = `${pages.length} bookmark page${pages.length === 1 ? "" : "s"} ready`;
     }
     return pages;
+  }
+
+  /** Print resolution, lowered for wall maps so a sheet stays under ~6000 px on its long side. */
+  #templatePpi(templateId, ppi) {
+    const sheet = getTemplate(templateId).page;
+    return Math.min(ppi, 6000 / Math.max(sheet.width, sheet.height));
   }
 
   #fileStem() {

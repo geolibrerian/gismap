@@ -292,6 +292,46 @@ function footer(context, data, x, y, width, size) {
 
 const centreText = (data) => (data.center ? `${data.center.latitude.toFixed(5)}, ${data.center.longitude.toFixed(5)}` : "");
 
+/**
+ * A large-format wall map: the poster layout scaled to the sheet. `p` is one
+ * poster inch on this sheet, so type and spacing grow with the paper while the
+ * map takes whatever height is left between the title band and legend strip.
+ */
+function wallMap(id, label, description, width, height) {
+  const p = width / 11;
+  const strip = 3.1 * p;
+  const mapTop = 2.5 * p;
+  return {
+    id,
+    label,
+    description,
+    page: { width, height },
+    mapRect: (k) => ({ x: 0.6 * p * k, y: mapTop * k, w: (width - 1.2 * p) * k, h: (height - mapTop - strip - 0.35 * p) * k }),
+    draw(context, k, data) {
+      const u = p * k;
+      band(context, 0, 0, width * k, 2.2 * u, data.palette);
+      context.fillStyle = data.palette.edge;
+      context.fillRect(0, 2.2 * u, width * k, 0.08 * u);
+      const y = text(context, data.title, 0.6 * u, 0.45 * u, width * k - 4 * u, { size: 0.7 * u, family: SERIF, weight: 700, color: "#ffffff", maxLines: 1 });
+      text(context, data.subtitle, 0.6 * u, y + 0.05 * u, width * k - 4 * u, { size: 0.24 * u, color: "rgba(255,255,255,.85)", maxLines: 1 });
+      brand(context, width * k - 3.1 * u, 0.6 * u, 0.85 * u, data);
+      const rect = this.mapRect(k);
+      map(context, rect, data);
+      overlays(context, data, rect);
+      frame(context, rect, data.palette.frame, 0.04 * u);
+      const top = rect.y + rect.h + 0.35 * u;
+      const right = width * k - 0.6 * u;
+      legend(context, data, 0.6 * u, top, right - 4.6 * u - 0.6 * u, { size: 0.17 * u, bottom: top + 2.0 * u, columns: width > height ? 3 : 2 });
+      scaleBar(context, data, rect, right - 4.4 * u, top + 0.1 * u, 1.6 * u, 0.16 * u);
+      northArrow(context, right - 4.25 * u, top + 1.2 * u, 0.45 * u, data.heading);
+      const link = qr(context, data, right - 1.5 * u, top, 1.5 * u, { caption: "" });
+      if (data.description) text(context, data.description, 0.6 * u, top + 2.05 * u, right - 2.6 * u, { size: 0.13 * u, color: "#3a4744", maxLines: 2 });
+      footer(context, data, 0.6 * u, height * k - 0.4 * u, right - 0.6 * u, 0.12 * u);
+      return [link, data.linkUrl && { ...rect, url: data.linkUrl }];
+    },
+  };
+}
+
 /* ---------------- Templates ---------------- */
 // Sizes are in inches; `k` is pixels per inch at render time. `mapRect(k)` is
 // the map frame, used both to shape the capture and to draw it.
@@ -409,6 +449,8 @@ const templates = [
       return [link, data.linkUrl && { ...rect, url: data.linkUrl }];
     },
   },
+  wallMap("wall-24x36", "Wall map (24 × 36)", "24 × 36 in portrait poster: large title, big map and a legend strip.", 24, 36),
+  wallMap("wall-36x36", "Square wall map (36 × 36)", "36 × 36 in square print with a large title, map and legend strip.", 36, 36),
   {
     id: "field-sheet",
     label: "Field sheet",
