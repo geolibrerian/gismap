@@ -98,6 +98,7 @@ export class ProjectManager {
   async create(name = "Untitled project") {
     await this.mapController.clearOperationalLayers();
     this.mapController.clearDrawings();
+    this.mapController.clearTextBoxes?.();
     this.mapController.setBasemap(this.mapController.getDefaultBasemapId());
     this.mapController.setGround("world-elevation");
     await this.mapController.restoreView({ center: [-98.5, 39.5], zoom: 4, heading: 0, tilt: 35 });
@@ -118,6 +119,7 @@ export class ProjectManager {
       layers: this.mapController.getAllLayerConfigs().map(({ uid, ...layer }) => layer),
       drawings: this.mapController.getDrawings?.() ?? [],
       drawingsStyle: this.#drawingsStyle(),
+      textBoxes: this.mapController.getTextBoxes?.() ?? [],
       connections: this.authController?.exportConnections() ?? this.current.connections ?? [],
     };
     return structuredClone(this.current);
@@ -273,6 +275,9 @@ export class ProjectManager {
         this.events.publish("app:error", { message: `Could not restore drawings: ${error.message}` });
       }
     }
+    try { this.mapController.setTextBoxes?.(Array.isArray(project.textBoxes) ? project.textBoxes : []); } catch (error) {
+      this.events.publish("app:error", { message: `Could not restore text boxes: ${error.message}` });
+    }
     await this.mapController.restoreView(project.view);
     this.events.publish("project:loaded", { project: this.current, missingFiles });
     return { project: this.current, missingFiles };
@@ -319,11 +324,12 @@ export class ProjectManager {
   }
 
   /** With `download: false` the PNG is only returned (as `file`), for share dialogs. */
-  async exportSmartImage({ width = 1600, height = 1000, download = true } = {}) {
+  /** With `visual` (a finished PNG Blob, such as a map template page) the map is not captured again. */
+  async exportSmartImage({ width = 1600, height = 1000, download = true, visual: page = null, suffix = "smart-map" } = {}) {
     const project = this.#shareableSnapshot();
-    const capture = await this.mapController.captureImage({ format: "png", width, height });
-    if (!capture?.dataUrl) throw new Error("The map is not ready to create a Smart Image.");
-    const visual = await composeSmartImage({
+    const capture = page ? null : await this.mapController.captureImage({ format: "png", width, height });
+    if (!page && !capture?.dataUrl) throw new Error("The map is not ready to create a Smart Image.");
+    const visual = page || await composeSmartImage({
       dataUrl: capture.dataUrl,
       title: project.name,
       layerCount: project.layers.length,
@@ -333,7 +339,7 @@ export class ProjectManager {
       skin: globalThis.document?.documentElement?.dataset.skin || project.presentation?.skin,
     });
     const blob = await embedProjectInPng(visual, project);
-    const name = `${this.#exportName(project)}-smart-map.png`;
+    const name = `${this.#exportName(project)}-${suffix}.png`;
     if (download) {
       downloadBlob(blob, name);
       this.events.publish("project:exported", { kind: "smart-image" });

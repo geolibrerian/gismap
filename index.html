@@ -64,8 +64,8 @@
     <link rel="preconnect" href="https://js.arcgis.com" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link rel="stylesheet" href="./css/app.css?v=0.61.0-briefing-player" />
-    <link rel="stylesheet" href="./css/fieldwork.css?v=0.60.0-data1" />
+    <link rel="stylesheet" href="./css/app.css?v=0.63.16-text-boxes" />
+    <link rel="stylesheet" href="./css/fieldwork.css?v=0.63.16-text-boxes" />
     <!-- three.js for point clouds, models and 3D animation; loaded only when a 3D layer is added. -->
     <script type="importmap">{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.min.js", "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/" } }</script>
     <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
@@ -118,7 +118,7 @@
               <hr />
               <button data-action="share-export">Share &amp; export…</button>
               <button data-action="share-map">Share map link &amp; QR…</button>
-              <button data-action="map-pdf">Map PDF</button>
+              <button data-action="map-pdf">Map PDF…</button>
               <button data-action="atlas-export">Export guided tour (.gisatlas)</button>
               <button data-action="project-import">Import project, tour, or Smart Image</button>
               <button data-action="open-image">Open from a photo or QR code…</button>
@@ -182,10 +182,15 @@
             </div>
           </div>
           <div class="menu">
-            <button class="menu__trigger" aria-expanded="false">Tools <span>⌄</span></button>
+            <button class="menu__trigger" aria-expanded="false">Tools</button>
             <div class="menu__content" role="menu">
               <span class="menu__label">Cartography</span>
               <button data-action="tools-cartography-lab">Cartography Lab</button>
+              <hr />
+              <span class="menu__label">Export</span>
+              <button data-action="share-export">Share &amp; export…</button>
+              <button data-action="export-pdf-editor">Print Editor…</button>
+              <button data-action="project-import">Open Smart Image…</button>
               <hr />
               <span class="menu__label">AI tools</span>
               <button data-action="tools-assistant">Map assistant</button>
@@ -269,10 +274,12 @@
               <button data-draw="polyline">Line</button>
               <button data-draw="polygon">Polygon</button>
               <button data-draw="rectangle">Rectangle</button>
+              <button id="draw-text-box" type="button">Text box</button>
               <button id="draw-style">Advanced style</button>
               <button id="draw-export">Export</button>
               <button data-draw="clear" class="button--quiet">Clear</button>
-              <p class="form-note">For a line or polygon, click to add vertices and double-click to finish. Drag to draw a rectangle.</p>
+              <p class="form-note">For a line or polygon, click to add vertices and double-click to finish. Drag to draw a rectangle. Text box: click the map to place a label, then style its text, halo, and rectangle.</p>
+              <div id="text-box-list" class="text-box-list" hidden></div>
             </div>
           </details>
 
@@ -519,6 +526,6 @@
       </ul>
     </section>
     <noscript>GISMap Online is a geospatial application and needs JavaScript. Without it, a map can still be described as a link: see <a href="/llms.txt">/llms.txt</a> and the <a href="/guides/ai-agents/">guide for AI agents</a>.</noscript>
-<script type="module" src="./js/app.js?v=0.62.7-save-all"></script>
+<script type="module" src="./js/app.js?v=0.63.16-text-boxes"></script>
   </body>
 </html>

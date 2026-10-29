@@ -1,9 +1,10 @@
 // Stable application-facing map facade. It owns engine selection and the
 // higher-level workflows that can be expressed with provider-neutral
 // primitives. Renderer adapters stay focused on drawing and interaction.
-import { createEngine, getEngineDefinition, listEngines } from "./engines/engine-registry.js?v=0.62.7-save-all";
+import { createEngine, getEngineDefinition, listEngines } from "./engines/engine-registry.js?v=0.63.16-text-boxes";
 import { MAP_CONTROLLER_METHODS, METHOD_CAPABILITIES, unsupported } from "./engines/engine-interface.js?v=0.62.4-silent-engine-handoff";
 import { GisMapError } from "./gismap-errors.js?v=0.28.0";
+import { TextBoxLayer } from "./text-boxes.js?v=0.63.16-text-boxes";
 
 const wait = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
 const nothing = () => undefined;
@@ -68,6 +69,15 @@ export class MapController {
     this.groundId = "world-elevation";
     this.geoParquetSources = new Map();
     this.carriedLayerFields = new Map();
+    this.textBoxes = new TextBoxLayer({
+      events,
+      project: {
+        mapToScreen: (coordinates) => this.engine?.mapToScreen?.(coordinates) ?? null,
+        screenToMap: (x, y) => this.engine?.screenToMap?.(x, y) ?? null,
+        container: () => this.#containerElement(),
+        zoom: () => { try { return this.engine?.getCamera?.()?.zoom ?? null; } catch { return null; } },
+      },
+    });
     this.events?.subscribe?.("layer:removed", ({ uid }) => { this.geoParquetSources.delete(uid); this.carriedLayerFields.delete(uid); });
   }
 
@@ -146,6 +156,7 @@ export class MapController {
       if (drawings.length) await this.setDrawings(drawings).catch(() => {});
       await this.restoreView(view);
       this.events?.publish?.("layers:reset", {});
+      this.textBoxes.reattach();
       this.events?.publish?.("engine:changed", { from: previousId, engine: target, layers });
       return { switched: true, engine: target, layers };
     } catch (error) {
@@ -246,6 +257,36 @@ export class MapController {
     const valid = (Array.isArray(features) ? features : []).filter((feature) => feature?.geometry?.type && Array.isArray(feature.geometry.coordinates)).slice(0, 5000);
     if (typeof this.engine?.setDrawings !== "function") return;
     await this.engine.setDrawings(valid.map((feature) => ({ type: "Feature", geometry: feature.geometry, properties: {} })));
+  }
+
+  /** Map text boxes: rich labels anchored at [longitude, latitude, z], kept across engines. */
+  getTextBoxes() { return this.textBoxes.list(); }
+  setTextBoxes(list = []) { this.textBoxes.set(list); }
+  addTextBox(box) { return this.textBoxes.add(box); }
+  updateTextBox(id, patch) { return this.textBoxes.update(id, patch); }
+  removeTextBox(id) { this.textBoxes.remove(id); }
+  clearTextBoxes() { this.textBoxes.clear(); }
+  selectTextBox(id) { this.textBoxes.select(id); }
+  pickMapCoordinate() { return this.textBoxes.pickCoordinate(); }
+  /** [longitude, latitude, z] under a map-container pixel, or null. */
+  screenToMap(x, y) { return this.engine?.screenToMap?.(x, y) ?? null; }
+  /** The map container's size in CSS pixels. */
+  getContainerSize() { const element = this.#containerElement(); return element ? { width: element.clientWidth, height: element.clientHeight } : null; }
+
+  /** The engine's capture with text boxes drawn in, so exports match the screen. */
+  async captureImage(options = {}) {
+    const capture = await this._delegate("captureImage", [options]);
+    try {
+      return await this.textBoxes.composite(capture, options.format || "jpg", options.quality ?? 82);
+    } catch {
+      return capture;
+    }
+  }
+
+  #containerElement() {
+    const container = this.engine?.getContainer?.() ?? this.container;
+    if (typeof container === "string") return typeof document === "undefined" ? null : document.getElementById(container);
+    return container || null;
   }
 
   getAllLayerConfigs() { return this.getLayers().map((layer) => this.getLayerConfig(layer)); }

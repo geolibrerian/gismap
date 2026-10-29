@@ -494,6 +494,30 @@ export class MaplibreEngine {
     return this.map?.getContainer() ?? null;
   }
 
+  /** Screen pixels (relative to the container) of [longitude, latitude, z]. */
+  mapToScreen([longitude, latitude, z = 0] = []) {
+    if (!this.map || !Number.isFinite(longitude) || !Number.isFinite(latitude)) return null;
+    // An altitude needs the camera's 3D pixel matrix; map.project() only knows the ground.
+    const transform = this.map.transform;
+    const matrix = transform?.pixelMatrix3D ?? transform?._pixelMatrix3D;
+    const Mercator = globalThis.maplibregl?.MercatorCoordinate;
+    if (typeof transform?.coordinatePoint === "function" && matrix && Mercator) {
+      const exaggeration = this.map.getTerrain?.()?.exaggeration ?? 1;
+      const point = transform.coordinatePoint(Mercator.fromLngLat([longitude, latitude]), (Number(z) || 0) * exaggeration, matrix);
+      if (Number.isFinite(point?.x) && Number.isFinite(point?.y)) return { x: point.x, y: point.y };
+    }
+    const point = this.map.project([longitude, latitude]);
+    return { x: point.x, y: point.y };
+  }
+
+  /** [longitude, latitude, z] under a container pixel. */
+  screenToMap(x, y) {
+    if (!this.map) return null;
+    const { lng, lat } = this.map.unproject([x, y]);
+    const z = this.map.queryTerrainElevation?.([lng, lat]) ?? 0;
+    return [lng, lat, Number.isFinite(z) ? z : 0];
+  }
+
   /* ---------------- Basemap ---------------- */
 
   setInitialBasemap(id) {
@@ -2471,6 +2495,11 @@ export class MaplibreEngine {
     await Promise.race([
       this.map.loaded() ? Promise.resolve() : new Promise((resolve) => this.map.once("idle", resolve)),
       new Promise((resolve) => setTimeout(resolve, 8000)),
+    ]);
+    // Read a freshly drawn frame, not whatever the buffer held mid-load.
+    await Promise.race([
+      new Promise((resolve) => { this.map.once("render", resolve); this.map.triggerRepaint(); }),
+      new Promise((resolve) => setTimeout(resolve, 1000)),
     ]);
     const canvas = this.map.getCanvas();
     const shape = Number.isFinite(aspect) && aspect > 0 ? aspect : Number.isFinite(height) && height > 0 ? width / height : canvas.width / canvas.height;

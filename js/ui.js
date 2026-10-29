@@ -1,4 +1,4 @@
-import { initializeFieldworkWorkspace } from "./fieldwork-workspace.js?v=0.58.1-cinematic1";
+import { initializeFieldworkWorkspace } from "./fieldwork-workspace.js?v=0.63.16-text-boxes";
 import { timelinePdfFrames, expandTimelinePdfSlides, parseTimelineFrameSelection } from "./briefing-timeline-pdf.js?v=0.1.0";
 import { renderNotesHub } from "./notes-hub.js?v=0.55.0-fieldwork1";
 import { refreshMapNoteFilters } from './map-note-filters.js?v=0.4.1';
@@ -13,7 +13,7 @@ import { MapAssistantPanel } from "./assistant-panel.js?v=0.57.0-skins1";
 import { createAssistantTools, summarizeMapState } from "./map-assistant.js?v=0.61.1-dashboard-agent";
 import { ENTERPRISE_CATALOGS, EnterpriseCatalog, normalizeArcGisDirectoryUrl } from "./enterprise-catalog.js?v=0.18.2";
 import { createShareUrl } from "./share.js?v=0.54.0-unified4";
-import { createShareLink, hasDataFilter, readBriefingFile } from "./map-share.js?v=0.61.0-briefing-player";
+import { createShareLink, hasDataFilter, readBriefingFile } from "./map-share.js?v=0.63.16-text-boxes";
 import { createEmbedIframe, createEmbedUrl } from "./embed-share.js?v=0.61.0-embed1";
 import { briefingLayerRef, findBriefingLayer } from "./briefing-api.js?v=0.61.0-briefing-player";
 import { createEmbeddedTourUrl } from "./tour-share.js?v=0.54.0-unified4";
@@ -26,7 +26,8 @@ import { applyMapColors, MAP_COLOR_COMPONENTS, SKIN_BASEMAP, themeFromComputedSt
 import { compactMedia } from "./viewport.js?v=0.18.2";
 import { APP_VERSION } from "./version.js?v=0.53.0";
 import { bindMobileSheetResize } from "./mobile-sheet-resize.js?v=0.52.7";
-import { PdfDocument, brandedMapImage, brandedQrCanvas, loadBrandLogo, printPalette, qrAsset } from "./pdf-document.js?v=0.44.2";
+import { BRAND_LOGO, PdfDocument, brandedMapImage, brandedQrCanvas, imageToJpeg, loadBrandLogo, printPalette, qrAsset } from "./pdf-document.js?v=0.63.16-text-boxes";
+import { DEFAULT_PAGE_FRAME, IMAGE_ANCHORS, MAP_TEMPLATES, getTemplate, loadImage, renderTemplate, templateMapAspect } from "./map-templates.js?v=0.63.16-text-boxes";
 import { featureLayerUrl, locationUrl } from "./field-task-share.js?v=0.54.0-unified4";
 import { dockIcon } from "./dock-icons.js?v=0.24.0";
 import { serviceNameFromUrl } from "./service-name.js?v=0.26.0";
@@ -63,6 +64,8 @@ import { buildClipPackage, clipToCinematicSpec, createCinematicClip, exportCinem
 import { availableVideoFormats, cameraAt, CLIP_FRAME_RATES, clipFrameCount, exportCinematicVideo, observationIndexAt, renderClipPoster } from "./cinematic/clip-export.js?v=0.3.8-fire-points";
 import { CHART_PANEL_PLACEMENTS, CHART_TYPES, PRESENTATION_TARGETS, chartFields, chartOption, createChartSpec, displayChartRows, loadECharts, queryChart, recommendCharts, renderChartFallback, rowsAsCsv } from "./charting-tools.js";
 import { MapChartOverlayController } from "./map-chart-tools.js";
+import { readTextBoxEditor, textBoxEditorMarkup, textBoxRunMarkup, textBoxSummary } from "./text-box-editor.js?v=0.63.16-text-boxes";
+import { defaultRun } from "./text-boxes.js?v=0.63.16-text-boxes";
 
 const BUILDINGS_3D_KEY = "gismap-online:buildings-3d:v1";
 const DISPLAY_SETTINGS_KEY = "gismap-online:display:v1";
@@ -604,8 +607,19 @@ export class UIController {
       this.utilityWorkspaceOpen = true; this.#syncUtilityPanel("workspace"); this.#closeMenus();
     }));
     document.querySelectorAll("[data-draw]").forEach((button) =>
-      button.addEventListener("click", () => this.mapController.draw(button.dataset.draw)),
+      button.addEventListener("click", () => {
+        if (button.dataset.draw === "clear") this.mapController.clearTextBoxes?.();
+        this.mapController.draw(button.dataset.draw);
+      }),
     );
+    document.querySelector("#draw-text-box")?.addEventListener("click", () => this.#placeTextBox());
+    document.querySelector("#text-box-list")?.addEventListener("click", (event) => {
+      const edit = event.target.closest("[data-text-box-edit]");
+      const remove = event.target.closest("[data-text-box-remove]");
+      if (edit) this.#openTextBoxEditor(edit.dataset.textBoxEdit);
+      if (remove) this.mapController.removeTextBox(remove.dataset.textBoxRemove);
+    });
+    this.events.subscribe("text-boxes:changed", () => this.#renderTextBoxList());
     document.querySelector("#draw-style")?.addEventListener("click", () => this.#openDrawingStyle());
 
     document.querySelector("#draw-export").addEventListener("click", () => {
@@ -790,6 +804,72 @@ export class UIController {
       this.projectManager.setApplication(application);
     });
     document.querySelector("#globe-dashboard-settings")?.addEventListener("click", () => this.#dashboardBuilderComingSoon());
+  }
+
+  async #placeTextBox() {
+    this.toast("Click the map to place the text box. Press Escape to cancel.");
+    const coordinates = await this.mapController.pickMapCoordinate();
+    if (!coordinates) return;
+    const box = this.mapController.addTextBox({ coordinates, runs: [defaultRun({ text: "New label" })] });
+    this.#openTextBoxEditor(box.id);
+  }
+
+  #renderTextBoxList() {
+    const list = document.querySelector("#text-box-list");
+    if (!list) return;
+    const boxes = this.mapController.getTextBoxes?.() || [];
+    list.hidden = !boxes.length;
+    list.innerHTML = boxes.map((box) => `<div class="text-box-list__item"><span>${escapeHtml(textBoxSummary(box))}</span><button type="button" data-text-box-edit="${escapeHtml(box.id)}">Edit</button><button type="button" class="button--quiet" data-text-box-remove="${escapeHtml(box.id)}" aria-label="Delete text box">✕</button></div>`).join("");
+  }
+
+  #openTextBoxEditor(id) {
+    const box = this.mapController.getTextBoxes().find((item) => item.id === id);
+    if (!box) return;
+    this.mapController.selectTextBox(id);
+    this.openDialog({ eyebrow: "Draw", title: "Text box", content: textBoxEditorMarkup(box) });
+    const root = this.dialog;
+    const session = this.dialogSession;
+    let currentZoom = null;
+    try { currentZoom = this.mapController.getCamera()?.zoom; } catch { /* Not ready. */ }
+    root.querySelector("[data-text-zoom-note]").textContent = `${Number.isFinite(currentZoom) ? `The map is at zoom ${currentZoom.toFixed(1)}. ` : ""}Leave min and max blank to show the label at every zoom.`;
+    const apply = () => {
+      const next = readTextBoxEditor(root, id);
+      this.mapController.updateTextBox(id, next);
+      root.querySelector("[data-frame-fill-output]").value = `${Math.round(next.frame.fillOpacity * 100)}%`;
+    };
+    const runs = root.querySelector("[data-text-runs]");
+    const renumber = () => runs.querySelectorAll("[data-text-run]").forEach((run, index) => {
+      run.dataset.textRun = index;
+      run.querySelector("legend").textContent = `Text run ${index + 1}`;
+      run.querySelector("[data-remove-run]").dataset.removeRun = index;
+    });
+    root.querySelector(".text-box-editor").addEventListener("input", apply);
+    root.querySelector(".text-box-editor").addEventListener("change", apply);
+    root.querySelector("[data-add-run]").addEventListener("click", () => {
+      const last = readTextBoxEditor(root, id).runs.at(-1);
+      runs.insertAdjacentHTML("beforeend", textBoxRunMarkup({ ...(last || defaultRun()), text: " more text" }, runs.children.length));
+      apply();
+    });
+    runs.addEventListener("click", (event) => {
+      const button = event.target.closest("[data-remove-run]");
+      if (!button || runs.children.length <= 1) return;
+      button.closest("[data-text-run]").remove();
+      renumber();
+      apply();
+    });
+    root.querySelector("[data-text-pick]").addEventListener("click", async () => {
+      this.dialog.close();
+      this.toast("Click the map to move the text box. Press Escape to cancel.");
+      const coordinates = await this.mapController.pickMapCoordinate();
+      if (coordinates) this.mapController.updateTextBox(id, { coordinates });
+      this.#openTextBoxEditor(id);
+    });
+    root.querySelector("[data-text-delete]").addEventListener("click", () => {
+      this.mapController.removeTextBox(id);
+      this.dialog.close();
+    });
+    root.querySelector("[data-text-done]").addEventListener("click", () => this.dialog.close());
+    this.dialog.addEventListener("close", () => { if (this.dialogSession === session) this.mapController.selectTextBox(null); }, { once: true });
   }
 
   #openDrawingStyle() {
@@ -1616,7 +1696,7 @@ export class UIController {
       });
       summary.append(button);
       const close = document.createElement("button");
-      close.type = "button"; close.className = "panel-close"; close.textContent = "×";
+      close.type = "button"; close.className = "panel-close"; close.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M6 6l12 12M18 6 6 18"/></svg>';
       close.setAttribute("aria-label", `Close ${label} panel`); close.title = `Close ${label} panel`;
       close.addEventListener("click", (event) => {
         event.preventDefault(); event.stopPropagation();
@@ -1909,7 +1989,14 @@ export class UIController {
           this.shareMap().catch((error) => this.error(error.message));
           break;
         case "map-pdf":
-          this.#downloadMapPdf().catch((error) => this.error(error.message));
+        case "export-pdf-editor":
+          this.#openMapTemplates("pdf").catch((error) => this.error(error.message));
+          break;
+        case "export-pdf-images":
+          this.#openMapTemplates("pdf", "image-overlay").catch((error) => this.error(error.message));
+          break;
+        case "export-smart-image":
+          this.#openMapTemplates("smart-image").catch((error) => this.error(error.message));
           break;
         case "data-popular":
           this.#popularDataDialog();
@@ -2186,8 +2273,8 @@ export class UIController {
       content: `<div class="share-export">${notices.map((notice) => `<p class="workflow-share__notice">${notice}</p>`).join("")}
         <div class="share-export__grid">
           ${card("share", "Share map", "Link and QR code with the layers, styles, filters, view, basemap and skin.", { icon: "⌗", disabled: layers.length > local.length ? "" : "Add a web layer to share a link." })}
-          ${card("pdf", "Map PDF", "A branded PDF of this view with a layer key and a QR code back to the live map.", { icon: "▤", disabled: layers.length ? "" : "Add a layer first." })}
-          ${card("smart-image", "Smart map image", "A PNG of this map that anyone can view, and that reopens the whole project when dropped on GIS Map Online.", { icon: "◩", disabled: layers.length ? "" : "Add a layer first." })}
+          ${card("pdf", "Map PDF", "Choose a page template (report, poster, field sheet, slide and more) and download it as a PDF.", { icon: "▤" })}
+          ${card("smart-image", "Smart map image", "Any page template as a PNG that anyone can view, and that reopens the whole project when dropped on GIS Map Online.", { icon: "◩" })}
           ${card("briefing-share", "Share as a briefing", `One click: slides from ${layer ? `“${escapeHtml(layer.title || "this layer")}”` : "the layer"}'s ${styled ? "style, " : ""}filter and top features${this.aiController.isConfigured() ? ", described by AI" : ""}, ready to share.`, { icon: "✦", disabled: queryable ? "" : "Choose a feature layer to brief on." })}
           ${card("briefing", "Create briefing", `Start a briefing on ${layer ? `“${escapeHtml(layer.title || "this layer")}”` : "a layer"}${styled ? " with its style" : ""} and write the slides yourself.`, { icon: "▣", disabled: queryable ? "" : "Choose a feature layer to brief on." })}
           ${card("tour", "Start a tour here", "Save this view as the first chapter of a guided tour.", { icon: "➤" })}
@@ -2201,11 +2288,7 @@ export class UIController {
         if (action === "share") return await this.shareMap();
         if (action === "data") return this.#exportDialog(exportable.some((item) => item.uid === layer?.uid) ? layer.uid : null);
         this.dialog.close();
-        if (action === "pdf") return await this.#downloadMapPdf();
-        if (action === "smart-image") {
-          this.toast("Rendering the Smart map image…");
-          return await this.projectManager.exportSmartImage();
-        }
+        if (action === "pdf" || action === "smart-image") return await this.#openMapTemplates(action);
         if (action === "briefing") return this.createBriefingFromLayer(layer.uid);
         if (action === "briefing-share") return await this.generateBriefingFromView({ uid: layer.uid, share: true });
         if (action === "tour") return await this.#startTourHere();
@@ -2226,6 +2309,7 @@ export class UIController {
       basemap: this.mapController.getBasemapId(),
       camera: this.mapController.getViewState(),
       layers,
+      textBoxes: this.mapController.getTextBoxes?.() ?? [],
     });
     return { ...link, layers };
   }
@@ -2256,6 +2340,346 @@ export class UIController {
         ...(this.mapSpec ? [{ label: "Map spec (JSON)", create: () => new File([JSON.stringify({ $schema: "https://gismap.online/schemas/map-v1.schema.json", ...this.mapSpec.fromCurrent({ title }) }, null, 2)], `${title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "map"}.map.json`, { type: "application/json" }) }] : []),
       ],
     });
+  }
+
+  /**
+   * Map templates: pick a prebuilt page, preview it, and download it as a PDF or
+   * Smart Image. Templates are code, not project data; images added to the
+   * "Map with images" template stay in this browser session.
+   */
+  async #openMapTemplates(output = "pdf", startTemplate = null) {
+    const remembered = startTemplate || (() => { try { return localStorage.getItem("gismap.mapTemplate"); } catch { return null; } })();
+    let templateId = getTemplate(remembered).id;
+    this.templateImages ||= [];
+    const frame = { ...DEFAULT_PAGE_FRAME, showQr: true, ...(() => { try { return JSON.parse(localStorage.getItem("gismap.mapTemplateFrame")) || {}; } catch { return {}; } })() };
+    const project = this.projectManager.current;
+    const now = new Date();
+    const fields = {
+      title: project.name || "Map",
+      subtitle: `${now.toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" })} · ${this.#basemapLabel(this.mapController.getBasemapId())}`,
+      description: "",
+    };
+    const options = MAP_TEMPLATES.map((template) => `<label class="map-template"><input type="radio" name="map-template" value="${template.id}"${template.id === templateId ? " checked" : ""}><strong>${escapeHtml(template.label)}</strong><small>${escapeHtml(template.description)}</small><small class="map-template__size">${template.page.width} × ${template.page.height} in</small></label>`).join("");
+    const anchors = (selected) => IMAGE_ANCHORS.map((anchor) => `<option value="${anchor}"${anchor === selected ? " selected" : ""}>${anchor.replace("-", " ")}</option>`).join("");
+    this.openDialog({
+      eyebrow: "PDF & Smart Image",
+      title: "Print Editor",
+      content: `<div class="map-templates">
+        <div class="map-templates__list" role="radiogroup" aria-label="Page template">${options}</div>
+        <div class="map-templates__side">
+          <button type="button" class="map-templates__expand" data-template-fullwindow aria-pressed="false">⤢ Full window</button>
+          <div class="map-templates__preview"><canvas data-template-preview aria-label="Page preview"></canvas><p class="form-note" data-template-status>Capturing the map…</p></div>
+          <div class="map-templates__fields">
+          <label class="field"><span>Title</span><input type="text" maxlength="120" data-template-title value="${escapeHtml(fields.title)}"></label>
+          <label class="field"><span>Subtitle</span><input type="text" maxlength="160" data-template-subtitle value="${escapeHtml(fields.subtitle)}"></label>
+          <label class="field"><span>Description (report and poster)</span><textarea rows="3" maxlength="900" data-template-description></textarea></label>
+          <fieldset class="feedback-settings map-templates__frame"><legend>Margin &amp; border</legend><div class="field-grid">
+            <label class="opacity-row"><span>Margin</span><input type="range" min="0" max="1" step="0.05" data-frame-margin value="${frame.margin}"><output>${frame.margin.toFixed(2)} in</output></label>
+            <label class="field"><span>Margin colour</span><input type="color" data-frame-margin-color value="${escapeHtml(frame.marginColor)}"></label>
+            <label class="opacity-row"><span>Border</span><input type="range" min="0" max="12" step="0.5" data-frame-border value="${frame.borderWidth}"><output>${frame.borderWidth} pt</output></label>
+            <label class="field"><span>Border colour</span><input type="color" data-frame-border-color value="${escapeHtml(frame.borderColor)}"></label>
+          </div><label class="menu__toggle map-templates__qr"><input type="checkbox" data-frame-qr${frame.showQr !== false ? " checked" : ""}><span>Show QR code</span></label><p class="form-note" data-frame-qr-note hidden>No QR code: the live-map link needs a public web layer or a text box on the map.</p></fieldset>
+          <fieldset class="feedback-settings map-templates__images" data-template-images-panel hidden><legend>Images on the map</legend>
+            <p class="form-note">Add logos, photos or callouts. They stay in this browser session and are not saved in the project.</p>
+            <div data-template-images></div>
+            <label class="map-templates__add"><input type="file" accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml" multiple data-template-image-input> Add images…</label>
+          </fieldset>
+          <label class="field"><span>Pages</span><select data-template-pages><option value="view">Current map view</option><option value="bookmarks"${(this.projectManager.current.bookmarks ?? []).length ? "" : " disabled"}>One page per bookmark (${(this.projectManager.current.bookmarks ?? []).length})</option></select></label>
+          <p class="form-note" data-template-pages-note>The preview follows the map. Dock the editor in the workspace panel to pan and zoom while you watch.</p>
+          <div class="workspace-tool__actions map-templates__actions"><button type="button" data-template-export="smart-image"${output === "smart-image" ? ' class="button--primary"' : ""}>Download Smart Image</button><button type="button" data-template-export="pdf"${output === "pdf" ? ' class="button--primary"' : ""}>Download PDF</button></div>
+        </div></div></div>`,
+    });
+    const root = this.dialog;
+    const session = this.dialogSession;
+    const status = root.querySelector("[data-template-status]");
+    const captures = new Map();
+    // Controls work at once; the capture and project details arrive in the background.
+    const details = this.#templateData().catch(() => null);
+
+    const capture = async (id) => {
+      const aspect = templateMapAspect(id);
+      const key = aspect.toFixed(3);
+      if (!captures.has(key)) captures.set(key, this.#templateCapture(aspect));
+      return captures.get(key);
+    };
+    const data = async () => {
+      const [base, shot] = await Promise.all([details, capture(templateId)]);
+      if (!base) throw new Error("The map is not ready yet.");
+      const link = await this.#templateLink(base.palette);
+      root.querySelector("[data-frame-qr]").disabled = !link.qr;
+      root.querySelector("[data-frame-qr-note]").hidden = Boolean(link.qr);
+      return {
+        ...base,
+        ...shot,
+        ...link,
+        title: root.querySelector("[data-template-title]").value.trim(),
+        subtitle: root.querySelector("[data-template-subtitle]").value.trim(),
+        description: root.querySelector("[data-template-description]").value.trim(),
+        images: getTemplate(templateId).images ? this.templateImages : [],
+        ...(frame.showQr === false ? { qr: null } : {}),
+      };
+    };
+    let pending = 0;
+    const preview = () => draw().catch((error) => { status.textContent = error.message; });
+    const draw = async () => {
+      const ticket = ++pending;
+      root.querySelector("[data-template-images-panel]").hidden = !getTemplate(templateId).images;
+      status.textContent = "Capturing the map…";
+      const page = renderTemplate(templateId, await data(), { ppi: this.dialog.classList.contains("app-dialog--fullwindow") ? 96 : 48, frame });
+      if (ticket !== pending || this.dialogSession !== session) return;
+      const canvas = root.querySelector("[data-template-preview]");
+      canvas.width = page.canvas.width;
+      canvas.height = page.canvas.height;
+      canvas.getContext("2d").drawImage(page.canvas, 0, 0);
+      status.textContent = `${page.template.label} · ${page.template.page.width} × ${page.template.page.height} in`;
+    };
+    const renderImages = () => {
+      root.querySelector("[data-template-images]").innerHTML = this.templateImages.map((item, index) => `<div class="map-templates__image" data-template-image="${index}">
+        <img src="${item.image.src}" alt="">
+        <label class="field"><span>Position</span><select data-image-anchor>${anchors(item.anchor)}</select></label>
+        <label class="opacity-row"><span>Size</span><input type="range" min="5" max="80" step="1" data-image-size value="${item.size}"><output>${item.size}%</output></label>
+        <label class="opacity-row"><span>Opacity</span><input type="range" min="0.1" max="1" step="0.05" data-image-opacity value="${item.opacity}"><output>${Math.round(item.opacity * 100)}%</output></label>
+        <button type="button" class="button--quiet" data-image-remove>Remove</button></div>`).join("");
+    };
+    renderImages();
+    root.querySelector(".map-templates__list").addEventListener("change", (event) => {
+      templateId = event.target.value;
+      try { localStorage.setItem("gismap.mapTemplate", templateId); } catch { /* Preference only. */ }
+      preview();
+    });
+    for (const selector of ["[data-template-title]", "[data-template-subtitle]", "[data-template-description]"]) root.querySelector(selector).addEventListener("input", () => preview());
+    root.querySelector("[data-template-image-input]").addEventListener("change", async (event) => {
+      for (const file of [...event.target.files].slice(0, 8)) {
+        if (file.size > 15 * 1024 * 1024) { this.error(`${file.name} is larger than 15 MB.`); continue; }
+        const image = await loadImage(URL.createObjectURL(file));
+        if (!image) { this.error(`${file.name} could not be read as an image.`); continue; }
+        this.templateImages.push({ image, anchor: ["top-right", "bottom-left", "top-left", "bottom-right"][this.templateImages.length % 4], size: 22, opacity: 1 });
+      }
+      event.target.value = "";
+      renderImages();
+      preview();
+    });
+    const frameInputs = root.querySelector(".map-templates__frame");
+    frameInputs.addEventListener("input", (event) => {
+      frame.margin = Number(frameInputs.querySelector("[data-frame-margin]").value);
+      frame.marginColor = frameInputs.querySelector("[data-frame-margin-color]").value;
+      frame.borderWidth = Number(frameInputs.querySelector("[data-frame-border]").value);
+      frame.borderColor = frameInputs.querySelector("[data-frame-border-color]").value;
+      frame.showQr = frameInputs.querySelector("[data-frame-qr]").checked;
+      frameInputs.querySelector("[data-frame-margin] + output").value = `${frame.margin.toFixed(2)} in`;
+      frameInputs.querySelector("[data-frame-border] + output").value = `${frame.borderWidth} pt`;
+      try { localStorage.setItem("gismap.mapTemplateFrame", JSON.stringify(frame)); } catch { /* Preference only. */ }
+      preview();
+    });
+    const expand = root.querySelector("[data-template-fullwindow]");
+    const setFullWindow = (on) => {
+      if (on && this.dialog.classList.contains("app-dialog--docked")) document.querySelector("#dialog-dock")?.click();
+      // Cover the map and side panels, leaving the top bar and the icon rail.
+      const shown = (element) => element.getClientRects().length > 0 && getComputedStyle(element).visibility !== "hidden";
+      const header = [...document.querySelectorAll(".studio-header, .menu-bar")].find(shown);
+      const rail = [...document.querySelectorAll(".workspace-rail")].find(shown);
+      this.dialog.style.setProperty("--fullwindow-top", `${Math.round(header?.getBoundingClientRect().bottom || 0)}px`);
+      this.dialog.style.setProperty("--fullwindow-left", `${Math.round(rail?.getBoundingClientRect().right || 0)}px`);
+      this.dialog.classList.toggle("app-dialog--fullwindow", on);
+      expand.setAttribute("aria-pressed", String(on));
+      expand.textContent = on ? "⤡ Exit full window" : "⤢ Full window";
+      try { localStorage.setItem("gismap.mapTemplateFullWindow", on ? "1" : ""); } catch { /* Preference only. */ }
+      preview();
+    };
+    expand.addEventListener("click", () => setFullWindow(!this.dialog.classList.contains("app-dialog--fullwindow")));
+    // The preview follows the map: a moved view or edited label recaptures it.
+    let refresh = 0;
+    let exporting = false;
+    const follow = () => {
+      // Docking closes and reopens the dialog, so the editor stops following only once replaced or closed.
+      if (this.dialogSession !== session || !this.dialog.open) { followers.forEach((follower) => follower.remove()); return; }
+      if (exporting) return;
+      clearTimeout(refresh);
+      refresh = setTimeout(() => { captures.clear(); preview(); }, 350);
+    };
+    const followers = ["view:stationary", "text-boxes:changed", "layer:changed", "map:basemap-changed"].map((topic) => this.events.subscribe(topic, follow));
+    this.dialog.addEventListener("close", () => this.dialog.classList.remove("app-dialog--fullwindow"), { once: true });
+    const pagesSelect = root.querySelector("[data-template-pages]");
+    const smartButton = root.querySelector('[data-template-export="smart-image"]');
+    pagesSelect.addEventListener("change", () => {
+      const many = pagesSelect.value === "bookmarks";
+      smartButton.disabled = many;
+      smartButton.title = many ? "A Smart Image holds one page; choose Current map view." : "";
+      root.querySelector("[data-template-pages-note]").textContent = many
+        ? "The PDF gets one page per bookmark, each titled with its name. The map visits every bookmark while it is made, then returns here."
+        : "The preview follows the map. Dock the editor in the workspace panel to pan and zoom while you watch.";
+    });
+    if ((() => { try { return localStorage.getItem("gismap.mapTemplateFullWindow") === "1"; } catch { return false; } })()) setFullWindow(true);
+    const images = root.querySelector("[data-template-images]");
+    images.addEventListener("input", (event) => {
+      const row = event.target.closest("[data-template-image]");
+      const item = row && this.templateImages[Number(row.dataset.templateImage)];
+      if (!item) return;
+      if (event.target.matches("[data-image-anchor]")) item.anchor = event.target.value;
+      if (event.target.matches("[data-image-size]")) { item.size = Number(event.target.value); event.target.nextElementSibling.value = `${item.size}%`; }
+      if (event.target.matches("[data-image-opacity]")) { item.opacity = Number(event.target.value); event.target.nextElementSibling.value = `${Math.round(item.opacity * 100)}%`; }
+      preview();
+    });
+    images.addEventListener("click", (event) => {
+      if (!event.target.closest("[data-image-remove]")) return;
+      this.templateImages.splice(Number(event.target.closest("[data-template-image]").dataset.templateImage), 1);
+      renderImages();
+      preview();
+    });
+    root.querySelectorAll("[data-template-export]").forEach((button) => button.addEventListener("click", async () => {
+      const kind = button.dataset.templateExport;
+      button.disabled = true;
+      try {
+        if (kind === "pdf" && pagesSelect.value === "bookmarks") {
+          exporting = true;
+          const pages = await this.#bookmarkPages(templateId, data, frame, status);
+          const stem = templateId === "branded" ? "" : `-${templateId}`;
+          this.#download(await this.#templatePdf(pages, `${this.#fileStem()}${stem}-bookmarks.pdf`));
+          return;
+        }
+        this.toast(kind === "pdf" ? "Making the map PDF…" : "Rendering the Smart Image…");
+        const page = renderTemplate(templateId, await data(), { ppi: kind === "pdf" ? 150 : 120, frame });
+        const stem = (page.template.id === "branded" ? "" : `-${page.template.id}`);
+        if (kind === "pdf") this.#download(await this.#templatePdf(page, `${this.#fileStem()}${stem}-map.pdf`));
+        else {
+          const blob = await new Promise((resolve) => page.canvas.toBlob(resolve, "image/png"));
+          await this.projectManager.exportSmartImage({ visual: blob, suffix: `smart-map${stem}` });
+        }
+      } catch (error) {
+        this.error(error.message);
+      } finally {
+        button.disabled = kind === "smart-image" && pagesSelect.value === "bookmarks";
+        exporting = false;
+      }
+    }));
+    await preview();
+  }
+
+  /** Project details every template can use. */
+  async #templateData() {
+    const skin = document.documentElement.dataset.skin || this.projectManager.current.presentation?.skin;
+    const palette = printPalette(skin);
+    const logo = await loadImage(BRAND_LOGO);
+    const [longitude, latitude] = this.mapController.getViewState().center || [];
+    let heading = 0;
+    try { heading = this.mapController.getCamera()?.heading || 0; } catch { /* Flat default. */ }
+    const credits = (() => { try { return String(this.mapController.getAttributionText?.() || "").replace(/\s+/g, " ").slice(0, 220); } catch { return ""; } })();
+    return {
+      palette,
+      logo,
+      heading,
+      center: Number.isFinite(latitude) ? { longitude, latitude } : null,
+      date: new Date().toLocaleString(),
+      credits,
+      layers: this.mapController.getAllLayerConfigs().filter((config) => config.visible !== false).map((config) => ({ title: config.title || "Layer" })),
+      legend: (() => { try { return this.mapController.getLegendData?.() || []; } catch { return []; } })(),
+    };
+  }
+
+  /** The live-map link and its QR code, rebuilt only when the link changes. */
+  async #templateLink(palette) {
+    const link = await this.#mapShareLink().catch(() => null);
+    if (!link?.url) return { qr: null, linkUrl: null };
+    if (this.templateQr?.url !== link.url) {
+      let qr = null;
+      if (link.qr && globalThis.QRCode?.toCanvas) {
+        qr = document.createElement("canvas");
+        await globalThis.QRCode.toCanvas(qr, link.url, { width: 600, margin: 1, errorCorrectionLevel: "L", color: { dark: palette.band, light: "#ffffff" } }).catch(() => { qr = null; });
+      }
+      this.templateQr = { url: link.url, qr };
+    }
+    return { qr: this.templateQr.qr, linkUrl: link.url };
+  }
+
+  /** The map shaped to a template's frame, with its ground width and extent when the view is flat. */
+  async #templateCapture(aspect) {
+    const shot = await this.mapController.captureImage({ format: "jpg", quality: 92, width: 2400, aspect });
+    const image = shot?.dataUrl ? await loadImage(shot.dataUrl) : null;
+    const size = this.mapController.getContainerSize();
+    let tilt = 0;
+    try { tilt = this.mapController.getCamera()?.tilt || 0; } catch { /* Flat default. */ }
+    let groundWidth = null;
+    let extent = null;
+    if (size && tilt < 3) {
+      const cropWidth = Math.min(size.width, size.height * aspect);
+      const cropHeight = cropWidth / aspect;
+      const left = (size.width - cropWidth) / 2;
+      const top = (size.height - cropHeight) / 2;
+      const west = this.mapController.screenToMap(left, size.height / 2);
+      const east = this.mapController.screenToMap(left + cropWidth, size.height / 2);
+      const north = this.mapController.screenToMap(size.width / 2, top);
+      const south = this.mapController.screenToMap(size.width / 2, top + cropHeight);
+      if (west && east) {
+        const radians = Math.PI / 180;
+        const lat = ((west[1] + east[1]) / 2) * radians;
+        groundWidth = 6371008.8 * Math.abs(east[0] - west[0]) * radians * Math.cos(lat);
+      }
+      const heading = (() => { try { return Math.abs(this.mapController.getCamera()?.heading || 0); } catch { return 0; } })();
+      if (west && east && north && south && (heading < 0.5 || heading > 359.5)) extent = { west: west[0], east: east[0], north: north[1], south: south[1] };
+    }
+    return { map: image, groundWidth, extent };
+  }
+
+  /** A template page as a one-page PDF: the page image plus its clickable areas. */
+  /** Template pages as a PDF: each page image plus its clickable areas. */
+  async #templatePdf(pages, name) {
+    const list = Array.isArray(pages) ? pages : [pages];
+    const { template } = list[0];
+    const width = template.page.width * 72;
+    const height = template.page.height * 72;
+    const pdf = new PdfDocument({ header: false, homeUrl: null, pageWidth: width, pageHeight: height, margin: 0 });
+    for (const [index, { canvas, links }] of list.entries()) {
+      if (index) pdf.newPage();
+      const asset = await imageToJpeg(canvas.toDataURL("image/png"), { width: canvas.width, height: canvas.height, quality: 0.9 });
+      pdf.addImageAt(asset, { x: 0, y: height, width, height });
+      const scale = 72 / (canvas.width / template.page.width);
+      for (const link of links) pdf.addLink([link.x * scale, height - (link.y + link.h) * scale, (link.x + link.w) * scale, height - link.y * scale], link.url);
+    }
+    return new File([pdf.toBlob()], name, { type: "application/pdf" });
+  }
+
+  /** One rendered page per bookmark; the map visits each and then returns to where it was. */
+  async #bookmarkPages(templateId, data, frame, status) {
+    const bookmarks = (this.projectManager.current.bookmarks ?? []).filter((bookmark) => bookmark.viewpoint);
+    if (!bookmarks.length) throw new Error("Add a bookmark first.");
+    const base = await data();
+    const previous = this.mapController.getViewState();
+    const aspect = templateMapAspect(templateId);
+    const pages = [];
+    try {
+      for (const [index, bookmark] of bookmarks.entries()) {
+        status.textContent = `Page ${index + 1} of ${bookmarks.length}: ${bookmark.name}`;
+        await this.mapController.restoreView(bookmark.viewpoint);
+        await new Promise((resolve) => setTimeout(resolve, 250));
+        const shot = await this.#templateCapture(aspect);
+        const link = await this.#templateLink(base.palette);
+        pages.push(renderTemplate(templateId, {
+          ...base,
+          ...shot,
+          ...link,
+          ...(frame.showQr === false ? { qr: null } : {}),
+          title: bookmark.name || base.title,
+          subtitle: bookmark.description || base.subtitle,
+          center: (() => { const [longitude, latitude] = this.mapController.getViewState().center || []; return Number.isFinite(latitude) ? { longitude, latitude } : base.center; })(),
+        }, { ppi: 150, frame }));
+      }
+    } finally {
+      await this.mapController.restoreView(previous).catch(() => {});
+      status.textContent = `${pages.length} bookmark page${pages.length === 1 ? "" : "s"} ready`;
+    }
+    return pages;
+  }
+
+  #fileStem() {
+    return (this.projectManager.current.name || "map").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "map";
+  }
+
+  #download(file) {
+    const anchor = document.createElement("a");
+    anchor.href = URL.createObjectURL(file);
+    anchor.download = file.name;
+    anchor.click();
+    setTimeout(() => URL.revokeObjectURL(anchor.href), 1000);
   }
 
   async #downloadMapPdf() {
@@ -7852,6 +8276,7 @@ export class UIController {
     const current = this.projectManager.current.presentation || {};
     const goToCamera = () => (shared.camera ? this.mapController.setView({ ...shared.camera }, { animate: false }) : null);
     if (shared.kind === "map") {
+      if (shared.textBoxes?.length) this.mapController.setTextBoxes(shared.textBoxes);
       this.projectManager.setPresentation({ ...current, template: "standard", skin: shared.skin, title: shared.title || current.title });
       await goToCamera();
       this.toast(`${shared.title || "Shared map"} opened.${filterNote}`);

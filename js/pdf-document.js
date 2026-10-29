@@ -290,8 +290,8 @@ export class PdfDocument {
    * Letter portrait by default; pass pageWidth 792 / pageHeight 612 for
    * landscape. `palette` (see printPalette) colours the header and headings.
    */
-  constructor({ heading, logo = null, homeUrl = "https://gismap.online/", pageWidth = 612, pageHeight = 792, margin = 48, palette = PRINT_PALETTES.gismap }) {
-    Object.assign(this, { heading, logo, homeUrl, pageWidth, pageHeight, margin, palette });
+  constructor({ heading, logo = null, homeUrl = "https://gismap.online/", pageWidth = 612, pageHeight = 792, margin = 48, palette = PRINT_PALETTES.gismap, header = true }) {
+    Object.assign(this, { heading, logo, homeUrl, pageWidth, pageHeight, margin, palette, header });
     this.colors = { ...PDF_COLORS, accent: pdfColor(palette.accent), soft: pdfColor(palette.soft) };
     this.pages = [];
     this.page = null;
@@ -308,6 +308,13 @@ export class PdfDocument {
     // The header band mirrors the QR cards: the skin's dark band, an edge stripe,
     // the mark, "GIS MAP" over a spaced "ONLINE". It links to the site.
     const { margin: left, pageWidth, pageHeight, palette } = this;
+    if (!this.header) {
+      // A bare page, for templates that draw their own design.
+      this.page = { commands: [], images: [], links: [] };
+      this.pages.push(this.page);
+      this.y = pageHeight - this.margin;
+      return;
+    }
     const band = pageHeight - 88;
     this.page = { commands: [
       `${pdfColor(palette.band)} rg ${left} ${band} ${pageWidth - left * 2} 44 re f`,

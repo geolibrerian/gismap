@@ -2013,6 +2013,24 @@ export class ArcGISEngine {
     return this.view?.container ?? null;
   }
 
+  /** Screen pixels (relative to the container) of [longitude, latitude, z], or null when off-view. */
+  mapToScreen([longitude, latitude, z = 0] = []) {
+    if (!this.view?.toScreen || !this.modules.geometryJsonUtils) return null;
+    const point = this.modules.geometryJsonUtils.fromJSON({ x: longitude, y: latitude, z: Number(z) || 0, spatialReference: { wkid: 4326 } });
+    const screen = this.view.toScreen(point);
+    return screen && Number.isFinite(screen.x) && Number.isFinite(screen.y) ? { x: screen.x, y: screen.y } : null;
+  }
+
+  /** [longitude, latitude, z] under a container pixel, or null off the globe. */
+  screenToMap(x, y) {
+    const point = this.view?.toMap?.({ x, y });
+    if (!point) return null;
+    const geographic = this.geographicCoordinates(this.#plainGeometry(point));
+    const longitude = geographic?.longitude ?? point.longitude;
+    const latitude = geographic?.latitude ?? point.latitude;
+    return Number.isFinite(longitude) && Number.isFinite(latitude) ? [longitude, latitude, Number.isFinite(point.z) ? point.z : 0] : null;
+  }
+
   /** The view's current extent as plain geometry JSON (usable as a query geometry), or null. */
   getViewExtent() {
     return this.#plainGeometry(this.view?.extent ?? null);
