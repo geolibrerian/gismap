@@ -1,4 +1,4 @@
-import { initializeFieldworkWorkspace } from "./fieldwork-workspace.js?v=0.63.18-print-sizes";
+import { initializeFieldworkWorkspace } from "./fieldwork-workspace.js?v=0.63.21-print-options";
 import { timelinePdfFrames, expandTimelinePdfSlides, parseTimelineFrameSelection } from "./briefing-timeline-pdf.js?v=0.1.0";
 import { renderNotesHub } from "./notes-hub.js?v=0.55.0-fieldwork1";
 import { refreshMapNoteFilters } from './map-note-filters.js?v=0.4.1';
@@ -13,7 +13,7 @@ import { MapAssistantPanel } from "./assistant-panel.js?v=0.57.0-skins1";
 import { createAssistantTools, summarizeMapState } from "./map-assistant.js?v=0.61.1-dashboard-agent";
 import { ENTERPRISE_CATALOGS, EnterpriseCatalog, normalizeArcGisDirectoryUrl } from "./enterprise-catalog.js?v=0.18.2";
 import { createShareUrl } from "./share.js?v=0.54.0-unified4";
-import { createShareLink, hasDataFilter, readBriefingFile } from "./map-share.js?v=0.63.18-print-sizes";
+import { createShareLink, hasDataFilter, readBriefingFile } from "./map-share.js?v=0.63.21-print-options";
 import { createEmbedIframe, createEmbedUrl } from "./embed-share.js?v=0.61.0-embed1";
 import { briefingLayerRef, findBriefingLayer } from "./briefing-api.js?v=0.61.0-briefing-player";
 import { createEmbeddedTourUrl } from "./tour-share.js?v=0.54.0-unified4";
@@ -26,8 +26,8 @@ import { applyMapColors, MAP_COLOR_COMPONENTS, SKIN_BASEMAP, themeFromComputedSt
 import { compactMedia } from "./viewport.js?v=0.18.2";
 import { APP_VERSION } from "./version.js?v=0.53.0";
 import { bindMobileSheetResize } from "./mobile-sheet-resize.js?v=0.52.7";
-import { BRAND_LOGO, PdfDocument, brandedMapImage, brandedQrCanvas, imageToJpeg, loadBrandLogo, printPalette, qrAsset } from "./pdf-document.js?v=0.63.18-print-sizes";
-import { DEFAULT_PAGE_FRAME, IMAGE_ANCHORS, MAP_TEMPLATES, getTemplate, loadImage, renderTemplate, templateMapAspect } from "./map-templates.js?v=0.63.18-print-sizes";
+import { BRAND_LOGO, PdfDocument, brandedMapImage, brandedQrCanvas, imageToJpeg, loadBrandLogo, printPalette, qrAsset } from "./pdf-document.js?v=0.63.21-print-options";
+import { DEFAULT_PAGE_FRAME, IMAGE_ANCHORS, MAP_TEMPLATES, getTemplate, loadImage, renderTemplate, templateCompact, templateMapAspect } from "./map-templates.js?v=0.63.21-print-options";
 import { featureLayerUrl, locationUrl } from "./field-task-share.js?v=0.54.0-unified4";
 import { dockIcon } from "./dock-icons.js?v=0.24.0";
 import { serviceNameFromUrl } from "./service-name.js?v=0.26.0";
@@ -64,8 +64,8 @@ import { buildClipPackage, clipToCinematicSpec, createCinematicClip, exportCinem
 import { availableVideoFormats, cameraAt, CLIP_FRAME_RATES, clipFrameCount, exportCinematicVideo, observationIndexAt, renderClipPoster } from "./cinematic/clip-export.js?v=0.3.8-fire-points";
 import { CHART_PANEL_PLACEMENTS, CHART_TYPES, PRESENTATION_TARGETS, chartFields, chartOption, createChartSpec, displayChartRows, loadECharts, queryChart, recommendCharts, renderChartFallback, rowsAsCsv } from "./charting-tools.js";
 import { MapChartOverlayController } from "./map-chart-tools.js";
-import { readTextBoxEditor, textBoxEditorMarkup, textBoxRunMarkup, textBoxSummary } from "./text-box-editor.js?v=0.63.18-print-sizes";
-import { defaultRun } from "./text-boxes.js?v=0.63.18-print-sizes";
+import { readTextBoxEditor, textBoxEditorMarkup, textBoxRunMarkup, textBoxSummary } from "./text-box-editor.js?v=0.63.21-print-options";
+import { defaultRun } from "./text-boxes.js?v=0.63.21-print-options";
 
 const BUILDINGS_3D_KEY = "gismap-online:buildings-3d:v1";
 const DISPLAY_SETTINGS_KEY = "gismap-online:display:v1";
@@ -822,9 +822,12 @@ export class UIController {
     list.innerHTML = boxes.map((box) => `<div class="text-box-list__item"><span>${escapeHtml(textBoxSummary(box))}</span><button type="button" data-text-box-edit="${escapeHtml(box.id)}">Edit</button><button type="button" class="button--quiet" data-text-box-remove="${escapeHtml(box.id)}" aria-label="Delete text box">✕</button></div>`).join("");
   }
 
-  #openTextBoxEditor(id) {
+  #openTextBoxEditor(id, { returnToPrint = false } = {}) {
     const box = this.mapController.getTextBoxes().find((item) => item.id === id);
     if (!box) return;
+    // Opened over the Print Editor, the text box editor hands the window back when it closes.
+    const backToPrint = returnToPrint || Boolean(this.dialog.open && this.dialog.querySelector(".map-templates"));
+    const printDocked = this.dialog.classList.contains("app-dialog--docked");
     this.mapController.selectTextBox(id);
     this.openDialog({ eyebrow: "Draw", title: "Text box", content: textBoxEditorMarkup(box) });
     const root = this.dialog;
@@ -857,19 +860,30 @@ export class UIController {
       renumber();
       apply();
     });
+    let picking = false;
     root.querySelector("[data-text-pick]").addEventListener("click", async () => {
+      picking = true;
       this.dialog.close();
       this.toast("Click the map to move the text box. Press Escape to cancel.");
       const coordinates = await this.mapController.pickMapCoordinate();
       if (coordinates) this.mapController.updateTextBox(id, { coordinates });
-      this.#openTextBoxEditor(id);
+      this.#openTextBoxEditor(id, { returnToPrint: backToPrint });
     });
     root.querySelector("[data-text-delete]").addEventListener("click", () => {
       this.mapController.removeTextBox(id);
       this.dialog.close();
     });
     root.querySelector("[data-text-done]").addEventListener("click", () => this.dialog.close());
-    this.dialog.addEventListener("close", () => { if (this.dialogSession === session) this.mapController.selectTextBox(null); }, { once: true });
+    this.dialog.addEventListener("close", () => {
+      if (this.dialogSession !== session) return;
+      this.mapController.selectTextBox(null);
+      // Docking closes and reopens the dialog; only a real close returns to the Print Editor.
+      setTimeout(() => {
+        if (!backToPrint || picking || this.dialogSession !== session || this.dialog.open) return;
+        this.#openMapTemplates(this.printState?.output || "pdf").catch((error) => this.error(error.message));
+        if (printDocked) document.querySelector("#dialog-dock")?.click();
+      }, 0);
+    }, { once: true });
   }
 
   #openDrawingStyle() {
@@ -2348,16 +2362,18 @@ export class UIController {
    * "Map with images" template stay in this browser session.
    */
   async #openMapTemplates(output = "pdf", startTemplate = null) {
-    const remembered = startTemplate || (() => { try { return localStorage.getItem("gismap.mapTemplate"); } catch { return null; } })();
+    const remembered = startTemplate || this.printState?.templateId || (() => { try { return localStorage.getItem("gismap.mapTemplate"); } catch { return null; } })();
     let templateId = getTemplate(remembered).id;
     this.templateImages ||= [];
-    const frame = { ...DEFAULT_PAGE_FRAME, showQr: true, ...(() => { try { return JSON.parse(localStorage.getItem("gismap.mapTemplateFrame")) || {}; } catch { return {}; } })() };
+    const frame = { ...DEFAULT_PAGE_FRAME, showQr: true, showNorth: true, showScale: true, ...(() => { try { return JSON.parse(localStorage.getItem("gismap.mapTemplateFrame")) || {}; } catch { return {}; } })() };
     const project = this.projectManager.current;
     const now = new Date();
     const fields = {
       title: project.name || "Map",
       subtitle: `${now.toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" })} · ${this.#basemapLabel(this.mapController.getBasemapId())}`,
       description: "",
+      // Fields typed earlier in this session come back, e.g. after editing a text box.
+      ...(this.printState?.projectId === project.id ? this.printState.fields : {}),
     };
     const options = MAP_TEMPLATES.map((template) => `<label class="map-template"><input type="radio" name="map-template" value="${template.id}"${template.id === templateId ? " checked" : ""}><strong>${escapeHtml(template.label)}</strong><small>${escapeHtml(template.description)}</small><small class="map-template__size">${template.page.width} × ${template.page.height} in</small></label>`).join("");
     const anchors = (selected) => IMAGE_ANCHORS.map((anchor) => `<option value="${anchor}"${anchor === selected ? " selected" : ""}>${anchor.replace("-", " ")}</option>`).join("");
@@ -2372,13 +2388,13 @@ export class UIController {
           <div class="map-templates__fields">
           <label class="field"><span>Title</span><input type="text" maxlength="120" data-template-title value="${escapeHtml(fields.title)}"></label>
           <label class="field"><span>Subtitle</span><input type="text" maxlength="160" data-template-subtitle value="${escapeHtml(fields.subtitle)}"></label>
-          <label class="field"><span>Description (report and poster)</span><textarea rows="3" maxlength="900" data-template-description></textarea></label>
+          <label class="field"><span>Description (report and poster)</span><textarea rows="3" maxlength="900" data-template-description>${escapeHtml(fields.description)}</textarea></label>
           <fieldset class="feedback-settings map-templates__frame"><legend>Margin &amp; border</legend><div class="field-grid">
             <label class="opacity-row"><span>Margin</span><input type="range" min="0" max="1" step="0.05" data-frame-margin value="${frame.margin}"><output>${frame.margin.toFixed(2)} in</output></label>
             <label class="field"><span>Margin colour</span><input type="color" data-frame-margin-color value="${escapeHtml(frame.marginColor)}"></label>
             <label class="opacity-row"><span>Border</span><input type="range" min="0" max="12" step="0.5" data-frame-border value="${frame.borderWidth}"><output>${frame.borderWidth} pt</output></label>
             <label class="field"><span>Border colour</span><input type="color" data-frame-border-color value="${escapeHtml(frame.borderColor)}"></label>
-          </div><label class="menu__toggle map-templates__qr"><input type="checkbox" data-frame-qr${frame.showQr !== false ? " checked" : ""}><span>Show QR code</span></label><p class="form-note" data-frame-qr-note hidden>No QR code: the live-map link needs a public web layer or a text box on the map.</p></fieldset>
+          </div><label class="menu__toggle map-templates__qr"><input type="checkbox" data-frame-qr${frame.showQr !== false ? " checked" : ""}><span>Show QR code</span></label><label class="menu__toggle"><input type="checkbox" data-frame-north${frame.showNorth !== false ? " checked" : ""}><span>Show north arrow</span></label><label class="menu__toggle"><input type="checkbox" data-frame-scale${frame.showScale !== false ? " checked" : ""}><span>Show scale bar</span></label><p class="form-note" data-frame-qr-note hidden>No QR code: the live-map link needs a public web layer or a text box on the map.</p></fieldset>
           <fieldset class="feedback-settings map-templates__images" data-template-images-panel hidden><legend>Images on the map</legend>
             <p class="form-note">Add logos, photos or callouts. They stay in this browser session and are not saved in the project.</p>
             <div data-template-images></div>
@@ -2396,16 +2412,19 @@ export class UIController {
     // Controls work at once; the capture and project details arrive in the background.
     const details = this.#templateData().catch(() => null);
 
-    const capture = async (id) => {
-      const aspect = templateMapAspect(id);
+    const capture = async (id, options = {}) => {
+      const aspect = templateMapAspect(id, options);
       const key = aspect.toFixed(3);
       if (!captures.has(key)) captures.set(key, this.#templateCapture(aspect));
       return captures.get(key);
     };
     const data = async () => {
-      const [base, shot] = await Promise.all([details, capture(templateId)]);
+      const base = await details;
       if (!base) throw new Error("The map is not ready yet.");
       const link = await this.#templateLink(base.palette);
+      const description = root.querySelector("[data-template-description]").value.trim();
+      const compact = templateCompact({ ...base, qr: frame.showQr === false ? null : link.qr, description });
+      const shot = await capture(templateId, { compact });
       root.querySelector("[data-frame-qr]").disabled = !link.qr;
       root.querySelector("[data-frame-qr-note]").hidden = Boolean(link.qr);
       return {
@@ -2414,7 +2433,8 @@ export class UIController {
         ...link,
         title: root.querySelector("[data-template-title]").value.trim(),
         subtitle: root.querySelector("[data-template-subtitle]").value.trim(),
-        description: root.querySelector("[data-template-description]").value.trim(),
+        description,
+        compact,
         images: getTemplate(templateId).images ? this.templateImages : [],
         ...(frame.showQr === false ? { qr: null } : {}),
       };
@@ -2423,6 +2443,13 @@ export class UIController {
     const preview = () => draw().catch((error) => { status.textContent = error.message; });
     const draw = async () => {
       const ticket = ++pending;
+      syncExpand();
+      this.printState = {
+        projectId: project.id,
+        templateId,
+        output,
+        fields: Object.fromEntries(["title", "subtitle", "description"].map((key) => [key, root.querySelector(`[data-template-${key}]`).value])),
+      };
       root.querySelector("[data-template-images-panel]").hidden = !getTemplate(templateId).images;
       status.textContent = "Capturing the map…";
       const sheet = getTemplate(templateId).page;
@@ -2468,6 +2495,8 @@ export class UIController {
       frame.borderWidth = Number(frameInputs.querySelector("[data-frame-border]").value);
       frame.borderColor = frameInputs.querySelector("[data-frame-border-color]").value;
       frame.showQr = frameInputs.querySelector("[data-frame-qr]").checked;
+      frame.showNorth = frameInputs.querySelector("[data-frame-north]").checked;
+      frame.showScale = frameInputs.querySelector("[data-frame-scale]").checked;
       frameInputs.querySelector("[data-frame-margin] + output").value = `${frame.margin.toFixed(2)} in`;
       frameInputs.querySelector("[data-frame-border] + output").value = `${frame.borderWidth} pt`;
       try { localStorage.setItem("gismap.mapTemplateFrame", JSON.stringify(frame)); } catch { /* Preference only. */ }
@@ -2475,7 +2504,13 @@ export class UIController {
     });
     const expand = root.querySelector("[data-template-fullwindow]");
     const setFullWindow = (on) => {
-      if (on && this.dialog.classList.contains("app-dialog--docked")) document.querySelector("#dialog-dock")?.click();
+      // From the workspace panel, full window first returns the editor to a window of its own.
+      if (on && this.dialog.classList.contains("app-dialog--docked")) {
+        try { localStorage.setItem("gismap.mapTemplateFullWindow", "1"); } catch { /* Preference only. */ }
+        this.dialog.close();
+        setTimeout(() => this.#openMapTemplates(output, templateId).catch((error) => this.error(error.message)), 0);
+        return;
+      }
       // Cover the map and side panels, leaving the top bar and the icon rail.
       const shown = (element) => element.getClientRects().length > 0 && getComputedStyle(element).visibility !== "hidden";
       const header = [...document.querySelectorAll(".studio-header, .menu-bar")].find(shown);
@@ -2483,12 +2518,16 @@ export class UIController {
       this.dialog.style.setProperty("--fullwindow-top", `${Math.round(header?.getBoundingClientRect().bottom || 0)}px`);
       this.dialog.style.setProperty("--fullwindow-left", `${Math.round(rail?.getBoundingClientRect().right || 0)}px`);
       this.dialog.classList.toggle("app-dialog--fullwindow", on);
-      expand.setAttribute("aria-pressed", String(on));
-      expand.textContent = on ? "⤡ Exit full window" : "⤢ Full window";
+      syncExpand();
       try { localStorage.setItem("gismap.mapTemplateFullWindow", on ? "1" : ""); } catch { /* Preference only. */ }
       preview();
     };
-    expand.addEventListener("click", () => setFullWindow(!this.dialog.classList.contains("app-dialog--fullwindow")));
+    const isFull = () => this.dialog.classList.contains("app-dialog--fullwindow") && !this.dialog.classList.contains("app-dialog--docked");
+    function syncExpand() {
+      expand.setAttribute("aria-pressed", String(isFull()));
+      expand.textContent = isFull() ? "⤡ Exit full window" : "⤢ Full window";
+    }
+    expand.addEventListener("click", () => setFullWindow(!isFull()));
     // The preview follows the map: a moved view or edited label recaptures it.
     let refresh = 0;
     let exporting = false;
@@ -2646,7 +2685,7 @@ export class UIController {
     if (!bookmarks.length) throw new Error("Add a bookmark first.");
     const base = await data();
     const previous = this.mapController.getViewState();
-    const aspect = templateMapAspect(templateId);
+    const aspect = templateMapAspect(templateId, { compact: base.compact });
     const pages = [];
     try {
       for (const [index, bookmark] of bookmarks.entries()) {

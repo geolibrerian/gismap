@@ -169,7 +169,7 @@ function niceDistance(meters) {
 
 /** A two-segment scale bar at most `maxWidth` wide; skipped when the map is tilted. */
 function scaleBar(context, data, rect, x, y, maxWidth, size, { light = false } = {}) {
-  if (!Number.isFinite(data.groundWidth) || data.groundWidth <= 0) return;
+  if (!showScale || !Number.isFinite(data.groundWidth) || data.groundWidth <= 0) return;
   const metersPerPx = data.groundWidth / rect.w;
   const meters = niceDistance(maxWidth * metersPerPx);
   const width = meters / metersPerPx;
@@ -189,7 +189,12 @@ function scaleBar(context, data, rect, x, y, maxWidth, size, { light = false } =
   text(context, `${label} (${miles >= 1 ? miles.toFixed(1) : (miles * 5280).toFixed(0)} ${miles >= 1 ? "mi" : "ft"})`, x + width - size * 6, y + size * 0.45, size * 12, { size: size * 0.8, align: "center", color: ink });
 }
 
+// Per-render switches from the editor (north arrow and scale bar on or off).
+let showNorth = true;
+let showScale = true;
+
 function northArrow(context, cx, cy, size, heading = 0, { light = false } = {}) {
+  if (!showNorth) return;
   const ink = light ? "#ffffff" : "#17201d";
   const paper = light ? "transparent" : "#ffffff";
   context.save();
@@ -299,33 +304,38 @@ const centreText = (data) => (data.center ? `${data.center.latitude.toFixed(5)},
  */
 function wallMap(id, label, description, width, height) {
   const p = width / 11;
-  const strip = 3.1 * p;
   const mapTop = 2.5 * p;
+  // The legend/QR strip is left out when it would be empty, so the map takes the space.
+  const strip = (compact) => (compact ? 0 : 2.6 * p);
   return {
     id,
     label,
     description,
     page: { width, height },
-    mapRect: (k) => ({ x: 0.6 * p * k, y: mapTop * k, w: (width - 1.2 * p) * k, h: (height - mapTop - strip - 0.35 * p) * k }),
+    mapRect: (k, { compact = false } = {}) => ({ x: 0.6 * p * k, y: mapTop * k, w: (width - 1.2 * p) * k, h: (height - mapTop - strip(compact) - 0.8 * p) * k }),
     draw(context, k, data) {
       const u = p * k;
       band(context, 0, 0, width * k, 2.2 * u, data.palette);
       context.fillStyle = data.palette.edge;
       context.fillRect(0, 2.2 * u, width * k, 0.08 * u);
-      const y = text(context, data.title, 0.6 * u, 0.45 * u, width * k - 4 * u, { size: 0.7 * u, family: SERIF, weight: 700, color: "#ffffff", maxLines: 1 });
-      text(context, data.subtitle, 0.6 * u, y + 0.05 * u, width * k - 4 * u, { size: 0.24 * u, color: "rgba(255,255,255,.85)", maxLines: 1 });
+      const y = text(context, data.title, 0.6 * u, 0.45 * u, width * k - 4.2 * u, { size: 0.7 * u, family: SERIF, weight: 700, color: "#ffffff", maxLines: 1 });
+      text(context, data.subtitle, 0.6 * u, y + 0.05 * u, width * k - 4.2 * u, { size: 0.24 * u, color: "rgba(255,255,255,.85)", maxLines: 1 });
       brand(context, width * k - 3.1 * u, 0.6 * u, 0.85 * u, data);
-      const rect = this.mapRect(k);
+      // Scale bar and north arrow sit in the title band, under the wordmark.
+      scaleBar(context, data, this.mapRect(k, data), width * k - 3.3 * u, 1.62 * u, 1.6 * u, 0.13 * u, { light: true });
+      northArrow(context, width * k - 0.95 * u, 1.72 * u, 0.36 * u, data.heading, { light: true });
+      const rect = this.mapRect(k, data);
       map(context, rect, data);
       overlays(context, data, rect);
       frame(context, rect, data.palette.frame, 0.04 * u);
       const top = rect.y + rect.h + 0.35 * u;
       const right = width * k - 0.6 * u;
-      legend(context, data, 0.6 * u, top, right - 4.6 * u - 0.6 * u, { size: 0.17 * u, bottom: top + 2.0 * u, columns: width > height ? 3 : 2 });
-      scaleBar(context, data, rect, right - 4.4 * u, top + 0.1 * u, 1.6 * u, 0.16 * u);
-      northArrow(context, right - 4.25 * u, top + 1.2 * u, 0.45 * u, data.heading);
-      const link = qr(context, data, right - 1.5 * u, top, 1.5 * u, { caption: "" });
-      if (data.description) text(context, data.description, 0.6 * u, top + 2.05 * u, right - 2.6 * u, { size: 0.13 * u, color: "#3a4744", maxLines: 2 });
+      let link = null;
+      if (!data.compact) {
+        legend(context, data, 0.6 * u, top, right - 2.4 * u, { size: 0.17 * u, bottom: top + 1.6 * u, columns: width > height ? 3 : 2 });
+        link = qr(context, data, right - 1.5 * u, top, 1.5 * u, { caption: "" });
+        if (data.description) text(context, data.description, 0.6 * u, top + 1.65 * u, right - 2.6 * u, { size: 0.13 * u, color: "#3a4744", maxLines: 2 });
+      }
       footer(context, data, 0.6 * u, height * k - 0.4 * u, right - 0.6 * u, 0.12 * u);
       return [link, data.linkUrl && { ...rect, url: data.linkUrl }];
     },
@@ -547,8 +557,14 @@ export function getTemplate(id) {
 }
 
 /** The map frame's width ÷ height, for shaping the capture. */
-export function templateMapAspect(id) {
-  const rect = getTemplate(id).mapRect(100);
+/** Whether a template's optional strip would be empty, so its map can grow (wall maps). */
+export function templateCompact(data = {}) {
+  const legendItems = (data.legend?.length || 0) + (data.layers?.length || 0);
+  return !legendItems && !data.qr && !data.description;
+}
+
+export function templateMapAspect(id, options = {}) {
+  const rect = getTemplate(id).mapRect(100, options);
   return rect.w / rect.h;
 }
 
@@ -562,6 +578,8 @@ export const DEFAULT_PAGE_FRAME = Object.freeze({ margin: 0, marginColor: "#ffff
  */
 export function renderTemplate(id, data, { ppi = 150, frame = DEFAULT_PAGE_FRAME } = {}) {
   const template = getTemplate(id);
+  showNorth = frame.showNorth !== false;
+  showScale = frame.showScale !== false;
   const { width, height } = template.page;
   const canvas = document.createElement("canvas");
   canvas.width = Math.round(width * ppi);
