@@ -35,7 +35,7 @@ import { generateSpatialChartBrief } from "./briefing-spatial-chart.js?v=0.60.0-
 import { previewFilterSeries, formatSeriesTitle } from "./briefing-series-preview.js?v=0.60.0-media1";
 import { briefingLayerRef } from "./briefing-api.js?v=0.60.0-media1";
 import { renderMarkdown } from "./markdown.js?v=0.18.2";
-import { BriefingPlayer, slideHasMap } from "./briefing-player.js?v=0.61.0-settings";
+import { BriefingPlayer, slideHasMap } from "./briefing-player.js?v=0.62.3-briefing-slide-engines";
 import { expandTimelinePdfSlides } from "./briefing-timeline-pdf.js?v=0.1.0";
 import { briefingFileStem, briefingPdf, markdownToText } from "./briefing-pdf.js?v=0.44.2";
 import { featureId } from "./presentation-query.js?v=0.30.0";
@@ -79,6 +79,7 @@ export class BriefingSlides {
       getSlides: () => this.briefing.slides.filter((slide) => !slide.hidden),
       slideHtml: (slide, options) => this.slideHtml(slide, options),
       showSlide: (slide, options) => this.showSlideMap(slide, options),
+      ensureSlideEngine: (slide) => this.api.ensureSlideEngine?.(slide) || false,
       mapController: api.mapController,
       compact: () => api.compact?.() ?? false,
       title: () => api.data().title,

@@ -11,7 +11,7 @@ import { IdentifyController } from "./identify.js?v=0.54.0-pan2";
 import { AttributeTableController } from "./attribute-table.js?v=0.61.2-layer-tools";
 import { AIController } from "./ai.js?v=0.57.0-skins1";
 import { ToolManager } from "./tool-manager.js?v=0.37.0";
-import { UIController } from "./ui.js?v=0.62.1-quakes-guide";
+import { UIController } from "./ui.js?v=0.62.3-briefing-slide-engines";
 import { ExportController } from "./export/export-controller.js?v=0.37.0";
 import { SHARE_BASEMAPS, parseShareParameters } from "./share.js?v=0.54.0-unified4";
 import { readShareLocation } from "./map-share.js?v=0.61.0-briefing-player";
@@ -50,13 +50,13 @@ async function start() {
   let sharedState = null;
   let sharedStateError = null;
   try { sharedState = await readShareLocation(location, { allowHttp }); } catch (error) { sharedStateError = error; }
-  // The Historical Quakes briefing has a presentation-only seismic pulse on
-  // its third slide. It opens in MapLibre unless a link explicitly asks for a
-  // different engine, so the effect works without asking a viewer to change a
-  // global engine preference mid-briefing.
+  // Historical Quakes is an ArcGIS-first briefing. Its third slide explicitly
+  // changes to MapLibre for the presentation-only seismic pulse, then the
+  // following slide returns to ArcGIS. Do not make that one effect choose the
+  // engine for the whole briefing.
   const historicalQuakesBriefing = launchParams.get("briefingExample") === "historical-quakes";
   const engineId = sharedState?.engine || (historicalQuakesBriefing && !launchParams.has("engine")
-    ? "maplibre"
+    ? "arcgis"
     : chooseEngine({ search: location.search, storage: globalThis.localStorage, available: listEngines().map((engine) => engine.id) }));
   document.documentElement.dataset.mapEngine = engineId;
   const authController = new AuthController(events);
@@ -280,9 +280,14 @@ async function start() {
 
   // A documented, no-payload launcher for the finished Historical Quakes
   // briefing. Unlike ?example=historical-quakes, it loads the bounded source,
-  // slides and observed-time clip as one editable briefing.
+  // slides and presentation-only pulse as one editable briefing.
   if (!sharedState && launchParams.get("briefingExample") === "historical-quakes") {
-    await uiController.openHistoricalQuakesBriefingExample({ startTutorial: launchParams.get("tutorial") === "1" });
+    const slide = new URLSearchParams(location.hash.replace(/^#/, "")).get("slide");
+    await uiController.openHistoricalQuakesBriefingExample({
+      startTutorial: launchParams.get("tutorial") === "1",
+      present: launchParams.get("briefingPresent") === "1",
+      slide,
+    });
   }
 
   // A styled map or briefing link (`#map=…`, `#briefing=…`, or `?briefing=<file URL>`).

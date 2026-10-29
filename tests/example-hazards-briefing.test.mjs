@@ -22,8 +22,11 @@ test('Historical Quakes example is an editable briefing with moving opening view
   assert.ok(briefing.slides.every((slide) => slide.layers?.every((layer) => layer.layer === quakeRef && layer.visible)));
   assert.equal(briefing.slides[2].template, 'map-narrative');
   assert.deepEqual(briefing.slides[2].mapEffect, { layer: quakeRef, type: 'pulse', color: '#ff4a3d', intensity: 1.25, opacity: 0.88, speed: 0.8, density: 0.8, style: 'balanced' });
+  assert.deepEqual(briefing.slides.map((slide) => slide.mapEngine), ['arcgis', 'arcgis', 'maplibre', 'arcgis', 'arcgis', 'arcgis', 'arcgis']);
+  assert.deepEqual(briefing.slides.map((slide) => slide.id), ['historical-quakes-title', 'historical-quakes-archive', 'historical-quakes-pulse', 'historical-quakes-event-1', 'historical-quakes-event-2', 'historical-quakes-patterns', 'historical-quakes-actions']);
   assert.notDeepEqual(briefing.slides[0].camera, briefing.slides[1].camera, 'the first two slides deliberately move the map');
   assert.notDeepEqual(briefing.slides[1].camera, briefing.slides[2].camera, 'the pulse slide moves to a closer view');
+  assert.deepEqual(briefing.slides[3].camera.center, [-73.4, -38.1], 'event slides use the event location rather than the overview');
   assert.ok(briefing.slides.some((slide) => slide.template === 'feature' && slide.featureId === '1'));
   assert.match(briefing.slides[1].blocks[0].markdown, /MapLibre pulse for presentation/);
   assert.ok(briefing.slides.every((slide) => !/hurricane/i.test(`${slide.title} ${JSON.stringify(slide.blocks)}`)));
@@ -43,6 +46,8 @@ test('briefing entry point preserves an existing briefing and uses the bounded s
   assert.match(ui, /title: 'Historical Quakes briefing'/);
   assert.match(ui, /tutorial: 'historical-quakes-briefing'/);
   assert.match(ui, /this\.activateExampleGuide\(/);
+  assert.match(ui, /#ensureHistoricalQuakesSlideEngine\(slide\)/);
+  assert.match(ui, /url\.searchParams\.set\('engine', target\)/);
   assert.equal(HISTORICAL_QUAKES_WHERE, 'mag >= 6.5');
 });
 
@@ -54,6 +59,9 @@ test('the public Historical Quakes URL launches the finished briefing and its wa
   ]);
   assert.match(app, /briefingExample"\) === "historical-quakes"/);
   assert.match(app, /historicalQuakesBriefing && !launchParams\.has\("engine"\)/);
-  assert.match(app, /openHistoricalQuakesBriefingExample\(\{ startTutorial: launchParams\.get\("tutorial"\) === "1" \}\)/);
+  assert.match(app, /\? "arcgis"/);
+  assert.doesNotMatch(app, /\? "maplibre"\s*:\s*chooseEngine/);
+  assert.match(app, /briefingPresent"\) === "1"/);
+  assert.match(app, /openHistoricalQuakesBriefingExample\(\{/);
   for (const page of [examples, learn]) assert.match(page, /briefingExample=historical-quakes&amp;tutorial=1/);
 });

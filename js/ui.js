@@ -31,7 +31,7 @@ import { featureLayerUrl, locationUrl } from "./field-task-share.js?v=0.54.0-uni
 import { dockIcon } from "./dock-icons.js?v=0.24.0";
 import { serviceNameFromUrl } from "./service-name.js?v=0.26.0";
 import { decodeQrFromImage, describeGisMapLink, gisMapLinkFrom, openGisMapLink } from "./qr-import.js?v=0.25.2";
-import { BriefingSlides } from "./briefing-slides.js?v=0.61.0-briefing-player";
+import { BriefingSlides } from "./briefing-slides.js?v=0.62.3-briefing-slide-engines";
 import { addSlide, createSlide, isRoutineField, matchesFilter, normalizeBriefing, normalizeFilter } from "./briefing-document.js?v=0.61.0-briefing-player";
 import { conditionComplete, conditionLabel, conditionToFilter } from "./briefing-conditions.js?v=0.1.0";
 import { createFilterBuilder } from "./filter-builder.js?v=0.1.0";
@@ -43,8 +43,8 @@ import { saveEngine } from "./engine-preference.js?v=0.52.1";
 import { BASEMAPS } from "./basemap-catalog.js?v=0.53.0-gallery1";
 import { CartographyLab } from "./cartography-lab.js?v=0.60.0-media1";
 import { CONTEXT_ACTIONS, createSuggestionPreferences, deriveWorkspace, executeContextAction, suggestionKey, summarizeFeature } from "./contextual-workspace.js?v=6";
-import { BRIEFING_WALKTHROUGH_STEPS, CINEMATIC_WALKTHROUGH_STEPS, HISTORICAL_QUAKES_BRIEFING_TUTORIAL_STEPS, createExampleWalkthroughSteps, startWorkspaceWalkthrough, waitForWalkthroughTarget } from "./workspace-walkthrough.js?v=0.62.1-quakes-guide";
-import { HISTORICAL_QUAKES_SOURCE, HISTORICAL_QUAKES_WHERE, createHistoricalQuakesExampleBriefing } from "./example-hazards-briefing.js?v=0.62.1-historical-quakes-pulse";
+import { BRIEFING_WALKTHROUGH_STEPS, CINEMATIC_WALKTHROUGH_STEPS, HISTORICAL_QUAKES_BRIEFING_TUTORIAL_STEPS, createExampleWalkthroughSteps, startWorkspaceWalkthrough, waitForWalkthroughTarget } from "./workspace-walkthrough.js?v=0.62.3-briefing-slide-engines";
+import { HISTORICAL_QUAKES_SOURCE, HISTORICAL_QUAKES_WHERE, createHistoricalQuakesExampleBriefing } from "./example-hazards-briefing.js?v=0.62.3-briefing-slide-engines";
 import { CinematicModeController } from "./cinematic/mode.js?v=0.3.15-clip-ref";
 import { CINEMATIC_EFFECTS, CINEMATIC_EFFECT_CATEGORIES, suggestEffect } from "./cinematic/cinematic-effects.js?v=0.2.8";
 import { PROVENANCE_STATUSES } from "./cinematic/clock.js?v=0.1.0";
@@ -189,6 +189,7 @@ export class UIController {
       },
       data: () => this.#briefingSlideData(),
       mapController: this.mapController,
+      ensureSlideEngine: (slide) => this.#ensureHistoricalQuakesSlideEngine(slide),
       notify: (message) => this.toast(message),
       formatValue: (value, field, name) => formatAttributeValue(value, field, name),
       compact: () => this.mobileMedia.matches,
@@ -1499,9 +1500,32 @@ export class UIController {
     });
   }
 
+  /**
+   * The Historical Quakes example is ArcGIS-first, except for its deliberately
+   * isolated MapLibre pulse slide. A reload keeps the engines independent and
+   * preserves the requested slide through its stable example slide ID.
+   */
+  #ensureHistoricalQuakesSlideEngine(slide) {
+    if (new URLSearchParams(location.search).get('briefingExample') !== 'historical-quakes') return false;
+    const target = slide?.mapEngine;
+    if (!['arcgis', 'maplibre'].includes(target) || target === this.mapController.getEngineId()) return false;
+    const url = new URL(location.href);
+    url.searchParams.set('engine', target);
+    url.searchParams.set('briefingPresent', '1');
+    // The guide is an authoring aid. Do not restart it at step one merely
+    // because the player is changing renderer for its one visual effect.
+    url.searchParams.delete('tutorial');
+    const fragment = new URLSearchParams(url.hash.replace(/^#/, ''));
+    fragment.set('slide', slide.id);
+    url.hash = fragment.toString();
+    this.toast(`Opening ${target === 'maplibre' ? 'the MapLibre pulse' : 'the ArcGIS map'} for this slide…`);
+    location.assign(url.href);
+    return true;
+  }
+
   /** A stable public launcher for the documented Historical Quakes tutorial URL. */
-  async openHistoricalQuakesBriefingExample({ startTutorial = false } = {}) {
-    return this.#openExampleHistoricalQuakesBriefing({ startTutorial });
+  async openHistoricalQuakesBriefingExample({ startTutorial = false, present = false, slide = null } = {}) {
+    return this.#openExampleHistoricalQuakesBriefing({ startTutorial, present, slide });
   }
 
   /**
@@ -3729,7 +3753,7 @@ export class UIController {
     return this.mapController.addService(config);
   }
 
-  async #openExampleHistoricalQuakesBriefing({ signal, startTutorial = false } = {}) {
+  async #openExampleHistoricalQuakesBriefing({ signal, startTutorial = false, present = false, slide = null } = {}) {
     if (this.exampleBriefingLoading) return false;
     const project = this.projectManager.current;
     if (project.presentation?.briefing?.slides?.length && !confirm('Replace the current briefing slides with the example? Your map layers will be kept.')) return false;
@@ -3781,6 +3805,11 @@ export class UIController {
         tutorial: 'historical-quakes-briefing',
       }, { start: startTutorial });
       this.events.publish('mobile:workflow-route', { route: 'briefing' });
+      if (present) {
+        await this.presentationLoading;
+        const visible = briefing.slides.filter((item) => !item.hidden);
+        this.briefingSlides.openPlayer(visible.some((item) => item.id === slide) ? slide : visible[0]?.id);
+      }
       this.toast('Historical Quakes briefing ready. It uses a stable Feature Service, moving map views, and a seismic pulse.');
       return true;
     } catch (error) {

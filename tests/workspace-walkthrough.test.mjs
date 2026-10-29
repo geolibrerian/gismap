@@ -34,7 +34,7 @@ test('briefing guide covers the workflow without requiring a loaded dataset', as
   assert.match(ui, /'Find a dataset'/);
   assert.match(ui, /beforeStep: async \(index, \{ signal \}\)/);
   assert.match(ui, /if \(index < 3\) return true/);
-  assert.match(ui, /#openExampleHistoricalQuakesBriefing\(\{ signal, startTutorial = false \}/);
+  assert.match(ui, /#openExampleHistoricalQuakesBriefing\(\{ signal, startTutorial = false, present = false, slide = null \}/);
   assert.match(ui, /waitForWalkthroughTarget\(this\.mobileMedia\.matches \? step\.mobile : step\.desktop/);
   assert.match(ui, /index === 3 \? 'features' : 'slides'/);
   assert.match(BRIEFING_WALKTHROUGH_STEPS[2].description, /Next will load/);
@@ -54,7 +54,7 @@ test('Historical Quakes has a finished-example walkthrough from source to share'
   assert.match(ui, /HISTORICAL_QUAKES_BRIEFING_TUTORIAL_STEPS/);
   assert.match(ui, /tutorial === "historical-quakes-briefing"/);
   assert.match(ui, /#startHistoricalQuakesBriefingTutorial\(\)/);
-  assert.match(ui, /openHistoricalQuakesBriefingExample\(\{ startTutorial = false \} = \{\}\)/);
+  assert.match(ui, /openHistoricalQuakesBriefingExample\(\{ startTutorial = false, present = false, slide = null \} = \{\}\)/);
   assert.match(ui, /data-presentation-setup="example-briefing-tutorial"/);
   assert.match(ui, /Opening the next part of the Historical Quakes briefing/);
   assert.match(ui, /this\.#openLayerSource\(layer\.uid\)/);
