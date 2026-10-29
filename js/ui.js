@@ -13,7 +13,7 @@ import { MapAssistantPanel } from "./assistant-panel.js?v=0.57.0-skins1";
 import { createAssistantTools, summarizeMapState } from "./map-assistant.js?v=0.61.1-dashboard-agent";
 import { ENTERPRISE_CATALOGS, EnterpriseCatalog, normalizeArcGisDirectoryUrl } from "./enterprise-catalog.js?v=0.18.2";
 import { createShareUrl } from "./share.js?v=0.54.0-unified4";
-import { createShareLink, hasDataFilter, readBriefingFile } from "./map-share.js?v=0.63.9-text-boxes";
+import { createShareLink, hasDataFilter, readBriefingFile } from "./map-share.js?v=0.63.10-text-boxes";
 import { createEmbedIframe, createEmbedUrl } from "./embed-share.js?v=0.61.0-embed1";
 import { briefingLayerRef, findBriefingLayer } from "./briefing-api.js?v=0.61.0-briefing-player";
 import { createEmbeddedTourUrl } from "./tour-share.js?v=0.54.0-unified4";
@@ -26,8 +26,8 @@ import { applyMapColors, MAP_COLOR_COMPONENTS, SKIN_BASEMAP, themeFromComputedSt
 import { compactMedia } from "./viewport.js?v=0.18.2";
 import { APP_VERSION } from "./version.js?v=0.53.0";
 import { bindMobileSheetResize } from "./mobile-sheet-resize.js?v=0.52.7";
-import { BRAND_LOGO, PdfDocument, brandedMapImage, brandedQrCanvas, imageToJpeg, loadBrandLogo, printPalette, qrAsset } from "./pdf-document.js?v=0.63.9-text-boxes";
-import { DEFAULT_PAGE_FRAME, IMAGE_ANCHORS, MAP_TEMPLATES, getTemplate, loadImage, renderTemplate, templateMapAspect } from "./map-templates.js?v=0.63.9-text-boxes";
+import { BRAND_LOGO, PdfDocument, brandedMapImage, brandedQrCanvas, imageToJpeg, loadBrandLogo, printPalette, qrAsset } from "./pdf-document.js?v=0.63.10-text-boxes";
+import { DEFAULT_PAGE_FRAME, IMAGE_ANCHORS, MAP_TEMPLATES, getTemplate, loadImage, renderTemplate, templateMapAspect } from "./map-templates.js?v=0.63.10-text-boxes";
 import { featureLayerUrl, locationUrl } from "./field-task-share.js?v=0.54.0-unified4";
 import { dockIcon } from "./dock-icons.js?v=0.24.0";
 import { serviceNameFromUrl } from "./service-name.js?v=0.26.0";
@@ -64,8 +64,8 @@ import { buildClipPackage, clipToCinematicSpec, createCinematicClip, exportCinem
 import { availableVideoFormats, cameraAt, CLIP_FRAME_RATES, clipFrameCount, exportCinematicVideo, observationIndexAt, renderClipPoster } from "./cinematic/clip-export.js?v=0.3.8-fire-points";
 import { CHART_PANEL_PLACEMENTS, CHART_TYPES, PRESENTATION_TARGETS, chartFields, chartOption, createChartSpec, displayChartRows, loadECharts, queryChart, recommendCharts, renderChartFallback, rowsAsCsv } from "./charting-tools.js";
 import { MapChartOverlayController } from "./map-chart-tools.js";
-import { readTextBoxEditor, textBoxEditorMarkup, textBoxRunMarkup, textBoxSummary } from "./text-box-editor.js?v=0.63.9-text-boxes";
-import { defaultRun } from "./text-boxes.js?v=0.63.9-text-boxes";
+import { readTextBoxEditor, textBoxEditorMarkup, textBoxRunMarkup, textBoxSummary } from "./text-box-editor.js?v=0.63.10-text-boxes";
+import { defaultRun } from "./text-boxes.js?v=0.63.10-text-boxes";
 
 const BUILDINGS_3D_KEY = "gismap-online:buildings-3d:v1";
 const DISPLAY_SETTINGS_KEY = "gismap-online:display:v1";
@@ -2338,7 +2338,7 @@ export class UIController {
     const remembered = startTemplate || (() => { try { return localStorage.getItem("gismap.mapTemplate"); } catch { return null; } })();
     let templateId = getTemplate(remembered).id;
     this.templateImages ||= [];
-    const frame = { ...DEFAULT_PAGE_FRAME, ...(() => { try { return JSON.parse(localStorage.getItem("gismap.mapTemplateFrame")) || {}; } catch { return {}; } })() };
+    const frame = { ...DEFAULT_PAGE_FRAME, showQr: true, ...(() => { try { return JSON.parse(localStorage.getItem("gismap.mapTemplateFrame")) || {}; } catch { return {}; } })() };
     const project = this.projectManager.current;
     const now = new Date();
     const fields = {
@@ -2349,8 +2349,8 @@ export class UIController {
     const options = MAP_TEMPLATES.map((template) => `<label class="map-template"><input type="radio" name="map-template" value="${template.id}"${template.id === templateId ? " checked" : ""}><strong>${escapeHtml(template.label)}</strong><small>${escapeHtml(template.description)}</small><small class="map-template__size">${template.page.width} × ${template.page.height} in</small></label>`).join("");
     const anchors = (selected) => IMAGE_ANCHORS.map((anchor) => `<option value="${anchor}"${anchor === selected ? " selected" : ""}>${anchor.replace("-", " ")}</option>`).join("");
     this.openDialog({
-      eyebrow: "Map PDF & Smart Image",
-      title: "Map templates",
+      eyebrow: "PDF & Smart Image",
+      title: "Print Editor",
       content: `<div class="map-templates">
         <div class="map-templates__list" role="radiogroup" aria-label="Page template">${options}</div>
         <div class="map-templates__side">
@@ -2365,7 +2365,7 @@ export class UIController {
             <label class="field"><span>Margin colour</span><input type="color" data-frame-margin-color value="${escapeHtml(frame.marginColor)}"></label>
             <label class="opacity-row"><span>Border</span><input type="range" min="0" max="12" step="0.5" data-frame-border value="${frame.borderWidth}"><output>${frame.borderWidth} pt</output></label>
             <label class="field"><span>Border colour</span><input type="color" data-frame-border-color value="${escapeHtml(frame.borderColor)}"></label>
-          </div></fieldset>
+          </div><label class="menu__toggle map-templates__qr"><input type="checkbox" data-frame-qr${frame.showQr !== false ? " checked" : ""}><span>Show QR code</span></label></fieldset>
           <fieldset class="feedback-settings map-templates__images" data-template-images-panel hidden><legend>Images on the map</legend>
             <p class="form-note">Add logos, photos or callouts. They stay in this browser session and are not saved in the project.</p>
             <div data-template-images></div>
@@ -2397,6 +2397,7 @@ export class UIController {
         subtitle: root.querySelector("[data-template-subtitle]").value.trim(),
         description: root.querySelector("[data-template-description]").value.trim(),
         images: getTemplate(templateId).images ? this.templateImages : [],
+        ...(frame.showQr === false ? { qr: null } : {}),
       };
     };
     let pending = 0;
@@ -2445,6 +2446,7 @@ export class UIController {
       frame.marginColor = frameInputs.querySelector("[data-frame-margin-color]").value;
       frame.borderWidth = Number(frameInputs.querySelector("[data-frame-border]").value);
       frame.borderColor = frameInputs.querySelector("[data-frame-border-color]").value;
+      frame.showQr = frameInputs.querySelector("[data-frame-qr]").checked;
       frameInputs.querySelector("[data-frame-margin] + output").value = `${frame.margin.toFixed(2)} in`;
       frameInputs.querySelector("[data-frame-border] + output").value = `${frame.borderWidth} pt`;
       try { localStorage.setItem("gismap.mapTemplateFrame", JSON.stringify(frame)); } catch { /* Preference only. */ }

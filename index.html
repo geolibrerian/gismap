@@ -64,7 +64,7 @@
     <link rel="preconnect" href="https://js.arcgis.com" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link rel="stylesheet" href="./css/app.css?v=0.63.9-text-boxes" />
+    <link rel="stylesheet" href="./css/app.css?v=0.63.10-text-boxes" />
     <link rel="stylesheet" href="./css/fieldwork.css?v=0.60.0-data1" />
     <!-- three.js for point clouds, models and 3D animation; loaded only when a 3D layer is added. -->
     <script type="importmap">{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.min.js", "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/" } }</script>
@@ -188,12 +188,8 @@
               <hr />
               <span class="menu__label">Export</span>
               <button data-action="share-export">Share &amp; export…</button>
-              <span class="menu__sublabel">Smart Maps</span>
-              <button data-action="export-smart-image">Create…</button>
-              <button data-action="project-import">Open…</button>
-              <span class="menu__sublabel">PDF Editor</span>
-              <button data-action="export-pdf-editor">Templates…</button>
-              <button data-action="export-pdf-images">Add images…</button>
+              <button data-action="export-pdf-editor">Print Editor…</button>
+              <button data-action="project-import">Open Smart Image…</button>
               <hr />
               <span class="menu__label">AI tools</span>
               <button data-action="tools-assistant">Map assistant</button>
@@ -529,6 +525,6 @@
       </ul>
     </section>
     <noscript>GISMap Online is a geospatial application and needs JavaScript. Without it, a map can still be described as a link: see <a href="/llms.txt">/llms.txt</a> and the <a href="/guides/ai-agents/">guide for AI agents</a>.</noscript>
-<script type="module" src="./js/app.js?v=0.63.9-text-boxes"></script>
+<script type="module" src="./js/app.js?v=0.63.10-text-boxes"></script>
   </body>
 </html>
