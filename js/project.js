@@ -97,6 +97,7 @@ export class ProjectManager {
   async create(name = "Untitled project") {
     await this.mapController.clearOperationalLayers();
     this.mapController.clearDrawings();
+    this.mapController.clearTextBoxes?.();
     this.mapController.setBasemap(this.mapController.getDefaultBasemapId());
     this.mapController.setGround("world-elevation");
     await this.mapController.restoreView({ center: [-98.5, 39.5], zoom: 4, heading: 0, tilt: 35 });
@@ -114,6 +115,7 @@ export class ProjectManager {
       ground: this.mapController.getGroundId(),
       view: this.mapController.getViewState(),
       layers: this.mapController.getAllLayerConfigs().map(({ uid, ...layer }) => layer),
+      textBoxes: this.mapController.getTextBoxes?.() ?? [],
       connections: this.authController?.exportConnections() ?? this.current.connections ?? [],
     };
     return structuredClone(this.current);
@@ -237,6 +239,9 @@ export class ProjectManager {
     this.current.mobile = normalizeMobileWorkflow(project.mobile);
     this.current.layerStyles = Array.isArray(project.layerStyles) ? project.layerStyles.slice(0, 200) : [];
     this.current.charts = normalizeCharts(project.charts);
+    try { this.mapController.setTextBoxes?.(Array.isArray(project.textBoxes) ? project.textBoxes : []); } catch (error) {
+      this.events.publish("app:error", { message: `Could not restore text boxes: ${error.message}` });
+    }
     await this.mapController.restoreView(project.view);
     this.events.publish("project:loaded", { project: this.current, missingFiles });
     return { project: this.current, missingFiles };

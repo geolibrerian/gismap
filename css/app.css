@@ -714,6 +714,12 @@ body.mobile-workflow-open .field-task-banner { left:auto; right:calc(min(440px,1
 
 .draw-tools { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
 .draw-tools .form-note { grid-column: 1 / -1; }
+.text-box-list { grid-column: 1 / -1; display: grid; gap: 4px; }
+.text-box-list__item { display: grid; grid-template-columns: 1fr auto auto; gap: 6px; align-items: center; }
+.text-box-list__item span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.85rem; }
+.text-box-editor .text-box-run { border: 1px solid var(--line, #d0d5dd); border-radius: 6px; padding: 8px; margin: 0 0 8px; }
+.text-box-editor textarea { width: 100%; resize: vertical; }
+.text-box-checks > span { display: flex; gap: 10px; align-items: center; }
 .draw-tools .workspace-launch { grid-column: 1 / -1; color: var(--green-2); }
 .utility-content .draw-tools { align-content: start; }
 .utility-content .draw-tools .workspace-launch { display: none; }

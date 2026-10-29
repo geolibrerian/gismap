@@ -63,6 +63,8 @@ import { buildClipPackage, clipToCinematicSpec, createCinematicClip, exportCinem
 import { availableVideoFormats, cameraAt, CLIP_FRAME_RATES, clipFrameCount, exportCinematicVideo, observationIndexAt, renderClipPoster } from "./cinematic/clip-export.js?v=0.3.8-fire-points";
 import { CHART_PANEL_PLACEMENTS, CHART_TYPES, PRESENTATION_TARGETS, chartFields, chartOption, createChartSpec, displayChartRows, loadECharts, queryChart, recommendCharts, renderChartFallback, rowsAsCsv } from "./charting-tools.js";
 import { MapChartOverlayController } from "./map-chart-tools.js";
+import { readTextBoxEditor, textBoxEditorMarkup, textBoxRunMarkup, textBoxSummary } from "./text-box-editor.js?v=0.63.0-text-boxes";
+import { defaultRun } from "./text-boxes.js?v=0.63.0-text-boxes";
 
 const BUILDINGS_3D_KEY = "gismap-online:buildings-3d:v1";
 const DISPLAY_SETTINGS_KEY = "gismap-online:display:v1";
@@ -602,8 +604,19 @@ export class UIController {
       this.utilityWorkspaceOpen = true; this.#syncUtilityPanel("workspace"); this.#closeMenus();
     }));
     document.querySelectorAll("[data-draw]").forEach((button) =>
-      button.addEventListener("click", () => this.mapController.draw(button.dataset.draw)),
+      button.addEventListener("click", () => {
+        if (button.dataset.draw === "clear") this.mapController.clearTextBoxes?.();
+        this.mapController.draw(button.dataset.draw);
+      }),
     );
+    document.querySelector("#draw-text-box")?.addEventListener("click", () => this.#placeTextBox());
+    document.querySelector("#text-box-list")?.addEventListener("click", (event) => {
+      const edit = event.target.closest("[data-text-box-edit]");
+      const remove = event.target.closest("[data-text-box-remove]");
+      if (edit) this.#openTextBoxEditor(edit.dataset.textBoxEdit);
+      if (remove) this.mapController.removeTextBox(remove.dataset.textBoxRemove);
+    });
+    this.events.subscribe("text-boxes:changed", () => this.#renderTextBoxList());
     document.querySelector("#draw-style")?.addEventListener("click", () => this.#openDrawingStyle());
 
     document.querySelector("#draw-export").addEventListener("click", () => {
@@ -788,6 +801,69 @@ export class UIController {
       this.projectManager.setApplication(application);
     });
     document.querySelector("#globe-dashboard-settings")?.addEventListener("click", () => this.#dashboardBuilderComingSoon());
+  }
+
+  async #placeTextBox() {
+    this.toast("Click the map to place the text box. Press Escape to cancel.");
+    const coordinates = await this.mapController.pickMapCoordinate();
+    if (!coordinates) return;
+    const box = this.mapController.addTextBox({ coordinates, runs: [defaultRun({ text: "New label" })] });
+    this.#openTextBoxEditor(box.id);
+  }
+
+  #renderTextBoxList() {
+    const list = document.querySelector("#text-box-list");
+    if (!list) return;
+    const boxes = this.mapController.getTextBoxes?.() || [];
+    list.hidden = !boxes.length;
+    list.innerHTML = boxes.map((box) => `<div class="text-box-list__item"><span>${escapeHtml(textBoxSummary(box))}</span><button type="button" data-text-box-edit="${escapeHtml(box.id)}">Edit</button><button type="button" class="button--quiet" data-text-box-remove="${escapeHtml(box.id)}" aria-label="Delete text box">✕</button></div>`).join("");
+  }
+
+  #openTextBoxEditor(id) {
+    const box = this.mapController.getTextBoxes().find((item) => item.id === id);
+    if (!box) return;
+    this.mapController.selectTextBox(id);
+    this.openDialog({ eyebrow: "Draw", title: "Text box", content: textBoxEditorMarkup(box) });
+    const root = this.dialog;
+    const session = this.dialogSession;
+    const apply = () => {
+      const next = readTextBoxEditor(root, id);
+      this.mapController.updateTextBox(id, next);
+      root.querySelector("[data-frame-fill-output]").value = `${Math.round(next.frame.fillOpacity * 100)}%`;
+    };
+    const runs = root.querySelector("[data-text-runs]");
+    const renumber = () => runs.querySelectorAll("[data-text-run]").forEach((run, index) => {
+      run.dataset.textRun = index;
+      run.querySelector("legend").textContent = `Text run ${index + 1}`;
+      run.querySelector("[data-remove-run]").dataset.removeRun = index;
+    });
+    root.querySelector(".text-box-editor").addEventListener("input", apply);
+    root.querySelector(".text-box-editor").addEventListener("change", apply);
+    root.querySelector("[data-add-run]").addEventListener("click", () => {
+      const last = readTextBoxEditor(root, id).runs.at(-1);
+      runs.insertAdjacentHTML("beforeend", textBoxRunMarkup({ ...(last || defaultRun()), text: " more text" }, runs.children.length));
+      apply();
+    });
+    runs.addEventListener("click", (event) => {
+      const button = event.target.closest("[data-remove-run]");
+      if (!button || runs.children.length <= 1) return;
+      button.closest("[data-text-run]").remove();
+      renumber();
+      apply();
+    });
+    root.querySelector("[data-text-pick]").addEventListener("click", async () => {
+      this.dialog.close();
+      this.toast("Click the map to move the text box. Press Escape to cancel.");
+      const coordinates = await this.mapController.pickMapCoordinate();
+      if (coordinates) this.mapController.updateTextBox(id, { coordinates });
+      this.#openTextBoxEditor(id);
+    });
+    root.querySelector("[data-text-delete]").addEventListener("click", () => {
+      this.mapController.removeTextBox(id);
+      this.dialog.close();
+    });
+    root.querySelector("[data-text-done]").addEventListener("click", () => this.dialog.close());
+    this.dialog.addEventListener("close", () => { if (this.dialogSession === session) this.mapController.selectTextBox(null); }, { once: true });
   }
 
   #openDrawingStyle() {

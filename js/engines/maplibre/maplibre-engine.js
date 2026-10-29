@@ -493,6 +493,21 @@ export class MaplibreEngine {
     return this.map?.getContainer() ?? null;
   }
 
+  /** Screen pixels (relative to the container) of [longitude, latitude, z]. */
+  mapToScreen([longitude, latitude] = []) {
+    if (!this.map || !Number.isFinite(longitude) || !Number.isFinite(latitude)) return null;
+    const point = this.map.project([longitude, latitude]);
+    return { x: point.x, y: point.y };
+  }
+
+  /** [longitude, latitude, z] under a container pixel. */
+  screenToMap(x, y) {
+    if (!this.map) return null;
+    const { lng, lat } = this.map.unproject([x, y]);
+    const z = this.map.queryTerrainElevation?.([lng, lat]) ?? 0;
+    return [lng, lat, Number.isFinite(z) ? z : 0];
+  }
+
   /* ---------------- Basemap ---------------- */
 
   setInitialBasemap(id) {
