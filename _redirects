@@ -5,3 +5,12 @@
 /skill/ /skills/ 301
 # A memorable direct address for the 404 dragon game.
 /dragons /dragons/ 301
+/feed/publish /feed/index.html 200
+/feed/publish/ /feed/index.html 200
+/feed/explore /feed/index.html 200
+/feed/explore/ /feed/index.html 200
+/feed/following /feed/index.html 200
+/feed/following/ /feed/index.html 200
+/feed/reels /feed/index.html 200
+/feed/reels/ /feed/index.html 200
+/feed/p/* /feed/p/index.html 200
