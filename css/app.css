@@ -723,7 +723,21 @@ body.mobile-workflow-open .field-task-banner { left:auto; right:calc(min(440px,1
 .map-template:has(input:checked) { border-color: var(--green-2); box-shadow: inset 0 0 0 1px var(--green-2); }
 .map-template__size { font-variant-numeric: tabular-nums; }
 .map-templates__side { display: grid; gap: 10px; }
+.map-templates__fields { display: grid; gap: 10px; align-content: start; }
 .map-templates [hidden] { display: none !important; }
+.map-templates__expand { justify-self: end; padding: 6px 10px; border: 1px solid var(--line); border-radius: 6px; color: var(--ink); background: var(--surface); font: inherit; font-size: 0.85rem; cursor: pointer; }
+.map-templates__expand:hover { border-color: var(--green-2); color: var(--green-2); }
+.app-dialog.app-dialog--fullwindow[open] { position: fixed; inset: var(--fullwindow-top, 0) 0 0 var(--fullwindow-left, 0); width: auto; max-width: none; height: auto; max-height: none; margin: 0; border: 0; border-radius: 0; box-shadow: none; }
+.app-dialog.app-dialog--fullwindow::backdrop { background: transparent !important; backdrop-filter: none !important; }
+.app-dialog--fullwindow .dialog__shell { height: 100%; max-height: none; grid-template-rows: auto minmax(0, 1fr) auto; }
+.app-dialog--fullwindow .dialog__content { min-height: 0; overflow: hidden; }
+.app-dialog--fullwindow .map-templates { grid-template-columns: minmax(220px, 280px) minmax(0, 1fr); height: 100%; }
+.app-dialog--fullwindow .map-templates__list { overflow-y: auto; max-height: 100%; padding-right: 4px; }
+.app-dialog--fullwindow .map-templates__side { grid-template-columns: minmax(0, 1fr) minmax(260px, 330px); grid-template-rows: auto minmax(0, 1fr); height: 100%; min-height: 0; }
+.app-dialog--fullwindow .map-templates__expand { grid-column: 1 / -1; }
+.app-dialog--fullwindow .map-templates__preview { grid-column: 1; grid-row: 2; align-content: center; min-height: 0; height: 100%; }
+.app-dialog--fullwindow .map-templates__preview canvas { max-height: calc(100dvh - var(--fullwindow-top, 0px) - 230px); }
+.app-dialog--fullwindow .map-templates__fields { grid-column: 2; grid-row: 2; min-height: 0; overflow-y: auto; padding-right: 4px; }
 .map-templates__preview { display: grid; gap: 4px; justify-items: center; padding: 10px; border: 1px solid var(--line); border-radius: 8px; background: #d9dedc; }
 .map-templates__preview canvas { max-width: 100%; max-height: 340px; height: auto; background: #fff; box-shadow: 0 2px 10px rgba(0,0,0,.18); }
 .map-templates textarea { width: 100%; resize: vertical; }

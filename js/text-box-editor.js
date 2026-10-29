@@ -1,5 +1,5 @@
 // Markup and form reading for the Draw panel's text box editor.
-import { TEXT_BOX_FONTS, defaultRun, normalizeTextBox } from "./text-boxes.js?v=0.63.7-text-boxes";
+import { TEXT_BOX_FONTS, defaultRun, normalizeTextBox } from "./text-boxes.js?v=0.63.9-text-boxes";
 
 const escape = (value) => String(value ?? "").replace(/[&<>"']/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[character]);
 const checked = (value) => (value ? " checked" : "");

@@ -511,19 +511,47 @@ export function templateMapAspect(id) {
   return rect.w / rect.h;
 }
 
+export const DEFAULT_PAGE_FRAME = Object.freeze({ margin: 0, marginColor: "#ffffff", borderWidth: 0, borderColor: "#17201d" });
+
 /**
  * Draws a template page. `ppi` sets the resolution (150 for print, ~40 for a
- * preview). Returns { canvas, links: [{ x, y, w, h, url }] in canvas pixels }.
+ * preview). `frame` adds a margin (inches) around the design and a border
+ * (points) at its edge; the design shrinks evenly to fit inside.
+ * Returns { canvas, links: [{ x, y, w, h, url }] in canvas pixels }.
  */
-export function renderTemplate(id, data, { ppi = 150 } = {}) {
+export function renderTemplate(id, data, { ppi = 150, frame = DEFAULT_PAGE_FRAME } = {}) {
   const template = getTemplate(id);
+  const { width, height } = template.page;
   const canvas = document.createElement("canvas");
-  canvas.width = Math.round(template.page.width * ppi);
-  canvas.height = Math.round(template.page.height * ppi);
+  canvas.width = Math.round(width * ppi);
+  canvas.height = Math.round(height * ppi);
   const context = canvas.getContext("2d");
-  context.fillStyle = "#ffffff";
+  const margin = Math.min(Math.max(Number(frame.margin) || 0, 0), Math.min(width, height) / 4);
+  const border = Math.min(Math.max(Number(frame.borderWidth) || 0, 0), 24) / 72;
+  context.fillStyle = /^#[0-9a-f]{6}$/i.test(frame.marginColor || "") ? frame.marginColor : "#ffffff";
   context.fillRect(0, 0, canvas.width, canvas.height);
+  // The design keeps its proportions inside the margin and border.
+  const inset = margin + border;
+  const scale = Math.min((width - inset * 2) / width, (height - inset * 2) / height);
+  const k = ppi * scale;
+  const offsetX = (canvas.width - width * k) / 2;
+  const offsetY = (canvas.height - height * k) / 2;
+  context.save();
+  context.translate(offsetX, offsetY);
+  context.beginPath();
+  context.rect(0, 0, width * k, height * k);
+  context.clip();
+  context.fillStyle = "#ffffff";
+  context.fillRect(0, 0, width * k, height * k);
   const page = { legend: [], layers: [], images: [], ...data };
-  const links = (template.draw(context, ppi, page) || []).filter((link) => link?.url);
+  const links = (template.draw(context, k, page) || []).filter((link) => link?.url)
+    .map((link) => ({ ...link, x: link.x + offsetX, y: link.y + offsetY }));
+  context.restore();
+  if (border > 0) {
+    const line = border * ppi;
+    context.strokeStyle = /^#[0-9a-f]{6}$/i.test(frame.borderColor || "") ? frame.borderColor : "#17201d";
+    context.lineWidth = line;
+    context.strokeRect(offsetX - line / 2, offsetY - line / 2, width * k + line, height * k + line);
+  }
   return { canvas, links, template };
 }

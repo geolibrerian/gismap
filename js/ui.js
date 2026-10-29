@@ -13,7 +13,7 @@ import { MapAssistantPanel } from "./assistant-panel.js?v=0.57.0-skins1";
 import { createAssistantTools, summarizeMapState } from "./map-assistant.js?v=0.61.1-dashboard-agent";
 import { ENTERPRISE_CATALOGS, EnterpriseCatalog, normalizeArcGisDirectoryUrl } from "./enterprise-catalog.js?v=0.18.2";
 import { createShareUrl } from "./share.js?v=0.54.0-unified4";
-import { createShareLink, hasDataFilter, readBriefingFile } from "./map-share.js?v=0.63.7-text-boxes";
+import { createShareLink, hasDataFilter, readBriefingFile } from "./map-share.js?v=0.63.9-text-boxes";
 import { createEmbedIframe, createEmbedUrl } from "./embed-share.js?v=0.61.0-embed1";
 import { briefingLayerRef, findBriefingLayer } from "./briefing-api.js?v=0.61.0-briefing-player";
 import { createEmbeddedTourUrl } from "./tour-share.js?v=0.54.0-unified4";
@@ -26,8 +26,8 @@ import { applyMapColors, MAP_COLOR_COMPONENTS, SKIN_BASEMAP, themeFromComputedSt
 import { compactMedia } from "./viewport.js?v=0.18.2";
 import { APP_VERSION } from "./version.js?v=0.53.0";
 import { bindMobileSheetResize } from "./mobile-sheet-resize.js?v=0.52.7";
-import { BRAND_LOGO, PdfDocument, brandedMapImage, brandedQrCanvas, imageToJpeg, loadBrandLogo, printPalette, qrAsset } from "./pdf-document.js?v=0.63.7-text-boxes";
-import { IMAGE_ANCHORS, MAP_TEMPLATES, getTemplate, loadImage, renderTemplate, templateMapAspect } from "./map-templates.js?v=0.63.7-text-boxes";
+import { BRAND_LOGO, PdfDocument, brandedMapImage, brandedQrCanvas, imageToJpeg, loadBrandLogo, printPalette, qrAsset } from "./pdf-document.js?v=0.63.9-text-boxes";
+import { DEFAULT_PAGE_FRAME, IMAGE_ANCHORS, MAP_TEMPLATES, getTemplate, loadImage, renderTemplate, templateMapAspect } from "./map-templates.js?v=0.63.9-text-boxes";
 import { featureLayerUrl, locationUrl } from "./field-task-share.js?v=0.54.0-unified4";
 import { dockIcon } from "./dock-icons.js?v=0.24.0";
 import { serviceNameFromUrl } from "./service-name.js?v=0.26.0";
@@ -64,8 +64,8 @@ import { buildClipPackage, clipToCinematicSpec, createCinematicClip, exportCinem
 import { availableVideoFormats, cameraAt, CLIP_FRAME_RATES, clipFrameCount, exportCinematicVideo, observationIndexAt, renderClipPoster } from "./cinematic/clip-export.js?v=0.3.8-fire-points";
 import { CHART_PANEL_PLACEMENTS, CHART_TYPES, PRESENTATION_TARGETS, chartFields, chartOption, createChartSpec, displayChartRows, loadECharts, queryChart, recommendCharts, renderChartFallback, rowsAsCsv } from "./charting-tools.js";
 import { MapChartOverlayController } from "./map-chart-tools.js";
-import { readTextBoxEditor, textBoxEditorMarkup, textBoxRunMarkup, textBoxSummary } from "./text-box-editor.js?v=0.63.7-text-boxes";
-import { defaultRun } from "./text-boxes.js?v=0.63.7-text-boxes";
+import { readTextBoxEditor, textBoxEditorMarkup, textBoxRunMarkup, textBoxSummary } from "./text-box-editor.js?v=0.63.9-text-boxes";
+import { defaultRun } from "./text-boxes.js?v=0.63.9-text-boxes";
 
 const BUILDINGS_3D_KEY = "gismap-online:buildings-3d:v1";
 const DISPLAY_SETTINGS_KEY = "gismap-online:display:v1";
@@ -2338,6 +2338,7 @@ export class UIController {
     const remembered = startTemplate || (() => { try { return localStorage.getItem("gismap.mapTemplate"); } catch { return null; } })();
     let templateId = getTemplate(remembered).id;
     this.templateImages ||= [];
+    const frame = { ...DEFAULT_PAGE_FRAME, ...(() => { try { return JSON.parse(localStorage.getItem("gismap.mapTemplateFrame")) || {}; } catch { return {}; } })() };
     const project = this.projectManager.current;
     const now = new Date();
     const fields = {
@@ -2353,10 +2354,18 @@ export class UIController {
       content: `<div class="map-templates">
         <div class="map-templates__list" role="radiogroup" aria-label="Page template">${options}</div>
         <div class="map-templates__side">
+          <button type="button" class="map-templates__expand" data-template-fullwindow aria-pressed="false">⤢ Full window</button>
           <div class="map-templates__preview"><canvas data-template-preview aria-label="Page preview"></canvas><p class="form-note" data-template-status>Capturing the map…</p></div>
+          <div class="map-templates__fields">
           <label class="field"><span>Title</span><input type="text" maxlength="120" data-template-title value="${escapeHtml(fields.title)}"></label>
           <label class="field"><span>Subtitle</span><input type="text" maxlength="160" data-template-subtitle value="${escapeHtml(fields.subtitle)}"></label>
           <label class="field"><span>Description (report and poster)</span><textarea rows="3" maxlength="900" data-template-description></textarea></label>
+          <fieldset class="feedback-settings map-templates__frame"><legend>Margin &amp; border</legend><div class="field-grid">
+            <label class="opacity-row"><span>Margin</span><input type="range" min="0" max="1" step="0.05" data-frame-margin value="${frame.margin}"><output>${frame.margin.toFixed(2)} in</output></label>
+            <label class="field"><span>Margin colour</span><input type="color" data-frame-margin-color value="${escapeHtml(frame.marginColor)}"></label>
+            <label class="opacity-row"><span>Border</span><input type="range" min="0" max="12" step="0.5" data-frame-border value="${frame.borderWidth}"><output>${frame.borderWidth} pt</output></label>
+            <label class="field"><span>Border colour</span><input type="color" data-frame-border-color value="${escapeHtml(frame.borderColor)}"></label>
+          </div></fieldset>
           <fieldset class="feedback-settings map-templates__images" data-template-images-panel hidden><legend>Images on the map</legend>
             <p class="form-note">Add logos, photos or callouts. They stay in this browser session and are not saved in the project.</p>
             <div data-template-images></div>
@@ -2364,7 +2373,7 @@ export class UIController {
           </fieldset>
           <p class="form-note">The map is captured as it looks now, shaped to the template's frame. Pan or zoom first, then reopen to recapture.</p>
           <div class="workspace-tool__actions map-templates__actions"><button type="button" data-template-export="smart-image"${output === "smart-image" ? ' class="button--primary"' : ""}>Download Smart Image</button><button type="button" data-template-export="pdf"${output === "pdf" ? ' class="button--primary"' : ""}>Download PDF</button></div>
-        </div></div>`,
+        </div></div></div>`,
     });
     const root = this.dialog;
     const session = this.dialogSession;
@@ -2396,7 +2405,7 @@ export class UIController {
       const ticket = ++pending;
       root.querySelector("[data-template-images-panel]").hidden = !getTemplate(templateId).images;
       status.textContent = "Capturing the map…";
-      const page = renderTemplate(templateId, await data(), { ppi: 48 });
+      const page = renderTemplate(templateId, await data(), { ppi: this.dialog.classList.contains("app-dialog--fullwindow") ? 96 : 48, frame });
       if (ticket !== pending || this.dialogSession !== session) return;
       const canvas = root.querySelector("[data-template-preview]");
       canvas.width = page.canvas.width;
@@ -2430,6 +2439,35 @@ export class UIController {
       renderImages();
       preview();
     });
+    const frameInputs = root.querySelector(".map-templates__frame");
+    frameInputs.addEventListener("input", (event) => {
+      frame.margin = Number(frameInputs.querySelector("[data-frame-margin]").value);
+      frame.marginColor = frameInputs.querySelector("[data-frame-margin-color]").value;
+      frame.borderWidth = Number(frameInputs.querySelector("[data-frame-border]").value);
+      frame.borderColor = frameInputs.querySelector("[data-frame-border-color]").value;
+      frameInputs.querySelector("[data-frame-margin] + output").value = `${frame.margin.toFixed(2)} in`;
+      frameInputs.querySelector("[data-frame-border] + output").value = `${frame.borderWidth} pt`;
+      try { localStorage.setItem("gismap.mapTemplateFrame", JSON.stringify(frame)); } catch { /* Preference only. */ }
+      preview();
+    });
+    const expand = root.querySelector("[data-template-fullwindow]");
+    const setFullWindow = (on) => {
+      if (on && this.dialog.classList.contains("app-dialog--docked")) document.querySelector("#dialog-dock")?.click();
+      // Cover the map and side panels, leaving the top bar and the icon rail.
+      const shown = (element) => element.getClientRects().length > 0 && getComputedStyle(element).visibility !== "hidden";
+      const header = [...document.querySelectorAll(".studio-header, .menu-bar")].find(shown);
+      const rail = [...document.querySelectorAll(".workspace-rail")].find(shown);
+      this.dialog.style.setProperty("--fullwindow-top", `${Math.round(header?.getBoundingClientRect().bottom || 0)}px`);
+      this.dialog.style.setProperty("--fullwindow-left", `${Math.round(rail?.getBoundingClientRect().right || 0)}px`);
+      this.dialog.classList.toggle("app-dialog--fullwindow", on);
+      expand.setAttribute("aria-pressed", String(on));
+      expand.textContent = on ? "⤡ Exit full window" : "⤢ Full window";
+      try { localStorage.setItem("gismap.mapTemplateFullWindow", on ? "1" : ""); } catch { /* Preference only. */ }
+      preview();
+    };
+    expand.addEventListener("click", () => setFullWindow(!this.dialog.classList.contains("app-dialog--fullwindow")));
+    this.dialog.addEventListener("close", () => this.dialog.classList.remove("app-dialog--fullwindow"), { once: true });
+    if ((() => { try { return localStorage.getItem("gismap.mapTemplateFullWindow") === "1"; } catch { return false; } })()) setFullWindow(true);
     const images = root.querySelector("[data-template-images]");
     images.addEventListener("input", (event) => {
       const row = event.target.closest("[data-template-image]");
@@ -2451,7 +2489,7 @@ export class UIController {
       button.disabled = true;
       try {
         this.toast(kind === "pdf" ? "Making the map PDF…" : "Rendering the Smart Image…");
-        const page = renderTemplate(templateId, await data(), { ppi: kind === "pdf" ? 150 : 120 });
+        const page = renderTemplate(templateId, await data(), { ppi: kind === "pdf" ? 150 : 120, frame });
         const stem = (page.template.id === "branded" ? "" : `-${page.template.id}`);
         if (kind === "pdf") this.#download(await this.#templatePdf(page, `${this.#fileStem()}${stem}-map.pdf`));
         else {
