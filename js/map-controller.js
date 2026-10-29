@@ -1,10 +1,10 @@
 // Stable application-facing map facade. It owns engine selection and the
 // higher-level workflows that can be expressed with provider-neutral
 // primitives. Renderer adapters stay focused on drawing and interaction.
-import { createEngine, getEngineDefinition, listEngines } from "./engines/engine-registry.js?v=0.62.5-amd-safe";
+import { createEngine, getEngineDefinition, listEngines } from "./engines/engine-registry.js?v=0.63.2-text-boxes";
 import { MAP_CONTROLLER_METHODS, METHOD_CAPABILITIES, unsupported } from "./engines/engine-interface.js?v=0.62.4-silent-engine-handoff";
 import { GisMapError } from "./gismap-errors.js?v=0.28.0";
-import { TextBoxLayer } from "./text-boxes.js?v=0.63.0-text-boxes";
+import { TextBoxLayer } from "./text-boxes.js?v=0.63.2-text-boxes";
 
 const wait = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
 const nothing = () => undefined;
@@ -58,6 +58,7 @@ export class MapController {
         mapToScreen: (coordinates) => this.engine?.mapToScreen?.(coordinates) ?? null,
         screenToMap: (x, y) => this.engine?.screenToMap?.(x, y) ?? null,
         container: () => this.#containerElement(),
+        zoom: () => { try { return this.engine?.getCamera?.()?.zoom ?? null; } catch { return null; } },
       },
     });
     this.events?.subscribe?.("layer:removed", ({ uid }) => this.geoParquetSources.delete(uid));

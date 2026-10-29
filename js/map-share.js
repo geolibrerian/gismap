@@ -8,6 +8,9 @@ import { normalizeBriefing } from "./briefing-document.js?v=0.61.0-briefing-play
 import { SHARE_BASEMAPS, SHARE_LAYER_TYPES, sanitizeSharedResourceUrl } from "./share.js?v=0.54.0-unified4";
 import { normalizeSkin } from "./skin-catalog.js?v=0.57.0-skins2";
 import { decodeBriefing } from "./briefing-share.js?v=0.60.0-media1";
+import { normalizeTextBoxes } from "./text-boxes.js?v=0.63.2-text-boxes";
+
+const MAX_TEXT_BOXES = 50;
 
 /**
  * Slides-only briefing links from the client API (`#briefing=b1.…` / `j1.…`,
@@ -115,7 +118,8 @@ function unpackCamera(camera) {
  * are kept; local files cannot travel in a link). For a briefing, `primary` is
  * the index of the briefing's layer within `layers`.
  */
-export function serializeShare({ kind = "map", title = "", skin, basemap, camera, layers = [], primary = 0, briefing = null, selection = null, useAll = false, engine = null, ground = null }) {
+export function serializeShare({ kind = "map", title = "", skin, basemap, camera, layers = [], primary = 0, briefing = null, selection = null, useAll = false, engine = null, ground = null, textBoxes = [] }) {
+  const labels = kind === "map" ? normalizeTextBoxes(textBoxes).slice(0, MAX_TEXT_BOXES) : [];
   if (!KINDS.has(kind)) throw new Error(`Unknown link type: ${kind}.`);
   const remote = layers.filter((layer) => layer?.url && !layer.local);
   if (kind === "briefing" && remote.length !== layers.length) throw new Error("This briefing contains local or non-shareable layers. Export a project instead of an incomplete link.");
@@ -125,7 +129,7 @@ export function serializeShare({ kind = "map", title = "", skin, basemap, camera
     sanitizeSharedResourceUrl(layer.url, { allowHttp: true });
     if (String(layer.definitionExpression || "").length > 2000) throw new Error("A layer filter is too long to share without truncation. Export a project instead.");
   }
-  if (!remote.length) throw new Error("Add a public web layer before sharing; files from this device cannot travel in a link.");
+  if (!remote.length && !labels.length) throw new Error("Add a public web layer before sharing; files from this device cannot travel in a link.");
   if (remote.length > MAX_LAYERS) throw new Error(`A shared map can include at most ${MAX_LAYERS} layers.`);
   const payload = {
     v: 1,
@@ -137,6 +141,7 @@ export function serializeShare({ kind = "map", title = "", skin, basemap, camera
     e: ["arcgis", "maplibre"].includes(engine) ? engine : null,
     g: ["flat", "world-elevation", "world-topobathymetry"].includes(ground) ? ground : null,
     L: remote.map(packLayer),
+    x: labels.length ? labels : null,
   };
   if (kind === "briefing") {
     payload.p = Math.max(0, remote.indexOf(layers[primary]));
@@ -151,7 +156,8 @@ export function serializeShare({ kind = "map", title = "", skin, basemap, camera
 export function readShare(payload, options = {}) {
   if (!payload || payload.v !== 1 || !KINDS.has(payload.k)) throw new Error("This link was made by a newer or different app and cannot be opened.");
   const layers = (Array.isArray(payload.L) ? payload.L : []).slice(0, MAX_LAYERS).map((layer) => unpackLayer(layer, options));
-  if (!layers.length) throw new Error("This link has no layers.");
+  const textBoxes = payload.k === "map" ? normalizeTextBoxes(payload.x).slice(0, MAX_TEXT_BOXES) : [];
+  if (!layers.length && !textBoxes.length) throw new Error("This link has no layers.");
   const result = {
     kind: payload.k,
     title: text(payload.t, 120),
@@ -161,6 +167,7 @@ export function readShare(payload, options = {}) {
     engine: ["arcgis", "maplibre"].includes(payload.e) ? payload.e : null,
     ground: ["flat", "world-elevation", "world-topobathymetry"].includes(payload.g) ? payload.g : null,
     layers,
+    textBoxes,
   };
   if (payload.k === "briefing") {
     result.primary = Math.min(layers.length - 1, Math.max(0, Number(payload.p) || 0));

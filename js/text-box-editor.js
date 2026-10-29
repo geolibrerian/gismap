@@ -1,5 +1,5 @@
 // Markup and form reading for the Draw panel's text box editor.
-import { TEXT_BOX_FONTS, defaultRun, normalizeTextBox } from "./text-boxes.js?v=0.63.0-text-boxes";
+import { TEXT_BOX_FONTS, defaultRun, normalizeTextBox } from "./text-boxes.js?v=0.63.2-text-boxes";
 
 const escape = (value) => String(value ?? "").replace(/[&<>"']/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[character]);
 const checked = (value) => (value ? " checked" : "");
@@ -35,7 +35,9 @@ export function textBoxEditorMarkup(box) {
 <label class="field"><span>Latitude</span><input type="number" step="0.000001" min="-90" max="90" data-text-lat value="${latitude}"></label>
 <label class="field"><span>Z (metres)</span><input type="number" step="1" data-text-z value="${z}"></label>
 <label class="field"><span>Alignment</span><select data-text-align>${align("left", "Left")}${align("center", "Centre")}${align("right", "Right")}</select></label>
-</div><button type="button" data-text-pick>Pick position on map</button></fieldset>
+<label class="field"><span>Min zoom (optional)</span><input type="number" min="0" max="24" step="0.5" placeholder="Any" data-text-min-zoom value="${box.minZoom ?? ""}"></label>
+<label class="field"><span>Max zoom (optional)</span><input type="number" min="0" max="24" step="0.5" placeholder="Any" data-text-max-zoom value="${box.maxZoom ?? ""}"></label>
+</div><p class="form-note" data-text-zoom-note></p><button type="button" data-text-pick>Pick position on map</button></fieldset>
 <div data-text-runs>${box.runs.map(textBoxRunMarkup).join("")}</div>
 <button type="button" data-add-run>Add text run</button>
 <fieldset class="feedback-settings"><legend><label><input type="checkbox" data-frame-enabled${checked(frame.enabled)}> Rectangle around label</label></legend><div class="field-grid">
@@ -67,6 +69,8 @@ export function readTextBoxEditor(root, id) {
     id,
     coordinates: [Number(value("[data-text-lon]")), Number(value("[data-text-lat]")), Number(value("[data-text-z]"))],
     align: value("[data-text-align]"),
+    minZoom: value("[data-text-min-zoom]"),
+    maxZoom: value("[data-text-max-zoom]"),
     runs: runs.length ? runs : [defaultRun({ text: "" })],
     frame: {
       enabled: on("[data-frame-enabled]"),

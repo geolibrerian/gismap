@@ -19,6 +19,7 @@ const clamp = (value, min, max, fallback) => {
   return Number.isFinite(number) ? Math.min(max, Math.max(min, number)) : fallback;
 };
 const color = (value, fallback) => (HEX.test(String(value || "")) ? String(value).toLowerCase() : fallback);
+const optionalZoom = (value) => (value === null || value === undefined || value === "" || !Number.isFinite(Number(value)) ? null : clamp(value, 0, 24, null));
 const fontCss = (id) => (TEXT_BOX_FONTS.find((font) => font.id === id) || TEXT_BOX_FONTS[0]).css;
 
 export function defaultRun(overrides = {}) {
@@ -45,6 +46,8 @@ export function normalizeTextBox(input = {}) {
   return {
     id: String(input.id || `text-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`),
     coordinates: [clamp(longitude, -180, 180, 0), clamp(latitude, -90, 90, 0), clamp(z, -12000, 1e7, 0)],
+    minZoom: optionalZoom(input.minZoom),
+    maxZoom: optionalZoom(input.maxZoom),
     align: ["left", "center", "right"].includes(input.align) ? input.align : "center",
     runs: runs.length ? runs : [defaultRun()],
     frame: {
@@ -160,10 +163,16 @@ export function captureTransform(viewWidth, viewHeight, outputWidth, outputHeigh
   return { scale, offsetX: (viewWidth - cropWidth) / 2, offsetY: (viewHeight - cropHeight) / 2 };
 }
 
+/** Whether a box shows at `zoom`; an unknown zoom shows every box. */
+export function visibleAtZoom(box, zoom) {
+  if (!Number.isFinite(zoom)) return true;
+  return (box.minZoom === null || zoom >= box.minZoom) && (box.maxZoom === null || zoom <= box.maxZoom);
+}
+
 /** Keeps the boxes, draws them over the map, and composites them into captures. */
 export class TextBoxLayer {
   constructor({ project, events } = {}) {
-    this.project = project; // { mapToScreen([lon, lat, z]), screenToMap(x, y), container() }
+    this.project = project; // { mapToScreen([lon, lat, z]), screenToMap(x, y), container(), zoom() }
     this.events = events;
     this.boxes = [];
     this.canvas = null;
@@ -291,7 +300,9 @@ export class TextBoxLayer {
     context.setTransform(1, 0, 0, 1, 0, 0);
     context.clearRect(0, 0, canvas.width, canvas.height);
     context.setTransform(ratio, 0, 0, ratio, 0, 0);
+    const zoom = this.project.zoom?.();
     for (const box of this.boxes) {
+      if (!visibleAtZoom(box, zoom)) continue;
       const point = this.project.mapToScreen(box.coordinates);
       if (!point || point.x < -2000 || point.y < -2000 || point.x > width + 2000 || point.y > height + 2000) continue;
       const bounds = drawTextBox(context, box, point.x, point.y);
@@ -320,7 +331,9 @@ export class TextBoxLayer {
     const context = canvas.getContext("2d");
     context.drawImage(image, 0, 0, canvas.width, canvas.height);
     const { scale, offsetX, offsetY } = captureTransform(container.clientWidth, container.clientHeight, canvas.width, canvas.height);
+    const zoom = this.project.zoom?.();
     for (const box of this.boxes) {
+      if (!visibleAtZoom(box, zoom)) continue;
       const point = this.project.mapToScreen(box.coordinates);
       if (!point) continue;
       drawTextBox(context, box, (point.x - offsetX) * scale, (point.y - offsetY) * scale, scale);

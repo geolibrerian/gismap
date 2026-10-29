@@ -13,7 +13,7 @@ import { MapAssistantPanel } from "./assistant-panel.js?v=0.57.0-skins1";
 import { createAssistantTools, summarizeMapState } from "./map-assistant.js?v=0.61.1-dashboard-agent";
 import { ENTERPRISE_CATALOGS, EnterpriseCatalog, normalizeArcGisDirectoryUrl } from "./enterprise-catalog.js?v=0.18.2";
 import { createShareUrl } from "./share.js?v=0.54.0-unified4";
-import { createShareLink, hasDataFilter, readBriefingFile } from "./map-share.js?v=0.61.0-briefing-player";
+import { createShareLink, hasDataFilter, readBriefingFile } from "./map-share.js?v=0.63.2-text-boxes";
 import { createEmbedIframe, createEmbedUrl } from "./embed-share.js?v=0.61.0-embed1";
 import { briefingLayerRef, findBriefingLayer } from "./briefing-api.js?v=0.61.0-briefing-player";
 import { createEmbeddedTourUrl } from "./tour-share.js?v=0.54.0-unified4";
@@ -63,8 +63,8 @@ import { buildClipPackage, clipToCinematicSpec, createCinematicClip, exportCinem
 import { availableVideoFormats, cameraAt, CLIP_FRAME_RATES, clipFrameCount, exportCinematicVideo, observationIndexAt, renderClipPoster } from "./cinematic/clip-export.js?v=0.3.8-fire-points";
 import { CHART_PANEL_PLACEMENTS, CHART_TYPES, PRESENTATION_TARGETS, chartFields, chartOption, createChartSpec, displayChartRows, loadECharts, queryChart, recommendCharts, renderChartFallback, rowsAsCsv } from "./charting-tools.js";
 import { MapChartOverlayController } from "./map-chart-tools.js";
-import { readTextBoxEditor, textBoxEditorMarkup, textBoxRunMarkup, textBoxSummary } from "./text-box-editor.js?v=0.63.0-text-boxes";
-import { defaultRun } from "./text-boxes.js?v=0.63.0-text-boxes";
+import { readTextBoxEditor, textBoxEditorMarkup, textBoxRunMarkup, textBoxSummary } from "./text-box-editor.js?v=0.63.2-text-boxes";
+import { defaultRun } from "./text-boxes.js?v=0.63.2-text-boxes";
 
 const BUILDINGS_3D_KEY = "gismap-online:buildings-3d:v1";
 const DISPLAY_SETTINGS_KEY = "gismap-online:display:v1";
@@ -826,6 +826,9 @@ export class UIController {
     this.openDialog({ eyebrow: "Draw", title: "Text box", content: textBoxEditorMarkup(box) });
     const root = this.dialog;
     const session = this.dialogSession;
+    let currentZoom = null;
+    try { currentZoom = this.mapController.getCamera()?.zoom; } catch { /* Not ready. */ }
+    root.querySelector("[data-text-zoom-note]").textContent = `${Number.isFinite(currentZoom) ? `The map is at zoom ${currentZoom.toFixed(1)}. ` : ""}Leave min and max blank to show the label at every zoom.`;
     const apply = () => {
       const next = readTextBoxEditor(root, id);
       this.mapController.updateTextBox(id, next);
@@ -2249,8 +2252,8 @@ export class UIController {
       content: `<div class="share-export">${notices.map((notice) => `<p class="workflow-share__notice">${notice}</p>`).join("")}
         <div class="share-export__grid">
           ${card("share", "Share map", "Link and QR code with the layers, styles, filters, view, basemap and skin.", { icon: "⌗", disabled: layers.length > local.length ? "" : "Add a web layer to share a link." })}
-          ${card("pdf", "Map PDF", "A branded PDF of this view with a layer key and a QR code back to the live map.", { icon: "▤", disabled: layers.length ? "" : "Add a layer first." })}
-          ${card("smart-image", "Smart map image", "A PNG of this map that anyone can view, and that reopens the whole project when dropped on GIS Map Online.", { icon: "◩", disabled: layers.length ? "" : "Add a layer first." })}
+          ${card("pdf", "Map PDF", "A branded PDF of this view with a layer key and a QR code back to the live map.", { icon: "▤" })}
+          ${card("smart-image", "Smart map image", "A PNG of this map that anyone can view, and that reopens the whole project when dropped on GIS Map Online.", { icon: "◩" })}
           ${card("briefing-share", "Share as a briefing", `One click: slides from ${layer ? `“${escapeHtml(layer.title || "this layer")}”` : "the layer"}'s ${styled ? "style, " : ""}filter and top features${this.aiController.isConfigured() ? ", described by AI" : ""}, ready to share.`, { icon: "✦", disabled: queryable ? "" : "Choose a feature layer to brief on." })}
           ${card("briefing", "Create briefing", `Start a briefing on ${layer ? `“${escapeHtml(layer.title || "this layer")}”` : "a layer"}${styled ? " with its style" : ""} and write the slides yourself.`, { icon: "▣", disabled: queryable ? "" : "Choose a feature layer to brief on." })}
           ${card("tour", "Start a tour here", "Save this view as the first chapter of a guided tour.", { icon: "➤" })}
@@ -2289,6 +2292,7 @@ export class UIController {
       basemap: this.mapController.getBasemapId(),
       camera: this.mapController.getViewState(),
       layers,
+      textBoxes: this.mapController.getTextBoxes?.() ?? [],
     });
     return { ...link, layers };
   }
@@ -7910,6 +7914,7 @@ export class UIController {
     const current = this.projectManager.current.presentation || {};
     const goToCamera = () => (shared.camera ? this.mapController.setView({ ...shared.camera }, { animate: false }) : null);
     if (shared.kind === "map") {
+      if (shared.textBoxes?.length) this.mapController.setTextBoxes(shared.textBoxes);
       this.projectManager.setPresentation({ ...current, template: "standard", skin: shared.skin, title: shared.title || current.title });
       await goToCamera();
       this.toast(`${shared.title || "Shared map"} opened.${filterNote}`);
