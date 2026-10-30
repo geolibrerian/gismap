@@ -50,10 +50,21 @@ function announceEmbedReady(layerCount) {
   for (const origin of EMBED_PARENT_ORIGINS) window.parent.postMessage({ type: "gismap.ready", version: 1, layers: layerCount }, origin);
 }
 
+function announcePrivatePreview(type) {
+  if (window.parent === window) return;
+  for (const origin of EMBED_PARENT_ORIGINS) window.parent.postMessage({ type, version: 1 }, origin);
+}
+
+function validPrivatePreview(data) {
+  if (!data || data.type !== "FeatureCollection" || !Array.isArray(data.features) || data.features.length > 2000) return false;
+  return data.features.every((feature) => feature?.type === "Feature" && feature.geometry && typeof feature.geometry.type === "string" && Array.isArray(feature.geometry.coordinates));
+}
+
 async function start() {
   const allowHttp = location.hostname === "localhost" || location.hostname === "127.0.0.1";
   const launchParams = new URLSearchParams(location.search);
   const sharedEmbed = launchParams.get("embed") === "1";
+  const siPreviewEmbed = sharedEmbed && launchParams.get("embedKind") === "si-preview";
   // MapLibre by default; ?engine=arcgis (or the Display settings choice) selects the ArcGIS engine.
   let sharedState = null;
   let sharedStateError = null;
@@ -131,6 +142,34 @@ async function start() {
   };
   // Briefing documents can name a service URL as their layer; it loads like a shared layer.
   uiController.loadLayer = loadUnifiedLayer;
+
+  if (siPreviewEmbed) {
+    // SI's browser parent delivers an authorized, bounded snapshot after this ready
+    // signal. Nothing private is included in the iframe URL or saved by GISMap Online.
+    uiController.activateSharedEmbed("map");
+    document.body.classList.add("si-preview-embed");
+    let previewLoaded = false;
+    window.addEventListener("message", async (event) => {
+      if (previewLoaded || event.origin === location.origin || !EMBED_PARENT_ORIGINS.includes(event.origin) || event.source !== window.parent) return;
+      const payload = event.data;
+      if (payload?.type !== "gismap.si.preview" || payload.version !== 1 || !validPrivatePreview(payload.data)) return;
+      previewLoaded = true;
+      try {
+        const snapshot = new Blob([JSON.stringify(payload.data)], { type: "application/geo+json" });
+        const [layer] = await loadUnifiedLayer({
+          url: URL.createObjectURL(snapshot),
+          title: String(payload.title || "Private dataset").slice(0, 180),
+          serviceType: "geojson",
+        });
+        await cameraApi.fitTo(layer.uid, { animate: false }).catch(() => {});
+        announcePrivatePreview("gismap.preview.loaded");
+      } catch (error) {
+        console.warn("GISMap SI private preview could not be displayed.", error);
+        announcePrivatePreview("gismap.preview.error");
+      }
+    });
+    announceEmbedReady(0);
+  }
 
   // The public, in-page API. Defined before the map starts so agents can await `ready`.
   const layersApi = createLayersApi({ mapController, loadLayer: loadUnifiedLayer, state: applicationRuntime.state, events, allowHttp });

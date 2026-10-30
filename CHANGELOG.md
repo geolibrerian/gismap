@@ -9,6 +9,7 @@ All notable changes to GIS Map Online are documented here. This project follows
 ### Embedding
 
 - `?layer=…&embed=1` now opens the chrome-free embedded map, as embedded `#map` links do. Embedded maps no longer show the mobile tool strip, and desktop-width embeds no longer render the map zero pixels wide. GISMap SI uses it to show a dataset inside its Dataset Studio. The map sends `{type: "gismap.ready"}` only to gismap.si parent pages.
+- Add the Dataset Studio private-preview embed. `?embed=1&embedKind=si-preview` opens the same read-only, compact GISMap Online viewer and accepts a bounded GeoJSON snapshot only from its trusted GISMap SI parent. The snapshot never appears in a URL or creates a public service.
 
 ### Cartography Lab
 

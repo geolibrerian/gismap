@@ -28,3 +28,16 @@ test("map and briefing sharing expose a reusable website embed, while tours reta
   assert.match(css, /body\.shared-embed :is\([^}]*\.sidebar/s);
   assert.match(css, /body\.shared-embed :is\([^}]*\.workspace-rail/s);
 });
+
+test("SI private previews use the focused GISMap Online viewer without a URL payload", async () => {
+  const [app, css] = await Promise.all([
+    readFile(new URL("../js/app.js", import.meta.url), "utf8"),
+    readFile(new URL("../css/app.css", import.meta.url), "utf8"),
+  ]);
+  assert.match(app, /embedKind"\) === "si-preview"/);
+  assert.match(app, /gismap\.si\.preview/);
+  assert.match(app, /gismap\.preview\.loaded/);
+  assert.match(app, /data\.features\.length > 2000/);
+  assert.match(app, /event\.source !== window\.parent/);
+  assert.match(css, /body\.si-preview-embed \.map-workspace/);
+});
