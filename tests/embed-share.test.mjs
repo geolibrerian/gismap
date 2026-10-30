@@ -40,6 +40,8 @@ test("SI private previews use the focused GISMap Online viewer without a URL pay
   assert.match(app, /data\.features\.length > 2000/);
   assert.match(app, /event\.source !== window\.parent/);
   assert.match(app, /mapController\.goToLayers\(\[layer\], \{ animate: false \}\)/);
+  assert.match(app, /let pendingPrivatePreview = null/);
+  assert.match(app, /await mapController\.initialize\(\);[\s\S]*await loadPrivatePreview\(preview\)/);
   assert.match(css, /body\.si-preview-embed \.map-workspace/);
   assert.match(css, /body\.si-preview-embed \.si-embed-rail/);
 });

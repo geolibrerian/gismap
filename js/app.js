@@ -143,17 +143,15 @@ async function start() {
   // Briefing documents can name a service URL as their layer; it loads like a shared layer.
   uiController.loadLayer = loadUnifiedLayer;
 
+  let pendingPrivatePreview = null;
+  let loadPrivatePreview = null;
   if (siPreviewEmbed) {
     // SI's browser parent delivers an authorized, bounded snapshot after this ready
     // signal. Nothing private is included in the iframe URL or saved by GISMap Online.
     uiController.activateSharedEmbed("map");
     document.body.classList.add("si-preview-embed");
-    let previewLoaded = false;
-    window.addEventListener("message", async (event) => {
-      if (previewLoaded || event.origin === location.origin || !EMBED_PARENT_ORIGINS.includes(event.origin) || event.source !== window.parent) return;
-      const payload = event.data;
-      if (payload?.type !== "gismap.si.preview" || payload.version !== 1 || !validPrivatePreview(payload.data)) return;
-      previewLoaded = true;
+    let previewReceived = false;
+    loadPrivatePreview = async (payload) => {
       try {
         const snapshot = new Blob([JSON.stringify(payload.data)], { type: "application/geo+json" });
         const [layer] = await loadUnifiedLayer({
@@ -170,6 +168,20 @@ async function start() {
       } catch (error) {
         console.warn("GISMap SI private preview could not be displayed.", error);
         announcePrivatePreview("gismap.preview.error");
+      }
+    };
+    window.addEventListener("message", (event) => {
+      if (previewReceived || event.origin === location.origin || !EMBED_PARENT_ORIGINS.includes(event.origin) || event.source !== window.parent) return;
+      const payload = event.data;
+      if (payload?.type !== "gismap.si.preview" || payload.version !== 1 || !validPrivatePreview(payload.data)) return;
+      previewReceived = true;
+      // SI receives the iframe's ready signal before the map engine has finished
+      // its own initial view. Queue the preview until initialization, otherwise
+      // that initial view can overwrite the just-calculated dataset extent.
+      pendingPrivatePreview = payload;
+      if (mapController.isReady()) {
+        pendingPrivatePreview = null;
+        void loadPrivatePreview(payload);
       }
     });
     announceEmbedReady(0);
@@ -304,6 +316,14 @@ async function start() {
   mapController.setInitialBasemap(SHARE_BASEMAPS.has(linkBasemap) ? linkBasemap : null);
   await mapController.initialize();
   events.publish("project:loaded", { project: projectManager.current, missingFiles: [] });
+
+  // The SI parent can send its secure snapshot while the engine is still
+  // initializing. Apply it only after the default map view is finalized.
+  if (pendingPrivatePreview && loadPrivatePreview) {
+    const preview = pendingPrivatePreview;
+    pendingPrivatePreview = null;
+    await loadPrivatePreview(preview);
+  }
 
   // Waits that depend on drawing (camera moves) never finish in a hidden tab.
   const within = (promise, seconds) => Promise.race([promise, new Promise((resolve) => setTimeout(resolve, seconds * 1000))]);
