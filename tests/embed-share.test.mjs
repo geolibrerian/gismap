@@ -39,5 +39,15 @@ test("SI private previews use the focused GISMap Online viewer without a URL pay
   assert.match(app, /gismap\.preview\.loaded/);
   assert.match(app, /data\.features\.length > 2000/);
   assert.match(app, /event\.source !== window\.parent/);
+  assert.match(app, /mapController\.goToLayers\(\[layer\], \{ animate: false \}\)/);
   assert.match(css, /body\.si-preview-embed \.map-workspace/);
+  assert.match(css, /body\.si-preview-embed \.si-embed-rail/);
+});
+
+test("private Dataset Studio embeds expose compact print, brief, and cinematic controls", async () => {
+  const markup = await readFile(new URL("../index.html", import.meta.url), "utf8");
+  assert.match(markup, /class="si-embed-rail"/);
+  assert.match(markup, /data-action="map-pdf"/);
+  assert.match(markup, /data-action="share-export"/);
+  assert.match(markup, /data-action="mode-cinematic"/);
 });

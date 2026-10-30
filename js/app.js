@@ -161,7 +161,11 @@ async function start() {
           title: String(payload.title || "Private dataset").slice(0, 180),
           serviceType: "geojson",
         });
-        await cameraApi.fitTo(layer.uid, { animate: false }).catch(() => {});
+        // Let the renderer register the GeoJSON before calculating its extent.
+        // This direct controller call works for both MapLibre and ArcGIS embeds.
+        await new Promise((resolve) => requestAnimationFrame(resolve));
+        const fitted = await mapController.goToLayers([layer], { animate: false });
+        if (!fitted) throw new Error("The private dataset did not provide a map extent.");
         announcePrivatePreview("gismap.preview.loaded");
       } catch (error) {
         console.warn("GISMap SI private preview could not be displayed.", error);
