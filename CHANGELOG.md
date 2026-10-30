@@ -6,6 +6,10 @@ All notable changes to GIS Map Online are documented here. This project follows
 
 ## [Unreleased]
 
+### Embedding
+
+- `?layer=…&embed=1` now opens the chrome-free embedded map, as embedded `#map` links do. Embedded maps no longer show the mobile tool strip, and desktop-width embeds no longer render the map zero pixels wide. GISMap SI uses it to show a dataset inside its Dataset Studio. The map sends `{type: "gismap.ready"}` only to gismap.si parent pages.
+
 ### Cartography Lab
 
 - Add Tools › Cartography Lab: one panel that combines a layer's colour (single, categories, classes, size, heat map), 3D height (the four spatial chart modes) and a filter, with a live preview, on the MapLibre and ArcGIS engines.

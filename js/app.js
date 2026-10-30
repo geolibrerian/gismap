@@ -42,6 +42,14 @@ let rejectReady;
 const ready = new Promise((resolve, reject) => { resolveReady = resolve; rejectReady = reject; });
 ready.catch(() => {});
 
+// Parent pages allowed to hear from an embedded map. postMessage's target
+// origin makes the browser drop the message for any other embedding site.
+const EMBED_PARENT_ORIGINS = ["https://gismap.si", "https://www.gismap.si"];
+function announceEmbedReady(layerCount) {
+  if (window.parent === window) return;
+  for (const origin of EMBED_PARENT_ORIGINS) window.parent.postMessage({ type: "gismap.ready", version: 1, layers: layerCount }, origin);
+}
+
 async function start() {
   const allowHttp = location.hostname === "localhost" || location.hostname === "127.0.0.1";
   const launchParams = new URLSearchParams(location.search);
@@ -267,6 +275,11 @@ async function start() {
       if (sharedState || /(?:^#|&)(?:tour|fieldTask|fieldNote|at)=/.test(location.hash)) spec.camera = { fit: "none" };
       await within(mapSpecApi.load(spec, { replace: false }).ready, 120).catch((error) => events.publish("app:error", { message: error.message }));
       sharedLayers.push(...mapController.getLayers());
+      // `?layer=…&embed=1` is how GISMap SI embeds a dataset: the same chrome-free view as an embedded #map link.
+      if (sharedEmbed && !sharedState) {
+        uiController.activateSharedEmbed("map");
+        announceEmbedReady(sharedLayers.length);
+      }
     }
     const example = POPULAR_SERVICES.find((item) => (item.slug || item.id) === shared.example);
     if (example?.presentation && sharedLayers.length) {
