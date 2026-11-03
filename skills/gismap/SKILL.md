@@ -65,6 +65,7 @@ Before proposing a public example, open [GISMap Online Discover](https://gismap.
 | Show this LiDAR or CAD model in 3D | [`lidar-and-3d-models`](references/agent-recipes.md#lidar-and-3d-models) | Point cloud or 3D model map |
 | Make a printable map / poster / PDF | [`print`](references/print.md) | Branded print-ready PDF |
 | Make a Smart Map Image | [`print`](references/print.md#smart-image) | Branded PNG holding the project |
+| Give me the project file for this derived data | [`project-package`](references/agent-recipes.md#project-package) | Verified .gisx project package |
 | Make the map feel like Halloween in California | [`vibe-map`](references/agent-recipes.md#vibe-map) | Coordinated theme and styled map |
 | Turn this layer into an interactive dashboard | [Dashboard, charts & animation](references/dashboard-chart-animation.md) | Linked chart panel, skin, basemap and map filtering |
 | Animate the observed changes in this layer | [Dashboard, charts & animation](references/dashboard-chart-animation.md#cinematic-animation) | Evidence-preserving cinematic playback, clip or poster |

@@ -79,6 +79,12 @@ Review the preview, then repeat with `previewOnly: false`. Verify the flat overv
 
 **Prompt:** “Show only vegetation and conductor wires from this LAZ file.” **Inputs:** an HTTPS (CORS-enabled) LAS, LAZ or XYZ file, or a glTF/GLB, OBJ or PLY model; the CRS when the file has none; ASPRS classes; colour mode; for models an anchor or the CRS of their coordinates. Add a layer with `"type": "pointcloud"` or `"type": "model"` and `scene3d` options to a map-v1 link, or call `layers.add(url, { type, scene3d })` in an open page. This uses the MapLibre engine with three.js on the flat map. Large clouds are thinned to `maxPoints`; COPC/EPT streaming, picking, clearance analysis and IFC/DWG are not available yet. See [3D data](3d-data.md).
 
+<a id="project-package"></a>
+
+## project-package — verified .gisx for derived or local data
+
+**Prompt:** “Join these 311 calls to neighborhoods and give me the GISMap project.” **Inputs:** a local or derived file built from real queried values, the project name and the style. Links carry only public URLs, so derived data travels in a `.gisx`. In a running page, add the file through Add data, wait until the layer is loaded and ready with the expected feature count, apply and read back the style, then call `await gisMapOnline.project.exportPackage()`, which returns `{ fileName, mimeType, blob }` without a download dialog. If you use the menu download instead, capture the real path from the browser's download mechanism. List the archive (`project.json`, `README.txt`, the layer file), import that exact file into a fresh page and confirm title, layers, features, fields and style. Return that file with its path, size and contents. A ZIP you assembled is not a project package: if the export fails, say which step failed and offer the data only as a labeled fallback such as `<name>_data_package.zip`, never renamed to `.gisx`.
+
 <a id="vibe-map"></a>
 
 <a id="vibe-map"></a>

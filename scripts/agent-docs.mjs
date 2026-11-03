@@ -306,6 +306,7 @@ Finished maps, linked charts and Instant Dashboards, briefings, guided tours, fi
 | Separate overlapping events by year and height | [spatial-3d-chart](${SITE}/skills/#recipe-spatial-3d-chart) | 3D spatial chart and five-scene Brief |
 | Show this LiDAR or CAD model in 3D | [lidar-and-3d-models](${SITE}/skills/#recipe-lidar-and-3d-models) | Point cloud or 3D model map |
 | Make a printable map, poster or Smart Map Image | [print-map](${SITE}/agent-recipes/print-map/) | Branded PDF or Smart Image |
+| Give me the project file for this derived data | [project-package](${SITE}/agent-recipes/project-package/) | Verified .gisx project package |
 | Make the map feel like Halloween in California | [vibe-map](${SITE}/skills/#recipe-vibe-map) | Coordinated theme and styled map |
 | Turn this layer into an interactive dashboard | [dashboard workflow](${SITE}/skills/gismap/references/dashboard-chart-animation.md) | Linked chart panel, skin, basemap and map filtering |
 | Animate observed changes in this layer | [cinematic animation](${SITE}/skills/gismap/references/dashboard-chart-animation.md#cinematic-animation) | Evidence-preserving playback, clip or poster |

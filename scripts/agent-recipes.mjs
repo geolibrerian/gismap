@@ -80,6 +80,9 @@ export const PARK_TASK = Object.freeze({
   steps: ["Inspect playground structures", "Photograph damaged equipment", "Check drinking fountains", "Inspect pedestrian paths", "Document litter and maintenance needs"].map((text) => ({ text, done: false })),
 });
 
+export const NEIGHBORHOODS_URL = "https://services5.arcgis.com/54falWtcpty3V47Z/ArcGIS/rest/services/Neighborhoods/FeatureServer/0";
+const NEIGHBORHOODS_MAP = Object.freeze({ version: 1, title: "Neighborhoods (the polygons the 311 calls are counted in)", basemap: "gray-vector", layers: [{ url: NEIGHBORHOODS_URL, type: "feature", title: "Neighborhoods" }] });
+
 const PHILLY_PAGE = `${SITE}/examples/ai/philadelphia-police-divisions/`;
 const SOURCES = {
   grape: { label: "USDA Census of Agriculture 2022 grape production (Esri)", url: GRAPE_URL },
@@ -87,6 +90,7 @@ const SOURCES = {
   colleges: { label: "Colleges and Universities (HIFLD / IPEDS)", url: COLLEGES_URL },
   mlb: { label: "Major League Baseball Stadiums", url: MLB },
   osm: { label: "OpenStreetMap Nominatim (place coordinates)", url: "https://nominatim.openstreetmap.org/" },
+  sd311: { label: "City 311 calls FY2022 and FY2023, and neighborhood polygons (ArcGIS Online)", url: NEIGHBORHOODS_URL },
   autzen: { label: "PDAL sample LiDAR: Autzen Stadium, Eugene, Oregon (LAS 1.2, RGB)", url: AUTZEN_LAS },
 };
 
@@ -108,6 +112,7 @@ export function agentRecipeLinks({ phillyLink, ballparksLink, openingDayLink }) 
     sfTourReadable: createEmbeddedTourUrl({ baseUrl: `${SITE}/`, presentation: SF_TOUR, allowedBasemaps: basemaps, tourOnly: true, readable: true }),
     parkTask: createFieldTaskUrl({ baseUrl: `${SITE}/`, task: PARK_TASK }),
     parkTaskReadable: createFieldTaskUrl({ baseUrl: `${SITE}/`, task: PARK_TASK, readable: true }),
+    neighborhoods: readableLink(NEIGHBORHOODS_MAP),
     lidar: readableLink(LIDAR_MAP),
     lidarGround: readableLink(LIDAR_GROUND),
     grapeBriefing: readableLink(Object.fromEntries(Object.entries(GRAPE_BRIEFING).filter(([, value]) => value !== undefined))),
@@ -374,6 +379,39 @@ export function agentRecipes(links) {
       recovery: ["In headless Chromium without WebGL, launch with --use-gl=angle --use-angle=swiftshader.", "If a layer does not load, report it; use allowPartial only if the user agrees.", "If export fails, return the live share link and the error code."],
       examples: [
         example({ title: "California grape acreage poster", prompt: "Make a poster of California grape acreage.", dataset: [SOURCES.grape], url: links.grape, status: "prepared", checks: ["The link opens the map to print; the export itself runs in the page."] }),
+      ],
+    },
+    {
+      id: "project-package", title: "Project package (.gisx) for derived or local data", status: "experimental",
+      question: "Can an AI agent hand me a GISMap Online project when the map uses data it derived itself, like call counts joined to neighborhoods?",
+      answer: "Yes, from a running GISMap Online page. Links only reference public URLs, so derived data travels in a .gisx project package: the agent loads the file into GISMap Online, styles it, calls gisMapOnline.project.exportPackage() to get the package GISMap Online itself writes, checks the archive, reimports it into a fresh page and returns that exact file. A ZIP the agent assembled by hand is not a project package.",
+      triggers: ["Join these two years of 311 calls to neighborhoods and give me the GISMap Online project", "Send me this map as a .gisx file", "Package the derived layer so I can open it in GISMap Online"],
+      inputTypes: ["Derived GeoJSON", "Local spatial file (GeoJSON, shapefile ZIP, KML, CSV, GeoPackage)", "Public layers mixed with local ones"],
+      inputs: {
+        required: [{ name: "data", description: "The local or derived file, written by the agent from real queried values." }, { name: "title", description: "The project name; it becomes the .gisx file name." }],
+        optional: [{ name: "style", description: "Renderer, palette and 3D settings applied in the app." }, { name: "description", description: "Method and caveats, such as excluded records or what an extrusion height means." }],
+      },
+      capabilities: ["project-package", "local-files"],
+      engines: ["maplibre", "arcgis"],
+      steps: [
+        common.discover, common.inspectSource,
+        { stage: "plan", action: "Derive the data from real queries (for counts per area, use server-side statistics or a spatial join you can report) and keep the totals: features, records without an area, nulls. Decide the style before opening the page.", interfaces: ["standalone-js"], references: ["sources.inspect", "queries"] },
+        { stage: "execute", action: "Open GISMap Online, close the welcome card, add the file through Add data (local file input or drop). Wait for the layer to report loaded and ready with the expected feature count, apply the style, and set the project name.", interfaces: ["in-browser-api"], references: ["layers.list", "layers.metadata", "describe"] },
+        { stage: "verify", action: "Read back the style (layers.list / mapSpec.fromCurrent) before exporting: color field, palette, height field and mode are the ones requested.", interfaces: ["in-browser-api"], references: ["layers.list", "mapSpec.fromCurrent"] },
+        { stage: "execute", action: "Call await gisMapOnline.project.exportPackage(); it returns { fileName, mimeType, blob } without a download dialog. Write the blob to disk yourself. If you use the Project > Download > Project package (.gisx) menu instead, capture the real download path through the browser's download mechanism; do not search the disk and guess.", interfaces: ["in-browser-api"], references: ["project.exportPackage"] },
+        { stage: "verify", action: "List the archive: it must hold project.json, README.txt and each local layer's file at its projectPath. Then import that exact file into a fresh GISMap Online page (Project > Import project file) and confirm the title, layer count, feature count, Ready state, fields and style.", interfaces: ["in-browser-api"], references: ["layers.list", "describe"] },
+        { stage: "share", action: "Attach the verified .gisx and report its path, size, contents and the reimport result. Say that no share link exists for local data unless the user publishes it as a public layer.", interfaces: ["in-browser-api"], references: ["project.exportPackage"] },
+      ],
+      artifact: { type: "project", structure: "A ZIP written by GISMap Online with the .gisx extension: project.json (the project snapshot), README.txt and the local layer files." },
+      outputs: [
+        { format: "Project package (.gisx)", interface: "in-browser-api", interactive: true, reference: "project.exportPackage", notes: "Opens with Project > Import project file; carries local data." },
+        { format: "Labeled data fallback (.zip)", interface: "external-adapter", interactive: false, notes: "Only when the export fails, named as a data package, never as .gisx." },
+      ],
+      verification: ["Layer loaded and ready with the expected feature count before export", "Style read back from the page before export", "File came from project.exportPackage or a captured GISMap Online download", "Archive lists project.json and the layer file", "Reimported into a fresh page: title, layers, features, fields, style and 3D settings intact"],
+      limitations: ["Needs a running GISMap Online page; there is no hosted export.", "Local and derived data cannot go into a share link, QR or embed.", "The package holds a snapshot of the data, not a live query."],
+      recovery: ["If the export or capture fails, say so and name the failed step. Do not rename a ZIP to .gisx or call it a project package.", "Offer the derived data as a clearly labeled fallback, for example <name>_data_package.zip.", "If the reimport drops styling, report which settings were lost."],
+      examples: [
+        example({ title: "311 call increase by neighborhood, 2022 to 2023", prompt: "Use the FY2022 and FY2023 311 call layers and the neighborhood polygons. Count calls per neighborhood each year, compute increase and percent change, color by increase on a red-blue diverging ramp, extrude by increase × 0.2, and send me the .gisx project.", dataset: [SOURCES.sd311], url: links.neighborhoods, status: "prepared", checks: ["The link opens only the public neighborhood polygons; the derived counts and styling exist only in the .gisx.", "Written from an agent run that delivered a hand-made ZIP instead of the .gisx; the expected result is 129 neighborhood polygons with calls_2022, calls_2023, increase and pct_change.", "Calls with no neighborhood value were excluded from the totals and must be reported."] }),
       ],
     },
     {

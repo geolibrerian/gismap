@@ -310,6 +310,25 @@
       "page": "https://gismap.online/agent-recipes/print-map/"
     },
     {
+      "id": "project-package",
+      "title": "Project package (.gisx) for derived or local data",
+      "status": "experimental",
+      "question": "Can an AI agent hand me a GISMap Online project when the map uses data it derived itself, like call counts joined to neighborhoods?",
+      "triggers": [
+        "Join these two years of 311 calls to neighborhoods and give me the GISMap Online project",
+        "Send me this map as a .gisx file",
+        "Package the derived layer so I can open it in GISMap Online"
+      ],
+      "artifact": "project",
+      "engines": [
+        "maplibre",
+        "arcgis"
+      ],
+      "lastTestedVersion": "0.53.0",
+      "url": "https://gismap.online/api/agent-recipes/project-package.json",
+      "page": "https://gismap.online/agent-recipes/project-package/"
+    },
+    {
       "id": "vibe-map",
       "title": "Vibe-matched map and presentation skin",
       "status": "available",
