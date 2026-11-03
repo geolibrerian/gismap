@@ -216,7 +216,7 @@
     "lastmod": "2026-11-02"
   },
   "/agent-recipes/": {
-    "hash": "4fe9f925d4cd0f74",
+    "hash": "77cbd1d9f2e9bb16",
     "lastmod": "2026-11-20"
   },
   "/agent-recipes/interactive-map/": {
@@ -263,6 +263,10 @@
     "hash": "5e3c796f3645e840",
     "lastmod": "2026-11-17"
   },
+  "/agent-recipes/project-package/": {
+    "hash": "750ecb36643c54d3",
+    "lastmod": "2026-11-20"
+  },
   "/agent-recipes/vibe-map/": {
     "hash": "95adb6f8cb7eabed",
     "lastmod": "2026-11-02"
@@ -280,11 +284,11 @@
     "lastmod": "2026-11-02"
   },
   "/llms.txt": {
-    "hash": "9a8f896c4eb47d56",
+    "hash": "bddf6f38a38ce61b",
     "lastmod": "2026-11-20"
   },
   "/llms-full.txt": {
-    "hash": "396a2a25643d280e",
+    "hash": "8ac6d86b46d7c368",
     "lastmod": "2026-11-20"
   },
   "/api/catalog.json": {
