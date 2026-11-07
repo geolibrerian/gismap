@@ -1,11 +1,11 @@
 {
   "/": {
     "hash": "53ca2db4ccd06440",
-    "lastmod": "2026-11-02"
+    "lastmod": "2026-11-07"
   },
   "/discover/": {
     "hash": "e9bcb2bcc8c9ce6c",
-    "lastmod": "2026-11-02"
+    "lastmod": "2026-11-07"
   },
   "/discover/examples/": {
     "hash": "60bf636e9d452c27",
@@ -17,35 +17,35 @@
   },
   "/discover/engines/": {
     "hash": "8c97162d8a8910b0",
-    "lastmod": "2026-11-02"
+    "lastmod": "2026-11-07"
   },
   "/discover/learn/": {
     "hash": "3a72d525761e7f49",
-    "lastmod": "2026-11-02"
+    "lastmod": "2026-11-07"
   },
   "/discover/ai/": {
     "hash": "c22af0da9b298760",
-    "lastmod": "2026-11-02"
+    "lastmod": "2026-11-07"
   },
   "/discover/data/": {
     "hash": "06e44e474d6117fe",
-    "lastmod": "2026-11-02"
+    "lastmod": "2026-11-07"
   },
   "/discover/demos/": {
     "hash": "b275fa00d9c51e5e",
-    "lastmod": "2026-11-02"
+    "lastmod": "2026-11-07"
   },
   "/discover/embed/": {
     "hash": "61040d82c094775a",
-    "lastmod": "2026-11-02"
+    "lastmod": "2026-11-07"
   },
   "/discover/about/": {
     "hash": "15c0152285341dd3",
-    "lastmod": "2026-11-02"
+    "lastmod": "2026-11-07"
   },
   "/discover/get-involved/": {
     "hash": "78eb454a376a5d1b",
-    "lastmod": "2026-11-02"
+    "lastmod": "2026-11-07"
   },
   "/examples/": {
     "hash": "8e2f13ef14a2b5db",
@@ -53,11 +53,11 @@
   },
   "/examples/data-connections/local-postgis/": {
     "hash": "5e88d704404ad446",
-    "lastmod": "2026-11-02"
+    "lastmod": "2026-11-07"
   },
   "/guides/": {
     "hash": "e311c9d894a5b41b",
-    "lastmod": "2026-11-02"
+    "lastmod": "2026-11-07"
   },
   "/examples/ai/trip-tour/": {
     "hash": "a18792ef1481fd00",
@@ -117,19 +117,19 @@
   },
   "/examples/ai/cors-blocked/": {
     "hash": "052a2a6f74f6c428",
-    "lastmod": "2026-11-02"
+    "lastmod": "2026-11-07"
   },
   "/examples/usa-wildfires/": {
     "hash": "1fac4a6bb69fd5c0",
-    "lastmod": "2026-11-02"
+    "lastmod": "2026-11-07"
   },
   "/examples/modis-active-fires/": {
     "hash": "9b85579a189e078d",
-    "lastmod": "2026-11-02"
+    "lastmod": "2026-11-07"
   },
   "/examples/air-quality-pm25/": {
     "hash": "a3d4b07684fd1410",
-    "lastmod": "2026-11-02"
+    "lastmod": "2026-11-07"
   },
   "/examples/california-fire-perimeters/": {
     "hash": "027646efbad3ed0f",
@@ -137,59 +137,59 @@
   },
   "/examples/historical-quakes/": {
     "hash": "a8144b391f0d051e",
-    "lastmod": "2026-11-02"
+    "lastmod": "2026-11-07"
   },
   "/examples/usgs-earthquakes/": {
     "hash": "35fb968ce7fa71c4",
-    "lastmod": "2026-11-02"
+    "lastmod": "2026-11-07"
   },
   "/arcgis-rest-service-viewer/": {
     "hash": "c2ec7a619d9329be",
-    "lastmod": "2026-11-02"
+    "lastmod": "2026-11-07"
   },
   "/arcgis-feature-service-viewer/": {
     "hash": "4a7a78789f0f6040",
-    "lastmod": "2026-11-02"
+    "lastmod": "2026-11-07"
   },
   "/ai-arcgis-map-generator/": {
     "hash": "18e9f0ac4e199169",
-    "lastmod": "2026-11-02"
+    "lastmod": "2026-11-07"
   },
   "/arcgis-map-service-viewer/": {
     "hash": "d5c32b38023c7770",
-    "lastmod": "2026-11-02"
+    "lastmod": "2026-11-07"
   },
   "/geojson-viewer/": {
     "hash": "db3af39e0e38c085",
-    "lastmod": "2026-11-02"
+    "lastmod": "2026-11-07"
   },
   "/3d-gis-viewer/": {
     "hash": "f245882f02f2be33",
-    "lastmod": "2026-11-02"
+    "lastmod": "2026-11-07"
   },
   "/guides/ai-agents/": {
     "hash": "ed520bb160ba6e67",
-    "lastmod": "2026-11-02"
+    "lastmod": "2026-11-07"
   },
   "/ai-connection-guide/": {
     "hash": "3b1e6ab3bec26b8f",
-    "lastmod": "2026-11-02"
+    "lastmod": "2026-11-07"
   },
   "/examples/ai/": {
     "hash": "cefa8eb2877f5847",
-    "lastmod": "2026-11-06"
+    "lastmod": "2026-11-07"
   },
   "/examples/ai/philadelphia-police-divisions/": {
     "hash": "78e4e05045a5248c",
-    "lastmod": "2026-11-02"
+    "lastmod": "2026-11-07"
   },
   "/examples/ai/mlb-ballparks-by-state/": {
     "hash": "fad4fe14078e702d",
-    "lastmod": "2026-11-02"
+    "lastmod": "2026-11-07"
   },
   "/examples/ai/wildfires-by-state-chart/": {
     "hash": "69edc867e9a3d623",
-    "lastmod": "2026-11-03"
+    "lastmod": "2026-11-07"
   },
   "/examples/ai/corn-sales-one-link/": {
     "hash": "355b998c78455f9d",
@@ -208,24 +208,24 @@
     "lastmod": "2026-11-02"
   },
   "/agent-recipes/": {
-    "hash": "08fa1c5409b73199",
-    "lastmod": "2026-11-02"
+    "hash": "4ac0fa343d136bed",
+    "lastmod": "2026-11-07"
   },
   "/agent-recipes/interactive-map/": {
     "hash": "795ab5ad45bba8b2",
-    "lastmod": "2026-11-02"
+    "lastmod": "2026-11-07"
   },
   "/agent-recipes/interactive-briefing/": {
     "hash": "5ebb63290194d970",
-    "lastmod": "2026-11-02"
+    "lastmod": "2026-11-07"
   },
   "/agent-recipes/geographic-tour/": {
     "hash": "276905e415b08b45",
-    "lastmod": "2026-11-02"
+    "lastmod": "2026-11-07"
   },
   "/agent-recipes/field-tasks/": {
     "hash": "5d25cf58fec59ea7",
-    "lastmod": "2026-11-02"
+    "lastmod": "2026-11-07"
   },
   "/agent-recipes/3d-extrusion/": {
     "hash": "6423b5279c75cf06",
@@ -237,34 +237,38 @@
   },
   "/agent-recipes/lidar-and-3d-models/": {
     "hash": "14024aa1cde52a2f",
-    "lastmod": "2026-11-02"
+    "lastmod": "2026-11-07"
   },
   "/agent-recipes/print-map/": {
     "hash": "ae41ba4028b84998",
-    "lastmod": "2026-11-02"
+    "lastmod": "2026-11-07"
+  },
+  "/agent-recipes/project-package/": {
+    "hash": "750ecb36643c54d3",
+    "lastmod": "2026-11-07"
   },
   "/agent-recipes/vibe-map/": {
     "hash": "95adb6f8cb7eabed",
-    "lastmod": "2026-11-02"
+    "lastmod": "2026-11-07"
   },
   "/skills/": {
     "hash": "aaf28a3d01cc88f3",
-    "lastmod": "2026-11-03"
+    "lastmod": "2026-11-07"
   },
   "/api/explorer/": {
     "hash": "7f24cad94b444c70",
-    "lastmod": "2026-11-02"
+    "lastmod": "2026-11-07"
   },
   "/field/": {
     "hash": "e36ad6b5a91c3889",
-    "lastmod": "2026-11-02"
+    "lastmod": "2026-11-07"
   },
   "/llms.txt": {
-    "hash": "e7c23f84a4c06fe1",
+    "hash": "6aeda5c7b0cb8ce7",
     "lastmod": "2026-11-07"
   },
   "/llms-full.txt": {
-    "hash": "709601828223a00c",
+    "hash": "724f10c9743e9bd2",
     "lastmod": "2026-11-07"
   },
   "/api/catalog.json": {

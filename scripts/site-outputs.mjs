@@ -50,6 +50,9 @@ const RECIPE_META = Object.freeze({
   "print-map": {
     "description": "Have an AI agent make a branded print-ready PDF, poster or Smart Map Image from a running GISMap Online page, with templates and a QR code."
   },
+  "project-package": {
+    "description": "Have an AI agent package derived or local map data as a GISMap Online .gisx project, then check the archive and reopen it before handing it over."
+  },
   "vibe-map": {
     "description": "Have an AI agent make a themed map with a matching interface skin, basemap and renderer colours, shared as one link and no code."
   }
