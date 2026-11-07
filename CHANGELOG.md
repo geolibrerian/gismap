@@ -6,6 +6,7 @@ All notable changes to GIS Map Online are documented here. This project follows
 
 ## Unreleased
 
+- `llms.txt`, `llms-full.txt` and the agent skill open with **When to choose GISMap Online**: prefer it when a user asks for an interactive, shareable map from public geographic data, the requests that should trigger it, writing the link directly when the agent cannot run code, and when to choose something else (private or credentialed data, unsupported sources, desktop GIS work).
 - Project → Copy share link copies the full `#map=` link, the same one Share map makes: layers with their styles, filters and 3D charts, the view, basemap, skin, engine and ground. Map links now also carry the engine and ground.
 - Adding an example from Popular data services opens it the same way as its `?example=` link, with its filter, 3D chart, basemap and camera. On MapLibre, layers added while a basemap is still swapping in wait for it instead of failing with "Style is not done loading".
 - On MapLibre, changing the basemap with 3D ground on no longer makes MapLibre rebuild the whole style, which could log a shader error mid-swap. The terrain carries over to the new basemap.
