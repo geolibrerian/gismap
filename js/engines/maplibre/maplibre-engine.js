@@ -45,6 +45,8 @@ import { OBJECT_ID_FIELD, boundsIntersect, boundsOf, expandBounds, geometryTypeO
 import { loadMaplibre } from "./maplibre-loader.js?v=0.62.5-amd-safe";
 import { HILLSHADE_LAYER_ID, HILLSHADE_SOURCE_ID, MAPLIBRE_GROUNDS, TERRAIN_SOURCE_ID, isTerrainTileFailure, hillshadeLayer, maplibreGround, terrainSource } from "./terrain.js?v=0.43.0";
 import { SPATIAL_CHART_DIM, normalizeSpatialChart, spatialChartAxis, spatialChartLayerSpecs, spatialChartLegend } from "../../spatial-chart.js?v=0.71.0-subsurface";
+import { terracedSurface } from "../../terraced-surface.js?v=0.72.0-terraces";
+import { loadTurf } from "../../spatial-analysis.js?v=0.66.0-analysis1";
 import { SCENE3D_TYPES, normalizeScene3d, scene3dTypeFor } from "../../scene3d.js?v=0.1.0";
 import { THREE_LAYER_ID, ThreeHost, loadThree } from "../three/three-host.js?v=0.1.5";
 import { UNDERGROUND_DEFAULTS, normalizeSubsurface, normalizeUnderground, parseColor, rendererColorResolver, subsurfaceSummary } from "../../subsurface.js?v=0.71.0-subsurface";
@@ -789,7 +791,7 @@ export class MaplibreEngine {
         return {
           ...incoming,
           ...(terrain ? { terrain } : {}),
-          sources: { ...incoming.sources, ...(terrain ? { [terrain.source]: previous.sources[terrain.source] } : {}), [HIGHLIGHT_SOURCE]: this.#highlightSource(), [DRAW_SOURCE]: this.#drawingSource(), ...(this.measurement ? { [MEASURE_SOURCE]: this.#measureSource() } : {}), ...Object.fromEntries([...this.#records.values()].filter((record) => record.kind !== "three").map((record) => [this.#sourceId(record), this.#sourceSpec(record)])), ...Object.fromEntries(effectSources) },
+          sources: { ...incoming.sources, ...(terrain ? { [terrain.source]: previous.sources[terrain.source] } : {}), [HIGHLIGHT_SOURCE]: this.#highlightSource(), [DRAW_SOURCE]: this.#drawingSource(), ...(this.measurement ? { [MEASURE_SOURCE]: this.#measureSource() } : {}), ...Object.fromEntries([...this.#records.values()].filter((record) => record.kind !== "three").map((record) => [this.#sourceId(record), this.#sourceSpec(record)])), ...Object.fromEntries([...this.#records.values()].filter((record) => record.terraces).map((record) => [this.#terraceSourceId(record), { type: "geojson", data: record.terraces }])), ...Object.fromEntries(effectSources) },
           layers: [...incoming.layers, ...[...this.#records.values()].filter((record) => record.kind !== "three").flatMap((record) => this.#layerSpecs(record)), ...effectLayers, ...this.#drawingSpecs(), ...(this.measurement ? this.#measureSpecs() : []), ...this.#highlightSpecs()],
         };
       },
@@ -907,7 +909,7 @@ export class MaplibreEngine {
       { id: `${source}-line`, type: "line", source, ...range, filter: filtered(["LineString", "MultiLineString"]), layout: { visibility, "line-cap": "round", "line-join": "round" }, paint: line },
       { id: `${source}-circle`, type: "circle", source, ...range, filter: filtered(["Point", "MultiPoint"]), layout: { visibility }, paint: circle },
     ];
-    if (chart) specs.push(...spatialChartLayerSpecs({ chart, idPrefix: source, source, range, visibility: stacked ? "none" : visibility, opacity, polygonFilter: ["match", ["geometry-type"], ["Polygon", "MultiPolygon"], true, false], featureFilter, originalColor: fill["fill-color"], focus: focus?.slot }));
+    if (chart) specs.push(...spatialChartLayerSpecs({ chart, idPrefix: source, source, surfaceSource: record.terraces ? this.#terraceSourceId(record) : null, range, visibility: stacked ? "none" : visibility, opacity, polygonFilter: ["match", ["geometry-type"], ["Polygon", "MultiPolygon"], true, false], featureFilter, originalColor: fill["fill-color"], focus: focus?.slot }));
     return specs;
   }
 
@@ -939,6 +941,7 @@ export class MaplibreEngine {
 
   #rebuildRecordLayers(record) {
     for (const id of this.#layerIds(record)) if (this.map?.getLayer(id)) this.map.removeLayer(id);
+    if (record.spatialChart?.mode !== "terraced-surface") this.#removeTerraces(record);
     const specs = this.#layerSpecs(record);
     for (const spec of specs) this.map.addLayer(spec);
     record.renderLayerIds = specs.map((spec) => spec.id);
@@ -954,6 +957,7 @@ export class MaplibreEngine {
     }
     if (!this.map?.getSource(this.#sourceId(record))) return;
     if (data && record.kind === "vector") this.map.getSource(this.#sourceId(record)).setData(this.#sourceSpec(record).data);
+    if (data && record.spatialChart?.mode === "terraced-surface") void this.#buildTerraces(record).catch((error) => this.events.publish("app:error", { message: `${record.title}: the terraced surface could not be drawn (${error.message}).` }));
     for (const spec of this.#layerSpecs(record)) {
       if (!this.map.getLayer(spec.id)) continue;
       if (spec.filter) this.map.setFilter(spec.id, spec.filter);
@@ -1422,6 +1426,7 @@ export class MaplibreEngine {
     this.three?.remove(this.#layerEffectId(record));
     this.three?.remove(this.#subsurfaceId(record));
     for (const id of this.#layerIds(record)) if (this.map?.getLayer(id)) this.map.removeLayer(id);
+    this.#removeTerraces(record);
     if (this.map?.getSource(this.#sourceId(record))) this.map.removeSource(this.#sourceId(record));
     this.#records.delete(record.uid);
     this.#renderLegend();
@@ -1435,6 +1440,7 @@ export class MaplibreEngine {
       this.three?.remove(this.#layerEffectId(record));
       this.three?.remove(this.#subsurfaceId(record));
       for (const id of this.#layerIds(record)) if (this.map?.getLayer(id)) this.map.removeLayer(id);
+      this.#removeTerraces(record);
       if (this.map?.getSource(this.#sourceId(record))) this.map.removeSource(this.#sourceId(record));
     }
     this.#records.clear();
@@ -1715,10 +1721,39 @@ export class MaplibreEngine {
     const groupBy = String(input?.groupBy || "");
     const groupValues = groupBy ? this.#visibleFeatures(record).map((feature) => feature.properties?.[groupBy]) : [];
     record.spatialChart = normalizeSpatialChart(input, { fields: this.#styleFields(record), geometryType: record.geometryType, groupValues });
+    if (record.spatialChart?.mode === "terraced-surface") await this.#buildTerraces(record, { rebuild: false });
     this.#rebuildRecordLayers(record);
     this.#renderLegend();
     this.events.publish("layer:changed", { uid: record.uid });
     return record.spatialChart ? structuredClone(record.spatialChart) : null;
+  }
+
+  #terraceSourceId(record) { return `${this.#sourceId(record)}-terraces`; }
+
+  /**
+   * Builds a terraced-surface chart's terraces (js/terraced-surface.js) into their own
+   * GeoJSON source. Breaks picked here are kept on the chart, so a saved map redraws
+   * the same terraces.
+   */
+  async #buildTerraces(record, { rebuild = true } = {}) {
+    const chart = record.spatialChart;
+    const turf = await loadTurf(globalThis.document);
+    if (record.spatialChart !== chart) return;
+    const { collection, breaks } = terracedSurface(turf, this.#visibleFeatures(record), { field: chart.height.field, weightField: chart.surface.weightField, breaks: chart.groups, classes: chart.surface.classes, bandwidthKm: chart.surface.bandwidthKm, cellKm: chart.surface.cellKm, smoothing: chart.surface.smoothing });
+    chart.groups = breaks;
+    record.terraces = collection;
+    const id = this.#terraceSourceId(record);
+    if (this.map.getSource(id)) this.map.getSource(id).setData(collection);
+    else this.map.addSource(id, { type: "geojson", data: collection });
+    if (rebuild) this.#rebuildRecordLayers(record);
+  }
+
+  #removeTerraces(record) {
+    record.terraces = null;
+    const id = this.#terraceSourceId(record);
+    if (!this.map?.getSource?.(id)) return;
+    for (const layer of this.map.getStyle?.()?.layers || []) if (layer.source === id) this.map.removeLayer(layer.id);
+    this.map.removeSource(id);
   }
 
   /* ---------------- Below ground ---------------- */
@@ -2192,7 +2227,7 @@ export class MaplibreEngine {
           }
         }
         if (key.slots.length) {
-          heading(`Stacked by ${chart.groupBy}, top slot first`);
+          heading(chart.mode === "terraced-surface" ? `${chart.height.field}, highest terrace first` : `Stacked by ${chart.groupBy}, top slot first`);
           for (const slot of key.slots) {
             const swatch = document.createElement("span");
             swatch.className = "maplibre-legend__swatch maplibre-legend__swatch--polygon";

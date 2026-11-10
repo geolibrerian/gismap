@@ -6,12 +6,15 @@ export const SPATIAL_CHART_MODES = Object.freeze([
   "temporal-strata",
   "stacked-footprints",
   "exploded-timeline",
+  "terraced-surface",
 ]);
 
 export const SPATIAL_CHART_TYPE = "spatial-3d-chart";
 export const MAX_SPATIAL_CHART_GROUPS = 40;
 
 const PALETTE = Object.freeze(["#2f7f73", "#4a9b78", "#77b66d", "#b7c85b", "#edbd51", "#ee8c42", "#d9573f", "#a83f55", "#70466e"]);
+// Terraces run from cool lows to warm highs, like a relief map.
+const TERRACE_RAMP = Object.freeze(["#1f4e9c", "#3f86c6", "#7fc1d9", "#cfe8c4", "#f2dc8d", "#e0a64f", "#b56a2b", "#7a4019"]);
 const FIELD_NAME = /^[A-Za-z_][A-Za-z0-9_.]*$/;
 const finite = (value, fallback, min = 0, max = 1_000_000) => {
   const number = Number(value);
@@ -57,6 +60,7 @@ export function normalizeSpatialChart(input, { fields = [], geometryType = "poly
   if (geometryType !== "polygon") throw new Error("3D spatial charts currently require polygon features.");
   const mode = SPATIAL_CHART_MODES.includes(input.mode) ? input.mode : "attribute-extrusion";
   const byName = new Map(fields.map((field) => [field.name, field]));
+  if (mode === "terraced-surface") return normalizeTerracedSurface(input, byName);
   const groupBy = fieldName(input.groupBy);
   const heightField = fieldName(input.height?.field);
   if (mode !== "attribute-extrusion" && (!groupBy || !byName.has(groupBy))) throw new Error("Choose a valid field for the chart's vertical groups.");
@@ -103,6 +107,38 @@ export function normalizeSpatialChart(input, { fields = [], geometryType = "poly
   };
 }
 
+/**
+ * A terraced surface: `height.field` smoothed into a surface (js/terraced-surface.js) and cut at `groups`,
+ * the ascending lower bound of each terrace. Without `groups` the breaks are picked when the surface is built.
+ */
+function normalizeTerracedSurface(input, byName) {
+  const valueField = fieldName(input.height?.field);
+  if (!valueField || !numericType(byName.get(valueField)?.type)) throw new Error("Choose a numeric field for the terraced surface.");
+  const weightField = fieldName(input.surface?.weightField);
+  if (weightField && !numericType(byName.get(weightField)?.type)) throw new Error("The terraced surface weight field must be numeric.");
+  const groups = [...new Set((input.groups || []).map(Number).filter(Number.isFinite))].sort((a, b) => a - b).slice(0, 20);
+  const slotMeters = finite(input.height?.slotMeters, 2000, 1);
+  const optional = (value, min, max) => (Number(value) > 0 ? { value: finite(value, null, min, max) } : null);
+  const bandwidth = optional(input.surface?.bandwidthKm, 0.1, 2000), cell = optional(input.surface?.cellKm, 0.05, 500);
+  return {
+    type: SPATIAL_CHART_TYPE,
+    mode: "terraced-surface",
+    ...(groups.length > 1 ? { groups } : {}),
+    ...(input.groundOutlines === true ? { groundOutlines: true } : {}),
+    height: { mode: "terraces", field: valueField, slotMeters, gapMeters: finite(input.height?.gapMeters, 0, 0), thicknessMeters: finite(input.height?.thicknessMeters, slotMeters, 1), scale: 1 },
+    surface: {
+      ...(weightField ? { weightField } : {}),
+      ...(bandwidth ? { bandwidthKm: bandwidth.value } : {}),
+      ...(cell ? { cellKm: cell.value } : {}),
+      classes: Math.round(finite(input.surface?.classes, 7, 2, 20)),
+      smoothing: Math.round(finite(input.surface?.smoothing, 2, 0, 4)),
+    },
+    color: { field: valueField, strategy: "sequential", ...groupColors(input.color?.colors, groups) },
+    geometry: { strategy: "smoothed-surface", aggregation: "kernel" },
+    interaction: { hover: input.interaction?.hover !== false, select: false, explode: false, scrubTimeline: false },
+  };
+}
+
 export function spatialChartColor(index, total) {
   if (total <= 1) return PALETTE[0];
   return PALETTE[Math.round(index * (PALETTE.length - 1) / (total - 1))];
@@ -123,13 +159,20 @@ export function spreadColors(ramp = PALETTE, count = 1) {
 
 /** A group's slab colour: the chart's own choice for that group, else the default palette by position. */
 export function spatialChartGroupColor(chart, index) {
-  return chart?.color?.colors?.[String(chart.groups?.[index])] || spatialChartColor(index, chart?.groups?.length || 1);
+  const own = chart?.color?.colors?.[String(chart.groups?.[index])];
+  if (own) return own;
+  return chart?.mode === "terraced-surface" ? spreadColors(TERRACE_RAMP, chart.groups?.length || 1)[index] : spatialChartColor(index, chart?.groups?.length || 1);
 }
 
 /** Human-readable Z-axis semantics used by the legend, Briefs and agents. */
 export function spatialChartAxis(chart) {
   if (!chart) return null;
   if (chart.mode === "attribute-extrusion") return { label: `Height: ${chart.height.field}`, detail: `Value × ${chart.height.scale.toLocaleString()} display meters` };
+  if (chart.mode === "terraced-surface") {
+    const weight = chart.surface.weightField ? `weighted by ${chart.surface.weightField}` : "weighted by area";
+    const bandwidth = chart.surface.bandwidthKm ? `, ${chart.surface.bandwidthKm.toLocaleString()} km kernel` : "";
+    return { label: `Terraces: smoothed ${chart.height.field}`, detail: `A smoothed surface (${weight}${bandwidth}), not the source boundaries. Each terrace is one class; heights are display offsets, not physical altitude.` };
+  }
   const separation = chart.mode === "exploded-timeline" ? "exploded chronological slots" : chart.mode === "temporal-strata" ? "equal chronological slots" : "ordered event slots";
   const thickness = chart.height.field ? `; thickness: ${chart.height.field} × ${chart.height.scale.toLocaleString()}, capped at the ${chart.height.slotMeters.toLocaleString()} m slot` : "";
   return { label: `Z order: ${chart.groupBy}`, detail: `${separation}${thickness}. Heights are display offsets, not physical altitude.` };
@@ -142,8 +185,17 @@ export const SPATIAL_CHART_DIM = 0.15;
  * Compile derived MapLibre fill-extrusion layers without modifying source data.
  * `focus` is a group value picked out from the legend: the other groups' slabs dim.
  */
-export function spatialChartLayerSpecs({ chart, idPrefix, source, range = {}, visibility = "visible", opacity = 0.75, polygonFilter, featureFilter = null, originalColor = "#1b7f6a", focus }) {
+export function spatialChartLayerSpecs({ chart, idPrefix, source, surfaceSource = null, range = {}, visibility = "visible", opacity = 0.75, polygonFilter, featureFilter = null, originalColor = "#1b7f6a", focus }) {
   if (!chart) return [];
+  // Terraces draw from the derived surface source; until it is built there is nothing to draw.
+  if (chart.mode === "terraced-surface") {
+    if (!surfaceSource || !chart.groups?.length) return [];
+    const stride = chart.height.slotMeters + chart.height.gapMeters;
+    return chart.groups.map((value, index) => {
+      const dimmed = focus !== undefined && String(focus) !== String(value);
+      return { id: `${idPrefix}-spatial-chart-${index}`, type: "fill-extrusion", source: surfaceSource, ...range, filter: ["==", ["get", "band"], index], layout: { visibility }, paint: { "fill-extrusion-color": spatialChartGroupColor(chart, index), "fill-extrusion-base": index * stride, "fill-extrusion-height": index * stride + chart.height.thicknessMeters, "fill-extrusion-opacity": dimmed ? opacity * SPATIAL_CHART_DIM : opacity, "fill-extrusion-vertical-gradient": true } };
+    });
+  }
   const baseFilter = featureFilter ? ["all", polygonFilter, featureFilter] : polygonFilter;
   // A magnitude slab never grows past its slot, so it cannot cover the next group's slot.
   const fieldHeight = (base = 0) => ["+", base, ["min", chart.height.slotMeters, ["max", chart.height.thicknessMeters, ["*", ["max", 0, ["to-number", ["get", chart.height.field], 0]], chart.height.scale]]]];
@@ -168,6 +220,9 @@ export function spatialChartLayerSpecs({ chart, idPrefix, source, range = {}, vi
 }
 
 
+/** A terrace's range: under the second break, between two breaks, or the last break and over. */
+const terraceLabel = (groups, index, text) => index === 0 ? `Under ${text(groups[1])}` : index === groups.length - 1 ? `${text(groups[index])} and over` : `${text(groups[index])} – ${text(groups[index + 1])}`;
+
 const displayHeight = (meters) => (meters >= 1000 ? `${(meters / 1000).toLocaleString(undefined, { maximumFractionDigits: 1 })} km` : `${Math.round(meters).toLocaleString()} m`);
 
 /**
@@ -182,12 +237,12 @@ export function spatialChartLegend(chart, values = []) {
   const top = picks.length ? meters(picks[0]) || 1 : 1;
   // A year (YEAR_, FIRE_YEAR) reads as 1989, not 1,989.
   const valueText = (value) => /year/i.test(chart.height.field || "") && Number.isInteger(value) ? String(value) : value.toLocaleString(undefined, { maximumFractionDigits: Math.abs(value) >= 100 ? 0 : Math.abs(value) >= 1 ? 2 : 4 });
-  const heights = chart.height.field ? picks.map((value) => ({ value, label: `${valueText(value)} → ${displayHeight(meters(value))}`, ratio: Math.max(0.08, meters(value) / top) })) : [];
+  const heights = chart.height.field && chart.mode !== "terraced-surface" ? picks.map((value) => ({ value, label: `${valueText(value)} → ${displayHeight(meters(value))}`, ratio: Math.max(0.08, meters(value) / top) })) : [];
   const usesRendererColors = chart.mode === "attribute-extrusion" || chart.color.strategy === "original";
   // The highest slot is drawn on top, so the list reads top-down like the stack.
-  const slots = chart.mode === "attribute-extrusion" ? [] : chart.groups.map((value, index) => ({
+  const slots = chart.mode === "attribute-extrusion" ? [] : (chart.groups || []).map((value, index) => ({
     value,
-    label: `${value === "" ? "No value" : value}`,
+    label: chart.mode === "terraced-surface" ? terraceLabel(chart.groups, index, valueText) : `${value === "" ? "No value" : value}`,
     color: usesRendererColors ? null : spatialChartGroupColor(chart, index),
     base: index * (chart.height.slotMeters + chart.height.gapMeters),
   })).reverse();
