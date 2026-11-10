@@ -31,7 +31,7 @@ class Buffer extends Uint8Array {
 }
 globalThis.Buffer = Buffer;
 </script>
-<script type="importmap">{"imports":{"node:test":"./node-test.js","node:assert/strict":"./node-assert.js","node:assert":"./node-assert.js","node:fs/promises":"./node-fs.js","node:fs":"./node-fs-sync.js"}}</script>
+<script type="importmap">{"imports":{"node:test":"./node-test.js","node:assert/strict":"./node-assert.js","node:assert":"./node-assert.js","node:fs/promises":"./node-fs.js","node:fs":"./node-fs-sync.js","node:vm":"./node-vm.js"}}</script>
 <script type="module">
 const files = new URLSearchParams(location.search).getAll("t");
 // Refresh every app module in the HTTP cache so tests never run stale code.
