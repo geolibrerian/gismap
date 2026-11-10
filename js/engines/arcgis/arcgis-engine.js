@@ -1630,6 +1630,7 @@ export class ArcGISEngine {
     const groupValues = groupBy ? await this.#styleFieldValues(layer, groupBy, false) : [];
     const fields = (layer.fields || []).map((field) => ({ name: field.name, alias: field.alias, type: field.type }));
     const chart = normalizeSpatialChart(input, { fields, geometryType: layer.geometryType, groupValues });
+    if (chart?.mode === "terraced-surface") throw unsupported("spatial-chart-3d", "Terraced surfaces draw on the MapLibre engine only; switch engines under Map → Map engine.");
     config.subsurface = null;
     // The style the chart was made from is kept, so removing the chart (or saving the project) returns to it.
     config.chartRestore ??= { renderer: layer.renderer?.clone?.() ?? null, elevationInfo: layer.elevationInfo?.clone?.() ?? null };

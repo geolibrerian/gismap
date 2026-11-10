@@ -133,7 +133,7 @@ export function validateMapSpec(input, { allowHttp = false } = {}) {
     }
     if (raw.spatialChart !== undefined) {
       const chart = raw.spatialChart;
-      const modes = ["attribute-extrusion", "temporal-strata", "stacked-footprints", "exploded-timeline"];
+      const modes = ["attribute-extrusion", "temporal-strata", "stacked-footprints", "exploded-timeline", "terraced-surface"];
       if (!chart || typeof chart !== "object" || chart.type !== "spatial-3d-chart" || !modes.includes(chart.mode) || JSON.stringify(chart).length > 12000) issue("warning", "INVALID_SPEC", `${path}.spatialChart`, "spatialChart must be a bounded spatial-3d-chart configuration; it was ignored.");
       else layer.spatialChart = structuredClone(chart);
     }

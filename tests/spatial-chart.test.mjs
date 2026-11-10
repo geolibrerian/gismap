@@ -196,3 +196,36 @@ test("a strata group picked out from the legend keeps its slabs and dims the oth
   assert.deepEqual(specs("2022"), picked, "a group value read back as text still matches");
   assert.deepEqual(spatialChartLegend(chart).slots.map((slot) => slot.value), [2025, 2022, 2019], "legend rows carry the group value they pick out");
 });
+
+test("a terraced surface needs a numeric value field and keeps only usable surface settings", () => {
+  const surfaceFields = [...fields, { name:"POP", type:"integer" }, { name:"NAME", type:"string" }];
+  const terraced = (input) => normalizeSpatialChart({ type:"spatial-3d-chart", mode:"terraced-surface", ...input }, { fields:surfaceFields, geometryType:"polygon" });
+  assert.throws(() => terraced({ height:{ field:"NAME" } }), /numeric field/);
+  assert.throws(() => terraced({ height:{ field:"GIS_ACRES" }, surface:{ weightField:"NAME" } }), /weight field must be numeric/);
+  const chart = terraced({ height:{ field:"GIS_ACRES", slotMeters:5000 }, groups:["40", 30, "x", 35], surface:{ weightField:"POP", bandwidthKm:-1, classes:50, smoothing:9 } });
+  assert.deepEqual(chart.groups, [30, 35, 40], "breaks are numbers, ascending");
+  assert.deepEqual(chart.height, { mode:"terraces", field:"GIS_ACRES", slotMeters:5000, gapMeters:0, thicknessMeters:5000, scale:1 }, "terraces touch: no gap, a full slot thick");
+  assert.deepEqual(chart.surface, { weightField:"POP", classes:20, smoothing:4 }, "an unusable bandwidth is left to the default");
+  assert.deepEqual(chart.geometry, { strategy:"smoothed-surface", aggregation:"kernel" });
+  assert.equal(terraced({ height:{ field:"GIS_ACRES" } }).groups, undefined, "breaks are picked when the surface is built");
+  assert.match(spatialChartAxis(chart).detail, /not the source boundaries/);
+});
+
+test("terraces stack from the derived surface source, cool lows to warm highs, with ranges in the legend", () => {
+  const chart = normalizeSpatialChart({ type:"spatial-3d-chart", mode:"terraced-surface", height:{ field:"GIS_ACRES", slotMeters:1000 }, groups:[30, 35, 40] }, { fields, geometryType:"polygon" });
+  assert.deepEqual(spatialChartLayerSpecs({ chart, idPrefix:"x", source:"s", polygonFilter:true }), [], "nothing until the surface is built");
+  const specs = spatialChartLayerSpecs({ chart, idPrefix:"x", source:"s", surfaceSource:"s-terraces", opacity:1, polygonFilter:true });
+  assert.deepEqual(specs.map((spec) => [spec.source, spec.filter, spec.paint["fill-extrusion-base"], spec.paint["fill-extrusion-height"]]), [["s-terraces", ["==", ["get", "band"], 0], 0, 1000], ["s-terraces", ["==", ["get", "band"], 1], 1000, 2000], ["s-terraces", ["==", ["get", "band"], 2], 2000, 3000]]);
+  assert.deepEqual(specs.map((spec) => spec.paint["fill-extrusion-color"]), [0, 1, 2].map((index) => spatialChartGroupColor(chart, index)));
+  assert.notEqual(spatialChartGroupColor(chart, 0), spatialChartColor(0, 3), "terraces use their own ramp");
+  const legend = spatialChartLegend(chart, [12, 50]);
+  assert.deepEqual(legend.heights, [], "terrace height is the class, not a value");
+  assert.deepEqual(legend.slots.map((slot) => slot.label), ["40 and over", "35 – 40", "Under 35"]);
+});
+
+test("map-v1 accepts a terraced surface", () => {
+  const spatialChart = { type:"spatial-3d-chart", mode:"terraced-surface", height:{ field:"MEDIAN_AGE", slotMeters:12000 }, surface:{ weightField:"POP" } };
+  const result = validateMapSpec({ version:1, layers:[{ url:"https://example.test/counties.geojson", type:"geojson", spatialChart }] });
+  assert.equal(result.valid, true);
+  assert.deepEqual(result.spec.layers[0].spatialChart, spatialChart);
+});

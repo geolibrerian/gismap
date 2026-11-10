@@ -141,10 +141,10 @@
         "spatialChart": {
           "type": "object",
           "required": ["type", "mode", "height"],
-          "description": "3D spatial chart settings (MapLibre and ArcGIS engines). Z values are display offsets, never physical altitude. source-footprints/none is the fast display strategy and does not calculate exact polygon overlaps.",
+          "description": "3D spatial chart settings (MapLibre and ArcGIS engines). Z values are display offsets, never physical altitude. source-footprints/none is the fast display strategy and does not calculate exact polygon overlaps. terraced-surface (MapLibre only) smooths height.field into a surface and stacks it as terraces cut at groups, the ascending lower bound of each terrace; its surface object sets the weightField, bandwidthKm, cellKm, classes and smoothing.",
           "properties": {
             "type": { "const": "spatial-3d-chart" },
-            "mode": { "enum": ["attribute-extrusion", "temporal-strata", "stacked-footprints", "exploded-timeline"] },
+            "mode": { "enum": ["attribute-extrusion", "temporal-strata", "stacked-footprints", "exploded-timeline", "terraced-surface"] },
             "groupBy": { "type": "string", "pattern": "^[A-Za-z_][A-Za-z0-9_.]*$" },
             "groups": { "type": "array", "maxItems": 40, "items": { "type": ["string", "number"] } },
             "order": { "enum": ["ascending", "descending", "listed"], "default": "ascending", "description": "Stacking order from the bottom up. \"descending\" puts the highest group at the bottom; \"listed\" stacks groups in the order given, first at the bottom, for values that do not sort, such as geologic ages." },
@@ -153,7 +153,19 @@
             "height": { "type": "object" },
             "color": { "type": "object" },
             "geometry": { "type": "object" },
-            "interaction": { "type": "object" }
+            "interaction": { "type": "object" },
+            "surface": {
+              "type": "object",
+              "description": "terraced-surface only: how the surface is smoothed.",
+              "properties": {
+                "weightField": { "type": "string", "pattern": "^[A-Za-z_][A-Za-z0-9_.]*$", "description": "A numeric field, such as population, that weights each polygon's value. Default: area." },
+                "bandwidthKm": { "type": "number", "minimum": 0.1, "maximum": 2000, "description": "Kernel width. Wider is smoother, with fewer islands. Default: about the spacing between polygons." },
+                "cellKm": { "type": "number", "minimum": 0.05, "maximum": 500, "description": "Grid cell size. Default: picked from the layer's extent." },
+                "classes": { "type": "integer", "minimum": 2, "maximum": 20, "default": 7, "description": "Terraces, at equal-area breaks, when groups is not given." },
+                "smoothing": { "type": "integer", "minimum": 0, "maximum": 4, "default": 2, "description": "Rounds of corner cutting on the terrace edges." }
+              },
+              "additionalProperties": false
+            }
           },
           "additionalProperties": false
         },
