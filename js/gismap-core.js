@@ -16,7 +16,7 @@ import {
   updateBlock,
   updateSlide,
   validateBriefing,
-} from "./briefing-document.js?v=0.70.4-sequence";
+} from "./briefing-document.js?v=0.72.0-si-maps";
 import {
   BRIEFING_SHARE_LIMITS,
   BRIEFING_SHARE_VERSION,

@@ -9,9 +9,9 @@ import { BASEMAP_IDS } from "./basemap-catalog.js?v=0.53.0-gallery1";
 import { ProjectManager } from "./project.js?v=0.71.0-subsurface";
 import { IdentifyController } from "./identify.js?v=0.54.0-pan2";
 import { AttributeTableController } from "./attribute-table.js?v=0.61.2-layer-tools";
-import { AIController } from "./ai.js?v=0.68.0-charts1";
+import { AIController } from "./ai.js?v=0.72.0-si-maps";
 import { ToolManager } from "./tool-manager.js?v=0.37.0";
-import { UIController } from "./ui.js?v=0.71.0-subsurface";
+import { UIController } from "./ui.js?v=0.72.0-si-maps";
 import { ExportController } from "./export/export-controller.js?v=0.37.0";
 import { SHARE_BASEMAPS, parseShareParameters } from "./share.js?v=0.71.0-subsurface";
 import { readShareLocation } from "./map-share.js?v=0.71.0-subsurface";
@@ -23,7 +23,7 @@ import { ApplicationRuntime } from "./application-runtime.js?v=0.68.0-charts1";
 import { PanelManager } from "./panel-manager.js?v=0.18.2";
 import { MobilePanelManager } from "./mobile-panel-manager.js?v=0.18.2";
 import { MobileWorkflowRouter } from "./mobile-workflow-router.js?v=0.71.0-subsurface";
-import { createClientApi } from "./briefing-api.js?v=0.71.0-subsurface";
+import { createClientApi } from "./briefing-api.js?v=0.72.0-si-maps";
 import { createPrintApi, hasWebgl, registerPrintTools, webglIssue } from "./print-api.js?v=0.54.0-print";
 import { MAP_TEMPLATES } from "./map-templates.js?v=0.54.0-print";
 import { readProjectFromPng } from "./smart-image.js?v=0.71.0-subsurface";
@@ -39,6 +39,9 @@ import { GisMapError, ERROR_CODES } from "./gismap-errors.js?v=0.54.0-print";
 import { loadSharedLayer } from "./shared-layer-loader.js?v=0.71.0-subsurface";
 import { probeArcGisDirectory } from "./enterprise-catalog.js?v=0.71.0-subsurface";
 import { allowedParents, validConsoleMessage } from "./si-console-embed.js?v=0.67.0-si-console";
+import { SiConnection, siEndpoints } from "./si-connection.js?v=0.72.0-si-maps";
+import { parseSiMapRoute } from "./si-maps.js?v=0.72.0-si-maps";
+import { SiMapWorkspace } from "./si-map-workspace.js?v=0.72.0-si-maps";
 
 // Readiness for agents and scripts: gisMapOnline.ready, a `gismap:ready` event,
 // and <html data-gismap-state="loading|ready|error">.
@@ -355,6 +358,18 @@ async function start() {
     }),
   });
 
+  // Maps saved in GISMap SI (/m/<id>, /m/<id>?p=<publication>) and the tab's one SI connection.
+  const siWorkspace = new SiMapWorkspace({
+    route: parseSiMapRoute(location),
+    connection: new SiConnection(siEndpoints()),
+    mapSpec: mapSpecApi,
+    ui: uiController,
+    runtime: applicationRuntime,
+    briefing: clientApi.briefing,
+    figures: () => uiController.briefingSlides.figures(),
+  });
+  uiController.siWorkspace = siWorkspace;
+
   // Read the address before the scene exists, so it starts on the requested
   // basemap instead of drawing the default and swapping it mid-draw.
   let shared = null;
@@ -383,6 +398,7 @@ async function start() {
   await mapController.initialize();
   consoleBridge?.refit();
   events.publish("project:loaded", { project: projectManager.current, missingFiles: [] });
+  await siWorkspace.start();
 
   // The SI parent can send its secure snapshot while the engine is still
   // initializing. Apply it only after the default map view is finalized.

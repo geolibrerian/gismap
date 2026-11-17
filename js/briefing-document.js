@@ -126,14 +126,17 @@ function normalizeBlock(block) {
   const id = typeof block.id === "string" && block.id ? block.id : newId("b");
   if (block.type === "text") return { ...block, id, type: "text", markdown: text(block.markdown, MAX_TEXT) };
   if (block.type === "stat") {
+    const { pinned: _pinned, ...rest } = block;
+    const pinned = pinnedFigure(block);
     return {
-      ...block,
+      ...rest,
       id,
       type: "stat",
       stat: STAT_TYPES.includes(block.stat) ? block.stat : "count",
       field: typeof block.field === "string" ? block.field : null,
       queryRef: typeof block.queryRef === "string" && block.queryRef ? block.queryRef : null,
       label: text(block.label, 80),
+      ...(pinned ? { pinned } : {}),
     };
   }
   if (block.type === "facts") return { ...block, id, type: "facts", fields: array(block.fields).map(String).slice(0, 12) };
@@ -358,7 +361,9 @@ export function convertSlide(briefing, id, template, { camera = null, date = new
 export function updateBlock(briefing, slideId, blockId, patch) {
   const slide = normalizeBriefing(briefing).slides.find((item) => item.id === slideId);
   if (!slide) return normalizeBriefing(briefing);
-  return updateSlide(briefing, slideId, { blocks: slide.blocks.map((block) => (block.id === blockId ? { ...block, ...patch, id: blockId } : block)) });
+  // A pinned figure belongs to the question it answered: asking another one drops it.
+  const repins = ["stat", "field", "queryRef"].some((key) => key in patch);
+  return updateSlide(briefing, slideId, { blocks: slide.blocks.map((block) => (block.id === blockId ? { ...block, ...patch, ...(repins && !("pinned" in patch) ? { pinned: null } : {}), id: blockId } : block)) });
 }
 
 /** Evaluates a filter tree against one record's attributes (for loaded data). */
@@ -426,6 +431,26 @@ export function computeStat(block, records = [], { queries = {}, idField = null,
   const sum = values.reduce((acc, item) => acc + item, 0);
   const value = { sum, average: sum / values.length, min: Math.min(...values), max: Math.max(...values) }[block.stat];
   return { value, sample, loaded: records.length, total, matched: matching.length, excluded };
+}
+
+/**
+ * A `stat` block's figure frozen at publication (`pinned: { value, computedAt, sourceVersion? }`),
+ * or null. A pinned figure is shown "as of" its date instead of being recomputed.
+ */
+export function pinnedFigure(block) {
+  const pinned = block?.pinned;
+  if (!pinned || typeof pinned !== "object") return null;
+  const value = pinned.value === null || Number.isFinite(pinned.value) ? pinned.value : undefined;
+  const computedAt = typeof pinned.computedAt === "string" && pinned.computedAt.length <= 40 && Number.isFinite(Date.parse(pinned.computedAt)) ? pinned.computedAt : null;
+  if (value === undefined || !computedAt) return null;
+  return { value, computedAt, ...(typeof pinned.sourceVersion === "string" || Number.isInteger(pinned.sourceVersion) ? { sourceVersion: pinned.sourceVersion } : {}) };
+}
+
+/** "as of 17 Nov 2026" for a pinned figure's `computedAt`. */
+export function formatAsOf(computedAt) {
+  const time = Date.parse(computedAt);
+  if (!Number.isFinite(time)) return "";
+  return `as of ${new Date(time).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" })}`;
 }
 
 export function formatStat(value) {
