@@ -1,4 +1,4 @@
-import { normalizeBriefing } from "./briefing-document.js?v=0.70.4-sequence";
+import { normalizeBriefing } from "./briefing-document.js?v=0.72.0-si-maps";
 
 export const BRIEFING_SHARE_VERSION = 1;
 export const BRIEFING_SHARE_LIMITS = Object.freeze({

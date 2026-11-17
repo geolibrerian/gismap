@@ -12,14 +12,14 @@ import { googleMapsLinkForChapter } from "./google-maps-link.js?v=0.53.0";
 import { POPULAR_SERVICES } from "./catalog.js?v=0.71.0-subsurface";
 import { plainText } from "./layer-insight.js?v=0.50.1";
 import { detectCoordinateColumns, googleSheetCsvUrl, isSpreadsheetName, readSpreadsheet, rowsToGeoJson } from "./spreadsheet-import.js?v=0.65.8-made-with";
-import { MapAssistantPanel } from "./assistant-panel.js?v=0.68.0-charts1";
-import { createAssistantTools, summarizeMapState } from "./map-assistant.js?v=0.68.0-charts1";
+import { MapAssistantPanel } from "./assistant-panel.js?v=0.72.0-si-maps";
+import { createAssistantTools, summarizeMapState } from "./map-assistant.js?v=0.72.0-si-maps";
 import { ENTERPRISE_CATALOGS, EnterpriseCatalog, normalizeArcGisDirectoryUrl } from "./enterprise-catalog.js?v=0.71.0-subsurface";
 import { createShareUrl, parseShareParameters } from "./share.js?v=0.71.0-subsurface";
 import { mapSpecFromShareParameters } from "./map-spec.js?v=0.71.0-subsurface";
 import { createShareLink, hasDataFilter, readBriefingFile } from "./map-share.js?v=0.71.0-subsurface";
 import { createEmbedIframe, createEmbedUrl } from "./embed-share.js?v=0.65.0-paths";
-import { briefingLayerRef, findBriefingLayer } from "./briefing-api.js?v=0.71.0-subsurface";
+import { briefingLayerRef, findBriefingLayer } from "./briefing-api.js?v=0.72.0-si-maps";
 import { createEmbeddedTourUrl } from "./tour-share.js?v=0.54.0-unified4";
 import { markdownToPlainText, renderMarkdown } from "./markdown.js?v=0.18.2";
 import { formatAttributeValue } from "./attribute-format.js?v=0.18.2";
@@ -37,8 +37,8 @@ import { featureLayerUrl, locationUrl } from "./field-task-share.js?v=0.71.0-sub
 import { dockIcon } from "./dock-icons.js?v=0.24.0";
 import { serviceNameFromUrl } from "./service-name.js?v=0.26.0";
 import { decodeQrFromImage, describeGisMapLink, gisMapLinkFrom, openGisMapLink } from "./qr-import.js?v=0.25.2";
-import { BriefingSlides } from "./briefing-slides.js?v=0.71.0-subsurface";
-import { addSlide, createSlide, isRoutineField, matchesFilter, normalizeBriefing, normalizeFilter } from "./briefing-document.js?v=0.70.4-sequence";
+import { BriefingSlides } from "./briefing-slides.js?v=0.72.0-si-maps";
+import { addSlide, createSlide, isRoutineField, matchesFilter, normalizeBriefing, normalizeFilter } from "./briefing-document.js?v=0.72.0-si-maps";
 import { conditionComplete, conditionLabel, conditionToFilter } from "./briefing-conditions.js?v=0.1.0";
 import { createFilterBuilder } from "./filter-builder.js?v=0.1.0";
 import { conditionsToWhere } from "./filter-sql.js?v=0.1.0";
@@ -191,6 +191,7 @@ export class UIController {
       tools: () => (this.assistantTools ??= createAssistantTools(this.#assistantHost())),
       state: () => summarizeMapState(globalThis.gisMapOnline),
       configure: () => this.#aiDialog(),
+      si: () => this.siWorkspace?.assistantSi() ?? null,
     });
     this.applicationRuntime.mountAssistant = (host) => this.assistant.mount(host);
     this.briefingSlides = new BriefingSlides({
@@ -2026,6 +2027,12 @@ export class UIController {
         case "project-share":
           await this.#copyShareLink();
           break;
+        case "project-save-si":
+          await this.siWorkspace?.saveToSi();
+          break;
+        case "project-publish-si":
+          await this.siWorkspace?.openPublish();
+          break;
         case "project-application-settings":
           this.#applicationSettingsDialog();
           break;
@@ -3184,6 +3191,8 @@ export class UIController {
     return {
       api: globalThis.gisMapOnline,
       catalog: POPULAR_SERVICES,
+      // GISMap SI tools (map-assistant.js siAssistantTools); offered only while signed in.
+      ...(this.siWorkspace ? { si: this.siWorkspace.assistantTools() } : {}),
       setBasemap: (id) => this.mapController.setBasemap(id),
       getDisplaySettings: () => this.#readDisplaySettings(),
       setDisplaySetting: (key, value) => {

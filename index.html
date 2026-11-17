@@ -2,6 +2,20 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
+    <script>
+      // /m/<id> (a map saved in GISMap SI) is served by this page: resolve its relative links
+      // from the app's folder, and keep saved maps out of search results.
+      (() => {
+        const at = location.pathname.search(/\/m\/[^/]+\/?$/);
+        if (at < 0) return;
+        const base = document.createElement("base");
+        base.href = location.pathname.slice(0, at + 1);
+        const robots = document.createElement("meta");
+        robots.name = "robots";
+        robots.content = "noindex";
+        document.head.append(base, robots);
+      })();
+    </script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content" />
     <title>GISMap Online: Free Geospatial Application</title>
     <meta
@@ -75,6 +89,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link rel="stylesheet" href="./css/app.css?v=0.71.0-subsurface" />
     <link rel="stylesheet" href="./css/fieldwork.css?v=0.66.1-finish2" />
+    <link rel="stylesheet" href="./css/si-maps.css?v=0.72.0-si-maps" />
     <!-- three.js for point clouds, models and 3D animation; loaded only when a 3D layer is added. -->
     <script type="importmap">{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.min.js", "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/" } }</script>
     <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
@@ -123,6 +138,8 @@
               <button data-action="project-save">Save project</button>
               <button data-action="project-export">Download project…</button>
               <button data-action="project-share">Copy share link</button>
+              <button data-action="project-save-si">Save to GISMap SI</button>
+              <button data-action="project-publish-si">Publish with GISMap SI…</button>
               <button data-action="dashboard-builder">Dashboard Builder <span class="account-required">Account · coming soon</span></button>
               <button data-action="project-application-settings">Installation branding…</button>
               <hr />
@@ -552,6 +569,6 @@
     </section>
     <noscript>GISMap Online is a geospatial application and needs JavaScript. Without it, a map can still be described as a link: see <a href="./llms.txt">/llms.txt</a> and the <a href="./guides/ai-agents/">guide for AI agents</a>.</noscript>
 <script src="./installation-config.js"></script>
-<script type="module" src="./js/app.js?v=0.71.0-subsurface"></script>
+<script type="module" src="./js/app.js?v=0.72.0-si-maps"></script>
   </body>
 </html>

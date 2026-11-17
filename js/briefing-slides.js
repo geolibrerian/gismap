@@ -14,8 +14,10 @@ import {
   convertSlide,
   createSlide,
   duplicateSlide,
+  formatAsOf,
   formatStat,
   moveSlide,
+  pinnedFigure,
   slideTypeOf,
   normalizeBriefing,
   removeSlide,
@@ -26,14 +28,14 @@ import {
   isRoutineField,
   DISTANCE_UNITS,
   SPATIAL_RELATIONSHIPS,
-} from "./briefing-document.js?v=0.70.4-sequence";
+} from "./briefing-document.js?v=0.72.0-si-maps";
 import { compileWhere } from "./engines/maplibre/where.js?v=0.40.0-timeline";
 import { generateTimeline, previewTimeline, isYearField } from "./briefing-timeline.js?v=0.60.0-media1";
 import { isDateField, previewDateTimeline } from "./briefing-timeline-dates.js?v=0.60.0-media1";
 import { generateFilterSeries, seriesWhere } from "./briefing-data-series.js?v=0.60.0-media1";
 import { generateSpatialChartBrief } from "./briefing-spatial-chart.js?v=0.71.0-subsurface";
 import { previewFilterSeries, formatSeriesTitle } from "./briefing-series-preview.js?v=0.60.0-media1";
-import { briefingLayerRef } from "./briefing-api.js?v=0.71.0-subsurface";
+import { briefingLayerRef } from "./briefing-api.js?v=0.72.0-si-maps";
 import { renderMarkdown } from "./markdown.js?v=0.18.2";
 import { BriefingPlayer, slideHasMap } from "./briefing-player.js?v=0.62.3-briefing-slide-engines";
 import { expandTimelinePdfSlides } from "./briefing-timeline-pdf.js?v=0.1.0";
@@ -1281,6 +1283,20 @@ export class BriefingSlides {
     return slide.dataView ? {...result, sample:true} : result;
   }
 
+  /**
+   * Every `stat` block's figure as the Brief would show it now, computed from the loaded
+   * data: [{ slideId, blockId, label, value, sample }]. Publishing pins these.
+   */
+  figures() {
+    const data = this.api.data();
+    const briefing = this.briefing;
+    return briefing.slides.flatMap((slide) => slide.blocks.filter((block) => block.type === "stat").map((block) => {
+      let result = { value: null, sample: false };
+      try { result = this.#slideStat(slide, block, data, briefing); } catch { /* No data loaded for it. */ }
+      return { slideId: slide.id, blockId: block.id, slide: slide.title, label: block.label || STAT_LABELS[block.stat], value: Number.isFinite(result.value) ? result.value : null, sample: Boolean(result.sample) };
+    }));
+  }
+
   /** The slide as it is presented: shared by the preview player now, and later by mobile cards and PDF. */
   slideHtml(slide, { index = 0, count = 1 } = {}) {
     const data = this.api.data();
@@ -1310,8 +1326,10 @@ export class BriefingSlides {
       return "";
     }).join("");
     const stats = slide.blocks.filter((block) => block.type === "stat").map((block) => {
-      const result = this.#slideStat(slide, block, data, briefing);
-      return `<div class="briefing-slide__stat"><strong>${formatStat(result.value)}</strong><span>${escapeHtml(block.label || STAT_LABELS[block.stat])}</span>${result.sample ? "<small>sample of loaded features</small>" : ""}</div>`;
+      const pinned = pinnedFigure(block);
+      const result = pinned || this.#slideStat(slide, block, data, briefing);
+      const note = pinned ? formatAsOf(pinned.computedAt) : result.sample ? "sample of loaded features" : "";
+      return `<div class="briefing-slide__stat${pinned ? " briefing-slide__stat--pinned" : ""}"><strong>${formatStat(result.value)}</strong><span>${escapeHtml(block.label || STAT_LABELS[block.stat])}</span>${note ? `<small>${escapeHtml(note)}</small>` : ""}</div>`;
     }).join("");
     const grid = slide.generatedBy;
     const locator = grid?.template === 'grid-atlas' && Number.isInteger(grid.rows) && Number.isInteger(grid.columns) && grid.rows > 0 && grid.rows <= 20 && grid.columns > 0 && grid.columns <= 20 && Number.isInteger(grid.row) && grid.row >= 0 && grid.row < grid.rows && Number.isInteger(grid.column) && grid.column >= 0 && grid.column < grid.columns
@@ -1397,8 +1415,9 @@ export class BriefingSlides {
       if (block.type === "images") content.links.push(...block.images.map((image, index) => ({ label: image.caption || image.alt || `Image ${index + 1}`, url: image.url })));
       if (block.type === "place" && slide.camera) content.paragraphs.push(`${block.label.trim() || "Place"}: ${slide.camera.center[1].toFixed(4)}, ${slide.camera.center[0].toFixed(4)}`);
       if (block.type === "stat") {
-        const result = this.#slideStat(slide, block, data, briefing);
-        content.stats.push({ value: formatStat(result.value), label: block.label || STAT_LABELS[block.stat], sample: result.sample });
+        const pinned = pinnedFigure(block);
+        const result = pinned || this.#slideStat(slide, block, data, briefing);
+        content.stats.push({ value: formatStat(result.value), label: `${block.label || STAT_LABELS[block.stat]}${pinned ? ` (${formatAsOf(pinned.computedAt)})` : ""}`, sample: !pinned && result.sample });
       }
     }
     const frameNarrative = slide.frameNarrative ?? slide.timeline?.frames?.[0]?.narrative;

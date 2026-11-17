@@ -8,3 +8,5 @@
 /ai/ /discover/ai/ 302
 # A memorable direct address for the 404 dragon game.
 /dragons /dragons/ 301
+# Maps saved in GISMap SI (/m/<id>, and ?p=<publication> share links) open in the app.
+/m/* /index.html 200

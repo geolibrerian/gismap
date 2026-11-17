@@ -1,4 +1,4 @@
-import { fromProviderResponse, toProviderRequest } from "./map-assistant.js?v=0.68.0-charts1";
+import { fromProviderResponse, toProviderRequest } from "./map-assistant.js?v=0.72.0-si-maps";
 
 const CONFIG_KEY = "gismap-online:ai-config:v2";
 const LEGACY_CONFIG_KEY = "gismap-online:ai-config:v1";
@@ -292,14 +292,15 @@ export class AIController {
   /**
    * One round of the Map assistant's conversation (js/map-assistant.js): sends the
    * instructions, the messages and the tools, and returns { content, toolCalls }.
-   * `instructions(textTools)` writes the system message. A model that rejects tools
+   * `instructions(textTools)` writes the system message; `tools` are the definitions offered
+   * (map-assistant.js ASSISTANT_TOOLS by default). A model that rejects tools
    * is asked again with the tools described in text, and stays that way this session.
    */
-  async chat(messages, { instructions, signal = null } = {}) {
+  async chat(messages, { instructions, tools, signal = null } = {}) {
     if (!this.isConfigured()) throw new Error("Configure an AI provider from Tools first.");
     const { provider, endpoint, model } = this.config;
     const send = async (textTools) => {
-      const { path, body } = toProviderRequest(provider, { model, system: instructions(textTools), messages, textTools });
+      const { path, body } = toProviderRequest(provider, { model, system: instructions(textTools), messages, textTools, ...(tools ? { tools } : {}) });
       const headers = { "Content-Type": "application/json" };
       if (provider === "anthropic") Object.assign(headers, { "x-api-key": this.token, "anthropic-version": "2023-06-01", "anthropic-dangerous-direct-browser-access": "true" });
       else if (provider !== "ollama") headers.Authorization = `Bearer ${this.token}`;

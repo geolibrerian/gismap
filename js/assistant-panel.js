@@ -1,7 +1,7 @@
 // The Map assistant's chat panel: the conversation, each map action the model
 // takes (shown as it happens), and the box to ask. The engine is
 // js/map-assistant.js; the model call is AIController.chat (js/ai.js).
-import { buildAssistantInstructions, runAssistantTurn } from "./map-assistant.js?v=0.68.0-charts1";
+import { ASSISTANT_TOOLS, SI_ASSISTANT_TOOLS, buildAssistantInstructions, runAssistantTurn } from "./map-assistant.js?v=0.72.0-si-maps";
 import { renderMarkdown } from "./markdown.js?v=0.18.2";
 
 const escapeHtml = (value) => String(value ?? "").replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char]);
@@ -38,6 +38,11 @@ export function describeToolCall(call, result, ok) {
     case "create_tour": return `Made a tour of ${result?.chapters?.length ?? 0} places`;
     case "draft_field_task": return `Drafted the field task “${args.title}”`;
     case "get_share_link": return "Made a share link";
+    case "si_find_datasets": return `Searched GISMap SI for “${args.search || ""}” (${Array.isArray(result) ? result.length : 0} found)`;
+    case "si_dataset_context": return `Read the GISMap SI context (${result?.datasets?.length ?? 0} dataset${result?.datasets?.length === 1 ? "" : "s"})`;
+    case "si_add_dataset": return `Added ${result?.title || "a GISMap SI dataset"}`;
+    case "si_publish_preview": return "Opened the Publish panel";
+    case "si_verify": return `Verified the publication: ${result?.status || "done"}`;
     default: return call.name;
   }
 }
@@ -46,10 +51,11 @@ export class MapAssistantPanel {
   /**
    * `ai`: the AIController. `tools()`: the tool handlers (map-assistant.js
    * createAssistantTools). `state()`: the map summary for the instructions.
-   * `configure()`: opens the AI settings.
+   * `configure()`: opens the AI settings. `si()`: while signed in to GISMap SI,
+   * `{ context }` (the open map's SI reference data, or null), otherwise null.
    */
-  constructor({ ai, tools, state, configure }) {
-    Object.assign(this, { ai, getTools: tools, getState: state, configure });
+  constructor({ ai, tools, state, configure, si = () => null }) {
+    Object.assign(this, { ai, getTools: tools, getState: state, configure, getSi: si });
     this.history = [];
     this.entries = [];
     this.busy = false;
@@ -121,12 +127,16 @@ export class MapAssistantPanel {
     this.#renderLog();
     this.#syncBusy();
     const tools = this.getTools();
+    const si = this.#safeSi();
+    // The SI tools are offered only while the user is signed in to GISMap SI.
+    const offered = si ? [...ASSISTANT_TOOLS, ...SI_ASSISTANT_TOOLS] : ASSISTANT_TOOLS;
     try {
       await runAssistantTurn({
         messages: this.history,
         signal,
-        call: (messages) => this.ai.chat(messages, { instructions: (textTools) => buildAssistantInstructions({ state: this.#safeState(), textTools }), signal }),
+        call: (messages) => this.ai.chat(messages, { instructions: (textTools) => buildAssistantInstructions({ state: this.#safeState(), textTools, si: this.#safeSi() }), tools: offered, signal }),
         execute: async (name, args) => {
+          if (!offered.some((tool) => tool.name === name)) throw Object.assign(new Error(`There is no tool named ${name}.`), { hint: si ? "Use one of the listed tools." : "Sign in to GISMap SI for the si_ tools." });
           const handler = tools[name];
           if (!handler) throw Object.assign(new Error(`There is no tool named ${name}.`), { hint: "Use one of the listed tools." });
           return handler(args);
@@ -157,6 +167,10 @@ export class MapAssistantPanel {
 
   #safeState() {
     try { return this.getState(); } catch { return null; }
+  }
+
+  #safeSi() {
+    try { return this.getSi() || null; } catch { return null; }
   }
 
   // Older turns are dropped whole (from a user message on), so tool calls and results stay paired.

@@ -1,0 +1,40 @@
+/* Maps saved in GISMap SI: the GISMap SI bar, the viewer's notices and the Publish dialog (js/si-map-workspace.js). */
+.si-map-bar { position: fixed; z-index: 40; left: 50%; top: 64px; transform: translateX(-50%); display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; max-width: min(760px, calc(100vw - 32px)); padding: 7px 12px; color: var(--ink); border: 1px solid var(--line); border-radius: var(--ui-radius, 10px); background: var(--surface, var(--paper)); box-shadow: var(--shadow); font-size: 12px; }
+.si-map-bar__title { max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.si-map-bar__status { color: var(--muted); }
+.si-map-bar__actions { display: flex; align-items: center; gap: 8px; margin-left: auto; }
+.si-map-bar__issues { flex-basis: 100%; margin: 0; padding-left: 18px; color: var(--danger); }
+.shared-embed .si-map-bar { display: none; }
+
+.si-map-notice { position: fixed; z-index: 45; left: 50%; bottom: 18px; transform: translateX(-50%); max-width: min(520px, calc(100vw - 32px)); padding: 9px 13px; color: var(--ink); border: 1px solid var(--amber); border-radius: 8px; background: var(--paper); box-shadow: var(--shadow); font-size: 13px; }
+.si-map-notice--error { border-color: var(--danger); }
+
+.si-publish-dialog { width: min(560px, calc(100vw - 32px)); max-height: calc(100vh - 48px); overflow: auto; }
+.si-publish-dialog__close { position: sticky; top: 0; display: flex; justify-content: flex-end; padding: 6px 8px 0; }
+.si-publish-dialog__close button { border: 0; background: none; font-size: 20px; line-height: 1; cursor: pointer; color: var(--muted); }
+.si-publish { display: grid; gap: 12px; padding: 0 20px 20px; font-size: 13px; }
+.si-publish h2 { margin: 0; font-size: 18px; }
+.si-publish h3, .si-publish legend { margin: 0 0 4px; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
+.si-publish p { margin: 0; }
+.si-publish__group { margin: 0; padding: 0; border: 0; }
+.si-publish__mode { display: grid; grid-template-columns: auto 1fr; gap: 0 6px; align-items: baseline; margin: 4px 0; }
+.si-publish__mode small { grid-column: 2; color: var(--muted); }
+.si-publish__layers, .si-publish__figures, .si-publish__warnings, .si-publish__verification ul { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.si-publish__layers li, .si-publish__figures li { display: grid; gap: 2px; padding: 6px 8px; border: 1px solid var(--line); border-radius: 6px; }
+.si-publish__layers small, .si-publish__figures small, .si-publish__muted { color: var(--muted); }
+.si-publish__figures li { grid-template-columns: 1fr auto; }
+.si-publish__figures li small { grid-column: 1 / -1; }
+.si-publish__note { color: var(--muted); }
+.si-publish__warnings li, .si-publish__error { color: var(--danger); }
+.si-publish__error ul { margin: 4px 0 0; padding-left: 18px; }
+.si-publish__link { display: grid; grid-template-columns: 1fr auto; gap: 4px 8px; }
+.si-publish__link span { grid-column: 1 / -1; font-weight: 600; }
+.si-publish__link input { min-width: 0; }
+.si-publish__verification { padding: 8px 10px; border: 1px solid var(--line); border-left-width: 4px; border-radius: 6px; }
+.si-publish__verification[data-status="passed"] { border-left-color: var(--green); }
+.si-publish__verification[data-status="warning"] { border-left-color: var(--amber); }
+.si-publish__verification[data-status="failed"] { border-left-color: var(--danger); }
+.si-publish__check { font-weight: 600; }
+.si-publish__verification li[data-status="failed"] .si-publish__check { color: var(--danger); }
+.si-publish__actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.briefing-slide__stat--pinned small { font-style: italic; }
