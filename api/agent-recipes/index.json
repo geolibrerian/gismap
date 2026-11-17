@@ -310,6 +310,26 @@
       "page": "https://gismap.online/agent-recipes/print-map/"
     },
     {
+      "id": "si-publishing",
+      "title": "Publish a Brief from GISMap SI with AI Map (GISMap SI alpha)",
+      "status": "experimental",
+      "question": "Can an AI agent help turn data stored in GISMap SI into a published, verified Brief?",
+      "triggers": [
+        "Make a Brief from our inspections dataset in GISMap SI and publish it",
+        "Open this GISMap SI dataset in AI Map",
+        "Publish this GISMap SI map for the meeting, with the figures frozen",
+        "Check that the published Brief still works"
+      ],
+      "artifact": "briefing",
+      "engines": [
+        "maplibre",
+        "arcgis"
+      ],
+      "lastTestedVersion": "0.53.0",
+      "url": "https://gismap.online/api/agent-recipes/si-publishing.json",
+      "page": "https://gismap.online/agent-recipes/si-publishing/"
+    },
+    {
       "id": "vibe-map",
       "title": "Vibe-matched map and presentation skin",
       "status": "available",
