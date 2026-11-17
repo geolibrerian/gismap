@@ -24,8 +24,12 @@
     "lastmod": "2026-11-02"
   },
   "/discover/ai/": {
-    "hash": "c22af0da9b298760",
-    "lastmod": "2026-11-02"
+    "hash": "96aa5dbf6fe25e90",
+    "lastmod": "2026-11-17"
+  },
+  "/discover/ai/publish-with-gismap-si/": {
+    "hash": "cd61e82659194276",
+    "lastmod": "2026-11-17"
   },
   "/discover/data/": {
     "hash": "06e44e474d6117fe",
@@ -212,8 +216,8 @@
     "lastmod": "2026-11-02"
   },
   "/agent-recipes/": {
-    "hash": "08fa1c5409b73199",
-    "lastmod": "2026-11-02"
+    "hash": "dc7d2c1cd267094f",
+    "lastmod": "2026-11-17"
   },
   "/agent-recipes/interactive-map/": {
     "hash": "795ab5ad45bba8b2",
@@ -247,13 +251,17 @@
     "hash": "ae41ba4028b84998",
     "lastmod": "2026-11-02"
   },
+  "/agent-recipes/si-publishing/": {
+    "hash": "5e3c796f3645e840",
+    "lastmod": "2026-11-17"
+  },
   "/agent-recipes/vibe-map/": {
     "hash": "95adb6f8cb7eabed",
     "lastmod": "2026-11-02"
   },
   "/skills/": {
-    "hash": "aaf28a3d01cc88f3",
-    "lastmod": "2026-11-03"
+    "hash": "f7b5faa57cea40b7",
+    "lastmod": "2026-11-17"
   },
   "/api/explorer/": {
     "hash": "7f24cad94b444c70",
@@ -264,12 +272,12 @@
     "lastmod": "2026-11-02"
   },
   "/llms.txt": {
-    "hash": "169525a7b8e6818b",
-    "lastmod": "2026-11-08"
+    "hash": "efcd54afe527e29f",
+    "lastmod": "2026-11-17"
   },
   "/llms-full.txt": {
-    "hash": "0b4ea8af3c4a900a",
-    "lastmod": "2026-11-10"
+    "hash": "39feb7a717fbfa83",
+    "lastmod": "2026-11-17"
   },
   "/api/catalog.json": {
     "hash": "72bbe98360fa3a0d",

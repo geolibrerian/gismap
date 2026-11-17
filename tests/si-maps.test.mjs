@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import test from "node:test";
 import { SiConnection } from "../js/si-connection.js";
 import { SiMapSession, SiMapsClient, describeSiError, mapSpecToSiState, parseSiMapRoute, siDocumentToMapSpec } from "../js/si-maps.js";
@@ -188,4 +189,12 @@ test("each SI response the API lists is explained to the user", async () => {
   assert.equal(describeSiError({ status: 409, body: { error: "version_conflict", currentVersion: 6 } }).currentVersion, 6);
   assert.deepEqual(describeSiError({ status: 422, body: { error: "validation_failed", issues: [{ code: "x", message: "Layer l2 is broken.", layerId: "l2" }] } }).issues, [{ message: "Layer l2 is broken.", layerId: "l2", code: "x" }]);
   assert.throws(() => new SiMapsClient({}).save("m_1", { kind: "map", state: {} }, undefined), (error) => error.status === 428);
+});
+
+test("/m/ is served by a rewrite Cloudflare accepts", async () => {
+  const rules = (await readFile(new URL("../_redirects", import.meta.url), "utf8")).split("\n").map((line) => line.trim()).filter((line) => line && !line.startsWith("#")).map((line) => line.split(/\s+/));
+  assert.ok(rules.some(([from, to, status]) => from === "/m/*" && to === "/" && status === "200"), "/m/* rewrites to the app");
+  // Wrangler drops a wildcard rule that points at /index or /index.html as an "infinite loop",
+  // so the route would 404 in production while working on a plain static server.
+  for (const [from, to] of rules) assert.ok(!(from.endsWith("/*") && /\/index(\.html)?$/.test(to)), `${from} -> ${to} would be ignored`);
 });
