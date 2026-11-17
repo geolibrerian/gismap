@@ -21,7 +21,7 @@
     "required": [
       {
         "name": "draft",
-        "description": "The draft's editUrl from GISMap SI (https://gismap.online/m/<id>?app=ai-map), created by the person in Stored Intel or by an SI tool that already holds their session. It carries only the map's id: no token and no private dataset id."
+        "description": "The draft's editUrl from GISMap SI (gismap.online/m/<id>?app=ai-map), created by the person in Stored Intel or by an SI tool that already holds their session. It carries only the map's id: no token and no private dataset id."
       }
     ],
     "optional": [
@@ -73,7 +73,7 @@
         "declarative-url"
       ],
       "references": [
-        "https://gismap.online/m/<id>?app=ai-map"
+        "gismap.online/m/<id>?app=ai-map"
       ]
     },
     {
@@ -94,7 +94,7 @@
         "declarative-url"
       ],
       "references": [
-        "https://gismap.online/m/<id>?p=<publication>"
+        "gismap.online/m/<id>?p=<publication>"
       ]
     },
     {
