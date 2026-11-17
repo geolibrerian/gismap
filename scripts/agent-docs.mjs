@@ -307,6 +307,7 @@ Finished maps, linked charts and Instant Dashboards, briefings, guided tours, fi
 | Show this LiDAR or CAD model in 3D | [lidar-and-3d-models](${SITE}/skills/#recipe-lidar-and-3d-models) | Point cloud or 3D model map |
 | Make a printable map, poster or Smart Map Image | [print-map](${SITE}/agent-recipes/print-map/) | Branded PDF or Smart Image |
 | Make the map feel like Halloween in California | [vibe-map](${SITE}/skills/#recipe-vibe-map) | Coordinated theme and styled map |
+| Make a Brief from our GISMap SI data and publish it | [si-publishing](${SITE}/agent-recipes/si-publishing/) (experimental, GISMap SI alpha) | Draft link for the person; they sign in and press Publish |
 | Turn this layer into an interactive dashboard | [dashboard workflow](${SITE}/skills/gismap/references/dashboard-chart-animation.md) | Linked chart panel, skin, basemap and map filtering |
 | Animate observed changes in this layer | [cinematic animation](${SITE}/skills/gismap/references/dashboard-chart-animation.md#cinematic-animation) | Evidence-preserving playback, clip or poster |
 | Put this configured map on my website | [embedding](${SITE}/skills/gismap/references/sharing.md#embeds) | Public map link and ready-to-paste iframe |
