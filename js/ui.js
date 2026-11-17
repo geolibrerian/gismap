@@ -4729,14 +4729,33 @@ export class UIController {
         const back = listing.folder
           ? `<button data-enterprise-folder="${escapeHtml(parent)}">← Back</button>`
           : `<button data-directory-servers ${servers.length > 1 ? "" : "disabled"}>← Back</button>`;
-        content.innerHTML = `${notice}<div class="catalog-path">${back}<code>/${escapeHtml(listing.folder)}</code></div>
+        const total = listing.folders.length + listing.services.length;
+        // Service names are often one long snake_case word; spaces let them wrap, and the raw name stays in the tooltip.
+        const label = (name) => {
+          const raw = name.split("/").pop();
+          return `<strong title="${escapeHtml(raw)}">${escapeHtml(raw.replace(/_+/g, " ").trim() || raw)}</strong>`;
+        };
+        const named = (name) => `data-directory-name="${escapeHtml(name.split("/").pop().toLowerCase())}"`;
+        content.innerHTML = `${notice}<div class="catalog-path">${back}<code>/${escapeHtml(listing.folder)}</code><small>${total} ${total === 1 ? "item" : "items"}</small></div>
+          ${total > 12 ? `<input class="directory-filter" type="search" placeholder="Filter ${total} folders and services…" aria-label="Filter folders and services" />` : ""}
           <div class="enterprise-list">
-            ${listing.folders.map((name) => `<button class="enterprise-row" data-enterprise-folder="${escapeHtml(name)}"><span><strong>${escapeHtml(name.split("/").pop())}</strong><small>Folder</small></span><b>→</b></button>`).join("")}
-            ${listing.services.map((service) => `<div class="enterprise-row"><span><strong>${escapeHtml(service.name.split("/").pop())}</strong><small>${escapeHtml(service.type)}</small></span><button data-enterprise-service="${escapeHtml(service.url)}" data-service-type="${escapeHtml(service.serviceType)}">Add</button></div>`).join("")}
+            ${listing.folders.map((name) => `<button class="enterprise-row" ${named(name)} data-enterprise-folder="${escapeHtml(name)}"><span>${label(name)}<small>Folder</small></span><b>→</b></button>`).join("")}
+            ${listing.services.map((service) => `<div class="enterprise-row" ${named(service.name)}><span>${label(service.name)}<small>${escapeHtml(service.type)}</small></span><button data-enterprise-service="${escapeHtml(service.url)}" data-service-type="${escapeHtml(service.serviceType)}">Add</button></div>`).join("")}
           </div>
+          <div class="empty-state" data-directory-nomatch hidden>No folders or services match.</div>
           ${!listing.folders.length && !listing.services.length ? '<div class="empty-state">This folder is empty.</div>' : ""}
           <p class="form-note">Services are discovered live from <code>${escapeHtml(rootUrl)}</code>. Availability and access are controlled by the service owner.</p>`;
         content.querySelector("[data-directory-servers]")?.addEventListener("click", listServers);
+        content.querySelector(".directory-filter")?.addEventListener("input", (event) => {
+          const words = event.target.value.toLowerCase().replace(/_+/g, " ").split(/\s+/).filter(Boolean);
+          let shown = 0;
+          content.querySelectorAll("[data-directory-name]").forEach((row) => {
+            const name = row.dataset.directoryName.replace(/_+/g, " ");
+            row.hidden = !words.every((word) => name.includes(word));
+            if (!row.hidden) shown += 1;
+          });
+          content.querySelector("[data-directory-nomatch]").hidden = shown > 0;
+        });
         content.querySelectorAll("[data-enterprise-folder]").forEach((button) =>
           button.addEventListener("click", () => render(serverIndex, button.dataset.enterpriseFolder)),
         );

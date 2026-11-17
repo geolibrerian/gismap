@@ -1735,13 +1735,16 @@ dialog::backdrop { background: rgb(12 28 23 / 48%); backdrop-filter: blur(3px); 
 .catalog-path { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
 .catalog-path button { border: 1px solid var(--line); border-radius: 6px; padding: 6px 9px; background: var(--surface); cursor: pointer; }
 .catalog-path button:disabled { opacity: .35; cursor: default; }
-.catalog-path code { color: var(--muted); font-size: 11px; }
+.catalog-path code { min-width: 0; color: var(--muted); font-size: 11px; overflow-wrap: anywhere; }
+.catalog-path small { margin-left: auto; color: var(--muted); font-size: 11px; white-space: nowrap; }
+.directory-filter { width: 100%; margin-bottom: 8px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 7px; background: var(--surface); color: var(--ink); font: inherit; font-size: 12px; }
 .enterprise-list { display: grid; gap: 5px; }
-.enterprise-row { display: grid; grid-template-columns: 1fr auto; gap: 10px; align-items: center; width: 100%; padding: 10px 11px; border: 1px solid var(--line); border-radius: 7px; color: var(--ink); background: var(--surface); text-align: left; }
+.enterprise-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; align-items: center; width: 100%; padding: 10px 11px; border: 1px solid var(--line); border-radius: 7px; color: var(--ink); background: var(--surface); text-align: left; }
 button.enterprise-row { cursor: pointer; }
 button.enterprise-row:hover { border-color: var(--green-2); }
-.enterprise-row span { display: grid; gap: 2px; }
-.enterprise-row strong { font-size: 12px; }
+.enterprise-row span { display: grid; gap: 2px; min-width: 0; }
+.enterprise-row[hidden] { display: none; }
+.enterprise-row strong { font-size: 12px; overflow-wrap: anywhere; }
 .enterprise-row small { color: var(--muted); font-size: 9px; text-transform: uppercase; letter-spacing: .06em; }
 .enterprise-row > button { border: 1px solid var(--line); border-radius: 5px; padding: 6px 10px; background: var(--paper); cursor: pointer; font-size: 11px; }
 .project-card { display: grid; gap: 3px; width: 100%; padding: 13px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); text-align: left; cursor: pointer; }
