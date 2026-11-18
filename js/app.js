@@ -11,7 +11,7 @@ import { IdentifyController } from "./identify.js?v=0.54.0-pan2";
 import { AttributeTableController } from "./attribute-table.js?v=0.61.2-layer-tools";
 import { AIController } from "./ai.js?v=0.72.0-si-maps";
 import { ToolManager } from "./tool-manager.js?v=0.37.0";
-import { UIController } from "./ui.js?v=0.72.0-si-maps";
+import { UIController } from "./ui.js?v=0.73.0-si-notes";
 import { ExportController } from "./export/export-controller.js?v=0.37.0";
 import { SHARE_BASEMAPS, parseShareParameters } from "./share.js?v=0.71.0-subsurface";
 import { readShareLocation } from "./map-share.js?v=0.71.0-subsurface";
@@ -40,6 +40,7 @@ import { loadSharedLayer } from "./shared-layer-loader.js?v=0.71.0-subsurface";
 import { probeArcGisDirectory } from "./enterprise-catalog.js?v=0.71.0-subsurface";
 import { allowedParents, validConsoleMessage } from "./si-console-embed.js?v=0.67.0-si-console";
 import { SiConnection, siEndpoints } from "./si-connection.js?v=0.72.0-si-maps";
+import { SiNotes } from "./si-notes.js?v=0.73.0-si-notes";
 import { parseSiMapRoute } from "./si-maps.js?v=0.72.0-si-maps";
 import { SiMapWorkspace } from "./si-map-workspace.js?v=0.72.0-si-maps";
 
@@ -369,6 +370,7 @@ async function start() {
     figures: () => uiController.briefingSlides.figures(),
   });
   uiController.siWorkspace = siWorkspace;
+  uiController.siNotes = new SiNotes({ connection: siWorkspace.connection, workspaceId: () => siWorkspace.session.workspaceId });
 
   // Read the address before the scene exists, so it starts on the requested
   // basemap instead of drawing the default and swapping it mid-draw.
