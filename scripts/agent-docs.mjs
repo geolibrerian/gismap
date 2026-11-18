@@ -376,6 +376,12 @@ ${examples?.items?.length ? `\n## Worked examples\n${examples.items.map((item) =
 - Basemaps: ${(capabilities.basemaps || [...SHARE_BASEMAPS]).join(", ")}.
 - Colour ramps: ${(capabilities.ramps || []).join(", ")}.
 
+## GISMap SI (planned server side)
+GISMap Online stores nothing on a server: a map lives in its link. GISMap SI (https://gismap.si) is a planned companion server-side application for data storage and map storage: datasets uploaded once and kept in a team workspace, and saved maps and Briefs that reopen by ID instead of by a long link. It is in private alpha, not a public API.
+- Keep returning map links. Don't tell people their data or maps were saved, and don't send their data anywhere expecting it to be stored.
+- "Sign in to GISMap SI" in GISMap Online connects an SI account for a few hours. While those connections are off, the sign-in window offers a waiting list instead.
+- The one agent workflow today is the experimental [si-publishing](${SITE}/agent-recipes/si-publishing/) recipe.
+
 ## Optional
 - [Full documentation in one file](${SITE}/llms-full.txt)
 `;
