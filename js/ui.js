@@ -306,6 +306,7 @@ export class UIController {
         this.mobilePanelManager?.leave();
       }
     });
+    this.#pruneFutureMenuItems();
     this.#buildMobileMenu();
     this.#bindMenus();
     this.#bindMapMenu();
@@ -463,6 +464,12 @@ export class UIController {
     this.events.subscribe("layers:reset", () => samples.clear());
     ["identify:cleared", "insight:distance-exceeded"].forEach((topic) => this.events.subscribe(topic, () => { featureSelected = false; render(); }));
     document.querySelector("#insights-close")?.addEventListener("click", () => { featureSelected = false; render(); });
+  }
+
+  // Menu items marked data-future are not ready for everyone yet; ?future=1 shows them.
+  #pruneFutureMenuItems() {
+    if (new URLSearchParams(location.search).get("future") === "1") return;
+    document.querySelectorAll(".menu-bar [data-future]").forEach((item) => item.remove());
   }
 
   #buildMobileMenu() {
