@@ -151,3 +151,66 @@ test("map links accept hexbin steps with or without a study area", () => {
   const bad = validateMapSpec({ version: 1, layers, analysis: [{ operation: "clip", input: 0 }] });
   assert.equal(bad.spec.analysis, undefined);
 });
+
+test("point layer cards open Hexagon binning with the layer chosen", () => {
+  const ui = readFileSync(new URL("../js/ui.js", import.meta.url), "utf8");
+  const panel = readFileSync(new URL("../js/spatial-analysis-panel.js", import.meta.url), "utf8");
+  assert.match(ui, /layer\.queryable && \/point\/i\.test\(layer\.geometryType \|\| ""\) \? '<button data-layer-action="hexbin"[^>]*>Hexagon map<\/button>'/);
+  assert.match(ui, /case "hexbin": \{[\s\S]*?openSpatialAnalysis\(this, globalThis\.gisMapOnline\.analysis, \{ operation: "hexbin", input: uid \}\)/);
+  assert.match(panel, /export function openSpatialAnalysis\(ui, analysis, preset = \{\}\)/);
+});
+
+test("random points follow each polygon's value, stay inside it and repeat with the same seed", async () => {
+  const { randomPointsByValue, niceUnits, MAX_RANDOM_POINTS } = await import("../js/random-points.js");
+  const tract = (x, people, extra = {}) => ({ ...square(x, 40, 0.5), properties: { pop: people, ...extra } });
+  const islands = { type: "Feature", properties: { pop: 300 }, geometry: { type: "MultiPolygon", coordinates: [square(5, 40, 0.2).geometry.coordinates, square(6, 40, 0.2).geometry.coordinates] } };
+  const polygons = collection([tract(0, 1000), tract(1, "250"), tract(2, null), tract(3, 0), islands]);
+  const result = randomPointsByValue({ turf, polygons, field: "pop", unitsPerPoint: 10, seed: 3 });
+  const counts = [0, 0, 0, 0, 0];
+  for (const point of result.collection.features) {
+    counts[point.properties.polygon_index] += 1;
+    assert.equal(point.properties.represents, 10);
+    assert.ok(turf.booleanPointInPolygon(point, polygons.features[point.properties.polygon_index]));
+  }
+  assert.deepEqual(counts, [100, 25, 0, 0, 30], "a multipolygon's value is shared by its parts, not given to each");
+  assert.deepEqual(result.metadata.skipped, { missingValue: 1, notPositive: 1, unplaced: 0 });
+  const again = randomPointsByValue({ turf, polygons, field: "pop", unitsPerPoint: 10, seed: 3 });
+  assert.deepEqual(again.collection.features.map((f) => f.geometry.coordinates), result.collection.features.map((f) => f.geometry.coordinates));
+  const other = randomPointsByValue({ turf, polygons, field: "pop", unitsPerPoint: 10, seed: 4 });
+  assert.notDeepEqual(other.collection.features[0].geometry.coordinates, result.collection.features[0].geometry.coordinates);
+
+  // Fractions round up with their probability, so the expected total holds over many polygons.
+  const many = collection(Array.from({ length: 400 }, (_, index) => ({ ...square(index % 20, 10 + Math.floor(index / 20), 0.5), properties: { pop: 25 } })));
+  const fractional = randomPointsByValue({ turf, polygons: many, field: "pop", unitsPerPoint: 10 });
+  assert.ok(Math.abs(fractional.collection.features.length - 1000) < 60, `${fractional.collection.features.length} points for an expected 1,000`);
+
+  const auto = randomPointsByValue({ turf, polygons: collection([tract(0, 3_000_000)]), field: "pop" });
+  assert.equal(auto.metadata.unitsPerPoint, 500);
+  assert.equal(auto.collection.features.length, 6000);
+  assert.deepEqual([niceUnits(0.4), niceUnits(1.3), niceUnits(300), niceUnits(3001)], [1, 2, 500, 5000]);
+  assert.throws(() => randomPointsByValue({ turf, polygons, field: "pop", unitsPerPoint: 0.01 }), new RegExp(`over the ${MAX_RANDOM_POINTS.toLocaleString("en-US")} limit. Use at least`));
+  assert.throws(() => randomPointsByValue({ turf, polygons, field: "" }), /need a numeric field/);
+  assert.throws(() => randomPointsByValue({ turf, polygons, field: "income" }), /No polygon has the field "income"/);
+});
+
+test("random points spread evenly by area across a tall polygon", async () => {
+  const { randomPointsByValue } = await import("../js/random-points.js");
+  const tall = collection([{ type: "Feature", properties: { pop: 20000 }, geometry: { type: "Polygon", coordinates: [[[0, 0], [10, 0], [10, 70], [0, 70], [0, 0]]] } }]);
+  const { features } = randomPointsByValue({ turf, polygons: tall, field: "pop", unitsPerPoint: 1, seed: 9 }).collection;
+  const area = (south, north) => turf.area(turf.bboxPolygon([0, south, 10, north]));
+  const share = features.filter((f) => f.geometry.coordinates[1] > 50).length / features.length;
+  const expected = area(50, 70) / area(0, 70);
+  assert.ok(Math.abs(share - expected) < 0.02, `${share.toFixed(3)} of points north of 50°, expected ${expected.toFixed(3)}`);
+});
+
+test("random points run as an analysis operation and polygon cards offer them", () => {
+  const input = collection([{ ...square(0, 0, 1), properties: { pop: 50 } }]);
+  const result = runSpatialOperation(turf, "random-points", { input, options: { field: "pop", unitsPerPoint: "5", seed: "2" } });
+  assert.equal(result.collection.features.length, 10);
+  assert.equal(result.randomPoints.unitsPerPoint, 5);
+  const blank = runSpatialOperation(turf, "random-points", { input, options: { field: "pop", unitsPerPoint: "" } });
+  assert.equal(blank.randomPoints.unitsPerPoint, 1);
+  const ui = readFileSync(new URL("../js/ui.js", import.meta.url), "utf8");
+  assert.match(ui, /\/polygon\/i\.test\(layer\.geometryType \|\| ""\) && numericLayerFields\(layer\)\.length \? '<button data-layer-action="random-points"[^>]*>Random points<\/button>'/);
+  assert.match(ui, /operation: "random-points", input: uid, options: \{ field: field\?\.name \|\| "" \}/);
+});

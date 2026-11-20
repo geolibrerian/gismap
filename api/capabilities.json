@@ -794,6 +794,7 @@
       "kmeans",
       "dbscan",
       "hexbin",
+      "random-points",
       "nearest",
       "select",
       "join",

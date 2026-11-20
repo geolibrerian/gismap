@@ -19,7 +19,7 @@ import { AGGREGATIONS, CHART_TYPES, normalizeChartStyle } from "./charting-tools
 
 export const MAP_SPEC_VERSION = 1;
 export const MAP_SPEC_SCHEMA = "https://gismap.online/schemas/map-v1.schema.json";
-import { SPATIAL_OPERATION_IDS, SPATIAL_OPERATIONS } from "./spatial-analysis.js?v=0.67.0-hexbin";
+import { SPATIAL_OPERATION_IDS, SPATIAL_OPERATIONS } from "./spatial-analysis.js?v=0.68.0-dots";
 
 export { MAP_SPEC_JSON_LIMIT };
 

@@ -1,5 +1,5 @@
 // Tools > Spatial Analysis: choose layers or drawings, draw on the map, add the result as a layer.
-import { SPATIAL_OPERATIONS } from "./spatial-analysis.js?v=0.67.0-hexbin";
+import { SPATIAL_OPERATIONS } from "./spatial-analysis.js?v=0.68.0-dots";
 
 const escapeHtml = (value) => String(value ?? "").replace(/[&<>"']/g, (char) => `&#${char.charCodeAt(0)};`);
 const GEOMETRY_NOTE = { polygon: "polygons", point: "points", any: "any geometry" };
@@ -7,7 +7,8 @@ const MULTI_CLICK_HINT = "Click to add points, then double-click to finish.";
 const DRAW_HINTS = { point: "Click the map to place the point.", polyline: MULTI_CLICK_HINT, polygon: MULTI_CLICK_HINT, rectangle: "Drag on the map to draw the rectangle." };
 const DRAW_TYPES = [["point", "Point"], ["polyline", "Line"], ["polygon", "Polygon"], ["rectangle", "Rectangle"]];
 
-export function openSpatialAnalysis(ui, analysis) {
+/** `preset` picks the operation and input to start with, as a layer card's Hexagon map does. */
+export function openSpatialAnalysis(ui, analysis, preset = {}) {
   const groups = [...new Set(SPATIAL_OPERATIONS.map((item) => item.group))];
   const operationOptions = groups.map((group) => `<optgroup label="${group}">${SPATIAL_OPERATIONS.filter((item) => item.group === group).map((item) => `<option value="${item.id}">${escapeHtml(item.label)}</option>`).join("")}</optgroup>`).join("");
   ui.openDialog({
@@ -48,7 +49,7 @@ export function openSpatialAnalysis(ui, analysis) {
   const optionInput = (option) => {
     const data = `data-option="${option.name}"`;
     if (option.type === "choice") return `<select ${data}>${option.choices.map(([id, label]) => `<option value="${escapeHtml(id)}"${id === option.default ? " selected" : ""}>${escapeHtml(label)}</option>`).join("")}</select>`;
-    if (option.type === "number") return `<input ${data} type="number" value="${option.default}" min="${option.min}" max="${option.max}" step="${option.integer ? 1 : "any"}" />`;
+    if (option.type === "number") return `<input ${data} type="number"${option.default === undefined ? "" : ` value="${option.default}"`} min="${option.min}" max="${option.max}" step="${option.integer ? 1 : "any"}" />`;
     if (option.type === "field") return `<input ${data} type="text" list="spatial-analysis-fields" autocomplete="off" />`;
     return `<input ${data} type="text" />`;
   };
@@ -120,9 +121,16 @@ export function openSpatialAnalysis(ui, analysis) {
       get("run").disabled = false;
     }
   });
+  if (SPATIAL_OPERATIONS.some((item) => item.id === preset.operation)) get("operation").value = preset.operation;
   renderOperation();
   refreshSources();
+  if (current().overlayOptional) get("overlay").value = "";
+  if (preset.input && [...get("input").options].some((option) => option.value === preset.input)) get("input").value = preset.input;
   refreshFields();
+  for (const [name, value] of Object.entries(preset.options || {})) {
+    const input = root.querySelector(`[data-option="${name}"]`);
+    if (input) input.value = value;
+  }
   const refresh = setInterval(() => {
     if (!root.isConnected) clearInterval(refresh);
     else if (!root.contains(document.activeElement) || document.activeElement.tagName !== "SELECT") refreshSources();
