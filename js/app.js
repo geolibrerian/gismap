@@ -11,7 +11,7 @@ import { IdentifyController } from "./identify.js?v=0.54.0-pan2";
 import { AttributeTableController } from "./attribute-table.js?v=0.61.2-layer-tools";
 import { AIController } from "./ai.js?v=0.72.0-si-maps";
 import { ToolManager } from "./tool-manager.js?v=0.37.0";
-import { UIController } from "./ui.js?v=0.75.0-extent";
+import { UIController } from "./ui.js?v=0.77.0-tutorial";
 import { ExportController } from "./export/export-controller.js?v=0.37.0";
 import { SHARE_BASEMAPS, parseShareParameters } from "./share.js?v=0.71.0-subsurface";
 import { readShareLocation } from "./map-share.js?v=0.71.0-subsurface";
@@ -23,7 +23,7 @@ import { ApplicationRuntime } from "./application-runtime.js?v=0.68.0-charts1";
 import { PanelManager } from "./panel-manager.js?v=0.18.2";
 import { MobilePanelManager } from "./mobile-panel-manager.js?v=0.18.2";
 import { MobileWorkflowRouter } from "./mobile-workflow-router.js?v=0.71.0-subsurface";
-import { createClientApi } from "./briefing-api.js?v=0.75.0-extent";
+import { createClientApi } from "./briefing-api.js?v=0.77.0-tutorial";
 import { createPrintApi, hasWebgl, registerPrintTools, webglIssue } from "./print-api.js?v=0.54.0-print";
 import { MAP_TEMPLATES } from "./map-templates.js?v=0.54.0-print";
 import { readProjectFromPng } from "./smart-image.js?v=0.71.0-subsurface";
@@ -31,9 +31,10 @@ import { registerAuthoringTools } from "./agent-authoring-tools.js?v=0.53.0";
 import { createCameraApi, createLayersApi } from "./layers-api.js?v=0.71.0-subsurface";
 import { registerLayerTools } from "./layer-tools.js?v=0.29.0";
 import { createSpatialAnalysisApi } from "./spatial-analysis.js?v=0.69.0-extent";
-import { createMapSpecApi } from "./map-spec-api.js?v=0.71.0-subsurface";
+import { createMapSpecApi } from "./map-spec-api.js?v=0.76.0-chain";
 import { createLayerStylesApi } from "./layer-styles-api.js?v=0.71.0-subsurface";
-import { mapSpecFromShareParameters } from "./map-spec.js?v=0.73.1-hexbin";
+import { mapSpecFromShareParameters } from "./map-spec.js?v=0.76.0-chain";
+import { MAP_TUTORIALS } from "./workspace-walkthrough.js?v=0.77.0-tutorial";
 import { GisMapError, ERROR_CODES } from "./gismap-errors.js?v=0.54.0-print";
 
 import { loadSharedLayer } from "./shared-layer-loader.js?v=0.71.0-subsurface";
@@ -470,6 +471,10 @@ async function start() {
       // (mapSpec.load from the API stays quiet: an agent decides when to present.)
       const briefing = projectManager.current?.presentation?.briefing;
       if (sharedState.spec?.briefing && briefing?.slides?.some((slide) => !slide.hidden)) await uiController.openBriefingDocument(briefing, { present: true });
+      // ?tutorial=<id> on a map link shows that map's guide in the Layers panel and starts it.
+      const tutorialId = launchParams.get("tutorial");
+      const tutorial = Object.hasOwn(MAP_TUTORIALS, tutorialId || "") ? MAP_TUTORIALS[tutorialId] : null;
+      if (tutorial && !sharedEmbed) uiController.activateExampleGuide(tutorial, { start: true });
     } else if (sharedState) await uiController.openSharedState(sharedState, { loadLayer: loadUnifiedLayer, embed: sharedEmbed });
   } catch (error) {
     events.publish("app:error", { message: error.message });

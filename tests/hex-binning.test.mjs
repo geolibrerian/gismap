@@ -276,3 +276,42 @@ test("an incomplete result says so first, with how much it used and how to cover
   assert.equal(viewed.truncated, false);
   delete globalThis.turf;
 });
+
+test("map links chain analysis steps and can hide a step's layer", () => {
+  const layers = [{ url: "https://example.com/arcgis/rest/services/Blocks/FeatureServer/0" }];
+  const { spec, issues } = validateMapSpec({ version: 1, layers, analysis: [
+    { operation: "nope", input: 0 },
+    { operation: "random-points", input: 0, options: { field: "pop" }, visible: false },
+    { operation: "hexbin", input: { step: 1 }, options: { statistic: "sum", field: "represents" } },
+    { operation: "hexbin", input: { step: 0 } },
+    { operation: "hexbin", input: { step: 4 } },
+  ] });
+  // The unknown first step is dropped, so step 1 becomes step 0; steps that point at dropped or later steps are refused.
+  assert.deepEqual(spec.analysis.map(({ operation, input, visible }) => [operation, input, visible]), [["random-points", 0, false], ["hexbin", { step: 0 }, undefined]]);
+  assert.equal(issues.filter((issue) => issue.path.startsWith("analysis")).length, 3);
+});
+
+test("the Discover hexagon example validates and chains its steps", () => {
+  const page = readFileSync(new URL("../discover/examples/index.html", import.meta.url), "utf8");
+  const link = page.match(/href="\.\.\/\.\.\/#map=json:([^"]+)">Open 3D hexagon map/)?.[1];
+  assert.ok(link, "the card links to a map");
+  const { spec, issues } = validateMapSpec(JSON.parse(decodeURIComponent(link)));
+  assert.deepEqual(issues, []);
+  assert.equal(spec.layers[0].where, "County_Name = 'Ventura County' AND P0010001 > 0");
+  assert.deepEqual(spec.analysis.map((step) => [step.operation, step.input]), [["random-points", 0], ["hexbin", { step: 0 }]]);
+});
+
+test("the hexagon example has a tutorial, and tutorial cards can be closed", async () => {
+  const { MAP_TUTORIALS } = await import("../js/workspace-walkthrough.js");
+  const tutorial = MAP_TUTORIALS["hex-population"];
+  assert.equal(tutorial.steps.length, 7);
+  assert.ok(tutorial.steps.every((step) => step.title && step.desktop && step.mobile && step.description));
+  assert.equal(tutorial.steps.find((step) => step.id === "legend")?.desktop, "#utility-legend-content");
+  const page = readFileSync(new URL("../discover/examples/index.html", import.meta.url), "utf8");
+  assert.match(page, /href="\.\.\/\.\.\/\?tutorial=hex-population#map=json:[^"]+">Open with a tutorial/);
+  const app = readFileSync(new URL("../js/app.js", import.meta.url), "utf8");
+  assert.match(app, /Object\.hasOwn\(MAP_TUTORIALS, tutorialId \|\| ""\)/);
+  const ui = readFileSync(new URL("../js/ui.js", import.meta.url), "utf8");
+  assert.match(ui, /data-example-guide-close aria-label="Close the tutorial card"/);
+  assert.match(ui, /\[data-example-guide-close\]"\)\?\.addEventListener\("click", \(\) => \{\s*this\.activeExampleGuide = null;/);
+});

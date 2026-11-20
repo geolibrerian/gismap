@@ -16,7 +16,7 @@ import { MapAssistantPanel } from "./assistant-panel.js?v=0.72.0-si-maps";
 import { createAssistantTools, summarizeMapState } from "./map-assistant.js?v=0.72.0-si-maps";
 import { ENTERPRISE_CATALOGS, EnterpriseCatalog, normalizeArcGisDirectoryUrl } from "./enterprise-catalog.js?v=0.71.0-subsurface";
 import { createShareUrl, parseShareParameters } from "./share.js?v=0.71.0-subsurface";
-import { mapSpecFromShareParameters } from "./map-spec.js?v=0.73.1-hexbin";
+import { mapSpecFromShareParameters } from "./map-spec.js?v=0.76.0-chain";
 import { createShareLink, hasDataFilter, readBriefingFile } from "./map-share.js?v=0.71.0-subsurface";
 import { createEmbedIframe, createEmbedUrl } from "./embed-share.js?v=0.65.0-paths";
 import { briefingLayerRef, findBriefingLayer } from "./briefing-api.js?v=0.72.0-si-maps";
@@ -51,7 +51,7 @@ import { saveEngine } from "./engine-preference.js?v=0.52.1";
 import { BASEMAPS } from "./basemap-catalog.js?v=0.53.0-gallery1";
 import { CartographyLab } from "./cartography-lab.js?v=0.71.0-subsurface";
 import { CONTEXT_ACTIONS, createSuggestionPreferences, deriveWorkspace, executeContextAction, suggestionKey, summarizeFeature } from "./contextual-workspace.js?v=6";
-import { BRIEFING_WALKTHROUGH_STEPS, CINEMATIC_WALKTHROUGH_STEPS, HISTORICAL_QUAKES_BRIEFING_TUTORIAL_STEPS, createExampleWalkthroughSteps, startWorkspaceWalkthrough, waitForWalkthroughTarget } from "./workspace-walkthrough.js?v=0.71.0-subsurface";
+import { BRIEFING_WALKTHROUGH_STEPS, CINEMATIC_WALKTHROUGH_STEPS, HISTORICAL_QUAKES_BRIEFING_TUTORIAL_STEPS, createExampleWalkthroughSteps, startWorkspaceWalkthrough, waitForWalkthroughTarget } from "./workspace-walkthrough.js?v=0.77.0-tutorial";
 import { HISTORICAL_QUAKES_SOURCE, HISTORICAL_QUAKES_WHERE, createHistoricalQuakesExampleBriefing } from "./example-hazards-briefing.js?v=0.62.3-briefing-slide-engines";
 import { CinematicModeController } from "./cinematic/mode.js?v=0.71.0-subsurface";
 import { CINEMATIC_EFFECTS, CINEMATIC_EFFECT_CATEGORIES, suggestEffect } from "./cinematic/cinematic-effects.js?v=0.71.0-subsurface";
@@ -1648,7 +1648,7 @@ export class UIController {
       this.#startHistoricalQuakesBriefingTutorial();
       return;
     }
-    const steps = createExampleWalkthroughSteps(example);
+    const steps = example.steps || createExampleWalkthroughSteps(example);
     startWorkspaceWalkthrough({
       steps,
       label: `${example.title || "Example"} tutorial`,
@@ -9246,7 +9246,7 @@ export class UIController {
     document.querySelector("#layer-count").textContent = `${layers.length} loaded`;
     const container = document.querySelector("#layers-list");
     const exampleGuide = this.activeExampleGuide;
-    const guide = exampleGuide ? `<section class="example-guide" aria-label="Example tutorial"><div><span class="eyebrow">Example loaded</span><strong>${escapeHtml(exampleGuide.title || "Explore this map")}</strong><p>See how the data, map symbols, and controls fit together.</p></div><button type="button" data-example-guide>Start tutorial</button></section>` : "";
+    const guide = exampleGuide ? `<section class="example-guide" aria-label="Example tutorial"><div><span class="eyebrow">Example loaded</span><strong>${escapeHtml(exampleGuide.title || "Explore this map")}</strong><p>${escapeHtml(exampleGuide.summary || "See how the data, map symbols, and controls fit together.")}</p></div><button type="button" data-example-guide>Start tutorial</button><button type="button" class="example-guide__close" data-example-guide-close aria-label="Close the tutorial card" title="Close">×</button></section>` : "";
     container.innerHTML = layers.length
       ? `${guide}${layers.map((layer) => {
         const config = this.mapController.getLayerConfig(layer);
@@ -9264,6 +9264,10 @@ export class UIController {
       }).join("")}`
       : '<div class="empty-state empty-state--layers"><p>No layers yet. Add data to start.</p><div class="empty-state__actions"><button type="button" data-empty-action="data-arcgis">ArcGIS service</button><button type="button" data-empty-action="data-geojson">Geo URL</button><button type="button" data-empty-action="data-file">Local file</button><button type="button" data-empty-action="data-popular">Try an example</button></div></div>';
     container.querySelector("[data-example-guide]")?.addEventListener("click", () => this.#startExampleWalkthrough());
+    container.querySelector("[data-example-guide-close]")?.addEventListener("click", () => {
+      this.activeExampleGuide = null;
+      this.#renderLayers();
+    });
     container.querySelectorAll(".layer-card").forEach((card) => this.#bindLayerCard(card));
   }
 

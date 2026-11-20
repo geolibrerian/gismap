@@ -2,7 +2,7 @@
 // through the `layers` and `camera` APIs, and exports the current map as one.
 // Issues (from the schema, and from loading: a misspelled field, a service that
 // will not load) are collected so describe() and the issues panel can show them.
-import { MAP_SPEC_VERSION, chartSpecFromMapChart, createMapSpecLink, decodeMapSpec, encodeMapSpec, mapChartFromChartSpec, prepareMapVerification, validateMapSpec } from "./map-spec.js?v=0.73.1-hexbin";
+import { MAP_SPEC_VERSION, chartSpecFromMapChart, createMapSpecLink, decodeMapSpec, encodeMapSpec, mapChartFromChartSpec, prepareMapVerification, validateMapSpec } from "./map-spec.js?v=0.76.0-chain";
 import { GisMapError, toGisMapError } from "./gismap-errors.js?v=0.54.0-print";
 import { basemapEntry, basemapLabel, basemapOnEngine } from "./basemap-catalog.js?v=0.53.0-gallery1";
 
@@ -104,10 +104,20 @@ export function createMapSpecApi({ layers, camera, mapController, analysis = nul
         loadedAt.set(index, info);
         loaded.push(info);
       }
+      // Each step's result layer, so a later step can use it with { "step": n }.
+      const results = [];
       for (const [index, step] of (spec.analysis || []).entries()) {
-        const source = (value) => Number.isInteger(value) ? spec.layers[value] && loaded.find((item) => item.url === spec.layers[value].url)?.id : value;
+        const source = (value) => {
+          if (Number.isInteger(value)) return spec.layers[value] && loaded.find((item) => item.url === spec.layers[value].url)?.id;
+          if (!Number.isInteger(value?.step)) return value;
+          if (!results[value.step]) throw new Error(`analysis[${value.step}] made no layer to use.`);
+          return results[value.step];
+        };
         try {
-          await analysis?.run(step.operation, { ...step, input: source(step.input), overlay: source(step.overlay) });
+          const { visible, ...rest } = step;
+          const result = await analysis?.run(step.operation, { ...rest, input: source(step.input), overlay: source(step.overlay) });
+          results[index] = result?.layer?.id ?? null;
+          if (visible === false && result?.layer) await layers.update(result.layer.id, { visible: false }).catch(() => {});
         } catch (error) {
           issues.push({ level: "warning", code: "INVALID_SPEC", path: `analysis[${index}]`, message: `${step.operation}: ${error.message}` });
         }
