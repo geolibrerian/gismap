@@ -9359,6 +9359,8 @@ export class UIController {
           break;
         case "hexbin": {
           const { openSpatialAnalysis } = await import("./spatial-analysis-panel.js?v=0.67.1-hexmap");
+          // Activating the layer redraws the side panel; the tool docks once that has settled.
+          await new Promise((resolve) => requestAnimationFrame(resolve));
           openSpatialAnalysis(this, globalThis.gisMapOnline.analysis, { operation: "hexbin", input: uid });
           break;
         }
