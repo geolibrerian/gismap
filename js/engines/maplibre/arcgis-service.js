@@ -178,8 +178,9 @@ function esriToGeoJSON(json) {
  * A feature layer's features as GeoJSON features (WGS84), paged, at most
  * MAX_FEATURES: { features, truncated }. `where` filters on the service, and
  * `query` adds other query parameters, such as a geometry to search within.
+ * `onFetched(count)` reports each page as it arrives, before pages are put in order.
  */
-export async function fetchFeatures(layer, { where = null, query = {}, maxFeatures = MAX_FEATURES, onProgress = () => {}, onPage = () => {}, simplify = null, concurrency = 3, outFields = "*", ...options } = {}) {
+export async function fetchFeatures(layer, { where = null, query = {}, maxFeatures = MAX_FEATURES, onProgress = () => {}, onPage = () => {}, onFetched = () => {}, simplify = null, concurrency = 3, outFields = "*", ...options } = {}) {
   // Full-detail polygons can be megabytes per page, so pages stay small; with
   // `simplify` ({ maxAllowableOffset, geometryPrecision } in degrees) the service
   // sends outlines generalized to that tolerance, a fraction of the size, and pages can be full.
@@ -204,7 +205,8 @@ export async function fetchFeatures(layer, { where = null, query = {}, maxFeatur
   };
   const features = [];
   if (layer.paginated) {
-    const requestPage = (offset) => page({ resultOffset: String(offset), resultRecordCount: String(Math.min(pageSize, maxFeatures - offset)), ...(layer.objectIdField ? { orderByFields: layer.objectIdField } : {}) });
+    const requestPage = (offset) => page({ resultOffset: String(offset), resultRecordCount: String(Math.min(pageSize, maxFeatures - offset)), ...(layer.objectIdField ? { orderByFields: layer.objectIdField } : {}) })
+      .then((result) => { onFetched(result.features.length); return result; });
     // Resolve the response format before starting concurrent requests. This
     // avoids racing the GeoJSON-to-Esri fallback on older services.
     let offset = 0;
@@ -235,6 +237,7 @@ export async function fetchFeatures(layer, { where = null, query = {}, maxFeatur
   ids.sort((a, b) => a - b);
   for (let start = 0; start < Math.min(ids.length, maxFeatures); start += pageSize) {
     const { features: batch } = await page({ objectIds: ids.slice(start, Math.min(start + pageSize, maxFeatures)).join(",") });
+    onFetched(batch.length);
     features.push(...batch);
     onPage(batch);
     onProgress(features.length);

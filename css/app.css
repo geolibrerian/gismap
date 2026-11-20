@@ -3274,3 +3274,22 @@ body.briefing-v2 .briefing-data-dock :is(.briefing-select__add-slides, .briefing
 .spatial-analysis { display: grid; gap: 10px; }
 .spatial-analysis__draw { border: 1px solid var(--line, #8884); border-radius: 6px; padding: 8px; }
 .spatial-analysis__done { position: fixed; z-index: 60; left: 50%; bottom: 24px; transform: translateX(-50%); }
+
+/* Map link loading: one stage per layer and analysis step, with real counts (load-progress.js). */
+.load-progress { position:absolute; z-index:60; top:12px; left:50%; max-width:calc(100% - 32px); transform:translateX(-50%); pointer-events:none; transition:opacity .4s ease; }
+.load-progress.is-finished { opacity:0; transition-delay:.9s; }
+.load-progress ol { display:flex; flex-wrap:wrap; align-items:center; justify-content:center; gap:4px 0; margin:0; padding:6px 10px; list-style:none; border:1px solid var(--line); border-radius:999px; background:color-mix(in srgb, var(--surface) 92%, transparent); box-shadow:0 6px 20px rgb(17 39 33 / 14%); backdrop-filter:blur(6px); font-size:12px; }
+.load-progress__stage { position:relative; display:flex; align-items:baseline; gap:6px; padding:3px 8px 5px; color:var(--muted); white-space:nowrap; }
+.load-progress__stage + .load-progress__stage::before { content:"→"; position:absolute; left:-6px; color:var(--line); }
+.load-progress__label { font-weight:600; }
+.load-progress__count, .load-progress__left { font-variant-numeric:tabular-nums; }
+.load-progress__left { opacity:.75; }
+.load-progress__stage.is-active { color:var(--ink); }
+.load-progress__stage.is-active::after { content:""; position:absolute; left:8px; right:8px; bottom:1px; height:2px; border-radius:2px; background:linear-gradient(90deg, var(--green-2) calc(var(--progress, .35) * 100%), color-mix(in srgb, var(--green-2) 18%, transparent) 0); }
+.load-progress__stage.is-active:not([style])::after { background:linear-gradient(90deg, transparent, var(--green-2), transparent) 0 0 / 50% 100% no-repeat; animation:load-progress-sweep 1.2s linear infinite; }
+.load-progress__stage.is-done { color:var(--green-2); }
+.load-progress__stage.is-done .load-progress__label::before { content:"✓ "; }
+.load-progress__stage.is-failed { color:#b2182b; }
+@keyframes load-progress-sweep { from { background-position:-100% 0; } to { background-position:200% 0; } }
+@media (prefers-reduced-motion: reduce) { .load-progress__stage.is-active:not([style])::after { animation:none; background:var(--green-2); opacity:.5; } .load-progress { transition:none; } }
+@media (max-width: 760px) { .load-progress { top:8px; } .load-progress ol { border-radius:12px; font-size:11px; } }

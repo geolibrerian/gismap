@@ -1,9 +1,9 @@
-import { buildManifest, createPublicStateApi } from "./application-manifest.js?v=0.75.0-extent";
-import { createActionsApi } from "./application-actions.js?v=0.75.0-extent";
+import { buildManifest, createPublicStateApi } from "./application-manifest.js?v=0.78.4-progress";
+import { createActionsApi } from "./application-actions.js?v=0.78.4-progress";
 import { events } from "./events.js?v=0.18.2";
 import { AuthController } from "./engines/arcgis/arcgis-auth.js?v=0.39.0";
-import { MapController } from "./map-controller.js?v=0.75.0-extent";
-import { listEngines } from "./engines/engine-registry.js?v=0.75.0-extent";
+import { MapController } from "./map-controller.js?v=0.78.4-progress";
+import { listEngines } from "./engines/engine-registry.js?v=0.78.4-progress";
 import { chooseEngine } from "./engine-preference.js?v=0.52.5";
 import { BASEMAP_IDS } from "./basemap-catalog.js?v=0.53.0-gallery1";
 import { ProjectManager } from "./project.js?v=0.71.0-subsurface";
@@ -11,7 +11,7 @@ import { IdentifyController } from "./identify.js?v=0.54.0-pan2";
 import { AttributeTableController } from "./attribute-table.js?v=0.61.2-layer-tools";
 import { AIController } from "./ai.js?v=0.72.0-si-maps";
 import { ToolManager } from "./tool-manager.js?v=0.37.0";
-import { UIController } from "./ui.js?v=0.77.0-tutorial";
+import { UIController } from "./ui.js?v=0.78.5-progress";
 import { ExportController } from "./export/export-controller.js?v=0.37.0";
 import { SHARE_BASEMAPS, parseShareParameters } from "./share.js?v=0.71.0-subsurface";
 import { readShareLocation } from "./map-share.js?v=0.71.0-subsurface";
@@ -23,7 +23,7 @@ import { ApplicationRuntime } from "./application-runtime.js?v=0.68.0-charts1";
 import { PanelManager } from "./panel-manager.js?v=0.18.2";
 import { MobilePanelManager } from "./mobile-panel-manager.js?v=0.18.2";
 import { MobileWorkflowRouter } from "./mobile-workflow-router.js?v=0.71.0-subsurface";
-import { createClientApi } from "./briefing-api.js?v=0.77.0-tutorial";
+import { createClientApi } from "./briefing-api.js?v=0.78.5-progress";
 import { createPrintApi, hasWebgl, registerPrintTools, webglIssue } from "./print-api.js?v=0.54.0-print";
 import { MAP_TEMPLATES } from "./map-templates.js?v=0.54.0-print";
 import { readProjectFromPng } from "./smart-image.js?v=0.71.0-subsurface";
@@ -31,9 +31,10 @@ import { registerAuthoringTools } from "./agent-authoring-tools.js?v=0.53.0";
 import { createCameraApi, createLayersApi } from "./layers-api.js?v=0.71.0-subsurface";
 import { registerLayerTools } from "./layer-tools.js?v=0.29.0";
 import { createSpatialAnalysisApi } from "./spatial-analysis.js?v=0.69.0-extent";
-import { createMapSpecApi } from "./map-spec-api.js?v=0.76.0-chain";
+import { createMapSpecApi } from "./map-spec-api.js?v=0.78.5-progress";
 import { createLayerStylesApi } from "./layer-styles-api.js?v=0.71.0-subsurface";
 import { mapSpecFromShareParameters } from "./map-spec.js?v=0.76.0-chain";
+import { createLoadProgress } from "./load-progress.js?v=0.1.4";
 import { MAP_TUTORIALS } from "./workspace-walkthrough.js?v=0.77.0-tutorial";
 import { GisMapError, ERROR_CODES } from "./gismap-errors.js?v=0.54.0-print";
 
@@ -230,6 +231,7 @@ async function start() {
     document.documentElement.dataset.gismapState = "error";
   }
   const analysisApi = createSpatialAnalysisApi({ mapController, layers: layersApi });
+  const loadProgress = createLoadProgress({ events, mapController });
   const mapSpecApi = createMapSpecApi({
     analysis: analysisApi,
     layers: layersApi,
@@ -239,6 +241,7 @@ async function start() {
     allowHttp,
     host: {
       setBasemap: (id) => mapController.setBasemap(id),
+      startProgress: (stages) => loadProgress.begin(stages),
       applySkin: (skin) => uiController.applySkinChoice(skin),
       setTitle: (title) => uiController.setProjectTitle(title),
       getTitle: () => projectManager.current?.name || "",

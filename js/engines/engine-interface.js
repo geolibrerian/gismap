@@ -97,6 +97,7 @@ export const MAP_CONTROLLER_METHODS = Object.freeze([
   "draw", "hasDrawings", "clearDrawings", "getDrawGraphicsForExport", "getDrawingsStyle", "setDrawingsStyle", "setTaskPin", "setTourMarkers", "setActiveTourMarker", "clearTourMarkers", "toggleWidget", "widgetOpen",
   "setBasemapTheme", "getBasemapOptions", "getGroundOptions", "setBuildings3d",
   "getAttributionText", "getLegendData", "setLayerEffect", "getLayerEffect", "suspendLayerEffect",
+  "setAnalysisPreview",
 ]);
 
 /** Capability used when an optional delegated method is absent. */
@@ -123,6 +124,7 @@ export const METHOD_CAPABILITIES = Object.freeze({
  *   layer:added          { layer: LayerHandle, config: LayerConfig }
  *   layer:removed        { uid }
  *   layer:changed        { uid }
+ *   layer:progress       { uid, loaded, total, done, features }  (MapLibre service layers, as pages arrive)
  *   layers:reset         {}
  *   map:basemap-changed  { id }
  *   map:ground-changed   { id }

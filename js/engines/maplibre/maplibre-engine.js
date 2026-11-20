@@ -17,7 +17,7 @@ import { tourChapterPoint, tourMarkerDataUrl } from "../tour-markers.js?v=0.65.9
 import { madeWithForPage, madeWithHtml } from "../../made-with.js?v=0.65.8-made-with";
 import { parseLocalVectorFile } from "../../local-vector-import.js?v=0.54.0-vector1";
 import { GisMapError } from "../../gismap-errors.js?v=0.54.0-print";
-import { unsupported } from "../engine-interface.js?v=0.71.0-subsurface";
+import { unsupported } from "../engine-interface.js?v=0.78.4-progress";
 import { openBasemapFor, withUsgsImagery } from "./basemaps.js?v=0.53.0-gallery1";
 import { mountBasemapGallery } from "./basemap-gallery.js?v=0.53.0-gallery1";
 import { basemapOnEngine, basemapsForEngine } from "../../basemap-catalog.js?v=0.53.0-gallery1";
@@ -40,7 +40,7 @@ const LAYER_EFFECT_VIEW_FIRST = 800;
 const SETTLED_EDGES_PREFIX = "cinematic-edges:";
 // Native animated effects (Rise, Reveal) use this source/layer prefix.
 const NATIVE_EFFECT_PREFIX = "cinematic-native:";
-import { MAX_FEATURES, describeArcGIS, featureServiceLayers, fetchFeatures, fetchGeometries, queryServiceIds, serviceLegend } from "./arcgis-service.js?v=0.75.0-extent";
+import { MAX_FEATURES, describeArcGIS, featureServiceLayers, fetchFeatures, fetchGeometries, queryServiceIds, serviceLegend } from "./arcgis-service.js?v=0.78.1-progress";
 import { OBJECT_ID_FIELD, boundsIntersect, boundsOf, expandBounds, geometryTypeOf, inferFields, normalizeFeatures, regroupPolygon, representativePoint } from "./geojson.js?v=0.42.0";
 import { loadMaplibre } from "./maplibre-loader.js?v=0.62.5-amd-safe";
 import { HILLSHADE_LAYER_ID, HILLSHADE_SOURCE_ID, MAPLIBRE_GROUNDS, TERRAIN_SOURCE_ID, isTerrainTileFailure, hillshadeLayer, maplibreGround, terrainSource } from "./terrain.js?v=0.43.0";
@@ -1196,7 +1196,12 @@ export class MaplibreEngine {
     let done = false;
     // Coarse sketches show first and are replaced, feature by feature, as the overview pages arrive.
     const byId = new Map();
-    const redraw = () => { drawn = Date.now(); record.features = [...byId.values()]; this.#refresh(record, { data: true }); };
+    // How far the full-detail pages have got, for loading indicators: `features` is what has arrived so far.
+    let received = 0;
+    let expected = null;
+    let told = 0;
+    const progress = () => this.events.publish("layer:progress", { uid: record.uid, loaded: done ? record.features.length : received, total: done ? record.features.length : expected, done, features: record.features });
+    const redraw = () => { drawn = Date.now(); record.features = [...byId.values()]; this.#refresh(record, { data: true }); progress(); };
     const take = (features, sketch) => {
       if (done || !this.#records.has(record.uid)) return;
       for (const feature of features) if (!sketch || !byId.has(feature.id)) byId.set(feature.id, feature);
@@ -1205,6 +1210,9 @@ export class MaplibreEngine {
     record.loaded = this.#loadFeatures(service, where, {
       onPage: (features) => take(features, false),
       onSketch: (features) => take(features, true),
+      onTotal: (count) => { expected = count; },
+      // Counted as each page arrives, ahead of the ordered pages that redraw the layer.
+      onFetched: (count) => { received += count; if (Date.now() - told > 400) { told = Date.now(); progress(); } },
     }).then((loaded) => {
       done = true;
       Object.assign(record, { features: loaded.features, truncated: loaded.truncated, serverWhere: loaded.serverWhere });
@@ -1271,12 +1279,14 @@ export class MaplibreEngine {
    * whole and filtered here; bigger ones are fetched already filtered, and
    * fetched again when the filter changes.
    */
-  async #loadFeatures(service, where, { onPage = () => {}, onSketch = null } = {}) {
+  async #loadFeatures(service, where, { onPage = () => {}, onSketch = null, onTotal = () => {}, onFetched = () => {} } = {}) {
+    const count = async (filter) => (await (await fetch(`${service.url}/query?where=${encodeURIComponent(filter)}&returnCountOnly=true&f=json`)).json()).count ?? Infinity;
     let total = Infinity;
-    try {
-      total = (await (await fetch(`${service.url}/query?where=1%3D1&returnCountOnly=true&f=json`)).json()).count ?? Infinity;
-    } catch { /* Count unknown: fetch filtered. */ }
+    try { total = await count("1=1"); } catch { /* Count unknown: fetch filtered. */ }
     const serverWhere = total > MAX_FEATURES ? where || null : null;
+    // What this layer will fetch, at most MAX_FEATURES; only a progress figure, so a failed count is left unknown.
+    const expected = serverWhere ? await count(serverWhere).catch(() => Infinity) : total;
+    if (Number.isFinite(expected)) onTotal(Math.min(expected, MAX_FEATURES));
     const prepare = (features) => normalizeFeatures({ type: "FeatureCollection", features: features.map((feature) => (feature.geometry?.type === "Polygon" ? { ...feature, geometry: regroupPolygon(feature.geometry) } : feature)) }, { objectIdField: service.objectIdField });
     // Lines and polygons arrive generalized for the overview (a fraction of the size); zooming in sharpens them.
     const simplify = /polygon|polyline/.test(service.geometryType || "") ? { maxAllowableOffset: MaplibreEngine.OVERVIEW_DETAIL, geometryPrecision: 5 } : null;
@@ -1285,7 +1295,7 @@ export class MaplibreEngine {
       const outFields = [...new Set([service.objectIdField, ...rendererFields(service.renderer)].filter(Boolean))].join(",");
       void fetchFeatures(service, { where: serverWhere, simplify: { maxAllowableOffset: MaplibreEngine.SKETCH_DETAIL, geometryPrecision: 3 }, outFields, concurrency: 10, onPage: (batch) => onSketch(prepare(batch)) }).catch(() => {});
     }
-    const { features, truncated } = await fetchFeatures(service, { where: serverWhere, simplify, concurrency: 10, onPage: (batch) => onPage(prepare(batch)) });
+    const { features, truncated } = await fetchFeatures(service, { where: serverWhere, simplify, concurrency: 10, onFetched, onPage: (batch) => onPage(prepare(batch)) });
     return { features: prepare(features), truncated, serverWhere: total > MAX_FEATURES };
   }
 
@@ -1713,6 +1723,28 @@ export class MaplibreEngine {
     record.rendererSpec = null;
     this.#refresh(record);
     this.events.publish("layer:changed", { uid: record.uid });
+  }
+
+  /**
+   * A temporary overlay while a map link loads, such as hexagons binned from the pages
+   * received so far (load-progress.js). `collection` features carry `v`, 0 to 1, which sets
+   * the colour and, with `extrude`, the height up to `height` metres; null removes it.
+   */
+  setAnalysisPreview(collection, { extrude = false, height = 1000 } = {}) {
+    const id = "gismap-analysis-preview";
+    if (!this.map?.getStyle?.()) return;
+    if (!collection) {
+      if (this.map.getLayer(id)) this.map.removeLayer(id);
+      if (this.map.getSource(id)) this.map.removeSource(id);
+      return;
+    }
+    const source = this.map.getSource(id);
+    if (source) { source.setData(collection); return; }
+    this.map.addSource(id, { type: "geojson", data: collection });
+    const color = ["interpolate", ["linear"], ["get", "v"], 0, "#fde725", 0.35, "#4ac16d", 0.65, "#277f8e", 1, "#46327e"];
+    this.map.addLayer(extrude
+      ? { id, type: "fill-extrusion", source: id, paint: { "fill-extrusion-color": color, "fill-extrusion-height": ["*", ["get", "v"], height], "fill-extrusion-opacity": 0.55 } }
+      : { id, type: "fill", source: id, paint: { "fill-color": color, "fill-opacity": 0.55 } });
   }
 
   /** Apply a portable 3D spatial chart using derived MapLibre layers. */

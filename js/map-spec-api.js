@@ -5,12 +5,14 @@
 import { MAP_SPEC_VERSION, chartSpecFromMapChart, createMapSpecLink, decodeMapSpec, encodeMapSpec, mapChartFromChartSpec, prepareMapVerification, validateMapSpec } from "./map-spec.js?v=0.76.0-chain";
 import { GisMapError, toGisMapError } from "./gismap-errors.js?v=0.54.0-print";
 import { basemapEntry, basemapLabel, basemapOnEngine } from "./basemap-catalog.js?v=0.53.0-gallery1";
+import { previewChain, resultLabel, stepLabel } from "./load-progress.js?v=0.1.4";
 
 const within = (promise, seconds) => Promise.race([promise, new Promise((resolve) => setTimeout(resolve, seconds * 1000))]);
 
 /**
  * host: { setBasemap(id), applySkin(id), setTitle(text), showLegend(), showIssues(issues), loadBriefing(doc),
- *         addChart(chartSpec), clearCharts(), getCharts() }
+ *         addChart(chartSpec), clearCharts(), getCharts(), startProgress(stages) }
+ * startProgress returns a tracker (load-progress.js) that shows each layer and analysis step as it loads.
  * issues: the shared list describe() reports (replaced on each load).
  */
 export function createMapSpecApi({ layers, camera, mapController, analysis = null, host = {}, issues = [], allowHttp = false }) {
@@ -25,6 +27,10 @@ export function createMapSpecApi({ layers, camera, mapController, analysis = nul
   function load(input, { replace = true, showIssues = true } = {}) {
     const { valid, issues: found, spec } = validateMapSpec(input, { allowHttp });
     issues.splice(0, issues.length, ...found);
+    const progress = spec ? host.startProgress?.([
+      ...spec.layers.map((entry, index) => ({ id: `layer-${index}`, label: entry.title || "Layer" })),
+      ...(spec.analysis || []).map((step, index) => ({ id: `step-${index}`, label: stepLabel(step) })),
+    ]) : null;
     const ready = (async () => {
       if (!spec) throw new GisMapError("INVALID_SPEC", found[0]?.message || "The map spec cannot be used.", { details: { issues: found } });
       if (replace) {
@@ -48,11 +54,17 @@ export function createMapSpecApi({ layers, camera, mapController, analysis = nul
         }
       }
       if (spec.title) host.setTitle?.(spec.title);
+      // A link with its own view opens there, so what loads (and any preview) is in sight; it is set again at the end.
+      if (spec.camera?.center && progress) await within(camera.set(spec.camera, { animate: false }).catch(() => null), 4);
       const loaded = [];
       const loadedAt = new Map(); // position in spec.layers → loaded layer
+      // A hexagon step can be previewed from its layer's pages while they arrive.
+      const preview = previewChain(spec.analysis || []);
+      if (preview) progress?.preview(`layer-${preview.layer}`, preview.chain);
       for (const [index, entry] of spec.layers.entries()) {
         const path = `layers[${index}]`;
         let info;
+        progress?.starting(`layer-${index}`);
         try {
           info = await layers.add(entry.url, {
             type: entry.type,
@@ -70,8 +82,10 @@ export function createMapSpecApi({ layers, camera, mapController, analysis = nul
         } catch (error) {
           const problem = toGisMapError(error, "LAYER_LOAD_FAILED");
           issues.push({ level: "error", code: problem.code, path, message: `${entry.title || entry.url}: ${problem.message}`, hint: problem.hint, link: entry.url });
+          progress?.failed(`layer-${index}`);
           continue;
         }
+        progress?.layer(`layer-${index}`, info.id);
         // The style is applied once the layer's fields are known; a bad field keeps the service's style.
         if (entry.renderer) {
           try {
@@ -115,11 +129,15 @@ export function createMapSpecApi({ layers, camera, mapController, analysis = nul
         };
         try {
           const { visible, ...rest } = step;
+          progress?.step(`step-${index}`, "active");
           const result = await analysis?.run(step.operation, { ...rest, input: source(step.input), overlay: source(step.overlay) });
           results[index] = result?.layer?.id ?? null;
+          if (index === preview?.hexbin) progress?.stopPreview();
+          progress?.step(`step-${index}`, "done", resultLabel(step.operation, result?.featureCount ?? 0));
           if (visible === false && result?.layer) await layers.update(result.layer.id, { visible: false }).catch(() => {});
         } catch (error) {
           issues.push({ level: "warning", code: "INVALID_SPEC", path: `analysis[${index}]`, message: `${step.operation}: ${error.message}` });
+          progress?.step(`step-${index}`, "failed");
         }
       }
       // Chart panels open beside the map (the sidebar is left as it is), each
@@ -152,6 +170,8 @@ export function createMapSpecApi({ layers, camera, mapController, analysis = nul
       return { layers: layers.list(), issues: issues.slice() };
     })();
     ready.catch(() => {});
+    // The strip finishes however loading ends; ready itself is returned unchanged.
+    ready.finally(() => progress?.finish()).catch(() => {});
     return { valid, issues: found, spec, ready };
   }
 
