@@ -1,5 +1,5 @@
 // Tools > Spatial Analysis: choose layers or drawings, draw on the map, add the result as a layer.
-import { SPATIAL_OPERATIONS } from "./spatial-analysis.js?v=0.67.0-hexbin";
+import { SPATIAL_OPERATIONS } from "./spatial-analysis.js?v=0.68.0-dots";
 
 const escapeHtml = (value) => String(value ?? "").replace(/[&<>"']/g, (char) => `&#${char.charCodeAt(0)};`);
 const GEOMETRY_NOTE = { polygon: "polygons", point: "points", any: "any geometry" };
@@ -49,7 +49,7 @@ export function openSpatialAnalysis(ui, analysis, preset = {}) {
   const optionInput = (option) => {
     const data = `data-option="${option.name}"`;
     if (option.type === "choice") return `<select ${data}>${option.choices.map(([id, label]) => `<option value="${escapeHtml(id)}"${id === option.default ? " selected" : ""}>${escapeHtml(label)}</option>`).join("")}</select>`;
-    if (option.type === "number") return `<input ${data} type="number" value="${option.default}" min="${option.min}" max="${option.max}" step="${option.integer ? 1 : "any"}" />`;
+    if (option.type === "number") return `<input ${data} type="number"${option.default === undefined ? "" : ` value="${option.default}"`} min="${option.min}" max="${option.max}" step="${option.integer ? 1 : "any"}" />`;
     if (option.type === "field") return `<input ${data} type="text" list="spatial-analysis-fields" autocomplete="off" />`;
     return `<input ${data} type="text" />`;
   };
@@ -127,6 +127,10 @@ export function openSpatialAnalysis(ui, analysis, preset = {}) {
   if (current().overlayOptional) get("overlay").value = "";
   if (preset.input && [...get("input").options].some((option) => option.value === preset.input)) get("input").value = preset.input;
   refreshFields();
+  for (const [name, value] of Object.entries(preset.options || {})) {
+    const input = root.querySelector(`[data-option="${name}"]`);
+    if (input) input.value = value;
+  }
   const refresh = setInterval(() => {
     if (!root.isConnected) clearInterval(refresh);
     else if (!root.contains(document.activeElement) || document.activeElement.tagName !== "SELECT") refreshSources();
