@@ -140,6 +140,9 @@ const escapeHtml = (value) =>
 const specIssueMarkup = (issue) =>
   `<p>${escapeHtml(issue.message)}</p>${issue.hint ? `<small>${escapeHtml(issue.hint)}</small>` : ""}${/^https?:\/\//i.test(issue.link || "") ? ` <a href="${escapeHtml(issue.link)}" target="_blank" rel="noopener noreferrer">Open the server ↗</a>` : ""}`;
 
+
+/** A layer's numeric fields, leaving out object IDs. */
+const numericLayerFields = (layer) => (layer?.fields || []).filter((field) => /integer|double|single|small|long|number/i.test(String(field.type)) && !/^(objectid|fid)$/i.test(field.name));
 export class UIController {
   constructor(events, mapController, projectManager, authController, aiController, toolManager, exportController, applicationRuntime, panelManager, mobilePanelManager) {
     Object.assign(this, { events, mapController, projectManager, authController, aiController, toolManager, exportController, applicationRuntime, panelManager, mobilePanelManager });
@@ -2075,7 +2078,7 @@ export class UIController {
           break;
         }
         case "tools-spatial-analysis": {
-          const { openSpatialAnalysis } = await import("./spatial-analysis-panel.js?v=0.67.1-hexmap");
+          const { openSpatialAnalysis } = await import("./spatial-analysis-panel.js?v=0.68.0-dots");
           openSpatialAnalysis(this, globalThis.gisMapOnline.analysis);
           break;
         }
@@ -9256,7 +9259,7 @@ export class UIController {
           <div class="layer-scale-note" data-layer-scale-note ${scaleMessage ? "" : "hidden"}><span data-scale-text>${escapeHtml(scaleMessage || "")}</span><button type="button" data-layer-action="ignore-scale" title="Draw this layer at every zoom level">Show anyway</button></div>
           <label class="opacity-row"><span>Opacity</span><input data-layer-opacity type="range" min="0" max="1" step="0.05" value="${layer.opacity}" /><output>${Math.round(layer.opacity * 100)}%</output></label>
           <div class="layer-card__actions layer-card__primary"><button data-layer-action="zoom">Zoom</button><button data-layer-action="table">Table</button><button data-layer-action="style">Style</button></div>
-          <details class="layer-card__more" ${this.expandedLayerCards.has(layer.uid) ? "open" : ""}><summary>More layer tools</summary><div class="layer-card__actions">${layer.queryable && this.mapController.getCapabilities().includes("three-3d") ? '<button data-layer-action="animate" title="Suggested animations for this layer: a looping effect, a timeline or a sweep">Animate</button>' : ""}<button data-layer-action="filter" title="Show only matching features on the map">Filter map</button>${layer.queryable || config.sourceType === "geoparquet" ? '<button data-layer-action="query-duckdb" title="Query, join or run spatial analysis on a copy of this layer">Query data</button>' : ''}${layer.queryable ? '<button data-layer-action="chart" title="Chart this layer in a panel linked to the map">Chart</button>' : ""}${layer.queryable && /point/i.test(layer.geometryType || "") ? '<button data-layer-action="hexbin" title="Summarise these points in hexagons: counts, density or a field\'s statistics">Hexagon map</button>' : ""}${layer.queryable ? '<button data-layer-action="labels" title="Label features from their fields, a template or fixed text">Labels</button>' : ""}<button data-layer-action="source" title="Inspect this data source and open its publisher page">Source</button><button data-layer-action="refresh">Refresh</button><button data-layer-action="advanced-style">Advanced style</button></div></details>
+          <details class="layer-card__more" ${this.expandedLayerCards.has(layer.uid) ? "open" : ""}><summary>More layer tools</summary><div class="layer-card__actions">${layer.queryable && this.mapController.getCapabilities().includes("three-3d") ? '<button data-layer-action="animate" title="Suggested animations for this layer: a looping effect, a timeline or a sweep">Animate</button>' : ""}<button data-layer-action="filter" title="Show only matching features on the map">Filter map</button>${layer.queryable || config.sourceType === "geoparquet" ? '<button data-layer-action="query-duckdb" title="Query, join or run spatial analysis on a copy of this layer">Query data</button>' : ''}${layer.queryable ? '<button data-layer-action="chart" title="Chart this layer in a panel linked to the map">Chart</button>' : ""}${layer.queryable && /point/i.test(layer.geometryType || "") ? '<button data-layer-action="hexbin" title="Summarise these points in hexagons: counts, density or a field\'s statistics">Hexagon map</button>' : ""}${layer.queryable && /polygon/i.test(layer.geometryType || "") && numericLayerFields(layer).length ? '<button data-layer-action="random-points" title="Place random points inside each polygon from a numeric field, such as one per 100 people">Random points</button>' : ""}${layer.queryable ? '<button data-layer-action="labels" title="Label features from their fields, a template or fixed text">Labels</button>' : ""}<button data-layer-action="source" title="Inspect this data source and open its publisher page">Source</button><button data-layer-action="refresh">Refresh</button><button data-layer-action="advanced-style">Advanced style</button></div></details>
         </article>`;
       }).join("")}`
       : '<div class="empty-state empty-state--layers"><p>No layers yet. Add data to start.</p><div class="empty-state__actions"><button type="button" data-empty-action="data-arcgis">ArcGIS service</button><button type="button" data-empty-action="data-geojson">Geo URL</button><button type="button" data-empty-action="data-file">Local file</button><button type="button" data-empty-action="data-popular">Try an example</button></div></div>';
@@ -9357,8 +9360,16 @@ export class UIController {
         case "labels":
           this.#openLabelEditor(uid);
           break;
+        case "random-points": {
+          const { openSpatialAnalysis } = await import("./spatial-analysis-panel.js?v=0.68.0-dots");
+          const fields = numericLayerFields(layer);
+          const field = fields.find((item) => /pop/i.test(item.name)) || fields[0];
+          await new Promise((resolve) => requestAnimationFrame(resolve));
+          openSpatialAnalysis(this, globalThis.gisMapOnline.analysis, { operation: "random-points", input: uid, options: { field: field?.name || "" } });
+          break;
+        }
         case "hexbin": {
-          const { openSpatialAnalysis } = await import("./spatial-analysis-panel.js?v=0.67.1-hexmap");
+          const { openSpatialAnalysis } = await import("./spatial-analysis-panel.js?v=0.68.0-dots");
           // Activating the layer redraws the side panel; the tool docks once that has settled.
           await new Promise((resolve) => requestAnimationFrame(resolve));
           openSpatialAnalysis(this, globalThis.gisMapOnline.analysis, { operation: "hexbin", input: uid });

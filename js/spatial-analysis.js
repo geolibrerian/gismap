@@ -3,6 +3,7 @@
 import { graphicToGeoJSONFeature } from "./export/export-core.js?v=0.18.2";
 import { GisMapError } from "./gismap-errors.js?v=0.54.0-print";
 import { BIN_STATISTICS, binPoints } from "./hex-binning.js?v=0.1.0";
+import { randomPointsByValue } from "./random-points.js?v=0.1.0";
 
 export const MAX_ANALYSIS_FEATURES = 20000;
 /** Binning only counts, so it reads more of a layer. */
@@ -46,6 +47,15 @@ export const SPATIAL_OPERATIONS = Object.freeze([
       { name: "extrude", label: "Show in 3D", type: "boolean", default: false },
     ],
   },
+  {
+    id: "random-points", label: "Random points from a value", group: "Points", input: "polygon",
+    description: "Places one random point per amount of a numeric field, such as one per 100 people, inside each polygon: a dot-density map, and points Hexagon binning can summarise.",
+    options: [
+      { name: "field", label: "Numeric field", type: "field" },
+      { name: "unitsPerPoint", label: "Amount per point (blank: about 10,000 points)", type: "number", optional: true, min: 0.000001, max: 1e12 },
+      { name: "seed", label: "Random seed", type: "number", integer: true, default: 1, min: 0, max: 4294967295 },
+    ],
+  },
   { id: "nearest", label: "Nearest feature", group: "Overlay", input: "point", overlay: "point", description: "Adds the nearest overlay point and its distance.", options: [] },
   { id: "select", label: "Select by location", group: "Overlay", input: "any", overlay: "any", description: "Keeps features that touch the overlay.", options: [] },
   { id: "join", label: "Spatial join", group: "Overlay", input: "any", overlay: "any", description: "Copies the fields of the first overlay feature each feature touches.", options: [] },
@@ -77,6 +87,7 @@ function usable(turf, collection, wanted, label) {
 }
 
 function number(option, value) {
+  if (option.optional && (value === undefined || value === null || value === "")) return null;
   const parsed = Number(value ?? option.default);
   if (!Number.isFinite(parsed) || parsed < option.min || parsed > option.max) throw invalid(`${option.label} must be between ${option.min} and ${option.max}.`);
   if (option.integer && !Number.isInteger(parsed)) throw invalid(`${option.label} must be a whole number.`);
@@ -191,6 +202,10 @@ export function runSpatialOperation(turf, id, { input, overlay, options = {}, h3
     case "hexbin": {
       const result = binPoints({ turf, h3, points: source, area: others, method: values.method, resolution: values.resolution, cellKm: values.cellKm, statistic: values.statistic, field: values.field, keepEmpty: values.keepEmpty });
       return { ...result, binning: { ...result.metadata, styleField: result.styleField, extrude: values.extrude } };
+    }
+    case "random-points": {
+      const result = randomPointsByValue({ turf, polygons: source, field: values.field, unitsPerPoint: values.unitsPerPoint, seed: values.seed });
+      return { collection: result.collection, summary: result.summary, randomPoints: result.metadata };
     }
     case "nearest": {
       const features = source.features.map((feature) => {
@@ -333,7 +348,7 @@ export function createSpatialAnalysisApi({ mapController, layers, documentRef = 
       const h3 = operation === "hexbin" && hexbinMethod(options || {}) === "h3" ? await loadH3(documentRef) : null;
       const source = await resolve(input, limit);
       const mask = overlay === undefined || overlay === null || overlay === "" ? null : await resolve(overlay);
-      const { collection, summary, totals, binning } = runSpatialOperation(turf, operation, { input: source.collection, overlay: mask?.collection, options, h3 });
+      const { collection, summary, totals, binning, randomPoints } = runSpatialOperation(turf, operation, { input: source.collection, overlay: mask?.collection, options, h3 });
       const truncated = source.truncated || Boolean(mask?.truncated);
       // Binned cells say whether they summarise every source feature, in the map and in exports.
       if (binning) for (const feature of collection.features) feature.properties.complete = !truncated;
@@ -346,9 +361,12 @@ export function createSpatialAnalysisApi({ mapController, layers, documentRef = 
         await layers.update(added.uid, { title: name }).catch(() => {});
         layer = { id: added.uid, title: name };
         if (binning) styled = await styleBins(added.uid, collection, binning).catch((error) => ` The bins could not be styled (${error.message}).`);
+        // Small dots, so thousands of them read as density rather than a blot.
+        if (randomPoints) await layers.update(added.uid, { renderer: { type: "simple", color: "#b2182b", size: 3 } }).catch(() => {});
       }
       return {
         operation, featureCount: collection.features.length, truncated, layer, ...(totals ? { totals } : {}),
+        ...(randomPoints ? { randomPoints } : {}),
         ...(binning ? { binning: { ...binning, complete: !truncated, source: source.title, where: source.where || null } } : {}),
         summary: `${summary}${collection.features.length ? "" : " The result is empty."}${truncated ? ` Only the first ${limit.toLocaleString("en-US")} features were used, so the result is incomplete.` : ""}${styled}`,
         ...(addToMap ? {} : { collection }),

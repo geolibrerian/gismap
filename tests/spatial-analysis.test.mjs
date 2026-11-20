@@ -19,9 +19,9 @@ const run = (id, input, extra = {}) => runSpatialOperation(turf, id, { input, ..
 
 test("every operation runs on suitable data", () => {
   for (const operation of SPATIAL_OPERATIONS) {
-    const input = operation.input === "polygon" ? polygons : points;
+    const input = operation.id === "random-points" ? collection(square(0, 0, 1, { people: 20 })) : operation.input === "polygon" ? polygons : points;
     const overlay = operation.overlay === "polygon" ? collection(square(0.5, 0.5, 5)) : operation.overlay ? (operation.input === "point" ? collection(point(1, 1)) : points) : undefined;
-    const options = operation.id === "kmeans" ? { clusters: 2 } : operation.id === "hexbin" ? { cellKm: 100 } : {};
+    const options = operation.id === "kmeans" ? { clusters: 2 } : operation.id === "hexbin" ? { cellKm: 100 } : operation.id === "random-points" ? { field: "people" } : {};
     assert.ok(run(operation.id, input, { overlay, options }).collection.features.length > 0, operation.id);
   }
 });
