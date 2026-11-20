@@ -16,7 +16,7 @@ import { MapAssistantPanel } from "./assistant-panel.js?v=0.72.0-si-maps";
 import { createAssistantTools, summarizeMapState } from "./map-assistant.js?v=0.72.0-si-maps";
 import { ENTERPRISE_CATALOGS, EnterpriseCatalog, normalizeArcGisDirectoryUrl } from "./enterprise-catalog.js?v=0.71.0-subsurface";
 import { createShareUrl, parseShareParameters } from "./share.js?v=0.71.0-subsurface";
-import { mapSpecFromShareParameters } from "./map-spec.js?v=0.71.0-subsurface";
+import { mapSpecFromShareParameters } from "./map-spec.js?v=0.73.1-hexbin";
 import { createShareLink, hasDataFilter, readBriefingFile } from "./map-share.js?v=0.71.0-subsurface";
 import { createEmbedIframe, createEmbedUrl } from "./embed-share.js?v=0.65.0-paths";
 import { briefingLayerRef, findBriefingLayer } from "./briefing-api.js?v=0.72.0-si-maps";
@@ -2075,7 +2075,7 @@ export class UIController {
           break;
         }
         case "tools-spatial-analysis": {
-          const { openSpatialAnalysis } = await import("./spatial-analysis-panel.js?v=0.66.1-finish1");
+          const { openSpatialAnalysis } = await import("./spatial-analysis-panel.js?v=0.67.0-hexbin");
           openSpatialAnalysis(this, globalThis.gisMapOnline.analysis);
           break;
         }

@@ -2,15 +2,26 @@
 // on the viewer's device: results are local GeoJSON layers, and nothing is uploaded.
 import { graphicToGeoJSONFeature } from "./export/export-core.js?v=0.18.2";
 import { GisMapError } from "./gismap-errors.js?v=0.54.0-print";
+import { BIN_STATISTICS, binPoints } from "./hex-binning.js?v=0.1.0";
 
 export const MAX_ANALYSIS_FEATURES = 20000;
+/** Binning only counts, so it reads more of a layer. */
+export const MAX_BINNING_FEATURES = 100000;
 const MAX_GRID_CELLS = 50000;
 const PAGE_SIZE = 1000;
 const TURF_URL = new URL("./vendor/turf-7.4.0.min.js", import.meta.url).href;
+const H3_URL = new URL("./vendor/h3-js-4.5.0.umd.js", import.meta.url).href;
 
 const distance = (name, label, value) => ({ name, label, type: "number", default: value, min: 0.001, max: 40000, unit: "km" });
 
-/** Every operation. `input` and `overlay` are the geometry each accepts; no `overlay` means one source. */
+const STATISTIC_LABELS = { count: "Point count", density: "Points per km²", sum: "Sum of a field", mean: "Mean of a field", min: "Minimum of a field", max: "Maximum of a field" };
+const FIELD_STATISTICS = BIN_STATISTICS.filter((name) => !["count", "density"].includes(name));
+
+/**
+ * Every operation. `input` and `overlay` are the geometry each accepts; no `overlay` means one source,
+ * and `overlayOptional` means the overlay may be left out. Option types are number, field, choice and
+ * boolean; `when` shows an option only while other options have one of the listed values.
+ */
 export const SPATIAL_OPERATIONS = Object.freeze([
   { id: "measure", label: "Measure area and length", group: "Measure", input: "any", description: "Adds area_km2 and length_km to each feature and reports the totals.", options: [] },
   { id: "buffer", label: "Buffer", group: "Shape", input: "any", description: "A zone around each feature.", options: [distance("distanceKm", "Distance", 1)] },
@@ -22,7 +33,19 @@ export const SPATIAL_OPERATIONS = Object.freeze([
   { id: "voronoi", label: "Voronoi polygons", group: "Points", input: "point", description: "The area closest to each point.", options: [] },
   { id: "kmeans", label: "K-means clusters", group: "Points", input: "point", description: "Assigns each point a cluster number.", options: [{ name: "clusters", label: "Clusters", type: "number", default: 5, min: 2, max: 100 }] },
   { id: "dbscan", label: "Density clusters", group: "Points", input: "point", description: "Groups nearby points; the rest are marked as noise.", options: [distance("maxDistanceKm", "Maximum distance", 10), { name: "minPoints", label: "Minimum points", type: "number", default: 3, min: 1, max: 1000 }] },
-  { id: "hexbin", label: "Hexagon density", group: "Points", input: "point", description: "Counts points in a hexagon grid.", options: [distance("cellKm", "Hexagon side", 10)] },
+  {
+    id: "hexbin", label: "Hexagon binning", group: "Points", input: "point", overlay: "polygon", overlayOptional: true, maxInput: MAX_BINNING_FEATURES,
+    description: "Summarises points in hexagons: H3 cells or a grid of a chosen size. The optional overlay is a study area.",
+    options: [
+      { name: "method", label: "Method", type: "choice", default: "h3", choices: [["h3", "H3 global grid"], ["turf", "Custom hexagon size"]] },
+      { name: "resolution", label: "H3 resolution", type: "number", integer: true, default: 7, min: 0, max: 15, when: { method: ["h3"] } },
+      { ...distance("cellKm", "Hexagon side", 10), when: { method: ["turf"] } },
+      { name: "statistic", label: "Statistic", type: "choice", default: "count", choices: BIN_STATISTICS.map((name) => [name, STATISTIC_LABELS[name]]) },
+      { name: "field", label: "Numeric field", type: "field", when: { statistic: FIELD_STATISTICS } },
+      { name: "keepEmpty", label: "Keep empty cells", type: "boolean", default: false },
+      { name: "extrude", label: "Show in 3D", type: "boolean", default: false },
+    ],
+  },
   { id: "nearest", label: "Nearest feature", group: "Overlay", input: "point", overlay: "point", description: "Adds the nearest overlay point and its distance.", options: [] },
   { id: "select", label: "Select by location", group: "Overlay", input: "any", overlay: "any", description: "Keeps features that touch the overlay.", options: [] },
   { id: "join", label: "Spatial join", group: "Overlay", input: "any", overlay: "any", description: "Copies the fields of the first overlay feature each feature touches.", options: [] },
@@ -56,8 +79,23 @@ function usable(turf, collection, wanted, label) {
 function number(option, value) {
   const parsed = Number(value ?? option.default);
   if (!Number.isFinite(parsed) || parsed < option.min || parsed > option.max) throw invalid(`${option.label} must be between ${option.min} and ${option.max}.`);
+  if (option.integer && !Number.isInteger(parsed)) throw invalid(`${option.label} must be a whole number.`);
   return parsed;
 }
+
+function optionValue(option, value) {
+  if (option.type === "number") return number(option, value);
+  if (option.type === "boolean") return value === undefined || value === null || value === "" ? option.default : value === true || value === "true";
+  if (option.type === "choice") {
+    const chosen = value ?? option.default;
+    if (!option.choices.some(([id]) => id === chosen)) throw invalid(`${option.label} must be one of: ${option.choices.map(([id]) => id).join(", ")}.`);
+    return chosen;
+  }
+  return value;
+}
+
+/** The hexbin method; links from before H3 gave only cellKm, and keep their Turf grid. */
+export const hexbinMethod = (options = {}) => options.method ?? (options.cellKm !== undefined ? "turf" : "h3");
 
 const located = (turf, feature) => ({ feature, box: turf.bbox(feature) });
 const boxesTouch = (a, b) => a[0] <= b[2] && a[2] >= b[0] && a[1] <= b[3] && a[3] >= b[1];
@@ -87,14 +125,14 @@ function mergeAll(turf, polygons) {
 }
 
 /** Runs one operation on GeoJSON. Returns { collection, summary } with a plain-language summary. */
-export function runSpatialOperation(turf, id, { input, overlay, options = {} } = {}) {
+export function runSpatialOperation(turf, id, { input, overlay, options = {}, h3 = null } = {}) {
   const operation = SPATIAL_OPERATIONS.find((item) => item.id === id);
   if (!operation) throw invalid(`Unknown analysis "${id}". Use one of: ${SPATIAL_OPERATION_IDS.join(", ")}.`);
-  const values = Object.fromEntries(operation.options.map((option) => [option.name, option.type === "number" ? number(option, options[option.name]) : options[option.name]]));
+  const values = Object.fromEntries(operation.options.map((option) => [option.name, optionValue(option, option.name === "method" && id === "hexbin" ? hexbinMethod(options) : options[option.name])]));
   const source = usable(turf, toFeatureCollection(input), operation.input, operation.label);
   const count = source.features.length;
   let others = null;
-  if (operation.overlay) {
+  if (operation.overlay && (overlay || !operation.overlayOptional)) {
     if (!overlay) throw invalid(`${operation.label} needs an overlay.`);
     others = usable(turf, toFeatureCollection(overlay), operation.overlay, `The overlay for ${operation.label}`);
   }
@@ -151,22 +189,8 @@ export function runSpatialOperation(turf, id, { input, overlay, options = {} } =
       return done(result.features, `${clusters.size} clusters from ${count} points; ${result.features.filter((feature) => feature.properties.dbscan === "noise").length} are noise.`);
     }
     case "hexbin": {
-      const box = turf.bbox(source);
-      const width = turf.distance([box[0], box[1]], [box[2], box[1]], { units: "kilometers" });
-      const height = turf.distance([box[0], box[1]], [box[0], box[3]], { units: "kilometers" });
-      if (((width + 6 * values.cellKm) * (height + 6 * values.cellKm)) / (2.6 * values.cellKm ** 2) > MAX_GRID_CELLS) throw invalid("That hexagon size makes too many cells for this area. Use a larger side.");
-      // hexGrid only fills its box, so the box grows by two cells to reach points on the edge.
-      const padY = (2 * values.cellKm) / 111; const padX = padY / Math.max(0.05, Math.cos((Math.max(Math.abs(box[1]), Math.abs(box[3])) * Math.PI) / 180));
-      const grid = turf.hexGrid([box[0] - padX, box[1] - padY, box[2] + padX, box[3] + padY], values.cellKm, { units: "kilometers" });
-      const cells = grid.features.map((cell) => ({ ...cell, properties: { point_count: 0 } }));
-      const boxes = cells.map((cell) => turf.bbox(cell));
-      for (const point of source.features) {
-        const [x, y] = point.geometry.coordinates;
-        const index = boxes.findIndex((b, at) => x >= b[0] && x <= b[2] && y >= b[1] && y <= b[3] && turf.booleanPointInPolygon(point, cells[at]));
-        if (index >= 0) cells[index].properties.point_count += 1;
-      }
-      const filled = cells.filter((cell) => cell.properties.point_count > 0);
-      return done(filled, `${count} points in ${filled.length} hexagons of side ${values.cellKm} km.`);
+      const result = binPoints({ turf, h3, points: source, area: others, method: values.method, resolution: values.resolution, cellKm: values.cellKm, statistic: values.statistic, field: values.field, keepEmpty: values.keepEmpty });
+      return { ...result, binning: { ...result.metadata, styleField: result.styleField, extrude: values.extrude } };
     }
     case "nearest": {
       const features = source.features.map((feature) => {
@@ -219,24 +243,35 @@ export function runSpatialOperation(turf, id, { input, overlay, options = {} } =
   }
 }
 
-/** The Turf bundle, loaded the first time it is needed. */
-export function loadTurf(documentRef = globalThis.document) {
-  if (globalThis.turf?.buffer) return Promise.resolve(globalThis.turf);
-  loadTurf.pending ||= new Promise((resolve, reject) => {
+/** A vendored UMD bundle that sets a global, loaded once. */
+function loadVendorScript(url, ready, failure, documentRef) {
+  if (ready()) return Promise.resolve(ready());
+  loadVendorScript.pending ||= new Map();
+  if (!loadVendorScript.pending.has(url)) loadVendorScript.pending.set(url, new Promise((resolve, reject) => {
     // The ArcGIS loader defines an AMD `define`, which would keep the bundle off globalThis.
     const amd = globalThis.define?.amd;
     if (amd) delete globalThis.define.amd;
     const restore = () => { if (amd) globalThis.define.amd = amd; };
     const script = documentRef.createElement("script");
-    script.src = TURF_URL;
-    script.onload = () => { restore(); resolve(globalThis.turf); };
-    script.onerror = () => { restore(); loadTurf.pending = null; reject(new Error("The spatial analysis library could not load.")); };
+    script.src = url;
+    script.onload = () => { restore(); resolve(ready()); };
+    script.onerror = () => { restore(); loadVendorScript.pending.delete(url); reject(new Error(failure)); };
     documentRef.head.append(script);
-  });
-  return loadTurf.pending;
+  }));
+  return loadVendorScript.pending.get(url);
 }
 
-/** Up to MAX_ANALYSIS_FEATURES features of a layer, under its filter. */
+/** The Turf bundle, loaded the first time it is needed. */
+export function loadTurf(documentRef = globalThis.document) {
+  return loadVendorScript(TURF_URL, () => (globalThis.turf?.buffer ? globalThis.turf : null), "The spatial analysis library could not load.", documentRef);
+}
+
+/** The h3-js bundle, loaded the first time H3 binning runs. */
+export function loadH3(documentRef = globalThis.document) {
+  return loadVendorScript(H3_URL, () => (globalThis.h3?.latLngToCell ? globalThis.h3 : null), "The H3 library could not load.", documentRef);
+}
+
+/** Up to `limit` features of a layer, under its filter. */
 export async function readLayerFeatures(mapController, uid, limit = MAX_ANALYSIS_FEATURES) {
   const layer = mapController.getLayer(uid);
   if (!layer?.queryable) throw invalid(`${layer?.title || "That layer"} cannot be analyzed. Use a vector layer.`);
@@ -255,8 +290,17 @@ export async function readLayerFeatures(mapController, uid, limit = MAX_ANALYSIS
 }
 
 /** gisMapOnline.analysis: the same operations the Tools menu runs. `layers` is the in-page layers API. */
+/** Height multiplier that makes the tallest bin a few cells tall, in metres. */
+function extrusionScale(collection, field) {
+  const values = collection.features.map((feature) => Number(feature.properties[field])).filter((value) => Number.isFinite(value) && value > 0);
+  if (!values.length) return null;
+  const areas = collection.features.map((feature) => feature.properties.cell_area_km2).sort((a, b) => a - b);
+  const across = Math.sqrt(areas[Math.floor(areas.length / 2)]) * 1000;
+  return Math.min(40000, Math.max(300, across * 3)) / Math.max(...values);
+}
+
 export function createSpatialAnalysisApi({ mapController, layers, documentRef = globalThis.document }) {
-  const resolve = async (source) => {
+  const resolve = async (source, limit = MAX_ANALYSIS_FEATURES) => {
     if (source === "drawings") {
       const drawings = mapController.getDrawings();
       if (!drawings.length) throw invalid("There are no drawings on the map.");
@@ -264,29 +308,49 @@ export function createSpatialAnalysisApi({ mapController, layers, documentRef = 
     }
     if (source && typeof source === "object") return { collection: toFeatureCollection(source), truncated: false, title: "GeoJSON" };
     const layer = layers.get(String(source));
-    return { ...(await readLayerFeatures(mapController, layer.id)), title: layer.title };
+    return { ...(await readLayerFeatures(mapController, layer.id, limit)), title: layer.title, where: layer.where || null };
+  };
+  /** Colours bins by their statistic and, if asked, raises them by it. Returns a note when 3D is unavailable. */
+  const styleBins = async (uid, collection, { styleField, extrude }) => {
+    await layers.update(uid, { renderer: { type: "choropleth", field: styleField, ramp: "viridis", method: "auto" } });
+    if (!extrude) return "";
+    const multiplier = extrusionScale(collection, styleField);
+    if (!multiplier) return " Nothing to raise in 3D: every value is zero or empty.";
+    try {
+      await mapController.setLayerSymbology(uid, { mode: "graduated", field: styleField, extrusionEnabled: true, extrusionSource: "field", extrusionField: styleField, extrusionMultiplier: multiplier });
+      return " Tilt the map to see the cells in 3D.";
+    } catch (error) {
+      return ` The cells could not be shown in 3D (${error.message}).`;
+    }
   };
   return Object.freeze({
     operations: () => structuredClone(SPATIAL_OPERATIONS),
     /** run(operation, { input, overlay, options, addToMap = true, title }): input and overlay are a layer id or title, "drawings", or GeoJSON. */
-    async run(operation, { input, overlay, options, addToMap = true, title } = {}) {
+    async run(operation, { input, overlay, options = {}, addToMap = true, title } = {}) {
       const turf = await loadTurf(documentRef);
-      const source = await resolve(input);
-      const mask = overlay === undefined || overlay === null ? null : await resolve(overlay);
-      const { collection, summary, totals } = runSpatialOperation(turf, operation, { input: source.collection, overlay: mask?.collection, options });
-      const label = SPATIAL_OPERATIONS.find((item) => item.id === operation).label;
+      const definition = SPATIAL_OPERATIONS.find((item) => item.id === operation);
+      const limit = definition?.maxInput || MAX_ANALYSIS_FEATURES;
+      const h3 = operation === "hexbin" && hexbinMethod(options || {}) === "h3" ? await loadH3(documentRef) : null;
+      const source = await resolve(input, limit);
+      const mask = overlay === undefined || overlay === null || overlay === "" ? null : await resolve(overlay);
+      const { collection, summary, totals, binning } = runSpatialOperation(turf, operation, { input: source.collection, overlay: mask?.collection, options, h3 });
       const truncated = source.truncated || Boolean(mask?.truncated);
-      const name = String(title || `${label} of ${source.title}`).slice(0, 120);
+      // Binned cells say whether they summarise every source feature, in the map and in exports.
+      if (binning) for (const feature of collection.features) feature.properties.complete = !truncated;
+      const name = String(title || `${definition.label} of ${source.title}`).slice(0, 120);
       let layer = null;
+      let styled = "";
       if (addToMap && collection.features.length) {
         const file = new File([JSON.stringify(collection)], `${name.replace(/[^\w -]+/g, "_")}.geojson`, { type: "application/geo+json" });
         const added = await mapController.addLocalFile(file);
         await layers.update(added.uid, { title: name }).catch(() => {});
         layer = { id: added.uid, title: name };
+        if (binning) styled = await styleBins(added.uid, collection, binning).catch((error) => ` The bins could not be styled (${error.message}).`);
       }
       return {
         operation, featureCount: collection.features.length, truncated, layer, ...(totals ? { totals } : {}),
-        summary: `${summary}${collection.features.length ? "" : " The result is empty."}${truncated ? ` Only the first ${MAX_ANALYSIS_FEATURES} features were used.` : ""}`,
+        ...(binning ? { binning: { ...binning, complete: !truncated, source: source.title, where: source.where || null } } : {}),
+        summary: `${summary}${collection.features.length ? "" : " The result is empty."}${truncated ? ` Only the first ${limit.toLocaleString("en-US")} features were used, so the result is incomplete.` : ""}${styled}`,
         ...(addToMap ? {} : { collection }),
       };
     },

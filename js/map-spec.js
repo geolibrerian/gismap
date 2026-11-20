@@ -19,7 +19,7 @@ import { AGGREGATIONS, CHART_TYPES, normalizeChartStyle } from "./charting-tools
 
 export const MAP_SPEC_VERSION = 1;
 export const MAP_SPEC_SCHEMA = "https://gismap.online/schemas/map-v1.schema.json";
-import { SPATIAL_OPERATION_IDS, SPATIAL_OPERATIONS } from "./spatial-analysis.js?v=0.66.0-analysis1";
+import { SPATIAL_OPERATION_IDS, SPATIAL_OPERATIONS } from "./spatial-analysis.js?v=0.67.0-hexbin";
 
 export { MAP_SPEC_JSON_LIMIT };
 
@@ -190,7 +190,7 @@ export function validateMapSpec(input, { allowHttp = false } = {}) {
     const kept = steps.filter((step, index) => {
       const operation = SPATIAL_OPERATIONS.find((item) => item.id === step?.operation);
       if (!operation) issue("warning", "INVALID_SPEC", `analysis[${index}].operation`, `Unknown analysis "${step?.operation}"; the step was ignored.`, `Use one of: ${SPATIAL_OPERATION_IDS.join(", ")}.`);
-      else if (!source(step.input) || (operation.overlay && !source(step.overlay))) issue("warning", "INVALID_SPEC", `analysis[${index}]`, "input and overlay must be a layer's position in layers, or GeoJSON; the step was ignored.");
+      else if (!source(step.input) || (operation.overlay && !(operation.overlayOptional && (step.overlay === undefined || step.overlay === null)) && !source(step.overlay))) issue("warning", "INVALID_SPEC", `analysis[${index}]`, "input and overlay must be a layer's position in layers, \"drawings\" or GeoJSON; the step was ignored.");
       else return true;
       return false;
     });
