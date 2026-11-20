@@ -1,4 +1,4 @@
-# Eight composable agent recipes and current analysis workflows
+# Ten composable agent recipes and current analysis workflows
 
 Choose every recipe needed for the user's request, not just one. Use **discover → inspect → plan → validate → execute → verify → share**. Start the first step at [GISMap Online Discover](https://gismap.online/discover/) and [Discover Examples](https://gismap.online/discover/examples/) when a user needs a starting point or a public demonstration. Use the current [Map engines guide](https://gismap.online/discover/engines/) for engine-specific decisions, then inspect the source and actual fields before reusing an example. Inspect the [capabilities](https://gismap.online/api/capabilities.json), [manifest](https://gismap.online/api/manifest.json), schemas and current engine first. Static HTTP documents, declarative URLs, standalone JavaScript utilities and an active, authorized `gisMapOnline` browser session are different execution environments; none implies a hosted authoring API. Report unavailable capabilities rather than inventing an API or silently substituting an output. Each recipe is also published as JSON at `https://gismap.online/api/agent-recipes/<id>.json` with its steps, interfaces, verification, limitations and checked examples; the catalog is `https://gismap.online/api/agent-recipes/index.json`.
 
@@ -70,6 +70,42 @@ await gisMapOnline.briefing.generateTemplate({
 ```
 
 Review the preview, then repeat with `previewOnly: false`. Verify the flat overview, attribute height, equal chronological slots, footprint-stack display, Z legend, tilted cameras, source-event identify, saved project, shared link and restoration after the Brief closes. The current implementation is MapLibre polygon fast display; spatial columns, exact polygon-overlay partitions, gridded analytical aggregation, mobile performance tuning and ArcGIS/Cesium parity are not implemented.
+
+<a id="hexagon-binning"></a>
+
+## hexagon-binning — H3 or custom hexagon map with statistics
+
+**Prompt:** “Make a hexagon map of these points” or “Show average price per hexagon in 3D.” **Inputs:** a point source (or `{ "step": n }` for points an earlier step made), method, resolution or hexagon side, statistic, numeric field, 3D. Add an analysis step to map-v1; the viewer's browser bins the points when the link opens:
+
+```json
+{"version":1,"layers":[{"url":"<POINT LAYER URL>","type":"feature"}],"analysis":[{"operation":"hexbin","input":0,"options":{"method":"h3","resolution":8,"statistic":"mean","field":"<NUMERIC FIELD>","extrude":true}}]}
+```
+
+- `method`: `h3` (default) or `turf` with `cellKm`, the hexagon side. H3 resolutions: 6 ≈ 36 km², 7 ≈ 5.2 km², 8 ≈ 0.74 km², 9 ≈ 0.11 km² per cell. Aim for about 1,000–20,000 cells over the area; more than 25,000 is slow and over 100,000 is refused.
+- `statistic`: `count` (default), `density` (points per km² of each cell's own area), or `sum`, `mean`, `min`, `max` of `field`. Blank and non-numeric values are skipped and reported; a cell without numbers gets null, never 0.
+- `extrude: true` raises the cells by the statistic (MapLibre 3D); `keepEmpty: true` keeps cells with no points; an `overlay` polygon layer is a study area (whole cells, never clipped); `"area": "view"` reads only features in the current view.
+- Each cell records `h3_id` and `h3_resolution` (or `cell_id` and `cell_side_km`), `point_count`, `cell_area_km2`, `density_km2`, `<field>_sum|_mean|_min|_max`, `value_count` and `complete`. The layer is coloured by the statistic's property, such as `represents_sum` or `point_count`.
+- At most 100,000 points are read. On MapLibre a big ArcGIS layer holds only its first 50,000 features, so filter with `where` or use `"area": "view"` with a camera. A summary that starts “Incomplete:” means not every feature was read: report it.
+- In a running page: `gisMapOnline.analysis.run("hexbin", { input, overlay, options })` returns `summary`, `binning` metadata and the new layer.
+
+Worked example (rendered): [Ventura County population in 3D hexagons](https://gismap.online/discover/examples/), census blocks → dots → H3 cells. Machine-readable: https://gismap.online/api/agent-recipes/hexagon-binning.json
+
+<a id="dot-density"></a>
+
+## dot-density — random dots from polygon counts
+
+**Prompt:** “Make a dot-density map of population, one dot per 50 people.” **Inputs:** a polygon source, a count field (not a rate), the amount per dot and a seed.
+
+```json
+{"analysis":[{"operation":"random-points","input":0,"options":{"field":"P0010001","unitsPerPoint":50,"seed":1}}]}
+```
+
+- Leave out `unitsPerPoint` for about 10,000 dots; at most 100,000 dots and 50,000 polygons. Sum the field first: total ÷ unitsPerPoint is the dot count.
+- Dots are spread evenly by area inside each polygon; fractions become a dot with that probability, so totals stay right. A multipolygon shares its value across its parts.
+- The seed makes the dots the same for everyone; they are random positions, never addresses, and must be described that way.
+- Each dot records `polygon_index` and `represents`. Chain a hexagon map with `{"operation":"hexbin","input":{"step":0},"options":{"statistic":"sum","field":"represents"}}`; `"visible": false` on the random-points step hides the dots.
+
+Machine-readable: https://gismap.online/api/agent-recipes/dot-density.json
 
 <a id="lidar-and-3d-models"></a>
 

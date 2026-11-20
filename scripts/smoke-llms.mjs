@@ -64,7 +64,7 @@ export async function smokeLlms(base, { matchLocal = false, fetcher = fetch } = 
   // Cloudflare Web Analytics injects its beacon into HTML responses; it is not part of the deployment artifact.
   const withoutBeacon = (html) => html.replace(/<script\b[^>]*static\.cloudflareinsights\.com\/beacon[^>]*><\/script>\s*/g, '');
   if (matchLocal) assert.equal(withoutBeacon(skillPage.content), await readFile(new URL('../skills/index.html', import.meta.url), 'utf8'), 'Skill page differs from checkout (stale cache or wrong deployment)');
-  for (const [path, heading] of [['/skills/gismap/SKILL.md', /^---\r?\nname: gismap\r?\n/], ['/skills/gismap/references/agent-recipes.md', /^# Eight composable agent recipes\b/]]) {
+  for (const [path, heading] of [['/skills/gismap/SKILL.md', /^---\r?\nname: gismap\r?\n/], ['/skills/gismap/references/agent-recipes.md', /^# \w+ composable agent recipes\b/]]) {
     const { response, content } = await request(path);
     assert.equal(response.status, 200, `${path} must be served directly`);
     assert.match(response.headers.get('content-type') || '', /^text\/plain\s*;\s*charset\s*=\s*utf-8\s*$/i, `${path} must be UTF-8 plain text`);

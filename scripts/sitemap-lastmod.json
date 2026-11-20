@@ -216,8 +216,8 @@
     "lastmod": "2026-11-02"
   },
   "/agent-recipes/": {
-    "hash": "dc7d2c1cd267094f",
-    "lastmod": "2026-11-17"
+    "hash": "4fe9f925d4cd0f74",
+    "lastmod": "2026-11-20"
   },
   "/agent-recipes/interactive-map/": {
     "hash": "795ab5ad45bba8b2",
@@ -243,6 +243,14 @@
     "hash": "0b513fb7291f0f77",
     "lastmod": "2026-11-02"
   },
+  "/agent-recipes/hexagon-binning/": {
+    "hash": "85daf951c1f1d05e",
+    "lastmod": "2026-11-20"
+  },
+  "/agent-recipes/dot-density/": {
+    "hash": "aaa3bb8f3533fead",
+    "lastmod": "2026-11-20"
+  },
   "/agent-recipes/lidar-and-3d-models/": {
     "hash": "14024aa1cde52a2f",
     "lastmod": "2026-11-02"
@@ -260,8 +268,8 @@
     "lastmod": "2026-11-02"
   },
   "/skills/": {
-    "hash": "f7b5faa57cea40b7",
-    "lastmod": "2026-11-17"
+    "hash": "3481be3eab7b7507",
+    "lastmod": "2026-11-20"
   },
   "/api/explorer/": {
     "hash": "7f24cad94b444c70",
@@ -272,11 +280,11 @@
     "lastmod": "2026-11-02"
   },
   "/llms.txt": {
-    "hash": "bc9bfa9ff02d4628",
+    "hash": "9a8f896c4eb47d56",
     "lastmod": "2026-11-20"
   },
   "/llms-full.txt": {
-    "hash": "538a6fc1f70d1a5b",
+    "hash": "396a2a25643d280e",
     "lastmod": "2026-11-20"
   },
   "/api/catalog.json": {

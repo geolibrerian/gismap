@@ -81,6 +81,28 @@ export const PARK_TASK = Object.freeze({
 });
 
 const PHILLY_PAGE = `${SITE}/examples/ai/philadelphia-police-divisions/`;
+export const CENSUS_BLOCKS_URL = "https://services.arcgis.com/P3ePLMYs2RVChkJx/arcgis/rest/services/California_Census_2020_Redistricting_Blocks/FeatureServer/0";
+const VENTURA_BLOCKS = { url: CENSUS_BLOCKS_URL, type: "feature", title: "Ventura County census blocks (2020)", where: "County_Name = 'Ventura County' AND P0010001 > 0" };
+const VENTURA_CAMERA = { center: [-119.08, 34.17], zoom: 10.4, heading: 350, tilt: 55 };
+const VENTURA_DOTS_STEP = { operation: "random-points", input: 0, options: { field: "P0010001", unitsPerPoint: 20, seed: 1 }, title: "People, one dot per 20" };
+
+/** The Discover example: census blocks to dots to 3D H3 hexagons, computed in the browser. */
+export const VENTURA_HEXAGONS = Object.freeze({
+  version: 1, title: "Ventura County population in hexagons", basemap: "topo-3d", camera: VENTURA_CAMERA, legend: true,
+  layers: [{ ...VENTURA_BLOCKS, visible: false }],
+  analysis: [
+    { ...VENTURA_DOTS_STEP, visible: false },
+    { operation: "hexbin", input: { step: 0 }, options: { method: "h3", resolution: 8, statistic: "sum", field: "represents", extrude: true }, title: "Population per H3 cell" },
+  ],
+});
+
+/** The same blocks as a dot-density map: one dot per 50 people, over the block outlines. */
+export const VENTURA_DOTS = Object.freeze({
+  version: 1, title: "Ventura County population, one dot per 50 people", basemap: "gray-vector", camera: { center: [-119.1, 34.25], zoom: 9.6 },
+  layers: [{ ...VENTURA_BLOCKS, opacity: 0.35, renderer: { type: "simple", color: "#c9cdd2", outline: "#ffffff" } }],
+  analysis: [{ ...VENTURA_DOTS_STEP, options: { ...VENTURA_DOTS_STEP.options, unitsPerPoint: 50 }, title: "People, one dot per 50" }],
+});
+
 const SOURCES = {
   grape: { label: "USDA Census of Agriculture 2022 grape production (Esri)", url: GRAPE_URL },
   fires: { label: "California historic fire perimeters (CAL FIRE)", url: FIRE_SOURCE },
@@ -88,6 +110,7 @@ const SOURCES = {
   mlb: { label: "Major League Baseball Stadiums", url: MLB },
   osm: { label: "OpenStreetMap Nominatim (place coordinates)", url: "https://nominatim.openstreetmap.org/" },
   autzen: { label: "PDAL sample LiDAR: Autzen Stadium, Eugene, Oregon (LAS 1.2, RGB)", url: AUTZEN_LAS },
+  blocks: { label: "California Census 2020 Redistricting Blocks (Esri, U.S. Census Bureau)", url: CENSUS_BLOCKS_URL },
 };
 
 const common = {
@@ -109,6 +132,9 @@ export function agentRecipeLinks({ phillyLink, ballparksLink, openingDayLink }) 
     parkTask: createFieldTaskUrl({ baseUrl: `${SITE}/`, task: PARK_TASK }),
     parkTaskReadable: createFieldTaskUrl({ baseUrl: `${SITE}/`, task: PARK_TASK, readable: true }),
     lidar: readableLink(LIDAR_MAP),
+    venturaHexagons: readableLink(VENTURA_HEXAGONS),
+    venturaHexagonsTutorial: readableLink(VENTURA_HEXAGONS).replace(`${SITE}/#`, `${SITE}/?tutorial=hex-population#`),
+    venturaDots: readableLink(VENTURA_DOTS),
     lidarGround: readableLink(LIDAR_GROUND),
     grapeBriefing: readableLink(Object.fromEntries(Object.entries(GRAPE_BRIEFING).filter(([, value]) => value !== undefined))),
     philly: phillyLink, ballparks: ballparksLink, openingDay: openingDayLink,
@@ -314,6 +340,80 @@ export function agentRecipes(links) {
       limitations: ["MapLibre and ArcGIS engines; the ArcGIS SceneView draws extrude symbols with a meters size variable and Decode() base heights.", "Fast display: no exact overlap partition or unique-area totals.", "At most 40 groups."],
       recovery: ["Filter the layer or use a coarser group field when there are more than 40 values."],
       examples: [example({ title: "See the skill reference", prompt: "Separate these overlapping fire perimeters by year.", dataset: [SOURCES.fires], page: `${SITE}/skills/gismap/references/briefs.md`, status: "prepared", checks: ["No published link yet."] })],
+    },
+    {
+      id: "hexagon-binning", title: "Hexagon binning (H3 or custom hexagons) with statistics", status: "available",
+      question: "Can an AI agent turn points into a hexagon map, in 2D or 3D, that I can share?",
+      answer: "Yes. A map-v1 analysis step runs the hexbin operation in the viewer's browser when the link opens: points are summarised in H3 cells (or Turf hexagons of a chosen side) by count, density per km², or the sum, mean, min or max of a numeric field. The result is a coloured, optionally 3D layer. Polygon data becomes points first with the random-points step (the dot-density recipe), chained with { \"step\": 0 }.",
+      triggers: ["Make a hexagon map of these points", "Bin these incidents into H3 hexagons and extrude them in 3D", "Show average price per hexagon", "Make a population hexagon map from census blocks"],
+      inputTypes: ["Point FeatureServer layer", "Point GeoJSON or CSV with coordinates", "Points made by an earlier random-points step"],
+      inputs: {
+        required: [{ name: "source", description: "A point layer, or { \"step\": n } for an earlier step's points." }],
+        optional: [
+          { name: "method", description: "h3 (default; resolution 0-15, 7 is about 5 km², 8 about 0.74 km², 9 about 0.1 km²) or turf with cellKm (hexagon side)." },
+          { name: "statistic", description: "count (default), density (points per km² of each cell's own area), or sum, mean, min, max of a numeric field." },
+          { name: "field", description: "Numeric field for sum, mean, min and max. Blank and non-numeric values are skipped and reported; a cell with no numbers gets null, not 0." },
+          { name: "extrude", description: "true raises cells by the statistic (MapLibre 3D)." },
+          { name: "keepEmpty", description: "true keeps cells with no points (count 0) across the data or study area." },
+          { name: "overlay", description: "A polygon layer as the study area: whole cells that touch it are kept, never clipped." },
+          { name: "area", description: "\"view\" reads only features in the current map view; use with a camera for layers beyond the limit." },
+        ],
+      },
+      capabilities: ["view-3d", "renderer-spec"],
+      engines: ["maplibre", "arcgis"],
+      steps: [
+        common.discover, common.inspectSource,
+        { stage: "plan", action: "Confirm point geometry and the feature count. Pick a resolution from the area (about 1,000 to 20,000 cells reads well) and a statistic; check that the field is numeric. Up to 100,000 points are read: filter with where (or use area \"view\" with a camera) when the layer has more, and say so.", interfaces: ["standalone-js"], references: ["sources.inspect"] },
+        { stage: "validate", action: "Add { \"operation\": \"hexbin\", \"input\": 0, \"options\": {...} } to analysis and validate the spec; unknown options and bad inputs are reported.", interfaces: ["standalone-js", "in-browser-api"], references: ["mapSpec.validate"] },
+        { stage: "execute", action: "Return the #map=json: link; the browser bins the points when it opens. In a running page, analysis.run(\"hexbin\", { input, options }) does the same and returns a summary and binning metadata.", interfaces: ["declarative-url", "in-browser-api"], references: [MAP_SCHEMA, "mapSpec.createLink", "analysis.run"] },
+        { stage: "verify", action: "Open the link: the hexagon layer is listed with a choropleth on the statistic, and the summary does not start with \"Incomplete:\". Report skipped points and an incomplete read if either appears.", interfaces: ["in-browser-api"], references: ["layers.list"] },
+        { stage: "share", action: "Return the link. Results are recomputed for each viewer; the link carries the steps, not the cells.", interfaces: ["declarative-url"], references: ["mapSpec.createLink"] },
+      ],
+      artifact: { type: "map", schema: MAP_SCHEMA, structure: "map-v1 with a point layer (or a random-points step) and an analysis step { operation: \"hexbin\" }." },
+      outputs: [
+        { format: "Interactive hexagon map link", interface: "declarative-url", interactive: true, reference: "mapSpec.createLink" },
+        { format: "Hexagon GeoJSON layer in the page (h3_id or cell_id, point_count, cell_area_km2, density_km2, field statistics, complete)", interface: "in-browser-api", interactive: true, reference: "analysis.run" },
+      ],
+      verification: ["Input is points", "Cell count is readable (not over 100,000)", "Legend names the statistic", "Summary has no \"Incomplete:\" or the gap is reported", "Skipped points reported"],
+      limitations: ["Reads up to 100,000 points; MapLibre holds at most 50,000 features of a big ArcGIS layer, so filter it or use area \"view\".", "Points only: lines and polygons are not split by area; turn polygons with a count into points with random-points first.", "Cells are recomputed in each viewer's browser; nothing is stored on a server.", "3D cells need the MapLibre engine; ArcGIS 2D colours them flat."],
+      recovery: ["\"Too many cells\": lower the resolution, use a larger cellKm, drop keepEmpty or narrow the area.", "\"Incomplete:\" in the summary: add a where filter or area \"view\" with a closer camera.", "\"needs a numeric field\": choose a numeric field or use count or density."],
+      examples: [
+        example({ title: "Ventura County population in 3D hexagons", prompt: "Make a 3D hexagon map of Ventura County's population from the 2020 census blocks.", dataset: [SOURCES.blocks], url: links.venturaHexagons, spec: VENTURA_HEXAGONS, status: "rendered", checkedOn: "2026-11-20", checkedVersion: "0.54.0", checks: ["Opened on MapLibre: 7,843 blocks loaded, 42,232 dots (hidden) and 1,408 H3 resolution 8 cells drawn in 3D with a legend; no console errors.", "The same link with ?tutorial=hex-population starts a seven-step tutorial.", "ArcGIS engine not checked."] }),
+      ],
+    },
+    {
+      id: "dot-density", title: "Dot-density points from polygon counts", status: "available",
+      question: "Can an AI agent make a dot-density map, one dot per so many people, from polygons with counts?",
+      answer: "Yes. The random-points analysis step places one random dot per amount of a polygon's numeric field (one per 50 people, say) inside each polygon, spread evenly by area. The generator is seeded, so everyone who opens the link sees the same dots. The dots carry represents, so a following hexbin step can sum them into equal-area hexagons.",
+      triggers: ["Make a dot-density map of population", "One dot per 100 people from these census tracts", "Turn these polygons with counts into points I can bin"],
+      inputTypes: ["Polygon FeatureServer layer with a count field", "Polygon GeoJSON with a count field"],
+      inputs: {
+        required: [{ name: "source", description: "A polygon layer." }, { name: "field", description: "A numeric count field, such as population." }],
+        optional: [
+          { name: "unitsPerPoint", description: "Amount per dot; leave out for about 10,000 dots. At most 100,000 dots." },
+          { name: "seed", description: "Whole number; change it for a different but equally valid layout." },
+          { name: "area", description: "\"view\" reads only polygons in the current map view." },
+          { name: "visible", description: "false on the step hides the dots, such as when a hexbin step bins them." },
+        ],
+      },
+      capabilities: ["renderer-spec"],
+      engines: ["maplibre", "arcgis"],
+      steps: [
+        common.discover, common.inspectSource,
+        { stage: "plan", action: "Confirm polygon geometry and a count field (not a rate or percentage). Sum the field over the filter to choose unitsPerPoint: total ÷ unitsPerPoint is the dot count, which should stay under 100,000. Up to 50,000 polygons are read; filter with where for bigger layers.", interfaces: ["standalone-js"], references: ["sources.inspect"] },
+        { stage: "validate", action: "Add { \"operation\": \"random-points\", \"input\": 0, \"options\": { \"field\": \"POP\", \"unitsPerPoint\": 50, \"seed\": 1 } } and validate the spec.", interfaces: ["standalone-js", "in-browser-api"], references: ["mapSpec.validate"] },
+        { stage: "execute", action: "Return the #map=json: link, or run analysis.run(\"random-points\", ...) in a page. To bin the dots, add a hexbin step with input { \"step\": 0 } and statistic sum of represents.", interfaces: ["declarative-url", "in-browser-api"], references: [MAP_SCHEMA, "mapSpec.createLink", "analysis.run"] },
+        { stage: "verify", action: "Open the link and check the dot count in the summary against total ÷ unitsPerPoint, and that it does not start with \"Incomplete:\".", interfaces: ["in-browser-api"], references: ["layers.list"] },
+        { stage: "share", action: "Return the link and say that dots are placed at random inside each polygon, not at addresses.", interfaces: ["declarative-url"], references: ["mapSpec.createLink"] },
+      ],
+      artifact: { type: "map", schema: MAP_SCHEMA, structure: "map-v1 with a polygon layer and an analysis step { operation: \"random-points\" }." },
+      outputs: [{ format: "Interactive dot-density map link", interface: "declarative-url", interactive: true, reference: "mapSpec.createLink" }],
+      verification: ["Field is a count", "Dot count ≈ total ÷ unitsPerPoint", "No \"Incomplete:\" in the summary, or the gap is reported", "Map text says dots are random within polygons"],
+      limitations: ["Dots are random positions inside each polygon, not real locations: never present them as addresses.", "Rates and percentages cannot become dots; use a count.", "Reads up to 50,000 polygons and makes up to 100,000 dots."],
+      recovery: ["\"too many points\": raise unitsPerPoint to the amount the message suggests.", "\"Incomplete:\": filter the layer with where, or use area \"view\" with a closer camera."],
+      examples: [
+        example({ title: "Ventura County, one dot per 50 people", prompt: "Make a dot-density map of Ventura County's population from census blocks, one dot per 50 people.", dataset: [SOURCES.blocks], url: links.venturaDots, spec: VENTURA_DOTS, status: "rendered", checkedOn: "2026-11-20", checkedVersion: "0.54.0", checks: ["Opened on MapLibre: 7,843 blocks loaded and 16,886 dots drawn (843,843 people ÷ 50 ≈ 16,877); no console errors.", "The block outlines follow the publisher's scale range and are hidden at the opening zoom; zoom in to see them.", "ArcGIS engine not checked."] }),
+      ],
     },
     {
       id: "lidar-and-3d-models", title: "LiDAR point clouds and 3D models (utility and vegetation data)", status: "experimental",

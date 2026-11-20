@@ -41,6 +41,14 @@ const RECIPE_META = Object.freeze({
   "field-tasks": {
     "description": "Have an AI agent create a location-based field task package that people open by link or QR code, complete on site and send back."
   },
+  "hexagon-binning": {
+    "title": "Hexagon binning maps with H3 and statistics",
+    "description": "Have an AI agent turn points into an H3 or custom hexagon map, by count, density or a field's statistics, in 2D or 3D, shared as one link."
+  },
+  "dot-density": {
+    "title": "Dot-density maps from polygon counts",
+    "description": "Have an AI agent make a dot-density map, one random dot per so many people inside each polygon, that can feed a hexagon map."
+  },
   "3d-extrusion": {
     "description": "Have an AI agent make a 3D map with numeric or fixed-height extrusions, such as county heights by acreage, shared as one link."
   },
