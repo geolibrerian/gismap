@@ -7,7 +7,8 @@ const MULTI_CLICK_HINT = "Click to add points, then double-click to finish.";
 const DRAW_HINTS = { point: "Click the map to place the point.", polyline: MULTI_CLICK_HINT, polygon: MULTI_CLICK_HINT, rectangle: "Drag on the map to draw the rectangle." };
 const DRAW_TYPES = [["point", "Point"], ["polyline", "Line"], ["polygon", "Polygon"], ["rectangle", "Rectangle"]];
 
-export function openSpatialAnalysis(ui, analysis) {
+/** `preset` picks the operation and input to start with, as a layer card's Hexagon map does. */
+export function openSpatialAnalysis(ui, analysis, preset = {}) {
   const groups = [...new Set(SPATIAL_OPERATIONS.map((item) => item.group))];
   const operationOptions = groups.map((group) => `<optgroup label="${group}">${SPATIAL_OPERATIONS.filter((item) => item.group === group).map((item) => `<option value="${item.id}">${escapeHtml(item.label)}</option>`).join("")}</optgroup>`).join("");
   ui.openDialog({
@@ -120,8 +121,11 @@ export function openSpatialAnalysis(ui, analysis) {
       get("run").disabled = false;
     }
   });
+  if (SPATIAL_OPERATIONS.some((item) => item.id === preset.operation)) get("operation").value = preset.operation;
   renderOperation();
   refreshSources();
+  if (current().overlayOptional) get("overlay").value = "";
+  if (preset.input && [...get("input").options].some((option) => option.value === preset.input)) get("input").value = preset.input;
   refreshFields();
   const refresh = setInterval(() => {
     if (!root.isConnected) clearInterval(refresh);

@@ -151,3 +151,11 @@ test("map links accept hexbin steps with or without a study area", () => {
   const bad = validateMapSpec({ version: 1, layers, analysis: [{ operation: "clip", input: 0 }] });
   assert.equal(bad.spec.analysis, undefined);
 });
+
+test("point layer cards open Hexagon binning with the layer chosen", () => {
+  const ui = readFileSync(new URL("../js/ui.js", import.meta.url), "utf8");
+  const panel = readFileSync(new URL("../js/spatial-analysis-panel.js", import.meta.url), "utf8");
+  assert.match(ui, /layer\.queryable && \/point\/i\.test\(layer\.geometryType \|\| ""\) \? '<button data-layer-action="hexbin"[^>]*>Hexagon map<\/button>'/);
+  assert.match(ui, /case "hexbin": \{[\s\S]*?openSpatialAnalysis\(this, globalThis\.gisMapOnline\.analysis, \{ operation: "hexbin", input: uid \}\)/);
+  assert.match(panel, /export function openSpatialAnalysis\(ui, analysis, preset = \{\}\)/);
+});
