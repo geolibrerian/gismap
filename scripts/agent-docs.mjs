@@ -305,6 +305,8 @@ Finished maps, linked charts and Instant Dashboards, briefings, guided tours, fi
 | Show me these locations in sequence | [geographic-tour](${SITE}/skills/#recipe-geographic-tour) | Guided geographic tour |
 | Inspect this location and complete these tasks | [field-tasks](${SITE}/skills/#recipe-field-tasks) | Five-task fieldwork package |
 | Make the county heights represent acreage | [3d-extrusion](${SITE}/skills/#recipe-3d-extrusion) | 3D extruded map |
+| Make a hexagon map of these points, in 2D or 3D | [hexagon-binning](${SITE}/skills/#recipe-hexagon-binning) | H3 or custom hexagon map with statistics |
+| Make a dot-density map, one dot per 50 people | [dot-density](${SITE}/skills/#recipe-dot-density) | Random dots from polygon counts, optionally binned into hexagons |
 | Separate overlapping events by year and height | [spatial-3d-chart](${SITE}/skills/#recipe-spatial-3d-chart) | 3D spatial chart and five-scene Brief |
 | Show this LiDAR or CAD model in 3D | [lidar-and-3d-models](${SITE}/skills/#recipe-lidar-and-3d-models) | Point cloud or 3D model map |
 | Make a printable map, poster or Smart Map Image | [print-map](${SITE}/agent-recipes/print-map/) | Branded PDF or Smart Image |

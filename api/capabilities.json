@@ -137,6 +137,10 @@
     "project": [
       "exportFile",
       "exportPackage"
+    ],
+    "analysis": [
+      "operations",
+      "run"
     ]
   },
   "outputs": [
