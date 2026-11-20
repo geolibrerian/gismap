@@ -8,6 +8,8 @@ import { randomPointsByValue } from "./random-points.js?v=0.1.0";
 export const MAX_ANALYSIS_FEATURES = 20000;
 /** Binning only counts, so it reads more of a layer. */
 export const MAX_BINNING_FEATURES = 100000;
+/** Random points read polygons, which are heavier than points. */
+export const MAX_RANDOM_POINT_POLYGONS = 50000;
 const MAX_GRID_CELLS = 50000;
 const PAGE_SIZE = 1000;
 const TURF_URL = new URL("./vendor/turf-7.4.0.min.js", import.meta.url).href;
@@ -16,6 +18,8 @@ const H3_URL = new URL("./vendor/h3-js-4.5.0.umd.js", import.meta.url).href;
 const distance = (name, label, value) => ({ name, label, type: "number", default: value, min: 0.001, max: 40000, unit: "km" });
 
 const STATISTIC_LABELS = { count: "Point count", density: "Points per km²", sum: "Sum of a field", mean: "Mean of a field", min: "Minimum of a field", max: "Maximum of a field" };
+/** Which of a layer's features an operation reads: all of them, or those in the map view when it runs. */
+const AREA_OPTION = { name: "area", label: "Features", type: "choice", default: "layer", choices: [["layer", "Whole layer"], ["view", "In the current map view"]] };
 const FIELD_STATISTICS = BIN_STATISTICS.filter((name) => !["count", "density"].includes(name));
 
 /**
@@ -43,15 +47,17 @@ export const SPATIAL_OPERATIONS = Object.freeze([
       { ...distance("cellKm", "Hexagon side", 10), when: { method: ["turf"] } },
       { name: "statistic", label: "Statistic", type: "choice", default: "count", choices: BIN_STATISTICS.map((name) => [name, STATISTIC_LABELS[name]]) },
       { name: "field", label: "Numeric field", type: "field", when: { statistic: FIELD_STATISTICS } },
+      AREA_OPTION,
       { name: "keepEmpty", label: "Keep empty cells", type: "boolean", default: false },
       { name: "extrude", label: "Show in 3D", type: "boolean", default: false },
     ],
   },
   {
-    id: "random-points", label: "Random points from a value", group: "Points", input: "polygon",
+    id: "random-points", label: "Random points from a value", group: "Points", input: "polygon", maxInput: MAX_RANDOM_POINT_POLYGONS,
     description: "Places one random point per amount of a numeric field, such as one per 100 people, inside each polygon: a dot-density map, and points Hexagon binning can summarise.",
     options: [
       { name: "field", label: "Numeric field", type: "field" },
+      AREA_OPTION,
       { name: "unitsPerPoint", label: "Amount per point (blank: about 10,000 points)", type: "number", optional: true, min: 0.000001, max: 1e12 },
       { name: "seed", label: "Random seed", type: "number", integer: true, default: 1, min: 0, max: 4294967295 },
     ],
@@ -286,22 +292,40 @@ export function loadH3(documentRef = globalThis.document) {
   return loadVendorScript(H3_URL, () => (globalThis.h3?.latLngToCell ? globalThis.h3 : null), "The H3 library could not load.", documentRef);
 }
 
-/** Up to `limit` features of a layer, under its filter. */
-export async function readLayerFeatures(mapController, uid, limit = MAX_ANALYSIS_FEATURES) {
+/**
+ * Up to `limit` features of a layer, under its filter; with `area: "view"`, only those
+ * in the current map view. `total` is how many there are, when `truncated` says not all were read.
+ */
+export async function readLayerFeatures(mapController, uid, limit = MAX_ANALYSIS_FEATURES, { area = "layer" } = {}) {
   const layer = mapController.getLayer(uid);
   if (!layer?.queryable) throw invalid(`${layer?.title || "That layer"} cannot be analyzed. Use a vector layer.`);
+  // The view is fixed when reading starts, so every page covers the same area.
+  const geometry = area === "view" ? mapController.getViewExtent() : null;
+  if (area === "view" && !geometry) throw invalid("The map view is not ready yet.");
+  const filter = { where: layer.where || "1=1", ...(geometry ? { geometry } : {}) };
   const features = [];
   let truncated = false;
-  for (let start = 0; ; start += PAGE_SIZE) {
-    const params = { where: layer.where || "1=1", outFields: ["*"], returnGeometry: true, outSpatialReference: { wkid: 4326 }, start, num: PAGE_SIZE };
+  for (let start = 0; ;) {
+    const params = { ...filter, outFields: ["*"], returnGeometry: true, outSpatialReference: { wkid: 4326 }, start, num: PAGE_SIZE };
     if (layer.objectIdField) params.orderByFields = [layer.objectIdField];
-    const page = (await mapController.queryFeatures(uid, params, { layerDefaults: false })).features || [];
+    const result = await mapController.queryFeatures(uid, params, { layerDefaults: false });
+    const page = result.features || [];
     features.push(...page.map((feature) => graphicToGeoJSONFeature(feature)));
-    const more = page.length === PAGE_SIZE && layer.paginated !== false;
+    start += page.length;
+    // A service may send fewer than asked and say there are more.
+    const more = page.length > 0 && layer.paginated !== false && (page.length === PAGE_SIZE || Boolean(result.exceededTransferLimit));
     if (features.length >= limit) { truncated = more || features.length > limit; break; }
-    if (!more) { truncated = page.length === PAGE_SIZE; break; }
+    if (!more) { truncated = Boolean(result.exceededTransferLimit) || (page.length === PAGE_SIZE && layer.paginated === false); break; }
   }
-  return { collection: toFeatureCollection({ type: "FeatureCollection", features: features.slice(0, limit) }), truncated };
+  // On MapLibre a big service layer is held only in part; a whole-layer read cannot be complete.
+  const partLayer = Boolean(layer.truncated) && !geometry;
+  truncated ||= partLayer;
+  let total = null;
+  if (truncated) {
+    const count = await mapController.queryFeatureCount(uid, filter, { layerDefaults: false }).catch(() => null);
+    total = Number.isFinite(count) ? { count, atLeast: partLayer } : null;
+  }
+  return { collection: toFeatureCollection({ type: "FeatureCollection", features: features.slice(0, limit) }), truncated, total };
 }
 
 /** gisMapOnline.analysis: the same operations the Tools menu runs. `layers` is the in-page layers API. */
@@ -314,8 +338,17 @@ function extrusionScale(collection, field) {
   return Math.min(40000, Math.max(300, across * 3)) / Math.max(...values);
 }
 
+/** Leads a result read from only part of its layer, saying how much and how to cover the rest. */
+function incompleteNote(source, limit, area) {
+  const used = source.collection.features.length.toLocaleString("en-US");
+  const where = area === "view" ? " in view" : "";
+  const of = source.total ? ` of ${source.total.atLeast ? "more than " : ""}${source.total.count.toLocaleString("en-US")}` : "";
+  const fix = area === "view" ? "Zoom in further or filter the layer to cover them all." : "Zoom in and choose In the current map view, or filter the layer, to cover them all.";
+  return `Incomplete: used the first ${used}${of} features${where} (the limit is ${limit.toLocaleString("en-US")}). ${fix}`;
+}
+
 export function createSpatialAnalysisApi({ mapController, layers, documentRef = globalThis.document }) {
-  const resolve = async (source, limit = MAX_ANALYSIS_FEATURES) => {
+  const resolve = async (source, limit = MAX_ANALYSIS_FEATURES, area = "layer") => {
     if (source === "drawings") {
       const drawings = mapController.getDrawings();
       if (!drawings.length) throw invalid("There are no drawings on the map.");
@@ -323,7 +356,7 @@ export function createSpatialAnalysisApi({ mapController, layers, documentRef = 
     }
     if (source && typeof source === "object") return { collection: toFeatureCollection(source), truncated: false, title: "GeoJSON" };
     const layer = layers.get(String(source));
-    return { ...(await readLayerFeatures(mapController, layer.id, limit)), title: layer.title, where: layer.where || null };
+    return { ...(await readLayerFeatures(mapController, layer.id, limit, { area })), title: layer.title, where: layer.where || null };
   };
   /** Colours bins by their statistic and, if asked, raises them by it. Returns a note when 3D is unavailable. */
   const styleBins = async (uid, collection, { styleField, extrude }) => {
@@ -346,13 +379,14 @@ export function createSpatialAnalysisApi({ mapController, layers, documentRef = 
       const definition = SPATIAL_OPERATIONS.find((item) => item.id === operation);
       const limit = definition?.maxInput || MAX_ANALYSIS_FEATURES;
       const h3 = operation === "hexbin" && hexbinMethod(options || {}) === "h3" ? await loadH3(documentRef) : null;
-      const source = await resolve(input, limit);
+      const area = definition?.options.some((option) => option.name === "area") && options?.area === "view" ? "view" : "layer";
+      const source = await resolve(input, limit, area);
       const mask = overlay === undefined || overlay === null || overlay === "" ? null : await resolve(overlay);
       const { collection, summary, totals, binning, randomPoints } = runSpatialOperation(turf, operation, { input: source.collection, overlay: mask?.collection, options, h3 });
       const truncated = source.truncated || Boolean(mask?.truncated);
       // Binned cells say whether they summarise every source feature, in the map and in exports.
       if (binning) for (const feature of collection.features) feature.properties.complete = !truncated;
-      const name = String(title || `${definition.label} of ${source.title}`).slice(0, 120);
+      const name = `${String(title || `${definition.label} of ${source.title}`).slice(0, 107)}${truncated ? " (incomplete)" : ""}`;
       let layer = null;
       let styled = "";
       if (addToMap && collection.features.length) {
@@ -368,7 +402,7 @@ export function createSpatialAnalysisApi({ mapController, layers, documentRef = 
         operation, featureCount: collection.features.length, truncated, layer, ...(totals ? { totals } : {}),
         ...(randomPoints ? { randomPoints } : {}),
         ...(binning ? { binning: { ...binning, complete: !truncated, source: source.title, where: source.where || null } } : {}),
-        summary: `${summary}${collection.features.length ? "" : " The result is empty."}${truncated ? ` Only the first ${limit.toLocaleString("en-US")} features were used, so the result is incomplete.` : ""}${styled}`,
+        summary: `${truncated ? `${incompleteNote(source, limit, area)} ` : ""}${summary}${collection.features.length ? "" : " The result is empty."}${styled}`,
         ...(addToMap ? {} : { collection }),
       };
     },

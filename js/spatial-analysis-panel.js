@@ -1,5 +1,5 @@
 // Tools > Spatial Analysis: choose layers or drawings, draw on the map, add the result as a layer.
-import { SPATIAL_OPERATIONS } from "./spatial-analysis.js?v=0.68.0-dots";
+import { SPATIAL_OPERATIONS } from "./spatial-analysis.js?v=0.69.0-extent";
 
 const escapeHtml = (value) => String(value ?? "").replace(/[&<>"']/g, (char) => `&#${char.charCodeAt(0)};`);
 const GEOMETRY_NOTE = { polygon: "polygons", point: "points", any: "any geometry" };

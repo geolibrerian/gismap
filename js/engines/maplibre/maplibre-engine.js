@@ -40,13 +40,13 @@ const LAYER_EFFECT_VIEW_FIRST = 800;
 const SETTLED_EDGES_PREFIX = "cinematic-edges:";
 // Native animated effects (Rise, Reveal) use this source/layer prefix.
 const NATIVE_EFFECT_PREFIX = "cinematic-native:";
-import { MAX_FEATURES, describeArcGIS, featureServiceLayers, fetchFeatures, fetchGeometries, queryServiceIds, serviceLegend } from "./arcgis-service.js?v=0.71.0-subsurface";
+import { MAX_FEATURES, describeArcGIS, featureServiceLayers, fetchFeatures, fetchGeometries, queryServiceIds, serviceLegend } from "./arcgis-service.js?v=0.75.0-extent";
 import { OBJECT_ID_FIELD, boundsIntersect, boundsOf, expandBounds, geometryTypeOf, inferFields, normalizeFeatures, regroupPolygon, representativePoint } from "./geojson.js?v=0.42.0";
 import { loadMaplibre } from "./maplibre-loader.js?v=0.62.5-amd-safe";
 import { HILLSHADE_LAYER_ID, HILLSHADE_SOURCE_ID, MAPLIBRE_GROUNDS, TERRAIN_SOURCE_ID, isTerrainTileFailure, hillshadeLayer, maplibreGround, terrainSource } from "./terrain.js?v=0.43.0";
 import { SPATIAL_CHART_DIM, normalizeSpatialChart, spatialChartAxis, spatialChartLayerSpecs, spatialChartLegend } from "../../spatial-chart.js?v=0.71.0-subsurface";
 import { terracedSurface } from "../../terraced-surface.js?v=0.72.0-terraces";
-import { loadTurf } from "../../spatial-analysis.js?v=0.68.0-dots";
+import { loadTurf } from "../../spatial-analysis.js?v=0.69.0-extent";
 import { SCENE3D_TYPES, normalizeScene3d, scene3dTypeFor } from "../../scene3d.js?v=0.1.0";
 import { THREE_LAYER_ID, ThreeHost, loadThree } from "../three/three-host.js?v=0.1.5";
 import { UNDERGROUND_DEFAULTS, normalizeSubsurface, normalizeUnderground, parseColor, rendererColorResolver, subsurfaceSummary } from "../../subsurface.js?v=0.71.0-subsurface";
@@ -1935,6 +1935,9 @@ export class MaplibreEngine {
     await record.loaded;
     const boxOnly = params.geometry === "view" || Number.isFinite(params.geometry?.xmin);
     const relation = params.spatialRelationship || "intersects";
+    const plainBox = boxOnly && ["intersects", "envelope-intersects", "index-intersects"].includes(relation) && !params.distance;
+    // This browser holds only part of a big service layer, so a box beyond that part is asked of the service.
+    if (plainBox && record.truncated && record.service) return this.#serviceFeaturesInBox(record, params, layerDefaults);
     if (!params.geometry || (boxOnly && ["intersects", "envelope-intersects", "index-intersects"].includes(relation) && !params.distance) || !record.service) {
       return this.#matching(record, params, layerDefaults);
     }
@@ -1945,9 +1948,34 @@ export class MaplibreEngine {
     return this.#matching(record, rest, layerDefaults).filter((feature) => ids.has(feature.id));
   }
 
+  /**
+   * A big service layer's features in a box, fetched from the service (at most
+   * MAX_FEATURES). The last box is kept, so paging through it fetches once.
+   */
+  async #serviceFeaturesInBox(record, params, layerDefaults) {
+    const box = params.geometry === "view" ? this.getViewExtent() : params.geometry;
+    const where = [layerDefaults ? record.where : null, params.where].filter(Boolean).map((part) => `(${part})`).join(" AND ") || null;
+    const key = JSON.stringify([where, box.xmin, box.ymin, box.xmax, box.ymax]);
+    if (record.boxQuery?.key !== key) {
+      const envelope = { xmin: box.xmin, ymin: box.ymin, xmax: box.xmax, ymax: box.ymax, spatialReference: box.spatialReference || { wkid: 4326 } };
+      const query = { geometry: JSON.stringify(envelope), geometryType: "esriGeometryEnvelope", inSR: String(envelope.spatialReference.wkid || 4326), spatialRel: "esriSpatialRelIntersects" };
+      const promise = fetchFeatures(record.service, { where, query, concurrency: 6 }).then(({ features, truncated }) => ({
+        truncated,
+        features: normalizeFeatures({ type: "FeatureCollection", features: features.map((feature) => (feature.geometry?.type === "Polygon" ? { ...feature, geometry: regroupPolygon(feature.geometry) } : feature)) }, { objectIdField: record.service.objectIdField }),
+      }));
+      record.boxQuery = { key, promise };
+      promise.catch(() => { if (record.boxQuery?.promise === promise) record.boxQuery = null; });
+    }
+    const { features, truncated } = await record.boxQuery.promise;
+    const ids = Array.isArray(params.objectIds) ? new Set(params.objectIds.map(Number)) : null;
+    // `partial`: the service had more in the box than were fetched.
+    return Object.assign(ids ? features.filter((feature) => ids.has(feature.id)) : [...features], { partial: truncated });
+  }
+
   async queryFeatures(uid, params = {}, { layerDefaults = true } = {}) {
     const record = this.#require(uid);
     let features = await this.#select(record, params, layerDefaults);
+    const partial = Boolean(features.partial);
     const fields = Array.isArray(params.outFields) && !params.outFields.includes("*") ? params.outFields : null;
     const pick = (properties) => (fields ? Object.fromEntries(fields.map((name) => [name, properties[name] ?? null])) : { ...properties });
     if (Array.isArray(params.orderByFields) && params.orderByFields.length) {
@@ -1977,7 +2005,7 @@ export class MaplibreEngine {
     const page = features.slice(start, end);
     return {
       features: page.map((feature) => ({ attributes: pick(feature.properties), geometry: params.returnGeometry === false ? null : feature.geometry })),
-      exceededTransferLimit: end < features.length,
+      exceededTransferLimit: end < features.length || partial,
     };
   }
 

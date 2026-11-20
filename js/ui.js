@@ -2078,7 +2078,7 @@ export class UIController {
           break;
         }
         case "tools-spatial-analysis": {
-          const { openSpatialAnalysis } = await import("./spatial-analysis-panel.js?v=0.68.0-dots");
+          const { openSpatialAnalysis } = await import("./spatial-analysis-panel.js?v=0.69.0-extent");
           openSpatialAnalysis(this, globalThis.gisMapOnline.analysis);
           break;
         }
@@ -9361,7 +9361,7 @@ export class UIController {
           this.#openLabelEditor(uid);
           break;
         case "random-points": {
-          const { openSpatialAnalysis } = await import("./spatial-analysis-panel.js?v=0.68.0-dots");
+          const { openSpatialAnalysis } = await import("./spatial-analysis-panel.js?v=0.69.0-extent");
           const fields = numericLayerFields(layer);
           const field = fields.find((item) => /pop/i.test(item.name)) || fields[0];
           await new Promise((resolve) => requestAnimationFrame(resolve));
@@ -9369,7 +9369,7 @@ export class UIController {
           break;
         }
         case "hexbin": {
-          const { openSpatialAnalysis } = await import("./spatial-analysis-panel.js?v=0.68.0-dots");
+          const { openSpatialAnalysis } = await import("./spatial-analysis-panel.js?v=0.69.0-extent");
           // Activating the layer redraws the side panel; the tool docks once that has settled.
           await new Promise((resolve) => requestAnimationFrame(resolve));
           openSpatialAnalysis(this, globalThis.gisMapOnline.analysis, { operation: "hexbin", input: uid });
