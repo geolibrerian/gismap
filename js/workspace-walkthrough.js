@@ -36,6 +36,26 @@ export function createExampleWalkthroughSteps(example = {}) {
   ];
 }
 
+// Guides for map links, started with ?tutorial=<id>. Layer cards list the newest layer first:
+// on the hexagon map that is the hexagons, then the dots, then the census blocks.
+const LAYERS_PANEL = '[data-mobile-panel="layers-panel"]';
+const layerCard = (position) => `#layers-list article.layer-card:nth-of-type(${position})`;
+export const MAP_TUTORIALS = Object.freeze({
+  "hex-population": {
+    title: "Ventura County population in hexagons",
+    summary: "See how census blocks became dots, and dots became hexagons.",
+    steps: [
+      { title: "From census blocks to hexagons", desktop: ".example-guide", mobile: ".example-guide", description: "This map counts Ventura County’s 843,843 residents in equal-sized hexagons. Your browser built it when the link opened, in two analysis steps, from the public 2020 census blocks. The next steps go through each layer." },
+      { title: "Start with census blocks", desktop: layerCard(3), mobile: LAYERS_PANEL, description: "The bottom layer is the 2020 census blocks from Esri’s public service, filtered to the 7,843 Ventura County blocks with people. Blocks range from a city lot to miles of hills, so colouring them by population draws the eye to big, nearly empty blocks. The layer is hidden; tick it to compare." },
+      { title: "One dot per 20 people", desktop: layerCard(2), mobile: LAYERS_PANEL, description: "Random points from a value put one dot per 20 people (the P0010001 field) at a random spot inside each block: 42,232 dots. A dot is not an address, only somewhere in its block. A fixed random seed gives everyone the same dots, and each dot records that it represents 20 people." },
+      { title: "Sum the dots into hexagons", desktop: layerCard(1), mobile: LAYERS_PANEL, description: "Hexagon binning added up the people the dots represent in each H3 cell at resolution 8, about 0.74 km² a cell. Every cell is the same size, so cells compare fairly, and each sum is the people in that cell to within the rounding of the dots." },
+      { id: "legend", title: "Read the legend", desktop: "#utility-legend-content", mobile: LAYERS_PANEL, description: "Colour shows people per cell, in classes taken from the data. The same number sets each cell’s height, so the tallest, darkest cells are the most crowded square kilometre or so." },
+      { title: "Explore in 3D", desktop: "#viewDiv", mobile: "#viewDiv", description: "Tilt and turn the map with the 3D and compass controls, or drag with the right mouse button. Select a hexagon to see its h3_id, point_count, represents_sum (people) and density_km2." },
+      { title: "Make your own", desktop: `${layerCard(3)} .layer-card__more`, mobile: LAYERS_PANEL, description: "On any polygon layer with a count, More layer tools > Random points makes the dots. On the dots, More layer tools > Hexagon map makes the hexagons. Both run in your browser, and the results stay on this device." },
+    ],
+  },
+});
+
 // The briefing guide loads its example before the hands-on steps.
 export const BRIEFING_WALKTHROUGH_STEPS = [
   { title: 'Create a briefing', desktop: '.presentation-empty', mobile: '.presentation-empty', description: 'A briefing combines an interactive map with a sequence of slides. This guide will add example layers and an editable briefing to your project.' },
