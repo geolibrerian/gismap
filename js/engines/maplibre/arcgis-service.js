@@ -176,15 +176,16 @@ function esriToGeoJSON(json) {
 
 /**
  * A feature layer's features as GeoJSON features (WGS84), paged, at most
- * MAX_FEATURES: { features, truncated }. `where` filters on the service.
+ * MAX_FEATURES: { features, truncated }. `where` filters on the service, and
+ * `query` adds other query parameters, such as a geometry to search within.
  */
-export async function fetchFeatures(layer, { where = null, maxFeatures = MAX_FEATURES, onProgress = () => {}, onPage = () => {}, simplify = null, concurrency = 3, outFields = "*", ...options } = {}) {
+export async function fetchFeatures(layer, { where = null, query = {}, maxFeatures = MAX_FEATURES, onProgress = () => {}, onPage = () => {}, simplify = null, concurrency = 3, outFields = "*", ...options } = {}) {
   // Full-detail polygons can be megabytes per page, so pages stay small; with
   // `simplify` ({ maxAllowableOffset, geometryPrecision } in degrees) the service
   // sends outlines generalized to that tolerance, a fraction of the size, and pages can be full.
   const pageSize = Math.max(1, Math.min(layer.maxRecordCount || 1000, layer.geometryType === "polygon" && !simplify ? 500 : 2000));
   const base = {
-    where: where || "1=1", outFields, returnGeometry: "true", outSR: "4326",
+    where: where || "1=1", ...query, outFields, returnGeometry: "true", outSR: "4326",
     ...(simplify ? { maxAllowableOffset: String(simplify.maxAllowableOffset), geometryPrecision: String(simplify.geometryPrecision ?? 6) } : {}),
   };
   let geojson = true;
@@ -230,7 +231,7 @@ export async function fetchFeatures(layer, { where = null, maxFeatures = MAX_FEA
     return { features, truncated: true };
   }
   // No paging: the object IDs first, then features by ID in batches.
-  const ids = (await getJson(`${layer.url}/query`, { where: base.where, returnIdsOnly: "true" }, options)).objectIds || [];
+  const ids = (await getJson(`${layer.url}/query`, { where: base.where, ...query, returnIdsOnly: "true" }, options)).objectIds || [];
   ids.sort((a, b) => a - b);
   for (let start = 0; start < Math.min(ids.length, maxFeatures); start += pageSize) {
     const { features: batch } = await page({ objectIds: ids.slice(start, Math.min(start + pageSize, maxFeatures)).join(",") });

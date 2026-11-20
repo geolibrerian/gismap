@@ -214,3 +214,65 @@ test("random points run as an analysis operation and polygon cards offer them", 
   assert.match(ui, /\/polygon\/i\.test\(layer\.geometryType \|\| ""\) && numericLayerFields\(layer\)\.length \? '<button data-layer-action="random-points"[^>]*>Random points<\/button>'/);
   assert.match(ui, /operation: "random-points", input: uid, options: \{ field: field\?\.name \|\| "" \}/);
 });
+
+/** A map controller over in-memory features, answering pages like a service whose pages hold `serverPage` at most. */
+function fakeController(features, { serverPage = 1000, truncatedLayer = false, view = { xmin: 0, ymin: 0, xmax: 1, ymax: 1, spatialReference: { wkid: 4326 } } } = {}) {
+  const calls = [];
+  const inBox = (feature, box) => { const [x, y] = feature.geometry.coordinates[0][0]; return x >= box.xmin && x <= box.xmax && y >= box.ymin && y <= box.ymax; };
+  const select = (params) => (params.geometry ? features.filter((feature) => inBox(feature, params.geometry)) : features);
+  return {
+    calls,
+    getLayer: () => ({ queryable: true, title: "Blocks", where: null, objectIdField: "OBJECTID", truncated: truncatedLayer }),
+    getViewExtent: () => view,
+    async queryFeatures(uid, params) {
+      calls.push(params);
+      const all = select(params);
+      const page = all.slice(params.start, params.start + Math.min(params.num, serverPage));
+      return { features: page.map((feature) => ({ attributes: feature.properties, geometry: { rings: feature.geometry.coordinates } })), exceededTransferLimit: params.start + page.length < all.length };
+    },
+    async queryFeatureCount(uid, params) { return select(params).length; },
+  };
+}
+const blocks = (count, x = 0) => Array.from({ length: count }, (_, index) => ({ ...square(x + (index % 100) * 0.005, (Math.floor(index / 100) % 100) * 0.005, 0.004), properties: { OBJECTID: index + 1, pop: 20 } }));
+
+test("analysis can read only the features in the map view", async () => {
+  const { readLayerFeatures } = await import("../js/spatial-analysis.js");
+  const controller = fakeController([...blocks(300, 0), ...blocks(200, 5)]);
+  const view = await readLayerFeatures(controller, "blocks", 1000, { area: "view" });
+  assert.equal(view.collection.features.length, 300);
+  assert.equal(view.truncated, false);
+  assert.ok(controller.calls.every((params) => params.geometry?.xmax === 1), "every page asks for the same view");
+  const whole = await readLayerFeatures(controller, "blocks", 1000);
+  assert.equal(whole.collection.features.length, 500);
+});
+
+test("analysis keeps reading when a service sends short pages, and counts what it left out", async () => {
+  const { readLayerFeatures } = await import("../js/spatial-analysis.js");
+  const short = await readLayerFeatures(fakeController(blocks(2500), { serverPage: 400 }), "blocks", 5000);
+  assert.deepEqual([short.collection.features.length, short.truncated], [2500, false]);
+  const capped = await readLayerFeatures(fakeController(blocks(2500)), "blocks", 1200);
+  assert.deepEqual([capped.collection.features.length, capped.truncated, capped.total], [1200, true, { count: 2500, atLeast: false }]);
+  // On MapLibre a big service layer is held only in part, so its whole is never complete.
+  const part = await readLayerFeatures(fakeController(blocks(800), { truncatedLayer: true }), "blocks", 5000);
+  assert.deepEqual([part.truncated, part.total], [true, { count: 800, atLeast: true }]);
+  const partView = await readLayerFeatures(fakeController(blocks(800), { truncatedLayer: true }), "blocks", 5000, { area: "view" });
+  assert.equal(partView.truncated, false);
+});
+
+test("an incomplete result says so first, with how much it used and how to cover the rest", async () => {
+  const { createSpatialAnalysisApi, MAX_RANDOM_POINT_POLYGONS, SPATIAL_OPERATIONS } = await import("../js/spatial-analysis.js");
+  globalThis.turf = turf;
+  const analysis = createSpatialAnalysisApi({ mapController: fakeController(blocks(2500)), layers: { get: () => ({ id: "blocks", title: "Blocks", where: null }) } });
+  const limited = { ...SPATIAL_OPERATIONS.find((item) => item.id === "random-points") };
+  assert.equal(limited.maxInput, MAX_RANDOM_POINT_POLYGONS);
+  assert.ok(limited.options.some((option) => option.name === "area"));
+  const whole = await analysis.run("random-points", { input: "blocks", options: { field: "pop", unitsPerPoint: 10 }, addToMap: false });
+  assert.equal(whole.truncated, false);
+  assert.doesNotMatch(whole.summary, /Incomplete/);
+  const big = createSpatialAnalysisApi({ mapController: fakeController(blocks(2500), { truncatedLayer: true }), layers: { get: () => ({ id: "blocks", title: "Blocks", where: null }) } });
+  const partial = await big.run("random-points", { input: "blocks", options: { field: "pop" }, addToMap: false });
+  assert.match(partial.summary, /^Incomplete: used the first 2,500 of more than 2,500 features \(the limit is 50,000\)\. Zoom in and choose In the current map view/);
+  const viewed = await big.run("random-points", { input: "blocks", options: { field: "pop", area: "view" }, addToMap: false });
+  assert.equal(viewed.truncated, false);
+  delete globalThis.turf;
+});
