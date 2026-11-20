@@ -56,10 +56,11 @@
         "required": ["operation", "input"],
         "properties": {
           "operation": { "enum": ["measure", "buffer", "dissolve", "centroid", "convex-hull", "envelope", "simplify", "voronoi", "kmeans", "dbscan", "hexbin", "random-points", "nearest", "select", "join", "count", "clip", "erase"] , "description": "See /api/capabilities.json map.analysisOperations." },
-          "input": { "description": "A position in layers (0 is the first), or GeoJSON.", "oneOf": [{ "type": "integer", "minimum": 0 }, { "type": "object" }] },
-          "overlay": { "description": "A position in layers, or GeoJSON. Required by overlay operations; for hexbin, an optional polygon study area.", "oneOf": [{ "type": "integer", "minimum": 0 }, { "type": "object" }] },
+          "input": { "description": "A position in layers (0 is the first), { \"step\": n } for the result of an earlier step, or GeoJSON.", "oneOf": [{ "type": "integer", "minimum": 0 }, { "type": "object" }] },
+          "overlay": { "description": "A position in layers, { \"step\": n }, or GeoJSON. Required by overlay operations; for hexbin, an optional polygon study area.", "oneOf": [{ "type": "integer", "minimum": 0 }, { "type": "object" }] },
           "options": { "type": "object", "description": "For example { \"distanceKm\": 5 }, or for hexbin { \"method\": \"h3\", \"resolution\": 7, \"statistic\": \"mean\", \"field\": \"PRICE\", \"keepEmpty\": false, \"extrude\": true }. See gisMapOnline.analysis.operations()." },
-          "title": { "type": "string", "maxLength": 120 }
+          "title": { "type": "string", "maxLength": 120 },
+          "visible": { "type": "boolean", "description": "false adds the result as a hidden layer, such as points a later step bins." }
         },
         "additionalProperties": false
       }

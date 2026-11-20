@@ -186,15 +186,23 @@ export function validateMapSpec(input, { allowHttp = false } = {}) {
   if (input.analysis !== undefined && input.analysis !== null) {
     const steps = Array.isArray(input.analysis) ? input.analysis.slice(0, 5) : [];
     if (!Array.isArray(input.analysis) || input.analysis.length > 5) issue("warning", "INVALID_SPEC", "analysis", "analysis must be a list of at most 5 steps.");
-    const source = (value) => value === "drawings" || (value && typeof value === "object") || (Number.isInteger(value) && value >= 0 && value < spec.layers.length);
-    const kept = steps.filter((step, index) => {
+    // { "step": n } is the result of an earlier step; `kept` maps a step's position to where it lands once bad steps are dropped.
+    const kept = new Map();
+    const isStep = (value) => value && typeof value === "object" && Object.keys(value).length === 1 && Object.hasOwn(value, "step");
+    const source = (value) => value === "drawings" || (isStep(value) ? kept.has(value.step) : (value && typeof value === "object")) || (Number.isInteger(value) && value >= 0 && value < spec.layers.length);
+    const remap = (value) => (isStep(value) ? { step: kept.get(value.step) } : value);
+    const valid = [];
+    steps.forEach((step, index) => {
       const operation = SPATIAL_OPERATIONS.find((item) => item.id === step?.operation);
       if (!operation) issue("warning", "INVALID_SPEC", `analysis[${index}].operation`, `Unknown analysis "${step?.operation}"; the step was ignored.`, `Use one of: ${SPATIAL_OPERATION_IDS.join(", ")}.`);
-      else if (!source(step.input) || (operation.overlay && !(operation.overlayOptional && (step.overlay === undefined || step.overlay === null)) && !source(step.overlay))) issue("warning", "INVALID_SPEC", `analysis[${index}]`, "input and overlay must be a layer's position in layers, \"drawings\" or GeoJSON; the step was ignored.");
-      else return true;
-      return false;
+      else if (!source(step.input) || (operation.overlay && !(operation.overlayOptional && (step.overlay === undefined || step.overlay === null)) && !source(step.overlay))) issue("warning", "INVALID_SPEC", `analysis[${index}]`, "input and overlay must be a layer's position in layers, { \"step\": n } for an earlier step's result, \"drawings\" or GeoJSON; the step was ignored.");
+      else {
+        const { input: from, overlay, options, title, visible } = step;
+        valid.push({ operation: step.operation, input: remap(from), ...(overlay !== undefined ? { overlay: remap(overlay) } : {}), ...(options ? { options } : {}), ...(title ? { title: text(title, 120) } : {}), ...(visible === false ? { visible: false } : {}) });
+        kept.set(index, valid.length - 1);
+      }
     });
-    if (kept.length) spec.analysis = kept.map(({ operation, input: from, overlay, options, title }) => ({ operation, input: from, ...(overlay !== undefined ? { overlay } : {}), ...(options ? { options } : {}), ...(title ? { title: text(title, 120) } : {}) }));
+    if (valid.length) spec.analysis = valid;
   }
   if (input.charts !== undefined && input.charts !== null) {
     const charts = Array.isArray(input.charts) ? input.charts.slice(0, MAP_SPEC_CHART_LIMITS.maxCharts) : [];
