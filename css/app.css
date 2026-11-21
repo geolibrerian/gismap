@@ -3133,7 +3133,21 @@ body.utility-panel-open .utility-panel:has([data-utility-pane="data-notes"]:not(
 :root[data-skin="highway"] .cinematic-map-timeline { background-image:linear-gradient(rgb(23 32 43 / 2%) 1px,transparent 1px); background-size:100% 24px; }
 :root[data-skin="highway"] .cinematic-map-timeline__meta strong { text-transform:uppercase; letter-spacing:.06em; }
 :root[data-skin="violet-circuit"] .cinematic-map-timeline { background-image:linear-gradient(90deg,transparent 97%,rgb(143 99 255 / 10%) 100%); background-size:24px 24px; }
-@media (max-width: 720px) { .cinematic-map-timeline { bottom:68px; } .cinematic-map-timeline__controls span { display:none; } }
+.cinematic-map-timeline__body { display:grid; gap:.35rem; }
+.cinematic-chart { margin:0; display:grid; gap:.2rem; --chart-bar:var(--chart-lit, #ff9a3c); }
+.cinematic-chart figcaption { display:flex; justify-content:space-between; gap:.6rem; color:var(--muted); font-size:.72rem; }
+.cinematic-chart figcaption small { font-size:inherit; opacity:.8; }
+.cinematic-chart [data-cinematic-chart-count] { color:var(--ink); font-weight:600; }
+.cinematic-chart svg { display:block; width:100%; height:44px; overflow:visible; cursor:pointer; }
+.cinematic-chart__future rect { fill:color-mix(in srgb, var(--muted) 38%, transparent); }
+.cinematic-chart__past rect { fill:var(--chart-bar); }
+.cinematic-chart__base { stroke:var(--line); stroke-width:1; }
+.cinematic-chart__head { stroke:var(--ink); stroke-width:1.25; }
+.cinematic-chart__axis { position:relative; height:1em; color:var(--muted); font-size:.68rem; }
+.cinematic-chart__axis span { position:absolute; top:0; transform:translateX(-50%); white-space:nowrap; }
+.cinematic-chart__axis span:first-child { transform:none; }
+.cinematic-chart__axis span:last-child { transform:translateX(-100%); }
+@media (max-width: 720px) { .cinematic-map-timeline { bottom:68px; } .cinematic-chart svg { height:32px; } .cinematic-chart__axis span:nth-child(even) { display:none; } .cinematic-map-timeline__controls span { display:none; } }
 
 /* Compact, readable timeline preview at both workspace widths. */
 .timeline-preview-chart { display: grid; gap: .45rem; margin: .75rem 0; }

@@ -16,10 +16,10 @@ import { MapAssistantPanel } from "./assistant-panel.js?v=0.72.0-si-maps";
 import { createAssistantTools, summarizeMapState } from "./map-assistant.js?v=0.72.0-si-maps";
 import { ENTERPRISE_CATALOGS, EnterpriseCatalog, normalizeArcGisDirectoryUrl } from "./enterprise-catalog.js?v=0.71.0-subsurface";
 import { createShareUrl, parseShareParameters } from "./share.js?v=0.71.0-subsurface";
-import { mapSpecFromShareParameters } from "./map-spec.js?v=0.76.0-chain";
-import { createShareLink, hasDataFilter, readBriefingFile } from "./map-share.js?v=0.71.0-subsurface";
+import { mapSpecFromShareParameters } from "./map-spec.js?v=0.79.0-quakes";
+import { createShareLink, hasDataFilter, readBriefingFile } from "./map-share.js?v=0.79.0-quakes";
 import { createEmbedIframe, createEmbedUrl } from "./embed-share.js?v=0.65.0-paths";
-import { briefingLayerRef, findBriefingLayer } from "./briefing-api.js?v=0.72.0-si-maps";
+import { briefingLayerRef, findBriefingLayer } from "./briefing-api.js?v=0.79.0-quakes";
 import { createEmbeddedTourUrl } from "./tour-share.js?v=0.54.0-unified4";
 import { markdownToPlainText, renderMarkdown } from "./markdown.js?v=0.18.2";
 import { formatAttributeValue } from "./attribute-format.js?v=0.18.2";
@@ -37,26 +37,26 @@ import { featureLayerUrl, locationUrl } from "./field-task-share.js?v=0.71.0-sub
 import { dockIcon } from "./dock-icons.js?v=0.24.0";
 import { serviceNameFromUrl } from "./service-name.js?v=0.26.0";
 import { decodeQrFromImage, describeGisMapLink, gisMapLinkFrom, openGisMapLink } from "./qr-import.js?v=0.25.2";
-import { BriefingSlides } from "./briefing-slides.js?v=0.72.0-si-maps";
-import { addSlide, createSlide, isRoutineField, matchesFilter, normalizeBriefing, normalizeFilter } from "./briefing-document.js?v=0.72.0-si-maps";
+import { BriefingSlides } from "./briefing-slides.js?v=0.79.0-quakes";
+import { addSlide, createSlide, isRoutineField, matchesFilter, normalizeBriefing, normalizeFilter } from "./briefing-document.js?v=0.79.0-quakes";
 import { conditionComplete, conditionLabel, conditionToFilter } from "./briefing-conditions.js?v=0.1.0";
 import { createFilterBuilder } from "./filter-builder.js?v=0.1.0";
 import { conditionsToWhere } from "./filter-sql.js?v=0.1.0";
-import { aiDescriptionPrompt, applyAiDescriptions, describeWhere, generateBriefing, readAiDescriptions, rendererTheme } from "./briefing-generator.js?v=0.60.0-media1";
+import { aiDescriptionPrompt, applyAiDescriptions, describeWhere, generateBriefing, readAiDescriptions, rendererTheme } from "./briefing-generator.js?v=0.79.0-quakes";
 import { briefingFileStem } from "./briefing-pdf.js?v=0.69.1-pdflinks";
 import { RAMPS, rampColors, compileRenderer } from "./renderer-spec.js?v=0.29.1";
 import { bindSubsurfaceControls, canDrawBelowGround, subsurfaceControlsMarkup } from "./subsurface-controls.js?v=0.71.0-subsurface";
 import { listedOrder, spatialChartColor, spatialChartGroupColor, spreadColors } from "./spatial-chart.js?v=0.71.0-subsurface";
 import { saveEngine } from "./engine-preference.js?v=0.52.1";
 import { BASEMAPS } from "./basemap-catalog.js?v=0.53.0-gallery1";
-import { CartographyLab } from "./cartography-lab.js?v=0.71.0-subsurface";
+import { CartographyLab } from "./cartography-lab.js?v=0.79.0-quakes";
 import { CONTEXT_ACTIONS, createSuggestionPreferences, deriveWorkspace, executeContextAction, suggestionKey, summarizeFeature } from "./contextual-workspace.js?v=6";
 import { BRIEFING_WALKTHROUGH_STEPS, CINEMATIC_WALKTHROUGH_STEPS, HISTORICAL_QUAKES_BRIEFING_TUTORIAL_STEPS, createExampleWalkthroughSteps, startWorkspaceWalkthrough, waitForWalkthroughTarget } from "./workspace-walkthrough.js?v=0.77.0-tutorial";
-import { HISTORICAL_QUAKES_SOURCE, HISTORICAL_QUAKES_WHERE, createHistoricalQuakesExampleBriefing } from "./example-hazards-briefing.js?v=0.62.3-briefing-slide-engines";
-import { CinematicModeController } from "./cinematic/mode.js?v=0.71.0-subsurface";
-import { CINEMATIC_EFFECTS, CINEMATIC_EFFECT_CATEGORIES, suggestEffect } from "./cinematic/cinematic-effects.js?v=0.71.0-subsurface";
+import { HISTORICAL_QUAKES_SOURCE, HISTORICAL_QUAKES_WHERE, createHistoricalQuakesExampleBriefing } from "./example-hazards-briefing.js?v=0.79.0-quakes";
+import { CinematicModeController } from "./cinematic/mode.js?v=0.79.0-quakes";
+import { CINEMATIC_EFFECTS, CINEMATIC_EFFECT_CATEGORIES, suggestEffect } from "./cinematic/cinematic-effects.js?v=0.79.0-quakes";
 import { PROVENANCE_STATUSES } from "./cinematic/clock.js?v=0.1.0";
-import { recommendAnimations } from "./cinematic/recommend.js?v=0.71.0-subsurface";
+import { recommendAnimations } from "./cinematic/recommend.js?v=0.79.0-quakes";
 
 // What each provenance label tells a viewer about a track's displayed progression.
 const PROVENANCE_HELP = Object.freeze({
@@ -67,8 +67,8 @@ const PROVENANCE_HELP = Object.freeze({
   illustrative: "Illustrative: decorative motion that does not measure anything.",
 });
 import { numericFieldCandidates, temporalFieldCandidates, textFieldCandidates } from "./cinematic/temporal-adapter.js?v=0.4.0-sequence";
-import { buildClipPackage, clipToCinematicSpec, createCinematicClip, exportCinematicClip, normalizeCinematicClip } from "./cinematic/clip-model.js?v=0.70.4-sequence";
-import { availableVideoFormats, cameraAt, CLIP_FRAME_RATES, clipFrameCount, exportCinematicVideo, observationIndexAt, renderClipPoster } from "./cinematic/clip-export.js?v=0.71.0-subsurface";
+import { buildClipPackage, clipToCinematicSpec, createCinematicClip, exportCinematicClip, normalizeCinematicClip } from "./cinematic/clip-model.js?v=0.79.0-quakes";
+import { availableVideoFormats, cameraAt, CLIP_FRAME_RATES, clipFrameCount, exportCinematicVideo, observationIndexAt, renderClipPoster } from "./cinematic/clip-export.js?v=0.79.0-quakes";
 import { CHART_PANEL_PLACEMENTS, CHART_TYPES, PRESENTATION_TARGETS, chartFields, chartOption, createChartSpec, displayChartRows, loadECharts, queryChart, recommendCharts, renderChartFallback, rowsAsCsv } from "./charting-tools.js?v=0.68.0-charts1";
 import { MapChartOverlayController } from "./map-chart-tools.js?v=0.68.0-charts1";
 import { readTextBoxEditor, textBoxEditorMarkup, textBoxRunMarkup, textBoxSummary } from "./text-box-editor.js?v=0.65.0-paths";
@@ -5715,7 +5715,7 @@ export class UIController {
     const fidelityNote = state.valueKind === "none" ? "Ambient animation: every feature shows at once and its effect loops. Nothing is stepped through time or estimated." : lead?.order ? `Stepping through ${lead.timeField} one value at a time, ${lead.order === "listed" ? "in the 3D chart's stacking order, bottom first" : "A to Z"}. ${timeMode === "cumulative" ? "Build up shows every value up to the current one." : "Only records with the current value show."} The order is the data's own; it is not a date.` : state.valueKind === "number" ? `Stepping through ${state.layers?.find((item) => item.kind === "number")?.timeField || "the field"} from lowest to highest. ${timeMode === "cumulative" ? "Build up shows every record up to the current value." : "Only records with the current value show."} Values are the data's own; nothing is interpolated.` : timeMode === "cumulative" ? "Showing every observed record from the first observation through this moment. This is cumulative display, not inferred persistence or geometry interpolation." : "Showing the current observed state only. Polygon boundaries step between snapshots; no unobserved spread or geometry interpolation is shown.";
     const inspection = intent === "investigate" ? `<section class="cinematic-inspector" aria-label="Observed data inspection"><span class="eyebrow">Observed evidence</span><strong>${escapeHtml(this.#cinematicValueText(timeline.observationTime, state))}</strong>${state.layers.map((item) => `<p><b>${escapeHtml(item.title)}</b><span>${item.observedCount} observed feature${item.observedCount === 1 ? "" : "s"} · ${escapeHtml(item.timeField)}</span></p>`).join("")}<small>Observed source records only; no estimated spread is shown.</small></section>` : "";
     const present = intent === "present" ? `<details class="cinematic-disclosure cinematic-disclosure--present"${presentOpen ? " open" : ""}><summary>Present & export</summary><div class="cinematic-actions">${this.#cinematicClipSummary()}<button type="button" data-cinematic-create-clip>Create Clip</button>${this.#latestCinematicClip() ? '<button type="button" data-cinematic-edit-clip>Edit Clip</button>' : ""}<button type="button" data-cinematic-add-brief>Add to Brief</button><button type="button" data-cinematic-download-clip>Clip JSON</button><button type="button" data-cinematic-poster>Poster PNG</button><button type="button" data-cinematic-record title="Render this Clip to a video file">Export movie</button></div></details>` : "";
-    root.innerHTML = `<section class="mode-dashboard cinematic-dashboard"><header><span class="eyebrow">Cinematic · ${ambientScene ? "ambient loop" : lead?.order ? "sequence" : state.valueKind === "number" ? "scenario sweep" : "observed playback"}</span><h2>${escapeHtml(presentation.title || layer.title || "Cinematic map")}</h2><div class="cinematic-mode-strip"><label>Intent <select data-cinematic-intent aria-label="Cinematic intent"><option value="explore"${intent === "explore" ? " selected" : ""}>Explore</option><option value="investigate"${intent === "investigate" ? " selected" : ""}>Investigate</option><option value="present"${intent === "present" ? " selected" : ""}>Present</option></select></label><span>${this.mapController.getEngineId?.() || "map"}</span></div><p data-cinematic-time-label>${escapeHtml(timeLabel)}</p></header><div class="cinematic-quick-controls" aria-label="Cinematic playback">${ambientScene ? "" : '<button type="button" data-cinematic-previous title="Previous observation">◀</button>'}<button type="button" data-cinematic-play aria-pressed="${playing ? "true" : "false"}"${ambientScene ? ' title="Play or pause the looping effects"' : ""}>${playing ? "Pause" : "Play"}</button>${ambientScene ? "" : '<button type="button" data-cinematic-next title="Next observation">▶</button>'}<button type="button" data-cinematic-focus title="Fly to the current observed feature">Focus</button></div>${inspection}<p class="cinematic-provenance">${this.#cinematicProvenanceBadges(state)}${escapeHtml(fidelityNote)}${state.layers?.[0]?.effectNote ? ` <span class="cinematic-effect-note">${escapeHtml(state.layers[0].effectNote)}</span>` : ""}</p><details class="cinematic-disclosure cinematic-disclosure--playback"${playbackOpen ? " open" : ""}><summary>${intent === "investigate" ? "Playback controls" : "Playback & map appearance"}</summary><div class="cinematic-controls">${ambientScene ? "" : `<label>Build up <input type="checkbox" data-cinematic-build-up${timeMode === "cumulative" ? " checked" : ""} aria-label="Build up observed records over time"></label><label>Local window <input type="checkbox" data-cinematic-local-window${localWindow ? " checked" : ""} aria-label="Filter cinematic observations to the current map window"></label>`}${ambientScene ? "" : `<label>Speed <select data-cinematic-rate aria-label="Playback speed"><option value="0.1"${timeline.playbackRate === 0.1 ? " selected" : ""}>Very slow</option><option value="0.25"${timeline.playbackRate === 0.25 ? " selected" : ""}>Slow</option><option value="0.5"${timeline.playbackRate === 0.5 ? " selected" : ""}>Steady</option><option value="1"${timeline.playbackRate === 1 ? " selected" : ""}>Fast</option><option value="2"${timeline.playbackRate === 2 ? " selected" : ""}>Very fast</option></select></label>`}${supportsGround ? `<label>Terrain <select data-cinematic-ground aria-label="Terrain"><option value="">Map setting</option>${terrainOptions}</select></label>` : ""}${supportsBoundaryGlow ? `${state.layers.length > 1 ? "" : `<label>Effect <select data-cinematic-effect aria-label="Visual effect">${effectOptions}</select></label>`}<label title="How much effect detail to draw. Auto lightens it for large scenes; the data is never reduced.">Detail <select data-cinematic-quality aria-label="Effect detail">${[["auto", "Auto"], ["eco", "Eco"], ["balanced", "Balanced"], ["cinematic", "Cinematic"]].map(([value, label]) => `<option value="${value}"${(state.spec?.cinematic.quality || "auto") === value ? " selected" : ""}>${label}</option>`).join("")}</select></label><label title="Effects loop on one clock, separate from the timeline">Effects move <input type="checkbox" data-cinematic-effects-playing${state.effects?.playing !== false ? " checked" : ""} aria-label="Effects move"></label><label>Effect speed <select data-cinematic-effects-rate aria-label="Effect speed">${[0.25, 0.5, 1, 2, 4].map((value) => `<option value="${value}"${(state.effects?.rate ?? 1) === value ? " selected" : ""}>${value}×</option>`).join("")}</select></label>` : ""}<label>Opacity <input type="range" data-cinematic-opacity min="5" max="100" value="${Math.round(Number(layerOpacity) * 100)}" aria-label="Cinematic layer opacity"></label>${ambientScene ? "" : `<label class="cinematic-controls__scrub">Observation <input type="range" data-cinematic-scrub min="0" max="${Math.max(0, timeline.ticks.length - 1)}" value="${timeline.observationIndex}" step="1"></label>`}</div>${ambientScene ? "" : this.#cinematicDateControls(state)}${supportsBoundaryGlow ? `<p class="cinematic-perf form-note" data-cinematic-perf aria-live="polite">${escapeHtml(this.#cinematicPerfText(state))}</p>` : ""}<p class="form-note">${ambientScene ? "Ambient: no dates or steps. Effects loop on one clock; pause stops repainting." : localWindow ? "The local range resets after each completed pan or zoom." : "Controls apply to observed data only."}</p></details>${this.#cinematicTracksMarkup(state, supportsBoundaryGlow)}${present}<div class="cinematic-footer-actions"><button type="button" data-cinematic-reconfigure>Change mapping</button><button type="button" data-cinematic-guide>Guide</button><button type="button" data-cinematic-exit>Exit</button></div></section>`;
+    root.innerHTML = `<section class="mode-dashboard cinematic-dashboard"><header><span class="eyebrow">Cinematic · ${ambientScene ? "ambient loop" : lead?.order ? "sequence" : state.valueKind === "number" ? "scenario sweep" : "observed playback"}</span><h2>${escapeHtml(presentation.title || layer.title || "Cinematic map")}</h2><div class="cinematic-mode-strip"><label>Intent <select data-cinematic-intent aria-label="Cinematic intent"><option value="explore"${intent === "explore" ? " selected" : ""}>Explore</option><option value="investigate"${intent === "investigate" ? " selected" : ""}>Investigate</option><option value="present"${intent === "present" ? " selected" : ""}>Present</option></select></label><span>${this.mapController.getEngineId?.() || "map"}</span></div><p data-cinematic-time-label>${escapeHtml(timeLabel)}</p></header><div class="cinematic-quick-controls" aria-label="Cinematic playback">${ambientScene ? "" : '<button type="button" data-cinematic-previous title="Previous observation">◀</button>'}<button type="button" data-cinematic-play aria-pressed="${playing ? "true" : "false"}"${ambientScene ? ' title="Play or pause the looping effects"' : ""}>${playing ? "Pause" : "Play"}</button>${ambientScene ? "" : '<button type="button" data-cinematic-next title="Next observation">▶</button>'}<button type="button" data-cinematic-focus title="Fly to the current observed feature">Focus</button></div>${inspection}<p class="cinematic-provenance">${this.#cinematicProvenanceBadges(state)}${escapeHtml(fidelityNote)}${state.layers?.[0]?.effectNote ? ` <span class="cinematic-effect-note">${escapeHtml(state.layers[0].effectNote)}</span>` : ""}</p><details class="cinematic-disclosure cinematic-disclosure--playback"${playbackOpen ? " open" : ""}><summary>${intent === "investigate" ? "Playback controls" : "Playback & map appearance"}</summary><div class="cinematic-controls">${ambientScene ? "" : `<label>Build up <input type="checkbox" data-cinematic-build-up${timeMode === "cumulative" ? " checked" : ""} aria-label="Build up observed records over time"></label><label>Local window <input type="checkbox" data-cinematic-local-window${localWindow ? " checked" : ""} aria-label="Filter cinematic observations to the current map window"></label>`}${ambientScene ? "" : `<label>Speed <select data-cinematic-rate aria-label="Playback speed"><option value="0.1"${timeline.playbackRate === 0.1 ? " selected" : ""}>Very slow</option><option value="0.25"${timeline.playbackRate === 0.25 ? " selected" : ""}>Slow</option><option value="0.5"${timeline.playbackRate === 0.5 ? " selected" : ""}>Steady</option><option value="1"${timeline.playbackRate === 1 ? " selected" : ""}>Fast</option><option value="2"${timeline.playbackRate === 2 ? " selected" : ""}>Very fast</option></select></label>`}${supportsGround ? `<label>Terrain <select data-cinematic-ground aria-label="Terrain"><option value="">Map setting</option>${terrainOptions}</select></label>` : ""}${supportsBoundaryGlow ? `${state.layers.length > 1 ? "" : `<label>Effect <select data-cinematic-effect aria-label="Visual effect">${effectOptions}</select></label>`}<label title="How much effect detail to draw. Auto lightens it for large scenes; the data is never reduced.">Detail <select data-cinematic-quality aria-label="Effect detail">${[["auto", "Auto"], ["eco", "Eco"], ["balanced", "Balanced"], ["cinematic", "Cinematic"]].map(([value, label]) => `<option value="${value}"${(state.spec?.cinematic.quality || "auto") === value ? " selected" : ""}>${label}</option>`).join("")}</select></label><label title="Effects loop on one clock, separate from the timeline">Effects move <input type="checkbox" data-cinematic-effects-playing${state.effects?.playing !== false ? " checked" : ""} aria-label="Effects move"></label><label>Effect speed <select data-cinematic-effects-rate aria-label="Effect speed">${[0.25, 0.5, 1, 2, 4].map((value) => `<option value="${value}"${(state.effects?.rate ?? 1) === value ? " selected" : ""}>${value}×</option>`).join("")}</select></label>` : ""}${ambientScene || lead?.order ? "" : `<label title="Bars under the timeline. Auto shows energy released for a magnitude field, else records per period.">Timeline chart <select data-cinematic-chart-stat aria-label="Timeline chart">${[["auto", "Auto"], ["energy", "Energy released"], ["max", "Largest value"], ["count", "Record count"], ["none", "Off"]].map(([value, label]) => `<option value="${value}"${(state.spec?.cinematic.chart?.stat || "auto") === value ? " selected" : ""}>${label}</option>`).join("")}</select></label>`}<label>Opacity <input type="range" data-cinematic-opacity min="5" max="100" value="${Math.round(Number(layerOpacity) * 100)}" aria-label="Cinematic layer opacity"></label>${ambientScene ? "" : `<label class="cinematic-controls__scrub">Observation <input type="range" data-cinematic-scrub min="0" max="${Math.max(0, timeline.ticks.length - 1)}" value="${timeline.observationIndex}" step="1"></label>`}</div>${ambientScene ? "" : this.#cinematicDateControls(state)}${supportsBoundaryGlow ? `<p class="cinematic-perf form-note" data-cinematic-perf aria-live="polite">${escapeHtml(this.#cinematicPerfText(state))}</p>` : ""}<p class="form-note">${ambientScene ? "Ambient: no dates or steps. Effects loop on one clock; pause stops repainting." : localWindow ? "The local range resets after each completed pan or zoom." : "Controls apply to observed data only."}</p></details>${this.#cinematicTracksMarkup(state, supportsBoundaryGlow)}${present}<div class="cinematic-footer-actions"><button type="button" data-cinematic-reconfigure>Change mapping</button><button type="button" data-cinematic-guide>Guide</button><button type="button" data-cinematic-exit>Exit</button></div></section>`;
     // An Ambient scene has no timeline: Play and Pause drive its looping effects.
     root.querySelector("[data-cinematic-play]")?.addEventListener("click", () => {
       if (this.cinematicState?.valueKind === "none") { this.cinematicController.toggleEffects(); this.#saveCinematicSpec(); }
@@ -5781,6 +5781,10 @@ export class UIController {
       this.cinematicController.setLocalWindow(event.target.checked);
       this.cinematicState = this.cinematicController.state();
       this.#renderPresentationDashboard(this.projectManager.current.presentation);
+    });
+    root.querySelector("[data-cinematic-chart-stat]")?.addEventListener("change", (event) => {
+      this.cinematicController.setChartStat(event.target.value);
+      this.projectManager.patchPresentation({ cinematic: this.cinematicController.exportCinematicSpec().cinematic });
     });
     root.querySelector("[data-cinematic-quality]")?.addEventListener("change", (event) => {
       this.cinematicController.setQuality(event.target.value);
@@ -6169,7 +6173,69 @@ export class UIController {
     const current = named(timeline.observationTime);
     const start = named(timeline.ticks[0]);
     const end = named(timeline.ticks.at(-1));
-    overlay.innerHTML = `<div class="cinematic-map-timeline__meta"><strong>${state.localEmpty ? "No local observations" : current}</strong><span>${state.localWindow ? "Local window" : "All observed data"}</span></div><div class="cinematic-map-timeline__controls"><button type="button" data-cinematic-map-play aria-pressed="${timeline.playing ? "true" : "false"}">${timeline.playing ? "Pause" : "Play"}</button><span>${start}</span><input type="range" data-cinematic-map-scrub min="0" max="${Math.max(0, timeline.ticks.length - 1)}" value="${timeline.observationIndex}" step="1" aria-label="Cinematic observation"><span>${end}</span><label><input type="checkbox" data-cinematic-map-local${state.localWindow ? " checked" : ""}> Local window</label></div>`;
+    this.#syncCinematicChart(overlay, state);
+    let body = overlay.querySelector(".cinematic-map-timeline__body");
+    if (!body) { body = document.createElement("div"); body.className = "cinematic-map-timeline__body"; overlay.append(body); }
+    body.innerHTML = `<div class="cinematic-map-timeline__meta"><strong>${state.localEmpty ? "No local observations" : current}</strong><span>${state.localWindow ? "Local window" : "All observed data"}</span></div><div class="cinematic-map-timeline__controls"><button type="button" data-cinematic-map-play aria-pressed="${timeline.playing ? "true" : "false"}">${timeline.playing ? "Pause" : "Play"}</button><span>${start}</span><input type="range" data-cinematic-map-scrub min="0" max="${Math.max(0, timeline.ticks.length - 1)}" value="${timeline.observationIndex}" step="1" aria-label="Cinematic observation"><span>${end}</span><label><input type="checkbox" data-cinematic-map-local${state.localWindow ? " checked" : ""}> Local window</label></div>`;
+  }
+
+  /**
+   * The bar chart above the map timeline (energy released per period for a
+   * magnitude field, else records per period). Its bars are drawn once per
+   * chart; each step only moves the playhead and the lit (past) part.
+   */
+  #syncCinematicChart(overlay, state) {
+    const chart = this.cinematicController.timelineChart?.();
+    let figure = overlay.querySelector("[data-cinematic-chart]");
+    if (!chart || !chart.max) { figure?.remove(); return; }
+    const span = chart.end - chart.start || 1;
+    const fraction = (value) => Math.min(1, Math.max(0, (value - chart.start) / span));
+    if (figure?.chart !== chart) {
+      figure?.remove();
+      figure = document.createElement("figure");
+      figure.className = "cinematic-chart";
+      figure.dataset.cinematicChart = "";
+      figure.chart = chart;
+      const height = 52;
+      // Zero bars are left out; any non-zero bar keeps a visible stub, as a small quake still released energy.
+      const bars = chart.bins.filter((bin) => bin.value > 0).map((bin) => {
+        const x = fraction(bin.start) * 1000, width = Math.max(1.5, (fraction(bin.end) - fraction(bin.start)) * 1000 * 0.72);
+        const h = Math.max(1.5, (bin.value / chart.max) * height);
+        return `<rect x="${x.toFixed(1)}" y="${(height - h).toFixed(1)}" width="${width.toFixed(1)}" height="${h.toFixed(1)}"><title>${escapeHtml(this.#cinematicChartPeriod(bin, chart))}: ${bin.count.toLocaleString()} record${bin.count === 1 ? "" : "s"}</title></rect>`;
+      }).join("");
+      // The last label names the last bar's period, not the instant after it.
+      const ticks = [0, 0.25, 0.5, 0.75, 1].map((at) => `<span style="left:${at * 100}%">${escapeHtml(this.#cinematicChartTick(Math.min(chart.start + at * span, chart.bins.at(-1).start), chart, state))}</span>`).join("");
+      figure.innerHTML = `<figcaption><span>${escapeHtml(chart.label)}${chart.stat === "energy" ? ` <small title="Seismic energy from ${escapeHtml(chart.field)}: log10 E = 1.5 M + 4.8">from ${escapeHtml(chart.field)}</small>` : ""}</span><span data-cinematic-chart-count></span></figcaption><svg viewBox="0 0 1000 ${height}" preserveAspectRatio="none" role="img" aria-label="${escapeHtml(chart.label)} for ${escapeHtml(chart.track)}. Click to go to a date."><defs><clipPath id="cinematic-chart-past"><rect data-cinematic-chart-clip x="0" y="0" width="0" height="${height}"/></clipPath></defs><g class="cinematic-chart__future">${bars}</g><g class="cinematic-chart__past" clip-path="url(#cinematic-chart-past)">${bars}</g><line class="cinematic-chart__base" x1="0" x2="1000" y1="${height}" y2="${height}" vector-effect="non-scaling-stroke"/><line class="cinematic-chart__head" data-cinematic-chart-head x1="0" x2="0" y1="0" y2="${height}" vector-effect="non-scaling-stroke"/></svg><div class="cinematic-chart__axis">${ticks}</div>`;
+      figure.querySelector("svg").addEventListener("click", (event) => {
+        const box = event.currentTarget.getBoundingClientRect();
+        this.cinematicController.goToTime(chart.start + ((event.clientX - box.left) / box.width) * span);
+      });
+      overlay.prepend(figure);
+    }
+    const x = (fraction(state.timeline.observationTime) * 1000).toFixed(1);
+    figure.querySelector("[data-cinematic-chart-clip]").setAttribute("width", x);
+    figure.querySelectorAll("[data-cinematic-chart-head]").forEach((line) => { line.setAttribute("x1", x); line.setAttribute("x2", x); });
+    const lead = state.layers?.find((item) => !item.ambient && item.kind !== "none");
+    const noun = lead?.effect === "quake" ? "earthquakes" : "records";
+    const cumulative = state.spec?.cinematic.clock.timeMode === "cumulative";
+    figure.querySelector("[data-cinematic-chart-count]").textContent = lead ? `${lead.observedCount.toLocaleString()} ${noun} ${cumulative ? "so far" : "shown"}` : "";
+  }
+
+  /** A chart bar's period, for its tooltip. */
+  #cinematicChartPeriod(bin, chart) {
+    if (!chart.unit) return `${this.#formatExplorerNumber(bin.start)}–${this.#formatExplorerNumber(bin.end)}`;
+    const date = new Date(bin.start);
+    const options = { timeZone: "UTC", ...({ year: { year: "numeric" }, month: { year: "numeric", month: "short" }, day: { dateStyle: "medium" }, hour: { dateStyle: "medium", timeStyle: "short" } }[chart.unit]) };
+    const text = date.toLocaleString(undefined, options);
+    const years = Math.round((bin.end - bin.start) / (365.25 * 86400000));
+    return chart.unit === "year" && years > 1 ? `${text}–${date.getUTCFullYear() + years - 1}` : text;
+  }
+
+  /** An axis label under the chart. */
+  #cinematicChartTick(value, chart, state) {
+    if (!chart.unit) return this.#cinematicValueText(value, state);
+    const options = { year: { year: "numeric" }, month: { year: "numeric", month: "short" }, day: { month: "short", day: "numeric" }, hour: { hour: "2-digit", minute: "2-digit" } }[chart.unit];
+    return new Date(value).toLocaleString(undefined, { timeZone: "UTC", ...options });
   }
 
   #syncPresentationMobileControls(presentation = this.projectManager.current.presentation || {}) {

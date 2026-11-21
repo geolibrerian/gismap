@@ -4,7 +4,7 @@
 // zoom 16, and whose motion reads one continuous clock, so stepping to the next
 // observation never restarts a flame or a ripple. Newly observed features
 // (`fresh`) flare when they appear; older ones in a build-up settle down.
-import { CINEMATIC_EFFECTS, EFFECT_QUALITY, effectFields, effectFrame, effectParts, particleSeeds, partsBounds, quadBuffers, ribbonBuffers } from "./cinematic-effects.js?v=0.71.0-subsurface";
+import { CINEMATIC_EFFECTS, EFFECT_QUALITY, discBuffers, effectFields, effectFrame, effectParts, particleSeeds, partsBounds, quadBuffers, ribbonBuffers } from "./cinematic-effects.js?v=0.79.0-quakes";
 import { trackTime } from "./clock.js?v=0.1.0";
 
 const EPOCH = globalThis.performance?.now?.() ?? 0;
@@ -94,6 +94,15 @@ void main() {
   p.xy += vec2(q.x * c - q.y * s, q.x * s + q.y * c) * uPx;
   vCorner = aCorner; vMagnitude = aMagnitude; vSpeed = aSpeed; vFresh = aFresh; vSeed = aSeed;
   gl_Position = projectionMatrix * modelViewMatrix * vec4(p, 1.0);
+}`;
+
+// A disc already laid on the ground in metres (its vertices carry terrain heights).
+const DISC_VERTEX = /* glsl */ `
+attribute vec2 aRadial; attribute float aMagnitude, aFresh, aSeed;
+varying vec2 vRadial; varying float vMagnitude, vFresh, vSeed;
+void main() {
+  vRadial = aRadial; vMagnitude = aMagnitude; vFresh = aFresh; vSeed = aSeed;
+  gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
 }`;
 
 const FRAGMENTS = {
@@ -325,6 +334,40 @@ void main() {
   float a = clamp(rings * 1.2 + shock + core + halo, 0.0, 1.0) * uIntensity * uOpacity;
   ${OUTPUT}
 }`,
+  // Light pooled on the ground where a quake struck. A fresh quake flares
+  // white-hot and sends one shock front out across the terrain; older ones
+  // keep a dim warm glow, stronger for larger magnitudes.
+  quakeGround: /* glsl */ `
+varying vec2 vRadial; varying float vMagnitude, vFresh, vSeed;
+void main() {
+  float r = length(vRadial);
+  if (r > 1.0) discard;
+  float flash = vFresh * exp(-uSince * 1.1);
+  float pool = exp(-r * r * 5.0) * mix(0.45, 0.9, vMagnitude);
+  float core = exp(-r * r * 40.0) * (0.8 + 1.6 * flash);
+  float spread = clamp(uSince * 0.45, 0.0, 1.0);
+  float front = (r - spread) / (0.04 + 0.05 * spread);
+  float shock = vFresh * exp(-front * front) * (1.0 - spread) * 1.4;
+  float bloom = flash * exp(-r * r * 3.5) * 0.9;
+  float flicker = 0.9 + 0.1 * sin(uTime * 2.3 + vSeed * 6.283);
+  vec3 col = mix(uColor, vec3(1.0, 0.96, 0.86), clamp(core * 0.8 + flash * 0.5, 0.0, 1.0));
+  float a = clamp((pool * flicker + core + shock + bloom) * smoothstep(1.0, 0.85, r), 0.0, 1.0) * uIntensity * uOpacity;
+  ${OUTPUT}
+}`,
+  // The epicentre itself: a small hot dot of constant screen size, so every
+  // quake stays visible when zoomed out; new ones flash larger.
+  quakeDot: /* glsl */ `
+varying vec2 vCorner; varying float vMagnitude, vSpeed, vFresh, vSeed;
+void main() {
+  float r = length(vCorner);
+  if (r > 1.0) discard;
+  float flash = vFresh * exp(-uSince * 1.5);
+  float core = exp(-r * r * 16.0);
+  float halo = exp(-r * r * 4.0) * 0.5;
+  vec3 col = mix(uColor, vec3(1.0, 0.97, 0.9), core * (0.35 + 0.6 * flash));
+  float a = clamp((core * 1.2 + halo) * mix(0.85, 1.0, vFresh) * (1.0 + flash), 0.0, 1.0) * uIntensity * uOpacity;
+  ${OUTPUT}
+}`,
   // A soft breathing spot under a point.
   spot: /* glsl */ `
 varying vec2 vCorner; varying float vMagnitude, vSpeed, vFresh, vSeed;
@@ -492,6 +535,7 @@ function geometry(THREE, buffers, attributes) {
 }
 
 const RIBBON_ATTRIBUTES = { aOffset: ["offset", 2], aSide: ["side", 1], aDist: ["distance", 1], aFresh: ["fresh", 1], aSeed: ["seed", 1], aSize: ["size", 1] };
+const DISC_ATTRIBUTES = { aRadial: ["radial", 2], aMagnitude: ["magnitude", 1], aFresh: ["fresh", 1], aSeed: ["seed", 1] };
 const QUAD_ATTRIBUTES = { aCorner: ["corner", 2], aMagnitude: ["magnitude", 1], aHeading: ["heading", 1], aSpeed: ["speed", 1], aFresh: ["fresh", 1], aSeed: ["seed", 1] };
 
 function emberPoints(THREE, uniforms, seeds) {
@@ -719,6 +763,12 @@ export function buildCinematicEffect(THREE, items, { effect = "glow", color, int
     add(seeds && emberPoints(THREE, uniforms, seeds), 3);
     add(quadMesh("spot", { uColor: "#ff5a14", uRadius: 22 }), 1);
     add(quads && flamePoints(THREE, uniforms, quads), 2);
+  } else if (effect === "quake") {
+    // Ground glows drape over the terrain under constant-size epicentre dots.
+    const discs = parts.points.length ? discBuffers(parts.points, frame, { magnitudeField: found.magnitude, ranges, maxDiscs: tier.discs ?? 48 }) : null;
+    add(discs && new THREE.Mesh(geometry(THREE, discs, DISC_ATTRIBUTES), material(THREE, uniforms, DISC_VERTEX, "quakeGround", { uAdd: 0.4 })), 1);
+    add(quadMesh("quakeDot", { uRadius: 6, uAdd: 0.35 }), 2);
+    add(ribbonMesh("glow", { uWidth: 10 }), 1);
   } else if (effect === "pulse") {
     add(quadMesh("pulse", { uRadius: 26, uAdd: 0.2 }), 1);
     add(ribbonMesh("glow", { uWidth: 14 }), 1);

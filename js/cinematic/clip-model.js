@@ -1,4 +1,4 @@
-import { exportCinematicSpec, importCinematicSpec } from "./state.js?v=0.70.4-sequence";
+import { exportCinematicSpec, importCinematicSpec } from "./state.js?v=0.79.0-quakes";
 import { PROVENANCE_STATUSES, normalizeTiming } from "./clock.js?v=0.1.0";
 import { normalizeSequence } from "./temporal-adapter.js?v=0.4.0-sequence";
 

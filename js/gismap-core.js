@@ -16,7 +16,7 @@ import {
   updateBlock,
   updateSlide,
   validateBriefing,
-} from "./briefing-document.js?v=0.72.0-si-maps";
+} from "./briefing-document.js?v=0.79.0-quakes";
 import {
   BRIEFING_SHARE_LIMITS,
   BRIEFING_SHARE_VERSION,
@@ -24,12 +24,12 @@ import {
   decodeBriefing,
   encodeBriefing,
   readBriefingHash,
-} from "./briefing-share.js?v=0.60.0-media1";
+} from "./briefing-share.js?v=0.79.0-quakes";
 import { SENTINEL_LABEL, detectSentinels, inspectSource } from "./source-inspector.js?v=0.71.0-subsurface";
 import { BREAK_METHODS, RAMPS, RENDERER_TYPES, chooseBreakMethod, chooseStyleField, closestField, compileRenderer, computeBreaks, describeValues, rampColors, resolveRendererSpec, suggestRenderers, validateRendererSpec } from "./renderer-spec.js?v=0.29.0";
 import { ERROR_CODES, GisMapError, toGisMapError } from "./gismap-errors.js?v=0.54.0-print";
 import { LAYER_TOOL_DEFINITIONS, checkToolInput } from "./layer-tools.js?v=0.29.0";
-import { MAP_SPEC_JSON_LIMIT, MAP_SPEC_VERSION, createMapSpecLink, decodeMapSpec, encodeMapSpec, prepareMapVerification, mapSpecFromShareParameters, rendererSpecFromParameters, validateMapSpec } from "./map-spec.js?v=0.76.0-chain";
+import { MAP_SPEC_JSON_LIMIT, MAP_SPEC_VERSION, createMapSpecLink, decodeMapSpec, encodeMapSpec, prepareMapVerification, mapSpecFromShareParameters, rendererSpecFromParameters, validateMapSpec } from "./map-spec.js?v=0.79.0-quakes";
 import { SHARE_BASEMAPS, SHARE_LAYER_TYPES, SHARE_LIMITS } from "./share.js?v=0.71.0-subsurface";
 import {
   SMART_IMAGE_CHUNK,

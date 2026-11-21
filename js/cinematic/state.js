@@ -1,10 +1,11 @@
 import { PROVENANCE_STATUSES, normalizeTiming } from "./clock.js?v=0.1.0";
 import { normalizeSequence } from "./temporal-adapter.js?v=0.4.0-sequence";
+import { TIMELINE_CHART_STATS } from "./timeline-chart.js?v=0.79.0-quakes";
 
 // null and "" are "not set", not 0: a saved spec re-normalized must keep an unset opacity unset.
 const finite = (value, fallback = null) => value !== null && value !== "" && Number.isFinite(Number(value)) ? Number(value) : fallback;
 const string = (value, fallback = "") => typeof value === "string" ? value : fallback;
-const EFFECTS = Object.freeze(["auto", "none", "glow", "fire", "pulse", "wind", "snow", "rain", "fog", "lightning", "tornado", "hurricane", "storm", "lava", "water", "water-flow", "flow", "electricity", "traffic", "trains", "sailboats", "ships", "walkers", "birds", "drones", "airplanes", "helicopters", "extrude", "reveal", "strata"]);
+const EFFECTS = Object.freeze(["auto", "none", "glow", "fire", "quake", "pulse", "wind", "snow", "rain", "fog", "lightning", "tornado", "hurricane", "storm", "lava", "water", "water-flow", "flow", "electricity", "traffic", "trains", "sailboats", "ships", "walkers", "birds", "drones", "airplanes", "helicopters", "extrude", "reveal", "strata"]);
 
 export const CINEMATIC_SCHEMA_VERSION = "0.1";
 export const CINEMATIC_TEMPLATES = Object.freeze(["step-perimeter", "moving-track"]);
@@ -72,6 +73,8 @@ export function normalizeCinematicSpec(input = {}) {
         // The master effects clock: its speed, and whether effects move (independent of the timeline).
         effectsRate: Math.min(8, Math.max(0.1, finite(clock.effectsRate, 1))), effectsPlaying: clock.effectsPlaying !== false },
       layers,
+      // The bar chart under the timeline: its statistic and (optionally) the field it reads.
+      chart: { stat: TIMELINE_CHART_STATS.includes(source.chart?.stat) ? source.chart.stat : "auto", ...(string(source.chart?.field) ? { field: source.chart.field.slice(0, 160) } : {}) },
       events: Array.isArray(source.events) ? source.events.slice(0, 200) : [],
       scenes: Array.isArray(source.scenes) ? source.scenes.slice(0, 50) : [],
       provenance: { synthetic: source.provenance?.synthetic === true, sourceUrls: Array.isArray(source.provenance?.sourceUrls) ? source.provenance.sourceUrls.filter((url) => /^https:\/\//i.test(url)).slice(0, 50) : [], interpolated: false },

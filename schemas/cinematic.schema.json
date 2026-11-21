@@ -27,6 +27,14 @@
             "loop": { "type": "boolean" }
           }
         },
+        "chart": {
+          "type": "object",
+          "description": "Bar chart under the timeline. auto: energy released per period for a magnitude field (log10 E = 1.5 M + 4.8), else the record count per period.",
+          "properties": {
+            "stat": { "enum": ["auto", "energy", "max", "count", "none"] },
+            "field": { "type": "string" }
+          }
+        },
         "layers": {
           "type": "array",
           "items": {
@@ -60,7 +68,7 @@
                     "type": "object",
                     "description": "Decorative animation drawn on observed geometry; never data. 'auto' picks one from the layer title, geometry and fields.",
                     "properties": {
-                      "type": { "enum": ["auto", "none", "glow", "fire", "pulse", "wind", "snow", "rain", "fog", "lightning", "tornado", "hurricane", "storm", "lava", "water", "water-flow", "flow", "electricity", "traffic", "trains", "sailboats", "ships", "walkers", "birds", "drones", "airplanes", "helicopters", "extrude", "reveal"] },
+                      "type": { "enum": ["auto", "none", "glow", "fire", "quake", "pulse", "wind", "snow", "rain", "fog", "lightning", "tornado", "hurricane", "storm", "lava", "water", "water-flow", "flow", "electricity", "traffic", "trains", "sailboats", "ships", "walkers", "birds", "drones", "airplanes", "helicopters", "extrude", "reveal"] },
                       "color": { "type": ["string", "null"], "pattern": "^#[0-9a-fA-F]{6}$" },
                       "intensity": { "type": "number", "minimum": 0.25, "maximum": 2 },
                       "opacity": { "type": "number", "minimum": 0.05, "maximum": 1 },
