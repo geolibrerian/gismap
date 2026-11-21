@@ -3,6 +3,9 @@ import test from "node:test";
 import { AUTHORED_SECTIONS, LOCATION_REPORT_SECTIONS, automaticLimitations, featuresAtPlace, buildLocationReportPdf, locationReportFileName, locationReportPrompt, normalizeLocationReport, parseReportMarkdown } from "../js/location-report.js";
 import { validateMapSpec } from "../js/map-spec.js";
 import { pdfSafeText } from "../js/pdf-document.js";
+import { readFileSync } from "node:fs";
+import { readableLink } from "../scripts/agent-docs.mjs";
+import { VENTURA_REPORT } from "../scripts/agent-recipes.mjs";
 
 test("a report has fixed sections, each written by the app, the AI or both", () => {
   assert.deepEqual(LOCATION_REPORT_SECTIONS.map((section) => section.id), ["summary", "location", "observations", "inferences", "context", "limitations", "nextSteps", "sources", "map"]);
@@ -91,6 +94,17 @@ test("in a tilted view only features that contain the place are reported, not ta
   assert.deepEqual(featuresAtPlace([hits[1]], [0.5, 0.5]), [hits[1]], "with no containing polygon the hits are kept");
 });
 
+test("the map gets a full landscape page of its own, linked back to the map", async () => {
+  const mapImage = { bytes: new Uint8Array([255, 216, 255, 217]), width: 1600, height: 1000 };
+  const blob = buildLocationReportPdf({ report: { title: "Oxnard" }, place: { longitude: -119.18, latitude: 34.2 }, mapImage, links: { map: "https://gismap.online/#map=json:%7B%7D", place: "https://gismap.online/#at=34.2,-119.18" } });
+  const text = Buffer.from(await blob.arrayBuffer()).toString("latin1");
+  assert.match(text, /\/MediaBox \[0 0 612 792\][\s\S]*\/MediaBox \[0 0 792 612\]/, "portrait text pages, then a landscape map page");
+  const [, width, height] = text.match(/q ([\d.]+) 0 0 ([\d.]+) [\d.]+ [\d.]+ cm \/Im2x0 Do Q/);
+  assert.ok(Number(width) > 700 || Number(height) > 520, `the map fills the page (${width} x ${height})`);
+  assert.match(text, /\(Map - Oxnard\) Tj/);
+  assert.equal((text.match(/\/URI \(https:\/\/gismap\.online\/#map=json:%7B%7D\)/g) || []).length, 3, "the title link, the map image and the strip link open the map");
+});
+
 test("app caveats, file names and safe PDF text", () => {
   assert.deepEqual(automaticLimitations({ features: [], layers: [{ title: "Codes", sentinels: [{ value: -1, label: "Not disclosed" }] }] }), [
     "No map feature was found at this place; the report rests on the location alone.",
@@ -109,4 +123,13 @@ test("a map link can carry a location report; it is checked like the rest of the
   const missing = validateMapSpec({ ...base, report: { sections: { summary: "No place" } } });
   assert.equal(missing.spec.report, undefined);
   assert.equal(missing.issues[0].path, "report.at");
+});
+
+test("the Discover card opens the recipe's report example, and the guides point agents at reports", () => {
+  const page = (path) => readFileSync(new URL(path, import.meta.url), "utf8");
+  const href = `href="${readableLink(VENTURA_REPORT).replace("https://gismap.online/", "../../").replaceAll("&", "&amp;")}"`;
+  assert.ok(page("../discover/examples/index.html").includes(href), "the card opens the same spec as the recipe");
+  assert.equal(validateMapSpec(VENTURA_REPORT).issues.length, 0);
+  assert.match(page("../guides/ai-agents/index.html"), /Write a location report/);
+  assert.match(page("../llms.txt"), /location-report/);
 });

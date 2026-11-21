@@ -47,6 +47,8 @@ Readable links hold up to 8,192 characters. Inspect real fields first (`<layer U
 
 Print-ready PDFs and branded Smart Images come from `gisMapOnline.print` in a running page; see the [print reference](https://gismap.online/skills/gismap/references/print.md).
 
+Location Intelligence Reports are PDFs about one place in fixed sections. You write the summary, inferences (each with its basis layers and a confidence), context and next steps after reading the layers there. The app adds the data at the place, the sources and a full-page map linking back. Put them in a map link's `report`, or call `gisMapOnline.reports.location` in a running page. See the [location reports reference](https://gismap.online/skills/gismap/references/location-report.md) and the [worked example](https://gismap.online/agent-recipes/location-report/).
+
 Finished maps, linked charts and Instant Dashboards, briefings, guided tours, field task packages, 3D maps, cinematic presentations and themed maps. Start with [Discover](https://gismap.online/discover/) and its [current examples](https://gismap.online/discover/examples/) when choosing a public workflow. Each recipe gives the interface to use (a URL you write, a standalone JavaScript module, or the in-page API; never a hosted REST endpoint), how to verify the result, and its limits: [recipe pages](https://gismap.online/agent-recipes/) · [recipe catalog (JSON)](https://gismap.online/api/agent-recipes/index.json). For engine-specific work, read the [Map engines guide](https://gismap.online/discover/engines/) before selecting styling or 3D behavior.
 
 

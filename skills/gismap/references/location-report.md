@@ -14,7 +14,7 @@ A Location Intelligence Report is a PDF about one place, made from the layers on
 | 6 | Limitations | Both | What the data cannot show. The app adds its own caveats: nothing found at the place, layers held only in part, coded values such as -1 = Not disclosed. |
 | 7 | Suggested next steps | Agent or AI | Optional: layers, field checks or analyses that would settle open questions. |
 | 8 | Sources | App | Each visible layer's title and source address. |
-| 9 | Map | App | A snapshot of the map that links to the whole map with its layers, and a link to the place. |
+| 9 | Map | App | A landscape page filled by a snapshot of the map, which opens the whole map with its layers, plus a link to the place. |
 
 Authored sections are `summary`, `observations`, `inferences`, `context`, `limitations` and `nextSteps`. `location`, `sources` and `map` are the app's: an authored value for them is ignored and reported. In a running page, `gisMapOnline.reports.sections()` returns this table as data.
 

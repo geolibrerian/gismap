@@ -4,7 +4,7 @@
 // and general knowledge (summary, inferences, context, next steps). Limitations
 // come from both. Every source of report text (the in-app AI, the in-page API, a
 // map link's "report") fills the same sections, so reports read the same way.
-import { PdfDocument } from "./pdf-document.js?v=0.81.3-report";
+import { PdfDocument, SITE_URL } from "./pdf-document.js?v=0.81.4-report";
 
 export const LOCATION_REPORT_VERSION = 1;
 
@@ -22,7 +22,7 @@ export const LOCATION_REPORT_SECTIONS = Object.freeze([
   { id: "limitations", title: "Limitations", source: "both", kind: "list", guidance: "What the data cannot show or settle. The app adds its own caveats, such as layers read only in part." },
   { id: "nextSteps", title: "Suggested next steps", source: "inference", kind: "list", guidance: "Optional: layers, field checks or analyses that would settle open questions." },
   { id: "sources", title: "Sources", source: "data", kind: "app", guidance: "Each map layer's title and source address." },
-  { id: "map", title: "Map", source: "data", kind: "app", guidance: "A snapshot of the map, a link that opens the whole map with its layers, and a link to this place." },
+  { id: "map", title: "Map", source: "data", kind: "app", guidance: "A full landscape page with a snapshot of the map that opens the whole map with its layers, and a link to this place." },
 ]);
 
 const SECTION = Object.fromEntries(LOCATION_REPORT_SECTIONS.map((section) => [section.id, section]));
@@ -315,12 +315,21 @@ export function buildLocationReportPdf({ report = { sections: {} }, place = {}, 
     });
   }
 
-  if (mapImage || links.map) {
-    pdf.newPage();
-    pdf.heading2(SECTION.map.title);
-    note("The map when this report was made. Click it to open the same map, with its layers, in GISMap Online.");
-    if (mapImage) pdf.addImage(mapImage, { maxHeight: 420, link: links.map || links.place || null });
-    if (links.map) pdf.addLines("Open this map in GISMap Online", { size: 10, leading: 15, link: links.map });
+  if (mapImage) {
+    // The map gets a landscape page of its own, edge to edge, with a slim strip of links below it.
+    const [width, height, edge, strip] = [792, 612, 18, 30];
+    pdf.newPage({ width, height, header: false });
+    pdf.addImageAt(mapImage, { x: edge, y: height - edge, width: width - edge * 2, height: height - edge * 2 - strip, link: links.map || links.place || null, border: "#cfd8d4" });
+    const y = edge + 10;
+    // One line in the strip: a long title is shortened.
+    const caption = `${SECTION.map.title} · ${report.title || place.address || coordinates || "Location report"}`;
+    pdf.addTextAt(caption.length > 62 ? `${caption.slice(0, 60).trimEnd()}…` : caption, { x: edge, y, width: 320, size: 9, color: colors.muted, bold: true, bottom: 0 });
+    if (links.map) pdf.addTextAt("Open this map in GISMap Online", { x: 340, y, width: 170, size: 9, link: links.map, bottom: 0 });
+    if (links.place) pdf.addTextAt("Open at this place", { x: 520, y, width: 100, size: 9, link: links.place, bottom: 0 });
+    pdf.addTextAt("gismap.online", { x: width - edge - 62, y, width: 62, size: 9, bold: true, color: colors.accent, link: SITE_URL, bottom: 0 });
+  } else if (links.map) {
+    heading("map");
+    pdf.addLines("Open this map in GISMap Online", { size: 10, leading: 15, link: links.map });
     if (links.place) pdf.addLines("Open GISMap Online at this place", { size: 10, leading: 15, link: links.place });
   }
   return pdf.toBlob();
