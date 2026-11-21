@@ -6,7 +6,7 @@ import { refreshMapNoteFilters } from './map-note-filters.js?v=0.4.1';
 import { openDataMapNotesPanel } from "./data-map-notes-panel.js?v=0.73.0-si-notes";
 import { refreshMapNoteWorkflow } from "./map-note-workflow-ui.js?v=0.1.0";
 import { noteFeatureReference } from './map-note-feature.js?v=0.71.0-subsurface';
-import { openMapNotesPanel } from "./map-notes-panel.js?v=0.71.0-subsurface";
+import { openMapNotesPanel } from "./map-notes-panel.js?v=0.81.3-report";
 import { refreshNoteRelationships } from "./note-relationships-ui.js?v=0.1.0";
 import { googleMapsLinkForChapter } from "./google-maps-link.js?v=0.53.0";
 import { POPULAR_SERVICES } from "./catalog.js?v=0.71.0-subsurface";
@@ -16,12 +16,13 @@ import { MapAssistantPanel } from "./assistant-panel.js?v=0.72.0-si-maps";
 import { createAssistantTools, summarizeMapState } from "./map-assistant.js?v=0.72.0-si-maps";
 import { ENTERPRISE_CATALOGS, EnterpriseCatalog, normalizeArcGisDirectoryUrl } from "./enterprise-catalog.js?v=0.71.0-subsurface";
 import { createShareUrl, parseShareParameters } from "./share.js?v=0.71.0-subsurface";
-import { mapSpecFromShareParameters } from "./map-spec.js?v=0.80.0-grow";
+import { mapSpecFromShareParameters } from "./map-spec.js?v=0.81.3-report";
 import { createShareLink, hasDataFilter, readBriefingFile } from "./map-share.js?v=0.80.0-grow";
 import { createEmbedIframe, createEmbedUrl } from "./embed-share.js?v=0.65.0-paths";
-import { briefingLayerRef, findBriefingLayer } from "./briefing-api.js?v=0.80.0-grow";
+import { briefingLayerRef, findBriefingLayer } from "./briefing-api.js?v=0.81.3-report";
 import { createEmbeddedTourUrl } from "./tour-share.js?v=0.54.0-unified4";
-import { markdownToPlainText, renderMarkdown } from "./markdown.js?v=0.18.2";
+import { renderMarkdown } from "./markdown.js?v=0.18.2";
+import { buildLocationReportPdf, featuresAtPlace, locationReportFileName, locationReportPrompt, normalizeLocationReport, parseReportMarkdown } from "./location-report.js?v=0.81.3-report";
 import { formatAttributeValue } from "./attribute-format.js?v=0.18.2";
 import { normalizeApplicationConfig, presetApplication } from "./application-config.js?v=0.68.0-charts1";
 import { featureFilterFor, featureId, fieldKind, filterRecords, histogram, requestGuard, sortRecords } from "./presentation-query.js?v=0.30.0";
@@ -31,19 +32,19 @@ import { compactMedia } from "./viewport.js?v=0.18.2";
 import { APP_VERSION } from "./version.js?v=0.54.0-print";
 import { bindMobileSheetResize } from "./mobile-sheet-resize.js?v=0.52.7";
 import { BRAND } from "./brand.js";
-import { BRAND_LOGO, PdfDocument, brandedMapImage, brandedQrCanvas, imageToJpeg, loadBrandLogo, printPalette, qrAsset } from "./pdf-document.js?v=0.69.1-pdflinks";
+import { BRAND_LOGO, PdfDocument, brandedMapImage, brandedQrCanvas, imageToJpeg, loadBrandLogo, printPalette, qrAsset } from "./pdf-document.js?v=0.81.3-report";
 import { DEFAULT_PAGE_FRAME, IMAGE_ANCHORS, MAP_TEMPLATES, getTemplate, loadImage, renderTemplate, templateCompact, templateMapAspect } from "./map-templates.js?v=0.54.0-print";
 import { featureLayerUrl, locationUrl } from "./field-task-share.js?v=0.71.0-subsurface";
 import { dockIcon } from "./dock-icons.js?v=0.24.0";
 import { serviceNameFromUrl } from "./service-name.js?v=0.26.0";
 import { decodeQrFromImage, describeGisMapLink, gisMapLinkFrom, openGisMapLink } from "./qr-import.js?v=0.25.2";
-import { BriefingSlides } from "./briefing-slides.js?v=0.80.0-grow";
+import { BriefingSlides } from "./briefing-slides.js?v=0.81.3-report";
 import { addSlide, createSlide, isRoutineField, matchesFilter, normalizeBriefing, normalizeFilter } from "./briefing-document.js?v=0.80.0-grow";
 import { conditionComplete, conditionLabel, conditionToFilter } from "./briefing-conditions.js?v=0.1.0";
 import { createFilterBuilder } from "./filter-builder.js?v=0.1.0";
 import { conditionsToWhere } from "./filter-sql.js?v=0.1.0";
 import { aiDescriptionPrompt, applyAiDescriptions, describeWhere, generateBriefing, readAiDescriptions, rendererTheme } from "./briefing-generator.js?v=0.80.0-grow";
-import { briefingFileStem } from "./briefing-pdf.js?v=0.69.1-pdflinks";
+import { briefingFileStem } from "./briefing-pdf.js?v=0.81.3-report";
 import { RAMPS, rampColors, compileRenderer } from "./renderer-spec.js?v=0.29.1";
 import { bindSubsurfaceControls, canDrawBelowGround, subsurfaceControlsMarkup } from "./subsurface-controls.js?v=0.71.0-subsurface";
 import { listedOrder, spatialChartColor, spatialChartGroupColor, spreadColors } from "./spatial-chart.js?v=0.71.0-subsurface";
@@ -10092,7 +10093,7 @@ export class UIController {
       ? `<section class="ai-response"><div class="ai-response__header"><span class="eyebrow">AI insights</span><span><button type="button" class="ai-response__download">Download report</button><button type="button" class="ai-response__clear">Clear insights</button></span></div><p class="ai-response__query"><strong>Query</strong><span>${escapeHtml(this.lastAIQueryText || "Map context query")}</span></p><div class="ai-response__markdown">${renderMarkdown(this.lastAIResponseText)}</div></section>`
       : "";
     const locationReportHtml = payload?.point
-      ? `<div class="intelligence-report-action"><button type="button" data-intelligence-note>Add a note</button>${!this.lastAIResponseText ? '<button type="button" class="location-report-download">Download location report</button>' : ""}</div>`
+      ? `${payload.authoredReport ? `<div class="location-card location-card--report"><span class="eyebrow">Location report</span><strong>${escapeHtml(payload.authoredReport.title || "Prepared with this map")}</strong>${payload.authoredReport.sections?.summary ? `<small>${escapeHtml(payload.authoredReport.sections.summary.slice(0, 240))}${payload.authoredReport.sections.summary.length > 240 ? "…" : ""}</small>` : ""}</div>` : ""}<div class="intelligence-report-action"><button type="button" data-intelligence-note>Add a note</button>${!this.lastAIResponseText ? `<button type="button" class="location-report-download">${payload.authoredReport ? "Download this report" : "Download location report"}</button>` : ""}${this.aiController.isConfigured() ? `<button type="button" data-location-report-ai${this.locationReportPending ? " disabled" : ""}>${this.locationReportPending ? "Writing report…" : "Write report with AI"}</button>` : ""}</div>`
       : "";
     const loadingHtml = this.identifyPending
       ? '<div class="loading-row"><span></span> Inspecting location…</div>'
@@ -10118,9 +10119,10 @@ export class UIController {
       this.lastAIQueryText = null;
       this.#renderIntelligenceContents();
     });
-    target.querySelector(".ai-response__download")?.addEventListener("click", () => this.#downloadAIReport(payload));
+    target.querySelector(".ai-response__download")?.addEventListener("click", () => void this.#downloadLocationReport(payload, { answer: this.lastAIResponseText }).catch((error) => this.error(error.message)));
     target.querySelector("[data-intelligence-note]")?.addEventListener("click", () => openMapNotesPanel(this, { point: [payload.point.longitude, payload.point.latitude] }));
-    target.querySelector(".location-report-download")?.addEventListener("click", () => this.#downloadAIReport(payload));
+    target.querySelector(".location-report-download")?.addEventListener("click", () => void this.#downloadLocationReport(payload).catch((error) => this.error(error.message)));
+    target.querySelector("[data-location-report-ai]")?.addEventListener("click", () => void this.#downloadLocationReport(payload, { ai: true }).catch((error) => this.error(error.message)));
   }
 
   #askAI(prompt, payload = this.lastInsight, displayQuery = prompt) {
@@ -10233,72 +10235,128 @@ export class UIController {
     activeContent?.querySelector(".ai-response")?.scrollIntoView({ behavior: "smooth", block: "nearest" });
   }
 
-  async #downloadAIReport(payload = this.lastInsight) {
-    if (!payload) {
-      this.error("Click a location before downloading a report.");
-      return;
-    }
-    const hasAIResponse = Boolean(this.lastAIResponseText);
-    const logo = await loadBrandLogo();
-    const mapCapture = await this.mapController.captureImage().catch(() => null);
-    const point = payload?.point;
-    const coordinates = point ? `${point.latitude.toFixed(6)}, ${point.longitude.toFixed(6)}` : "Unknown location";
-    const location = payload?.address?.address || coordinates;
-    // Coordinates and the map open the app zoomed to this place, with a pin on it.
-    const placeLink = point ? locationUrl(globalThis.location.href, { latitude: point.latitude, longitude: point.longitude }) : null;
-    const mapImage = mapCapture?.dataUrl
-      ? await brandedMapImage(mapCapture, { title: String(location).split(",")[0] || "Location", subtitle: `Location intelligence map · ${new Date().toLocaleString()}` })
-      : null;
-    const report = new PdfDocument({ heading: "LOCATION INTELLIGENCE REPORT", logo, homeUrl: APP_ROOT });
-    const addLines = (text, options) => report.addLines(text, options);
-    addLines(`Generated ${new Date().toLocaleString()}`, { size: 9, leading: 14, color: "0.36 0.44 0.41" });
-    report.gap(10);
-    addLines("Location", { size: 13, leading: 18, color: "0.08 0.36 0.30", bold: true });
-    addLines(location, { size: 12, leading: 18, bold: true });
-    addLines(`Coordinates: ${coordinates}`, { link: placeLink });
-    const extent = this.mapController.getCurrentExtentDetails?.();
-    if (extent) addLines(`Map extent: ${extent.west.toFixed(4)}, ${extent.south.toFixed(4)} to ${extent.east.toFixed(4)}, ${extent.north.toFixed(4)}${extent.zoom != null ? ` (zoom ${extent.zoom})` : ""}`);
-    if (hasAIResponse) {
-      report.gap(10);
-      addLines("Query", { size: 13, leading: 18, color: "0.08 0.36 0.30", bold: true });
-      addLines(this.lastAIQueryText || "Map context query", { size: 11, leading: 16 });
-      report.gap(10);
-      addLines("Generated intelligence", { size: 13, leading: 18, color: "0.08 0.36 0.30", bold: true });
-      addLines(markdownToPlainText(this.lastAIResponseText), { size: 10, leading: 15 });
-    } else {
-      const reportResults = payload.selectedResults?.length ? payload.selectedResults : (payload.results ?? []).slice(0, 1);
-      report.gap(10);
-      addLines("Map Insight attributes", { size: 13, leading: 18, color: "0.08 0.36 0.30", bold: true });
-      if (!reportResults.length) {
-        addLines("No map feature was identified at the clicked location.");
-      } else {
-        reportResults.forEach((result) => {
-          addLines(result.layerTitle || "Selected feature", { size: 11, leading: 16, bold: true });
-          const attributes = Object.entries(result.attributes ?? {}).filter(([, value]) => value !== null && value !== "");
-          if (!attributes.length) addLines("No attributes returned.");
-          attributes.slice(0, 60).forEach(([key, value]) => {
-            addLines(`${key}: ${typeof value === "object" ? JSON.stringify(value) : value}`, { size: 10, leading: 15 });
-          });
-          if (attributes.length > 60) addLines(`… ${attributes.length - 60} additional attributes omitted.`, { size: 9, leading: 14, color: "0.36 0.44 0.41" });
-          report.gap(6);
-        });
+  /**
+   * A location report about `payload` (an identify:complete result), in the sections of
+   * js/location-report.js. Its analysis comes from `report` (an agent's or a map link's
+   * sections), from `answer` (an Intelligence reply), or, with `ai`, from the configured
+   * AI writing the sections now. Without any, the app's own sections still make a report.
+   * Returns { file, report, issues, links }; `download` saves it too.
+   */
+  async #downloadLocationReport(payload = this.lastInsight, { report: authored = null, answer = null, ai = false, download = true } = {}) {
+    if (!payload?.point) throw new Error("Click a location before making a report.");
+    const point = payload.point;
+    // Every feature at the place, so the report can weigh the layers together. In a tilted
+    // view tall neighbours cover the clicked pixel too; only features containing the place count.
+    const features = featuresAtPlace((payload.results ?? []).filter((result) => result.kind !== "location"), [point.longitude, point.latitude]).slice(0, 10);
+    let input = authored || payload.authoredReport || {};
+    if (ai) {
+      if (!this.aiController.isConfigured()) throw new Error("Configure an AI provider from Tools before writing a report with AI.");
+      this.locationReportPending = true;
+      this.#renderIntelligenceContents();
+      try {
+        const text = await this.aiController.ask(locationReportPrompt({ question: this.lastAIQueryText || "" }), { ...payload, selectedResults: features }, { quiet: true });
+        input = { ...parseReportMarkdown(text), author: this.#aiAuthor() };
+      } finally {
+        this.locationReportPending = false;
+        this.#renderIntelligenceContents();
       }
+    } else if (answer) {
+      input = { ...parseReportMarkdown(answer), author: this.#aiAuthor() };
     }
-    if (mapImage) {
-      report.newPage();
-      addLines("Map snapshot", { size: 13, leading: 18, color: "0.08 0.36 0.30", bold: true });
-      addLines(`The map view at the time this Location Intelligence Report was created.${placeLink ? " Click it to open this place in GISMap Online." : ""}`, { size: 9, leading: 14, color: "0.36 0.44 0.41" });
-      report.addImage(mapImage, { maxHeight: 420, link: placeLink });
-      const details = this.mapController.getCurrentExtentDetails();
-      addLines(`Map extent: ${details?.west.toFixed(4)}, ${details?.south.toFixed(4)} to ${details?.east.toFixed(4)}, ${details?.north.toFixed(4)}`, { size: 9, leading: 14, color: "0.36 0.44 0.41" });
+    const { report, issues } = normalizeLocationReport(input);
+    const attributes = payload.address?.attributes || {};
+    const geographies = [["City", "City"], ["County", "County"], ["State", "Region"], ["Postal code", "Postal"], ["Census tract", "CensusTract"], ["Census tract GEOID", "CensusTractGEOID"]]
+      .flatMap(([label, key]) => (typeof attributes[key] === "string" && attributes[key].trim() ? [{ label, value: attributes[key].trim() }] : []));
+    const place = { longitude: point.longitude, latitude: point.latitude, address: payload.address?.address || null, geographies };
+    // Every layer is a source, hidden ones too: a hexagon layer is made from hidden blocks.
+    const layers = this.mapController.getLayers().map((layer) => {
+      const config = this.mapController.getLayerConfig(layer);
+      const sentinels = (this.mapController.layerMetadata?.(layer)?.sentinels || []).filter((item) => item.source !== "heuristic");
+      const url = /^https?:\/\//.test(config.url || "") ? config.url : null;
+      const note = [layer.visible === false ? "Hidden on the map, so not read at the place." : "", url ? "" : "Made in the browser from the map's other layers."].filter(Boolean).join(" ");
+      return { title: config.title || layer.title, url, truncated: Boolean(layer.truncated), sentinels, ...(note ? { note } : {}) };
+    });
+    // A share link carries layers from addresses, not layers made in the browser (hexagons,
+    // dots). A map opened from a map link with such layers links back to that link, whose
+    // analysis steps make them again; otherwise the PDF says what the share link leaves out.
+    const derived = layers.some((layer) => !layer.url);
+    const opened = /^#map=/.test(globalThis.location.hash) ? globalThis.location.href : null;
+    const mapLink = derived && opened ? opened : await this.#mapShareLink().then((link) => link.url).catch(() => null);
+    const links = { map: mapLink, place: locationUrl(globalThis.location.href, { latitude: point.latitude, longitude: point.longitude }), partial: derived && !opened };
+    const capture = await this.mapController.captureImage().catch(() => null);
+    const mapImage = capture?.dataUrl
+      ? await brandedMapImage(capture, { title: String(place.address || "Location").split(",")[0], subtitle: `Location intelligence map · ${new Date().toLocaleString()}` })
+      : null;
+    const blob = buildLocationReportPdf({ report, place, features, layers, links, mapImage, logo: await loadBrandLogo(), extent: this.mapController.getCurrentExtentDetails?.() });
+    const file = new File([blob], locationReportFileName(place), { type: "application/pdf" });
+    if (download) {
+      const anchor = document.createElement("a");
+      anchor.href = URL.createObjectURL(file);
+      anchor.download = file.name;
+      anchor.click();
+      setTimeout(() => URL.revokeObjectURL(anchor.href), 1000);
+      this.toast(report.author ? "Location Intelligence Report downloaded." : "Location report downloaded.");
     }
-    const slug = String(location).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "").slice(0, 48) || "map-location";
-    const download = document.createElement("a");
-    download.href = URL.createObjectURL(report.toBlob());
-    download.download = `location-intelligence-report-${slug}.pdf`;
-    download.click();
-    setTimeout(() => URL.revokeObjectURL(download.href), 1000);
-    this.toast(hasAIResponse ? "Location Intelligence Report downloaded." : "Location report downloaded.");
+    return { file, report, issues, links };
+  }
+
+  /** Who wrote AI sections, for the report's byline: the provider's model. */
+  #aiAuthor() {
+    const model = this.aiController.config?.model;
+    return model ? `AI (${model})` : "AI";
+  }
+
+  /**
+   * A location report from outside the panel (the in-page API, a map link's "report"):
+   * inspects `at` ([longitude, latitude]) as a click would, then builds the report with
+   * the authored `report` sections, or the configured AI's with `ai`.
+   */
+  async locationReport({ at = null, report = null, ai = false, download = false } = {}) {
+    const target = at || report?.at;
+    let payload = this.lastInsight;
+    if (Array.isArray(target)) {
+      const [longitude, latitude] = target.map(Number);
+      if (!Number.isFinite(longitude) || !Number.isFinite(latitude)) throw new GisMapError("INVALID_SPEC", "at must be [longitude, latitude].");
+      payload = await this.#inspectAt(longitude, latitude);
+    }
+    if (!payload?.point) throw new GisMapError("INVALID_SPEC", "Give the report a place: at = [longitude, latitude].");
+    return this.#downloadLocationReport(payload, { report, ai, download });
+  }
+
+  /** A map link's report: its place is inspected and the report offered in Intelligence, ready to download. */
+  async offerLocationReport(report) {
+    const payload = await this.#inspectAt(...report.at);
+    payload.authoredReport = report;
+    this.#openIntelligenceUtility();
+    this.#renderIntelligenceContents();
+    this.toast(`${report.title || "This map's location report"} is ready to download from Intelligence.`);
+    return payload;
+  }
+
+  /** Inspects a place as a click there would (Intelligence opens on it) and resolves with the identify result. */
+  async #inspectAt(longitude, latitude) {
+    const box = document.querySelector("#viewDiv")?.getBoundingClientRect();
+    const onScreen = (screen) => screen && Number.isFinite(screen.x) && (!box || (screen.x >= 0 && screen.y >= 0 && screen.x <= box.width && screen.y <= box.height));
+    // A place out of view is brought to the centre first, so the map can identify what is there.
+    await this.whenMapIdle?.();
+    let screen = this.mapController.mapToScreen?.([longitude, latitude]);
+    if (!onScreen(screen)) {
+      await this.mapController.setView({ center: [longitude, latitude] }, { animate: false });
+      await this.whenMapIdle?.();
+      screen = this.mapController.mapToScreen?.([longitude, latitude]);
+    }
+    if (!onScreen(screen)) throw new GisMapError("NOT_READY", "The map could not show this place to inspect it.");
+    const done = new Promise((resolve, reject) => {
+      const subscriptions = [];
+      const stop = () => subscriptions.forEach((subscription) => subscription.remove());
+      const timer = setTimeout(() => { stop(); reject(new GisMapError("NOT_READY", "Inspecting the place took too long.")); }, 20000);
+      subscriptions.push(
+        this.events.subscribe("identify:complete", (result) => { clearTimeout(timer); stop(); resolve(result); }),
+        this.events.subscribe("identify:error", ({ error }) => { clearTimeout(timer); stop(); reject(error); }),
+      );
+    });
+    this.events.publish("map:click", { x: screen.x, y: screen.y, mapPoint: { longitude, latitude } });
+    return done;
   }
 
   /** Applies a skin as the spec or link asks, and keeps it with the project. */

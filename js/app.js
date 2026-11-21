@@ -6,12 +6,12 @@ import { MapController } from "./map-controller.js?v=0.80.0-grow";
 import { listEngines } from "./engines/engine-registry.js?v=0.80.0-grow";
 import { chooseEngine } from "./engine-preference.js?v=0.52.5";
 import { BASEMAP_IDS } from "./basemap-catalog.js?v=0.53.0-gallery1";
-import { ProjectManager } from "./project.js?v=0.80.0-grow";
+import { ProjectManager } from "./project.js?v=0.81.3-report";
 import { IdentifyController } from "./identify.js?v=0.54.0-pan2";
 import { AttributeTableController } from "./attribute-table.js?v=0.61.2-layer-tools";
 import { AIController } from "./ai.js?v=0.72.0-si-maps";
 import { ToolManager } from "./tool-manager.js?v=0.37.0";
-import { UIController } from "./ui.js?v=0.80.0-grow";
+import { UIController } from "./ui.js?v=0.81.3-report";
 import { ExportController } from "./export/export-controller.js?v=0.37.0";
 import { SHARE_BASEMAPS, parseShareParameters } from "./share.js?v=0.71.0-subsurface";
 import { readShareLocation } from "./map-share.js?v=0.80.0-grow";
@@ -22,19 +22,20 @@ import { POPULAR_SERVICES } from "./catalog.js?v=0.71.0-subsurface";
 import { ApplicationRuntime } from "./application-runtime.js?v=0.68.0-charts1";
 import { PanelManager } from "./panel-manager.js?v=0.18.2";
 import { MobilePanelManager } from "./mobile-panel-manager.js?v=0.18.2";
-import { MobileWorkflowRouter } from "./mobile-workflow-router.js?v=0.71.0-subsurface";
-import { createClientApi } from "./briefing-api.js?v=0.80.0-grow";
+import { MobileWorkflowRouter } from "./mobile-workflow-router.js?v=0.81.3-report";
+import { createClientApi } from "./briefing-api.js?v=0.81.3-report";
 import { createPrintApi, hasWebgl, registerPrintTools, webglIssue } from "./print-api.js?v=0.54.0-print";
 import { MAP_TEMPLATES } from "./map-templates.js?v=0.54.0-print";
-import { readProjectFromPng } from "./smart-image.js?v=0.71.0-subsurface";
+import { readProjectFromPng } from "./smart-image.js?v=0.81.3-report";
 import { registerAuthoringTools } from "./agent-authoring-tools.js?v=0.53.0";
 import { createCameraApi, createLayersApi } from "./layers-api.js?v=0.71.0-subsurface";
 import { registerLayerTools } from "./layer-tools.js?v=0.29.0";
 import { createSpatialAnalysisApi } from "./spatial-analysis.js?v=0.69.0-extent";
-import { createMapSpecApi } from "./map-spec-api.js?v=0.80.0-grow";
+import { createMapSpecApi } from "./map-spec-api.js?v=0.81.3-report";
 import { createLayerStylesApi } from "./layer-styles-api.js?v=0.80.0-grow";
-import { mapSpecFromShareParameters } from "./map-spec.js?v=0.80.0-grow";
+import { mapSpecFromShareParameters } from "./map-spec.js?v=0.81.3-report";
 import { createLoadProgress } from "./load-progress.js?v=0.1.4";
+import { LOCATION_REPORT_SECTIONS, locationReportPrompt, normalizeLocationReport } from "./location-report.js?v=0.81.3-report";
 import { MAP_TUTORIALS } from "./workspace-walkthrough.js?v=0.77.0-tutorial";
 import { GisMapError, ERROR_CODES } from "./gismap-errors.js?v=0.54.0-print";
 
@@ -231,6 +232,19 @@ async function start() {
     document.documentElement.dataset.gismapState = "error";
   }
   const analysisApi = createSpatialAnalysisApi({ mapController, layers: layersApi });
+  /** True once the map has drawn everything it is loading (tiles, features, 3D). */
+  const mapIdle = () => {
+    const { map, view } = mapController.native();
+    return view ? view.updating === false : Boolean(map?.loaded?.() && map.areTilesLoaded?.());
+  };
+  // A place is inspected only once what is on the map has been drawn, or identify finds nothing.
+  uiController.whenMapIdle = async (timeoutMs = 10000) => {
+    const deadline = Date.now() + timeoutMs;
+    for (let calm = 0; calm < 2 && Date.now() < deadline;) {
+      await new Promise((resolve) => setTimeout(resolve, 150));
+      calm = mapIdle() ? calm + 1 : 0;
+    }
+  };
   const loadProgress = createLoadProgress({ events, mapController });
   const mapSpecApi = createMapSpecApi({
     analysis: analysisApi,
@@ -253,6 +267,7 @@ async function start() {
       addChart: (chart) => uiController.addLinkedChart(chart),
       clearCharts: () => uiController.clearChartPanels(),
       getCharts: () => projectManager.current?.charts || [],
+      offerLocationReport: (report) => uiController.offerLocationReport(report),
     },
   });
   const layerStylesApi = createLayerStylesApi({
@@ -274,10 +289,7 @@ async function start() {
       webgl: hasWebgl,
       ready: () => ready,
       layers: () => mapController.isReady() ? layersApi.list() : [],
-      idle: () => {
-        const { map, view } = mapController.native();
-        return view ? view.updating === false : Boolean(map?.loaded?.() && map.areTilesLoaded?.());
-      },
+      idle: mapIdle,
       defaults: () => uiController.printDefaults(),
       render: (kind, options) => uiController.printRender(kind, options),
       open: (options) => uiController.printOpen(options),
@@ -342,6 +354,16 @@ async function start() {
     smartImages: clientApi.smartImages,
     /** The Print Editor: templates, getOptions, setOptions, preview, exportPdf, exportSmartImage, open. Exports return files. */
     print: printApi,
+    /**
+     * Location reports in fixed sections (js/location-report.js): sections(), prompt(), validate(report),
+     * and location({ at, report, ai, download }), which inspects the place and returns { file, report, issues, links }.
+     */
+    reports: Object.freeze({
+      sections: () => structuredClone(LOCATION_REPORT_SECTIONS),
+      prompt: (options) => locationReportPrompt(options),
+      validate: (report) => normalizeLocationReport(report),
+      location: (options) => uiController.locationReport(options),
+    }),
     /** Project files, returned without downloading: exportFile (.gis), exportPackage (.gisx). */
     project: Object.freeze({
       exportFile: () => projectManager.createFile(),

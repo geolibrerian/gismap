@@ -2,7 +2,7 @@
 // through the `layers` and `camera` APIs, and exports the current map as one.
 // Issues (from the schema, and from loading: a misspelled field, a service that
 // will not load) are collected so describe() and the issues panel can show them.
-import { MAP_SPEC_VERSION, chartSpecFromMapChart, createMapSpecLink, decodeMapSpec, encodeMapSpec, mapChartFromChartSpec, prepareMapVerification, validateMapSpec } from "./map-spec.js?v=0.80.0-grow";
+import { MAP_SPEC_VERSION, chartSpecFromMapChart, createMapSpecLink, decodeMapSpec, encodeMapSpec, mapChartFromChartSpec, prepareMapVerification, validateMapSpec } from "./map-spec.js?v=0.81.3-report";
 import { GisMapError, toGisMapError } from "./gismap-errors.js?v=0.54.0-print";
 import { basemapEntry, basemapLabel, basemapOnEngine } from "./basemap-catalog.js?v=0.53.0-gallery1";
 import { previewChain, resultLabel, stepLabel } from "./load-progress.js?v=0.1.4";
@@ -164,6 +164,13 @@ export function createMapSpecApi({ layers, camera, mapController, analysis = nul
         try { await host.loadBriefing?.(spec.briefing); } catch (error) {
           const problem = toGisMapError(error, "INVALID_SPEC");
           issues.push({ level: "warning", code: problem.code, path: "briefing", message: problem.message });
+        }
+      }
+      // Last, once layers and camera are set: the place is inspected and its report offered.
+      if (spec.report) {
+        try { await host.offerLocationReport?.(spec.report); } catch (error) {
+          const problem = toGisMapError(error, "INVALID_SPEC");
+          issues.push({ level: "warning", code: problem.code, path: "report", message: `The location report could not be prepared: ${problem.message}` });
         }
       }
       if (showIssues && issues.some((item) => item.level === "error")) host.showIssues?.(issues.slice());

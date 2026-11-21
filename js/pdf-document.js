@@ -266,9 +266,14 @@ const pdfUri = (url) => String(url).replace(/[^\x20-\x7e]/g, "").replace(/[\\()]
 
 // The built-in PDF fonts use a limited encoding. Preserve the meaning of common
 // map and measurement characters instead of emitting question marks.
+// Accented letters lose only their accents, and emoji (often in AI-written text) are dropped.
 export const pdfSafeText = (value) => String(value ?? "")
-  .replace(/[µμ]/g, "u").replace(/³/g, "3").replace(/²/g, "2")
+  .replace(/[µμ]/g, "u").replace(/³/g, "3").replace(/²/g, "2").replace(/°/g, " deg")
   .replace(/[‘’]/g, "'").replace(/[“”]/g, '"').replace(/[–—]/g, "-").replace(/[·•]/g, "-")
+  .replace(/[≈∼]/g, "~").replace(/≤/g, "<=").replace(/≥/g, ">=").replace(/×/g, "x").replace(/±/g, "+/-")
+  .replace(/[→⇒]/g, "->").replace(/[←⇐]/g, "<-").replace(/…/g, "...").replace(/[\u00a0\u2009\u202f]/g, " ")
+  .replace(/[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}\u{2B00}-\u{2BFF}\u{FE0F}\u{200D}]/gu, "")
+  .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
   .replace(/[\\()]/g, "\\$&").replace(/[^\x20-\x7e]/g, "?");
 
 const wrap = (value, maxChars) => String(value ?? "").split(/\n/).flatMap((paragraph) => {

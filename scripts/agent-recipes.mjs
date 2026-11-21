@@ -106,6 +106,28 @@ export const VENTURA_DOTS = Object.freeze({
   analysis: [{ ...VENTURA_DOTS_STEP, options: { ...VENTURA_DOTS_STEP.options, unitsPerPoint: 50 }, title: "People, one dot per 50" }],
 });
 
+/**
+ * The hexagon map with a location report for central Oxnard: the link carries the agent's
+ * sections; the viewer's browser adds the cells and blocks at the place, sources and the map.
+ */
+export const VENTURA_REPORT = Object.freeze({
+  ...VENTURA_HEXAGONS, title: "Central Oxnard population report",
+  report: {
+    type: "location", at: [-119.177, 34.197], title: "Central Oxnard: where Ventura County's population concentrates",
+    author: "Agent (example)",
+    sections: {
+      summary: "Central Oxnard sits among the tallest hexagons on the map: Ventura County's people are concentrated in a compact urban core here, with far fewer per cell on the farmland around it. The values for the cells at this place are listed under What the map data shows.",
+      inferences: [
+        { statement: "Settlement is compact: tall cells cluster around central Oxnard and drop away sharply toward the fields of the Oxnard Plain to the east and south.", basis: ["Population per H3 cell"], confidence: "medium" },
+        { statement: "A cell's total is the census population of the blocks under it, carried by dots of 20 people each, so cell sums agree with the census in total while the split between neighbouring cells is an estimate.", basis: ["Ventura County census blocks (2020)", "People, one dot per 20", "Population per H3 cell"], confidence: "high" },
+      ],
+      context: "Oxnard is the largest city in Ventura County. It lies on the Oxnard Plain, a flat coastal plain between the Santa Clara River and the Santa Monica Mountains that is intensively farmed, notably for strawberries and vegetables. The Port of Hueneme and Naval Base Ventura County are nearby on the coast.",
+      limitations: ["Counts are from the 2020 census and do not show change since then.", "Dots are placed at random inside each block, so small differences between neighbouring cells are noise."],
+      nextSteps: ["Add a land-use or farmland layer to see where housing meets agriculture.", "Add census tract income or age data to compare the dense core with the rest of the county."],
+    },
+  },
+});
+
 const SOURCES = {
   grape: { label: "USDA Census of Agriculture 2022 grape production (Esri)", url: GRAPE_URL },
   fires: { label: "California historic fire perimeters (CAL FIRE)", url: FIRE_SOURCE },
@@ -140,6 +162,7 @@ export function agentRecipeLinks({ phillyLink, ballparksLink, openingDayLink }) 
     venturaHexagons: readableLink(VENTURA_HEXAGONS),
     venturaHexagonsTutorial: readableLink(VENTURA_HEXAGONS).replace(`${SITE}/#`, `${SITE}/?tutorial=hex-population#`),
     venturaDots: readableLink(VENTURA_DOTS),
+    venturaReport: readableLink(VENTURA_REPORT),
     lidarGround: readableLink(LIDAR_GROUND),
     grapeBriefing: readableLink(Object.fromEntries(Object.entries(GRAPE_BRIEFING).filter(([, value]) => value !== undefined))),
     philly: phillyLink, ballparks: ballparksLink, openingDay: openingDayLink,
@@ -418,6 +441,43 @@ export function agentRecipes(links) {
       recovery: ["\"too many points\": raise unitsPerPoint to the amount the message suggests.", "\"Incomplete:\": filter the layer with where, or use area \"view\" with a closer camera."],
       examples: [
         example({ title: "Ventura County, one dot per 50 people", prompt: "Make a dot-density map of Ventura County's population from census blocks, one dot per 50 people.", dataset: [SOURCES.blocks], url: links.venturaDots, spec: VENTURA_DOTS, status: "rendered", checkedOn: "2026-11-20", checkedVersion: "0.54.0", checks: ["Opened on MapLibre: 7,843 blocks loaded and 16,886 dots drawn (843,843 people ÷ 50 ≈ 16,877); no console errors.", "The block outlines follow the publisher's scale range and are hidden at the opening zoom; zoom in to see them.", "ArcGIS engine not checked."] }),
+      ],
+    },
+    {
+      id: "location-report", title: "Location intelligence report (PDF) in fixed sections", status: "available",
+      question: "Can an AI agent add data layers to a map and give me a PDF report about a place, with its own analysis and links back to the map?",
+      answer: "Yes. The report has fixed sections. The app writes the ones that come from the map: the location, the features and attributes of every visible layer at the place, the sources, and a map snapshot linking to the whole map. The agent writes the ones that need reading the data together and general knowledge: summary, inferences (each with its basis and confidence), geographic context, limitations and next steps. A map-v1 link carries them in \"report\" and the viewer downloads the PDF from Intelligence; in a running page reports.location() returns the file.",
+      triggers: ["Make a report about this location from these layers", "Give me a PDF on what the data says about this address", "Add flood and population layers and write up this site", "Generate a location intelligence report for these coordinates"],
+      inputTypes: ["A place (coordinates or an address you geocode)", "One or more public layers to combine", "A map-v1 link"],
+      inputs: {
+        required: [{ name: "at", description: "The place: [longitude, latitude]." }, { name: "layers", description: "The data layers whose features at the place the report reads." }],
+        optional: [
+          { name: "sections", description: "Authored sections: summary, observations, inferences [{ statement, basis, confidence }], context, limitations, nextSteps. Location, sources and the map are written by the app." },
+          { name: "title", description: "The report title; the address by default." },
+          { name: "author", description: "Who wrote the analysis, shown as \"Analysis by …\"." },
+        ],
+      },
+      capabilities: ["identify", "capture"],
+      engines: ["maplibre", "arcgis"],
+      steps: [
+        common.discover, common.inspectSource,
+        { stage: "plan", action: "Choose layers that answer the question together, and read their values at the place (query the layer with the point and inSR=4326) before writing. Decide what each layer measures from its field names and metadata.", interfaces: ["standalone-js"], references: ["<layer URL>/query?geometry=<lon>,<lat>&geometryType=esriGeometryPoint&inSR=4326&outFields=*&f=json", "reports.sections"] },
+        { stage: "plan", action: "Write the authored sections in the report's fixed order. Quote layer names and exact values; give each inference a basis and a confidence; keep general knowledge in Geographic context and out of the data sections; no chat or offers.", interfaces: ["standalone-js"], references: ["reports.sections", "reports.prompt"] },
+        { stage: "validate", action: "Add \"report\": { \"type\": \"location\", \"at\": [lon, lat], \"sections\": {…} } to the map-v1 spec and validate it; sections the app writes, unknown sections and bad confidences are reported.", interfaces: ["standalone-js", "in-browser-api"], references: ["mapSpec.validate", "reports.validate"] },
+        { stage: "execute", action: "Return the #map=json: link: it opens the map, inspects the place and offers the report in Intelligence. In a running page, reports.location({ at, report }) returns { file, report, issues, links } (or { ai: true } to have the configured AI write the sections).", interfaces: ["declarative-url", "in-browser-api"], references: [MAP_SCHEMA, "mapSpec.createLink", "reports.location"] },
+        { stage: "verify", action: "Open the link, wait for the Location report card in Intelligence, download the PDF and check the sections, the attribute values at the place and that the map link opens the same map.", interfaces: ["in-browser-api"], references: ["reports.location"] },
+        { stage: "share", action: "Return the link (and the PDF when you made it in a page). Say which sections are inference.", interfaces: ["declarative-url"], references: ["mapSpec.createLink"] },
+      ],
+      artifact: { type: "map", schema: MAP_SCHEMA, structure: "map-v1 with layers and a \"report\" { type: \"location\", at, title, author, sections }." },
+      outputs: [
+        { format: "Map link that offers the report", interface: "declarative-url", interactive: true, reference: "mapSpec.createLink" },
+        { format: "Location Intelligence Report (PDF)", interface: "in-browser-api", interactive: false, reference: "reports.location", notes: "Sections in order: Summary, Location, What the map data shows, Inferences from the layers together, Geographic context, Limitations, Suggested next steps, Sources, Map." },
+      ],
+      verification: ["The place is inside the layers' extent", "Every value quoted in the authored sections matches the attributes the report lists", "Each inference names its basis layers and a confidence", "The map link in the PDF opens the same layers"],
+      limitations: ["Only visible layers with features at the place are read; nothing is fetched beyond the map.", "Authored sections are the agent's text: the app checks their shape, not their truth.", "The PDF is made in the viewer's browser; no server stores it."],
+      recovery: ["\"report.at\" issue: give [longitude, latitude] in degrees.", "No features found: check the layer is visible and the place is inside it, or move the place.", "A section was ignored: location, sources and map are the app's; write the others."],
+      examples: [
+        example({ title: "Central Oxnard population report", prompt: "Map Ventura County's population in hexagons and give me a report on central Oxnard.", dataset: [SOURCES.blocks], url: links.venturaReport, spec: VENTURA_REPORT, status: "rendered", checkedOn: "2026-11-21", checkedVersion: "0.55.0", checks: ["Opened on MapLibre: the hexagons were drawn, the place was inspected as South Oxnard Boulevard (census tract 91), and Intelligence offered the Location report.", "The PDF lists the one H3 cell at the place (represents_sum 2,440) under What the map data shows, the agent's sections in order, all three layers as sources, and a map link that reopens this link.", "Download from the panel and the ArcGIS engine not checked."] }),
       ],
     },
     {

@@ -17,3 +17,12 @@ An optional top-level `analysis` list (at most 5 steps) runs spatial analysis in
 ```
 
 Options for `hexbin` and `random-points` are in the [hexagon-binning](agent-recipes.md#hexagon-binning) and [dot-density](agent-recipes.md#dot-density) recipes.
+
+## Location report
+
+An optional top-level `report` offers a Location Intelligence Report (PDF) about one place when the link opens.
+
+- Its shape is `{"type":"location","at":[longitude,latitude],"title":"…","author":"…","sections":{…}}`.
+- Authored sections are `summary`, `observations`, `inferences` (`[{ "statement", "basis": [layer names], "confidence": "high|medium|low" }]`), `context`, `limitations` and `nextSteps`.
+- The app writes Location, the attributes at the place, Sources and the Map page with links back to this map.
+- After the layers load, the place is inspected and Intelligence shows **Download this report**. See [Location reports](location-report.md).

@@ -72,6 +72,32 @@
       "items": { "$ref": "#/$defs/chart" }
     },
     "legend": { "type": "boolean", "default": false, "description": "Open the legend." },
+    "report": {
+      "type": "object",
+      "description": "A Location Intelligence Report about one place, offered in Intelligence when the link opens. The author writes the analysis sections; the viewer's browser adds the location, the attributes of every visible layer at the place, the sources and a map page linking back to this map. See /skills/gismap/references/location-report.md.",
+      "required": ["at"],
+      "properties": {
+        "type": { "const": "location" },
+        "at": { "type": "array", "items": { "type": "number" }, "minItems": 2, "maxItems": 2, "description": "[longitude, latitude] in degrees." },
+        "title": { "type": "string", "maxLength": 160 },
+        "author": { "type": "string", "maxLength": 120, "description": "Who wrote the analysis, printed as \"Analysis by …\"." },
+        "sections": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "summary": { "type": "string", "maxLength": 1200, "description": "Two to four sentences, the main finding first, citing values." },
+            "observations": { "type": "string", "maxLength": 4000, "description": "Optional text on what the data at the place means; the app lists the attributes." },
+            "inferences": { "type": "array", "maxItems": 12, "items": { "oneOf": [
+              { "type": "string", "maxLength": 600 },
+              { "type": "object", "required": ["statement"], "properties": { "statement": { "type": "string", "maxLength": 600 }, "basis": { "type": "array", "maxItems": 8, "items": { "type": "string" } }, "confidence": { "enum": ["high", "medium", "low"] } } }
+            ] } },
+            "context": { "type": "string", "maxLength": 4000, "description": "General knowledge about the area, kept apart from map data." },
+            "limitations": { "type": "array", "maxItems": 12, "items": { "type": "string", "maxLength": 600 } },
+            "nextSteps": { "type": "array", "maxItems": 12, "items": { "type": "string", "maxLength": 600 } }
+          }
+        }
+      }
+    },
     "briefing": {
       "description": "Optional slides that present the map, as a briefing-v1 document (https://gismap.online/schemas/briefing-v1.schema.json). Its layerId may be one of the layer URLs.",
       "oneOf": [{ "$ref": "https://gismap.online/schemas/briefing-v1.schema.json" }, { "type": "null" }]

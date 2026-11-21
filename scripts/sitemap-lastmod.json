@@ -216,8 +216,8 @@
     "lastmod": "2026-11-02"
   },
   "/agent-recipes/": {
-    "hash": "77cbd1d9f2e9bb16",
-    "lastmod": "2026-11-20"
+    "hash": "ae6f22f6c39a7394",
+    "lastmod": "2026-11-21"
   },
   "/agent-recipes/interactive-map/": {
     "hash": "795ab5ad45bba8b2",
@@ -251,6 +251,10 @@
     "hash": "aaa3bb8f3533fead",
     "lastmod": "2026-11-20"
   },
+  "/agent-recipes/location-report/": {
+    "hash": "c62a2aaf1162d8ee",
+    "lastmod": "2026-11-21"
+  },
   "/agent-recipes/lidar-and-3d-models/": {
     "hash": "14024aa1cde52a2f",
     "lastmod": "2026-11-02"
@@ -272,7 +276,7 @@
     "lastmod": "2026-11-02"
   },
   "/skills/": {
-    "hash": "a2cb74ef0b3d080c",
+    "hash": "a8dff11150d3eebd",
     "lastmod": "2026-11-21"
   },
   "/api/explorer/": {
@@ -284,11 +288,11 @@
     "lastmod": "2026-11-02"
   },
   "/llms.txt": {
-    "hash": "bddf6f38a38ce61b",
-    "lastmod": "2026-11-20"
+    "hash": "92c4a3ef479f63f6",
+    "lastmod": "2026-11-21"
   },
   "/llms-full.txt": {
-    "hash": "34e13e400c20305d",
+    "hash": "7141e235e0d19c91",
     "lastmod": "2026-11-21"
   },
   "/api/catalog.json": {

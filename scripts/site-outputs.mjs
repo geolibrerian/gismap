@@ -45,6 +45,10 @@ const RECIPE_META = Object.freeze({
     "title": "Hexagon binning maps with H3 and statistics",
     "description": "Have an AI agent turn points into an H3 or custom hexagon map, by count, density or a field's statistics, in 2D or 3D, shared as one link."
   },
+  "location-report": {
+    "title": "Location intelligence reports from map layers",
+    "description": "Have an AI agent combine map layers at a place and return a sectioned PDF report, with its own inferences and links back to the map."
+  },
   "dot-density": {
     "title": "Dot-density maps from polygon counts",
     "description": "Have an AI agent make a dot-density map, one random dot per so many people inside each polygon, that can feed a hexagon map."
