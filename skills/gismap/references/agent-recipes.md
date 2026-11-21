@@ -87,6 +87,7 @@ Review the preview, then repeat with `previewOnly: false`. Verify the flat overv
 - Each cell records `h3_id` and `h3_resolution` (or `cell_id` and `cell_side_km`), `point_count`, `cell_area_km2`, `density_km2`, `<field>_sum|_mean|_min|_max`, `value_count` and `complete`. The layer is coloured by the statistic's property, such as `represents_sum` or `point_count`.
 - At most 100,000 points are read. On MapLibre a big ArcGIS layer holds only its first 50,000 features, so filter with `where` or use `"area": "view"` with a camera. A summary that starts “Incomplete:” means not every feature was read: report it.
 - In a running page: `gisMapOnline.analysis.run("hexbin", { input, overlay, options })` returns `summary`, `binning` metadata and the new layer.
+- In Cinematic mode, hexagon layers default to the `grow` effect (`animation.effect.type`): cells grow out of the ground to their own heights and colours, lowest values first and tallest last, over 5 s or each loop. A flat layer rises to its value instead. MapLibre only.
 
 Worked example (rendered): [Ventura County population in 3D hexagons](https://gismap.online/discover/examples/), census blocks → dots → H3 cells. Machine-readable: https://gismap.online/api/agent-recipes/hexagon-binning.json
 

@@ -6,13 +6,13 @@
 // Older app links (`#map=z…` holding the compact share payload) still open; they
 // decode to map-v1 too. Pure functions only, so headless callers can build links.
 import { decodePayload, encodePayload } from "./link-codec.js?v=0.21.0";
-import { MAP_SPEC_JSON_LIMIT, QR_SAFE_LENGTH, readShare } from "./map-share.js?v=0.79.0-quakes";
+import { MAP_SPEC_JSON_LIMIT, QR_SAFE_LENGTH, readShare } from "./map-share.js?v=0.80.0-grow";
 import { SHARE_BASEMAPS, SHARE_LAYER_TYPES, SHARE_LIMITS, sanitizeSharedResourceUrl } from "./share.js?v=0.71.0-subsurface";
 import { validateRendererSpec } from "./renderer-spec.js?v=0.29.0";
-import { normalizeBriefing, validateBriefing } from "./briefing-document.js?v=0.79.0-quakes";
+import { normalizeBriefing, validateBriefing } from "./briefing-document.js?v=0.80.0-grow";
 import { SCENE3D_TYPES, normalizeScene3d, scene3dTypeFor } from "./scene3d.js?v=0.1.0";
 import { normalizeSubsurface, normalizeUnderground } from "./subsurface.js?v=0.71.0-subsurface";
-import { CINEMATIC_EFFECT_TYPES, normalizeLayerEffect } from "./cinematic/cinematic-effects.js?v=0.79.0-quakes";
+import { CINEMATIC_EFFECT_TYPES, normalizeLayerEffect } from "./cinematic/cinematic-effects.js?v=0.80.0-grow";
 import { INTERFACE_SKINS } from "./skin-catalog.js?v=0.57.0-skins2";
 import { GisMapError } from "./gismap-errors.js?v=0.54.0-print";
 import { AGGREGATIONS, CHART_TYPES, normalizeChartStyle } from "./charting-tools.js?v=0.68.0-charts1";

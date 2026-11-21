@@ -1,4 +1,4 @@
-import { createSlide, normalizeBriefing } from './briefing-document.js?v=0.79.0-quakes';
+import { createSlide, normalizeBriefing } from './briefing-document.js?v=0.80.0-grow';
 
 // This example intentionally uses one stable, publisher-hosted FeatureServer.
 // Its definition query keeps a global historical archive legible and makes the

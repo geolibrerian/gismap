@@ -30,7 +30,7 @@ import { rendererToPaint } from "./arcgis-renderer.js?v=0.42.0";
 import { legendForLayer } from "./legend.js?v=0.71.0-subsurface";
 import { inspectExternalTiles } from "./external-tiles.js?v=0.71.0-subsurface";
 import { hostCredit, joinCredits, legendSwatch, plainAttribution } from "../map-credits.js?v=0.1.0";
-import { CINEMATIC_EFFECT_TYPES, effectFields, effectRanges, resolveQuality, suggestEffect } from "../../cinematic/cinematic-effects.js?v=0.79.0-quakes";
+import { CINEMATIC_EFFECT_TYPES, effectFields, effectRanges, resolveQuality, suggestEffect } from "../../cinematic/cinematic-effects.js?v=0.80.0-grow";
 
 // A layer effect draws over at most this many features; more would cost frame rate for no visible gain.
 const LAYER_EFFECT_MAX_FEATURES = 20000;
@@ -330,13 +330,14 @@ export class MaplibreEngine {
     const revision = this.#nextCinematicEffectRevision(id);
     if (effect.settled === true) return this.#drawSettledEdges(id, name, effect, revision);
     if (name === "strata") return this.#drawStrataEffect(id, effect, revision);
+    if (name === "grow") return this.#drawGrowEffect(id, effect, revision);
     if (name === "extrude" || name === "reveal") return this.#drawNativeEffect(id, name, effect, revision);
     const THREE = await loadThree();
     if (!this.#cinematicEffectIsCurrent(id, revision)) return false;
     // A track switched from a native effect (Rise, Reveal, Strata) leaves no layers behind.
     this.#removeNativeEffect(id);
     this.three ??= new ThreeHost({ map: this.map, THREE, notify: (message) => this.events.publish("app:error", { message }) });
-    const [{ buildCinematicEffect }, { effectColor }] = await Promise.all([import("../../cinematic/effects-three.js?v=0.79.0-quakes"), import("../../cinematic/cinematic-effects.js?v=0.79.0-quakes")]);
+    const [{ buildCinematicEffect }, { effectColor }] = await Promise.all([import("../../cinematic/effects-three.js?v=0.80.0-grow"), import("../../cinematic/cinematic-effects.js?v=0.80.0-grow")]);
     if (!this.#cinematicEffectIsCurrent(id, revision)) return false;
     // Decoration is simplified to half a screen pixel at the current zoom; the map draws the exact outline.
     const simplify = Number.isFinite(effect.simplify) ? effect.simplify : 0.5 * 360 / (512 * 2 ** (this.map?.getZoom?.() ?? 0));
@@ -389,12 +390,12 @@ export class MaplibreEngine {
    */
   async #drawNativeEffect(id, name, effect, revision) {
     const [{ effectColor, nativeEffectData, valueField, riseAmount, revealAmount }, { effectSeconds, effectClockRunning }, { trackTime, normalizeTiming }] = await Promise.all([
-      import("../../cinematic/cinematic-effects.js?v=0.79.0-quakes"), import("../../cinematic/effects-three.js?v=0.79.0-quakes"), import("../../cinematic/clock.js?v=0.1.0"),
+      import("../../cinematic/cinematic-effects.js?v=0.80.0-grow"), import("../../cinematic/effects-three.js?v=0.80.0-grow"), import("../../cinematic/clock.js?v=0.1.0"),
     ]);
     if (!this.#cinematicEffectIsCurrent(id, revision)) return false;
     this.#effectClockRunning = effectClockRunning;
     this.three?.remove(id);
-    if (this.#nativeEffects.get(id)?.kind === "strata") this.#removeNativeEffect(id);
+    if (this.#nativeEffects.get(id)?.kind) this.#removeNativeEffect(id);
     const items = effect.items || [];
     const first = items[0]?.feature ?? items[0];
     const field = effect.field || (name === "extrude" ? valueField(effect.fields || [], first?.attributes || first?.properties || {}) : null);
@@ -443,6 +444,62 @@ export class MaplibreEngine {
   }
 
   /**
+   * Grow from the ground: the layer's cells rise from flat to their own heights
+   * and colours, each in turn by its value, lowest first. A layer already raised
+   * in 3D keeps its own heights and is hidden meanwhile so it is not drawn twice;
+   * a flat one rises to its value, sized to the view, in its own colours.
+   */
+  async #drawGrowEffect(id, effect, revision) {
+    const [{ effectColor, nativeEffectData, valueField, growAmount, growHeight }, { effectSeconds, effectClockRunning }, { trackTime, normalizeTiming }] = await Promise.all([
+      import("../../cinematic/cinematic-effects.js?v=0.80.0-grow"), import("../../cinematic/effects-three.js?v=0.80.0-grow"), import("../../cinematic/clock.js?v=0.1.0"),
+    ]);
+    if (!this.#cinematicEffectIsCurrent(id, revision) || !this.map) return false;
+    this.#effectClockRunning = effectClockRunning;
+    this.three?.remove(id);
+    const previous = this.#nativeEffects.get(id);
+    if (previous && previous.kind !== "grow") this.#removeNativeEffect(id);
+    const record = effect.layerUid ? this.#record(effect.layerUid) : null;
+    const own = record?.kind === "vector" ? this.#extrusionOf(record) : {};
+    const items = effect.items || [];
+    const first = items[0]?.feature ?? items[0];
+    const field = effect.field || own.field || record?.renderer?.field || valueField(effect.fields || [], first?.attributes || first?.properties || {});
+    const { data, stats } = nativeEffectData(items, { field, keepProperties: true });
+    if (!stats.count || (!own.extrusion && !stats.withValue)) { this.#removeNativeEffect(id); return false; }
+    const sourceId = `${NATIVE_EFFECT_PREFIX}${id}`;
+    if (this.map.getSource(sourceId)) this.map.getSource(sourceId).setData(data);
+    else this.map.addSource(sourceId, { type: "geojson", data });
+    const layerId = `${sourceId}:grow`;
+    const strength = Math.min(2, Math.max(0.25, Number(effect.intensity) || 1));
+    const fillId = record ? `${this.#sourceId(record)}-fill` : null;
+    // The layer's own colours (its renderer's fill), unless the track has a colour of its own.
+    const ownColor = !effect.color && fillId && this.map.getLayer(fillId) ? this.map.getPaintProperty(fillId, "fill-color") : null;
+    const color = ownColor || ["interpolate", ["linear"], ["get", "v"], 0, "#dfe8f7", 1, effectColor("grow", { color: effect.color, skin: globalThis.document?.documentElement?.dataset?.skin })];
+    const height = own.extrusion ? own.height : ["*", ["get", "v"], (3_000_000 / 2 ** (this.map.getZoom?.() ?? 4)) * strength];
+    if (!this.map.getLayer(layerId)) {
+      const before = this.map.getLayer(THREE_LAYER_ID) ? THREE_LAYER_ID : undefined;
+      this.map.addLayer({ id: layerId, type: "fill-extrusion", source: sourceId, filter: ["match", ["geometry-type"], ["Polygon", "MultiPolygon"], true, false], paint: { "fill-extrusion-base": 0, "fill-extrusion-height": 0, "fill-extrusion-opacity": 0.9 * Math.min(1, record?.opacity ?? 1), "fill-extrusion-vertical-gradient": true } }, before);
+    }
+    this.map.setPaintProperty(layerId, "fill-extrusion-color", color);
+    if (record && !record.growEffects?.has(id)) { (record.growEffects ??= new Set()).add(id); this.#refresh(record); }
+    const timing = normalizeTiming(effect.timing);
+    // Timed from when the cells first show (not from page load), so the growth is seen; a
+    // timeline redrawing the same track keeps that start, and a clock moved back restarts it.
+    const entry = { kind: "grow", layers: [layerId], sourceId, startedAt: previous?.kind === "grow" ? previous.startedAt : effectSeconds() };
+    entry.apply = () => {
+      if (!this.map?.getLayer(layerId)) return { settled: true };
+      const now = effectSeconds();
+      entry.startedAt = Math.min(entry.startedAt, now);
+      const local = trackTime(now - entry.startedAt, timing);
+      this.map.setPaintProperty(layerId, "fill-extrusion-height", growHeight(height, growAmount(local, timing.cycleSeconds)));
+      return { settled: local.settled || (timing.cycleSeconds === 0 && local.seconds >= 6) };
+    };
+    this.#nativeEffects.set(id, entry);
+    entry.apply();
+    this.#runNativeEffects(true);
+    return true;
+  }
+
+  /**
    * The Strata timeline: every record of the track is in one source, built
    * once; each step only changes which slabs show. Older records sit settled
    * in their slots and the step's new ones fall onto the stack. The layer's
@@ -450,7 +507,7 @@ export class MaplibreEngine {
    */
   async #drawStrataEffect(id, effect, revision) {
     const [{ effectColor, strataData, strataLanding }, { effectSeconds, effectClockRunning }] = await Promise.all([
-      import("../../cinematic/cinematic-effects.js?v=0.79.0-quakes"), import("../../cinematic/effects-three.js?v=0.79.0-quakes"),
+      import("../../cinematic/cinematic-effects.js?v=0.80.0-grow"), import("../../cinematic/effects-three.js?v=0.80.0-grow"),
     ]);
     if (!this.#cinematicEffectIsCurrent(id, revision) || !this.map) return false;
     this.#effectClockRunning = effectClockRunning;
@@ -525,8 +582,9 @@ export class MaplibreEngine {
     this.#nativeEffects.delete(id);
     const sourceId = effect?.sourceId || `${NATIVE_EFFECT_PREFIX}${id}`;
     for (const record of this.#records.values()) if (record.strataEffect === id) this.#setStrataHidden(record.uid, null);
+    for (const record of this.#records.values()) if (record.growEffects?.delete(id)) this.#refresh(record);
     if (!this.map?.getSource?.(sourceId)) return;
-    for (const suffix of [":extrude", ":fill", ":line", ":points", ":strata", ":strata-fresh"]) if (this.map.getLayer(`${sourceId}${suffix}`)) this.map.removeLayer(`${sourceId}${suffix}`);
+    for (const suffix of [":extrude", ":grow", ":fill", ":line", ":points", ":strata", ":strata-fresh"]) if (this.map.getLayer(`${sourceId}${suffix}`)) this.map.removeLayer(`${sourceId}${suffix}`);
     this.map.removeSource(sourceId);
   }
 
@@ -536,7 +594,7 @@ export class MaplibreEngine {
    * and far cheaper than shader ribbons for thousands of outlines.
    */
   async #drawSettledEdges(id, name, effect, revision) {
-    const { effectColor, effectParts } = await import("../../cinematic/cinematic-effects.js?v=0.79.0-quakes");
+    const { effectColor, effectParts } = await import("../../cinematic/cinematic-effects.js?v=0.80.0-grow");
     if (!this.#cinematicEffectIsCurrent(id, revision)) return false;
     this.three?.remove(id);
     const simplify = Number.isFinite(effect.simplify) ? effect.simplify : 0.5 * 360 / (512 * 2 ** (this.map?.getZoom?.() ?? 0));
@@ -862,6 +920,18 @@ export class MaplibreEngine {
     return null;
   }
 
+  /** A layer's own 3D extrusion: its symbol layer, the field it rises by, and its height expression in metres. */
+  #extrusionOf(record) {
+    const symbol = record.renderer?.symbol || record.renderer?.classBreakInfos?.[0]?.symbol || record.renderer?.uniqueValueInfos?.[0]?.symbol;
+    const extrusion = symbol?.symbolLayers?.find((item) => String(item.type).toLowerCase() === "extrude");
+    const variable = record.renderer?.visualVariables?.find((item) => /^(size|sizeinfo)$/i.test(item.type));
+    const expression = String(variable?.valueExpression || "");
+    const match = expression.match(/^\$feature\[("(?:[^"\\]|\\.)*")\]\s*\*\s*((?:\d+\.?\d*|\.\d+)(?:e[+-]?\d+)?)$/i);
+    const field = variable?.field || (match ? JSON.parse(match[1]) : null);
+    const height = field ? ["max", 0, ["*", ["to-number", ["get", field], 0], match ? Number(match[2]) : 1]] : Math.max(0, Number(extrusion?.size) || 0);
+    return { extrusion, field, height };
+  }
+
   /** The MapLibre layers that draw one data layer: an image, or fill and outline, lines, and points. */
   #layerSpecs(record) {
     const source = this.#sourceId(record);
@@ -889,22 +959,18 @@ export class MaplibreEngine {
     const outline = dim(scaled({ "line-color": color, "line-width": 1.5, "line-opacity": 1, ...styled.outline }, ["line-opacity"]), ["line-opacity"]);
     const line = dim(scaled({ "line-color": color, "line-width": 2.5, "line-opacity": 1, ...styled.line }, ["line-opacity"]), ["line-opacity"]);
     const circle = dim(scaled({ "circle-color": color, "circle-radius": 4.5, "circle-stroke-color": halo, "circle-stroke-width": 1.5, "circle-opacity": 1, "circle-stroke-opacity": 1, ...styled.circle }, ["circle-opacity", "circle-stroke-opacity"]), ["circle-opacity", "circle-stroke-opacity"]);
-    const symbol = record.renderer?.symbol || record.renderer?.classBreakInfos?.[0]?.symbol || record.renderer?.uniqueValueInfos?.[0]?.symbol;
-    const extrusion = symbol?.symbolLayers?.find((item) => String(item.type).toLowerCase() === "extrude");
-    const variable = record.renderer?.visualVariables?.find((item) => /^(size|sizeinfo)$/i.test(item.type));
-    const expression = String(variable?.valueExpression || "");
-    const match = expression.match(/^\$feature\[("(?:[^"\\]|\\.)*")\]\s*\*\s*((?:\d+\.?\d*|\.\d+)(?:e[+-]?\d+)?)$/i);
-    const field = variable?.field || (match ? JSON.parse(match[1]) : null);
-    const height = field ? ["max", 0, ["*", ["to-number", ["get", field], 0], match ? Number(match[2]) : 1]] : Math.max(0, Number(extrusion?.size) || 0);
+    const { extrusion, height } = this.#extrusionOf(record);
     const chart = record.spatialChart;
     // A Strata timeline draws this layer's slabs itself. Footprint outlines on the
     // ground under a chart or Strata stack show only when the chart asks for them.
     const stacked = Boolean(record.strataEffect);
-    const fillVisibility = extrusion || chart || stacked ? "none" : visibility;
+    // A Grow effect draws this layer's cells itself, rising from the ground.
+    const grown = record.growEffects?.size > 0;
+    const fillVisibility = extrusion || chart || stacked || grown ? "none" : visibility;
     const outlineVisibility = (chart || stacked) && !chart?.groundOutlines ? "none" : visibility;
     const specs = [
       { id: `${source}-fill`, type: "fill", source, ...range, filter: filtered(["Polygon", "MultiPolygon"]), layout: { visibility: fillVisibility }, paint: dim(fill, ["fill-opacity"]) },
-      { id: `${source}-extrusion`, type: "fill-extrusion", source, ...range, filter: filtered(["Polygon", "MultiPolygon"]), layout: { visibility: extrusion && !chart && !stacked ? visibility : "none" }, paint: { "fill-extrusion-color": fill["fill-color"], "fill-extrusion-height": height, "fill-extrusion-base": 0, "fill-extrusion-opacity": opacity } },
+      { id: `${source}-extrusion`, type: "fill-extrusion", source, ...range, filter: filtered(["Polygon", "MultiPolygon"]), layout: { visibility: extrusion && !chart && !stacked && !grown ? visibility : "none" }, paint: { "fill-extrusion-color": fill["fill-color"], "fill-extrusion-height": height, "fill-extrusion-base": 0, "fill-extrusion-opacity": opacity } },
       { id: `${source}-outline`, type: "line", source, ...range, filter: filtered(["Polygon", "MultiPolygon"]), layout: { visibility: outlineVisibility }, paint: outline },
       { id: `${source}-line`, type: "line", source, ...range, filter: filtered(["LineString", "MultiLineString"]), layout: { visibility, "line-cap": "round", "line-join": "round" }, paint: line },
       { id: `${source}-circle`, type: "circle", source, ...range, filter: filtered(["Point", "MultiPoint"]), layout: { visibility }, paint: circle },
@@ -1031,6 +1097,7 @@ export class MaplibreEngine {
     if (!effect || !record.visible || record.effectSuspended || !this.#records.has(record.uid)) {
       record.effectBuilt = null;
       this.three?.remove(id);
+      this.#removeNativeEffect(id);
       return;
     }
     const features = this.#visibleFeatures(record);
@@ -1050,7 +1117,7 @@ export class MaplibreEngine {
     // Off-screen features wait for the view to reach them; detail follows how many are near it.
     const shown = (viewBounds ? nearView(features, viewBounds) : features).slice(0, LAYER_EFFECT_MAX_FEATURES);
     const drawn = await this.setCinematicEffect(id, {
-      type: "observed-effect", effect: name, color: effect.color, intensity: effect.intensity, opacity: record.opacity * (effect.opacity ?? 1), speed: effect.speed, density: effect.density, style: effect.style, field: effect.field || null, fields: record.fields, quality: resolveQuality(effect.quality || "auto", shown.length),
+      type: "observed-effect", effect: name, layerUid: record.uid, color: effect.color, intensity: effect.intensity, opacity: record.opacity * (effect.opacity ?? 1), speed: effect.speed, density: effect.density, style: effect.style, field: effect.field || null, fields: record.fields, quality: resolveQuality(effect.quality || "auto", shown.length),
       ranges: effectRanges(features, effectFields(record.fields, shown[0]?.properties)),
       items: shown.map((feature) => ({ feature, fresh: true })),
     });

@@ -1,9 +1,9 @@
 import { createCinematicTimeline } from "./timeline-controller.js?v=0.1.0";
 import { normalizeTemporalFeatures, observedFeaturesAt, parsePlaybackValue, temporalModelInExtent } from "./temporal-adapter.js?v=0.4.0-sequence";
-import { exportCinematicSpec, importCinematicSpec } from "./state.js?v=0.79.0-quakes";
-import { CINEMATIC_EFFECTS, NATIVE_EFFECTS, effectFields, effectRanges, resolveEffect, resolveQuality } from "./cinematic-effects.js?v=0.79.0-quakes";
+import { exportCinematicSpec, importCinematicSpec } from "./state.js?v=0.80.0-grow";
+import { CINEMATIC_EFFECTS, NATIVE_EFFECTS, effectFields, effectRanges, resolveEffect, resolveQuality } from "./cinematic-effects.js?v=0.80.0-grow";
 import { PROVENANCE_STATUSES, createEffectsClock, normalizeTiming } from "./clock.js?v=0.1.0";
-import { setEffectClock } from "./effects-three.js?v=0.79.0-quakes";
+import { setEffectClock } from "./effects-three.js?v=0.80.0-grow";
 import { timelineChart } from "./timeline-chart.js?v=0.79.0-quakes";
 
 // In a build-up, outlines older than the newest few are "settled": drawn as a
@@ -507,13 +507,13 @@ export class CinematicModeController {
   async #drawEffects(entry, { effect, observations, observationTime, timeMode, effectRange }) {
     const { layer, config, effectUid } = entry;
     const quality = this.#quality(observations.length);
-    const base = { type: "observed-effect", effect, color: config.animation.effect?.color || null, intensity: config.animation.effect?.intensity ?? 1, opacity: config.animation.effect?.opacity ?? 1, style: config.animation.effect?.style || "balanced", speed: config.animation.effect?.speed ?? 1, density: config.animation.effect?.density ?? 1, field: config.animation.effect?.field || null, fields: layer.fields || [], ranges: effectRange, timing: config.animation.timing };
+    const base = { type: "observed-effect", effect, color: config.animation.effect?.color || null, intensity: config.animation.effect?.intensity ?? 1, opacity: config.animation.effect?.opacity ?? 1, style: config.animation.effect?.style || "balanced", speed: config.animation.effect?.speed ?? 1, density: config.animation.effect?.density ?? 1, field: config.animation.effect?.field || null, fields: layer.fields || [], ranges: effectRange, timing: config.animation.timing, layerUid: layer.uid };
     const asItems = (list) => list.map((observation) => ({ feature: observation.feature, fresh: observation.time === observationTime }));
     if (effect === "strata") {
       // Every record is sent once (`stack`, its slots fixed by the whole timeline); each step only says which show.
       entry.settled = null;
       await attempt(() => this.mapController.clearCinematicEffect?.(`${effectUid}:settled`), false);
-      await attempt(() => this.mapController.setCinematicEffect(effectUid, { ...base, layerUid: layer.uid, chart: layer.spatialChart || null, ticks: entry.model.ticks, stack: entry.model.observations,
+      await attempt(() => this.mapController.setCinematicEffect(effectUid, { ...base, chart: layer.spatialChart || null, ticks: entry.model.ticks, stack: entry.model.observations,
         items: observations.map((observation) => ({ index: observation.index, fresh: observation.time === observationTime })) }), false);
       return;
     }

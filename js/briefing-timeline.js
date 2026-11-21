@@ -1,7 +1,7 @@
 // Integer-year timeline frames. Dates and timestamps need engine-specific date
 // semantics and are intentionally not interpreted as years.
-import { previewDateTimeline } from './briefing-timeline-dates.js?v=0.79.0-quakes';
-import { MAX_SLIDES, addSlide, createSlide, normalizeBriefing } from './briefing-document.js?v=0.79.0-quakes';
+import { previewDateTimeline } from './briefing-timeline-dates.js?v=0.80.0-grow';
+import { MAX_SLIDES, addSlide, createSlide, normalizeBriefing } from './briefing-document.js?v=0.80.0-grow';
 
 export function isYearField(field) {
   const type = String(field?.type || '').toLowerCase();

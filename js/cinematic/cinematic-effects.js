@@ -35,6 +35,7 @@ export const CINEMATIC_EFFECTS = Object.freeze({
   walkers: { label: "Walking people", category: "Vehicles & movement", color: "#f5dca0", note: "People walk symbolically along observed paths; they do not show individual locations, trips, or counts." },
   // Native primitives (MapLibre style layers, no custom GL), for statistics and planning.
   extrude: { label: "Rise (extrude)", category: "Data transformation", color: "#4c7fd9", native: true, note: "Areas rise to their value of the chosen field; the rise is animation, the heights are the data." },
+  grow: { label: "Grow from the ground", category: "Data transformation", color: "#3fb68b", native: true, note: "Each area grows out of the ground to its own height and colour, lowest values first; the growth is animation, the heights are the data." },
   reveal: { label: "Reveal", category: "Data transformation", color: "#f2a93b", native: true, note: "Features appear one after another in the order of a field (or their stored order); the order is not a date unless the field is one." },
   // Needs a timeline (or a stacked 3D chart), so it is offered in Cinematic mode only.
   strata: { label: "Strata timeline", category: "Data transformation", color: "#a46bff", native: true, cinematicOnly: true, note: "Each step's records drop onto the top of a 3D stack, earliest at the bottom. Vertical position is display order, not altitude; footprints are the source geometry." },
@@ -106,6 +107,7 @@ export function suggestEffect({ title = "", geometryType = "", fields = [], samp
   if (/lava|volcan/.test(name)) return "lava";
   if (/storm|radar/.test(name)) return "storm";
   // Statistical areas (population, income, housing…) rise to their values.
+  if (/polygon/i.test(geometryType) && isHexagonLayer(fields, sample)) return "grow";
   if (/polygon/i.test(geometryType) && /population|census|tract|county|counties|income|density|demograph|households|housing units|poverty/.test(name) && valueField(fields, sample)) return "extrude";
   if (/quake|seism|tremor|shake|usgs.*(mag|event)/.test(name) || (points && found.magnitude && /^(mag|magnitude|mw|ml)$/i.test(found.magnitude))) return "quake";
   if (/wind|gust|weather station|metar/.test(name) || (points && found.direction && found.speed)) return "wind";
@@ -135,12 +137,18 @@ export function valueField(fields = [], sample = {}) {
   return (all.find((field) => VALUE_HINT.test(field.name)) || all[0])?.name || null;
 }
 
+/** A layer made by hexagon binning: its cells carry an H3 or grid cell id and a point count. */
+export function isHexagonLayer(fields = [], sample = {}) {
+  const names = new Set([...fields.map((field) => field?.name), ...Object.keys(sample || {})]);
+  return (names.has("h3_id") || names.has("cell_id")) && names.has("point_count");
+}
+
 /**
  * GeoJSON for a native effect: each feature's exact geometry with `v` (its
  * value of `field`, scaled 0–1 across the features) and `order` (0–1 rank by
  * `field`, or by stored order without one). Values are never altered.
  */
-export function nativeEffectData(items = [], { field = null } = {}) {
+export function nativeEffectData(items = [], { field = null, keepProperties = false } = {}) {
   const rows = [];
   for (const entry of items) {
     const feature = entry?.feature ?? entry;
@@ -149,7 +157,7 @@ export function nativeEffectData(items = [], { field = null } = {}) {
     const attributes = feature.attributes || feature.properties || {};
     const raw = field ? attributes[field] : null;
     const value = raw === null || raw === undefined || raw === "" ? NaN : Number(raw);
-    rows.push({ geometry, value, index: rows.length });
+    rows.push({ geometry, value, index: rows.length, attributes });
   }
   const values = rows.map((row) => row.value).filter(Number.isFinite);
   const min = values.length ? Math.min(...values) : 0, max = values.length ? Math.max(...values) : 0;
@@ -158,7 +166,7 @@ export function nativeEffectData(items = [], { field = null } = {}) {
   return {
     // Heights must stay proportional: non-negative values scale from zero (value / max), so
     // the smallest area is not drawn flat; only data with negatives scale min–max.
-    data: { type: "FeatureCollection", features: rows.map((row) => ({ type: "Feature", geometry: row.geometry, properties: { v: scaled(row.value, min, max), order: field ? row.order : (rows.length > 1 ? row.index / (rows.length - 1) : 0) } })) },
+    data: { type: "FeatureCollection", features: rows.map((row) => ({ type: "Feature", geometry: row.geometry, properties: { ...(keepProperties ? row.attributes : {}), v: scaled(row.value, min, max), order: field ? row.order : (rows.length > 1 ? row.index / (rows.length - 1) : 0) } })) },
     stats: { field, min, max, count: rows.length, withValue: values.length },
   };
 }
@@ -212,6 +220,21 @@ const smooth = (x) => { const t = Math.min(1, Math.max(0, x)); return t * t * (3
 /** How far a rise has grown (0–1) at a track's time: over its cycle, or over 3 s and then held. */
 export function riseAmount({ seconds = 0, phase = 0 } = {}, cycleSeconds = 0) {
   return smooth(cycleSeconds > 0 ? phase : seconds / 3);
+}
+/** How far a grow has gone (0–1): over its cycle, or over 5 s and then held. Each area's own share is growHeight's. */
+export function growAmount({ seconds = 0, phase = 0 } = {}, cycleSeconds = 0) {
+  return Math.min(1, Math.max(0, cycleSeconds > 0 ? phase : seconds / 5));
+}
+
+const GROW_STAGGER = 0.6;
+/**
+ * A fill-extrusion height expression for a grow `amount` (0–1) of the way through:
+ * each area starts in turn by its `order` (lowest value first) and eases up to
+ * `height`, its full height expression, so the tallest arrive last.
+ */
+export function growHeight(height, amount) {
+  const t = ["min", 1, ["max", 0, ["/", ["-", amount, ["*", GROW_STAGGER, ["get", "order"]]], 1 - GROW_STAGGER]]];
+  return ["let", "t", t, ["*", height, ["*", ["var", "t"], ["var", "t"], ["-", 3, ["*", 2, ["var", "t"]]]]]];
 }
 /** How much of a reveal is shown (0–1): over its cycle, or over 8 s and then held. */
 export function revealAmount({ seconds = 0, phase = 0 } = {}, cycleSeconds = 0) {

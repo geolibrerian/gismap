@@ -1,5 +1,5 @@
 // Calendar windows are constructed in the chosen IANA timezone and stored as UTC instants; ends are exclusive.
-import { MAX_SLIDES } from './briefing-document.js?v=0.79.0-quakes';
+import { MAX_SLIDES } from './briefing-document.js?v=0.80.0-grow';
 const DAY = 86400000;
 export const isDateField = field => Boolean(/^[A-Za-z_][\w.]*$/.test(field?.name || '') && /date|timestamp/i.test(field?.type || ''));
 function dateInput(value) {

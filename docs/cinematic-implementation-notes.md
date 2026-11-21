@@ -30,6 +30,12 @@ On terrain, heights are sampled per vertex rather than once per effect (the v0.1
 
 The source is built once per track. Each step only changes two filters: settled slabs, and the step's new slabs, which fall about four slots onto the stack and fade in over 1.2 s on the effects clock. A paused effects clock or reduced motion shows them already landed. While the effect draws, the engine hides the layer's own chart and fill (`record.strataEffect`) so slabs are not drawn twice; outlines stay as ground footprints, and clearing the effect gives the chart back. Choosing Strata timeline switches the scene to Build up (cumulative), since the stack is the build-up.
 
+## Grow from the ground
+
+`grow` is a native effect for polygons, and Auto's pick for hexagon bins (`isHexagonLayer`: an `h3_id` or `cell_id` with a `point_count`). The engine draws the track's features in its own `fill-extrusion` layer, keeping their attributes so the layer's own colour expression (its renderer's fill) and, when the layer is already raised in 3D, its own height expression still apply. A flat layer rises to its value, sized to the view, like Rise. While it draws, the layer's own fill and extrusion are hidden (`record.growEffects`, one entry per drawing effect, so a Cinematic track and the layer's own Animated effect can overlap); clearing the last one gives them back.
+
+`growAmount()` runs 0–1 over 5 s (then holds), or over the track's loop. `growHeight()` turns it into a per-feature height: each feature starts in turn by its value rank (`order`, lowest first, 60% of the run spread across the ranks) and eases up to its full height, so the tallest cells arrive last.
+
 
 ## Earthquake glow and the timeline chart
 

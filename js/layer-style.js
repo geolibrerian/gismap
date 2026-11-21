@@ -5,7 +5,7 @@
 // briefings and tours.
 import { validateRendererSpec } from "./renderer-spec.js?v=0.29.1";
 import { SPATIAL_CHART_MODES, SPATIAL_CHART_TYPE } from "./spatial-chart.js?v=0.71.0-subsurface";
-import { createSlide, normalizeBriefing } from "./briefing-document.js?v=0.79.0-quakes";
+import { createSlide, normalizeBriefing } from "./briefing-document.js?v=0.80.0-grow";
 
 export const LAYER_STYLE_TYPE = "gismap-layer-style";
 export const LAYER_STYLE_VERSION = 1;

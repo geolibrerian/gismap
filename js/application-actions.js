@@ -1,6 +1,6 @@
 // The public facade delegates to the existing tool registry. It is not a second
 // action store. Tools without schemas remain available through the legacy API.
-import { describeAction } from './application-manifest.js?v=0.79.0-quakes';
+import { describeAction } from './application-manifest.js?v=0.80.0-grow';
 
 export class ActionError extends Error {
   constructor(code, message) { super(message); this.name = 'ActionError'; this.code = code; }

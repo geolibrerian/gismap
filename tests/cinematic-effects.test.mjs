@@ -136,7 +136,7 @@ test("large scenes keep the newest observation, trim sub-pixel detail and pick a
 
 test("Rise and Reveal read a value field, keep values as data and grow on the track's time", async () => {
   const { nativeEffectData, valueField, riseAmount, revealAmount, NATIVE_EFFECTS, suggestEffect: suggest } = await import("../js/cinematic/cinematic-effects.js");
-  assert.deepEqual(NATIVE_EFFECTS, ["extrude", "reveal", "strata"]);
+  assert.deepEqual(NATIVE_EFFECTS, ["extrude", "grow", "reveal", "strata"]);
   const fields = [{ name: "OBJECTID", type: "esriFieldTypeOID" }, { name: "GEOID", type: "esriFieldTypeInteger" }, { name: "NAME", type: "esriFieldTypeString" }, { name: "POP2020", type: "esriFieldTypeInteger" }];
   assert.equal(valueField(fields), "POP2020", "IDs and codes are not values");
   const square = (x) => ({ type: "Polygon", coordinates: [[[x, 0], [x + 1, 0], [x + 1, 1], [x, 0]]] });
@@ -155,6 +155,41 @@ test("Rise and Reveal read a value field, keep values as data and grow on the tr
   assert.equal(revealAmount({ seconds: 4 }), 0.5);
   assert.equal(suggest({ title: "County population 2020", geometryType: "polygon", fields }), "extrude");
   assert.equal(suggest({ title: "Parcels", geometryType: "polygon", fields }), "glow", "only statistical areas rise by default");
+});
+
+test("hexagon layers grow from the ground, each in turn by value, to their own full height", async () => {
+  const { growAmount, growHeight, isHexagonLayer, nativeEffectData, suggestEffect: suggest } = await import("../js/cinematic/cinematic-effects.js");
+  const cells = [{ name: "h3_id", type: "esriFieldTypeString" }, { name: "point_count", type: "esriFieldTypeInteger" }, { name: "represents_sum", type: "esriFieldTypeDouble" }];
+  assert.ok(isHexagonLayer(cells));
+  assert.ok(isHexagonLayer([], { cell_id: "r1c2", point_count: 4 }), "a Turf grid cell too");
+  assert.ok(!isHexagonLayer([{ name: "POP2020" }]));
+  assert.equal(suggest({ title: "Population per H3 cell", geometryType: "polygon", fields: cells }), "grow");
+  assert.equal(growAmount({ seconds: 2.5 }), 0.5, "a continuous track grows over 5 s and holds");
+  assert.equal(growAmount({ seconds: 9 }), 1);
+  assert.equal(growAmount({ phase: 0.25 }, 8), 0.25);
+  const square = (x) => ({ type: "Polygon", coordinates: [[[x, 0], [x + 1, 0], [x + 1, 1], [x, 0]]] });
+  const kept = nativeEffectData([{ feature: { properties: { represents_sum: 40, h3_id: "88" }, geometry: square(0) } }], { field: "represents_sum", keepProperties: true });
+  assert.deepEqual(kept.data.features[0].properties, { represents_sum: 40, h3_id: "88", v: 1, order: 0 }, "the layer's own height and colour expressions still find their fields");
+  // Evaluate the expression the way MapLibre would, for one cell of a given order and height.
+  const evaluate = (expression, order, vars = {}) => {
+    if (!Array.isArray(expression)) return expression;
+    const [op, ...args] = expression;
+    const at = (index) => evaluate(args[index], order, vars);
+    if (op === "let") return evaluate(args[2], order, { ...vars, [args[0]]: evaluate(args[1], order, vars) });
+    if (op === "var") return vars[args[0]];
+    if (op === "get") return order;
+    if (op === "min") return Math.min(at(0), at(1));
+    if (op === "max") return Math.max(at(0), at(1));
+    if (op === "-") return at(0) - at(1);
+    if (op === "/") return at(0) / at(1);
+    if (op === "*") return args.reduce((product, _, index) => product * at(index), 1);
+    throw new Error(op);
+  };
+  const height = (order, amount) => evaluate(growHeight(1000, amount), order);
+  assert.equal(height(0, 0), 0, "everything starts flat on the ground");
+  assert.ok(height(0, 0.3) > 0 && height(1, 0.3) === 0, "the lowest values start first, the tallest wait");
+  assert.equal(height(0, 0.4), 1000, "the first cells reach their full height early");
+  assert.equal(height(1, 1), 1000, "the tallest arrive last, at their own full height");
 });
 
 test("Strata timeline stacks records in the layer's chart slots, or one slot per step, earliest lowest", async () => {
