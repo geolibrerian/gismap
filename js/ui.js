@@ -16,10 +16,10 @@ import { MapAssistantPanel } from "./assistant-panel.js?v=0.72.0-si-maps";
 import { createAssistantTools, summarizeMapState } from "./map-assistant.js?v=0.72.0-si-maps";
 import { ENTERPRISE_CATALOGS, EnterpriseCatalog, normalizeArcGisDirectoryUrl } from "./enterprise-catalog.js?v=0.71.0-subsurface";
 import { createShareUrl, parseShareParameters } from "./share.js?v=0.71.0-subsurface";
-import { mapSpecFromShareParameters } from "./map-spec.js?v=0.79.0-quakes";
-import { createShareLink, hasDataFilter, readBriefingFile } from "./map-share.js?v=0.79.0-quakes";
+import { mapSpecFromShareParameters } from "./map-spec.js?v=0.80.0-grow";
+import { createShareLink, hasDataFilter, readBriefingFile } from "./map-share.js?v=0.80.0-grow";
 import { createEmbedIframe, createEmbedUrl } from "./embed-share.js?v=0.65.0-paths";
-import { briefingLayerRef, findBriefingLayer } from "./briefing-api.js?v=0.79.0-quakes";
+import { briefingLayerRef, findBriefingLayer } from "./briefing-api.js?v=0.80.0-grow";
 import { createEmbeddedTourUrl } from "./tour-share.js?v=0.54.0-unified4";
 import { markdownToPlainText, renderMarkdown } from "./markdown.js?v=0.18.2";
 import { formatAttributeValue } from "./attribute-format.js?v=0.18.2";
@@ -37,26 +37,26 @@ import { featureLayerUrl, locationUrl } from "./field-task-share.js?v=0.71.0-sub
 import { dockIcon } from "./dock-icons.js?v=0.24.0";
 import { serviceNameFromUrl } from "./service-name.js?v=0.26.0";
 import { decodeQrFromImage, describeGisMapLink, gisMapLinkFrom, openGisMapLink } from "./qr-import.js?v=0.25.2";
-import { BriefingSlides } from "./briefing-slides.js?v=0.79.0-quakes";
-import { addSlide, createSlide, isRoutineField, matchesFilter, normalizeBriefing, normalizeFilter } from "./briefing-document.js?v=0.79.0-quakes";
+import { BriefingSlides } from "./briefing-slides.js?v=0.80.0-grow";
+import { addSlide, createSlide, isRoutineField, matchesFilter, normalizeBriefing, normalizeFilter } from "./briefing-document.js?v=0.80.0-grow";
 import { conditionComplete, conditionLabel, conditionToFilter } from "./briefing-conditions.js?v=0.1.0";
 import { createFilterBuilder } from "./filter-builder.js?v=0.1.0";
 import { conditionsToWhere } from "./filter-sql.js?v=0.1.0";
-import { aiDescriptionPrompt, applyAiDescriptions, describeWhere, generateBriefing, readAiDescriptions, rendererTheme } from "./briefing-generator.js?v=0.79.0-quakes";
+import { aiDescriptionPrompt, applyAiDescriptions, describeWhere, generateBriefing, readAiDescriptions, rendererTheme } from "./briefing-generator.js?v=0.80.0-grow";
 import { briefingFileStem } from "./briefing-pdf.js?v=0.69.1-pdflinks";
 import { RAMPS, rampColors, compileRenderer } from "./renderer-spec.js?v=0.29.1";
 import { bindSubsurfaceControls, canDrawBelowGround, subsurfaceControlsMarkup } from "./subsurface-controls.js?v=0.71.0-subsurface";
 import { listedOrder, spatialChartColor, spatialChartGroupColor, spreadColors } from "./spatial-chart.js?v=0.71.0-subsurface";
 import { saveEngine } from "./engine-preference.js?v=0.52.1";
 import { BASEMAPS } from "./basemap-catalog.js?v=0.53.0-gallery1";
-import { CartographyLab } from "./cartography-lab.js?v=0.79.0-quakes";
+import { CartographyLab } from "./cartography-lab.js?v=0.80.0-grow";
 import { CONTEXT_ACTIONS, createSuggestionPreferences, deriveWorkspace, executeContextAction, suggestionKey, summarizeFeature } from "./contextual-workspace.js?v=6";
 import { BRIEFING_WALKTHROUGH_STEPS, CINEMATIC_WALKTHROUGH_STEPS, HISTORICAL_QUAKES_BRIEFING_TUTORIAL_STEPS, createExampleWalkthroughSteps, startWorkspaceWalkthrough, waitForWalkthroughTarget } from "./workspace-walkthrough.js?v=0.77.0-tutorial";
-import { HISTORICAL_QUAKES_SOURCE, HISTORICAL_QUAKES_WHERE, createHistoricalQuakesExampleBriefing } from "./example-hazards-briefing.js?v=0.79.0-quakes";
-import { CinematicModeController } from "./cinematic/mode.js?v=0.79.0-quakes";
-import { CINEMATIC_EFFECTS, CINEMATIC_EFFECT_CATEGORIES, suggestEffect } from "./cinematic/cinematic-effects.js?v=0.79.0-quakes";
+import { HISTORICAL_QUAKES_SOURCE, HISTORICAL_QUAKES_WHERE, createHistoricalQuakesExampleBriefing } from "./example-hazards-briefing.js?v=0.80.0-grow";
+import { CinematicModeController } from "./cinematic/mode.js?v=0.80.0-grow";
+import { CINEMATIC_EFFECTS, CINEMATIC_EFFECT_CATEGORIES, isHexagonLayer, suggestEffect } from "./cinematic/cinematic-effects.js?v=0.80.0-grow";
 import { PROVENANCE_STATUSES } from "./cinematic/clock.js?v=0.1.0";
-import { recommendAnimations } from "./cinematic/recommend.js?v=0.79.0-quakes";
+import { recommendAnimations } from "./cinematic/recommend.js?v=0.80.0-grow";
 
 // What each provenance label tells a viewer about a track's displayed progression.
 const PROVENANCE_HELP = Object.freeze({
@@ -67,8 +67,8 @@ const PROVENANCE_HELP = Object.freeze({
   illustrative: "Illustrative: decorative motion that does not measure anything.",
 });
 import { numericFieldCandidates, temporalFieldCandidates, textFieldCandidates } from "./cinematic/temporal-adapter.js?v=0.4.0-sequence";
-import { buildClipPackage, clipToCinematicSpec, createCinematicClip, exportCinematicClip, normalizeCinematicClip } from "./cinematic/clip-model.js?v=0.79.0-quakes";
-import { availableVideoFormats, cameraAt, CLIP_FRAME_RATES, clipFrameCount, exportCinematicVideo, observationIndexAt, renderClipPoster } from "./cinematic/clip-export.js?v=0.79.0-quakes";
+import { buildClipPackage, clipToCinematicSpec, createCinematicClip, exportCinematicClip, normalizeCinematicClip } from "./cinematic/clip-model.js?v=0.80.0-grow";
+import { availableVideoFormats, cameraAt, CLIP_FRAME_RATES, clipFrameCount, exportCinematicVideo, observationIndexAt, renderClipPoster } from "./cinematic/clip-export.js?v=0.80.0-grow";
 import { CHART_PANEL_PLACEMENTS, CHART_TYPES, PRESENTATION_TARGETS, chartFields, chartOption, createChartSpec, displayChartRows, loadECharts, queryChart, recommendCharts, renderChartFallback, rowsAsCsv } from "./charting-tools.js?v=0.68.0-charts1";
 import { MapChartOverlayController } from "./map-chart-tools.js?v=0.68.0-charts1";
 import { readTextBoxEditor, textBoxEditorMarkup, textBoxRunMarkup, textBoxSummary } from "./text-box-editor.js?v=0.65.0-paths";
@@ -2318,7 +2318,8 @@ export class UIController {
     const fillFields = () => {
       const layer = this.mapController.getLayer(layerInput.value) || selected;
       // No date field is no obstacle: the layer can still sweep a number or animate as ambient.
-      kindInput.value = temporalFieldCandidates(layer).length ? "time" : stackedBy(layer) && textFieldCandidates(layer).some((field) => field.name === stackedBy(layer)) ? "sequence" : numericFieldCandidates(layer).length ? "number" : "none";
+      // Hexagon bins have no order of their own, so they grow from the ground as an ambient loop.
+      kindInput.value = isHexagonLayer(layer.fields || []) ? "none" : temporalFieldCandidates(layer).length ? "time" : stackedBy(layer) && textFieldCandidates(layer).some((field) => field.name === stackedBy(layer)) ? "sequence" : numericFieldCandidates(layer).length ? "number" : "none";
       groupInput.innerHTML = '<option value="">All observations together</option>' + (layer.fields || []).filter((field) => field.name !== layer.objectIdField).map((field) => `<option value="${escapeHtml(field.name)}">${escapeHtml(field.alias || field.name)}</option>`).join("");
       fillKind();
       const effectInput = this.dialog.querySelector("[data-cinematic-effect]");

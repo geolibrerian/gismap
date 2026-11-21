@@ -117,6 +117,7 @@ function fakeMap() {
     setFilter: (id, filter) => { layers.get(id).filter = filter; },
     setLayoutProperty: (id, name, value) => { layers.get(id).layout[name] = value; },
     setPaintProperty: (id, name, value) => { layers.get(id).paint[name] = value; },
+    getPaintProperty: (id, name) => layers.get(id)?.paint?.[name],
     setTerrain: (value) => { terrain = value; },
     getTerrain: () => terrain,
     setSky: (value) => { sky = value; },
@@ -462,6 +463,37 @@ test("MapLibre spatial charts rebuild derived strata and persist the portable co
   assert.equal(engine.map.layers.has(`gismap-${layer.uid}-spatial-chart-0`), false);
   assert.equal(engine.map.layers.get(`gismap-${layer.uid}-fill`).layout.visibility, "visible");
   assert.equal(engine.map.layers.get(`gismap-${layer.uid}-outline`).layout.visibility, "visible");
+});
+
+test("Grow from the ground draws hexagons in their own colours and hides the layer until every grow on it is cleared", async () => {
+  const engine = new MaplibreEngine({ publish() {} });
+  engine.map = fakeMap();
+  const hexagon = (x, people) => ({ type:"Feature", geometry:{ type:"Polygon", coordinates:[[[x,0],[x+1,0],[x+1,1],[x,0]]] }, properties:{ h3_id:`88${x}`, point_count:people / 20, represents_sum:people } });
+  const features = [hexagon(0, 40), hexagon(1, 400)];
+  const previous = { fetch: globalThis.fetch, frame: globalThis.requestAnimationFrame };
+  globalThis.fetch = async () => ({ ok:true, json:async () => ({ type:"FeatureCollection", features }) });
+  globalThis.requestAnimationFrame = () => 0;
+  try {
+    const layer = await engine.addService({ url:"https://example.org/hexagons.geojson" });
+    const fill = () => engine.map.layers.get(`gismap-${layer.uid}-fill`).layout.visibility;
+    const track = { type:"observed-effect", effect:"grow", layerUid: layer.uid, items: features.map((feature) => ({ feature })) };
+    assert.equal(await engine.setCinematicEffect("cinematic:1", track), true);
+    await engine.setCinematicEffect("layer-effect:1", track);
+    const grow = engine.map.layers.get("cinematic-native:cinematic:1:grow");
+    assert.equal(grow.type, "fill-extrusion");
+    assert.equal(grow.paint["fill-extrusion-color"], engine.map.layers.get(`gismap-${layer.uid}-fill`).paint["fill-color"], "the layer's own colours");
+    assert.equal(grow.paint["fill-extrusion-height"][0], "let", "heights grow per cell, in value order");
+    assert.deepEqual(engine.map.sources.get("cinematic-native:cinematic:1").data.features.map((feature) => [feature.properties.represents_sum, feature.properties.order]), [[40, 0], [400, 1]]);
+    assert.equal(fill(), "none", "the layer is hidden while its cells grow");
+    engine.clearCinematicEffect("cinematic:1");
+    assert.equal(fill(), "none", "still hidden: the other grow is drawing it");
+    engine.clearCinematicEffect("layer-effect:1");
+    assert.equal(fill(), "visible");
+    assert.equal(engine.map.layers.has("cinematic-native:cinematic:1:grow"), false);
+  } finally {
+    globalThis.fetch = previous.fetch;
+    globalThis.requestAnimationFrame = previous.frame;
+  }
 });
 
 test("views persist in GIS Map zoom levels (one above MapLibre's)", async () => {

@@ -1,5 +1,5 @@
-import { previewGridAtlas, generateGridAtlas, extentToBounds } from "./briefing-grid-atlas.js?v=0.79.0-quakes";
-import { createTimelineSourceCache } from "./briefing-timeline-source.js?v=0.79.0-quakes";
+import { previewGridAtlas, generateGridAtlas, extentToBounds } from "./briefing-grid-atlas.js?v=0.80.0-grow";
+import { createTimelineSourceCache } from "./briefing-timeline-source.js?v=0.80.0-grow";
 // The Slides tab of the Briefing panel: build an ordered set of slides from the
 // briefing's features and data, and preview them over the live map. The slides
 // themselves are plain data (briefing-document.js); this file only draws and edits.
@@ -28,14 +28,14 @@ import {
   isRoutineField,
   DISTANCE_UNITS,
   SPATIAL_RELATIONSHIPS,
-} from "./briefing-document.js?v=0.79.0-quakes";
+} from "./briefing-document.js?v=0.80.0-grow";
 import { compileWhere } from "./engines/maplibre/where.js?v=0.40.0-timeline";
-import { generateTimeline, previewTimeline, isYearField } from "./briefing-timeline.js?v=0.79.0-quakes";
-import { isDateField, previewDateTimeline } from "./briefing-timeline-dates.js?v=0.79.0-quakes";
-import { generateFilterSeries, seriesWhere } from "./briefing-data-series.js?v=0.79.0-quakes";
-import { generateSpatialChartBrief } from "./briefing-spatial-chart.js?v=0.79.0-quakes";
-import { previewFilterSeries, formatSeriesTitle } from "./briefing-series-preview.js?v=0.79.0-quakes";
-import { briefingLayerRef } from "./briefing-api.js?v=0.79.0-quakes";
+import { generateTimeline, previewTimeline, isYearField } from "./briefing-timeline.js?v=0.80.0-grow";
+import { isDateField, previewDateTimeline } from "./briefing-timeline-dates.js?v=0.80.0-grow";
+import { generateFilterSeries, seriesWhere } from "./briefing-data-series.js?v=0.80.0-grow";
+import { generateSpatialChartBrief } from "./briefing-spatial-chart.js?v=0.80.0-grow";
+import { previewFilterSeries, formatSeriesTitle } from "./briefing-series-preview.js?v=0.80.0-grow";
+import { briefingLayerRef } from "./briefing-api.js?v=0.80.0-grow";
 import { renderMarkdown } from "./markdown.js?v=0.18.2";
 import { BriefingPlayer, slideHasMap } from "./briefing-player.js?v=0.62.3-briefing-slide-engines";
 import { expandTimelinePdfSlides } from "./briefing-timeline-pdf.js?v=0.1.0";

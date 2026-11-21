@@ -1,10 +1,10 @@
-import { generateFilterSeries } from "./briefing-data-series.js?v=0.79.0-quakes";
-import { isDateField } from "./briefing-timeline-dates.js?v=0.79.0-quakes";
-import { generateTimeline } from "./briefing-timeline.js?v=0.79.0-quakes";
-import { extentToBounds, generateGridAtlas } from "./briefing-grid-atlas.js?v=0.79.0-quakes";
-import { generateSpatialChartBrief } from "./briefing-spatial-chart.js?v=0.79.0-quakes";
-import core, { normalizeBriefing, updateSlide, validateBriefingDocument } from "./gismap-core.js?v=0.79.0-quakes";
-import { createShareLink } from "./map-share.js?v=0.79.0-quakes";
+import { generateFilterSeries } from "./briefing-data-series.js?v=0.80.0-grow";
+import { isDateField } from "./briefing-timeline-dates.js?v=0.80.0-grow";
+import { generateTimeline } from "./briefing-timeline.js?v=0.80.0-grow";
+import { extentToBounds, generateGridAtlas } from "./briefing-grid-atlas.js?v=0.80.0-grow";
+import { generateSpatialChartBrief } from "./briefing-spatial-chart.js?v=0.80.0-grow";
+import core, { normalizeBriefing, updateSlide, validateBriefingDocument } from "./gismap-core.js?v=0.80.0-grow";
+import { createShareLink } from "./map-share.js?v=0.80.0-grow";
 import { GisMapError, layerLoadError, toGisMapError } from "./gismap-errors.js?v=0.54.0-print";
 import { featureLayerUrl } from "./field-task-share.js?v=0.71.0-subsurface";
 import { brandedQrFile, printPalette } from "./pdf-document.js?v=0.69.1-pdflinks";

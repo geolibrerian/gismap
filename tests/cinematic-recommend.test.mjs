@@ -24,6 +24,13 @@ test("dated points lead with an observed Timeline; statistical areas rise to the
   assert.ok(ids(recommendAnimations(counties)).includes("scenario-sweep"), "a number can also be swept as a Scenario");
 });
 
+test("hexagon bins are offered Grow from the ground first, and never a timeline of hexagons", () => {
+  const bins = { title: "Population per H3 cell", geometryType: "polygon", fields: [{ name: "h3_id", type: "esriFieldTypeString" }, { name: "point_count", type: "esriFieldTypeInteger" }, { name: "represents_sum", type: "esriFieldTypeDouble" }] };
+  const suggestions = recommendAnimations(bins);
+  assert.deepEqual([suggestions[0].id, suggestions[0].effect, suggestions[0].provenance], ["ambient-grow", "grow", "observed"]);
+  assert.ok(!suggestions.some((item) => item.kind === "number" && item.effect === "grow"), "a sweep falls back to glow");
+});
+
 test("every suggestion explains itself and names what it shows", () => {
   const parcels = { title: "Parcels", geometryType: "polygon", fields: [] };
   for (const item of recommendAnimations(parcels)) {
