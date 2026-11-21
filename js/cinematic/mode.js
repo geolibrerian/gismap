@@ -1,9 +1,10 @@
 import { createCinematicTimeline } from "./timeline-controller.js?v=0.1.0";
 import { normalizeTemporalFeatures, observedFeaturesAt, parsePlaybackValue, temporalModelInExtent } from "./temporal-adapter.js?v=0.4.0-sequence";
-import { exportCinematicSpec, importCinematicSpec } from "./state.js?v=0.70.4-sequence";
-import { CINEMATIC_EFFECTS, NATIVE_EFFECTS, effectFields, effectRanges, resolveEffect, resolveQuality } from "./cinematic-effects.js?v=0.71.0-subsurface";
+import { exportCinematicSpec, importCinematicSpec } from "./state.js?v=0.79.0-quakes";
+import { CINEMATIC_EFFECTS, NATIVE_EFFECTS, effectFields, effectRanges, resolveEffect, resolveQuality } from "./cinematic-effects.js?v=0.79.0-quakes";
 import { PROVENANCE_STATUSES, createEffectsClock, normalizeTiming } from "./clock.js?v=0.1.0";
-import { setEffectClock } from "./effects-three.js?v=0.71.0-subsurface";
+import { setEffectClock } from "./effects-three.js?v=0.79.0-quakes";
+import { timelineChart } from "./timeline-chart.js?v=0.79.0-quakes";
 
 // In a build-up, outlines older than the newest few are "settled": drawn as a
 // cheap edge and rebuilt only now and then, while the recent ones (full
@@ -283,6 +284,32 @@ export class CinematicModeController {
     this.#resetTimeline(this.localWindow && !this.localEmpty ? all : null);
     if (Number.isFinite(current) && (!Number.isFinite(from) || current >= from) && (!Number.isFinite(to) || current <= to)) this.timeline.seek(current);
     return true;
+  }
+
+  /**
+   * The bar chart under the timeline, from the lead track's observations (the
+   * local window's while it is on): energy released per period for a
+   * magnitude field, else the record count. null for a Sequence or Ambient scene.
+   */
+  timelineChart() {
+    const entry = [...this.layers.values()].find((item) => item.config.temporal.kind !== "none");
+    if (!entry || entry.config.temporal.order || !this.spec) return null;
+    const model = this.localModels.get(entry.layer.uid) || entry.model;
+    const settings = this.spec.cinematic.chart || {};
+    const sample = model.observations[0]?.feature;
+    const magnitude = effectFields(entry.layer.fields || [], sample?.attributes || sample?.properties).magnitude;
+    const field = settings.field || magnitude;
+    const cached = this.chartCache;
+    if (cached?.model === model && cached.stat === settings.stat && cached.field === field) return cached.chart;
+    const chart = timelineChart(model.observations, { kind: entry.config.temporal.kind, field, stat: settings.stat || "auto", magnitude: Boolean(field) && field === magnitude });
+    this.chartCache = { model, stat: settings.stat, field, chart: chart && { ...chart, track: entry.layer.title } };
+    return this.chartCache.chart;
+  }
+
+  setChartStat(stat) {
+    if (!this.spec) return;
+    this.spec.cinematic.chart = { ...this.spec.cinematic.chart, stat };
+    this.onState(this.state());
   }
 
   /** How playback steps: "time" (a date field), "number" (a Scenario sweep) or "none" (Ambient). */

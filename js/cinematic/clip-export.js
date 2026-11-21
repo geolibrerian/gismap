@@ -9,7 +9,7 @@
 // Frames are composed on a dedicated canvas (map + title, captions and
 // attribution), never by recording the engine canvas, and a cross-origin
 // ("tainted") map frame stops the export before anything is encoded.
-import { setEffectClock } from "./effects-three.js?v=0.71.0-subsurface";
+import { setEffectClock } from "./effects-three.js?v=0.79.0-quakes";
 
 /** Mediabunny (MPL-2.0), pinned and loaded only when a movie is exported. */
 export const MEDIABUNNY_URL = "https://cdn.jsdelivr.net/npm/mediabunny@1.61.3/dist/bundles/mediabunny.min.mjs";
@@ -201,7 +201,52 @@ function drawLegend(context, { width, height, legend = [], effectNote = "" }) {
   context.restore();
 }
 
-export function drawClipComposition(context, image, { width, height, title, caption = "", attribution = true, attributionText = "", legend = [], effectNote = "" } = {}) {
+/**
+ * The timeline chart along the bottom of a frame: the bars up to `time` lit,
+ * the rest dimmed, a playhead, the chart's label and a running `count` line.
+ */
+export function drawTimelineChart(context, chart, { width, height, time, count = "" } = {}) {
+  if (!chart?.max || !chart.bins?.length) return;
+  const x = Math.round(width * .03), y = Math.round(height * .8), w = Math.round(width * .94), h = Math.round(height * .135);
+  const pad = Math.round(width * .015), barsTop = y + Math.round(h * .3), barsHeight = Math.round(h * .48), inner = w - pad * 2;
+  const span = chart.end - chart.start || 1;
+  const at = (value) => x + pad + Math.min(1, Math.max(0, (value - chart.start) / span)) * inner;
+  context.save();
+  context.fillStyle = "rgba(7, 28, 24, .78)";
+  context.fillRect(x, y, w, h);
+  context.font = `600 ${Math.round(height * .02)}px system-ui, sans-serif`;
+  context.fillStyle = "rgba(255, 253, 247, .78)";
+  context.textBaseline = "alphabetic";
+  context.fillText(fitText(context, chart.label, inner * .6), x + pad, y + Math.round(h * .2));
+  if (count) {
+    context.fillStyle = "#fffdf7";
+    context.textAlign = "right";
+    context.fillText(fitText(context, count, inner * .38), x + w - pad, y + Math.round(h * .2));
+    context.textAlign = "left";
+  }
+  const head = at(time);
+  for (const bin of chart.bins) {
+    if (!(bin.value > 0)) continue;
+    const left = at(bin.start), barWidth = Math.max(1.5, (at(bin.end) - left) * .72);
+    const barHeight = Math.max(1.5, (bin.value / chart.max) * barsHeight);
+    context.fillStyle = bin.start <= time ? "#ff9a3c" : "rgba(255, 255, 255, .22)";
+    context.fillRect(left, barsTop + barsHeight - barHeight, barWidth, barHeight);
+  }
+  context.fillStyle = "rgba(255, 255, 255, .3)";
+  context.fillRect(x + pad, barsTop + barsHeight, inner, 1);
+  context.fillStyle = "#fffdf7";
+  context.fillRect(Math.round(head), barsTop - 2, Math.max(1, Math.round(height / 600)), barsHeight + 4);
+  context.font = `400 ${Math.round(height * .016)}px system-ui, sans-serif`;
+  context.fillStyle = "rgba(255, 253, 247, .7)";
+  const label = (value) => chart.unit === "year" ? String(new Date(value).getUTCFullYear()) : chart.unit ? new Date(value).toISOString().slice(0, chart.unit === "month" ? 7 : 10) : Number(value).toLocaleString();
+  [[0, "left"], [.5, "center"], [1, "right"]].forEach(([fraction, align]) => {
+    context.textAlign = align;
+    context.fillText(label(Math.min(chart.start + fraction * span, chart.bins.at(-1).start)), x + pad + fraction * inner, y + h - Math.round(h * .07));
+  });
+  context.restore();
+}
+
+export function drawClipComposition(context, image, { width, height, title, caption = "", attribution = true, attributionText = "", legend = [], effectNote = "", chart = null } = {}) {
   context.fillStyle = "#102d27";
   context.fillRect(0, 0, width, height);
   drawCover(context, image, width, height);
@@ -211,12 +256,15 @@ export function drawClipComposition(context, image, { width, height, title, capt
   context.font = `700 ${Math.round(height * .052)}px system-ui, sans-serif`;
   context.fillText(fitText(context, String(title || "Cinematic Clip").slice(0, 100), width * .94), Math.round(width * .03), Math.round(height * .078));
   drawLegend(context, { width, height, legend, effectNote });
+  if (chart) drawTimelineChart(context, chart.data, { width, height, time: chart.time, count: chart.count });
   if (caption) {
+    // A timeline chart takes the bottom band, so the caption sits above it.
+    const top = chart ? .69 : .82;
     context.fillStyle = "rgba(7, 28, 24, .8)";
-    context.fillRect(Math.round(width * .03), Math.round(height * .82), Math.round(width * .94), Math.round(height * .09));
+    context.fillRect(Math.round(width * .03), Math.round(height * top), Math.round(width * .94), Math.round(height * .09));
     context.fillStyle = "#fffdf7";
     context.font = `500 ${Math.round(height * .028)}px system-ui, sans-serif`;
-    context.fillText(fitText(context, String(caption).slice(0, 180), width * .9), Math.round(width * .05), Math.round(height * .876));
+    context.fillText(fitText(context, String(caption).slice(0, 180), width * .9), Math.round(width * .05), Math.round(height * (top + .056)));
   }
   if (attribution) {
     context.fillStyle = "rgba(7, 28, 24, .78)";
@@ -289,6 +337,16 @@ function clipRenderer({ clip, controller, mapController, width, height, attribut
   let sceneSeconds = 0;
   // Restored afterwards: the Cinematic master clock goes back to driving the effects.
   const previousClock = setEffectClock(() => 10 + sceneSeconds);
+  // The timeline chart, unless the Clip turns it off, with the running count of the lead track.
+  const chartData = clip.composition?.chart === false ? null : controller.timelineChart?.() || null;
+  const chartAt = () => {
+    if (!chartData) return null;
+    const scene = controller.state();
+    const lead = scene.layers?.find((item) => !item.ambient && item.kind !== "none");
+    const noun = lead?.effect === "quake" ? "earthquakes" : "records";
+    const count = lead ? `${lead.observedCount.toLocaleString()} ${noun} ${scene.spec?.cinematic.clock.timeMode === "cumulative" ? "so far" : "shown"}` : "";
+    return { data: chartData, time: scene.timeline?.observationTime ?? chartData.start, count };
+  };
   const renderAt = async (ms) => {
     const state = clipStateAt(clip, ms, tickCount);
     if (state.observationIndex !== shown) {
@@ -299,7 +357,7 @@ function clipRenderer({ clip, controller, mapController, width, height, attribut
     if (state.camera) await mapController.setView(state.camera, { animate: false });
     sceneSeconds = ms / 1000;
     const frame = await readFrame();
-    drawClipComposition(context, frame, { width, height, title: clip.title, caption: state.caption, attribution: clip.composition?.attribution !== false, attributionText, legend: clip.composition?.legend === false ? [] : legend, effectNote });
+    drawClipComposition(context, frame, { width, height, title: clip.title, caption: state.caption, attribution: clip.composition?.attribution !== false, attributionText, legend: clip.composition?.legend === false ? [] : legend, effectNote, chart: chartAt() });
   };
   return { canvas, renderAt, release: () => setEffectClock(previousClock) };
 }

@@ -75,12 +75,12 @@ test("embers are deterministic and prefer the newest observed edges", () => {
 
 test("auto effect follows the data and specs migrate the v0.1 glow flag", () => {
   assert.equal(suggestEffect({ title: "Current_Perimeters", geometryType: "polygon" }), "fire");
-  assert.equal(suggestEffect({ title: "Earthquakes — past 30 days", geometryType: "point" }), "pulse");
+  assert.equal(suggestEffect({ title: "Earthquakes — past 30 days", geometryType: "point" }), "quake");
   assert.equal(suggestEffect({ title: "Stations", geometryType: "point", fields: [{ name: "wdir" }, { name: "wspd" }] }), "wind");
   assert.equal(suggestEffect({ title: "Flood stages", geometryType: "polygon" }), "water");
   assert.equal(suggestEffect({ title: "Bus routes", geometryType: "polyline" }), "flow");
   assert.equal(suggestEffect({ title: "Parcels", geometryType: "polygon" }), "glow");
-  assert.equal(resolveEffect("auto", { title: "USGS quakes", geometryType: "point" }), "pulse");
+  assert.equal(resolveEffect("auto", { title: "USGS quakes", geometryType: "point" }), "quake");
   assert.equal(resolveEffect("sparkles"), "glow");
   const layer = (animation) => normalizeCinematicSpec({ layers: [{ layerRef: "a", temporal: { startField: "t" }, animation }] }).cinematic.layers[0].animation.effect;
   assert.deepEqual(layer({ outline: { glow: true } }), { type: "glow", color: null, intensity: 1, opacity: 1, speed: 1, density: 1, style: "balanced" });
@@ -234,4 +234,45 @@ test("Auto plays a layer with a stacked 3D chart as Strata, not as outlines on t
   assert.equal(resolveEffect("auto", { title: "California fire perimeters by decade", geometryType: "polygon", spatialChart: strata }), "strata");
   assert.equal(suggestEffect({ title: "California fire perimeters", geometryType: "polygon", spatialChart: { type: "spatial-3d-chart", mode: "attribute-extrusion" } }), "fire", "a plain extrusion keeps the themed effect");
   assert.equal(suggestEffect({ title: "California fire perimeters", geometryType: "polygon" }), "fire");
+});
+
+test("quake glows drape on the ground: fresh and strongest quakes get terrain discs sized by magnitude", async () => {
+  const { discBuffers, quakeRadiusMetres, effectFrame } = await import("../js/cinematic/cinematic-effects.js");
+  assert.equal(Math.round(quakeRadiusMetres(5)), 2500);
+  assert.equal(Math.round(quakeRadiusMetres(7)), 25000);
+  assert.equal(quakeRadiusMetres(NaN), 3000);
+  const point = (mag, fresh, lng = -117.6) => ({ coordinates: [lng, 35.7], attributes: { mag }, fresh });
+  const points = [point(4.5, 0), point(7.1, 0, -116.3), point(4.6, 1, -118)];
+  const frame = effectFrame([-117.6, 35.7]);
+  const discs = discBuffers(points, frame, { magnitudeField: "mag", ranges: { magnitude: [4.5, 7.3] }, rings: 2, segments: 4 });
+  const perDisc = 1 + 2 * 4;
+  // The fresh M4.6 and the settled M7.1; the settled M4.5 stays a dot.
+  assert.equal(discs.position.length / 3, perDisc * 2);
+  assert.deepEqual(discs.fresh.slice(0, 1), [1]);
+  // Every vertex carries its own lng/lat for terrain sampling; the outer ring of the M7.1 disc is ~28 km out.
+  const lng = discs.lngLat.slice(perDisc * 2, perDisc * 4).filter((_, i) => i % 2 === 0);
+  const spreadKm = (Math.max(...lng) - Math.min(...lng)) * 111.32 * Math.cos((35.7 * Math.PI) / 180) / 2;
+  assert.ok(spreadKm > 27 && spreadKm < 29, `M7.1 disc radius ${spreadKm} km`);
+  assert.equal(discBuffers(points, frame, { magnitudeField: "mag", maxDiscs: 0 }), null);
+});
+
+test("the timeline chart bins observed records by calendar period and sums seismic energy", async () => {
+  const { timelineChart, seismicEnergy, resolveChartStat } = await import("../js/cinematic/timeline-chart.js");
+  const at = (iso, mag) => ({ time: Date.parse(iso), feature: { attributes: { mag } } });
+  const observations = [at("1989-10-18T00:04Z", 6.9), at("1989-12-01T00:00Z", 4.5), at("1999-10-16T09:46Z", 7.1), at("2019-07-06T03:19Z", 7.1)];
+  const chart = timelineChart(observations, { field: "mag", magnitude: true });
+  assert.equal(chart.unit, "year");
+  assert.equal(chart.stat, "energy");
+  assert.equal(chart.label, "Energy released per year");
+  assert.equal(chart.bins.length, 2019 - 1989 + 1);
+  assert.equal(chart.bins[0].count, 2);
+  assert.ok(Math.abs(chart.bins[0].value - (seismicEnergy(6.9) + seismicEnergy(4.5))) < 1e6);
+  assert.equal(chart.max, seismicEnergy(7.1));
+  const peak = timelineChart(observations, { field: "mag", magnitude: true, stat: "max" });
+  assert.equal(peak.bins[0].value, 6.9);
+  assert.equal(timelineChart(observations, { field: "mag", stat: "count" }).bins[0].value, 2);
+  assert.equal(resolveChartStat("auto", { field: "depth", magnitude: false }), "count");
+  assert.equal(timelineChart(observations, { stat: "none" }), null);
+  // A few days of records bin by day.
+  assert.equal(timelineChart([at("2024-01-01T00:00Z", 1), at("2024-01-20T00:00Z", 2)], {}).unit, "day");
 });

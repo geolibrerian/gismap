@@ -9,6 +9,7 @@ export const CINEMATIC_EFFECTS = Object.freeze({
   none: { label: "None", note: "" },
   glow: { label: "Glow", category: "Essentials", color: "#ff8136", note: "Glow marks observed outlines and points; it is decoration, not data." },
   fire: { label: "Flames", category: "Hazards & weather", color: "#ff6a1a", note: "Flames and embers decorate the observed edge; they do not model fire behaviour or spread." },
+  quake: { label: "Earthquake glow", category: "Hazards & weather", color: "#ffa23a", note: "Each observed quake glows on the ground where it struck, sized by magnitude on a display scale; the glow is not a shaking or damage footprint." },
   pulse: { label: "Seismic pulse", category: "Hazards & weather", color: "#ff3b2f", note: "Rings pulse out from observed points; ring size follows the magnitude field when there is one." },
   wind: { label: "Wind", category: "Hazards & weather", color: "#2f8fdc", note: "Streaks blow along the observed direction field; without one they are decorative only." },
   snow: { label: "Falling snow", category: "Hazards & weather", color: "#e7f7ff", note: "Snowfall is a looping decorative field at observed features; it is not measured precipitation." },
@@ -106,7 +107,7 @@ export function suggestEffect({ title = "", geometryType = "", fields = [], samp
   if (/storm|radar/.test(name)) return "storm";
   // Statistical areas (population, income, housing…) rise to their values.
   if (/polygon/i.test(geometryType) && /population|census|tract|county|counties|income|density|demograph|households|housing units|poverty/.test(name) && valueField(fields, sample)) return "extrude";
-  if (/quake|seism|tremor|shake|usgs.*(mag|event)/.test(name) || (points && found.magnitude && /^(mag|magnitude|mw|ml)$/i.test(found.magnitude))) return "pulse";
+  if (/quake|seism|tremor|shake|usgs.*(mag|event)/.test(name) || (points && found.magnitude && /^(mag|magnitude|mw|ml)$/i.test(found.magnitude))) return "quake";
   if (/wind|gust|weather station|metar/.test(name) || (points && found.direction && found.speed)) return "wind";
   if (/electric|power.?line|transmission|grid|substation/.test(name)) return "electricity";
   if (/sail|marina|harbor|harbour/.test(name)) return "sailboats";
@@ -250,9 +251,9 @@ function collect(geometry, out) {
  * the scene (resolveQuality).
  */
 export const EFFECT_QUALITY = Object.freeze({
-  eco: { label: "Eco", maxPaths: 800, maxVertices: 30000, maxPoints: 3000, walls: "none", embers: 0 },
-  balanced: { label: "Balanced", maxPaths: 1500, maxVertices: 80000, maxPoints: 6000, walls: "fresh", embers: 600 },
-  cinematic: { label: "Cinematic", maxPaths: 2500, maxVertices: 150000, maxPoints: 8000, walls: "all", embers: 1400 },
+  eco: { label: "Eco", maxPaths: 800, maxVertices: 30000, maxPoints: 3000, walls: "none", embers: 0, discs: 24 },
+  balanced: { label: "Balanced", maxPaths: 1500, maxVertices: 80000, maxPoints: 6000, walls: "fresh", embers: 600, discs: 48 },
+  cinematic: { label: "Cinematic", maxPaths: 2500, maxVertices: 150000, maxPoints: 8000, walls: "all", embers: 1400, discs: 96 },
 });
 
 /** "auto" by scene size: small scenes get full detail, large ones a lighter budget. */
@@ -456,6 +457,63 @@ export function quadBuffers(points, frame, { magnitudeField = null, directionFie
     index.push(base, base + 1, base + 2, base, base + 2, base + 3);
   });
   return position.length ? { position, corner, magnitude, heading, speed, fresh, seed, index, lngLat, hasDirection: Boolean(directionField) } : null;
+}
+
+/**
+ * Ground radius in metres of a quake's glow: about 2.5 km at M5, growing
+ * √10× per magnitude unit (M7 ≈ 25 km). A display scale only, not a shaking
+ * footprint. Without a usable magnitude, 3 km.
+ */
+export function quakeRadiusMetres(magnitude) {
+  if (!Number.isFinite(magnitude) || magnitude < -2 || magnitude > 10) return 3000;
+  return Math.min(60000, Math.max(600, 2500 * 10 ** (0.5 * (magnitude - 5))));
+}
+
+/**
+ * Terrain-draped discs for the most telling quakes of a snapshot: every fresh
+ * one, then the strongest (upper half of the magnitude range), at most
+ * `maxDiscs`. Each disc is a polar grid of `rings` × `segments` vertices on the
+ * ground around the exact epicentre, so per-vertex terrain heights make the
+ * glow follow ridges and valleys instead of floating at the epicentre height.
+ */
+export function discBuffers(points, frame, { magnitudeField = null, ranges = {}, maxDiscs = 48, rings = 5, segments = 18 } = {}) {
+  const number = (value) => (value === null || value === undefined || value === "" ? NaN : Number(value));
+  const values = magnitudeField ? points.map((point) => number(point.attributes?.[magnitudeField])) : [];
+  const finite = values.filter(Number.isFinite);
+  const bounds = Array.isArray(ranges.magnitude) && ranges.magnitude.every(Number.isFinite) ? ranges.magnitude : finite.length ? [Math.min(...finite), Math.max(...finite)] : null;
+  const normalized = (value) => (bounds && Number.isFinite(value) ? (bounds[1] > bounds[0] ? (value - bounds[0]) / (bounds[1] - bounds[0]) : 1) : 0.5);
+  const chosen = points.map((point, i) => ({ point, raw: values[i] ?? NaN, m: normalized(values[i] ?? NaN), fresh: point.fresh ?? 1 }))
+    .filter((item) => item.fresh || (bounds && item.m >= 0.5))
+    .sort((a, b) => b.fresh - a.fresh || b.m - a.m)
+    .slice(0, Math.max(0, maxDiscs));
+  const position = [], radial = [], magnitude = [], fresh = [], seed = [], index = [], lngLat = [];
+  const random = seededRandom(points.length * 104729 + 3);
+  for (const item of chosen) {
+    const [longitude, latitude] = item.point.coordinates;
+    const metres = quakeRadiusMetres(item.raw);
+    const r = random();
+    const base = position.length / 3;
+    const vertex = (u, v) => {
+      // Metres east/north to degrees around the epicentre (small-disc approximation).
+      const coordinate = [longitude + (u * metres) / (111320 * Math.cos((latitude * Math.PI) / 180)), latitude + (v * metres) / 110540];
+      position.push(...frame.toLocal(coordinate));
+      radial.push(u, v); magnitude.push(item.m); fresh.push(item.fresh); seed.push(r);
+      lngLat.push(coordinate[0], coordinate[1]);
+    };
+    vertex(0, 0);
+    for (let k = 1; k <= rings; k += 1) {
+      for (let j = 0; j < segments; j += 1) {
+        const angle = (j / segments) * Math.PI * 2, along = k / rings;
+        vertex(Math.cos(angle) * along, Math.sin(angle) * along);
+      }
+    }
+    const at = (k, j) => base + 1 + (k - 1) * segments + (j % segments);
+    for (let j = 0; j < segments; j += 1) index.push(base, at(1, j), at(1, j + 1));
+    for (let k = 2; k <= rings; k += 1) {
+      for (let j = 0; j < segments; j += 1) index.push(at(k - 1, j), at(k, j), at(k, j + 1), at(k - 1, j), at(k, j + 1), at(k - 1, j + 1));
+    }
+  }
+  return position.length ? { position, radial, magnitude, fresh, seed, index, lngLat } : null;
 }
 
 /**

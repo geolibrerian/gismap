@@ -112,9 +112,9 @@
         "animatedEffect": {
           "type": "object",
           "required": ["type"],
-          "description": "Decorative animated effect drawn on the layer's features (MapLibre engine; other engines show the layer without it). It is visual annotation, never data. auto picks one from the layer's title, geometry and fields; pulse sizes rings by a magnitude field and wind follows direction/speed fields when present.",
+          "description": "Decorative animated effect drawn on the layer's features (MapLibre engine; other engines show the layer without it). It is visual annotation, never data. auto picks one from the layer's title, geometry and fields; quake glows on the ground at each epicentre and pulse sizes rings, both by a magnitude field, and wind follows direction/speed fields when present.",
           "properties": {
-            "type": { "enum": ["auto", "glow", "fire", "pulse", "wind", "snow", "rain", "fog", "lightning", "tornado", "hurricane", "storm", "lava", "water", "water-flow", "flow", "electricity", "traffic", "trains", "sailboats", "ships", "walkers", "birds", "drones", "airplanes", "helicopters", "extrude", "reveal"] },
+            "type": { "enum": ["auto", "glow", "fire", "quake", "pulse", "wind", "snow", "rain", "fog", "lightning", "tornado", "hurricane", "storm", "lava", "water", "water-flow", "flow", "electricity", "traffic", "trains", "sailboats", "ships", "walkers", "birds", "drones", "airplanes", "helicopters", "extrude", "reveal"] },
             "intensity": { "type": "number", "minimum": 0.25, "maximum": 2, "default": 1 },
             "opacity": { "type": "number", "minimum": 0.05, "maximum": 1, "default": 1 },
             "color": { "type": ["string", "null"], "pattern": "^#[0-9a-fA-F]{6}$" },

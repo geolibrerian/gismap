@@ -17,7 +17,7 @@ test("utility lines with no date field get Ambient Electric flow first, and no T
 test("dated points lead with an observed Timeline; statistical areas rise to their value", () => {
   const quakes = { title: "Earthquakes", geometryType: "point", fields: [{ name: "time", type: "esriFieldTypeDate" }, { name: "mag", type: "esriFieldTypeDouble" }] };
   const first = recommendAnimations(quakes)[0];
-  assert.deepEqual([first.kind, first.field, first.effect, first.provenance, first.timeMode], ["time", "time", "pulse", "observed", "cumulative"]);
+  assert.deepEqual([first.kind, first.field, first.effect, first.provenance, first.timeMode], ["time", "time", "quake", "observed", "cumulative"]);
   const counties = { title: "County population", geometryType: "polygon", fields: [{ name: "GEOID", type: "esriFieldTypeString" }, { name: "POP2020", type: "esriFieldTypeInteger" }] };
   const rise = recommendAnimations(counties).find((item) => item.effect === "extrude");
   assert.deepEqual([rise.kind, rise.field, rise.provenance], ["none", "POP2020", "observed"]);
