@@ -115,7 +115,7 @@ function fakeMap() {
     getLayer: (id) => layers.get(id),
     removeLayer: (id) => layers.delete(id),
     setFilter: (id, filter) => { layers.get(id).filter = filter; },
-    setLayoutProperty: (id, name, value) => { layers.get(id).layout[name] = value; },
+    setLayoutProperty: (id, name, value) => { (layers.get(id).layout ??= {})[name] = value; },
     setPaintProperty: (id, name, value) => { layers.get(id).paint[name] = value; },
     getPaintProperty: (id, name) => layers.get(id)?.paint?.[name],
     setTerrain: (value) => { terrain = value; },
@@ -480,11 +480,16 @@ test("Grow from the ground draws hexagons in their own colours and hides the lay
     assert.equal(await engine.setCinematicEffect("cinematic:1", track), true);
     await engine.setCinematicEffect("layer-effect:1", track);
     const grow = engine.map.layers.get("cinematic-native:cinematic:1:grow");
+    assert.equal(grow.layout.visibility, "visible");
     assert.equal(grow.type, "fill-extrusion");
     assert.equal(grow.paint["fill-extrusion-color"], engine.map.layers.get(`gismap-${layer.uid}-fill`).paint["fill-color"], "the layer's own colours");
     assert.equal(grow.paint["fill-extrusion-height"][0], "let", "heights grow per cell, in value order");
     assert.deepEqual(engine.map.sources.get("cinematic-native:cinematic:1").data.features.map((feature) => [feature.properties.represents_sum, feature.properties.order]), [[40, 0], [400, 1]]);
     assert.equal(fill(), "none", "the layer is hidden while its cells grow");
+    engine.setVisibility(layer.uid, false, { silent: true });
+    assert.equal(grow.layout.visibility, "none", "turning the layer off hides its growing cells too: no ghost");
+    engine.setVisibility(layer.uid, true, { silent: true });
+    assert.equal(grow.layout.visibility, "visible");
     engine.clearCinematicEffect("cinematic:1");
     assert.equal(fill(), "none", "still hidden: the other grow is drawing it");
     engine.clearCinematicEffect("layer-effect:1");
