@@ -19,19 +19,40 @@ export type BriefingCamera = {
 
 export type SpatialChart = {
   type: "spatial-3d-chart";
-  mode: "attribute-extrusion" | "temporal-strata" | "stacked-footprints" | "exploded-timeline";
+  mode: "attribute-extrusion" | "temporal-strata" | "stacked-footprints" | "exploded-timeline" | "terraced-surface";
   groupBy?: string;
   groups?: Array<string | number>;
-  /** Stacking order from the bottom up; "descending" puts the highest group at the bottom, and colours follow. Default "ascending". */
-  order?: "ascending" | "descending";
+  /** Stacking order from the bottom up; "descending" puts the highest group at the bottom, and colours follow. "listed" stacks `groups` in the order given (first at the bottom), for values that do not sort, such as geologic ages. Default "ascending". */
+  order?: "ascending" | "descending" | "listed";
+  /** With order "listed": the listed groups were flipped by Reverse stacking order. `groups` is already in stacking order. */
+  reversed?: boolean;
   /** Also draw the flat source outlines on the ground under the 3D shapes. Default false. */
   groundOutlines?: boolean;
-  height: { mode?: "field" | "fixed-slot" | "magnitude"; field?: string; slotMeters?: number; gapMeters?: number; thicknessMeters?: number; scale?: number };
+  height: { mode?: "field" | "fixed-slot" | "magnitude" | "terraces"; field?: string; slotMeters?: number; gapMeters?: number; thicknessMeters?: number; scale?: number };
   /** `colors` sets a slab colour per group value ("#rrggbb"); groups without one use the default palette. */
   color?: { field?: string | null; strategy?: "original" | "sequential"; colors?: Record<string, string> };
-  geometry?: { strategy: "source-footprints"; aggregation: "none" };
+  geometry?: { strategy: "source-footprints" | "smoothed-surface"; aggregation: "none" | "kernel" };
+  /** terraced-surface only (MapLibre): height.field smoothed into a surface, weighted by weightField (default area), cut into `classes` terraces at `groups`. */
+  surface?: { weightField?: string; bandwidthKm?: number; cellKm?: number; classes?: number; smoothing?: number };
   interaction?: { hover?: boolean; select?: boolean; explode?: boolean; scrubTimeline?: boolean };
 };
+
+/** A layer drawn below the local ground (pipes, tunnels, wells, rock units); seen in the underground view. */
+export type SubsurfaceMeasure = number | { field?: string; meters?: number; /** Field units to metres: 0.3048 for feet, 0.0254 for inches. */ scale?: number };
+export type Subsurface = {
+  type?: "subsurface";
+  /** Ground to a pipe's centre, a unit's top or a well's bottom. Default 3 m. */
+  depth?: SubsurfaceMeasure;
+  /** Polygons: a unit's top to its base. Default 20 m. */
+  thickness?: SubsurfaceMeasure;
+  /** Lines and points: a pipe's or shaft's width (drawn at least `minMeters`, default 1 m). Default 1 m. */
+  diameter?: SubsurfaceMeasure | { field?: string; meters?: number; scale?: number; minMeters?: number };
+  /** Vertical exaggeration of depth and thickness. Default 1. */
+  exaggeration?: number;
+  /** One colour for everything below ground; otherwise the layer's style colours. */
+  color?: string;
+};
+export type UndergroundView = { enabled: boolean; /** 0 hides the ground, 1 keeps it solid. Default 0.45. */ groundOpacity?: number };
 
 export type BriefingBlock = {
   id: string;
@@ -177,6 +198,7 @@ export type AddLayerOptions = {
   outFields?: string[];
   renderer?: RendererSpec;
   spatialChart?: SpatialChart | null;
+  subsurface?: Subsurface | null;
   opacity?: number;
   visible?: boolean;
   /** Draw at every zoom level, ignoring the publisher's scale range (kept in projects and links). */
@@ -198,6 +220,7 @@ export type LayerInfo = {
   where: string | null;
   renderer: RendererSpec;
   spatialChart: SpatialChart | null;
+  subsurface: Subsurface | null;
   visibleAtCurrentScale: boolean;
   minScale: number;
   maxScale: number;
@@ -218,6 +241,7 @@ export type MapSpecLayer = {
   where?: string;
   renderer?: RendererSpec;
   spatialChart?: SpatialChart;
+  subsurface?: Subsurface;
   opacity?: number;
   visible?: boolean;
   ignoreServiceScaleRange?: boolean;
@@ -232,6 +256,7 @@ export type MapSpec = {
   basemap?: string;
   skin?: string;
   camera?: { fit: "layers" | "none" } | { center: [number, number]; zoom?: number; scale?: number; heading?: number; tilt?: number };
+  underground?: boolean | UndergroundView;
   layers: MapSpecLayer[];
   legend?: boolean;
   briefing?: BriefingDocument | null;

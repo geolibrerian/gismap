@@ -1,4 +1,4 @@
-import { fromProviderResponse, toProviderRequest } from "./map-assistant.js?v=0.68.0-charts1";
+import { fromProviderResponse, toProviderRequest } from "./map-assistant.js?v=0.72.0-si-maps";
 
 const CONFIG_KEY = "gismap-online:ai-config:v2";
 const LEGACY_CONFIG_KEY = "gismap-online:ai-config:v1";
@@ -7,6 +7,7 @@ const PROVIDER_DEFAULTS = {
   ollama: { endpoint: "http://localhost:11434", model: "llama3.2" },
   openai: { endpoint: "https://api.openai.com/v1", model: "gpt-6-astra" },
   anthropic: { endpoint: "https://api.anthropic.com/v1", model: "claude-sonnet-5" },
+  bedrock: { endpoint: "https://bedrock-runtime.us-east-1.amazonaws.com", model: "anthropic.claude-sonnet-5-5" },
   "openai-compatible": { endpoint: "", model: "" },
 };
 
@@ -106,7 +107,7 @@ async function responseError(response, provider) {
   let detail = "";
   try {
     const payload = await response.json();
-    detail = payload?.error?.message || (typeof payload?.error === "string" ? payload.error : "") || payload?.message || "";
+    detail = payload?.error?.message || (typeof payload?.error === "string" ? payload.error : "") || payload?.message || payload?.Message || "";
   } catch {
     // Some gateways return an empty or non-JSON error response.
   }
@@ -252,6 +253,22 @@ export class AIController {
         });
         if (!response.ok) throw new Error(await responseError(response, "OpenAI"));
         text = getOpenAIResponseText(await response.json());
+      } else if (this.config.provider === "bedrock") {
+        const response = await fetch(`${this.config.endpoint}/model/${encodeURIComponent(this.config.model)}/converse`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${this.token}`,
+          },
+          body: JSON.stringify({
+            system: [{ text: system }],
+            messages: [{ role: "user", content: [{ text: messages[1].content }] }],
+            inferenceConfig: { maxTokens: 1200 },
+          }),
+        });
+        if (!response.ok) throw new Error(await responseError(response, "Amazon Bedrock"));
+        const payload = await response.json();
+        text = (payload.output?.message?.content ?? []).map((item) => item.text).filter(Boolean).join("\n");
       } else {
         const response = await fetch(`${this.config.endpoint}/chat/completions`, {
           method: "POST",
@@ -275,14 +292,15 @@ export class AIController {
   /**
    * One round of the Map assistant's conversation (js/map-assistant.js): sends the
    * instructions, the messages and the tools, and returns { content, toolCalls }.
-   * `instructions(textTools)` writes the system message. A model that rejects tools
+   * `instructions(textTools)` writes the system message; `tools` are the definitions offered
+   * (map-assistant.js ASSISTANT_TOOLS by default). A model that rejects tools
    * is asked again with the tools described in text, and stays that way this session.
    */
-  async chat(messages, { instructions, signal = null } = {}) {
+  async chat(messages, { instructions, tools, signal = null } = {}) {
     if (!this.isConfigured()) throw new Error("Configure an AI provider from Tools first.");
     const { provider, endpoint, model } = this.config;
     const send = async (textTools) => {
-      const { path, body } = toProviderRequest(provider, { model, system: instructions(textTools), messages, textTools });
+      const { path, body } = toProviderRequest(provider, { model, system: instructions(textTools), messages, textTools, ...(tools ? { tools } : {}) });
       const headers = { "Content-Type": "application/json" };
       if (provider === "anthropic") Object.assign(headers, { "x-api-key": this.token, "anthropic-version": "2023-06-01", "anthropic-dangerous-direct-browser-access": "true" });
       else if (provider !== "ollama") headers.Authorization = `Bearer ${this.token}`;
@@ -291,7 +309,7 @@ export class AIController {
         ? await this.#fetchOllama(`${endpoint}${path}`, options, endpoint, 300000)
         : await fetch(`${endpoint}${path}`, options);
       if (!response.ok) {
-        const message = await responseError(response, provider === "ollama" ? "Ollama" : "The AI provider");
+        const message = await responseError(response, provider === "ollama" ? "Ollama" : provider === "bedrock" ? "Amazon Bedrock" : "The AI provider");
         return { error: message, status: response.status };
       }
       return { reply: fromProviderResponse(provider, await response.json(), { textTools }) };

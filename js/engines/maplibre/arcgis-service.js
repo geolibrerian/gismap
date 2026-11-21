@@ -92,7 +92,7 @@ export async function describeArcGIS(value, options = {}) {
   const url = query?.layerUrl || trim(value);
   const json = await getJson(url, {}, options);
   const path = new URL(url).pathname;
-  const sublayer = path.match(/^(.*\/MapServer)\/(\d+)$/i);
+  const sublayer = url.split("?")[0].match(/^(.*\/MapServer)\/(\d+)$/i);
   if (json.type === "Feature Layer" || (json.geometryType && Array.isArray(json.fields))) {
     return {
       kind: "feature",
@@ -128,6 +128,22 @@ export async function describeArcGIS(value, options = {}) {
   throw new Error("That URL is not an ArcGIS feature layer, map service or image service.");
 }
 
+/**
+ * The legend a map or image service draws (its `legend` endpoint), as
+ * [{ title, entries: [{ label, image }] }] with each swatch a data: URL.
+ * `layerIds` keeps those MapServer sublayers; unlabelled swatches such as a
+ * mosaic's footprint outline are dropped when the layer has labelled ones.
+ */
+export async function serviceLegend(url, { layerIds = null, ...options } = {}) {
+  const json = await getJson(`${trim(url)}/legend`, {}, options);
+  const all = Array.isArray(json.layers) ? json.layers : [];
+  const kept = layerIds?.length ? all.filter((layer) => layerIds.includes(layer.layerId)) : all;
+  return (kept.length ? kept : all).map((layer) => {
+    const entries = (layer.legend || []).filter((item) => item.imageData).map((item) => ({ label: String(item.label ?? "").trim(), image: `data:${item.contentType || "image/png"};base64,${item.imageData}` }));
+    return { title: layer.layerName || "", entries: entries.some((item) => item.label) ? entries.filter((item) => item.label) : entries };
+  }).filter((layer) => layer.entries.length);
+}
+
 /** Tile URLs for a service cached in Web Mercator, or null. */
 function cachedTiles(url, json) {
   const wkid = json.tileInfo?.spatialReference?.latestWkid ?? json.tileInfo?.spatialReference?.wkid;
@@ -160,15 +176,17 @@ function esriToGeoJSON(json) {
 
 /**
  * A feature layer's features as GeoJSON features (WGS84), paged, at most
- * MAX_FEATURES: { features, truncated }. `where` filters on the service.
+ * MAX_FEATURES: { features, truncated }. `where` filters on the service, and
+ * `query` adds other query parameters, such as a geometry to search within.
+ * `onFetched(count)` reports each page as it arrives, before pages are put in order.
  */
-export async function fetchFeatures(layer, { where = null, maxFeatures = MAX_FEATURES, onProgress = () => {}, onPage = () => {}, simplify = null, concurrency = 3, outFields = "*", ...options } = {}) {
+export async function fetchFeatures(layer, { where = null, query = {}, maxFeatures = MAX_FEATURES, onProgress = () => {}, onPage = () => {}, onFetched = () => {}, simplify = null, concurrency = 3, outFields = "*", ...options } = {}) {
   // Full-detail polygons can be megabytes per page, so pages stay small; with
   // `simplify` ({ maxAllowableOffset, geometryPrecision } in degrees) the service
   // sends outlines generalized to that tolerance, a fraction of the size, and pages can be full.
   const pageSize = Math.max(1, Math.min(layer.maxRecordCount || 1000, layer.geometryType === "polygon" && !simplify ? 500 : 2000));
   const base = {
-    where: where || "1=1", outFields, returnGeometry: "true", outSR: "4326",
+    where: where || "1=1", ...query, outFields, returnGeometry: "true", outSR: "4326",
     ...(simplify ? { maxAllowableOffset: String(simplify.maxAllowableOffset), geometryPrecision: String(simplify.geometryPrecision ?? 6) } : {}),
   };
   let geojson = true;
@@ -187,7 +205,8 @@ export async function fetchFeatures(layer, { where = null, maxFeatures = MAX_FEA
   };
   const features = [];
   if (layer.paginated) {
-    const requestPage = (offset) => page({ resultOffset: String(offset), resultRecordCount: String(Math.min(pageSize, maxFeatures - offset)), ...(layer.objectIdField ? { orderByFields: layer.objectIdField } : {}) });
+    const requestPage = (offset) => page({ resultOffset: String(offset), resultRecordCount: String(Math.min(pageSize, maxFeatures - offset)), ...(layer.objectIdField ? { orderByFields: layer.objectIdField } : {}) })
+      .then((result) => { onFetched(result.features.length); return result; });
     // Resolve the response format before starting concurrent requests. This
     // avoids racing the GeoJSON-to-Esri fallback on older services.
     let offset = 0;
@@ -214,10 +233,11 @@ export async function fetchFeatures(layer, { where = null, maxFeatures = MAX_FEA
     return { features, truncated: true };
   }
   // No paging: the object IDs first, then features by ID in batches.
-  const ids = (await getJson(`${layer.url}/query`, { where: base.where, returnIdsOnly: "true" }, options)).objectIds || [];
+  const ids = (await getJson(`${layer.url}/query`, { where: base.where, ...query, returnIdsOnly: "true" }, options)).objectIds || [];
   ids.sort((a, b) => a - b);
   for (let start = 0; start < Math.min(ids.length, maxFeatures); start += pageSize) {
     const { features: batch } = await page({ objectIds: ids.slice(start, Math.min(start + pageSize, maxFeatures)).join(",") });
+    onFetched(batch.length);
     features.push(...batch);
     onPage(batch);
     onProgress(features.length);

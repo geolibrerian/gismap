@@ -1,0 +1,268 @@
+{
+  "$schema": "https://gismap.online/schemas/agent-recipe-v1.schema.json",
+  "schemaVersion": 1,
+  "id": "hexagon-binning",
+  "title": "Hexagon binning (H3 or custom hexagons) with statistics",
+  "status": "available",
+  "question": "Can an AI agent turn points into a hexagon map, in 2D or 3D, that I can share?",
+  "answer": "Yes. A map-v1 analysis step runs the hexbin operation in the viewer's browser when the link opens: points are summarised in H3 cells (or Turf hexagons of a chosen side) by count, density per km², or the sum, mean, min or max of a numeric field. The result is a coloured, optionally 3D layer. Polygon data becomes points first with the random-points step (the dot-density recipe), chained with { \"step\": 0 }.",
+  "triggers": [
+    "Make a hexagon map of these points",
+    "Bin these incidents into H3 hexagons and extrude them in 3D",
+    "Show average price per hexagon",
+    "Make a population hexagon map from census blocks"
+  ],
+  "inputTypes": [
+    "Point FeatureServer layer",
+    "Point GeoJSON or CSV with coordinates",
+    "Points made by an earlier random-points step"
+  ],
+  "inputs": {
+    "required": [
+      {
+        "name": "source",
+        "description": "A point layer, or { \"step\": n } for an earlier step's points."
+      }
+    ],
+    "optional": [
+      {
+        "name": "method",
+        "description": "h3 (default; resolution 0-15, 7 is about 5 km², 8 about 0.74 km², 9 about 0.1 km²) or turf with cellKm (hexagon side)."
+      },
+      {
+        "name": "statistic",
+        "description": "count (default), density (points per km² of each cell's own area), or sum, mean, min, max of a numeric field."
+      },
+      {
+        "name": "field",
+        "description": "Numeric field for sum, mean, min and max. Blank and non-numeric values are skipped and reported; a cell with no numbers gets null, not 0."
+      },
+      {
+        "name": "extrude",
+        "description": "true raises cells by the statistic (MapLibre 3D)."
+      },
+      {
+        "name": "keepEmpty",
+        "description": "true keeps cells with no points (count 0) across the data or study area."
+      },
+      {
+        "name": "overlay",
+        "description": "A polygon layer as the study area: whole cells that touch it are kept, never clipped."
+      },
+      {
+        "name": "area",
+        "description": "\"view\" reads only features in the current map view; use with a camera for layers beyond the limit."
+      }
+    ]
+  },
+  "capabilities": [
+    "view-3d",
+    "renderer-spec"
+  ],
+  "engines": [
+    "maplibre",
+    "arcgis"
+  ],
+  "steps": [
+    {
+      "stage": "discover",
+      "action": "Read llms.txt, this recipe and api/capabilities.json; note the engine and execution environment you actually have.",
+      "interfaces": [
+        "declarative-url"
+      ],
+      "references": [
+        "https://gismap.online/llms.txt",
+        "https://gismap.online/api/capabilities.json",
+        "https://gismap.online/api/manifest.json"
+      ]
+    },
+    {
+      "stage": "inspect",
+      "action": "Read the source metadata: geometry type, field names and types, spatial reference, extent, sentinels and query support. Query real values before filtering; never invent fields.",
+      "interfaces": [
+        "declarative-url",
+        "standalone-js",
+        "in-browser-api"
+      ],
+      "references": [
+        "<layer URL>?f=pjson",
+        "sources.inspect",
+        "sources.detectSentinels",
+        "layers.metadata"
+      ]
+    },
+    {
+      "stage": "plan",
+      "action": "Confirm point geometry and the feature count. Pick a resolution from the area (about 1,000 to 20,000 cells reads well) and a statistic; check that the field is numeric. Up to 100,000 points are read: filter with where (or use area \"view\" with a camera) when the layer has more, and say so.",
+      "interfaces": [
+        "standalone-js"
+      ],
+      "references": [
+        "sources.inspect"
+      ]
+    },
+    {
+      "stage": "validate",
+      "action": "Add { \"operation\": \"hexbin\", \"input\": 0, \"options\": {...} } to analysis and validate the spec; unknown options and bad inputs are reported.",
+      "interfaces": [
+        "standalone-js",
+        "in-browser-api"
+      ],
+      "references": [
+        "mapSpec.validate"
+      ]
+    },
+    {
+      "stage": "execute",
+      "action": "Return the #map=json: link; the browser bins the points when it opens. In a running page, analysis.run(\"hexbin\", { input, options }) does the same and returns a summary and binning metadata.",
+      "interfaces": [
+        "declarative-url",
+        "in-browser-api"
+      ],
+      "references": [
+        "https://gismap.online/schemas/map-v1.schema.json",
+        "mapSpec.createLink",
+        "analysis.run"
+      ]
+    },
+    {
+      "stage": "verify",
+      "action": "Open the link: the hexagon layer is listed with a choropleth on the statistic, and the summary does not start with \"Incomplete:\". Report skipped points and an incomplete read if either appears.",
+      "interfaces": [
+        "in-browser-api"
+      ],
+      "references": [
+        "layers.list"
+      ]
+    },
+    {
+      "stage": "share",
+      "action": "Return the link. Results are recomputed for each viewer; the link carries the steps, not the cells.",
+      "interfaces": [
+        "declarative-url"
+      ],
+      "references": [
+        "mapSpec.createLink"
+      ]
+    }
+  ],
+  "artifact": {
+    "type": "map",
+    "schema": "https://gismap.online/schemas/map-v1.schema.json",
+    "structure": "map-v1 with a point layer (or a random-points step) and an analysis step { operation: \"hexbin\" }."
+  },
+  "outputs": [
+    {
+      "format": "Interactive hexagon map link",
+      "interface": "declarative-url",
+      "interactive": true,
+      "reference": "mapSpec.createLink"
+    },
+    {
+      "format": "Hexagon GeoJSON layer in the page (h3_id or cell_id, point_count, cell_area_km2, density_km2, field statistics, complete)",
+      "interface": "in-browser-api",
+      "interactive": true,
+      "reference": "analysis.run"
+    }
+  ],
+  "verification": [
+    "Input is points",
+    "Cell count is readable (not over 100,000)",
+    "Legend names the statistic",
+    "Summary has no \"Incomplete:\" or the gap is reported",
+    "Skipped points reported"
+  ],
+  "limitations": [
+    "Reads up to 100,000 points; MapLibre holds at most 50,000 features of a big ArcGIS layer, so filter it or use area \"view\".",
+    "Points only: lines and polygons are not split by area; turn polygons with a count into points with random-points first.",
+    "Cells are recomputed in each viewer's browser; nothing is stored on a server.",
+    "3D cells need the MapLibre engine; ArcGIS 2D colours them flat."
+  ],
+  "recovery": [
+    "\"Too many cells\": lower the resolution, use a larger cellKm, drop keepEmpty or narrow the area.",
+    "\"Incomplete:\" in the summary: add a where filter or area \"view\" with a closer camera.",
+    "\"needs a numeric field\": choose a numeric field or use count or density."
+  ],
+  "examples": [
+    {
+      "checkedOn": "2026-11-20",
+      "checkedVersion": "0.54.0",
+      "title": "Ventura County population in 3D hexagons",
+      "prompt": "Make a 3D hexagon map of Ventura County's population from the 2020 census blocks.",
+      "dataset": [
+        {
+          "label": "California Census 2020 Redistricting Blocks (Esri, U.S. Census Bureau)",
+          "url": "https://services.arcgis.com/P3ePLMYs2RVChkJx/arcgis/rest/services/California_Census_2020_Redistricting_Blocks/FeatureServer/0"
+        }
+      ],
+      "url": "https://gismap.online/#map=json:%7B%22version%22%3A1%2C%22title%22%3A%22Ventura%20County%20population%20in%20hexagons%22%2C%22basemap%22%3A%22topo-3d%22%2C%22camera%22%3A%7B%22center%22%3A%5B-119.08%2C34.17%5D%2C%22zoom%22%3A10.4%2C%22heading%22%3A350%2C%22tilt%22%3A55%7D%2C%22legend%22%3Atrue%2C%22layers%22%3A%5B%7B%22url%22%3A%22https%3A%2F%2Fservices.arcgis.com%2FP3ePLMYs2RVChkJx%2Farcgis%2Frest%2Fservices%2FCalifornia_Census_2020_Redistricting_Blocks%2FFeatureServer%2F0%22%2C%22type%22%3A%22feature%22%2C%22title%22%3A%22Ventura%20County%20census%20blocks%20(2020)%22%2C%22where%22%3A%22County_Name%20%3D%20'Ventura%20County'%20AND%20P0010001%20%3E%200%22%2C%22visible%22%3Afalse%7D%5D%2C%22analysis%22%3A%5B%7B%22operation%22%3A%22random-points%22%2C%22input%22%3A0%2C%22options%22%3A%7B%22field%22%3A%22P0010001%22%2C%22unitsPerPoint%22%3A20%2C%22seed%22%3A1%7D%2C%22title%22%3A%22People%2C%20one%20dot%20per%2020%22%2C%22visible%22%3Afalse%7D%2C%7B%22operation%22%3A%22hexbin%22%2C%22input%22%3A%7B%22step%22%3A0%7D%2C%22options%22%3A%7B%22method%22%3A%22h3%22%2C%22resolution%22%3A8%2C%22statistic%22%3A%22sum%22%2C%22field%22%3A%22represents%22%2C%22extrude%22%3Atrue%7D%2C%22title%22%3A%22Population%20per%20H3%20cell%22%7D%5D%7D",
+      "spec": {
+        "version": 1,
+        "title": "Ventura County population in hexagons",
+        "basemap": "topo-3d",
+        "camera": {
+          "center": [
+            -119.08,
+            34.17
+          ],
+          "zoom": 10.4,
+          "heading": 350,
+          "tilt": 55
+        },
+        "legend": true,
+        "layers": [
+          {
+            "url": "https://services.arcgis.com/P3ePLMYs2RVChkJx/arcgis/rest/services/California_Census_2020_Redistricting_Blocks/FeatureServer/0",
+            "type": "feature",
+            "title": "Ventura County census blocks (2020)",
+            "where": "County_Name = 'Ventura County' AND P0010001 > 0",
+            "visible": false
+          }
+        ],
+        "analysis": [
+          {
+            "operation": "random-points",
+            "input": 0,
+            "options": {
+              "field": "P0010001",
+              "unitsPerPoint": 20,
+              "seed": 1
+            },
+            "title": "People, one dot per 20",
+            "visible": false
+          },
+          {
+            "operation": "hexbin",
+            "input": {
+              "step": 0
+            },
+            "options": {
+              "method": "h3",
+              "resolution": 8,
+              "statistic": "sum",
+              "field": "represents",
+              "extrude": true
+            },
+            "title": "Population per H3 cell"
+          }
+        ]
+      },
+      "status": "rendered",
+      "checks": [
+        "Opened on MapLibre: 7,843 blocks loaded, 42,232 dots (hidden) and 1,408 H3 resolution 8 cells drawn in 3D with a legend; no console errors.",
+        "The same link with ?tutorial=hex-population starts a seven-step tutorial.",
+        "ArcGIS engine not checked."
+      ]
+    }
+  ],
+  "lastTestedVersion": "0.53.0",
+  "resultStatuses": [
+    "prepared",
+    "validated",
+    "loaded",
+    "rendered",
+    "verified",
+    "partial",
+    "failed"
+  ]
+}

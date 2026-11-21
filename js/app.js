@@ -1,43 +1,50 @@
-import { buildManifest, createPublicStateApi } from "./application-manifest.js?v=0.70.2-share";
-import { createActionsApi } from "./application-actions.js?v=0.70.2-share";
+import { buildManifest, createPublicStateApi } from "./application-manifest.js?v=0.78.4-progress";
+import { createActionsApi } from "./application-actions.js?v=0.78.4-progress";
 import { events } from "./events.js?v=0.18.2";
 import { AuthController } from "./engines/arcgis/arcgis-auth.js?v=0.39.0";
-import { MapController } from "./map-controller.js?v=0.70.2-share";
-import { listEngines } from "./engines/engine-registry.js?v=0.70.2-share";
+import { MapController } from "./map-controller.js?v=0.78.4-progress";
+import { listEngines } from "./engines/engine-registry.js?v=0.78.4-progress";
 import { chooseEngine } from "./engine-preference.js?v=0.52.5";
 import { BASEMAP_IDS } from "./basemap-catalog.js?v=0.53.0-gallery1";
-import { ProjectManager } from "./project.js?v=0.70.1-colours";
+import { ProjectManager } from "./project.js?v=0.71.0-subsurface";
 import { IdentifyController } from "./identify.js?v=0.54.0-pan2";
 import { AttributeTableController } from "./attribute-table.js?v=0.61.2-layer-tools";
-import { AIController } from "./ai.js?v=0.68.0-charts1";
+import { AIController } from "./ai.js?v=0.72.0-si-maps";
 import { ToolManager } from "./tool-manager.js?v=0.37.0";
-import { UIController } from "./ui.js?v=0.70.2-share";
+import { UIController } from "./ui.js?v=0.78.5-progress";
 import { ExportController } from "./export/export-controller.js?v=0.37.0";
-import { SHARE_BASEMAPS, parseShareParameters } from "./share.js?v=0.70.1-colours";
-import { readShareLocation } from "./map-share.js?v=0.70.1-colours";
+import { SHARE_BASEMAPS, parseShareParameters } from "./share.js?v=0.71.0-subsurface";
+import { readShareLocation } from "./map-share.js?v=0.71.0-subsurface";
 import { decodeEmbeddedTour } from "./tour-share.js?v=0.55.0-readable1";
-import { decodeFieldTask, featureLayerUrl, readFieldTaskHash, readFocus } from "./field-task-share.js?v=0.70.1-colours";
-import { readFieldNoteHash } from "./field-note-link.js?v=0.70.1-colours";
-import { POPULAR_SERVICES } from "./catalog.js?v=0.18.6-fire-source";
+import { decodeFieldTask, featureLayerUrl, readFieldTaskHash, readFocus } from "./field-task-share.js?v=0.71.0-subsurface";
+import { readFieldNoteHash } from "./field-note-link.js?v=0.71.0-subsurface";
+import { POPULAR_SERVICES } from "./catalog.js?v=0.71.0-subsurface";
 import { ApplicationRuntime } from "./application-runtime.js?v=0.68.0-charts1";
 import { PanelManager } from "./panel-manager.js?v=0.18.2";
 import { MobilePanelManager } from "./mobile-panel-manager.js?v=0.18.2";
-import { MobileWorkflowRouter } from "./mobile-workflow-router.js?v=0.70.1-colours";
-import { createClientApi } from "./briefing-api.js?v=0.70.2-share";
+import { MobileWorkflowRouter } from "./mobile-workflow-router.js?v=0.71.0-subsurface";
+import { createClientApi } from "./briefing-api.js?v=0.78.5-progress";
 import { createPrintApi, hasWebgl, registerPrintTools, webglIssue } from "./print-api.js?v=0.54.0-print";
 import { MAP_TEMPLATES } from "./map-templates.js?v=0.54.0-print";
-import { readProjectFromPng } from "./smart-image.js?v=0.70.1-colours";
+import { readProjectFromPng } from "./smart-image.js?v=0.71.0-subsurface";
 import { registerAuthoringTools } from "./agent-authoring-tools.js?v=0.53.0";
-import { createCameraApi, createLayersApi } from "./layers-api.js?v=0.70.1-colours";
+import { createCameraApi, createLayersApi } from "./layers-api.js?v=0.71.0-subsurface";
 import { registerLayerTools } from "./layer-tools.js?v=0.29.0";
-import { createSpatialAnalysisApi } from "./spatial-analysis.js?v=0.66.1-finish1";
-import { createMapSpecApi } from "./map-spec-api.js?v=0.70.1-colours";
-import { createLayerStylesApi } from "./layer-styles-api.js?v=0.70.1-colours";
-import { mapSpecFromShareParameters } from "./map-spec.js?v=0.70.1-colours";
+import { createSpatialAnalysisApi } from "./spatial-analysis.js?v=0.69.0-extent";
+import { createMapSpecApi } from "./map-spec-api.js?v=0.78.5-progress";
+import { createLayerStylesApi } from "./layer-styles-api.js?v=0.71.0-subsurface";
+import { mapSpecFromShareParameters } from "./map-spec.js?v=0.76.0-chain";
+import { createLoadProgress } from "./load-progress.js?v=0.1.4";
+import { MAP_TUTORIALS } from "./workspace-walkthrough.js?v=0.77.0-tutorial";
 import { GisMapError, ERROR_CODES } from "./gismap-errors.js?v=0.54.0-print";
 
-import { loadSharedLayer } from "./shared-layer-loader.js?v=0.53.0";
+import { loadSharedLayer } from "./shared-layer-loader.js?v=0.71.0-subsurface";
+import { probeArcGisDirectory } from "./enterprise-catalog.js?v=0.71.0-subsurface";
 import { allowedParents, validConsoleMessage } from "./si-console-embed.js?v=0.67.0-si-console";
+import { SiConnection, siEndpoints } from "./si-connection.js?v=0.72.0-si-maps";
+import { SiNotes } from "./si-notes.js?v=0.73.0-si-notes";
+import { parseSiMapRoute } from "./si-maps.js?v=0.72.0-si-maps";
+import { SiMapWorkspace } from "./si-map-workspace.js?v=0.72.0-si-maps";
 
 // Readiness for agents and scripts: gisMapOnline.ready, a `gismap:ready` event,
 // and <html data-gismap-state="loading|ready|error">.
@@ -224,6 +231,7 @@ async function start() {
     document.documentElement.dataset.gismapState = "error";
   }
   const analysisApi = createSpatialAnalysisApi({ mapController, layers: layersApi });
+  const loadProgress = createLoadProgress({ events, mapController });
   const mapSpecApi = createMapSpecApi({
     analysis: analysisApi,
     layers: layersApi,
@@ -233,6 +241,7 @@ async function start() {
     allowHttp,
     host: {
       setBasemap: (id) => mapController.setBasemap(id),
+      startProgress: (stages) => loadProgress.begin(stages),
       applySkin: (skin) => uiController.applySkinChoice(skin),
       setTitle: (title) => uiController.setProjectTitle(title),
       getTitle: () => projectManager.current?.name || "",
@@ -354,6 +363,19 @@ async function start() {
     }),
   });
 
+  // Maps saved in GISMap SI (/m/<id>, /m/<id>?p=<publication>) and the tab's one SI connection.
+  const siWorkspace = new SiMapWorkspace({
+    route: parseSiMapRoute(location),
+    connection: new SiConnection(siEndpoints()),
+    mapSpec: mapSpecApi,
+    ui: uiController,
+    runtime: applicationRuntime,
+    briefing: clientApi.briefing,
+    figures: () => uiController.briefingSlides.figures(),
+  });
+  uiController.siWorkspace = siWorkspace;
+  uiController.siNotes = new SiNotes({ connection: siWorkspace.connection, workspaceId: () => siWorkspace.session.workspaceId });
+
   // Read the address before the scene exists, so it starts on the requested
   // basemap instead of drawing the default and swapping it mid-draw.
   let shared = null;
@@ -382,6 +404,7 @@ async function start() {
   await mapController.initialize();
   consoleBridge?.refit();
   events.publish("project:loaded", { project: projectManager.current, missingFiles: [] });
+  await siWorkspace.start();
 
   // The SI parent can send its secure snapshot while the engine is still
   // initializing. Apply it only after the default map view is finalized.
@@ -397,12 +420,20 @@ async function start() {
   try {
     if (sharedError) throw sharedError;
     if (shared.basemap) mapController.setBasemap(shared.basemap);
+    // A ?layer= that is an ArcGIS services directory or folder opens the layer picker instead.
+    // One that cannot be read (a server blocking other sites) stays in the spec and shows its usual error.
+    const probes = await Promise.all(shared.layers.map((layer) => layer.serviceType === "arcgis-auto" ? probeArcGisDirectory(layer.url).catch(() => null) : null));
+    const directories = shared.layers.flatMap((layer, index) => probes[index] ? [{ ...probes[index], title: layer.title }] : []);
+    if (directories.length) shared.layers = shared.layers.filter((layer, index) => !probes[index]);
+    let linkIssues = [];
     // ?layer= links (with their title=, where=, style=… parameters) load as a map spec, the one path for links.
     if (shared.layers.length) {
       const spec = mapSpecFromShareParameters(shared);
       // Another part of the link (#map, #briefing, a tour, a task, #at=) decides the view.
       if (sharedState || /(?:^#|&)(?:tour|fieldTask|fieldNote|at)=/.test(location.hash)) spec.camera = { fit: "none" };
-      await within(mapSpecApi.load(spec, { replace: false }).ready, 120).catch((error) => events.publish("app:error", { message: error.message }));
+      // With a picker to open, the link's other problems are listed in it rather than in a dialog of their own.
+      const loaded = await within(mapSpecApi.load(spec, { replace: false, showIssues: !directories.length }).ready, 120).catch((error) => events.publish("app:error", { message: error.message }));
+      linkIssues = loaded?.issues?.filter((issue) => issue.level === "error") || [];
       sharedLayers.push(...mapController.getLayers());
       // `?layer=…&embed=1` is how GISMap SI embeds a dataset: the same chrome-free view as an embedded #map link.
       if (sharedEmbed && !sharedState) {
@@ -410,6 +441,7 @@ async function start() {
         announceEmbedReady(sharedLayers.length);
       }
     }
+    if (directories.length) uiController.openServiceDirectories(directories, { issues: linkIssues }).catch((error) => events.publish("app:error", { message: error.message }));
     const example = POPULAR_SERVICES.find((item) => (item.slug || item.id) === shared.example);
     if (example?.presentation && sharedLayers.length) {
       const primaryLayer = sharedLayers.find((layer) => /pm2[.\s-]*5/i.test(layer.title || "")) || sharedLayers[0];
@@ -442,6 +474,10 @@ async function start() {
       // (mapSpec.load from the API stays quiet: an agent decides when to present.)
       const briefing = projectManager.current?.presentation?.briefing;
       if (sharedState.spec?.briefing && briefing?.slides?.some((slide) => !slide.hidden)) await uiController.openBriefingDocument(briefing, { present: true });
+      // ?tutorial=<id> on a map link shows that map's guide in the Layers panel and starts it.
+      const tutorialId = launchParams.get("tutorial");
+      const tutorial = Object.hasOwn(MAP_TUTORIALS, tutorialId || "") ? MAP_TUTORIALS[tutorialId] : null;
+      if (tutorial && !sharedEmbed) uiController.activateExampleGuide(tutorial, { start: true });
     } else if (sharedState) await uiController.openSharedState(sharedState, { loadLayer: loadUnifiedLayer, embed: sharedEmbed });
   } catch (error) {
     events.publish("app:error", { message: error.message });

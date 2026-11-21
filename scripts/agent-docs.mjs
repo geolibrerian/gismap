@@ -282,6 +282,8 @@ Every GISMap Online artifact can be written as one link: URI-encode the JSON (en
 
 - Map: \`https://gismap.online/#map=json:{"version":1,"layers":[{"url":"<layer URL>","where":"<filter>","renderer":{"type":"choropleth","field":"<FIELD>","ramp":"purples"}}],"basemap":"gray-vector"}\`
 - Map with a linked chart: add \`"charts":[{"type":"bar","title":"…","layer":0,"dimension":"<CATEGORY FIELD>","measure":{"field":"<NUMERIC FIELD>","aggregation":"sum"},"placement":"right","style":{"topN":10,"theme":"futuristic"}}]\` to the map JSON (leave \`measure\` out to count features). The chart's colours follow the layer's style; hovering a mark highlights its features and clicking zooms to them.
+- Hexagon map from points: add \`"analysis":[{"operation":"hexbin","input":0,"options":{"method":"h3","resolution":7,"statistic":"mean","field":"<NUMERIC FIELD>","extrude":true}}]\` to the map JSON. Points are summarised in H3 cells (resolution 0 to 15, higher is finer; 7 is about 5 km², 9 about 0.1 km²) and coloured by the statistic: count, density (points per km²), or the sum, mean, min or max of a numeric field. \`"method":"turf","cellKm":2\` makes hexagons of a chosen side instead. \`"keepEmpty":true\` keeps cells with no points, and an \`"overlay"\` polygon layer limits the bins to a study area. Each cell records h3_id or cell_id, point_count, cell_area_km2, density_km2, the field's statistics and complete (false when the layer had more than 100,000 features and only the first were read).
+- Dot-density points from polygons: \`{"operation":"random-points","input":0,"options":{"field":"<POPULATION FIELD>","unitsPerPoint":100}}\` places one random point per 100 of the field inside each polygon (leave unitsPerPoint out for about 10,000 points). The points are the same each time the link opens (\`"seed"\` changes them). Each point records polygon_index and represents (the amount it stands for). A later step can use an earlier step's result as its input with \`{"step":0}\`, and \`"visible":false\` hides a step's layer: random points followed by \`{"operation":"hexbin","input":{"step":0},"options":{"statistic":"sum","field":"represents","extrude":true}}\` makes a 3D population hexagon map. Random points read up to 50,000 polygons and hexbin up to 100,000 points; for bigger layers add \`"area":"view"\` to the options, which reads only the features in the map view (set "camera" to the area).
 - Briefing (slides): add \`"briefing":{"layerId":"<layer URL>","selection":{"useAll":true},"slides":[{"template":"title","title":"…"},{"template":"key-numbers","title":"At a glance","blocks":[{"type":"stat","stat":"count","label":"Features"}]},{"template":"feature","title":"…","featureId":"<OBJECTID>","fit":"feature","blocks":[{"type":"text","markdown":"…"}]}]}\` to the map JSON; the link opens presenting (schema: [briefing-v1](${SITE}/schemas/briefing-v1.schema.json)).
 - Guided tour: \`https://gismap.online/?tourOnly=1#tour=json:{"title":"…","autoplay":true,"stops":[{"name":"Coit Tower","caption":"…","lat":37.80238,"lon":-122.40583,"zoom":17,"tilt":55,"heading":200,"basemap":"usgs-imagery","seconds":6}]}\`
 - LiDAR or 3D model (MapLibre engine): a map layer with \`"type":"pointcloud"\` (LAS, LAZ, XYZ) or \`"type":"model"\` (glTF/GLB, OBJ, PLY) and \`"scene3d":{"crs":"EPSG:26910","classes":[3,4,5,14],"colorBy":"classification"}\` or, for models, \`"scene3d":{"anchor":[lon,lat,0],"heading":0,"scale":1}\`.
@@ -303,11 +305,14 @@ Finished maps, linked charts and Instant Dashboards, briefings, guided tours, fi
 | Show me these locations in sequence | [geographic-tour](${SITE}/skills/#recipe-geographic-tour) | Guided geographic tour |
 | Inspect this location and complete these tasks | [field-tasks](${SITE}/skills/#recipe-field-tasks) | Five-task fieldwork package |
 | Make the county heights represent acreage | [3d-extrusion](${SITE}/skills/#recipe-3d-extrusion) | 3D extruded map |
+| Make a hexagon map of these points, in 2D or 3D | [hexagon-binning](${SITE}/skills/#recipe-hexagon-binning) | H3 or custom hexagon map with statistics |
+| Make a dot-density map, one dot per 50 people | [dot-density](${SITE}/skills/#recipe-dot-density) | Random dots from polygon counts, optionally binned into hexagons |
 | Separate overlapping events by year and height | [spatial-3d-chart](${SITE}/skills/#recipe-spatial-3d-chart) | 3D spatial chart and five-scene Brief |
 | Show this LiDAR or CAD model in 3D | [lidar-and-3d-models](${SITE}/skills/#recipe-lidar-and-3d-models) | Point cloud or 3D model map |
 | Make a printable map, poster or Smart Map Image | [print-map](${SITE}/agent-recipes/print-map/) | Branded PDF or Smart Image |
 | Give me the project file for this derived data | [project-package](${SITE}/agent-recipes/project-package/) | Verified .gisx project package |
 | Make the map feel like Halloween in California | [vibe-map](${SITE}/skills/#recipe-vibe-map) | Coordinated theme and styled map |
+| Make a Brief from our GISMap SI data and publish it | [si-publishing](${SITE}/agent-recipes/si-publishing/) (experimental, GISMap SI alpha) | Draft link for the person; they sign in and press Publish |
 | Turn this layer into an interactive dashboard | [dashboard workflow](${SITE}/skills/gismap/references/dashboard-chart-animation.md) | Linked chart panel, skin, basemap and map filtering |
 | Animate observed changes in this layer | [cinematic animation](${SITE}/skills/gismap/references/dashboard-chart-animation.md#cinematic-animation) | Evidence-preserving playback, clip or poster |
 | Put this configured map on my website | [embedding](${SITE}/skills/gismap/references/sharing.md#embeds) | Public map link and ready-to-paste iframe |
@@ -375,6 +380,12 @@ ${examples?.items?.length ? `\n## Worked examples\n${examples.items.map((item) =
 - Renderer types: ${(capabilities.rendererTypes || []).join(", ")}.
 - Basemaps: ${(capabilities.basemaps || [...SHARE_BASEMAPS]).join(", ")}.
 - Colour ramps: ${(capabilities.ramps || []).join(", ")}.
+
+## GISMap SI (planned server side)
+GISMap Online stores nothing on a server: a map lives in its link. GISMap SI (https://gismap.si) is a planned companion server-side application for data storage and map storage: datasets uploaded once and kept in a team workspace, and saved maps and Briefs that reopen by ID instead of by a long link. It is in private alpha, not a public API.
+- Keep returning map links. Don't tell people their data or maps were saved, and don't send their data anywhere expecting it to be stored.
+- "Sign in to GISMap SI" in GISMap Online connects an SI account for a few hours. While those connections are off, the sign-in window offers a waiting list instead.
+- The one agent workflow today is the experimental [si-publishing](${SITE}/agent-recipes/si-publishing/) recipe.
 
 ## Optional
 - [Full documentation in one file](${SITE}/llms-full.txt)

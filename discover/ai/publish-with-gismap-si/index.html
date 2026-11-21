@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Publish a Brief from GISMap SI with AI Map</title>
+  <meta name="description" content="Experimental: turn a dataset stored in GISMap SI into a Brief with AI Map, then publish a verified share link. Needs GISMap SI alpha access."><meta property="og:type" content="website"><meta property="og:site_name" content="GISMap Online"><meta property="og:title" content="Publish a Brief from GISMap SI with AI Map"><meta property="og:description" content="Experimental: turn a dataset stored in GISMap SI into a Brief with AI Map, then publish a verified share link. Needs GISMap SI alpha access."><meta property="og:url" content="https://gismap.online/discover/ai/publish-with-gismap-si/"><meta property="og:image" content="https://gismap.online/assets/gis-map-online-mark-v2.png"><meta property="og:image:width" content="1254"><meta property="og:image:height" content="1254"><meta property="og:image:alt" content="GISMap Online"><meta name="twitter:card" content="summary_large_image"><meta name="twitter:title" content="Publish a Brief from GISMap SI with AI Map"><meta name="twitter:description" content="Experimental: turn a dataset stored in GISMap SI into a Brief with AI Map, then publish a verified share link. Needs GISMap SI alpha access."><meta name="twitter:image" content="https://gismap.online/assets/gis-map-online-mark-v2.png">
+  <link rel="canonical" href="https://gismap.online/discover/ai/publish-with-gismap-si/">
+  <link rel="icon" href="../../../assets/gis-map-online-mark-v2.png">
+  <link rel="stylesheet" href="../../discovery.css?v=0.70.2-strata">
+</head>
+<body>
+  <a class="skip" href="#content">Skip to content</a>
+  <header class="site-header"><div class="shell site-header__inner">
+    <a class="brand" href="../../../"><img src="../../../assets/gis-map-online-mark-v2.png" alt=""><span>GISMap<small>ONLINE</small></span></a>
+    <nav class="site-nav" aria-label="Discover navigation"><a href="../../../">Open map</a><a href="../../">Discover</a><a href="../../examples/">Examples</a><a href="../../learn/">Learn</a><a href="../../about/">About</a></nav>
+  </div></header>
+  <main id="content" class="shell">
+    <div class="crumbs"><a href="../../">Discover</a> / <a href="../">AI</a> / Publish with GISMap SI</div>
+    <section class="page-hero"><span class="eyebrow">Experimental · needs GISMap SI alpha access</span><h1>From a stored dataset to a verified share link.</h1><p class="lede">GISMap SI stores your organisation's data. AI Map in GISMap Online turns it into a Brief: slides on a live map, written with the AI model you connect. When the Brief is ready, you publish it, and GISMap SI checks that the link opens for the people you send it to.</p><p class="callout">During the GISMap SI alpha, signing in and public share links are switched on only for people on the alpha list. Everything else in GISMap Online works without an account, as before.</p></section>
+    <section class="band"><div class="shell"><span class="eyebrow">How it works</span><h2>Five steps, and you press Publish.</h2><div class="steps">
+      <article><h3>Start in GISMap SI</h3><p>On a dataset in Stored Intel, choose <strong>Create in GISMap Online</strong>. GISMap SI makes a draft that only your workspace can open and sends you to it in AI Map. A dataset that has no public link yet needs its owner or an admin to publish it first.</p></article>
+      <article><h3>Sign in to GISMap SI</h3><p>GISMap Online asks you to <strong>Sign in to GISMap SI</strong> in a small window. The connection lasts eight hours, stays in this browser tab only, and never goes into a link, a project file or a Smart Map Image. <strong>Sign out</strong> ends it.</p></article>
+      <article><h3>Ask AI Map for a Brief</h3><p>The assistant reads your datasets' titles, fields and dates from GISMap SI as reference data, checks each field before using it, and builds slides you can edit like any other. It never makes up figures.</p></article>
+      <article><h3>Review in the Publish panel</h3><p>Open <strong>Publish…</strong>. It shows who can open the link (anyone with it), whether figures are <strong>live</strong> or <strong>pinned</strong>, each layer and where it comes from, and the figures themselves. The assistant can open this panel for you, but only you can publish.</p></article>
+      <article><h3>Publish and read the check</h3><p>GISMap SI saves the version you reviewed, makes the share link, and checks it: that the link opens, that each layer answers, and that the slides' fields exist. Each check's result is shown as GISMap SI wrote it.</p></article>
+    </div></div></section>
+    <section id="live-or-pinned"><span class="eyebrow">Live or pinned</span><h2>Choose what viewers see when the data changes.</h2><div class="card-grid">
+      <article class="card"><span class="eyebrow">Live</span><h3>Figures recompute</h3><p>Numbers on the slides are worked out again each time the Brief plays. Later edits reach viewers when you <strong>Republish to this link</strong>; the link stays the same.</p></article>
+      <article class="card"><span class="eyebrow">Pinned</span><h3>Figures as of today</h3><p>Numbers are frozen when you publish and shown “as of” that date, which suits a Brief for a meeting. If the data changes later, viewers are told so. To show newer figures, publish a new link.</p></article>
+      <article class="card"><span class="eyebrow">Either way</span><h3>Viewers see what you published</h3><p>A share link always shows the version you published, never your draft in progress. The draft stays visible only to your workspace.</p></article>
+    </div></section>
+    <section id="links"><span class="eyebrow">Links</span><h2>Two addresses to know.</h2><div class="card-grid">
+      <article class="card"><span class="eyebrow">Your draft</span><h3>gismap.online/m/&lt;id&gt;</h3><p>Opens the draft for editing if you can edit it, or read-only otherwise. Add <code>?app=ai-map</code> to open it in AI Map. You need to be signed in to GISMap SI.</p></article>
+      <article class="card"><span class="eyebrow">The share link</span><h3>gismap.online/m/&lt;id&gt;?p=&lt;publication&gt;</h3><p>Opens the published version in the viewer, never the editor. Anyone with the link can open it without signing in, once GISMap SI's public links are on.</p></article>
+      <article class="card"><span class="eyebrow">For AI agents</span><h3>The agent recipe</h3><p>How an outside agent hands someone a GISMap SI draft, and what it must leave to them.</p><a href="../../../agent-recipes/si-publishing/">Read the recipe →</a></article>
+    </div></section>
+    <section id="limits"><span class="eyebrow">Not yet</span><h2>What this doesn't do yet.</h2><div class="card-grid">
+      <article class="card"><h3>Only “anyone with the link”</h3><p>Links for your team only, or for named people, come later.</p></article>
+      <article class="card"><h3>Layers keep their data</h3><p>Until GISMap SI can add new data to an existing dataset, a live Brief's layers show the data their links served when published; only its figures recompute.</p></article>
+      <article class="card"><h3>Tours and Cinematic</h3><p>Publishing covers maps and Briefs. Tours and Cinematic animations come later.</p></article>
+    </div></section>
+  </main>
+  <footer class="site-footer"><div class="shell site-footer__inner"><span>GISMap Online is free and open source.</span><a href="../">Back to AI workflows</a></div></footer>
+</body>
+</html>

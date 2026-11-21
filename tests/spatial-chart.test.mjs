@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { normalizeSpatialChart, spatialChartAxis, spatialChartLayerSpecs, spatialChartLegend, spatialChartColor, spatialChartGroupColor, spreadColors } from "../js/spatial-chart.js";
+import { SPATIAL_CHART_DIM, listedOrder, normalizeSpatialChart, spatialChartAxis, spatialChartLayerSpecs, spatialChartLegend, spatialChartColor, spatialChartGroupColor, spreadColors } from "../js/spatial-chart.js";
 import { strataData } from "../js/cinematic/cinematic-effects.js";
 import { generateSpatialChartBrief } from "../js/briefing-spatial-chart.js";
 import { normalizeBriefing } from "../js/briefing-document.js";
@@ -158,4 +158,74 @@ test("a palette spread over more groups than it has stops gives every group its 
   const eight = spreadColors(["#fcfdbf", "#fec488", "#fc8961", "#e75263", "#b5367a", "#7e2482", "#3b0f70"], 8);
   assert.equal(new Set(eight).size, 8);
   assert.deepEqual([eight[0], eight.at(-1)], ["#fcfdbf", "#3b0f70"]);
+});
+
+test("listed order stacks groups as given, for values that do not sort, such as geologic ages", () => {
+  const ages = ["Paleozoic - Cambrian", "Paleozoic - Permian", "Mesozoic - Triassic", "Cenozoic - Neogene"];
+  const fields = [{ name: "AGE_MAX", type: "string" }];
+  const input = { type: "spatial-3d-chart", mode: "stacked-footprints", groupBy: "AGE_MAX", order: "listed", groups: [...ages, ages[0]], height: { slotMeters: 1000 } };
+  const chart = normalizeSpatialChart(input, { fields, groupValues: ["Cenozoic - Neogene"] });
+  assert.equal(chart.order, "listed");
+  assert.deepEqual(chart.groups, ages, "oldest at the bottom; duplicates dropped, not sorted");
+  assert.deepEqual(normalizeSpatialChart(chart, { fields }).groups, ages, "normalizing again keeps the order");
+  const [bottom] = spatialChartLayerSpecs({ chart, idPrefix: "geology", source: "geology", polygonFilter: true });
+  assert.deepEqual(bottom.filter.at(-1), ["==", ["get", "AGE_MAX"], "Paleozoic - Cambrian"]);
+  assert.equal(normalizeSpatialChart({ ...input, groups: undefined }, { fields, groupValues: ages }).order, undefined, "without groups to keep, the order falls back to sorted");
+});
+
+test("reversing a listed order flips its groups once, and unticking flips them back", () => {
+  const fields = [{ name: "AGE_MAX", type: "string" }];
+  const ages = ["Cambrian", "Permian", "Triassic"];
+  const chart = normalizeSpatialChart({ type: "spatial-3d-chart", mode: "temporal-strata", groupBy: "AGE_MAX", order: "listed", groups: ages, height: {} }, { fields });
+  const reversed = normalizeSpatialChart({ ...chart, ...listedOrder(chart, true) }, { fields });
+  assert.deepEqual(reversed.groups, ["Triassic", "Permian", "Cambrian"], "youngest at the bottom");
+  assert.equal(reversed.reversed, true);
+  assert.deepEqual(normalizeSpatialChart({ ...reversed, ...listedOrder(reversed, true) }, { fields }).groups, reversed.groups, "applying again with the box still ticked changes nothing");
+  const back = normalizeSpatialChart({ ...reversed, ...listedOrder(reversed, false) }, { fields });
+  assert.deepEqual(back.groups, ages);
+  assert.equal(back.reversed, undefined);
+});
+
+test("a strata group picked out from the legend keeps its slabs and dims the others", () => {
+  const chart = normalizeSpatialChart({ type:"spatial-3d-chart", mode:"temporal-strata", groupBy:"YEAR_" }, { fields, geometryType:"polygon", groupValues:[2019, 2022, 2025] });
+  const specs = (focus) => spatialChartLayerSpecs({ chart, idPrefix:"x", source:"s", opacity:0.8, polygonFilter:true, focus }).map((spec) => spec.paint["fill-extrusion-opacity"]);
+  assert.deepEqual(specs(undefined), [0.8, 0.8, 0.8], "nothing picked: every slab as styled");
+  const picked = specs(2022);
+  assert.equal(picked[1], 0.8);
+  assert.ok(Math.abs(picked[0] - 0.8 * SPATIAL_CHART_DIM) < 1e-9 && picked[2] === picked[0]);
+  assert.deepEqual(specs("2022"), picked, "a group value read back as text still matches");
+  assert.deepEqual(spatialChartLegend(chart).slots.map((slot) => slot.value), [2025, 2022, 2019], "legend rows carry the group value they pick out");
+});
+
+test("a terraced surface needs a numeric value field and keeps only usable surface settings", () => {
+  const surfaceFields = [...fields, { name:"POP", type:"integer" }, { name:"NAME", type:"string" }];
+  const terraced = (input) => normalizeSpatialChart({ type:"spatial-3d-chart", mode:"terraced-surface", ...input }, { fields:surfaceFields, geometryType:"polygon" });
+  assert.throws(() => terraced({ height:{ field:"NAME" } }), /numeric field/);
+  assert.throws(() => terraced({ height:{ field:"GIS_ACRES" }, surface:{ weightField:"NAME" } }), /weight field must be numeric/);
+  const chart = terraced({ height:{ field:"GIS_ACRES", slotMeters:5000 }, groups:["40", 30, "x", 35], surface:{ weightField:"POP", bandwidthKm:-1, classes:50, smoothing:9 } });
+  assert.deepEqual(chart.groups, [30, 35, 40], "breaks are numbers, ascending");
+  assert.deepEqual(chart.height, { mode:"terraces", field:"GIS_ACRES", slotMeters:5000, gapMeters:0, thicknessMeters:5000, scale:1 }, "terraces touch: no gap, a full slot thick");
+  assert.deepEqual(chart.surface, { weightField:"POP", classes:20, smoothing:4 }, "an unusable bandwidth is left to the default");
+  assert.deepEqual(chart.geometry, { strategy:"smoothed-surface", aggregation:"kernel" });
+  assert.equal(terraced({ height:{ field:"GIS_ACRES" } }).groups, undefined, "breaks are picked when the surface is built");
+  assert.match(spatialChartAxis(chart).detail, /not the source boundaries/);
+});
+
+test("terraces stack from the derived surface source, cool lows to warm highs, with ranges in the legend", () => {
+  const chart = normalizeSpatialChart({ type:"spatial-3d-chart", mode:"terraced-surface", height:{ field:"GIS_ACRES", slotMeters:1000 }, groups:[30, 35, 40] }, { fields, geometryType:"polygon" });
+  assert.deepEqual(spatialChartLayerSpecs({ chart, idPrefix:"x", source:"s", polygonFilter:true }), [], "nothing until the surface is built");
+  const specs = spatialChartLayerSpecs({ chart, idPrefix:"x", source:"s", surfaceSource:"s-terraces", opacity:1, polygonFilter:true });
+  assert.deepEqual(specs.map((spec) => [spec.source, spec.filter, spec.paint["fill-extrusion-base"], spec.paint["fill-extrusion-height"]]), [["s-terraces", ["==", ["get", "band"], 0], 0, 1000], ["s-terraces", ["==", ["get", "band"], 1], 1000, 2000], ["s-terraces", ["==", ["get", "band"], 2], 2000, 3000]]);
+  assert.deepEqual(specs.map((spec) => spec.paint["fill-extrusion-color"]), [0, 1, 2].map((index) => spatialChartGroupColor(chart, index)));
+  assert.notEqual(spatialChartGroupColor(chart, 0), spatialChartColor(0, 3), "terraces use their own ramp");
+  const legend = spatialChartLegend(chart, [12, 50]);
+  assert.deepEqual(legend.heights, [], "terrace height is the class, not a value");
+  assert.deepEqual(legend.slots.map((slot) => slot.label), ["40 and over", "35 – 40", "Under 35"]);
+});
+
+test("map-v1 accepts a terraced surface", () => {
+  const spatialChart = { type:"spatial-3d-chart", mode:"terraced-surface", height:{ field:"MEDIAN_AGE", slotMeters:12000 }, surface:{ weightField:"POP" } };
+  const result = validateMapSpec({ version:1, layers:[{ url:"https://example.test/counties.geojson", type:"geojson", spatialChart }] });
+  assert.equal(result.valid, true);
+  assert.deepEqual(result.spec.layers[0].spatialChart, spatialChart);
 });

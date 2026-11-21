@@ -16,7 +16,7 @@ import {
   updateBlock,
   updateSlide,
   validateBriefing,
-} from "./briefing-document.js?v=0.61.0-briefing-player";
+} from "./briefing-document.js?v=0.72.0-si-maps";
 import {
   BRIEFING_SHARE_LIMITS,
   BRIEFING_SHARE_VERSION,
@@ -25,12 +25,12 @@ import {
   encodeBriefing,
   readBriefingHash,
 } from "./briefing-share.js?v=0.60.0-media1";
-import { SENTINEL_LABEL, detectSentinels, inspectSource } from "./source-inspector.js?v=0.70.1-colours";
+import { SENTINEL_LABEL, detectSentinels, inspectSource } from "./source-inspector.js?v=0.71.0-subsurface";
 import { BREAK_METHODS, RAMPS, RENDERER_TYPES, chooseBreakMethod, chooseStyleField, closestField, compileRenderer, computeBreaks, describeValues, rampColors, resolveRendererSpec, suggestRenderers, validateRendererSpec } from "./renderer-spec.js?v=0.29.0";
 import { ERROR_CODES, GisMapError, toGisMapError } from "./gismap-errors.js?v=0.54.0-print";
 import { LAYER_TOOL_DEFINITIONS, checkToolInput } from "./layer-tools.js?v=0.29.0";
-import { MAP_SPEC_JSON_LIMIT, MAP_SPEC_VERSION, createMapSpecLink, decodeMapSpec, encodeMapSpec, prepareMapVerification, mapSpecFromShareParameters, rendererSpecFromParameters, validateMapSpec } from "./map-spec.js?v=0.70.1-colours";
-import { SHARE_BASEMAPS, SHARE_LAYER_TYPES, SHARE_LIMITS } from "./share.js?v=0.70.1-colours";
+import { MAP_SPEC_JSON_LIMIT, MAP_SPEC_VERSION, createMapSpecLink, decodeMapSpec, encodeMapSpec, prepareMapVerification, mapSpecFromShareParameters, rendererSpecFromParameters, validateMapSpec } from "./map-spec.js?v=0.76.0-chain";
+import { SHARE_BASEMAPS, SHARE_LAYER_TYPES, SHARE_LIMITS } from "./share.js?v=0.71.0-subsurface";
 import {
   SMART_IMAGE_CHUNK,
   SMART_IMAGE_FORMAT,
@@ -38,7 +38,7 @@ import {
   SMART_IMAGE_VERSION,
   embedProjectInPng,
   readProjectFromPng,
-} from "./smart-image.js?v=0.70.1-colours";
+} from "./smart-image.js?v=0.71.0-subsurface";
 
 import { AUTHORING_TOOL_DEFINITIONS } from "./agent-authoring-tools.js?v=0.53.0";
 import { APP_VERSION } from "./version.js?v=0.54.0-print";

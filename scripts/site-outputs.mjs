@@ -24,6 +24,10 @@ const typeLabel = (type) => ({ feature: "ArcGIS FeatureServer", "map-image": "Ar
 
 // Search titles and descriptions; recipe JSON keeps the long question and answer.
 const RECIPE_META = Object.freeze({
+  "si-publishing": {
+    "title": "Publish a Brief from GISMap SI with AI Map",
+    "description": "Experimental: an agent hands someone a GISMap SI draft in AI Map; they build a Brief and press Publish. The agent never handles their token."
+  },
   "interactive-map": {
     "title": "Filtered, styled interactive map with AI",
     "description": "Have an AI agent turn a public dataset into a filtered, styled, shareable GISMap Online map, with no API key, using one map-v1 JSON link."
@@ -36,6 +40,14 @@ const RECIPE_META = Object.freeze({
   },
   "field-tasks": {
     "description": "Have an AI agent create a location-based field task package that people open by link or QR code, complete on site and send back."
+  },
+  "hexagon-binning": {
+    "title": "Hexagon binning maps with H3 and statistics",
+    "description": "Have an AI agent turn points into an H3 or custom hexagon map, by count, density or a field's statistics, in 2D or 3D, shared as one link."
+  },
+  "dot-density": {
+    "title": "Dot-density maps from polygon counts",
+    "description": "Have an AI agent make a dot-density map, one random dot per so many people inside each polygon, that can feed a hexagon map."
   },
   "3d-extrusion": {
     "description": "Have an AI agent make a 3D map with numeric or fixed-height extrusions, such as county heights by acreage, shared as one link."
@@ -352,7 +364,7 @@ export async function buildSiteOutputs({ readText: readRepositoryText }) {
     markdown: `${aiExamplesMarkdown(aiLinks)}\n\n${workflowExamplesMarkdown(workflowLinks)}`,
   };
   for (const [path, contents] of Object.entries(await buildAgentOutputs({ readText, examples }))) outputs.set(path, contents);
-  const discoverPaths = ["/discover/", "/discover/examples/", "/discover/examples/3d-strata/", "/discover/engines/", "/discover/learn/", "/discover/ai/", "/discover/data/", "/discover/demos/", "/discover/embed/", "/discover/about/", "/discover/get-involved/"];
+  const discoverPaths = ["/discover/", "/discover/examples/", "/discover/examples/3d-strata/", "/discover/engines/", "/discover/learn/", "/discover/ai/", "/discover/ai/publish-with-gismap-si/", "/discover/data/", "/discover/demos/", "/discover/embed/", "/discover/about/", "/discover/get-involved/"];
   const urls = ["/", ...discoverPaths, "/examples/", "/examples/data-connections/local-postgis/", "/guides/", ...PROMPT_EXAMPLES.map(promptExamplePath), ...POPULAR_SERVICES.filter((item) => item.featured).map((item) => `/examples/${item.slug}/`), ...GUIDES.map(guidePath), "/examples/ai/", ...AI_EXAMPLES.map(aiExamplePath), "/examples/ai/california-fire-refinement/", ...WORKFLOW_EXAMPLES.map(workflowExamplePath), "/agent-recipes/", ...recipes.map(agentRecipePath), "/skills/", "/api/explorer/", "/field/", "/llms.txt", "/llms-full.txt", "/api/catalog.json"];
   const dates = await sitemapDates(urls, outputs, readText);
   outputs.set("scripts/sitemap-lastmod.json", `${JSON.stringify(dates, null, 2)}\n`);

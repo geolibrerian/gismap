@@ -29,8 +29,8 @@
       "oneOf": [{ "type": "null" }, { "$ref": "https://gismap.online/schemas/renderer-v1.schema.json" }]
     },
     "spatialChart": {
-      "description": "3D height: the map-v1 layers[].spatialChart object (attribute-extrusion, temporal-strata, stacked-footprints or exploded-timeline), without groups, which are read from the data when applied. Polygons only; MapLibre and ArcGIS engines.",
-      "oneOf": [{ "type": "null" }, { "type": "object", "required": ["mode"], "properties": { "type": { "const": "spatial-3d-chart" }, "mode": { "enum": ["attribute-extrusion", "temporal-strata", "stacked-footprints", "exploded-timeline"] } } }]
+      "description": "3D height: the map-v1 layers[].spatialChart object (attribute-extrusion, temporal-strata, stacked-footprints, exploded-timeline or terraced-surface), without groups, which are read from the data when applied. Polygons only; MapLibre and ArcGIS engines.",
+      "oneOf": [{ "type": "null" }, { "type": "object", "required": ["mode"], "properties": { "type": { "const": "spatial-3d-chart" }, "mode": { "enum": ["attribute-extrusion", "temporal-strata", "stacked-footprints", "exploded-timeline", "terraced-surface"] } } }]
     },
     "filter": {
       "description": "The filter as Lab conditions, so it can be edited again. `where` is what is applied.",

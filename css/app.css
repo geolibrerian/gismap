@@ -618,6 +618,11 @@ body.mobile-workflow-open .field-task-banner { left:auto; right:calc(min(440px,1
 .maplibre-legend__entry { display:grid; grid-template-columns:26px minmax(0,1fr); align-items:center; gap:8px; min-height:22px; color:var(--ink); font-size:12.5px; font-variant-numeric:tabular-nums; line-height:1.3; }
 .maplibre-legend__entry > :first-child { justify-self:center; }
 .maplibre-legend__label { overflow-wrap:anywhere; }
+.maplibre-legend__entry--pick { width:100%; margin:0; padding:1px 4px 1px 0; border:0; border-radius:var(--ui-radius-small); font:inherit; font-size:12.5px; text-align:left; background:transparent; cursor:pointer; }
+.maplibre-legend__entry--pick:hover, .maplibre-legend__entry--pick.is-picked { background:color-mix(in srgb, var(--ink) 7%, transparent); }
+.maplibre-legend__entry--pick[aria-pressed="true"] { font-weight:650; box-shadow:inset 3px 0 0 var(--green); }
+.maplibre-legend__entry--pick:focus-visible { outline:2px solid var(--green); outline-offset:1px; }
+.maplibre-legend__image { flex:none; width:18px; height:18px; object-fit:contain; }
 .maplibre-legend__swatch { flex:none; display:inline-block; width:18px; height:13px; border:1px solid; border-radius:3px; box-sizing:border-box; }
 .maplibre-legend__swatch--point { width:12px; height:12px; border-radius:50%; box-shadow:0 0 0 2px var(--surface); }
 .maplibre-legend__swatch--line { width:20px; height:3px; border:0; border-radius:2px; }
@@ -1540,6 +1545,9 @@ body.si-preview-embed .si-embed-rail { display:grid; }
 .example-guide .eyebrow { display:block; margin-bottom:2px; }
 .example-guide strong { display:block; font-size:13px; }
 .example-guide p { margin:3px 0 0; color:var(--muted); font-size:11px; line-height:1.4; }
+.example-guide:has(.example-guide__close) { position:relative; padding-right:30px; }
+.example-guide .example-guide__close { position:absolute; top:4px; right:4px; min-width:0; min-height:0; padding:2px 7px; border:0; background:none; color:var(--muted); font-size:18px; line-height:1; }
+.example-guide .example-guide__close:hover { color:var(--ink); }
 .example-guide button { flex:0 0 auto; min-height:32px; padding:6px 9px; border:1px solid var(--green); border-radius:6px; color:white; background:var(--green); font:700 11px/1.2 var(--ui-font, sans-serif); cursor:pointer; }
 .example-guide button:hover { background:var(--green-2); }
 .map-nav-shell { position:absolute; z-index:8; top:18px; right:18px; display:grid; justify-items:stretch; gap:5px; }
@@ -1730,13 +1738,16 @@ dialog::backdrop { background: rgb(12 28 23 / 48%); backdrop-filter: blur(3px); 
 .catalog-path { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
 .catalog-path button { border: 1px solid var(--line); border-radius: 6px; padding: 6px 9px; background: var(--surface); cursor: pointer; }
 .catalog-path button:disabled { opacity: .35; cursor: default; }
-.catalog-path code { color: var(--muted); font-size: 11px; }
+.catalog-path code { min-width: 0; color: var(--muted); font-size: 11px; overflow-wrap: anywhere; }
+.catalog-path small { margin-left: auto; color: var(--muted); font-size: 11px; white-space: nowrap; }
+.directory-filter { width: 100%; margin-bottom: 8px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 7px; background: var(--surface); color: var(--ink); font: inherit; font-size: 12px; }
 .enterprise-list { display: grid; gap: 5px; }
-.enterprise-row { display: grid; grid-template-columns: 1fr auto; gap: 10px; align-items: center; width: 100%; padding: 10px 11px; border: 1px solid var(--line); border-radius: 7px; color: var(--ink); background: var(--surface); text-align: left; }
+.enterprise-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; align-items: center; width: 100%; padding: 10px 11px; border: 1px solid var(--line); border-radius: 7px; color: var(--ink); background: var(--surface); text-align: left; }
 button.enterprise-row { cursor: pointer; }
 button.enterprise-row:hover { border-color: var(--green-2); }
-.enterprise-row span { display: grid; gap: 2px; }
-.enterprise-row strong { font-size: 12px; }
+.enterprise-row span { display: grid; gap: 2px; min-width: 0; }
+.enterprise-row[hidden] { display: none; }
+.enterprise-row strong { font-size: 12px; overflow-wrap: anywhere; }
 .enterprise-row small { color: var(--muted); font-size: 9px; text-transform: uppercase; letter-spacing: .06em; }
 .enterprise-row > button { border: 1px solid var(--line); border-radius: 5px; padding: 6px 10px; background: var(--paper); cursor: pointer; font-size: 11px; }
 .project-card { display: grid; gap: 3px; width: 100%; padding: 13px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); text-align: left; cursor: pointer; }
@@ -2767,6 +2778,13 @@ body.utility-panel-open .utility-panel:has(.dragon-game-frame) .utility-panes { 
 .map-note-card { min-width: 0; padding: .85rem; border: 1px solid var(--border, #c7d4ce); border-radius: .6rem; overflow-wrap: anywhere; }
 .map-note-card p { white-space: pre-wrap; margin: .4rem 0; }
 .map-note-card small { display: block; margin-bottom: .5rem; }
+.si-note-status:empty { display: none; }
+.si-note-chip { display: inline-block; padding: .1rem .5rem; border-radius: 999px; border: 1px solid var(--line); background: var(--surface-2); color: var(--ink); font-size: .8rem; font-weight: 600; }
+.si-note-chip--waiting, .si-note-chip--working { border-color: var(--amber); }
+.si-note-chip--done { border-color: var(--green-2); }
+.si-note-chip--declined { border-color: var(--danger); color: var(--danger); }
+.si-note-reply { margin: .4rem 0 0; padding: .4rem .6rem; border-left: 3px solid var(--green-2); background: var(--surface-2); white-space: pre-wrap; }
+.si-note-workspace { display: flex; flex-wrap: wrap; gap: .4rem; align-items: center; margin-top: .4rem; }
 .map-notes-panel [data-note-error]:empty { display: none; }
 
 /* Map Notes is a map-first workspace, not a blocking settings dialog. */
@@ -3256,3 +3274,22 @@ body.briefing-v2 .briefing-data-dock :is(.briefing-select__add-slides, .briefing
 .spatial-analysis { display: grid; gap: 10px; }
 .spatial-analysis__draw { border: 1px solid var(--line, #8884); border-radius: 6px; padding: 8px; }
 .spatial-analysis__done { position: fixed; z-index: 60; left: 50%; bottom: 24px; transform: translateX(-50%); }
+
+/* Map link loading: one stage per layer and analysis step, with real counts (load-progress.js). */
+.load-progress { position:absolute; z-index:60; top:12px; left:50%; max-width:calc(100% - 32px); transform:translateX(-50%); pointer-events:none; transition:opacity .4s ease; }
+.load-progress.is-finished { opacity:0; transition-delay:.9s; }
+.load-progress ol { display:flex; flex-wrap:wrap; align-items:center; justify-content:center; gap:4px 0; margin:0; padding:6px 10px; list-style:none; border:1px solid var(--line); border-radius:999px; background:color-mix(in srgb, var(--surface) 92%, transparent); box-shadow:0 6px 20px rgb(17 39 33 / 14%); backdrop-filter:blur(6px); font-size:12px; }
+.load-progress__stage { position:relative; display:flex; align-items:baseline; gap:6px; padding:3px 8px 5px; color:var(--muted); white-space:nowrap; }
+.load-progress__stage + .load-progress__stage::before { content:"→"; position:absolute; left:-6px; color:var(--line); }
+.load-progress__label { font-weight:600; }
+.load-progress__count, .load-progress__left { font-variant-numeric:tabular-nums; }
+.load-progress__left { opacity:.75; }
+.load-progress__stage.is-active { color:var(--ink); }
+.load-progress__stage.is-active::after { content:""; position:absolute; left:8px; right:8px; bottom:1px; height:2px; border-radius:2px; background:linear-gradient(90deg, var(--green-2) calc(var(--progress, .35) * 100%), color-mix(in srgb, var(--green-2) 18%, transparent) 0); }
+.load-progress__stage.is-active:not([style])::after { background:linear-gradient(90deg, transparent, var(--green-2), transparent) 0 0 / 50% 100% no-repeat; animation:load-progress-sweep 1.2s linear infinite; }
+.load-progress__stage.is-done { color:var(--green-2); }
+.load-progress__stage.is-done .load-progress__label::before { content:"✓ "; }
+.load-progress__stage.is-failed { color:#b2182b; }
+@keyframes load-progress-sweep { from { background-position:-100% 0; } to { background-position:200% 0; } }
+@media (prefers-reduced-motion: reduce) { .load-progress__stage.is-active:not([style])::after { animation:none; background:var(--green-2); opacity:.5; } .load-progress { transition:none; } }
+@media (max-width: 760px) { .load-progress { top:8px; } .load-progress ol { border-radius:12px; font-size:11px; } }

@@ -36,6 +36,10 @@
         }
       ]
     },
+    "underground": {
+      "description": "The underground view: the ground fades (groundOpacity 0 hides it, 1 keeps it solid) so layers with subsurface show below it. true is { enabled: true, groundOpacity: 0.45 }.",
+      "oneOf": [{ "type": "boolean" }, { "type": "object", "additionalProperties": false, "properties": { "enabled": { "type": "boolean" }, "groundOpacity": { "type": "number", "minimum": 0, "maximum": 1 } } }]
+    },
     "layers": {
       "type": "array",
       "minItems": 1,
@@ -51,11 +55,12 @@
         "type": "object",
         "required": ["operation", "input"],
         "properties": {
-          "operation": { "enum": ["measure", "buffer", "dissolve", "centroid", "convex-hull", "envelope", "simplify", "voronoi", "kmeans", "dbscan", "hexbin", "nearest", "select", "join", "count", "clip", "erase"] , "description": "See /api/capabilities.json map.analysisOperations." },
-          "input": { "description": "A position in layers (0 is the first), or GeoJSON.", "oneOf": [{ "type": "integer", "minimum": 0 }, { "type": "object" }] },
-          "overlay": { "description": "A position in layers, or GeoJSON. Required by overlay operations.", "oneOf": [{ "type": "integer", "minimum": 0 }, { "type": "object" }] },
-          "options": { "type": "object", "description": "For example { \"distanceKm\": 5 }. See gisMapOnline.analysis.operations()." },
-          "title": { "type": "string", "maxLength": 120 }
+          "operation": { "enum": ["measure", "buffer", "dissolve", "centroid", "convex-hull", "envelope", "simplify", "voronoi", "kmeans", "dbscan", "hexbin", "random-points", "nearest", "select", "join", "count", "clip", "erase"] , "description": "See /api/capabilities.json map.analysisOperations." },
+          "input": { "description": "A position in layers (0 is the first), { \"step\": n } for the result of an earlier step, or GeoJSON.", "oneOf": [{ "type": "integer", "minimum": 0 }, { "type": "object" }] },
+          "overlay": { "description": "A position in layers, { \"step\": n }, or GeoJSON. Required by overlay operations; for hexbin, an optional polygon study area.", "oneOf": [{ "type": "integer", "minimum": 0 }, { "type": "object" }] },
+          "options": { "type": "object", "description": "For example { \"distanceKm\": 5 }, or for hexbin { \"method\": \"h3\", \"resolution\": 7, \"statistic\": \"mean\", \"field\": \"PRICE\", \"keepEmpty\": false, \"extrude\": true }. See gisMapOnline.analysis.operations()." },
+          "title": { "type": "string", "maxLength": 120 },
+          "visible": { "type": "boolean", "description": "false adds the result as a hidden layer, such as points a later step bins." }
         },
         "additionalProperties": false
       }
@@ -120,19 +125,48 @@
           },
           "additionalProperties": false
         },
+        "subsurface": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "Draw the layer below the local ground (MapLibre and ArcGIS engines): lines as pipes, cables or tunnels, points as wells, shafts or manholes hanging from the ground, polygons as rock units or basements between a top and a base. Seen in the underground view, which fades the ground. Depth is real metres below the terrain, times exaggeration.",
+          "properties": {
+            "type": { "const": "subsurface" },
+            "depth": { "description": "Down from the local ground to a pipe's centre, a unit's top or a well's bottom. Default 3 m.", "oneOf": [{ "type": "number", "minimum": 0 }, { "type": "object", "additionalProperties": false, "properties": { "field": { "type": "string", "pattern": "^[A-Za-z_][A-Za-z0-9_.]*$", "description": "A numeric field; features without a value use meters." }, "meters": { "type": "number", "minimum": 0 }, "scale": { "type": "number", "minimum": 0, "description": "Field units to metres: 0.3048 for feet, 0.0254 for inches." } } }] },
+            "thickness": { "description": "Polygons: a unit's top to its base. Default 20 m.", "oneOf": [{ "type": "number", "minimum": 0 }, { "type": "object", "additionalProperties": false, "properties": { "field": { "type": "string", "pattern": "^[A-Za-z_][A-Za-z0-9_.]*$", "description": "A numeric field; features without a value use meters." }, "meters": { "type": "number", "minimum": 0 }, "scale": { "type": "number", "minimum": 0, "description": "Field units to metres: 0.3048 for feet, 0.0254 for inches." } } }] },
+            "diameter": { "description": "Lines and points: a pipe's or shaft's width. Default 1 m.", "oneOf": [{ "type": "number", "minimum": 0 }, { "type": "object", "additionalProperties": false, "properties": { "field": { "type": "string", "pattern": "^[A-Za-z_][A-Za-z0-9_.]*$", "description": "A numeric field; features without a value use meters." }, "meters": { "type": "number", "minimum": 0 }, "scale": { "type": "number", "minimum": 0, "description": "Field units to metres: 0.3048 for feet, 0.0254 for inches." }, "minMeters": { "type": "number", "minimum": 0, "description": "Display floor so small pipes stay visible. Default 1 m." } } }] },
+            "exaggeration": { "type": "number", "minimum": 0.1, "maximum": 100, "description": "Vertical exaggeration of depth and thickness. Default 1." },
+            "color": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$", "description": "One colour for everything below ground; without it features keep the layer's style colours." }
+          },
+          "examples": [{ "depth": { "field": "DEPTH_FT", "scale": 0.3048 }, "diameter": { "field": "DIAMETER_IN", "scale": 0.0254 } }]
+        },
         "spatialChart": {
           "type": "object",
           "required": ["type", "mode", "height"],
-          "description": "3D spatial chart settings (MapLibre and ArcGIS engines). Z values are display offsets, never physical altitude. source-footprints/none is the fast display strategy and does not calculate exact polygon overlaps.",
+          "description": "3D spatial chart settings (MapLibre and ArcGIS engines). Z values are display offsets, never physical altitude. source-footprints/none is the fast display strategy and does not calculate exact polygon overlaps. terraced-surface (MapLibre only) smooths height.field into a surface and stacks it as terraces cut at groups, the ascending lower bound of each terrace; its surface object sets the weightField, bandwidthKm, cellKm, classes and smoothing.",
           "properties": {
             "type": { "const": "spatial-3d-chart" },
-            "mode": { "enum": ["attribute-extrusion", "temporal-strata", "stacked-footprints", "exploded-timeline"] },
+            "mode": { "enum": ["attribute-extrusion", "temporal-strata", "stacked-footprints", "exploded-timeline", "terraced-surface"] },
             "groupBy": { "type": "string", "pattern": "^[A-Za-z_][A-Za-z0-9_.]*$" },
             "groups": { "type": "array", "maxItems": 40, "items": { "type": ["string", "number"] } },
+            "order": { "enum": ["ascending", "descending", "listed"], "default": "ascending", "description": "Stacking order from the bottom up. \"descending\" puts the highest group at the bottom; \"listed\" stacks groups in the order given, first at the bottom, for values that do not sort, such as geologic ages." },
+            "reversed": { "type": "boolean", "default": false, "description": "With order \"listed\": the listed groups were flipped by Reverse stacking order. groups is already in stacking order, first at the bottom." },
+            "groundOutlines": { "type": "boolean", "default": false, "description": "Also draw the flat layer outlines on the ground under the stack." },
             "height": { "type": "object" },
             "color": { "type": "object" },
             "geometry": { "type": "object" },
-            "interaction": { "type": "object" }
+            "interaction": { "type": "object" },
+            "surface": {
+              "type": "object",
+              "description": "terraced-surface only: how the surface is smoothed.",
+              "properties": {
+                "weightField": { "type": "string", "pattern": "^[A-Za-z_][A-Za-z0-9_.]*$", "description": "A numeric field, such as population, that weights each polygon's value. Default: area." },
+                "bandwidthKm": { "type": "number", "minimum": 0.1, "maximum": 2000, "description": "Kernel width. Wider is smoother, with fewer islands. Default: about the spacing between polygons." },
+                "cellKm": { "type": "number", "minimum": 0.05, "maximum": 500, "description": "Grid cell size. Default: picked from the layer's extent." },
+                "classes": { "type": "integer", "minimum": 2, "maximum": 20, "default": 7, "description": "Terraces, at equal-area breaks, when groups is not given." },
+                "smoothing": { "type": "integer", "minimum": 0, "maximum": 4, "default": 2, "description": "Rounds of corner cutting on the terrace edges." }
+              },
+              "additionalProperties": false
+            }
           },
           "additionalProperties": false
         },

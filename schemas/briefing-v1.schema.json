@@ -414,13 +414,14 @@
               "required": ["type", "mode", "height"],
               "properties": {
                 "type": { "const": "spatial-3d-chart" },
-                "mode": { "enum": ["attribute-extrusion", "temporal-strata", "stacked-footprints", "exploded-timeline"] },
+                "mode": { "enum": ["attribute-extrusion", "temporal-strata", "stacked-footprints", "exploded-timeline", "terraced-surface"] },
                 "groupBy": { "type": "string" },
                 "groups": { "type": "array", "maxItems": 40, "items": { "type": ["string", "number"] } },
                 "height": { "type": "object" },
                 "color": { "type": "object" },
                 "geometry": { "type": "object" },
-                "interaction": { "type": "object" }
+                "interaction": { "type": "object" },
+                "surface": { "type": "object", "description": "terraced-surface only: weightField, bandwidthKm, cellKm, classes and smoothing, as in map-v1." }
               },
               "additionalProperties": false
             }

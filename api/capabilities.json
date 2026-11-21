@@ -137,6 +137,10 @@
     "project": [
       "exportFile",
       "exportPackage"
+    ],
+    "analysis": [
+      "operations",
+      "run"
     ]
   },
   "outputs": [
@@ -794,6 +798,7 @@
       "kmeans",
       "dbscan",
       "hexbin",
+      "random-points",
       "nearest",
       "select",
       "join",

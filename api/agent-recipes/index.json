@@ -272,6 +272,45 @@
       "page": "https://gismap.online/agent-recipes/spatial-3d-chart/"
     },
     {
+      "id": "hexagon-binning",
+      "title": "Hexagon binning (H3 or custom hexagons) with statistics",
+      "status": "available",
+      "question": "Can an AI agent turn points into a hexagon map, in 2D or 3D, that I can share?",
+      "triggers": [
+        "Make a hexagon map of these points",
+        "Bin these incidents into H3 hexagons and extrude them in 3D",
+        "Show average price per hexagon",
+        "Make a population hexagon map from census blocks"
+      ],
+      "artifact": "map",
+      "engines": [
+        "maplibre",
+        "arcgis"
+      ],
+      "lastTestedVersion": "0.53.0",
+      "url": "https://gismap.online/api/agent-recipes/hexagon-binning.json",
+      "page": "https://gismap.online/agent-recipes/hexagon-binning/"
+    },
+    {
+      "id": "dot-density",
+      "title": "Dot-density points from polygon counts",
+      "status": "available",
+      "question": "Can an AI agent make a dot-density map, one dot per so many people, from polygons with counts?",
+      "triggers": [
+        "Make a dot-density map of population",
+        "One dot per 100 people from these census tracts",
+        "Turn these polygons with counts into points I can bin"
+      ],
+      "artifact": "map",
+      "engines": [
+        "maplibre",
+        "arcgis"
+      ],
+      "lastTestedVersion": "0.53.0",
+      "url": "https://gismap.online/api/agent-recipes/dot-density.json",
+      "page": "https://gismap.online/agent-recipes/dot-density/"
+    },
+    {
       "id": "lidar-and-3d-models",
       "title": "LiDAR point clouds and 3D models (utility and vegetation data)",
       "status": "experimental",
@@ -308,6 +347,26 @@
       "lastTestedVersion": "0.53.0",
       "url": "https://gismap.online/api/agent-recipes/print-map.json",
       "page": "https://gismap.online/agent-recipes/print-map/"
+    },
+    {
+      "id": "si-publishing",
+      "title": "Publish a Brief from GISMap SI with AI Map (GISMap SI alpha)",
+      "status": "experimental",
+      "question": "Can an AI agent help turn data stored in GISMap SI into a published, verified Brief?",
+      "triggers": [
+        "Make a Brief from our inspections dataset in GISMap SI and publish it",
+        "Open this GISMap SI dataset in AI Map",
+        "Publish this GISMap SI map for the meeting, with the figures frozen",
+        "Check that the published Brief still works"
+      ],
+      "artifact": "briefing",
+      "engines": [
+        "maplibre",
+        "arcgis"
+      ],
+      "lastTestedVersion": "0.53.0",
+      "url": "https://gismap.online/api/agent-recipes/si-publishing.json",
+      "page": "https://gismap.online/agent-recipes/si-publishing/"
     },
     {
       "id": "project-package",

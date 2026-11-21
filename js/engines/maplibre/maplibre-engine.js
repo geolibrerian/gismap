@@ -17,20 +17,20 @@ import { tourChapterPoint, tourMarkerDataUrl } from "../tour-markers.js?v=0.65.9
 import { madeWithForPage, madeWithHtml } from "../../made-with.js?v=0.65.8-made-with";
 import { parseLocalVectorFile } from "../../local-vector-import.js?v=0.54.0-vector1";
 import { GisMapError } from "../../gismap-errors.js?v=0.54.0-print";
-import { unsupported } from "../engine-interface.js?v=0.52.4";
+import { unsupported } from "../engine-interface.js?v=0.78.4-progress";
 import { openBasemapFor, withUsgsImagery } from "./basemaps.js?v=0.53.0-gallery1";
 import { mountBasemapGallery } from "./basemap-gallery.js?v=0.53.0-gallery1";
 import { basemapOnEngine, basemapsForEngine } from "../../basemap-catalog.js?v=0.53.0-gallery1";
 import { applyBasemapTheme, withBuildings3d } from "./basemap-theme.js?v=0.52.0";
 import { compileWhere } from "./where.js?v=0.40.0-timeline";
-import { arcgisMetadata } from "../../source-inspector.js?v=0.70.1-colours";
+import { arcgisMetadata } from "../../source-inspector.js?v=0.71.0-subsurface";
 import { OpenGeocoder } from "./geocoder.js?v=0.47.0";
 import { chooseStyleField, compileRenderer, resolveRendererSpec, suggestRenderers, validateRendererSpec } from "../../renderer-spec.js?v=0.29.1";
 import { rendererToPaint } from "./arcgis-renderer.js?v=0.42.0";
-import { legendForLayer } from "./legend.js?v=0.52.4";
-import { inspectExternalTiles } from "./external-tiles.js?v=0.70.1-colours";
+import { legendForLayer } from "./legend.js?v=0.71.0-subsurface";
+import { inspectExternalTiles } from "./external-tiles.js?v=0.71.0-subsurface";
 import { hostCredit, joinCredits, legendSwatch, plainAttribution } from "../map-credits.js?v=0.1.0";
-import { CINEMATIC_EFFECT_TYPES, effectFields, effectRanges, resolveQuality, suggestEffect } from "../../cinematic/cinematic-effects.js?v=0.70.1-colours";
+import { CINEMATIC_EFFECT_TYPES, effectFields, effectRanges, resolveQuality, suggestEffect } from "../../cinematic/cinematic-effects.js?v=0.71.0-subsurface";
 
 // A layer effect draws over at most this many features; more would cost frame rate for no visible gain.
 const LAYER_EFFECT_MAX_FEATURES = 20000;
@@ -40,21 +40,25 @@ const LAYER_EFFECT_VIEW_FIRST = 800;
 const SETTLED_EDGES_PREFIX = "cinematic-edges:";
 // Native animated effects (Rise, Reveal) use this source/layer prefix.
 const NATIVE_EFFECT_PREFIX = "cinematic-native:";
-import { MAX_FEATURES, describeArcGIS, featureServiceLayers, fetchFeatures, fetchGeometries, queryServiceIds } from "./arcgis-service.js?v=0.47.0";
+import { MAX_FEATURES, describeArcGIS, featureServiceLayers, fetchFeatures, fetchGeometries, queryServiceIds, serviceLegend } from "./arcgis-service.js?v=0.78.1-progress";
 import { OBJECT_ID_FIELD, boundsIntersect, boundsOf, expandBounds, geometryTypeOf, inferFields, normalizeFeatures, regroupPolygon, representativePoint } from "./geojson.js?v=0.42.0";
 import { loadMaplibre } from "./maplibre-loader.js?v=0.62.5-amd-safe";
 import { HILLSHADE_LAYER_ID, HILLSHADE_SOURCE_ID, MAPLIBRE_GROUNDS, TERRAIN_SOURCE_ID, isTerrainTileFailure, hillshadeLayer, maplibreGround, terrainSource } from "./terrain.js?v=0.43.0";
-import { normalizeSpatialChart, spatialChartAxis, spatialChartLayerSpecs, spatialChartLegend } from "../../spatial-chart.js?v=0.70.1-colours";
+import { SPATIAL_CHART_DIM, normalizeSpatialChart, spatialChartAxis, spatialChartLayerSpecs, spatialChartLegend } from "../../spatial-chart.js?v=0.71.0-subsurface";
+import { terracedSurface } from "../../terraced-surface.js?v=0.72.0-terraces";
+import { loadTurf } from "../../spatial-analysis.js?v=0.69.0-extent";
 import { SCENE3D_TYPES, normalizeScene3d, scene3dTypeFor } from "../../scene3d.js?v=0.1.0";
-import { THREE_LAYER_ID, ThreeHost, loadThree } from "../three/three-host.js?v=0.1.4";
+import { THREE_LAYER_ID, ThreeHost, loadThree } from "../three/three-host.js?v=0.1.5";
+import { UNDERGROUND_DEFAULTS, normalizeSubsurface, normalizeUnderground, parseColor, rendererColorResolver, subsurfaceSummary } from "../../subsurface.js?v=0.71.0-subsurface";
 
-export const MAPLIBRE_CAPABILITIES = Object.freeze(["view-2d", "view-3d", "spatial-chart-3d", "three-3d", "basemaps", "basemap-themes", "ground", "layers-arcgis", "layers-files", "query", "feature-filter", "renderer-spec", "renderer-native", "identify", "highlight", "capture", "geocode", "buildings-3d", "draw", "measurement", "legend", "tour-markers", "native"]);
+export const MAPLIBRE_CAPABILITIES = Object.freeze(["view-2d", "view-3d", "spatial-chart-3d", "three-3d", "basemaps", "basemap-themes", "ground", "layers-arcgis", "layers-files", "query", "feature-filter", "renderer-spec", "renderer-native", "identify", "highlight", "capture", "geocode", "buildings-3d", "subsurface", "draw", "measurement", "legend", "tour-markers", "native"]);
 
 const ZOOM_OFFSET = 1;
 const SCALE_AT_ZOOM_0 = 591657527.591555;
 // GISMap Online green, until a skin's theme gives the data its accent colour.
 const DEFAULT_COLOR = "#1b7f6a";
 const MAX_PITCH = 85;
+const UNDERGROUND_VEIL = "gismap-underground-veil";
 const HIGHLIGHT_SOURCE = "gismap-highlight";
 const DRAW_SOURCE = "gismap-drawings";
 const MEASURE_SOURCE = "gismap-measurement";
@@ -81,6 +85,8 @@ const toGisZoom = (zoom) => Number(zoom) + ZOOM_OFFSET;
 const zoomForScale = (scale) => Math.log2(SCALE_AT_ZOOM_0 / Math.max(1, Number(scale)));
 const normalizeHeading = (bearing) => ((Number(bearing) % 360) + 360) % 360;
 const round = (value, digits) => Number(Number(value).toFixed(digits));
+// Two legend picks name the same row: a strata group by value, or a class by position.
+const sameLegendFocus = (a, b) => Boolean(a && b) && a.uid === b.uid && ("slot" in a ? "slot" in b && String(a.slot) === String(b.slot) : a.index === b.index);
 
 function titleFromUrl(url = "") {
   const name = String(url).split(/[?#]/)[0].replace(/\/+$/, "").split("/").at(-1) || "GeoJSON layer";
@@ -128,6 +134,7 @@ function layerHandle(record) {
     get rendererSpec() { return record.rendererSpec; },
     get renderer() { return record.renderer ?? record.serviceRenderer ?? null; },
     get spatialChart() { return record.spatialChart ?? null; },
+    get subsurface() { return record.subsurface ?? null; },
     get scene3d() { return record.scene3d ?? null; },
     get scene3dInfo() { return record.scene3dInfo ?? null; },
     get minScale() { return record.minScale || 0; },
@@ -159,6 +166,13 @@ export class MaplibreEngine {
   #styleJson = new Map();
   #styleToken = 0;
   #styleSwap = Promise.resolve();
+  #legendRowFocus = new WeakMap();
+  #legendKeydown = (event) => {
+    if (event.key === "Escape" && this.#clearLegendFocus()) event.stopPropagation();
+  };
+  #legendPointerLeave = () => {
+    if (this.legendFocus.hover) this.#setLegendFocus("hover", null);
+  };
 
   constructor(events) {
     this.id = "maplibre";
@@ -171,6 +185,8 @@ export class MaplibreEngine {
     this.initialBasemapId = null;
     this.basemapTheme = null;
     this.highlight = { enabled: true, color: "#00b8d9", style: "fill", feature: null };
+    // A legend row picked out on the map: `pinned` by a click, `hover` while pointed at or focused.
+    this.legendFocus = { pinned: null, hover: null };
     this.noteMarkers = [];
     this.tourMarkers = [];
     this.tourMarkerChapters = [];
@@ -181,6 +197,7 @@ export class MaplibreEngine {
     this.measurement = null;
     this.legendHost = null;
     this.groundId = "world-elevation";
+    this.underground = { ...UNDERGROUND_DEFAULTS };
   }
 
   /* ---------------- Lifecycle ---------------- */
@@ -319,7 +336,7 @@ export class MaplibreEngine {
     // A track switched from a native effect (Rise, Reveal, Strata) leaves no layers behind.
     this.#removeNativeEffect(id);
     this.three ??= new ThreeHost({ map: this.map, THREE, notify: (message) => this.events.publish("app:error", { message }) });
-    const [{ buildCinematicEffect }, { effectColor }] = await Promise.all([import("../../cinematic/effects-three.js?v=0.70.1-colours"), import("../../cinematic/cinematic-effects.js?v=0.70.1-colours")]);
+    const [{ buildCinematicEffect }, { effectColor }] = await Promise.all([import("../../cinematic/effects-three.js?v=0.71.0-subsurface"), import("../../cinematic/cinematic-effects.js?v=0.71.0-subsurface")]);
     if (!this.#cinematicEffectIsCurrent(id, revision)) return false;
     // Decoration is simplified to half a screen pixel at the current zoom; the map draws the exact outline.
     const simplify = Number.isFinite(effect.simplify) ? effect.simplify : 0.5 * 360 / (512 * 2 ** (this.map?.getZoom?.() ?? 0));
@@ -372,7 +389,7 @@ export class MaplibreEngine {
    */
   async #drawNativeEffect(id, name, effect, revision) {
     const [{ effectColor, nativeEffectData, valueField, riseAmount, revealAmount }, { effectSeconds, effectClockRunning }, { trackTime, normalizeTiming }] = await Promise.all([
-      import("../../cinematic/cinematic-effects.js?v=0.70.1-colours"), import("../../cinematic/effects-three.js?v=0.70.1-colours"), import("../../cinematic/clock.js?v=0.1.0"),
+      import("../../cinematic/cinematic-effects.js?v=0.71.0-subsurface"), import("../../cinematic/effects-three.js?v=0.71.0-subsurface"), import("../../cinematic/clock.js?v=0.1.0"),
     ]);
     if (!this.#cinematicEffectIsCurrent(id, revision)) return false;
     this.#effectClockRunning = effectClockRunning;
@@ -433,7 +450,7 @@ export class MaplibreEngine {
    */
   async #drawStrataEffect(id, effect, revision) {
     const [{ effectColor, strataData, strataLanding }, { effectSeconds, effectClockRunning }] = await Promise.all([
-      import("../../cinematic/cinematic-effects.js?v=0.70.1-colours"), import("../../cinematic/effects-three.js?v=0.70.1-colours"),
+      import("../../cinematic/cinematic-effects.js?v=0.71.0-subsurface"), import("../../cinematic/effects-three.js?v=0.71.0-subsurface"),
     ]);
     if (!this.#cinematicEffectIsCurrent(id, revision) || !this.map) return false;
     this.#effectClockRunning = effectClockRunning;
@@ -519,7 +536,7 @@ export class MaplibreEngine {
    * and far cheaper than shader ribbons for thousands of outlines.
    */
   async #drawSettledEdges(id, name, effect, revision) {
-    const { effectColor, effectParts } = await import("../../cinematic/cinematic-effects.js?v=0.70.1-colours");
+    const { effectColor, effectParts } = await import("../../cinematic/cinematic-effects.js?v=0.71.0-subsurface");
     if (!this.#cinematicEffectIsCurrent(id, revision)) return false;
     this.three?.remove(id);
     const simplify = Number.isFinite(effect.simplify) ? effect.simplify : 0.5 * 360 / (512 * 2 ** (this.map?.getZoom?.() ?? 0));
@@ -657,6 +674,7 @@ export class MaplibreEngine {
       if (this.map.getLayer?.(HILLSHADE_LAYER_ID)) this.map.removeLayer(HILLSHADE_LAYER_ID);
       if (this.map.getSource?.(HILLSHADE_SOURCE_ID)) this.map.removeSource(HILLSHADE_SOURCE_ID);
       if (this.map.getSource?.(TERRAIN_SOURCE_ID)) this.map.removeSource(TERRAIN_SOURCE_ID);
+      this.#rebuildSubsurfaces();
       return;
     }
     if (!this.map.getSource?.(TERRAIN_SOURCE_ID)) this.map.addSource(TERRAIN_SOURCE_ID, terrainSource());
@@ -668,6 +686,7 @@ export class MaplibreEngine {
     }
     this.map.setTerrain?.({ source: TERRAIN_SOURCE_ID, exaggeration: option.exaggeration });
     this.map.setSky?.({});
+    this.#rebuildSubsurfaces();
   }
 
   /** The basemaps this engine draws, and the one it is drawing now (an ArcGIS id from a link shows as its open equivalent). */
@@ -701,7 +720,8 @@ export class MaplibreEngine {
   /** Shows or hides the basemap's 3D buildings (on unless turned off). */
   setBuildings3d(on = true) {
     this.buildings3d = on !== false;
-    if (this.map?.getLayer?.("building-3d")) this.map.setLayoutProperty("building-3d", "visibility", this.buildings3d ? "visible" : "none");
+    // The underground view hides buildings: they would stand over what is under them.
+    if (this.map?.getLayer?.("building-3d")) this.map.setLayoutProperty("building-3d", "visibility", this.buildings3d && !this.underground.enabled ? "visible" : "none");
   }
 
   setBasemapTheme(theme) {
@@ -756,7 +776,7 @@ export class MaplibreEngine {
     // A style still loading cannot be diffed (MapLibre would rebuild from scratch); wait for it.
     if (this.map && !this.map.isStyleLoaded()) await new Promise((resolve) => { this.map.once("style.load", resolve); setTimeout(resolve, 10000); });
     if (token !== this.#styleToken || !this.map) return;
-    this.map.once?.("style.load", () => { if (token === this.#styleToken) { void this.#applyGround({ styleReady: true }); this.three?.attach(); } });
+    this.map.once?.("style.load", () => { if (token === this.#styleToken) { void this.#applyGround({ styleReady: true }); this.three?.attach(); this.#applyUnderground(); } });
     this.map.setStyle(style, {
       diff: true,
       transformStyle: (previous, incoming) => {
@@ -771,7 +791,7 @@ export class MaplibreEngine {
         return {
           ...incoming,
           ...(terrain ? { terrain } : {}),
-          sources: { ...incoming.sources, ...(terrain ? { [terrain.source]: previous.sources[terrain.source] } : {}), [HIGHLIGHT_SOURCE]: this.#highlightSource(), [DRAW_SOURCE]: this.#drawingSource(), ...(this.measurement ? { [MEASURE_SOURCE]: this.#measureSource() } : {}), ...Object.fromEntries([...this.#records.values()].filter((record) => record.kind !== "three").map((record) => [this.#sourceId(record), this.#sourceSpec(record)])), ...Object.fromEntries(effectSources) },
+          sources: { ...incoming.sources, ...(terrain ? { [terrain.source]: previous.sources[terrain.source] } : {}), [HIGHLIGHT_SOURCE]: this.#highlightSource(), [DRAW_SOURCE]: this.#drawingSource(), ...(this.measurement ? { [MEASURE_SOURCE]: this.#measureSource() } : {}), ...Object.fromEntries([...this.#records.values()].filter((record) => record.kind !== "three").map((record) => [this.#sourceId(record), this.#sourceSpec(record)])), ...Object.fromEntries([...this.#records.values()].filter((record) => record.terraces).map((record) => [this.#terraceSourceId(record), { type: "geojson", data: record.terraces }])), ...Object.fromEntries(effectSources) },
           layers: [...incoming.layers, ...[...this.#records.values()].filter((record) => record.kind !== "three").flatMap((record) => this.#layerSpecs(record)), ...effectLayers, ...this.#drawingSpecs(), ...(this.measurement ? this.#measureSpecs() : []), ...this.#highlightSpecs()],
         };
       },
@@ -846,7 +866,8 @@ export class MaplibreEngine {
   #layerSpecs(record) {
     const source = this.#sourceId(record);
     const visibility = record.visible ? "visible" : "none";
-    const opacity = record.opacity;
+    // In the underground view a below-ground layer's flat drawing stays as a faint trace on the surface.
+    const opacity = record.opacity * (record.subsurface && this.underground.enabled ? 0.3 : 1);
     const range = this.#zoomRange(record);
     if (record.kind === "raster") {
       return [{ id: `${source}-raster`, type: "raster", source, ...range, layout: { visibility }, paint: { "raster-opacity": opacity * (1 - (record.transparency || 0) / 100) } }];
@@ -861,10 +882,13 @@ export class MaplibreEngine {
       const base = ["match", ["geometry-type"], types, true, false];
       return featureFilter ? ["all", base, featureFilter] : base;
     };
+    // A class picked out from the legend: the layer's other features dim.
+    const focus = this.#legendFocusFor(record);
+    const dim = (paint, keys) => focus?.match ? Object.fromEntries(Object.entries(paint).map(([key, value]) => [key, keys.includes(key) ? ["*", value, ["case", focus.match, 1, SPATIAL_CHART_DIM]] : value])) : paint;
     const fill = scaled({ "fill-color": color, "fill-opacity": styled.fill ? 1 : 0.35, ...styled.fill }, ["fill-opacity"]);
-    const outline = scaled({ "line-color": color, "line-width": 1.5, "line-opacity": 1, ...styled.outline }, ["line-opacity"]);
-    const line = scaled({ "line-color": color, "line-width": 2.5, "line-opacity": 1, ...styled.line }, ["line-opacity"]);
-    const circle = scaled({ "circle-color": color, "circle-radius": 4.5, "circle-stroke-color": halo, "circle-stroke-width": 1.5, "circle-opacity": 1, "circle-stroke-opacity": 1, ...styled.circle }, ["circle-opacity", "circle-stroke-opacity"]);
+    const outline = dim(scaled({ "line-color": color, "line-width": 1.5, "line-opacity": 1, ...styled.outline }, ["line-opacity"]), ["line-opacity"]);
+    const line = dim(scaled({ "line-color": color, "line-width": 2.5, "line-opacity": 1, ...styled.line }, ["line-opacity"]), ["line-opacity"]);
+    const circle = dim(scaled({ "circle-color": color, "circle-radius": 4.5, "circle-stroke-color": halo, "circle-stroke-width": 1.5, "circle-opacity": 1, "circle-stroke-opacity": 1, ...styled.circle }, ["circle-opacity", "circle-stroke-opacity"]), ["circle-opacity", "circle-stroke-opacity"]);
     const symbol = record.renderer?.symbol || record.renderer?.classBreakInfos?.[0]?.symbol || record.renderer?.uniqueValueInfos?.[0]?.symbol;
     const extrusion = symbol?.symbolLayers?.find((item) => String(item.type).toLowerCase() === "extrude");
     const variable = record.renderer?.visualVariables?.find((item) => /^(size|sizeinfo)$/i.test(item.type));
@@ -879,13 +903,13 @@ export class MaplibreEngine {
     const fillVisibility = extrusion || chart || stacked ? "none" : visibility;
     const outlineVisibility = (chart || stacked) && !chart?.groundOutlines ? "none" : visibility;
     const specs = [
-      { id: `${source}-fill`, type: "fill", source, ...range, filter: filtered(["Polygon", "MultiPolygon"]), layout: { visibility: fillVisibility }, paint: fill },
+      { id: `${source}-fill`, type: "fill", source, ...range, filter: filtered(["Polygon", "MultiPolygon"]), layout: { visibility: fillVisibility }, paint: dim(fill, ["fill-opacity"]) },
       { id: `${source}-extrusion`, type: "fill-extrusion", source, ...range, filter: filtered(["Polygon", "MultiPolygon"]), layout: { visibility: extrusion && !chart && !stacked ? visibility : "none" }, paint: { "fill-extrusion-color": fill["fill-color"], "fill-extrusion-height": height, "fill-extrusion-base": 0, "fill-extrusion-opacity": opacity } },
       { id: `${source}-outline`, type: "line", source, ...range, filter: filtered(["Polygon", "MultiPolygon"]), layout: { visibility: outlineVisibility }, paint: outline },
       { id: `${source}-line`, type: "line", source, ...range, filter: filtered(["LineString", "MultiLineString"]), layout: { visibility, "line-cap": "round", "line-join": "round" }, paint: line },
       { id: `${source}-circle`, type: "circle", source, ...range, filter: filtered(["Point", "MultiPoint"]), layout: { visibility }, paint: circle },
     ];
-    if (chart) specs.push(...spatialChartLayerSpecs({ chart, idPrefix: source, source, range, visibility: stacked ? "none" : visibility, opacity, polygonFilter: ["match", ["geometry-type"], ["Polygon", "MultiPolygon"], true, false], featureFilter, originalColor: fill["fill-color"] }));
+    if (chart) specs.push(...spatialChartLayerSpecs({ chart, idPrefix: source, source, surfaceSource: record.terraces ? this.#terraceSourceId(record) : null, range, visibility: stacked ? "none" : visibility, opacity, polygonFilter: ["match", ["geometry-type"], ["Polygon", "MultiPolygon"], true, false], featureFilter, originalColor: fill["fill-color"], focus: focus?.slot }));
     return specs;
   }
 
@@ -917,6 +941,7 @@ export class MaplibreEngine {
 
   #rebuildRecordLayers(record) {
     for (const id of this.#layerIds(record)) if (this.map?.getLayer(id)) this.map.removeLayer(id);
+    if (record.spatialChart?.mode !== "terraced-surface") this.#removeTerraces(record);
     const specs = this.#layerSpecs(record);
     for (const spec of specs) this.map.addLayer(spec);
     record.renderLayerIds = specs.map((spec) => spec.id);
@@ -924,6 +949,7 @@ export class MaplibreEngine {
 
   /** Redraws a layer after its data, filter, range or style changed. */
   #refresh(record, { data = false } = {}) {
+    if (record.subsurface) record.subsurfaceSync = this.#syncSubsurface(record, { rebuild: data });
     if (record.kind === "three") {
       this.three?.set(record.uid, { visible: record.visible, opacity: record.opacity });
       this.#renderLegend();
@@ -931,6 +957,7 @@ export class MaplibreEngine {
     }
     if (!this.map?.getSource(this.#sourceId(record))) return;
     if (data && record.kind === "vector") this.map.getSource(this.#sourceId(record)).setData(this.#sourceSpec(record).data);
+    if (data && record.spatialChart?.mode === "terraced-surface") void this.#buildTerraces(record).catch((error) => this.events.publish("app:error", { message: `${record.title}: the terraced surface could not be drawn (${error.message}).` }));
     for (const spec of this.#layerSpecs(record)) {
       if (!this.map.getLayer(spec.id)) continue;
       if (spec.filter) this.map.setFilter(spec.id, spec.filter);
@@ -1053,6 +1080,7 @@ export class MaplibreEngine {
       where: null,
       featureFilter: null,
       spatialChart: null,
+      subsurface: null,
       renderLayerIds: [],
       rendererSpec: null,
       renderer: null,
@@ -1135,7 +1163,15 @@ export class MaplibreEngine {
     const title = config.title?.trim() || service.title || titleFromUrl(url);
     const common = { ...this.#common(config), title, url: service.url, sourceJSON: service.json, attribution: service.json?.copyrightText || undefined, config: { sourceType: type, url } };
     if (service.kind !== "feature") {
-      return this.#addRecord({ ...common, kind: "raster", type: service.kind, layerId: service.layers?.[0] ?? null, tiles: service.tiles, transparency: service.json?.drawingInfo?.transparency || 0, minScale: service.json?.minScale || 0, maxScale: service.json?.maxScale || 0 });
+      const handle = this.#addRecord({ ...common, kind: "raster", type: service.kind, layerId: service.layers?.[0] ?? null, tiles: service.tiles, transparency: service.json?.drawingInfo?.transparency || 0, minScale: service.json?.minScale || 0, maxScale: service.json?.maxScale || 0 });
+      // The legend arrives after the layer; a service without one keeps the "unavailable" note.
+      void serviceLegend(service.url, { layerIds: service.layers }).then((legend) => {
+        const record = this.#records.get(handle.uid);
+        if (!record || !legend.length) return;
+        record.serviceLegend = legend;
+        this.#renderLegend();
+      }).catch(() => {});
+      return handle;
     }
     const where = config.definitionExpression ?? service.where ?? null;
     // The layer is on the map at once and fills in page by page; queries wait for all of it.
@@ -1160,7 +1196,12 @@ export class MaplibreEngine {
     let done = false;
     // Coarse sketches show first and are replaced, feature by feature, as the overview pages arrive.
     const byId = new Map();
-    const redraw = () => { drawn = Date.now(); record.features = [...byId.values()]; this.#refresh(record, { data: true }); };
+    // How far the full-detail pages have got, for loading indicators: `features` is what has arrived so far.
+    let received = 0;
+    let expected = null;
+    let told = 0;
+    const progress = () => this.events.publish("layer:progress", { uid: record.uid, loaded: done ? record.features.length : received, total: done ? record.features.length : expected, done, features: record.features });
+    const redraw = () => { drawn = Date.now(); record.features = [...byId.values()]; this.#refresh(record, { data: true }); progress(); };
     const take = (features, sketch) => {
       if (done || !this.#records.has(record.uid)) return;
       for (const feature of features) if (!sketch || !byId.has(feature.id)) byId.set(feature.id, feature);
@@ -1169,6 +1210,9 @@ export class MaplibreEngine {
     record.loaded = this.#loadFeatures(service, where, {
       onPage: (features) => take(features, false),
       onSketch: (features) => take(features, true),
+      onTotal: (count) => { expected = count; },
+      // Counted as each page arrives, ahead of the ordered pages that redraw the layer.
+      onFetched: (count) => { received += count; if (Date.now() - told > 400) { told = Date.now(); progress(); } },
     }).then((loaded) => {
       done = true;
       Object.assign(record, { features: loaded.features, truncated: loaded.truncated, serverWhere: loaded.serverWhere });
@@ -1235,12 +1279,14 @@ export class MaplibreEngine {
    * whole and filtered here; bigger ones are fetched already filtered, and
    * fetched again when the filter changes.
    */
-  async #loadFeatures(service, where, { onPage = () => {}, onSketch = null } = {}) {
+  async #loadFeatures(service, where, { onPage = () => {}, onSketch = null, onTotal = () => {}, onFetched = () => {} } = {}) {
+    const count = async (filter) => (await (await fetch(`${service.url}/query?where=${encodeURIComponent(filter)}&returnCountOnly=true&f=json`)).json()).count ?? Infinity;
     let total = Infinity;
-    try {
-      total = (await (await fetch(`${service.url}/query?where=1%3D1&returnCountOnly=true&f=json`)).json()).count ?? Infinity;
-    } catch { /* Count unknown: fetch filtered. */ }
+    try { total = await count("1=1"); } catch { /* Count unknown: fetch filtered. */ }
     const serverWhere = total > MAX_FEATURES ? where || null : null;
+    // What this layer will fetch, at most MAX_FEATURES; only a progress figure, so a failed count is left unknown.
+    const expected = serverWhere ? await count(serverWhere).catch(() => Infinity) : total;
+    if (Number.isFinite(expected)) onTotal(Math.min(expected, MAX_FEATURES));
     const prepare = (features) => normalizeFeatures({ type: "FeatureCollection", features: features.map((feature) => (feature.geometry?.type === "Polygon" ? { ...feature, geometry: regroupPolygon(feature.geometry) } : feature)) }, { objectIdField: service.objectIdField });
     // Lines and polygons arrive generalized for the overview (a fraction of the size); zooming in sharpens them.
     const simplify = /polygon|polyline/.test(service.geometryType || "") ? { maxAllowableOffset: MaplibreEngine.OVERVIEW_DETAIL, geometryPrecision: 5 } : null;
@@ -1249,7 +1295,7 @@ export class MaplibreEngine {
       const outFields = [...new Set([service.objectIdField, ...rendererFields(service.renderer)].filter(Boolean))].join(",");
       void fetchFeatures(service, { where: serverWhere, simplify: { maxAllowableOffset: MaplibreEngine.SKETCH_DETAIL, geometryPrecision: 3 }, outFields, concurrency: 10, onPage: (batch) => onSketch(prepare(batch)) }).catch(() => {});
     }
-    const { features, truncated } = await fetchFeatures(service, { where: serverWhere, simplify, concurrency: 10, onPage: (batch) => onPage(prepare(batch)) });
+    const { features, truncated } = await fetchFeatures(service, { where: serverWhere, simplify, concurrency: 10, onFetched, onPage: (batch) => onPage(prepare(batch)) });
     return { features: prepare(features), truncated, serverWhere: total > MAX_FEATURES };
   }
 
@@ -1388,7 +1434,9 @@ export class MaplibreEngine {
     if (record.kind === "three") this.three?.remove(record.uid);
     clearTimeout(record.effectTimer);
     this.three?.remove(this.#layerEffectId(record));
+    this.three?.remove(this.#subsurfaceId(record));
     for (const id of this.#layerIds(record)) if (this.map?.getLayer(id)) this.map.removeLayer(id);
+    this.#removeTerraces(record);
     if (this.map?.getSource(this.#sourceId(record))) this.map.removeSource(this.#sourceId(record));
     this.#records.delete(record.uid);
     this.#renderLegend();
@@ -1400,7 +1448,9 @@ export class MaplibreEngine {
       if (record.kind === "three") this.three?.remove(record.uid);
       clearTimeout(record.effectTimer);
       this.three?.remove(this.#layerEffectId(record));
+      this.three?.remove(this.#subsurfaceId(record));
       for (const id of this.#layerIds(record)) if (this.map?.getLayer(id)) this.map.removeLayer(id);
+      this.#removeTerraces(record);
       if (this.map?.getSource(this.#sourceId(record))) this.map.removeSource(this.#sourceId(record));
     }
     this.#records.clear();
@@ -1470,6 +1520,7 @@ export class MaplibreEngine {
       styled: Boolean(record.renderer),
       rendererSpec: record.rendererSpec,
       spatialChart: record.spatialChart ? structuredClone(record.spatialChart) : null,
+      subsurface: record.subsurface ? structuredClone(record.subsurface) : null,
       animatedEffect: record.animatedEffect ? { ...record.animatedEffect } : null,
       scene3d: record.scene3d ? structuredClone(record.scene3d) : null,
       ignoreServiceScaleRange: record.ignoreScaleRange,
@@ -1674,16 +1725,164 @@ export class MaplibreEngine {
     this.events.publish("layer:changed", { uid: record.uid });
   }
 
+  /**
+   * A temporary overlay while a map link loads, such as hexagons binned from the pages
+   * received so far (load-progress.js). `collection` features carry `v`, 0 to 1, which sets
+   * the colour and, with `extrude`, the height up to `height` metres; null removes it.
+   */
+  setAnalysisPreview(collection, { extrude = false, height = 1000 } = {}) {
+    const id = "gismap-analysis-preview";
+    if (!this.map?.getStyle?.()) return;
+    if (!collection) {
+      if (this.map.getLayer(id)) this.map.removeLayer(id);
+      if (this.map.getSource(id)) this.map.removeSource(id);
+      return;
+    }
+    const source = this.map.getSource(id);
+    if (source) { source.setData(collection); return; }
+    this.map.addSource(id, { type: "geojson", data: collection });
+    const color = ["interpolate", ["linear"], ["get", "v"], 0, "#fde725", 0.35, "#4ac16d", 0.65, "#277f8e", 1, "#46327e"];
+    this.map.addLayer(extrude
+      ? { id, type: "fill-extrusion", source: id, paint: { "fill-extrusion-color": color, "fill-extrusion-height": ["*", ["get", "v"], height], "fill-extrusion-opacity": 0.55 } }
+      : { id, type: "fill", source: id, paint: { "fill-color": color, "fill-opacity": 0.55 } });
+  }
+
   /** Apply a portable 3D spatial chart using derived MapLibre layers. */
   async setSpatialChart(uid, input = null) {
     const record = this.#requireVector(uid);
     const groupBy = String(input?.groupBy || "");
     const groupValues = groupBy ? this.#visibleFeatures(record).map((feature) => feature.properties?.[groupBy]) : [];
     record.spatialChart = normalizeSpatialChart(input, { fields: this.#styleFields(record), geometryType: record.geometryType, groupValues });
+    if (record.spatialChart?.mode === "terraced-surface") await this.#buildTerraces(record, { rebuild: false });
     this.#rebuildRecordLayers(record);
     this.#renderLegend();
     this.events.publish("layer:changed", { uid: record.uid });
     return record.spatialChart ? structuredClone(record.spatialChart) : null;
+  }
+
+  #terraceSourceId(record) { return `${this.#sourceId(record)}-terraces`; }
+
+  /**
+   * Builds a terraced-surface chart's terraces (js/terraced-surface.js) into their own
+   * GeoJSON source. Breaks picked here are kept on the chart, so a saved map redraws
+   * the same terraces.
+   */
+  async #buildTerraces(record, { rebuild = true } = {}) {
+    const chart = record.spatialChart;
+    const turf = await loadTurf(globalThis.document);
+    if (record.spatialChart !== chart) return;
+    const { collection, breaks } = terracedSurface(turf, this.#visibleFeatures(record), { field: chart.height.field, weightField: chart.surface.weightField, breaks: chart.groups, classes: chart.surface.classes, bandwidthKm: chart.surface.bandwidthKm, cellKm: chart.surface.cellKm, smoothing: chart.surface.smoothing });
+    chart.groups = breaks;
+    record.terraces = collection;
+    const id = this.#terraceSourceId(record);
+    if (this.map.getSource(id)) this.map.getSource(id).setData(collection);
+    else this.map.addSource(id, { type: "geojson", data: collection });
+    if (rebuild) this.#rebuildRecordLayers(record);
+  }
+
+  #removeTerraces(record) {
+    record.terraces = null;
+    const id = this.#terraceSourceId(record);
+    if (!this.map?.getSource?.(id)) return;
+    for (const layer of this.map.getStyle?.()?.layers || []) if (layer.source === id) this.map.removeLayer(layer.id);
+    this.map.removeSource(id);
+  }
+
+  /* ---------------- Below ground ---------------- */
+
+  /**
+   * Draw a layer's features below the local ground (js/subsurface.js): lines as
+   * pipes or tunnels, points as wells or shafts, polygons as units of rock. They
+   * show in the underground view; null returns the layer to the surface.
+   */
+  async setSubsurface(uid, input = null) {
+    const record = this.#requireVector(uid);
+    record.subsurface = normalizeSubsurface(input, { fields: this.#styleFields(record), geometryType: record.geometryType });
+    if (!record.subsurface) this.three?.remove(this.#subsurfaceId(record));
+    else await this.#syncSubsurface(record, { rebuild: true });
+    this.#refresh(record);
+    this.events.publish("layer:changed", { uid: record.uid });
+    return record.subsurface ? structuredClone(record.subsurface) : null;
+  }
+
+  /** The underground view: { enabled, groundOpacity }. On, the ground fades and below-ground layers show under it. */
+  async setUndergroundView(input) {
+    this.underground = normalizeUnderground(input);
+    this.#applyUnderground();
+    const below = [...this.#records.values()].filter((record) => record.subsurface);
+    for (const record of below) this.#refresh(record);
+    await Promise.all(below.map((record) => record.subsurfaceSync));
+    this.events.publish("map:underground-changed", { ...this.underground });
+    return { ...this.underground };
+  }
+
+  getUndergroundView() {
+    return { ...this.underground };
+  }
+
+  #subsurfaceId(record) { return `${record.uid}::subsurface`; }
+
+  /** The veil over the basemap and the 3D buildings, as the underground view wants them. */
+  #applyUnderground() {
+    if (!this.map) return;
+    try {
+      this.#placeVeil();
+    } catch {
+      // A basemap still loading takes no layers yet; the veil goes on when it has loaded.
+      this.map.once("style.load", () => this.#applyUnderground());
+      return;
+    }
+    this.setBuildings3d(this.buildings3d !== false);
+    this.map.triggerRepaint?.();
+  }
+
+  #placeVeil() {
+    const veil = UNDERGROUND_VEIL;
+    const on = this.underground.enabled;
+    if (this.map.getLayer?.(veil)) this.map.removeLayer(veil);
+    if (on) {
+      if (!this.map.getSource?.(veil)) this.map.addSource(veil, { type: "geojson", data: { type: "Feature", properties: {}, geometry: { type: "Polygon", coordinates: [[[-180, -85.06], [180, -85.06], [180, 85.06], [-180, 85.06], [-180, -85.06]]] } } });
+      // Over the basemap but under its labels and every data layer.
+      const layers = this.map.getStyle?.()?.layers || [];
+      const dataLayers = new Set([...this.#records.values()].flatMap((record) => this.#layerIds(record)));
+      const before = layers.find((layer) => layer.type === "symbol" || dataLayers.has(layer.id))?.id;
+      this.map.addLayer({ id: veil, type: "fill", source: veil, paint: { "fill-color": "#241c15", "fill-opacity": 1 - this.underground.groundOpacity, "fill-antialias": false } }, before);
+    } else if (this.map.getSource?.(veil)) this.map.removeSource(veil);
+  }
+
+  #rebuildSubsurfaces() {
+    for (const record of this.#records.values()) if (record.subsurface) void this.#syncSubsurface(record, { rebuild: true });
+  }
+
+  /** Builds (or just shows, hides and fades) a layer's below-ground drawing. Only built in the underground view. */
+  async #syncSubsurface(record, { rebuild = false } = {}) {
+    const id = this.#subsurfaceId(record);
+    const shown = Boolean(record.subsurface) && this.underground.enabled;
+    if (!rebuild || !shown) {
+      this.three?.set(id, { visible: shown && record.visible, opacity: record.opacity });
+      if (!shown || this.three?.has?.(id)) return;
+    }
+    const revision = (record.subsurfaceRevision || 0) + 1;
+    record.subsurfaceRevision = revision;
+    const THREE = await loadThree();
+    if (record.subsurfaceRevision !== revision || !this.#records.has(record.uid) || !record.subsurface) return;
+    this.three ??= new ThreeHost({ map: this.map, THREE, notify: (message) => this.events.publish("app:error", { message }) });
+    const { buildSubsurfaceItem } = await import("../three/subsurface.js?v=0.71.0-subsurface");
+    if (record.subsurfaceRevision !== revision || !record.subsurface) return;
+    const renderer = record.renderer ?? record.serviceRenderer;
+    const color = record.subsurface.color ? parseColor(record.subsurface.color) : null;
+    const colorOf = color ? () => color : rendererColorResolver(renderer, this.#dataColor());
+    const terrain = Boolean(this.map?.getTerrain?.());
+    const elevationAt = (lon, lat) => (terrain ? this.map.queryTerrainElevation?.([lon, lat]) ?? null : 0);
+    const built = buildSubsurfaceItem(THREE, this.#visibleFeatures(record), record.subsurface, { elevationAt, colorOf });
+    if (!built) { this.three.remove(id); return; }
+    record.subsurfaceInfo = built.info;
+    this.three.add(id, built.item);
+    this.three.set(id, { visible: record.visible, opacity: record.opacity });
+    // Terrain tiles still loading leave the relief flat; draw again once they arrive (a few tries).
+    if (built.info.terrainPending && terrain && (record.subsurfaceRetries = (record.subsurfaceRetries || 0) + 1) <= 4) {
+      this.map.once("idle", () => { if (record.subsurfaceRevision === revision) void this.#syncSubsurface(record, { rebuild: true }); });
+    } else if (!built.info.terrainPending) record.subsurfaceRetries = 0;
   }
 
   /** Ranked style options for one field, from the values matching the layer's filter (renderer-spec.js). */
@@ -1768,6 +1967,9 @@ export class MaplibreEngine {
     await record.loaded;
     const boxOnly = params.geometry === "view" || Number.isFinite(params.geometry?.xmin);
     const relation = params.spatialRelationship || "intersects";
+    const plainBox = boxOnly && ["intersects", "envelope-intersects", "index-intersects"].includes(relation) && !params.distance;
+    // This browser holds only part of a big service layer, so a box beyond that part is asked of the service.
+    if (plainBox && record.truncated && record.service) return this.#serviceFeaturesInBox(record, params, layerDefaults);
     if (!params.geometry || (boxOnly && ["intersects", "envelope-intersects", "index-intersects"].includes(relation) && !params.distance) || !record.service) {
       return this.#matching(record, params, layerDefaults);
     }
@@ -1778,9 +1980,34 @@ export class MaplibreEngine {
     return this.#matching(record, rest, layerDefaults).filter((feature) => ids.has(feature.id));
   }
 
+  /**
+   * A big service layer's features in a box, fetched from the service (at most
+   * MAX_FEATURES). The last box is kept, so paging through it fetches once.
+   */
+  async #serviceFeaturesInBox(record, params, layerDefaults) {
+    const box = params.geometry === "view" ? this.getViewExtent() : params.geometry;
+    const where = [layerDefaults ? record.where : null, params.where].filter(Boolean).map((part) => `(${part})`).join(" AND ") || null;
+    const key = JSON.stringify([where, box.xmin, box.ymin, box.xmax, box.ymax]);
+    if (record.boxQuery?.key !== key) {
+      const envelope = { xmin: box.xmin, ymin: box.ymin, xmax: box.xmax, ymax: box.ymax, spatialReference: box.spatialReference || { wkid: 4326 } };
+      const query = { geometry: JSON.stringify(envelope), geometryType: "esriGeometryEnvelope", inSR: String(envelope.spatialReference.wkid || 4326), spatialRel: "esriSpatialRelIntersects" };
+      const promise = fetchFeatures(record.service, { where, query, concurrency: 6 }).then(({ features, truncated }) => ({
+        truncated,
+        features: normalizeFeatures({ type: "FeatureCollection", features: features.map((feature) => (feature.geometry?.type === "Polygon" ? { ...feature, geometry: regroupPolygon(feature.geometry) } : feature)) }, { objectIdField: record.service.objectIdField }),
+      }));
+      record.boxQuery = { key, promise };
+      promise.catch(() => { if (record.boxQuery?.promise === promise) record.boxQuery = null; });
+    }
+    const { features, truncated } = await record.boxQuery.promise;
+    const ids = Array.isArray(params.objectIds) ? new Set(params.objectIds.map(Number)) : null;
+    // `partial`: the service had more in the box than were fetched.
+    return Object.assign(ids ? features.filter((feature) => ids.has(feature.id)) : [...features], { partial: truncated });
+  }
+
   async queryFeatures(uid, params = {}, { layerDefaults = true } = {}) {
     const record = this.#require(uid);
     let features = await this.#select(record, params, layerDefaults);
+    const partial = Boolean(features.partial);
     const fields = Array.isArray(params.outFields) && !params.outFields.includes("*") ? params.outFields : null;
     const pick = (properties) => (fields ? Object.fromEntries(fields.map((name) => [name, properties[name] ?? null])) : { ...properties });
     if (Array.isArray(params.orderByFields) && params.orderByFields.length) {
@@ -1810,7 +2037,7 @@ export class MaplibreEngine {
     const page = features.slice(start, end);
     return {
       features: page.map((feature) => ({ attributes: pick(feature.properties), geometry: params.returnGeometry === false ? null : feature.geometry })),
-      exceededTransferLimit: end < features.length,
+      exceededTransferLimit: end < features.length || partial,
     };
   }
 
@@ -2028,6 +2255,13 @@ export class MaplibreEngine {
         continue;
       }
       let legend = legendForLayer(record, this.#dataColor());
+      const below = subsurfaceSummary(record.subsurface);
+      if (below) {
+        const note = document.createElement("p");
+        note.className = "maplibre-legend__note";
+        note.textContent = this.underground.enabled ? below : `${below} Turn on Underground view (Map menu) to see it.`;
+        section.append(note);
+      }
       const axis = spatialChartAxis(record.spatialChart);
       if (axis) {
         const field = document.createElement("p");
@@ -2041,7 +2275,7 @@ export class MaplibreEngine {
         const chart = record.spatialChart;
         const key = spatialChartLegend(chart, chart.height.field ? this.#visibleFeatures(record).map((feature) => feature.properties?.[chart.height.field]) : []);
         const heading = (text) => { const element = document.createElement("p"); element.className = "maplibre-legend__field"; element.textContent = text; section.append(element); };
-        const row = (swatch, text) => { const entry = document.createElement("div"); entry.className = "maplibre-legend__entry"; const label = document.createElement("span"); label.textContent = text; entry.append(swatch, label); section.append(entry); };
+        const row = (swatch, text, focus = null) => section.append(this.#legendRow(focus, swatch, text));
         if (key.heights.length) {
           heading(chart.mode === "attribute-extrusion" ? "Height key" : "Slab thickness");
           for (const item of key.heights) {
@@ -2053,14 +2287,14 @@ export class MaplibreEngine {
           }
         }
         if (key.slots.length) {
-          heading(`Stacked by ${chart.groupBy}, top slot first`);
+          heading(chart.mode === "terraced-surface" ? `${chart.height.field}, highest terrace first` : `Stacked by ${chart.groupBy}, top slot first`);
           for (const slot of key.slots) {
             const swatch = document.createElement("span");
             swatch.className = "maplibre-legend__swatch maplibre-legend__swatch--polygon";
             swatch.setAttribute("aria-hidden", "true");
             swatch.style.backgroundColor = slot.color || "transparent";
             if (!slot.color) swatch.style.borderStyle = "dashed";
-            row(swatch, slot.label);
+            row(swatch, slot.label, record.kind === "vector" ? { uid: record.uid, slot: slot.value } : null);
           }
         }
         // Strata drawn in their own colours: the base style's classes are not on the map.
@@ -2082,9 +2316,7 @@ export class MaplibreEngine {
       const single = legend.entries.length === 1 && !legend.entries[0].label.trim();
       const list = document.createElement("div");
       list.className = "maplibre-legend__entries";
-      for (const entry of legend.entries) {
-        const row = document.createElement("div");
-        row.className = "maplibre-legend__entry";
+      for (const [index, entry] of legend.entries.entries()) {
         const swatch = document.createElement("span");
         swatch.className = `maplibre-legend__swatch maplibre-legend__swatch--${entry.geometry}`;
         swatch.setAttribute("aria-hidden", "true");
@@ -2099,14 +2331,105 @@ export class MaplibreEngine {
           swatch.style.height = `${size}px`;
         }
         if (single) { head.prepend(swatch); continue; }
-        const label = document.createElement("span");
-        label.className = "maplibre-legend__label";
-        label.textContent = entry.label;
-        row.append(swatch, label);
-        list.append(row);
+        list.append(this.#legendRow(entry.match && record.kind === "vector" ? { uid: record.uid, index, label: entry.label } : null, swatch, entry.label));
+      }
+      for (const group of legend.images || []) {
+        if (legend.images.length > 1 && group.title) {
+          const field = document.createElement("p");
+          field.className = "maplibre-legend__field";
+          field.textContent = group.title;
+          list.append(field);
+        }
+        for (const entry of group.entries) {
+          const row = document.createElement("div");
+          row.className = "maplibre-legend__entry";
+          const swatch = document.createElement("img");
+          swatch.className = "maplibre-legend__image";
+          swatch.src = entry.image;
+          swatch.alt = "";
+          swatch.style.opacity = String(record.opacity);
+          const label = document.createElement("span");
+          label.className = "maplibre-legend__label";
+          label.textContent = entry.label;
+          row.append(swatch, label);
+          list.append(row);
+        }
       }
       if (list.childElementCount) section.append(list);
       host.append(section);
+    }
+    this.#syncLegendRows();
+  }
+
+  /* ---------------- Legend focus ---------------- */
+
+  /** A legend row; one that can pick out its features on the map is a toggle button. */
+  #legendRow(focus, swatch, text) {
+    const row = document.createElement(focus ? "button" : "div");
+    row.className = "maplibre-legend__entry";
+    const label = document.createElement("span");
+    label.className = "maplibre-legend__label";
+    label.textContent = text;
+    row.append(swatch, label);
+    if (!focus) return row;
+    row.type = "button";
+    row.classList.add("maplibre-legend__entry--pick");
+    row.dataset.legendPick = "";
+    row.title = "Pick these out on the map";
+    this.#legendRowFocus.set(row, focus);
+    const preview = (on) => this.#setLegendFocus("hover", on ? focus : null);
+    row.addEventListener("pointerenter", () => preview(true));
+    row.addEventListener("pointerleave", () => preview(false));
+    row.addEventListener("focus", () => preview(true));
+    row.addEventListener("blur", () => preview(false));
+    // A second click lets go; the preview goes too so the map shows the change at once.
+    row.addEventListener("click", () => {
+      this.legendFocus.hover = null;
+      this.#setLegendFocus("pinned", sameLegendFocus(this.legendFocus.pinned, focus) ? null : focus);
+    });
+    // Double-clicking the layer opens its style editor; picking a row twice should not.
+    row.addEventListener("dblclick", (event) => event.stopPropagation());
+    return row;
+  }
+
+  /** What the legend picks out on this layer: { slot } for a strata group, { match } for a class, else null. */
+  #legendFocusFor(record) {
+    const focus = this.legendFocus.hover || this.legendFocus.pinned;
+    if (!focus || focus.uid !== record.uid) return null;
+    if ("slot" in focus) return record.spatialChart?.groups?.some((value) => String(value) === String(focus.slot)) ? { slot: focus.slot } : null;
+    const entry = legendForLayer(record, this.#dataColor()).entries?.[focus.index];
+    return entry?.match && entry.label === focus.label ? { match: entry.match } : null;
+  }
+
+  /** Sets the previewed or pinned legend row (null clears it) and restyles only the layers it touches. */
+  #setLegendFocus(kind, focus) {
+    const before = this.legendFocus.hover || this.legendFocus.pinned;
+    this.legendFocus[kind] = focus;
+    const after = this.legendFocus.hover || this.legendFocus.pinned;
+    for (const uid of new Set([before?.uid, after?.uid])) {
+      const record = uid && this.#records.get(uid);
+      if (record?.kind !== "vector" || !this.map) continue;
+      for (const spec of this.#layerSpecs(record)) {
+        if (!this.map.getLayer(spec.id)) continue;
+        for (const [name, value] of Object.entries(spec.paint)) if (name.endsWith("opacity")) this.map.setPaintProperty(spec.id, name, value);
+      }
+    }
+    this.#syncLegendRows();
+  }
+
+  #clearLegendFocus() {
+    if (!this.legendFocus.hover && !this.legendFocus.pinned) return false;
+    this.legendFocus.hover = null;
+    this.#setLegendFocus("pinned", null);
+    return true;
+  }
+
+  #syncLegendRows() {
+    const shown = this.legendFocus.hover || this.legendFocus.pinned;
+    for (const row of this.legendHost?.querySelectorAll("[data-legend-pick]") || []) {
+      const focus = this.#legendRowFocus.get(row);
+      row.setAttribute("aria-pressed", String(sameLegendFocus(this.legendFocus.pinned, focus)));
+      row.classList.toggle("is-picked", sameLegendFocus(shown, focus));
     }
   }
 
@@ -2126,13 +2449,19 @@ export class MaplibreEngine {
     }
     if (name === "legend") {
       if (this.legendHost) {
+        this.legendHost.removeEventListener("keydown", this.#legendKeydown);
+        this.legendHost.removeEventListener("pointerleave", this.#legendPointerLeave);
         this.legendHost.replaceChildren();
         this.legendHost = null;
+        // Nothing on screen says why the map is dimmed once the legend is closed.
+        this.#clearLegendFocus();
         this.events.publish("widget:toggled", { name, open: false });
         return false;
       }
       this.legendHost = document.querySelector("#utility-legend-content");
       if (!this.legendHost) throw new Error("The legend panel is unavailable.");
+      this.legendHost.addEventListener("keydown", this.#legendKeydown);
+      this.legendHost.addEventListener("pointerleave", this.#legendPointerLeave);
       this.#renderLegend();
       this.events.publish("widget:toggled", { name, open: true });
       return true;

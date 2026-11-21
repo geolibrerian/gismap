@@ -1,63 +1,67 @@
 {
   "/": {
-    "hash": "53ca2db4ccd06440",
-    "lastmod": "2026-11-07"
+    "hash": "7b2124caa31f4d7d",
+    "lastmod": "2026-11-20"
   },
   "/discover/": {
     "hash": "e9bcb2bcc8c9ce6c",
-    "lastmod": "2026-11-07"
+    "lastmod": "2026-11-02"
   },
   "/discover/examples/": {
-    "hash": "60bf636e9d452c27",
-    "lastmod": "2026-11-07"
+    "hash": "cfdcb203856d37e3",
+    "lastmod": "2026-11-20"
   },
   "/discover/examples/3d-strata/": {
-    "hash": "e22dfc1301ab88b2",
-    "lastmod": "2026-11-07"
+    "hash": "becaf56f794b7f79",
+    "lastmod": "2026-11-08"
   },
   "/discover/engines/": {
     "hash": "8c97162d8a8910b0",
-    "lastmod": "2026-11-07"
+    "lastmod": "2026-11-02"
   },
   "/discover/learn/": {
     "hash": "3a72d525761e7f49",
-    "lastmod": "2026-11-07"
+    "lastmod": "2026-11-02"
   },
   "/discover/ai/": {
-    "hash": "c22af0da9b298760",
-    "lastmod": "2026-11-07"
+    "hash": "96aa5dbf6fe25e90",
+    "lastmod": "2026-11-17"
+  },
+  "/discover/ai/publish-with-gismap-si/": {
+    "hash": "cd61e82659194276",
+    "lastmod": "2026-11-17"
   },
   "/discover/data/": {
     "hash": "06e44e474d6117fe",
-    "lastmod": "2026-11-07"
+    "lastmod": "2026-11-02"
   },
   "/discover/demos/": {
     "hash": "b275fa00d9c51e5e",
-    "lastmod": "2026-11-07"
+    "lastmod": "2026-11-02"
   },
   "/discover/embed/": {
     "hash": "61040d82c094775a",
-    "lastmod": "2026-11-07"
+    "lastmod": "2026-11-02"
   },
   "/discover/about/": {
     "hash": "15c0152285341dd3",
-    "lastmod": "2026-11-07"
+    "lastmod": "2026-11-02"
   },
   "/discover/get-involved/": {
     "hash": "78eb454a376a5d1b",
-    "lastmod": "2026-11-07"
+    "lastmod": "2026-11-02"
   },
   "/examples/": {
-    "hash": "8e2f13ef14a2b5db",
-    "lastmod": "2026-11-07"
+    "hash": "538a35560dca1646",
+    "lastmod": "2026-11-08"
   },
   "/examples/data-connections/local-postgis/": {
     "hash": "5e88d704404ad446",
-    "lastmod": "2026-11-07"
+    "lastmod": "2026-11-02"
   },
   "/guides/": {
     "hash": "e311c9d894a5b41b",
-    "lastmod": "2026-11-07"
+    "lastmod": "2026-11-02"
   },
   "/examples/ai/trip-tour/": {
     "hash": "a18792ef1481fd00",
@@ -117,79 +121,83 @@
   },
   "/examples/ai/cors-blocked/": {
     "hash": "052a2a6f74f6c428",
-    "lastmod": "2026-11-07"
+    "lastmod": "2026-11-02"
   },
   "/examples/usa-wildfires/": {
     "hash": "1fac4a6bb69fd5c0",
-    "lastmod": "2026-11-07"
+    "lastmod": "2026-11-02"
   },
   "/examples/modis-active-fires/": {
     "hash": "9b85579a189e078d",
-    "lastmod": "2026-11-07"
+    "lastmod": "2026-11-02"
   },
   "/examples/air-quality-pm25/": {
     "hash": "a3d4b07684fd1410",
-    "lastmod": "2026-11-07"
+    "lastmod": "2026-11-02"
   },
   "/examples/california-fire-perimeters/": {
     "hash": "027646efbad3ed0f",
     "lastmod": "2026-11-07"
   },
+  "/examples/forest-insect-disease-risk/": {
+    "hash": "ba0958728cd979c1",
+    "lastmod": "2026-11-08"
+  },
   "/examples/historical-quakes/": {
     "hash": "a8144b391f0d051e",
-    "lastmod": "2026-11-07"
+    "lastmod": "2026-11-02"
   },
   "/examples/usgs-earthquakes/": {
     "hash": "35fb968ce7fa71c4",
-    "lastmod": "2026-11-07"
+    "lastmod": "2026-11-02"
   },
   "/arcgis-rest-service-viewer/": {
     "hash": "c2ec7a619d9329be",
-    "lastmod": "2026-11-07"
+    "lastmod": "2026-11-02"
   },
   "/arcgis-feature-service-viewer/": {
     "hash": "4a7a78789f0f6040",
-    "lastmod": "2026-11-07"
+    "lastmod": "2026-11-02"
   },
   "/ai-arcgis-map-generator/": {
     "hash": "18e9f0ac4e199169",
-    "lastmod": "2026-11-07"
+    "lastmod": "2026-11-02"
   },
   "/arcgis-map-service-viewer/": {
     "hash": "d5c32b38023c7770",
-    "lastmod": "2026-11-07"
+    "lastmod": "2026-11-02"
   },
   "/geojson-viewer/": {
     "hash": "db3af39e0e38c085",
-    "lastmod": "2026-11-07"
+    "lastmod": "2026-11-02"
   },
   "/3d-gis-viewer/": {
     "hash": "f245882f02f2be33",
-    "lastmod": "2026-11-07"
+    "lastmod": "2026-11-02"
   },
   "/guides/ai-agents/": {
     "hash": "ed520bb160ba6e67",
-    "lastmod": "2026-11-07"
+    "lastmod": "2026-11-02"
   },
   "/ai-connection-guide/": {
     "hash": "3b1e6ab3bec26b8f",
-    "lastmod": "2026-11-07"
+    "lastmod": "2026-11-02"
   },
   "/examples/ai/": {
     "hash": "cefa8eb2877f5847",
-    "lastmod": "2026-11-07"
+    "lastmod": "2026-11-06"
   },
   "/examples/ai/philadelphia-police-divisions/": {
     "hash": "78e4e05045a5248c",
-    "lastmod": "2026-11-07"
+    "lastmod": "2026-11-02"
   },
   "/examples/ai/mlb-ballparks-by-state/": {
     "hash": "fad4fe14078e702d",
-    "lastmod": "2026-11-07"
+    "lastmod": "2026-11-02"
   },
   "/examples/ai/wildfires-by-state-chart/": {
     "hash": "69edc867e9a3d623",
-    "lastmod": "2026-11-07"
+    "lastmod": "2026-11-03"
   },
   "/examples/ai/corn-sales-one-link/": {
     "hash": "355b998c78455f9d",
@@ -208,24 +216,24 @@
     "lastmod": "2026-11-02"
   },
   "/agent-recipes/": {
-    "hash": "4ac0fa343d136bed",
-    "lastmod": "2026-11-07"
+    "hash": "77cbd1d9f2e9bb16",
+    "lastmod": "2026-11-20"
   },
   "/agent-recipes/interactive-map/": {
     "hash": "795ab5ad45bba8b2",
-    "lastmod": "2026-11-07"
+    "lastmod": "2026-11-02"
   },
   "/agent-recipes/interactive-briefing/": {
     "hash": "5ebb63290194d970",
-    "lastmod": "2026-11-07"
+    "lastmod": "2026-11-02"
   },
   "/agent-recipes/geographic-tour/": {
     "hash": "276905e415b08b45",
-    "lastmod": "2026-11-07"
+    "lastmod": "2026-11-02"
   },
   "/agent-recipes/field-tasks/": {
     "hash": "5d25cf58fec59ea7",
-    "lastmod": "2026-11-07"
+    "lastmod": "2026-11-02"
   },
   "/agent-recipes/3d-extrusion/": {
     "hash": "6423b5279c75cf06",
@@ -235,44 +243,56 @@
     "hash": "0b513fb7291f0f77",
     "lastmod": "2026-11-02"
   },
+  "/agent-recipes/hexagon-binning/": {
+    "hash": "85daf951c1f1d05e",
+    "lastmod": "2026-11-20"
+  },
+  "/agent-recipes/dot-density/": {
+    "hash": "aaa3bb8f3533fead",
+    "lastmod": "2026-11-20"
+  },
   "/agent-recipes/lidar-and-3d-models/": {
     "hash": "14024aa1cde52a2f",
-    "lastmod": "2026-11-07"
+    "lastmod": "2026-11-02"
   },
   "/agent-recipes/print-map/": {
     "hash": "ae41ba4028b84998",
-    "lastmod": "2026-11-07"
+    "lastmod": "2026-11-02"
+  },
+  "/agent-recipes/si-publishing/": {
+    "hash": "5e3c796f3645e840",
+    "lastmod": "2026-11-17"
   },
   "/agent-recipes/project-package/": {
     "hash": "750ecb36643c54d3",
-    "lastmod": "2026-11-07"
+    "lastmod": "2026-11-20"
   },
   "/agent-recipes/vibe-map/": {
     "hash": "95adb6f8cb7eabed",
-    "lastmod": "2026-11-07"
+    "lastmod": "2026-11-02"
   },
   "/skills/": {
-    "hash": "aaf28a3d01cc88f3",
-    "lastmod": "2026-11-07"
+    "hash": "3481be3eab7b7507",
+    "lastmod": "2026-11-20"
   },
   "/api/explorer/": {
     "hash": "7f24cad94b444c70",
-    "lastmod": "2026-11-07"
+    "lastmod": "2026-11-02"
   },
   "/field/": {
     "hash": "e36ad6b5a91c3889",
-    "lastmod": "2026-11-07"
+    "lastmod": "2026-11-02"
   },
   "/llms.txt": {
-    "hash": "6aeda5c7b0cb8ce7",
-    "lastmod": "2026-11-07"
+    "hash": "bddf6f38a38ce61b",
+    "lastmod": "2026-11-20"
   },
   "/llms-full.txt": {
-    "hash": "724f10c9743e9bd2",
-    "lastmod": "2026-11-07"
+    "hash": "8ac6d86b46d7c368",
+    "lastmod": "2026-11-20"
   },
   "/api/catalog.json": {
-    "hash": "5eabd29b68fbb092",
-    "lastmod": "2026-11-07"
+    "hash": "72bbe98360fa3a0d",
+    "lastmod": "2026-11-08"
   }
 }

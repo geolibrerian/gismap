@@ -3,23 +3,23 @@ import { initializeFieldworkWorkspace } from "./fieldwork-workspace.js?v=0.65.0-
 import { timelinePdfFrames, expandTimelinePdfSlides, parseTimelineFrameSelection } from "./briefing-timeline-pdf.js?v=0.1.0";
 import { renderNotesHub } from "./notes-hub.js?v=0.55.0-fieldwork1";
 import { refreshMapNoteFilters } from './map-note-filters.js?v=0.4.1';
-import { openDataMapNotesPanel } from "./data-map-notes-panel.js?v=0.55.0-fieldwork1";
+import { openDataMapNotesPanel } from "./data-map-notes-panel.js?v=0.73.0-si-notes";
 import { refreshMapNoteWorkflow } from "./map-note-workflow-ui.js?v=0.1.0";
-import { noteFeatureReference } from './map-note-feature.js?v=0.70.1-colours';
-import { openMapNotesPanel } from "./map-notes-panel.js?v=0.70.1-colours";
+import { noteFeatureReference } from './map-note-feature.js?v=0.71.0-subsurface';
+import { openMapNotesPanel } from "./map-notes-panel.js?v=0.71.0-subsurface";
 import { refreshNoteRelationships } from "./note-relationships-ui.js?v=0.1.0";
 import { googleMapsLinkForChapter } from "./google-maps-link.js?v=0.53.0";
-import { POPULAR_SERVICES } from "./catalog.js?v=0.18.6-fire-source";
+import { POPULAR_SERVICES } from "./catalog.js?v=0.71.0-subsurface";
 import { plainText } from "./layer-insight.js?v=0.50.1";
 import { detectCoordinateColumns, googleSheetCsvUrl, isSpreadsheetName, readSpreadsheet, rowsToGeoJson } from "./spreadsheet-import.js?v=0.65.8-made-with";
-import { MapAssistantPanel } from "./assistant-panel.js?v=0.68.0-charts1";
-import { createAssistantTools, summarizeMapState } from "./map-assistant.js?v=0.68.0-charts1";
-import { ENTERPRISE_CATALOGS, EnterpriseCatalog, normalizeArcGisDirectoryUrl } from "./enterprise-catalog.js?v=0.18.2";
-import { createShareUrl, parseShareParameters } from "./share.js?v=0.70.1-colours";
-import { mapSpecFromShareParameters } from "./map-spec.js?v=0.70.1-colours";
-import { createShareLink, hasDataFilter, readBriefingFile } from "./map-share.js?v=0.70.1-colours";
+import { MapAssistantPanel } from "./assistant-panel.js?v=0.72.0-si-maps";
+import { createAssistantTools, summarizeMapState } from "./map-assistant.js?v=0.72.0-si-maps";
+import { ENTERPRISE_CATALOGS, EnterpriseCatalog, normalizeArcGisDirectoryUrl } from "./enterprise-catalog.js?v=0.71.0-subsurface";
+import { createShareUrl, parseShareParameters } from "./share.js?v=0.71.0-subsurface";
+import { mapSpecFromShareParameters } from "./map-spec.js?v=0.76.0-chain";
+import { createShareLink, hasDataFilter, readBriefingFile } from "./map-share.js?v=0.71.0-subsurface";
 import { createEmbedIframe, createEmbedUrl } from "./embed-share.js?v=0.65.0-paths";
-import { briefingLayerRef, findBriefingLayer } from "./briefing-api.js?v=0.70.2-share";
+import { briefingLayerRef, findBriefingLayer } from "./briefing-api.js?v=0.72.0-si-maps";
 import { createEmbeddedTourUrl } from "./tour-share.js?v=0.54.0-unified4";
 import { markdownToPlainText, renderMarkdown } from "./markdown.js?v=0.18.2";
 import { formatAttributeValue } from "./attribute-format.js?v=0.18.2";
@@ -33,29 +33,30 @@ import { bindMobileSheetResize } from "./mobile-sheet-resize.js?v=0.52.7";
 import { BRAND } from "./brand.js";
 import { BRAND_LOGO, PdfDocument, brandedMapImage, brandedQrCanvas, imageToJpeg, loadBrandLogo, printPalette, qrAsset } from "./pdf-document.js?v=0.69.1-pdflinks";
 import { DEFAULT_PAGE_FRAME, IMAGE_ANCHORS, MAP_TEMPLATES, getTemplate, loadImage, renderTemplate, templateCompact, templateMapAspect } from "./map-templates.js?v=0.54.0-print";
-import { featureLayerUrl, locationUrl } from "./field-task-share.js?v=0.70.1-colours";
+import { featureLayerUrl, locationUrl } from "./field-task-share.js?v=0.71.0-subsurface";
 import { dockIcon } from "./dock-icons.js?v=0.24.0";
 import { serviceNameFromUrl } from "./service-name.js?v=0.26.0";
 import { decodeQrFromImage, describeGisMapLink, gisMapLinkFrom, openGisMapLink } from "./qr-import.js?v=0.25.2";
-import { BriefingSlides } from "./briefing-slides.js?v=0.70.2-share";
-import { addSlide, createSlide, isRoutineField, matchesFilter, normalizeBriefing, normalizeFilter } from "./briefing-document.js?v=0.61.0-briefing-player";
+import { BriefingSlides } from "./briefing-slides.js?v=0.72.0-si-maps";
+import { addSlide, createSlide, isRoutineField, matchesFilter, normalizeBriefing, normalizeFilter } from "./briefing-document.js?v=0.72.0-si-maps";
 import { conditionComplete, conditionLabel, conditionToFilter } from "./briefing-conditions.js?v=0.1.0";
 import { createFilterBuilder } from "./filter-builder.js?v=0.1.0";
 import { conditionsToWhere } from "./filter-sql.js?v=0.1.0";
 import { aiDescriptionPrompt, applyAiDescriptions, describeWhere, generateBriefing, readAiDescriptions, rendererTheme } from "./briefing-generator.js?v=0.60.0-media1";
 import { briefingFileStem } from "./briefing-pdf.js?v=0.69.1-pdflinks";
 import { RAMPS, rampColors, compileRenderer } from "./renderer-spec.js?v=0.29.1";
-import { spatialChartColor, spatialChartGroupColor, spreadColors } from "./spatial-chart.js?v=0.70.1-colours";
+import { bindSubsurfaceControls, canDrawBelowGround, subsurfaceControlsMarkup } from "./subsurface-controls.js?v=0.71.0-subsurface";
+import { listedOrder, spatialChartColor, spatialChartGroupColor, spreadColors } from "./spatial-chart.js?v=0.71.0-subsurface";
 import { saveEngine } from "./engine-preference.js?v=0.52.1";
 import { BASEMAPS } from "./basemap-catalog.js?v=0.53.0-gallery1";
-import { CartographyLab } from "./cartography-lab.js?v=0.70.1-colours";
+import { CartographyLab } from "./cartography-lab.js?v=0.71.0-subsurface";
 import { CONTEXT_ACTIONS, createSuggestionPreferences, deriveWorkspace, executeContextAction, suggestionKey, summarizeFeature } from "./contextual-workspace.js?v=6";
-import { BRIEFING_WALKTHROUGH_STEPS, CINEMATIC_WALKTHROUGH_STEPS, HISTORICAL_QUAKES_BRIEFING_TUTORIAL_STEPS, createExampleWalkthroughSteps, startWorkspaceWalkthrough, waitForWalkthroughTarget } from "./workspace-walkthrough.js?v=0.62.3-briefing-slide-engines";
+import { BRIEFING_WALKTHROUGH_STEPS, CINEMATIC_WALKTHROUGH_STEPS, HISTORICAL_QUAKES_BRIEFING_TUTORIAL_STEPS, createExampleWalkthroughSteps, startWorkspaceWalkthrough, waitForWalkthroughTarget } from "./workspace-walkthrough.js?v=0.77.0-tutorial";
 import { HISTORICAL_QUAKES_SOURCE, HISTORICAL_QUAKES_WHERE, createHistoricalQuakesExampleBriefing } from "./example-hazards-briefing.js?v=0.62.3-briefing-slide-engines";
-import { CinematicModeController } from "./cinematic/mode.js?v=0.70.1-colours";
-import { CINEMATIC_EFFECTS, CINEMATIC_EFFECT_CATEGORIES, suggestEffect } from "./cinematic/cinematic-effects.js?v=0.70.1-colours";
+import { CinematicModeController } from "./cinematic/mode.js?v=0.71.0-subsurface";
+import { CINEMATIC_EFFECTS, CINEMATIC_EFFECT_CATEGORIES, suggestEffect } from "./cinematic/cinematic-effects.js?v=0.71.0-subsurface";
 import { PROVENANCE_STATUSES } from "./cinematic/clock.js?v=0.1.0";
-import { recommendAnimations } from "./cinematic/recommend.js?v=0.70.1-colours";
+import { recommendAnimations } from "./cinematic/recommend.js?v=0.71.0-subsurface";
 
 // What each provenance label tells a viewer about a track's displayed progression.
 const PROVENANCE_HELP = Object.freeze({
@@ -65,9 +66,9 @@ const PROVENANCE_HELP = Object.freeze({
   forecast: "Forecast: a prediction of what may happen.",
   illustrative: "Illustrative: decorative motion that does not measure anything.",
 });
-import { numericFieldCandidates, temporalFieldCandidates } from "./cinematic/temporal-adapter.js?v=0.3.1";
-import { buildClipPackage, clipToCinematicSpec, createCinematicClip, exportCinematicClip, normalizeCinematicClip } from "./cinematic/clip-model.js?v=0.3.10-strata";
-import { availableVideoFormats, cameraAt, CLIP_FRAME_RATES, clipFrameCount, exportCinematicVideo, observationIndexAt, renderClipPoster } from "./cinematic/clip-export.js?v=0.70.1-colours";
+import { numericFieldCandidates, temporalFieldCandidates, textFieldCandidates } from "./cinematic/temporal-adapter.js?v=0.4.0-sequence";
+import { buildClipPackage, clipToCinematicSpec, createCinematicClip, exportCinematicClip, normalizeCinematicClip } from "./cinematic/clip-model.js?v=0.70.4-sequence";
+import { availableVideoFormats, cameraAt, CLIP_FRAME_RATES, clipFrameCount, exportCinematicVideo, observationIndexAt, renderClipPoster } from "./cinematic/clip-export.js?v=0.71.0-subsurface";
 import { CHART_PANEL_PLACEMENTS, CHART_TYPES, PRESENTATION_TARGETS, chartFields, chartOption, createChartSpec, displayChartRows, loadECharts, queryChart, recommendCharts, renderChartFallback, rowsAsCsv } from "./charting-tools.js?v=0.68.0-charts1";
 import { MapChartOverlayController } from "./map-chart-tools.js?v=0.68.0-charts1";
 import { readTextBoxEditor, textBoxEditorMarkup, textBoxRunMarkup, textBoxSummary } from "./text-box-editor.js?v=0.65.0-paths";
@@ -135,6 +136,13 @@ const escapeHtml = (value) =>
     "'": "&#39;",
   })[char]);
 
+/** A map-link issue's message and hint, with a link to open a layer's server directly when it failed to load. */
+const specIssueMarkup = (issue) =>
+  `<p>${escapeHtml(issue.message)}</p>${issue.hint ? `<small>${escapeHtml(issue.hint)}</small>` : ""}${/^https?:\/\//i.test(issue.link || "") ? ` <a href="${escapeHtml(issue.link)}" target="_blank" rel="noopener noreferrer">Open the server ↗</a>` : ""}`;
+
+
+/** A layer's numeric fields, leaving out object IDs. */
+const numericLayerFields = (layer) => (layer?.fields || []).filter((field) => /integer|double|single|small|long|number/i.test(String(field.type)) && !/^(objectid|fid)$/i.test(field.name));
 export class UIController {
   constructor(events, mapController, projectManager, authController, aiController, toolManager, exportController, applicationRuntime, panelManager, mobilePanelManager) {
     Object.assign(this, { events, mapController, projectManager, authController, aiController, toolManager, exportController, applicationRuntime, panelManager, mobilePanelManager });
@@ -142,7 +150,7 @@ export class UIController {
     this.searchResults = [];
     this.searchTimer = null;
     this.searchRequestId = 0;
-    this.lastPlaceLabel = "";
+    this.lastPlace = null;
     this.searchSelection = -1;
     this.lastInsight = null;
     this.intelligenceInsight = null;
@@ -186,6 +194,7 @@ export class UIController {
       tools: () => (this.assistantTools ??= createAssistantTools(this.#assistantHost())),
       state: () => summarizeMapState(globalThis.gisMapOnline),
       configure: () => this.#aiDialog(),
+      si: () => this.siWorkspace?.assistantSi() ?? null,
     });
     this.applicationRuntime.mountAssistant = (host) => this.assistant.mount(host);
     this.briefingSlides = new BriefingSlides({
@@ -300,6 +309,7 @@ export class UIController {
         this.mobilePanelManager?.leave();
       }
     });
+    this.#pruneFutureMenuItems();
     this.#buildMobileMenu();
     this.#bindMenus();
     this.#bindMapMenu();
@@ -459,6 +469,12 @@ export class UIController {
     document.querySelector("#insights-close")?.addEventListener("click", () => { featureSelected = false; render(); });
   }
 
+  // Menu items marked data-future are not ready for everyone yet; ?future=1 shows them.
+  #pruneFutureMenuItems() {
+    if (new URLSearchParams(location.search).get("future") === "1") return;
+    document.querySelectorAll(".menu-bar [data-future]").forEach((item) => item.remove());
+  }
+
   #buildMobileMenu() {
     const drawer = document.querySelector("#mobile-menu-drawer");
     const desktopMenu = document.querySelector("#sidebar > .menu-bar");
@@ -581,6 +597,20 @@ export class UIController {
         this.mapController.setBuildings3d(input.checked);
         this.toast(input.checked ? "3D buildings on." : "3D buildings off.");
       }),
+    );
+    document.querySelectorAll("[data-underground-toggle]").forEach((input) =>
+      input.addEventListener("change", async () => {
+        try {
+          await this.mapController.setUndergroundView({ ...this.mapController.getUndergroundView(), enabled: input.checked });
+          this.toast(input.checked ? "Underground view on: the ground is faded so what lies below it shows." : "Underground view off.");
+        } catch (error) {
+          input.checked = false;
+          this.error(error.message);
+        }
+      }),
+    );
+    document.querySelectorAll("[data-underground-opacity]").forEach((input) =>
+      input.addEventListener("change", () => void Promise.resolve(this.mapController.setUndergroundView({ enabled: true, groundOpacity: Number(input.value) / 100 })).catch((error) => this.error(error.message))),
     );
     document.querySelectorAll("[data-ground-picker]").forEach((select) =>
       select.addEventListener("change", () => {
@@ -720,7 +750,7 @@ export class UIController {
     const placeInput = document.querySelector("#place-query");
     document.querySelector("#place-search").addEventListener("submit", (event) => this.#search(event));
     placeInput.addEventListener("input", () => {
-      this.lastPlaceLabel = "";
+      this.lastPlace = null;
       this.#schedulePlaceSearch(placeInput.value);
     });
     document.querySelector("#recent-places-list").addEventListener("click", (event) => {
@@ -1618,10 +1648,17 @@ export class UIController {
       this.#startHistoricalQuakesBriefingTutorial();
       return;
     }
+    const steps = example.steps || createExampleWalkthroughSteps(example);
     startWorkspaceWalkthrough({
-      steps: createExampleWalkthroughSteps(example),
+      steps,
       label: `${example.title || "Example"} tutorial`,
       mobile: () => this.mobileMedia.matches,
+      // A step about the legend opens it first, so the guide points at something on screen.
+      beforeStep: async (index) => {
+        if (steps[index]?.id === "legend" && !this.mobileMedia.matches) await this.showLegendWidget();
+        return true;
+      },
+      preparingLabel: "Opening the legend…",
     });
   }
 
@@ -2000,6 +2037,12 @@ export class UIController {
         case "project-share":
           await this.#copyShareLink();
           break;
+        case "project-save-si":
+          await this.siWorkspace?.saveToSi();
+          break;
+        case "project-publish-si":
+          await this.siWorkspace?.openPublish();
+          break;
         case "project-application-settings":
           this.#applicationSettingsDialog();
           break;
@@ -2035,7 +2078,7 @@ export class UIController {
           break;
         }
         case "tools-spatial-analysis": {
-          const { openSpatialAnalysis } = await import("./spatial-analysis-panel.js?v=0.66.1-finish1");
+          const { openSpatialAnalysis } = await import("./spatial-analysis-panel.js?v=0.69.0-extent");
           openSpatialAnalysis(this, globalThis.gisMapOnline.analysis);
           break;
         }
@@ -2203,14 +2246,19 @@ export class UIController {
     this.openDialog({
       eyebrow: "Cinematic mode",
       title: "Animate a layer",
-      content: `<p class="form-note">Play observed records through time, sweep through a number field, or just bring the layer to life with a looping effect. Playback steps between real records; it never interpolates geometry or reads numbers as dates. <button type="button" class="link-button" data-cinematic-guide>New to this? Follow the step-by-step guide.</button></p><div class="field-grid"><label class="field"><span>Layer</span><select data-cinematic-layer>${options()}</select></label><label class="field"><span>Animate by</span><select data-cinematic-kind><option value="time">A date or time field (timeline)</option><option value="number">A number field (scenario sweep)</option><option value="none">Nothing: everything at once (ambient loop)</option></select></label><label class="field" data-cinematic-needs-field><span data-cinematic-field-label>Timestamp field</span><select data-cinematic-time></select></label><label class="field" data-cinematic-needs-number hidden><span>Steps</span><select data-cinematic-steps><option value="50">50 (coarse)</option><option value="100">100</option><option value="200" selected>200 (default)</option><option value="500">500 (fine)</option><option value="0">Every distinct value</option></select><small>Equal-count steps through the field's range; each step shows records up to its value.</small></label><label class="field" data-cinematic-needs-field><span>Group snapshots by</span><select data-cinematic-group><option value="">All observations together</option></select></label><label class="field" data-cinematic-needs-field><span>Display through time</span><select data-cinematic-time-mode><option value="instant">Current observed state</option><option value="cumulative">Build up observed records</option></select></label><label class="field"><span>Base playback duration (seconds)</span><input data-cinematic-duration type="number" min="1" max="600" value="120"></label><label class="field"><span>Initial speed</span><select data-cinematic-rate><option value="0.1">Very slow</option><option value="0.25" selected>Slow</option><option value="0.5">Steady</option><option value="1">Fast</option></select></label>${supportsBoundaryGlow ? '<label class="field"><span>Visual effect</span><select data-cinematic-effect></select><small>Decorative animation drawn on observed geometry (MapLibre). It never changes the data.</small></label>' : ""}</div><p class="form-note" data-cinematic-field-note></p>`,
+      content: `<p class="form-note">Play observed records through time, sweep through a number field, or just bring the layer to life with a looping effect. Playback steps between real records; it never interpolates geometry or reads numbers as dates. <button type="button" class="link-button" data-cinematic-guide>New to this? Follow the step-by-step guide.</button></p><div class="field-grid"><label class="field"><span>Layer</span><select data-cinematic-layer>${options()}</select></label><label class="field"><span>Animate by</span><select data-cinematic-kind><option value="time">A date or time field (timeline)</option><option value="number">A number field (scenario sweep)</option><option value="sequence">A text field, in order (sequence)</option><option value="none">Nothing: everything at once (ambient loop)</option></select></label><label class="field" data-cinematic-needs-field><span data-cinematic-field-label>Timestamp field</span><select data-cinematic-time></select></label><label class="field" data-cinematic-needs-sequence hidden><span>Order</span><select data-cinematic-order><option value="listed">As stacked in the 3D chart</option><option value="alphabetical">A to Z</option></select><small>Each step is one value of the field. Rows whose value is not in the order are left out.</small></label><label class="field" data-cinematic-needs-number hidden><span>Label steps with</span><select data-cinematic-label></select><small>A text field on the same rows names each step, such as an age name for an age in years.</small></label><label class="field" data-cinematic-needs-number hidden><span>Steps</span><select data-cinematic-steps><option value="50">50 (coarse)</option><option value="100">100</option><option value="200" selected>200 (default)</option><option value="500">500 (fine)</option><option value="0">Every distinct value</option></select><small>Equal-count steps through the field's range; each step shows records up to its value.</small></label><label class="field" data-cinematic-needs-field><span>Group snapshots by</span><select data-cinematic-group><option value="">All observations together</option></select></label><label class="field" data-cinematic-needs-field><span>Display through time</span><select data-cinematic-time-mode><option value="instant">Current observed state</option><option value="cumulative">Build up observed records</option></select></label><label class="field"><span>Base playback duration (seconds)</span><input data-cinematic-duration type="number" min="1" max="600" value="120"></label><label class="field"><span>Initial speed</span><select data-cinematic-rate><option value="0.1">Very slow</option><option value="0.25" selected>Slow</option><option value="0.5">Steady</option><option value="1">Fast</option></select></label>${supportsBoundaryGlow ? '<label class="field"><span>Visual effect</span><select data-cinematic-effect></select><small>Decorative animation drawn on observed geometry (MapLibre). It never changes the data.</small></label>' : ""}</div><p class="form-note" data-cinematic-field-note></p>`,
       actions: [{ label: "Cancel", handler: () => this.dialog.close() }, { label: "Start cinematic mode", primary: true, handler: async () => {
         const layer = this.mapController.getLayer(this.dialog.querySelector("[data-cinematic-layer]").value);
-        const kind = this.dialog.querySelector("[data-cinematic-kind]").value;
+        const choice = this.dialog.querySelector("[data-cinematic-kind]").value;
+        // A Sequence steps a text field's values in order: a number playback over their positions.
+        const sequence = choice === "sequence";
+        const kind = sequence ? "number" : choice;
         const timeField = kind === "none" ? null : this.dialog.querySelector("[data-cinematic-time]").value;
-        if (!layer || (kind !== "none" && !timeField)) throw new Error(kind === "number" ? "Choose a layer and a number field." : "Choose a layer and a timestamp field.");
+        if (!layer || (kind !== "none" && !timeField)) throw new Error(sequence ? "Choose a layer and a text field." : kind === "number" ? "Choose a layer and a number field." : "Choose a layer and a timestamp field.");
         const groupField = kind === "none" ? "" : this.dialog.querySelector("[data-cinematic-group]").value;
-        const steps = kind === "number" ? Number(this.dialog.querySelector("[data-cinematic-steps]").value) : 0;
+        const steps = kind === "number" && !sequence ? Number(this.dialog.querySelector("[data-cinematic-steps]").value) : 0;
+        const order = sequence ? this.dialog.querySelector("[data-cinematic-order]").value : null;
+        const labelField = kind === "number" && !sequence ? this.dialog.querySelector("[data-cinematic-label]").value : "";
         const effectType = this.dialog.querySelector("[data-cinematic-effect]")?.value || "none";
         // A Strata timeline stacks each step on the last, so it always builds up.
         const timeMode = kind === "none" ? "instant" : effectType === "strata" ? "cumulative" : this.dialog.querySelector("[data-cinematic-time-mode]").value;
@@ -2222,7 +2270,7 @@ export class UIController {
           intent: "explore",
           preferredEngine: this.mapController.getEngineId(),
           clock: { durationSeconds, rate, timeMode, loop: false },
-          layers: [{ layerRef: layer.uid, temporal: { kind, steps, startField: timeField, groupField, featureIdField: layer.objectIdField, timezone: "UTC", missingTime: "exclude" }, animation: { template: layer.geometryType === "point" ? "moving-track" : "step-perimeter", transition: "step", outline: { color: "#ff8136", glow: effectType !== "none" }, effect: { type: effectType, intensity: 1 }, provenanceLabel: "Observed records" } }],
+          layers: [{ layerRef: layer.uid, temporal: { kind, steps, startField: timeField, groupField, featureIdField: layer.objectIdField, timezone: "UTC", missingTime: "exclude", ...(order ? { order } : {}), ...(labelField ? { labelField } : {}) }, animation: { template: layer.geometryType === "point" ? "moving-track" : "step-perimeter", transition: "step", outline: { color: "#ff8136", glow: effectType !== "none" }, effect: { type: effectType, intensity: 1 }, provenanceLabel: "Observed records" } }],
           provenance: { synthetic: false, sourceUrls: layer.url && /^https:\/\//i.test(layer.url) ? [layer.url] : [], interpolated: false },
         } };
         await this.cinematicController.load(spec);
@@ -2237,23 +2285,40 @@ export class UIController {
     const note = this.dialog.querySelector("[data-cinematic-field-note]");
     this.dialog.querySelector("[data-cinematic-guide]")?.addEventListener("click", () => void this.#startCinematicGuide());
     const kindInput = this.dialog.querySelector("[data-cinematic-kind]");
+    const orderInput = this.dialog.querySelector("[data-cinematic-order]");
+    const labelInput = this.dialog.querySelector("[data-cinematic-label]");
+    // The layer's stacked 3D chart, which gives a Sequence on its field a listed order.
+    const stackedBy = (layer) => (layer?.spatialChart?.groups?.length && layer.spatialChart.mode !== "attribute-extrusion" ? layer.spatialChart.groupBy : null);
+    const fillOrder = () => {
+      const layer = this.mapController.getLayer(layerInput.value) || selected;
+      const listed = Boolean(timeInput.value) && stackedBy(layer) === timeInput.value;
+      orderInput.querySelector('[value="listed"]').disabled = !listed;
+      if (!listed) orderInput.value = "alphabetical";
+    };
     const fillKind = () => {
       const layer = this.mapController.getLayer(layerInput.value) || selected;
       const kind = kindInput.value;
-      const candidates = kind === "number" ? numericFieldCandidates(layer) : temporalFieldCandidates(layer);
+      const sequence = kind === "sequence";
+      const candidates = sequence ? textFieldCandidates(layer) : kind === "number" ? numericFieldCandidates(layer) : temporalFieldCandidates(layer);
       this.dialog.querySelectorAll("[data-cinematic-needs-field]").forEach((label) => { label.hidden = kind === "none"; });
       this.dialog.querySelectorAll("[data-cinematic-needs-number]").forEach((label) => { label.hidden = kind !== "number"; });
-      this.dialog.querySelector("[data-cinematic-field-label]").textContent = kind === "number" ? "Number field" : "Timestamp field";
-      timeInput.innerHTML = candidates.length ? candidates.map((field) => `<option value="${escapeHtml(field.name)}">${escapeHtml(field.label)}</option>`).join("") : `<option value="">${kind === "number" ? "No number field found" : "No date/timestamp field found"}</option>`;
+      this.dialog.querySelectorAll("[data-cinematic-needs-sequence]").forEach((label) => { label.hidden = !sequence; });
+      this.dialog.querySelector("[data-cinematic-field-label]").textContent = sequence ? "Text field" : kind === "number" ? "Number field" : "Timestamp field";
+      timeInput.innerHTML = candidates.length ? candidates.map((field) => `<option value="${escapeHtml(field.name)}">${escapeHtml(field.label)}</option>`).join("") : `<option value="">${sequence ? "No text field found" : kind === "number" ? "No number field found" : "No date/timestamp field found"}</option>`;
+      // A stacked layer's own field first, in the chart's order.
+      if (sequence && candidates.some((field) => field.name === stackedBy(layer))) { timeInput.value = stackedBy(layer); orderInput.value = "listed"; }
+      labelInput.innerHTML = `<option value="">The number itself</option>${textFieldCandidates(layer).map((field) => `<option value="${escapeHtml(field.name)}">${escapeHtml(field.label)}</option>`).join("")}`;
+      fillOrder();
       note.textContent = kind === "none" ? "Every feature shows at once and its effect loops. No date or number field is needed; Export movie records the loop with your camera moves."
-        : candidates.length ? (kind === "number" ? `Steps through the field's values, lowest first. Build up shows everything up to the current value. Rows without a number are excluded.` : `Stable ID: ${layer.objectIdField}. Rows without a valid ${candidates[0].label} value will be excluded.`)
-        : `This layer has no ${kind === "number" ? "number" : "date/timestamp"} field. Choose "Nothing" to animate it anyway, or pick another layer.`;
+        : candidates.length ? (sequence ? "Steps through the field's values one at a time, in the order you choose. Build up shows every value up to the current one. The order is not a date." : kind === "number" ? `Steps through the field's values, lowest first. Build up shows everything up to the current value. Rows without a number are excluded.` : `Stable ID: ${layer.objectIdField}. Rows without a valid ${candidates[0].label} value will be excluded.`)
+        : `This layer has no ${sequence ? "text" : kind === "number" ? "number" : "date/timestamp"} field. Choose "Nothing" to animate it anyway, or pick another layer.`;
     };
     kindInput.addEventListener("change", fillKind);
+    timeInput.addEventListener("change", () => { if (kindInput.value === "sequence") fillOrder(); });
     const fillFields = () => {
       const layer = this.mapController.getLayer(layerInput.value) || selected;
       // No date field is no obstacle: the layer can still sweep a number or animate as ambient.
-      kindInput.value = temporalFieldCandidates(layer).length ? "time" : numericFieldCandidates(layer).length ? "number" : "none";
+      kindInput.value = temporalFieldCandidates(layer).length ? "time" : stackedBy(layer) && textFieldCandidates(layer).some((field) => field.name === stackedBy(layer)) ? "sequence" : numericFieldCandidates(layer).length ? "number" : "none";
       groupInput.innerHTML = '<option value="">All observations together</option>' + (layer.fields || []).filter((field) => field.name !== layer.objectIdField).map((field) => `<option value="${escapeHtml(field.name)}">${escapeHtml(field.alias || field.name)}</option>`).join("");
       fillKind();
       const effectInput = this.dialog.querySelector("[data-cinematic-effect]");
@@ -2435,6 +2500,7 @@ export class UIController {
       camera: this.mapController.getViewState(),
       engine: this.mapController.getEngineId(),
       ground: this.mapController.getGroundId(),
+      underground: this.mapController.getUndergroundView?.(),
       layers,
       textBoxes: this.mapController.getTextBoxes?.() ?? [],
     });
@@ -3135,6 +3201,8 @@ export class UIController {
     return {
       api: globalThis.gisMapOnline,
       catalog: POPULAR_SERVICES,
+      // GISMap SI tools (map-assistant.js siAssistantTools); offered only while signed in.
+      ...(this.siWorkspace ? { si: this.siWorkspace.assistantTools() } : {}),
       setBasemap: (id) => this.mapController.setBasemap(id),
       getDisplaySettings: () => this.#readDisplaySettings(),
       setDisplaySetting: (key, value) => {
@@ -3800,6 +3868,17 @@ export class UIController {
     return groups.map((group) => `<optgroup label="${escapeHtml(group)}">${options.filter((entry) => entry.group === group).map((entry) => `<option value="${escapeHtml(entry.id)}"${entry.id === wanted ? " selected" : ""}>${escapeHtml(entry.label)}</option>`).join("")}</optgroup>`).join("");
   }
 
+  /** The Map menu's underground view controls, as the map has it. */
+  #syncUndergroundControls() {
+    if (!this.mapController.getCapabilities().includes("subsurface")) return;
+    const view = this.mapController.getUndergroundView();
+    document.querySelectorAll("[data-underground-toggle]").forEach((input) => { input.checked = view.enabled; });
+    document.querySelectorAll("[data-underground-opacity]").forEach((input) => {
+      input.value = String(Math.round(view.groundOpacity * 100));
+      input.closest("[data-underground-opacity-field]")?.toggleAttribute("hidden", !view.enabled);
+    });
+  }
+
   #groundOptionsMarkup() {
     const { selected, options } = this.mapController.getGroundOptions();
     return options.map((option) => `<option value="${escapeHtml(option.id)}"${option.id === selected ? " selected" : ""}>${escapeHtml(option.label)}</option>`).join("");
@@ -3835,11 +3914,19 @@ export class UIController {
         element.hidden = !available;
       }
     });
+    this.#syncUndergroundControls();
   }
 
   #bindMapMenu() {
     this.#syncMapMenu();
     ["map:ready", "map:basemap-changed", "map:ground-changed"].forEach((topic) => this.events.subscribe(topic, () => this.#syncMapMenu()));
+    this.events.subscribe("map:underground-changed", (view) => {
+      this.#syncUndergroundControls();
+      if (this.projectManager?.current) {
+        this.projectManager.current.underground = { enabled: view?.enabled === true, groundOpacity: view?.groundOpacity };
+        this.projectManager.persistCurrentIfSaved?.();
+      }
+    });
     this.events.subscribe("map:basemap-changed", () => {
       try {
         const { selected, options } = this.mapController.getBasemapOptions();
@@ -4598,30 +4685,89 @@ export class UIController {
       ? ENTERPRISE_CATALOGS.find((item) => item.id === catalogIdOrDefinition)
       : catalogIdOrDefinition;
     if (!definition) throw new Error("That ArcGIS service directory is not configured.");
-    const catalog = new EnterpriseCatalog(definition);
+    await this.#serviceDirectoryDialog({ eyebrow: definition.version, title: definition.title, servers: [{ catalog: new EnterpriseCatalog(definition), folder: "" }] });
+  }
+
+  /**
+   * Opens the layer picker for ?layer= links that name an ArcGIS services
+   * directory or folder: [{ rootUrl, folder, title }]. Several servers share one
+   * picker that starts with a list of them. `issues` are the link's other
+   * layers that failed, listed above the services.
+   */
+  async openServiceDirectories(directories, { issues = [] } = {}) {
+    const servers = directories.map(({ rootUrl, folder = "", title }) => ({
+      catalog: new EnterpriseCatalog({ rootUrl }),
+      folder,
+      label: title || `${new URL(rootUrl).hostname}${folder ? ` · ${folder}` : ""}`,
+    }));
+    // The link's title= heads the picker; servers with different titles share a plain heading.
+    const titles = [...new Set(directories.map((item) => item.title).filter(Boolean))];
+    const title = titles.length === 1 ? titles[0] : servers.length === 1 ? `${new URL(directories[0].rootUrl).hostname} services` : "ArcGIS services";
+    const notice = issues.length ? `<div class="warning-box"><strong>${issues.length === 1 ? "A layer in this link" : `${issues.length} layers in this link`} could not be shown</strong>${issues.map(specIssueMarkup).join("")}</div>` : "";
+    await this.#serviceDirectoryDialog({ eyebrow: "ArcGIS services directory", title, servers, notice });
+  }
+
+  async #serviceDirectoryDialog({ eyebrow, title, servers, notice = "" }) {
     this.openDialog({
-      eyebrow: definition.version,
-      title: definition.title,
+      eyebrow,
+      title,
       content: '<div class="loading-row"><span></span> Reading service directory…</div>',
     });
+    const session = this.dialogSession;
+    const content = document.querySelector("#dialog-content");
 
-    const render = async (folder = "") => {
-      const content = document.querySelector("#dialog-content");
+    const listServers = () => {
+      content.innerHTML = `${notice}<div class="enterprise-list">${servers.map((server, index) => `<button class="enterprise-row" data-directory-server="${index}"><span><strong>${escapeHtml(server.label)}</strong><small>${escapeHtml(server.catalog.definition.rootUrl)}${server.folder ? `/${escapeHtml(server.folder)}` : ""}</small></span><b>→</b></button>`).join("")}</div>
+        <p class="form-note">This link names ${servers.length} ArcGIS server directories. Open one to choose its layers.</p>`;
+      content.querySelectorAll("[data-directory-server]").forEach((button) => {
+        const index = Number(button.dataset.directoryServer);
+        button.addEventListener("click", () => render(index, servers[index].folder));
+      });
+    };
+
+    const render = async (serverIndex, folder = "") => {
+      const { catalog } = servers[serverIndex];
+      const { rootUrl } = catalog.definition;
       content.innerHTML = '<div class="loading-row"><span></span> Reading service directory…</div>';
       try {
         const listing = await catalog.browse(folder);
+        if (this.dialogSession !== session) return;
         const parent = listing.folder.includes("/")
           ? listing.folder.split("/").slice(0, -1).join("/")
           : "";
-        content.innerHTML = `<div class="catalog-path"><button data-enterprise-folder="${escapeHtml(parent)}" ${listing.folder ? "" : "disabled"}>← Back</button><code>/${escapeHtml(listing.folder)}</code></div>
+        // At a server's top, Back returns to the list of servers when the link named several.
+        const back = listing.folder
+          ? `<button data-enterprise-folder="${escapeHtml(parent)}">← Back</button>`
+          : `<button data-directory-servers ${servers.length > 1 ? "" : "disabled"}>← Back</button>`;
+        const total = listing.folders.length + listing.services.length;
+        // Service names are often one long snake_case word; spaces let them wrap, and the raw name stays in the tooltip.
+        const label = (name) => {
+          const raw = name.split("/").pop();
+          return `<strong title="${escapeHtml(raw)}">${escapeHtml(raw.replace(/_+/g, " ").trim() || raw)}</strong>`;
+        };
+        const named = (name) => `data-directory-name="${escapeHtml(name.split("/").pop().toLowerCase())}"`;
+        content.innerHTML = `${notice}<div class="catalog-path">${back}<code>/${escapeHtml(listing.folder)}</code><small>${total} ${total === 1 ? "item" : "items"}</small></div>
+          ${total > 12 ? `<input class="directory-filter" type="search" placeholder="Filter ${total} folders and services…" aria-label="Filter folders and services" />` : ""}
           <div class="enterprise-list">
-            ${listing.folders.map((name) => `<button class="enterprise-row" data-enterprise-folder="${escapeHtml(name)}"><span><strong>${escapeHtml(name.split("/").pop())}</strong><small>Folder</small></span><b>→</b></button>`).join("")}
-            ${listing.services.map((service) => `<div class="enterprise-row"><span><strong>${escapeHtml(service.name.split("/").pop())}</strong><small>${escapeHtml(service.type)}</small></span><button data-enterprise-service="${escapeHtml(service.url)}" data-service-type="${escapeHtml(service.serviceType)}">Add</button></div>`).join("")}
+            ${listing.folders.map((name) => `<button class="enterprise-row" ${named(name)} data-enterprise-folder="${escapeHtml(name)}"><span>${label(name)}<small>Folder</small></span><b>→</b></button>`).join("")}
+            ${listing.services.map((service) => `<div class="enterprise-row" ${named(service.name)}><span>${label(service.name)}<small>${escapeHtml(service.type)}</small></span><button data-enterprise-service="${escapeHtml(service.url)}" data-service-type="${escapeHtml(service.serviceType)}">Add</button></div>`).join("")}
           </div>
+          <div class="empty-state" data-directory-nomatch hidden>No folders or services match.</div>
           ${!listing.folders.length && !listing.services.length ? '<div class="empty-state">This folder is empty.</div>' : ""}
-          <p class="form-note">Services are discovered live from <code>${escapeHtml(definition.rootUrl)}</code>. Availability and access are controlled by the service owner.</p>`;
+          <p class="form-note">Services are discovered live from <code>${escapeHtml(rootUrl)}</code>. Availability and access are controlled by the service owner.</p>`;
+        content.querySelector("[data-directory-servers]")?.addEventListener("click", listServers);
+        content.querySelector(".directory-filter")?.addEventListener("input", (event) => {
+          const words = event.target.value.toLowerCase().replace(/_+/g, " ").split(/\s+/).filter(Boolean);
+          let shown = 0;
+          content.querySelectorAll("[data-directory-name]").forEach((row) => {
+            const name = row.dataset.directoryName.replace(/_+/g, " ");
+            row.hidden = !words.every((word) => name.includes(word));
+            if (!row.hidden) shown += 1;
+          });
+          content.querySelector("[data-directory-nomatch]").hidden = shown > 0;
+        });
         content.querySelectorAll("[data-enterprise-folder]").forEach((button) =>
-          button.addEventListener("click", () => render(button.dataset.enterpriseFolder)),
+          button.addEventListener("click", () => render(serverIndex, button.dataset.enterpriseFolder)),
         );
         content.querySelectorAll("[data-enterprise-service]").forEach((button) =>
           button.addEventListener("click", async () => {
@@ -4643,10 +4789,12 @@ export class UIController {
           }),
         );
       } catch (error) {
-        content.innerHTML = `<div class="empty-state">${escapeHtml(error.message)}<br />The server may not allow cross-origin browser access.</div>`;
+        if (this.dialogSession !== session) return;
+        content.innerHTML = `${notice}<div class="empty-state">${escapeHtml(error.message)}<br />The server may not allow cross-origin browser access. <a href="${escapeHtml(rootUrl)}${folder ? `/${escapeHtml(folder)}` : ""}" target="_blank" rel="noopener noreferrer">Open the server ↗</a></div>`;
       }
     };
-    await render();
+    if (servers.length === 1) await render(0, servers[0].folder);
+    else listServers();
   }
 
   #customToolDialog() {
@@ -4870,6 +5018,7 @@ export class UIController {
       ollama: ["http://localhost:11434", "llama3.2"],
       openai: ["https://api.openai.com/v1", "gpt-6-astra"],
       anthropic: ["https://api.anthropic.com/v1", "claude-sonnet-5"],
+      bedrock: ["https://bedrock-runtime.us-east-1.amazonaws.com", "anthropic.claude-sonnet-5-5"],
       "openai-compatible": ["", ""],
     };
     const readForm = () => ({
@@ -4942,7 +5091,7 @@ export class UIController {
     this.openDialog({
       eyebrow: "AI adapter",
       title: "Configure intelligence provider",
-      content: `<label class="field"><span>Provider</span><select id="ai-provider"><option value="ollama" ${provider === "ollama" ? "selected" : ""}>Ollama (local)</option><option value="openai" ${provider === "openai" ? "selected" : ""}>OpenAI</option><option value="anthropic" ${provider === "anthropic" ? "selected" : ""}>Anthropic Claude</option><option value="openai-compatible" ${provider === "openai-compatible" ? "selected" : ""}>OpenAI-compatible endpoint</option></select></label>
+      content: `<label class="field"><span>Provider</span><select id="ai-provider"><option value="ollama" ${provider === "ollama" ? "selected" : ""}>Ollama (local)</option><option value="openai" ${provider === "openai" ? "selected" : ""}>OpenAI</option><option value="anthropic" ${provider === "anthropic" ? "selected" : ""}>Anthropic Claude</option><option value="bedrock" ${provider === "bedrock" ? "selected" : ""}>Amazon Bedrock</option><option value="openai-compatible" ${provider === "openai-compatible" ? "selected" : ""}>OpenAI-compatible endpoint</option></select></label>
         <label class="field"><span>Endpoint</span><input id="ai-endpoint" type="url" value="${escapeHtml(config.endpoint || defaults[provider][0])}" /></label>
         <label class="field"><span>Model</span><input id="ai-model" list="ollama-models" value="${escapeHtml(config.model || defaults[provider][1])}" /><datalist id="ollama-models"></datalist><small id="ai-model-hint">Use the complete Ollama tag, including a suffix such as <code>:27b</code>.</small></label>
         <label class="field"><span>API token <small>online providers only</small></span><input id="ai-token" type="password" autocomplete="off" /></label>
@@ -4970,7 +5119,9 @@ export class UIController {
         ? 'Use the complete Ollama tag, including a suffix such as <code>:27b</code>.'
         : providerInput.value === "openai"
           ? "Enter an OpenAI API model identifier available to this API key. OpenAI uses the Responses API."
-          : "Enter the model identifier accepted by this provider.";
+          : providerInput.value === "bedrock"
+            ? "Enter a Bedrock model ID or inference profile ID (such as <code>us.</code> or <code>global.</code> prefixed) enabled in this region. Put your region in the endpoint and paste a Bedrock API key as the token."
+            : "Enter the model identifier accepted by this provider.";
       this.dialog.querySelector("#ai-connection-status").hidden = true;
     };
     providerInput.addEventListener("change", syncProviderForm);
@@ -5560,10 +5711,11 @@ export class UIController {
     const timeLabel = this.#cinematicPositionLabel(state);
     const ambientScene = state.valueKind === "none";
     const playing = ambientScene ? state.effects?.playing === true : timeline.playing;
-    const fidelityNote = state.valueKind === "none" ? "Ambient animation: every feature shows at once and its effect loops. Nothing is stepped through time or estimated." : state.valueKind === "number" ? `Stepping through ${state.layers?.find((item) => item.kind === "number")?.timeField || "the field"} from lowest to highest. ${timeMode === "cumulative" ? "Build up shows every record up to the current value." : "Only records with the current value show."} Values are the data's own; nothing is interpolated.` : timeMode === "cumulative" ? "Showing every observed record from the first observation through this moment. This is cumulative display, not inferred persistence or geometry interpolation." : "Showing the current observed state only. Polygon boundaries step between snapshots; no unobserved spread or geometry interpolation is shown.";
+    const lead = this.#cinematicLead(state);
+    const fidelityNote = state.valueKind === "none" ? "Ambient animation: every feature shows at once and its effect loops. Nothing is stepped through time or estimated." : lead?.order ? `Stepping through ${lead.timeField} one value at a time, ${lead.order === "listed" ? "in the 3D chart's stacking order, bottom first" : "A to Z"}. ${timeMode === "cumulative" ? "Build up shows every value up to the current one." : "Only records with the current value show."} The order is the data's own; it is not a date.` : state.valueKind === "number" ? `Stepping through ${state.layers?.find((item) => item.kind === "number")?.timeField || "the field"} from lowest to highest. ${timeMode === "cumulative" ? "Build up shows every record up to the current value." : "Only records with the current value show."} Values are the data's own; nothing is interpolated.` : timeMode === "cumulative" ? "Showing every observed record from the first observation through this moment. This is cumulative display, not inferred persistence or geometry interpolation." : "Showing the current observed state only. Polygon boundaries step between snapshots; no unobserved spread or geometry interpolation is shown.";
     const inspection = intent === "investigate" ? `<section class="cinematic-inspector" aria-label="Observed data inspection"><span class="eyebrow">Observed evidence</span><strong>${escapeHtml(this.#cinematicValueText(timeline.observationTime, state))}</strong>${state.layers.map((item) => `<p><b>${escapeHtml(item.title)}</b><span>${item.observedCount} observed feature${item.observedCount === 1 ? "" : "s"} · ${escapeHtml(item.timeField)}</span></p>`).join("")}<small>Observed source records only; no estimated spread is shown.</small></section>` : "";
     const present = intent === "present" ? `<details class="cinematic-disclosure cinematic-disclosure--present"${presentOpen ? " open" : ""}><summary>Present & export</summary><div class="cinematic-actions">${this.#cinematicClipSummary()}<button type="button" data-cinematic-create-clip>Create Clip</button>${this.#latestCinematicClip() ? '<button type="button" data-cinematic-edit-clip>Edit Clip</button>' : ""}<button type="button" data-cinematic-add-brief>Add to Brief</button><button type="button" data-cinematic-download-clip>Clip JSON</button><button type="button" data-cinematic-poster>Poster PNG</button><button type="button" data-cinematic-record title="Render this Clip to a video file">Export movie</button></div></details>` : "";
-    root.innerHTML = `<section class="mode-dashboard cinematic-dashboard"><header><span class="eyebrow">Cinematic · ${ambientScene ? "ambient loop" : state.valueKind === "number" ? "scenario sweep" : "observed playback"}</span><h2>${escapeHtml(presentation.title || layer.title || "Cinematic map")}</h2><div class="cinematic-mode-strip"><label>Intent <select data-cinematic-intent aria-label="Cinematic intent"><option value="explore"${intent === "explore" ? " selected" : ""}>Explore</option><option value="investigate"${intent === "investigate" ? " selected" : ""}>Investigate</option><option value="present"${intent === "present" ? " selected" : ""}>Present</option></select></label><span>${this.mapController.getEngineId?.() || "map"}</span></div><p data-cinematic-time-label>${escapeHtml(timeLabel)}</p></header><div class="cinematic-quick-controls" aria-label="Cinematic playback">${ambientScene ? "" : '<button type="button" data-cinematic-previous title="Previous observation">◀</button>'}<button type="button" data-cinematic-play aria-pressed="${playing ? "true" : "false"}"${ambientScene ? ' title="Play or pause the looping effects"' : ""}>${playing ? "Pause" : "Play"}</button>${ambientScene ? "" : '<button type="button" data-cinematic-next title="Next observation">▶</button>'}<button type="button" data-cinematic-focus title="Fly to the current observed feature">Focus</button></div>${inspection}<p class="cinematic-provenance">${this.#cinematicProvenanceBadges(state)}${escapeHtml(fidelityNote)}${state.layers?.[0]?.effectNote ? ` <span class="cinematic-effect-note">${escapeHtml(state.layers[0].effectNote)}</span>` : ""}</p><details class="cinematic-disclosure cinematic-disclosure--playback"${playbackOpen ? " open" : ""}><summary>${intent === "investigate" ? "Playback controls" : "Playback & map appearance"}</summary><div class="cinematic-controls">${ambientScene ? "" : `<label>Build up <input type="checkbox" data-cinematic-build-up${timeMode === "cumulative" ? " checked" : ""} aria-label="Build up observed records over time"></label><label>Local window <input type="checkbox" data-cinematic-local-window${localWindow ? " checked" : ""} aria-label="Filter cinematic observations to the current map window"></label>`}${ambientScene ? "" : `<label>Speed <select data-cinematic-rate aria-label="Playback speed"><option value="0.1"${timeline.playbackRate === 0.1 ? " selected" : ""}>Very slow</option><option value="0.25"${timeline.playbackRate === 0.25 ? " selected" : ""}>Slow</option><option value="0.5"${timeline.playbackRate === 0.5 ? " selected" : ""}>Steady</option><option value="1"${timeline.playbackRate === 1 ? " selected" : ""}>Fast</option><option value="2"${timeline.playbackRate === 2 ? " selected" : ""}>Very fast</option></select></label>`}${supportsGround ? `<label>Terrain <select data-cinematic-ground aria-label="Terrain"><option value="">Map setting</option>${terrainOptions}</select></label>` : ""}${supportsBoundaryGlow ? `${state.layers.length > 1 ? "" : `<label>Effect <select data-cinematic-effect aria-label="Visual effect">${effectOptions}</select></label>`}<label title="How much effect detail to draw. Auto lightens it for large scenes; the data is never reduced.">Detail <select data-cinematic-quality aria-label="Effect detail">${[["auto", "Auto"], ["eco", "Eco"], ["balanced", "Balanced"], ["cinematic", "Cinematic"]].map(([value, label]) => `<option value="${value}"${(state.spec?.cinematic.quality || "auto") === value ? " selected" : ""}>${label}</option>`).join("")}</select></label><label title="Effects loop on one clock, separate from the timeline">Effects move <input type="checkbox" data-cinematic-effects-playing${state.effects?.playing !== false ? " checked" : ""} aria-label="Effects move"></label><label>Effect speed <select data-cinematic-effects-rate aria-label="Effect speed">${[0.25, 0.5, 1, 2, 4].map((value) => `<option value="${value}"${(state.effects?.rate ?? 1) === value ? " selected" : ""}>${value}×</option>`).join("")}</select></label>` : ""}<label>Opacity <input type="range" data-cinematic-opacity min="5" max="100" value="${Math.round(Number(layerOpacity) * 100)}" aria-label="Cinematic layer opacity"></label>${ambientScene ? "" : `<label class="cinematic-controls__scrub">Observation <input type="range" data-cinematic-scrub min="0" max="${Math.max(0, timeline.ticks.length - 1)}" value="${timeline.observationIndex}" step="1"></label>`}</div>${ambientScene ? "" : this.#cinematicDateControls(state)}${supportsBoundaryGlow ? `<p class="cinematic-perf form-note" data-cinematic-perf aria-live="polite">${escapeHtml(this.#cinematicPerfText(state))}</p>` : ""}<p class="form-note">${ambientScene ? "Ambient: no dates or steps. Effects loop on one clock; pause stops repainting." : localWindow ? "The local range resets after each completed pan or zoom." : "Controls apply to observed data only."}</p></details>${this.#cinematicTracksMarkup(state, supportsBoundaryGlow)}${present}<div class="cinematic-footer-actions"><button type="button" data-cinematic-reconfigure>Change mapping</button><button type="button" data-cinematic-guide>Guide</button><button type="button" data-cinematic-exit>Exit</button></div></section>`;
+    root.innerHTML = `<section class="mode-dashboard cinematic-dashboard"><header><span class="eyebrow">Cinematic · ${ambientScene ? "ambient loop" : lead?.order ? "sequence" : state.valueKind === "number" ? "scenario sweep" : "observed playback"}</span><h2>${escapeHtml(presentation.title || layer.title || "Cinematic map")}</h2><div class="cinematic-mode-strip"><label>Intent <select data-cinematic-intent aria-label="Cinematic intent"><option value="explore"${intent === "explore" ? " selected" : ""}>Explore</option><option value="investigate"${intent === "investigate" ? " selected" : ""}>Investigate</option><option value="present"${intent === "present" ? " selected" : ""}>Present</option></select></label><span>${this.mapController.getEngineId?.() || "map"}</span></div><p data-cinematic-time-label>${escapeHtml(timeLabel)}</p></header><div class="cinematic-quick-controls" aria-label="Cinematic playback">${ambientScene ? "" : '<button type="button" data-cinematic-previous title="Previous observation">◀</button>'}<button type="button" data-cinematic-play aria-pressed="${playing ? "true" : "false"}"${ambientScene ? ' title="Play or pause the looping effects"' : ""}>${playing ? "Pause" : "Play"}</button>${ambientScene ? "" : '<button type="button" data-cinematic-next title="Next observation">▶</button>'}<button type="button" data-cinematic-focus title="Fly to the current observed feature">Focus</button></div>${inspection}<p class="cinematic-provenance">${this.#cinematicProvenanceBadges(state)}${escapeHtml(fidelityNote)}${state.layers?.[0]?.effectNote ? ` <span class="cinematic-effect-note">${escapeHtml(state.layers[0].effectNote)}</span>` : ""}</p><details class="cinematic-disclosure cinematic-disclosure--playback"${playbackOpen ? " open" : ""}><summary>${intent === "investigate" ? "Playback controls" : "Playback & map appearance"}</summary><div class="cinematic-controls">${ambientScene ? "" : `<label>Build up <input type="checkbox" data-cinematic-build-up${timeMode === "cumulative" ? " checked" : ""} aria-label="Build up observed records over time"></label><label>Local window <input type="checkbox" data-cinematic-local-window${localWindow ? " checked" : ""} aria-label="Filter cinematic observations to the current map window"></label>`}${ambientScene ? "" : `<label>Speed <select data-cinematic-rate aria-label="Playback speed"><option value="0.1"${timeline.playbackRate === 0.1 ? " selected" : ""}>Very slow</option><option value="0.25"${timeline.playbackRate === 0.25 ? " selected" : ""}>Slow</option><option value="0.5"${timeline.playbackRate === 0.5 ? " selected" : ""}>Steady</option><option value="1"${timeline.playbackRate === 1 ? " selected" : ""}>Fast</option><option value="2"${timeline.playbackRate === 2 ? " selected" : ""}>Very fast</option></select></label>`}${supportsGround ? `<label>Terrain <select data-cinematic-ground aria-label="Terrain"><option value="">Map setting</option>${terrainOptions}</select></label>` : ""}${supportsBoundaryGlow ? `${state.layers.length > 1 ? "" : `<label>Effect <select data-cinematic-effect aria-label="Visual effect">${effectOptions}</select></label>`}<label title="How much effect detail to draw. Auto lightens it for large scenes; the data is never reduced.">Detail <select data-cinematic-quality aria-label="Effect detail">${[["auto", "Auto"], ["eco", "Eco"], ["balanced", "Balanced"], ["cinematic", "Cinematic"]].map(([value, label]) => `<option value="${value}"${(state.spec?.cinematic.quality || "auto") === value ? " selected" : ""}>${label}</option>`).join("")}</select></label><label title="Effects loop on one clock, separate from the timeline">Effects move <input type="checkbox" data-cinematic-effects-playing${state.effects?.playing !== false ? " checked" : ""} aria-label="Effects move"></label><label>Effect speed <select data-cinematic-effects-rate aria-label="Effect speed">${[0.25, 0.5, 1, 2, 4].map((value) => `<option value="${value}"${(state.effects?.rate ?? 1) === value ? " selected" : ""}>${value}×</option>`).join("")}</select></label>` : ""}<label>Opacity <input type="range" data-cinematic-opacity min="5" max="100" value="${Math.round(Number(layerOpacity) * 100)}" aria-label="Cinematic layer opacity"></label>${ambientScene ? "" : `<label class="cinematic-controls__scrub">Observation <input type="range" data-cinematic-scrub min="0" max="${Math.max(0, timeline.ticks.length - 1)}" value="${timeline.observationIndex}" step="1"></label>`}</div>${ambientScene ? "" : this.#cinematicDateControls(state)}${supportsBoundaryGlow ? `<p class="cinematic-perf form-note" data-cinematic-perf aria-live="polite">${escapeHtml(this.#cinematicPerfText(state))}</p>` : ""}<p class="form-note">${ambientScene ? "Ambient: no dates or steps. Effects loop on one clock; pause stops repainting." : localWindow ? "The local range resets after each completed pan or zoom." : "Controls apply to observed data only."}</p></details>${this.#cinematicTracksMarkup(state, supportsBoundaryGlow)}${present}<div class="cinematic-footer-actions"><button type="button" data-cinematic-reconfigure>Change mapping</button><button type="button" data-cinematic-guide>Guide</button><button type="button" data-cinematic-exit>Exit</button></div></section>`;
     // An Ambient scene has no timeline: Play and Pause drive its looping effects.
     root.querySelector("[data-cinematic-play]")?.addEventListener("click", () => {
       if (this.cinematicState?.valueKind === "none") { this.cinematicController.toggleEffects(); this.#saveCinematicSpec(); }
@@ -5674,9 +5826,16 @@ export class UIController {
     this.#syncCinematicMapTimeline(state);
   }
 
-  /** A playback position as people read it: a date, "field value", or nothing for ambient. */
+  /** The stepping track that leads the scene (its field, order and step labels), if any. */
+  #cinematicLead(state = this.cinematicState) {
+    return state?.layers?.find((layer) => !layer.ambient && layer.kind !== "none") || null;
+  }
+
+  /** A playback position as people read it: a date, "field value", a step's label, or nothing for ambient. */
   #cinematicValueText(value, state = this.cinematicState) {
     if (state?.valueKind === "none") return "Ambient";
+    const label = this.#cinematicLead(state)?.labels?.[value];
+    if (label != null) return String(label);
     if (state?.valueKind === "number") {
       const field = state.layers?.[0]?.timeField || "Value";
       const number = Number(value);
@@ -5717,7 +5876,12 @@ export class UIController {
     const from = this.#cinematicInputValue(clock.start, state, true), to = this.#cinematicInputValue(clock.end, state, true);
     const limited = Number.isFinite(from) || Number.isFinite(to);
     const show = (value) => (numeric ? String(value) : this.#localDateTimeValue(value));
-    const input = (attributes, value) => numeric
+    // Named steps (a Sequence, or a sweep labelled by a text field) are picked by name.
+    const labels = this.#cinematicLead(state)?.labels;
+    const named = numeric && labels && all.every((tick) => labels[tick] != null);
+    const input = (attributes, value) => named
+      ? `<select ${attributes}>${attributes.includes("goto") ? '<option value="">Choose…</option>' : ""}${all.map((tick) => `<option value="${tick}"${String(tick) === String(value) ? " selected" : ""}>${escapeHtml(String(labels[tick]))}</option>`).join("")}</select>`
+      : numeric
       ? `<input type="number" step="any" ${attributes} min="${all[0]}" max="${all.at(-1)}" value="${value}">`
       : `<input type="datetime-local" step="1" ${attributes} min="${show(all[0])}" max="${show(all.at(-1))}" value="${value}">`;
     const count = state.timeline?.ticks?.length || 0;
@@ -5766,8 +5930,8 @@ export class UIController {
     const layer = this.mapController.getLayer(uid);
     if (!layer) return;
     const suggestions = recommendAnimations(layer);
-    const kindName = { time: "Timeline", number: "Scenario", none: "Ambient" };
-    const cards = suggestions.map((item, index) => `<article class="animate-option"><header><span class="animate-option__kind">${kindName[item.kind]}</span><span class="cinematic-badge cinematic-badge--${item.provenance}">${item.provenance}</span></header><strong>${escapeHtml(item.label.replace(/^[A-Za-z]+: /, ""))}</strong><p>${escapeHtml(item.reason)}</p><div class="animate-option__actions">${item.kind === "none" ? `<button type="button" class="button--primary" data-animate-apply="${index}">Animate on the map</button>` : ""}<button type="button" data-animate-cinematic="${index}">${item.kind === "none" ? "Open in Cinematic" : "Play in Cinematic"}</button></div></article>`).join("");
+    const kindName = { time: "Timeline", number: "Scenario", none: "Ambient", sequence: "Sequence" };
+    const cards = suggestions.map((item, index) => `<article class="animate-option"><header><span class="animate-option__kind">${kindName[item.order ? "sequence" : item.kind]}</span><span class="cinematic-badge cinematic-badge--${item.provenance}">${item.provenance}</span></header><strong>${escapeHtml(item.label.replace(/^[A-Za-z]+: /, ""))}</strong><p>${escapeHtml(item.reason)}</p><div class="animate-option__actions">${item.kind === "none" ? `<button type="button" class="button--primary" data-animate-apply="${index}">Animate on the map</button>` : ""}<button type="button" data-animate-cinematic="${index}">${item.kind === "none" ? "Open in Cinematic" : "Play in Cinematic"}</button></div></article>`).join("");
     const current = layer.animatedEffect ? `<p class="form-note">Now animated with ${escapeHtml(CINEMATIC_EFFECTS[layer.animatedEffect.type]?.label || layer.animatedEffect.type)}. <button type="button" class="link-button" data-animate-stop>Stop animating</button></p>` : "";
     this.openDialog({
       eyebrow: "Animate",
@@ -5807,7 +5971,7 @@ export class UIController {
       title: `${layer.title || "Map"} ${item.kind === "none" ? "animation" : item.kind === "number" ? `by ${item.field}` : "playback"}`,
       intent: "explore", preferredEngine: this.mapController.getEngineId(),
       clock: { durationSeconds: 120, rate: 0.25, timeMode: item.timeMode || "instant", loop: false },
-      layers: [{ layerRef: layer.uid, temporal: { kind: item.kind, startField: item.kind === "none" ? null : item.field, featureIdField: layer.objectIdField, timezone: "UTC", missingTime: "exclude" },
+      layers: [{ layerRef: layer.uid, temporal: { kind: item.kind, startField: item.kind === "none" ? null : item.field, featureIdField: layer.objectIdField, timezone: "UTC", missingTime: "exclude", ...(item.order ? { order: item.order } : {}) },
         animation: { template: layer.geometryType === "point" ? "moving-track" : "step-perimeter", transition: "step", effect: { type: item.effect, intensity: 1, ...(item.kind === "none" && item.field ? { field: item.field } : {}) }, provenanceLabel: "Observed records" },
         provenance: { status: item.provenance } }],
       provenance: { synthetic: false, sourceUrls: layer.url && /^https:\/\//i.test(layer.url) ? [layer.url] : [], interpolated: false },
@@ -6000,10 +6164,12 @@ export class UIController {
         }
       });
     }
-    const current = this.#cinematicValueText(timeline.observationTime, state);
-    const start = this.#cinematicValueText(timeline.ticks[0], state);
-    const end = this.#cinematicValueText(timeline.ticks.at(-1), state);
-    overlay.innerHTML = `<div class="cinematic-map-timeline__meta"><strong>${state.localEmpty ? "No local observations" : current}</strong><span>${state.localWindow ? "Local window" : "All observed data"}</span></div><div class="cinematic-map-timeline__controls"><button type="button" data-cinematic-map-play aria-pressed="${timeline.playing ? "true" : "false"}">${timeline.playing ? "Pause" : "Play"}</button><span>${escapeHtml(start)}</span><input type="range" data-cinematic-map-scrub min="0" max="${Math.max(0, timeline.ticks.length - 1)}" value="${timeline.observationIndex}" step="1" aria-label="Cinematic observation"><span>${escapeHtml(end)}</span><label><input type="checkbox" data-cinematic-map-local${state.localWindow ? " checked" : ""}> Local window</label></div>`;
+    // A long hierarchical step name ("Phanerozoic - Mesozoic - Triassic - Late-Triassic - Norian") shows its last parts; the tooltip has it all.
+    const named = (value) => { const text = this.#cinematicValueText(value, state); const short = text.length > 32 && text.includes(" - ") ? text.split(" - ").slice(-2).join(" - ") : text; return short === text ? escapeHtml(text) : `<span title="${escapeHtml(text)}">${escapeHtml(short)}</span>`; };
+    const current = named(timeline.observationTime);
+    const start = named(timeline.ticks[0]);
+    const end = named(timeline.ticks.at(-1));
+    overlay.innerHTML = `<div class="cinematic-map-timeline__meta"><strong>${state.localEmpty ? "No local observations" : current}</strong><span>${state.localWindow ? "Local window" : "All observed data"}</span></div><div class="cinematic-map-timeline__controls"><button type="button" data-cinematic-map-play aria-pressed="${timeline.playing ? "true" : "false"}">${timeline.playing ? "Pause" : "Play"}</button><span>${start}</span><input type="range" data-cinematic-map-scrub min="0" max="${Math.max(0, timeline.ticks.length - 1)}" value="${timeline.observationIndex}" step="1" aria-label="Cinematic observation"><span>${end}</span><label><input type="checkbox" data-cinematic-map-local${state.localWindow ? " checked" : ""}> Local window</label></div>`;
   }
 
   #syncPresentationMobileControls(presentation = this.projectManager.current.presentation || {}) {
@@ -8556,6 +8722,7 @@ export class UIController {
     if (shared.kind === "briefing-document") return this.#openSharedBriefingDocument(shared);
     if (shared.basemap) this.mapController.setBasemap(shared.basemap);
     if (shared.ground) this.mapController.setGround(shared.ground);
+    if (shared.underground) await Promise.resolve(this.mapController.setUndergroundView(shared.underground)).catch(() => {});
     const added = [];
     for (const config of shared.layers) {
       try {
@@ -8873,7 +9040,6 @@ export class UIController {
     if (!result) return;
     const input = document.querySelector("#place-query");
     input.value = "";
-    this.lastPlaceLabel = result.label;
     this.#clearSearchResults();
     this.#rememberPlace(result);
     input.blur();
@@ -8881,9 +9047,16 @@ export class UIController {
   }
 
   async #goToPlace(place) {
+    // The place's name labels bookmarks only while the view stays where the search landed.
+    const visit = { label: place.label };
+    this.lastPlace = visit;
     try {
       await this.mapController.goToSearchResult(place);
+      if (this.lastPlace !== visit) return;
+      const { center, zoom } = this.mapController.getViewState();
+      Object.assign(visit, { center, zoom });
     } catch (error) {
+      if (this.lastPlace === visit) this.lastPlace = null;
       // A newer camera move interrupting this one is expected, not a failure.
       if (error?.name !== "AbortError") this.error(error.message);
     }
@@ -8931,7 +9104,6 @@ export class UIController {
   async #goToRecentPlace(index) {
     const place = this.#readRecentPlaces()[index];
     if (!place) return;
-    this.lastPlaceLabel = place.label;
     this.#rememberPlace(place);
     await this.#goToPlace({ ...place, extent: place.extent || undefined });
   }
@@ -8949,8 +9121,10 @@ export class UIController {
 
   async #addBookmark() {
     const [longitude, latitude] = this.mapController.getViewState().center;
-    const name = document.querySelector("#place-query").value.trim() || this.lastPlaceLabel || `View at ${latitude.toFixed(3)}, ${longitude.toFixed(3)}`;
+    const typed = document.querySelector("#place-query").value.trim();
+    const placeLabel = this.#viewIsAtLastPlace() ? this.lastPlace.label : "";
     const address = await this.mapController.reverseGeocode({ longitude, latitude }).catch(() => null);
+    const name = typed || placeLabel || address?.address || `View at ${latitude.toFixed(3)}, ${longitude.toFixed(3)}`;
     this.projectManager.addBookmark({
       name,
       description: "",
@@ -8962,6 +9136,17 @@ export class UIController {
       lingerSeconds: 4,
       layerVisibility: this.mapController.getLayers().map((layer) => ({ key: this.#atlasLayerKey(layer), visible: layer.visible })),
     });
+  }
+
+  /** Whether the view is still about where the last place search left it: no farther than a view's width away, and not zoomed well out. */
+  #viewIsAtLastPlace() {
+    const place = this.lastPlace;
+    const { center, zoom } = this.mapController.getViewState();
+    if (!place?.center || !center || !Number.isFinite(place.zoom) || !Number.isFinite(zoom)) return false;
+    if (zoom < place.zoom - 1.5) return false;
+    const degreesAcross = 360 / 2 ** place.zoom * 4;
+    const east = (center[0] - place.center[0]) * Math.cos((center[1] * Math.PI) / 180);
+    return Math.hypot(east, center[1] - place.center[1]) < degreesAcross / 2;
   }
 
   #bookmarkManagerDialog() {
@@ -9061,7 +9246,7 @@ export class UIController {
     document.querySelector("#layer-count").textContent = `${layers.length} loaded`;
     const container = document.querySelector("#layers-list");
     const exampleGuide = this.activeExampleGuide;
-    const guide = exampleGuide ? `<section class="example-guide" aria-label="Example tutorial"><div><span class="eyebrow">Example loaded</span><strong>${escapeHtml(exampleGuide.title || "Explore this map")}</strong><p>See how the data, map symbols, and controls fit together.</p></div><button type="button" data-example-guide>Start tutorial</button></section>` : "";
+    const guide = exampleGuide ? `<section class="example-guide" aria-label="Example tutorial"><div><span class="eyebrow">Example loaded</span><strong>${escapeHtml(exampleGuide.title || "Explore this map")}</strong><p>${escapeHtml(exampleGuide.summary || "See how the data, map symbols, and controls fit together.")}</p></div><button type="button" data-example-guide>Start tutorial</button><button type="button" class="example-guide__close" data-example-guide-close aria-label="Close the tutorial card" title="Close">×</button></section>` : "";
     container.innerHTML = layers.length
       ? `${guide}${layers.map((layer) => {
         const config = this.mapController.getLayerConfig(layer);
@@ -9074,11 +9259,15 @@ export class UIController {
           <div class="layer-scale-note" data-layer-scale-note ${scaleMessage ? "" : "hidden"}><span data-scale-text>${escapeHtml(scaleMessage || "")}</span><button type="button" data-layer-action="ignore-scale" title="Draw this layer at every zoom level">Show anyway</button></div>
           <label class="opacity-row"><span>Opacity</span><input data-layer-opacity type="range" min="0" max="1" step="0.05" value="${layer.opacity}" /><output>${Math.round(layer.opacity * 100)}%</output></label>
           <div class="layer-card__actions layer-card__primary"><button data-layer-action="zoom">Zoom</button><button data-layer-action="table">Table</button><button data-layer-action="style">Style</button></div>
-          <details class="layer-card__more" ${this.expandedLayerCards.has(layer.uid) ? "open" : ""}><summary>More layer tools</summary><div class="layer-card__actions">${layer.queryable && this.mapController.getCapabilities().includes("three-3d") ? '<button data-layer-action="animate" title="Suggested animations for this layer: a looping effect, a timeline or a sweep">Animate</button>' : ""}<button data-layer-action="filter" title="Show only matching features on the map">Filter map</button>${layer.queryable || config.sourceType === "geoparquet" ? '<button data-layer-action="query-duckdb" title="Query, join or run spatial analysis on a copy of this layer">Query data</button>' : ''}${layer.queryable ? '<button data-layer-action="chart" title="Chart this layer in a panel linked to the map">Chart</button>' : ""}${layer.queryable ? '<button data-layer-action="labels" title="Label features from their fields, a template or fixed text">Labels</button>' : ""}<button data-layer-action="source" title="Inspect this data source and open its publisher page">Source</button><button data-layer-action="refresh">Refresh</button><button data-layer-action="advanced-style">Advanced style</button></div></details>
+          <details class="layer-card__more" ${this.expandedLayerCards.has(layer.uid) ? "open" : ""}><summary>More layer tools</summary><div class="layer-card__actions">${layer.queryable && this.mapController.getCapabilities().includes("three-3d") ? '<button data-layer-action="animate" title="Suggested animations for this layer: a looping effect, a timeline or a sweep">Animate</button>' : ""}<button data-layer-action="filter" title="Show only matching features on the map">Filter map</button>${layer.queryable || config.sourceType === "geoparquet" ? '<button data-layer-action="query-duckdb" title="Query, join or run spatial analysis on a copy of this layer">Query data</button>' : ''}${layer.queryable ? '<button data-layer-action="chart" title="Chart this layer in a panel linked to the map">Chart</button>' : ""}${layer.queryable && /point/i.test(layer.geometryType || "") ? '<button data-layer-action="hexbin" title="Summarise these points in hexagons: counts, density or a field\'s statistics">Hexagon map</button>' : ""}${layer.queryable && /polygon/i.test(layer.geometryType || "") && numericLayerFields(layer).length ? '<button data-layer-action="random-points" title="Place random points inside each polygon from a numeric field, such as one per 100 people">Random points</button>' : ""}${layer.queryable ? '<button data-layer-action="labels" title="Label features from their fields, a template or fixed text">Labels</button>' : ""}<button data-layer-action="source" title="Inspect this data source and open its publisher page">Source</button><button data-layer-action="refresh">Refresh</button><button data-layer-action="advanced-style">Advanced style</button></div></details>
         </article>`;
       }).join("")}`
       : '<div class="empty-state empty-state--layers"><p>No layers yet. Add data to start.</p><div class="empty-state__actions"><button type="button" data-empty-action="data-arcgis">ArcGIS service</button><button type="button" data-empty-action="data-geojson">Geo URL</button><button type="button" data-empty-action="data-file">Local file</button><button type="button" data-empty-action="data-popular">Try an example</button></div></div>';
     container.querySelector("[data-example-guide]")?.addEventListener("click", () => this.#startExampleWalkthrough());
+    container.querySelector("[data-example-guide-close]")?.addEventListener("click", () => {
+      this.activeExampleGuide = null;
+      this.#renderLayers();
+    });
     container.querySelectorAll(".layer-card").forEach((card) => this.#bindLayerCard(card));
   }
 
@@ -9175,6 +9364,21 @@ export class UIController {
         case "labels":
           this.#openLabelEditor(uid);
           break;
+        case "random-points": {
+          const { openSpatialAnalysis } = await import("./spatial-analysis-panel.js?v=0.69.0-extent");
+          const fields = numericLayerFields(layer);
+          const field = fields.find((item) => /pop/i.test(item.name)) || fields[0];
+          await new Promise((resolve) => requestAnimationFrame(resolve));
+          openSpatialAnalysis(this, globalThis.gisMapOnline.analysis, { operation: "random-points", input: uid, options: { field: field?.name || "" } });
+          break;
+        }
+        case "hexbin": {
+          const { openSpatialAnalysis } = await import("./spatial-analysis-panel.js?v=0.69.0-extent");
+          // Activating the layer redraws the side panel; the tool docks once that has settled.
+          await new Promise((resolve) => requestAnimationFrame(resolve));
+          openSpatialAnalysis(this, globalThis.gisMapOnline.analysis, { operation: "hexbin", input: uid });
+          break;
+        }
         case "advanced-style":
           if (this.utilityStyleLayerUid === uid) {
             if (this.activeUtilityTab === "style") this.#closeUtilityTab("style");
@@ -9333,7 +9537,7 @@ export class UIController {
       : "";
     const extrudable = this.mapController.getEngineId() === "maplibre" ? layer.geometryType === "polygon" : ["polygon", "point", "multipoint"].includes(layer.geometryType);
     const extrusionControls = extrudable
-      ? `<fieldset class="feedback-settings"><legend>3D visualization</legend><label class="display-checkbox"><input data-extrusion-enabled type="checkbox"${extrusionEnabledByRenderer ? " checked" : ""} /><span>Show as a 3D chart</span></label><div data-extrusion-options hidden><div class="field-grid"><label class="field"><span>Visualization type</span><select data-spatial-chart-mode><option value="attribute-extrusion">Attribute extrusion</option><option value="temporal-strata">Temporal strata</option><option value="stacked-footprints">Stacked footprints</option><option value="exploded-timeline">Exploded timeline</option></select></label><label class="field" data-spatial-group-control hidden><span>Vertical group field</span><select data-spatial-group-field>${fieldOptions(fields, "No fields available", chartGroupField)}</select></label><label class="field"><span>Height source</span><select data-extrusion-source><option value="fixed"${initialExtrusionSource === "fixed" ? " selected" : ""}>Fixed slab</option><option value="field"${initialExtrusionSource === "field" ? " selected" : ""}>Numeric field</option></select></label><label class="field" data-extrusion-value-control><span>Slab thickness <small>display meters</small></span><input data-extrusion-value type="number" min="1" step="1" value="${savedChart?.height?.thicknessMeters || Number(objectSymbol?.height ?? objectSymbol?.size) || 250}" /></label><label class="field" data-extrusion-field-control hidden><span>Height / thickness field</span><select data-extrusion-field>${fieldOptions(numericFields, "No numeric fields available", extrusionField)}</select></label><label class="field" data-extrusion-multiplier-control hidden><span>Height multiplier</span><input data-extrusion-multiplier type="number" min="0" step="0.01" value="${savedChart?.height?.scale ?? (Number.isFinite(expressionMultiplier) ? expressionMultiplier : 1)}" /></label><label class="field" data-spatial-slot-control hidden><span>Slot separation <small>display meters</small></span><input data-spatial-slot type="number" min="1" step="50" value="${savedChart?.height?.slotMeters || 400}" /></label><label class="field" data-spatial-gap-control hidden><span>Gap <small>display meters</small></span><input data-spatial-gap type="number" min="0" step="25" value="${savedChart?.height?.gapMeters ?? 100}" /></label><label class="display-checkbox"><input data-spatial-ground-outlines type="checkbox"${savedChart?.groundOutlines ? " checked" : ""} /><span>Show outlines on the ground <small>the flat perimeters under the 3D shapes</small></span></label><label class="display-checkbox" data-spatial-order-control hidden><input data-spatial-order type="checkbox"${savedChart?.order === "descending" ? " checked" : ""} /><span>Reverse stacking order <small>highest value at the bottom; colours follow</small></span></label><div class="field" data-spatial-colors-control hidden><span>Slab colours</span><div class="style-class-palette"><select data-spatial-palette aria-label="Slab colour palette"><option value="">Default</option>${Object.keys(RAMPS).map((name) => `<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`).join("")}</select><label class="display-checkbox"><input data-spatial-palette-reverse type="checkbox" /><span>Reverse palette</span></label></div><div data-spatial-colors></div><p class="form-note">These colour the 3D slabs. Classes and colors above style the flat map.</p></div>${layer.geometryType === "polygon" ? "" : `<label class="field"><span>Column width <small>meters</small></span><input data-extrusion-width type="number" min="1" step="50" value="${Number(objectSymbol?.width) || 650}" /></label>`}</div><p class="form-note" data-spatial-chart-note>Virtual Z is separate from terrain elevation. The legend labels what height and vertical position mean.</p></div></fieldset>`
+      ? `<fieldset class="feedback-settings"><legend>3D visualization</legend><label class="display-checkbox"><input data-extrusion-enabled type="checkbox"${extrusionEnabledByRenderer ? " checked" : ""} /><span>Show as a 3D chart</span></label><div data-extrusion-options hidden><div class="field-grid"><label class="field"><span>Visualization type</span><select data-spatial-chart-mode><option value="attribute-extrusion">Attribute extrusion</option><option value="temporal-strata">Temporal strata</option><option value="stacked-footprints">Stacked footprints</option><option value="exploded-timeline">Exploded timeline</option></select></label><label class="field" data-spatial-group-control hidden><span>Vertical group field</span><select data-spatial-group-field>${fieldOptions(fields, "No fields available", chartGroupField)}</select></label><label class="field"><span>Height source</span><select data-extrusion-source><option value="fixed"${initialExtrusionSource === "fixed" ? " selected" : ""}>Fixed slab</option><option value="field"${initialExtrusionSource === "field" ? " selected" : ""}>Numeric field</option></select></label><label class="field" data-extrusion-value-control><span>Slab thickness <small>display meters</small></span><input data-extrusion-value type="number" min="1" step="1" value="${savedChart?.height?.thicknessMeters || Number(objectSymbol?.height ?? objectSymbol?.size) || 250}" /></label><label class="field" data-extrusion-field-control hidden><span>Height / thickness field</span><select data-extrusion-field>${fieldOptions(numericFields, "No numeric fields available", extrusionField)}</select></label><label class="field" data-extrusion-multiplier-control hidden><span>Height multiplier</span><input data-extrusion-multiplier type="number" min="0" step="0.01" value="${savedChart?.height?.scale ?? (Number.isFinite(expressionMultiplier) ? expressionMultiplier : 1)}" /></label><label class="field" data-spatial-slot-control hidden><span>Slot separation <small>display meters</small></span><input data-spatial-slot type="number" min="1" step="50" value="${savedChart?.height?.slotMeters || 400}" /></label><label class="field" data-spatial-gap-control hidden><span>Gap <small>display meters</small></span><input data-spatial-gap type="number" min="0" step="25" value="${savedChart?.height?.gapMeters ?? 100}" /></label><label class="display-checkbox"><input data-spatial-ground-outlines type="checkbox"${savedChart?.groundOutlines ? " checked" : ""} /><span>Show outlines on the ground <small>the flat perimeters under the 3D shapes</small></span></label><label class="display-checkbox" data-spatial-order-control hidden><input data-spatial-order type="checkbox"${savedChart?.order === "descending" || savedChart?.reversed ? " checked" : ""} /><span>Reverse stacking order <small>${savedChart?.order === "listed" ? "last listed group at the bottom" : "highest value at the bottom"}; colours follow</small></span></label><div class="field" data-spatial-colors-control hidden><span>Slab colours</span><div class="style-class-palette"><select data-spatial-palette aria-label="Slab colour palette"><option value="">Default</option>${Object.keys(RAMPS).map((name) => `<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`).join("")}</select><label class="display-checkbox"><input data-spatial-palette-reverse type="checkbox" /><span>Reverse palette</span></label></div><div data-spatial-colors></div><p class="form-note">These colour the 3D slabs. Classes and colors above style the flat map.</p></div>${layer.geometryType === "polygon" ? "" : `<label class="field"><span>Column width <small>meters</small></span><input data-extrusion-width type="number" min="1" step="50" value="${Number(objectSymbol?.width) || 650}" /></label>`}</div><p class="form-note" data-spatial-chart-note>Virtual Z is separate from terrain elevation. The legend labels what height and vertical position mean.</p></div></fieldset>`
       : `<fieldset class="feedback-settings"><legend>3D extrusion</legend><p class="form-note">${this.mapController.getEngineId() === "maplibre" && /point/i.test(layer.geometryType || "") ? "MapLibre point columns are not yet supported. Switch to ArcGIS for 3D columns." : "3D extrusion is not available for this layer’s geometry in the current engine."}</p></fieldset>`;
     // Animated effect: Cinematic mode's decorative effects on an ordinary layer (MapLibre draws them with three.js).
     const effectsAvailable = this.mapController.getCapabilities().includes("three-3d") && Boolean(layer.geometryType);
@@ -9346,12 +9550,17 @@ export class UIController {
     const effectControls = effectsAvailable
       ? `<fieldset class="feedback-settings layer-effect"><legend>Animated effect</legend><div class="field-grid"><label class="field"><span>Effect</span><select data-layer-effect>${this.#cinematicEffectOptions(savedEffect?.type || "none", suggestedEffect)}</select></label><label class="field"><span>Visual style</span><select data-layer-effect-style${savedEffect ? "" : " disabled"}><option value="soft"${savedEffect?.style === "soft" ? " selected" : ""}>Soft glow</option><option value="balanced"${!savedEffect?.style || savedEffect.style === "balanced" ? " selected" : ""}>Balanced</option><option value="crisp"${savedEffect?.style === "crisp" ? " selected" : ""}>Crisp</option><option value="vivid"${savedEffect?.style === "vivid" ? " selected" : ""}>Vivid</option></select></label><label class="field"><span>Effect colour</span><input type="color" data-layer-effect-color value="${escapeHtml(savedEffect?.color || CINEMATIC_EFFECTS[savedEffect?.type === "auto" ? suggestedEffect : savedEffect?.type]?.color || "#ff8136")}"${savedEffect ? "" : " disabled"}></label><label class="opacity-row"><span>Effect opacity</span><input type="range" data-layer-effect-opacity min="0.05" max="1" step="0.05" value="${savedEffect?.opacity ?? 1}"${savedEffect ? "" : " disabled"}><output data-layer-effect-opacity-output>${Math.round((savedEffect?.opacity ?? 1) * 100)}%</output></label><label class="opacity-row"><span>Intensity</span><input type="range" data-layer-effect-intensity min="0.25" max="2" step="0.25" value="${savedEffect?.intensity ?? 1}"${savedEffect ? "" : " disabled"} aria-label="Effect intensity"><output data-layer-effect-intensity-output>${Number(savedEffect?.intensity ?? 1).toFixed(2).replace(/\.00$/, "")}×</output></label><label class="opacity-row"><span>Motion speed</span><input type="range" data-layer-effect-speed min="0.1" max="3" step="0.1" value="${savedEffect?.speed ?? 1}"${savedEffect ? "" : " disabled"}><output data-layer-effect-speed-output>${Number(savedEffect?.speed ?? 1).toFixed(1)}×</output></label><label class="opacity-row"><span>Symbol density</span><input type="range" data-layer-effect-density min="0.25" max="2.5" step="0.05" value="${savedEffect?.density ?? 1}"${savedEffect ? "" : " disabled"}><output data-layer-effect-density-output>${Number(savedEffect?.density ?? 1).toFixed(2).replace(/0$/, "")}×</output></label></div><p class="form-note" data-layer-effect-note>${escapeHtml(effectNote(savedEffect?.type || "none"))}</p></fieldset>`
       : `<fieldset class="feedback-settings layer-effect"><legend>Animated effect</legend><p class="form-note">${layer.geometryType ? "Animated effects need the MapLibre engine (Display settings → Map engine)." : "Animated effects need a layer with features."}</p></fieldset>`;
+    // Below ground: pipes, tunnels, wells and rock units drawn under the surface (js/subsurface.js).
+    const belowControls = canDrawBelowGround(layer, this.mapController.getCapabilities())
+      ? `<fieldset class="feedback-settings"><legend>Below ground</legend>${subsurfaceControlsMarkup(layer, layerConfig.subsurface || null)}</fieldset>`
+      : "";
     // Ranked styles computed from the field's values (renderer-spec.js suggestRenderers).
     const canSuggest = fields.length && layer.queryable;
     const styleOptions = canSuggest
       ? `<section class="style-options" aria-label="Style options"><div class="style-options__head"><strong>Style options</strong><button type="button" class="link-button" data-suggest-styles>Suggest styles for this field</button></div><div class="field-grid"><label class="field"><span>Suggestion field</span><select data-suggestion-field>${fieldOptions(fields, "No fields available", currentField || preferredNumericField?.name)}</select></label><label class="field"><span>Colour range</span><select data-style-ramp>${Object.keys(RAMPS).map((name) => `<option value="${name}">${escapeHtml(name.replaceAll("-", " "))}</option>`).join("")}</select></label></div><div class="style-options__list" data-style-options-list aria-live="polite"></div></section>`
       : "";
-    pane.innerHTML = `<div class="workspace-tool"><p class="eyebrow">Layer presentation</p><h3>Style ${escapeHtml(layer.title || "layer")}</h3>${styleOptions}<div class="field-grid">${rendererControls}<label class="field" data-single-color><span>Symbol color</span><input data-symbol-color type="color" value="#1b7f6a" /></label><label class="field"><span>Outline</span><input data-symbol-outline type="color" value="#ffffff" /></label><label class="field"><span>Size / width</span><input data-symbol-size type="number" min="0.5" max="40" step="0.5" value="9" /></label></div>${pointSymbolControls}<section data-class-editor hidden><h4>Classes and colors</h4><div class="field-grid"><label class="field"><span>Palette</span><select data-class-ramp>${Object.keys(RAMPS).map((name) => `<option value="${name}">${escapeHtml(name.replaceAll("-", " "))}</option>`).join("")}</select></label><label class="display-checkbox"><input type="checkbox" data-class-reverse> Reverse palette</label></div><p class="form-note">Colors can be changed individually. Apply symbology to update the map.</p><div data-class-list aria-live="polite"></div></section>${polygonControls}${extrusionControls}${effectControls}<p class="form-note">Class previews use up to 20,000 loaded values matching the layer filter. Renderer settings are stored with the project.</p><div class="workspace-tool__actions"><button type="button" class="button--primary" data-apply-symbology>Apply symbology</button></div></div>`;
+    pane.innerHTML = `<div class="workspace-tool"><p class="eyebrow">Layer presentation</p><h3>Style ${escapeHtml(layer.title || "layer")}</h3>${styleOptions}<div class="field-grid">${rendererControls}<label class="field" data-single-color><span>Symbol color</span><input data-symbol-color type="color" value="#1b7f6a" /></label><label class="field"><span>Outline</span><input data-symbol-outline type="color" value="#ffffff" /></label><label class="field"><span>Size / width</span><input data-symbol-size type="number" min="0.5" max="40" step="0.5" value="9" /></label></div>${pointSymbolControls}<section data-class-editor hidden><h4>Classes and colors</h4><div class="field-grid"><label class="field"><span>Palette</span><select data-class-ramp>${Object.keys(RAMPS).map((name) => `<option value="${name}">${escapeHtml(name.replaceAll("-", " "))}</option>`).join("")}</select></label><label class="display-checkbox"><input type="checkbox" data-class-reverse> Reverse palette</label></div><p class="form-note">Colors can be changed individually. Apply symbology to update the map.</p><div data-class-list aria-live="polite"></div></section>${polygonControls}${extrusionControls}${belowControls}${effectControls}<p class="form-note">Class previews use up to 20,000 loaded values matching the layer filter. Renderer settings are stored with the project.</p><div class="workspace-tool__actions"><button type="button" class="button--primary" data-apply-symbology>Apply symbology</button></div></div>`;
+    bindSubsurfaceControls(pane, { uid, mapController: this.mapController, toast: (message) => this.toast(message), error: (message) => this.error(message) });
     const effectSelect = pane.querySelector("[data-layer-effect]");
     const effectIntensity = pane.querySelector("[data-layer-effect-intensity]");
     const effectControlsInputs = [...pane.querySelectorAll("[data-layer-effect-style], [data-layer-effect-color], [data-layer-effect-opacity], [data-layer-effect-intensity], [data-layer-effect-speed], [data-layer-effect-density]")];
@@ -9600,7 +9809,8 @@ export class UIController {
               type: "spatial-3d-chart",
               mode: spatialChartMode.value,
               ...(grouped ? { groupBy: pane.querySelector("[data-spatial-group-field]").value } : {}),
-              ...(grouped && pane.querySelector("[data-spatial-order]")?.checked ? { order: "descending" } : {}),
+              // A listed order (such as geologic ages) has no sort to rebuild it from, so it stays while the field does.
+              ...(grouped && savedChart?.order === "listed" && savedChart.groupBy === pane.querySelector("[data-spatial-group-field]").value ? listedOrder(savedChart, Boolean(pane.querySelector("[data-spatial-order]")?.checked)) : grouped && pane.querySelector("[data-spatial-order]")?.checked ? { order: "descending" } : {}),
               ...(pane.querySelector("[data-spatial-ground-outlines]")?.checked ? { groundOutlines: true } : {}),
               height: {
                 ...(extrusionSource.value === "field" ? { field: pane.querySelector("[data-extrusion-field]").value } : {}),
@@ -10050,7 +10260,7 @@ export class UIController {
 
   /** Lists what a map spec or link could not do, so a person (or an agent reading describe()) can fix it. */
   showSpecIssues(issues = []) {
-    const rows = issues.map((issue) => `<li class="spec-issue spec-issue--${issue.level}"><strong>${escapeHtml(issue.code || issue.level)}</strong> <code>${escapeHtml(issue.path || "")}</code><p>${escapeHtml(issue.message)}</p>${issue.hint ? `<small>${escapeHtml(issue.hint)}</small>` : ""}</li>`).join("");
+    const rows = issues.map((issue) => `<li class="spec-issue spec-issue--${issue.level}"><strong>${escapeHtml(issue.code || issue.level)}</strong> <code>${escapeHtml(issue.path || "")}</code>${specIssueMarkup(issue)}</li>`).join("");
     this.openDialog({
       eyebrow: "Map link",
       title: "Some of this map could not be shown",
@@ -10195,7 +10405,7 @@ export class UIController {
         { label: "Import observation", primary: true, handler: async (event) => {
           const button = event.currentTarget; button.disabled = true;
           try {
-            const { FieldSessionController } = await import("./field-session-store.js?v=0.70.1-colours");
+            const { FieldSessionController } = await import("./field-session-store.js?v=0.71.0-subsurface");
             const field = this.fieldSessionController ||= new FieldSessionController(this.projectManager, this.events);
             await field.importBundle(bundle);
             this.dialog.close();
