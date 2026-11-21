@@ -437,7 +437,8 @@ export class MaplibreEngine {
       }
       return { settled: local.settled || (timing.cycleSeconds === 0 && local.seconds >= holdAfter) };
     };
-    this.#nativeEffects.set(id, { apply, layers: layers.map((layer) => layer.id), sourceId });
+    this.#nativeEffects.set(id, { apply, layers: layers.map((layer) => layer.id), sourceId, layerUid: effect.layerUid || null });
+    this.#followLayerVisibility(this.#nativeEffects.get(id));
     apply();
     this.#runNativeEffects(true);
     return true;
@@ -484,7 +485,7 @@ export class MaplibreEngine {
     const timing = normalizeTiming(effect.timing);
     // Timed from when the cells first show (not from page load), so the growth is seen; a
     // timeline redrawing the same track keeps that start, and a clock moved back restarts it.
-    const entry = { kind: "grow", layers: [layerId], sourceId, startedAt: previous?.kind === "grow" ? previous.startedAt : effectSeconds() };
+    const entry = { kind: "grow", layers: [layerId], sourceId, layerUid: effect.layerUid || null, startedAt: previous?.kind === "grow" ? previous.startedAt : effectSeconds() };
     entry.apply = () => {
       if (!this.map?.getLayer(layerId)) return { settled: true };
       const now = effectSeconds();
@@ -494,6 +495,7 @@ export class MaplibreEngine {
       return { settled: local.settled || (timing.cycleSeconds === 0 && local.seconds >= 6) };
     };
     this.#nativeEffects.set(id, entry);
+    this.#followLayerVisibility(entry);
     entry.apply();
     this.#runNativeEffects(true);
     return true;
@@ -527,6 +529,7 @@ export class MaplibreEngine {
       const paint = { "fill-extrusion-color": ["get", "color"], "fill-extrusion-base": ["get", "base"], "fill-extrusion-height": ["get", "top"], "fill-extrusion-opacity": 0.82, "fill-extrusion-vertical-gradient": true };
       for (const layerId of current.layers) if (!this.map.getLayer(layerId)) this.map.addLayer({ id: layerId, type: "fill-extrusion", source: sourceId, filter: ["in", ["id"], ["literal", []]], paint }, before);
       this.#nativeEffects.set(id, current);
+      this.#followLayerVisibility(current);
       this.#setStrataHidden(current.layerUid, id);
     }
     // Which slabs show now: settled ones, and this step's new ones (which fall into place).
@@ -1032,7 +1035,15 @@ export class MaplibreEngine {
       for (const [name, value] of Object.entries(spec.paint)) this.map.setPaintProperty(spec.id, name, value);
     }
     if (record.animatedEffect) this.#queueLayerEffect(record);
+    for (const effect of this.#nativeEffects.values()) if (effect.layerUid === record.uid) this.#followLayerVisibility(effect);
     this.#renderLegend();
+  }
+
+  /** A native effect drawn for a layer shows and hides with it, so a hidden layer leaves no ghost behind. */
+  #followLayerVisibility(effect) {
+    const record = effect?.layerUid ? this.#record(effect.layerUid) : null;
+    if (!record) return;
+    for (const id of effect.layers) if (this.map?.getLayer(id)) this.map.setLayoutProperty(id, "visibility", record.visible ? "visible" : "none");
   }
 
   /* ---------------- Animated layer effects ---------------- */
