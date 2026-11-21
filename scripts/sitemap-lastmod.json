@@ -8,8 +8,8 @@
     "lastmod": "2026-11-02"
   },
   "/discover/examples/": {
-    "hash": "cfdcb203856d37e3",
-    "lastmod": "2026-11-20"
+    "hash": "62b59e1612c40e3f",
+    "lastmod": "2026-11-21"
   },
   "/discover/examples/3d-strata/": {
     "hash": "becaf56f794b7f79",
@@ -176,8 +176,8 @@
     "lastmod": "2026-11-02"
   },
   "/guides/ai-agents/": {
-    "hash": "ed520bb160ba6e67",
-    "lastmod": "2026-11-02"
+    "hash": "53d7bde8f3c2d4a1",
+    "lastmod": "2026-11-21"
   },
   "/ai-connection-guide/": {
     "hash": "3b1e6ab3bec26b8f",
@@ -288,11 +288,11 @@
     "lastmod": "2026-11-02"
   },
   "/llms.txt": {
-    "hash": "92c4a3ef479f63f6",
+    "hash": "1a94f04b68af2293",
     "lastmod": "2026-11-21"
   },
   "/llms-full.txt": {
-    "hash": "7141e235e0d19c91",
+    "hash": "36d2ac858f2828e9",
     "lastmod": "2026-11-21"
   },
   "/api/catalog.json": {

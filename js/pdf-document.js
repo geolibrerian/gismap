@@ -315,13 +315,19 @@ export class PdfDocument {
     return this.pageHeight - 132;
   }
 
-  newPage() {
+  /**
+   * Starts a page. `width` and `height` change the page size from this page on (such as a
+   * landscape map page after portrait text); `header: false` leaves this page bare.
+   */
+  newPage({ width = this.pageWidth, height = this.pageHeight, header = this.header } = {}) {
     // The header band mirrors the QR cards: the skin's dark band, an edge stripe,
     // the mark, "GISMap" over a spaced "ONLINE". It links to the site.
+    this.pageWidth = width;
+    this.pageHeight = height;
     const { margin: left, pageWidth, pageHeight, palette } = this;
-    if (!this.header) {
+    if (!header) {
       // A bare page, for templates that draw their own design.
-      this.page = { commands: [], images: [], links: [] };
+      this.page = { commands: [], images: [], links: [], width, height };
       this.pages.push(this.page);
       this.y = pageHeight - this.margin;
       return;
@@ -334,7 +340,7 @@ export class PdfDocument {
       `${pdfColor(palette.brand)} rg BT /F2 15 Tf ${left + 52} ${band + 25} Td (${pdfSafeText(wordmark.primary)}) Tj ET`,
       `${pdfColor(palette.edge)} rg BT /F2 7.5 Tf 2.2 Tc ${left + 53} ${band + 11} Td (${pdfSafeText(wordmark.secondary)}) Tj ET 0 Tc`,
       `${this.colors.accent} rg BT /F2 11 Tf ${left} ${band - 22} Td (${pdfSafeText(this.heading)}) Tj ET`,
-    ], images: [], links: [] };
+    ], images: [], links: [], width, height };
     if (this.logo) {
       this.page.images.push({ name: "ImLogo", asset: this.logo });
       this.page.commands.push(`q 36 0 0 36 ${left + 12} ${band + 4} cm /ImLogo Do Q`);
@@ -502,7 +508,7 @@ export class PdfDocument {
         setObject(annotationId, `<< /Type /Annot /Subtype /Link /Rect [${rect.join(" ")}] /Border [0 0 0] /A << /S /URI /URI (${pdfUri(url)}) >> >>`);
         return `${annotationId} 0 R`;
       });
-      setObject(pageId, `<< /Type /Page /Parent ${pagesId} 0 R /MediaBox [0 0 ${this.pageWidth} ${this.pageHeight}] /Resources << /Font << /F1 ${regularFontId} 0 R /F2 ${boldFontId} 0 R >>${xObjects ? ` /XObject << ${xObjects} >>` : ""} >>${annotations.length ? ` /Annots [${annotations.join(" ")}]` : ""} /Contents ${contentId} 0 R >>`);
+      setObject(pageId, `<< /Type /Page /Parent ${pagesId} 0 R /MediaBox [0 0 ${currentPage.width ?? this.pageWidth} ${currentPage.height ?? this.pageHeight}] /Resources << /Font << /F1 ${regularFontId} 0 R /F2 ${boldFontId} 0 R >>${xObjects ? ` /XObject << ${xObjects} >>` : ""} >>${annotations.length ? ` /Annots [${annotations.join(" ")}]` : ""} /Contents ${contentId} 0 R >>`);
       return pageId;
     });
     setObject(pagesId, `<< /Type /Pages /Kids [${pageIds.map((id) => `${id} 0 R`).join(" ")}] /Count ${pageIds.length} >>`);
