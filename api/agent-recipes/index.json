@@ -311,6 +311,26 @@
       "page": "https://gismap.online/agent-recipes/dot-density/"
     },
     {
+      "id": "location-report",
+      "title": "Location intelligence report (PDF) in fixed sections",
+      "status": "available",
+      "question": "Can an AI agent add data layers to a map and give me a PDF report about a place, with its own analysis and links back to the map?",
+      "triggers": [
+        "Make a report about this location from these layers",
+        "Give me a PDF on what the data says about this address",
+        "Add flood and population layers and write up this site",
+        "Generate a location intelligence report for these coordinates"
+      ],
+      "artifact": "map",
+      "engines": [
+        "maplibre",
+        "arcgis"
+      ],
+      "lastTestedVersion": "0.53.0",
+      "url": "https://gismap.online/api/agent-recipes/location-report.json",
+      "page": "https://gismap.online/agent-recipes/location-report/"
+    },
+    {
       "id": "lidar-and-3d-models",
       "title": "LiDAR point clouds and 3D models (utility and vegetation data)",
       "status": "experimental",

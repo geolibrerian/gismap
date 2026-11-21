@@ -20,10 +20,11 @@ import { AGGREGATIONS, CHART_TYPES, normalizeChartStyle } from "./charting-tools
 export const MAP_SPEC_VERSION = 1;
 export const MAP_SPEC_SCHEMA = "https://gismap.online/schemas/map-v1.schema.json";
 import { SPATIAL_OPERATION_IDS, SPATIAL_OPERATIONS } from "./spatial-analysis.js?v=0.69.0-extent";
+import { normalizeLocationReport } from "./location-report.js?v=0.81.3-report";
 
 export { MAP_SPEC_JSON_LIMIT };
 
-const TOP_LEVEL = new Set(["$schema", "version", "title", "description", "basemap", "skin", "camera", "underground", "layers", "legend", "briefing", "analysis", "charts"]);
+const TOP_LEVEL = new Set(["$schema", "version", "title", "description", "basemap", "skin", "camera", "underground", "layers", "legend", "briefing", "analysis", "charts", "report"]);
 const LAYER_KEYS = new Set(["url", "type", "title", "where", "renderer", "spatialChart", "subsurface", "animatedEffect", "scene3d", "opacity", "visible", "ignoreServiceScaleRange", "popup", "outFields", "refreshInterval"]);
 // A chart panel is a definition only: which layer, which fields, how it looks.
 // Its numbers are computed from the layer when the link opens.
@@ -209,6 +210,18 @@ export function validateMapSpec(input, { allowHttp = false } = {}) {
     if (!Array.isArray(input.charts) || input.charts.length > MAP_SPEC_CHART_LIMITS.maxCharts) issue("warning", "INVALID_SPEC", "charts", `charts must be a list of at most ${MAP_SPEC_CHART_LIMITS.maxCharts} chart panels.`);
     const valid = charts.map((raw, index) => validateChart(raw, `charts[${index}]`, { issue, kept, layers: spec.layers, allowHttp })).filter(Boolean);
     if (valid.length) spec.charts = valid;
+  }
+  // A location report for one place: the link carries the authored sections (summary,
+  // inferences, context…); the viewer's browser adds the data at the place and the map.
+  if (input.report !== undefined && input.report !== null) {
+    const raw = input.report;
+    if (!raw || typeof raw !== "object" || (raw.type ?? "location") !== "location") issue("warning", "INVALID_SPEC", "report", 'report must be { "type": "location", "at": [longitude, latitude], "sections": { … } }; it was ignored.');
+    else {
+      const { report, issues: found } = normalizeLocationReport(raw);
+      found.forEach((item) => issue("warning", "INVALID_SPEC", `report.${item.path}`, item.message));
+      if (!report.at) issue("warning", "INVALID_SPEC", "report.at", "A report needs the place it is about: at = [longitude, latitude]. It was ignored.");
+      else spec.report = { type: "location", ...report };
+    }
   }
   return { valid: !issues.some((item) => item.level === "error"), issues, spec };
 }

@@ -125,6 +125,12 @@
       "export",
       "import"
     ],
+    "reports": [
+      "sections",
+      "prompt",
+      "validate",
+      "location"
+    ],
     "print": [
       "templates",
       "getOptions",
@@ -263,6 +269,10 @@
     "print": {
       "stability": "experimental",
       "description": "The Print Editor: branded PDFs and Smart Images. Exports wait for the map, return files and fail rather than render a blank or partial page."
+    },
+    "reports": {
+      "stability": "experimental",
+      "description": "Location Intelligence Reports in fixed sections: sections() lists them and who writes each; prompt() is the AI instruction; validate(report) checks authored sections; location({ at, report, ai, download }) inspects the place, reads every visible layer there and returns { file, report, issues, links }. See /skills/gismap/references/location-report.md."
     },
     "project": {
       "stability": "experimental",

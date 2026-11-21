@@ -1,4 +1,4 @@
-# Ten composable agent recipes and current analysis workflows
+# Thirteen composable agent recipes and current analysis workflows
 
 Choose every recipe needed for the user's request, not just one. Use **discover → inspect → plan → validate → execute → verify → share**. Start the first step at [GISMap Online Discover](https://gismap.online/discover/) and [Discover Examples](https://gismap.online/discover/examples/) when a user needs a starting point or a public demonstration. Use the current [Map engines guide](https://gismap.online/discover/engines/) for engine-specific decisions, then inspect the source and actual fields before reusing an example. Inspect the [capabilities](https://gismap.online/api/capabilities.json), [manifest](https://gismap.online/api/manifest.json), schemas and current engine first. Static HTTP documents, declarative URLs, standalone JavaScript utilities and an active, authorized `gisMapOnline` browser session are different execution environments; none implies a hosted authoring API. Report unavailable capabilities rather than inventing an API or silently substituting an output. Each recipe is also published as JSON at `https://gismap.online/api/agent-recipes/<id>.json` with its steps, interfaces, verification, limitations and checked examples; the catalog is `https://gismap.online/api/agent-recipes/index.json`.
 
@@ -107,6 +107,26 @@ Worked example (rendered): [Ventura County population in 3D hexagons](https://gi
 - Each dot records `polygon_index` and `represents`. Chain a hexagon map with `{"operation":"hexbin","input":{"step":0},"options":{"statistic":"sum","field":"represents"}}`; `"visible": false` on the random-points step hides the dots.
 
 Machine-readable: https://gismap.online/api/agent-recipes/dot-density.json
+
+<a id="location-report"></a>
+
+## location-report — sectioned PDF report about a place
+
+**Prompt:** “Add flood and population layers and give me a report on this address.” **Inputs:** the place `[longitude, latitude]`, the layers to combine, and the analysis you write after reading their values at the place.
+
+```json
+{"version":1,"layers":[{"url":"<LAYER URL>","type":"feature"}],"report":{"type":"location","at":[-119.177,34.197],"title":"Central Oxnard","author":"Agent","sections":{"summary":"…","inferences":[{"statement":"…","basis":["<layer title>"],"confidence":"medium"}],"context":"…","limitations":["…"],"nextSteps":["…"]}}}
+```
+
+- The PDF's sections are fixed: Summary, Location, What the map data shows, Inferences from the layers together, Geographic context, Limitations, Suggested next steps, Sources and Map.
+  - The app writes Location, the attributes at the place, Sources and the Map page, which links to the whole map with its layers.
+  - You write the rest. See [Location reports](location-report.md) for each section's rules.
+- Query each layer at the place before writing, and quote exact values. A count of dots or points is not a count of people unless the field says so.
+- Each inference needs `basis` (layer names) and `confidence` (`high`, `medium` or `low`). General knowledge goes in `context` only.
+- The link opens the map, inspects the place and offers **Download this report** in Intelligence.
+- In a running page, `gisMapOnline.reports.location({ at, report })` returns the PDF file and its links. Pass `ai: true` instead of `report` to have the configured AI write the sections.
+
+Worked example: the Ventura hexagon map with a report on central Oxnard, https://gismap.online/agent-recipes/location-report/. Machine-readable: https://gismap.online/api/agent-recipes/location-report.json
 
 <a id="lidar-and-3d-models"></a>
 

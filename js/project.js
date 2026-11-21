@@ -12,7 +12,7 @@ import { normalizeMobileWorkflow } from "./mobile-feed-store.js?v=0.18.7";
 import { normalizeBriefing } from "./briefing-document.js?v=0.80.0-grow";
 import { importCinematicSpec } from "./cinematic/state.js?v=0.80.0-grow";
 import { normalizeCinematicClips } from "./cinematic/clip-model.js?v=0.80.0-grow";
-import { composeSmartImage, embedProjectInPng, readProjectFromPng } from "./smart-image.js?v=0.71.0-subsurface";
+import { composeSmartImage, embedProjectInPng, readProjectFromPng } from "./smart-image.js?v=0.81.3-report";
 import { normalizeCharts } from "./charting-tools.js?v=0.68.0-charts1";
 import { stripProjectCredentials } from "./project-privacy.js?v=0.62.7-save-all";
 

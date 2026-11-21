@@ -1,0 +1,307 @@
+{
+  "$schema": "https://gismap.online/schemas/agent-recipe-v1.schema.json",
+  "schemaVersion": 1,
+  "id": "location-report",
+  "title": "Location intelligence report (PDF) in fixed sections",
+  "status": "available",
+  "question": "Can an AI agent add data layers to a map and give me a PDF report about a place, with its own analysis and links back to the map?",
+  "answer": "Yes. The report has fixed sections. The app writes the ones that come from the map: the location, the features and attributes of every visible layer at the place, the sources, and a map snapshot linking to the whole map. The agent writes the ones that need reading the data together and general knowledge: summary, inferences (each with its basis and confidence), geographic context, limitations and next steps. A map-v1 link carries them in \"report\" and the viewer downloads the PDF from Intelligence; in a running page reports.location() returns the file.",
+  "triggers": [
+    "Make a report about this location from these layers",
+    "Give me a PDF on what the data says about this address",
+    "Add flood and population layers and write up this site",
+    "Generate a location intelligence report for these coordinates"
+  ],
+  "inputTypes": [
+    "A place (coordinates or an address you geocode)",
+    "One or more public layers to combine",
+    "A map-v1 link"
+  ],
+  "inputs": {
+    "required": [
+      {
+        "name": "at",
+        "description": "The place: [longitude, latitude]."
+      },
+      {
+        "name": "layers",
+        "description": "The data layers whose features at the place the report reads."
+      }
+    ],
+    "optional": [
+      {
+        "name": "sections",
+        "description": "Authored sections: summary, observations, inferences [{ statement, basis, confidence }], context, limitations, nextSteps. Location, sources and the map are written by the app."
+      },
+      {
+        "name": "title",
+        "description": "The report title; the address by default."
+      },
+      {
+        "name": "author",
+        "description": "Who wrote the analysis, shown as \"Analysis by …\"."
+      }
+    ]
+  },
+  "capabilities": [
+    "identify",
+    "capture"
+  ],
+  "engines": [
+    "maplibre",
+    "arcgis"
+  ],
+  "steps": [
+    {
+      "stage": "discover",
+      "action": "Read llms.txt, this recipe and api/capabilities.json; note the engine and execution environment you actually have.",
+      "interfaces": [
+        "declarative-url"
+      ],
+      "references": [
+        "https://gismap.online/llms.txt",
+        "https://gismap.online/api/capabilities.json",
+        "https://gismap.online/api/manifest.json"
+      ]
+    },
+    {
+      "stage": "inspect",
+      "action": "Read the source metadata: geometry type, field names and types, spatial reference, extent, sentinels and query support. Query real values before filtering; never invent fields.",
+      "interfaces": [
+        "declarative-url",
+        "standalone-js",
+        "in-browser-api"
+      ],
+      "references": [
+        "<layer URL>?f=pjson",
+        "sources.inspect",
+        "sources.detectSentinels",
+        "layers.metadata"
+      ]
+    },
+    {
+      "stage": "plan",
+      "action": "Choose layers that answer the question together, and read their values at the place (query the layer with the point and inSR=4326) before writing. Decide what each layer measures from its field names and metadata.",
+      "interfaces": [
+        "standalone-js"
+      ],
+      "references": [
+        "<layer URL>/query?geometry=<lon>,<lat>&geometryType=esriGeometryPoint&inSR=4326&outFields=*&f=json",
+        "reports.sections"
+      ]
+    },
+    {
+      "stage": "plan",
+      "action": "Write the authored sections in the report's fixed order. Quote layer names and exact values; give each inference a basis and a confidence; keep general knowledge in Geographic context and out of the data sections; no chat or offers.",
+      "interfaces": [
+        "standalone-js"
+      ],
+      "references": [
+        "reports.sections",
+        "reports.prompt"
+      ]
+    },
+    {
+      "stage": "validate",
+      "action": "Add \"report\": { \"type\": \"location\", \"at\": [lon, lat], \"sections\": {…} } to the map-v1 spec and validate it; sections the app writes, unknown sections and bad confidences are reported.",
+      "interfaces": [
+        "standalone-js",
+        "in-browser-api"
+      ],
+      "references": [
+        "mapSpec.validate",
+        "reports.validate"
+      ]
+    },
+    {
+      "stage": "execute",
+      "action": "Return the #map=json: link: it opens the map, inspects the place and offers the report in Intelligence. In a running page, reports.location({ at, report }) returns { file, report, issues, links } (or { ai: true } to have the configured AI write the sections).",
+      "interfaces": [
+        "declarative-url",
+        "in-browser-api"
+      ],
+      "references": [
+        "https://gismap.online/schemas/map-v1.schema.json",
+        "mapSpec.createLink",
+        "reports.location"
+      ]
+    },
+    {
+      "stage": "verify",
+      "action": "Open the link, wait for the Location report card in Intelligence, download the PDF and check the sections, the attribute values at the place and that the map link opens the same map.",
+      "interfaces": [
+        "in-browser-api"
+      ],
+      "references": [
+        "reports.location"
+      ]
+    },
+    {
+      "stage": "share",
+      "action": "Return the link (and the PDF when you made it in a page). Say which sections are inference.",
+      "interfaces": [
+        "declarative-url"
+      ],
+      "references": [
+        "mapSpec.createLink"
+      ]
+    }
+  ],
+  "artifact": {
+    "type": "map",
+    "schema": "https://gismap.online/schemas/map-v1.schema.json",
+    "structure": "map-v1 with layers and a \"report\" { type: \"location\", at, title, author, sections }."
+  },
+  "outputs": [
+    {
+      "format": "Map link that offers the report",
+      "interface": "declarative-url",
+      "interactive": true,
+      "reference": "mapSpec.createLink"
+    },
+    {
+      "format": "Location Intelligence Report (PDF)",
+      "interface": "in-browser-api",
+      "interactive": false,
+      "reference": "reports.location",
+      "notes": "Sections in order: Summary, Location, What the map data shows, Inferences from the layers together, Geographic context, Limitations, Suggested next steps, Sources, Map."
+    }
+  ],
+  "verification": [
+    "The place is inside the layers' extent",
+    "Every value quoted in the authored sections matches the attributes the report lists",
+    "Each inference names its basis layers and a confidence",
+    "The map link in the PDF opens the same layers"
+  ],
+  "limitations": [
+    "Only visible layers with features at the place are read; nothing is fetched beyond the map.",
+    "Authored sections are the agent's text: the app checks their shape, not their truth.",
+    "The PDF is made in the viewer's browser; no server stores it."
+  ],
+  "recovery": [
+    "\"report.at\" issue: give [longitude, latitude] in degrees.",
+    "No features found: check the layer is visible and the place is inside it, or move the place.",
+    "A section was ignored: location, sources and map are the app's; write the others."
+  ],
+  "examples": [
+    {
+      "checkedOn": "2026-11-21",
+      "checkedVersion": "0.55.0",
+      "title": "Central Oxnard population report",
+      "prompt": "Map Ventura County's population in hexagons and give me a report on central Oxnard.",
+      "dataset": [
+        {
+          "label": "California Census 2020 Redistricting Blocks (Esri, U.S. Census Bureau)",
+          "url": "https://services.arcgis.com/P3ePLMYs2RVChkJx/arcgis/rest/services/California_Census_2020_Redistricting_Blocks/FeatureServer/0"
+        }
+      ],
+      "url": "https://gismap.online/#map=json:%7B%22version%22%3A1%2C%22title%22%3A%22Central%20Oxnard%20population%20report%22%2C%22basemap%22%3A%22topo-3d%22%2C%22camera%22%3A%7B%22center%22%3A%5B-119.08%2C34.17%5D%2C%22zoom%22%3A10.4%2C%22heading%22%3A350%2C%22tilt%22%3A55%7D%2C%22legend%22%3Atrue%2C%22layers%22%3A%5B%7B%22url%22%3A%22https%3A%2F%2Fservices.arcgis.com%2FP3ePLMYs2RVChkJx%2Farcgis%2Frest%2Fservices%2FCalifornia_Census_2020_Redistricting_Blocks%2FFeatureServer%2F0%22%2C%22type%22%3A%22feature%22%2C%22title%22%3A%22Ventura%20County%20census%20blocks%20(2020)%22%2C%22where%22%3A%22County_Name%20%3D%20'Ventura%20County'%20AND%20P0010001%20%3E%200%22%2C%22visible%22%3Afalse%7D%5D%2C%22analysis%22%3A%5B%7B%22operation%22%3A%22random-points%22%2C%22input%22%3A0%2C%22options%22%3A%7B%22field%22%3A%22P0010001%22%2C%22unitsPerPoint%22%3A20%2C%22seed%22%3A1%7D%2C%22title%22%3A%22People%2C%20one%20dot%20per%2020%22%2C%22visible%22%3Afalse%7D%2C%7B%22operation%22%3A%22hexbin%22%2C%22input%22%3A%7B%22step%22%3A0%7D%2C%22options%22%3A%7B%22method%22%3A%22h3%22%2C%22resolution%22%3A8%2C%22statistic%22%3A%22sum%22%2C%22field%22%3A%22represents%22%2C%22extrude%22%3Atrue%7D%2C%22title%22%3A%22Population%20per%20H3%20cell%22%7D%5D%2C%22report%22%3A%7B%22type%22%3A%22location%22%2C%22at%22%3A%5B-119.177%2C34.197%5D%2C%22title%22%3A%22Central%20Oxnard%3A%20where%20Ventura%20County's%20population%20concentrates%22%2C%22author%22%3A%22Agent%20(example)%22%2C%22sections%22%3A%7B%22summary%22%3A%22Central%20Oxnard%20sits%20among%20the%20tallest%20hexagons%20on%20the%20map%3A%20Ventura%20County's%20people%20are%20concentrated%20in%20a%20compact%20urban%20core%20here%2C%20with%20far%20fewer%20per%20cell%20on%20the%20farmland%20around%20it.%20The%20values%20for%20the%20cells%20at%20this%20place%20are%20listed%20under%20What%20the%20map%20data%20shows.%22%2C%22inferences%22%3A%5B%7B%22statement%22%3A%22Settlement%20is%20compact%3A%20tall%20cells%20cluster%20around%20central%20Oxnard%20and%20drop%20away%20sharply%20toward%20the%20fields%20of%20the%20Oxnard%20Plain%20to%20the%20east%20and%20south.%22%2C%22basis%22%3A%5B%22Population%20per%20H3%20cell%22%5D%2C%22confidence%22%3A%22medium%22%7D%2C%7B%22statement%22%3A%22A%20cell's%20total%20is%20the%20census%20population%20of%20the%20blocks%20under%20it%2C%20carried%20by%20dots%20of%2020%20people%20each%2C%20so%20cell%20sums%20agree%20with%20the%20census%20in%20total%20while%20the%20split%20between%20neighbouring%20cells%20is%20an%20estimate.%22%2C%22basis%22%3A%5B%22Ventura%20County%20census%20blocks%20(2020)%22%2C%22People%2C%20one%20dot%20per%2020%22%2C%22Population%20per%20H3%20cell%22%5D%2C%22confidence%22%3A%22high%22%7D%5D%2C%22context%22%3A%22Oxnard%20is%20the%20largest%20city%20in%20Ventura%20County.%20It%20lies%20on%20the%20Oxnard%20Plain%2C%20a%20flat%20coastal%20plain%20between%20the%20Santa%20Clara%20River%20and%20the%20Santa%20Monica%20Mountains%20that%20is%20intensively%20farmed%2C%20notably%20for%20strawberries%20and%20vegetables.%20The%20Port%20of%20Hueneme%20and%20Naval%20Base%20Ventura%20County%20are%20nearby%20on%20the%20coast.%22%2C%22limitations%22%3A%5B%22Counts%20are%20from%20the%202020%20census%20and%20do%20not%20show%20change%20since%20then.%22%2C%22Dots%20are%20placed%20at%20random%20inside%20each%20block%2C%20so%20small%20differences%20between%20neighbouring%20cells%20are%20noise.%22%5D%2C%22nextSteps%22%3A%5B%22Add%20a%20land-use%20or%20farmland%20layer%20to%20see%20where%20housing%20meets%20agriculture.%22%2C%22Add%20census%20tract%20income%20or%20age%20data%20to%20compare%20the%20dense%20core%20with%20the%20rest%20of%20the%20county.%22%5D%7D%7D%7D",
+      "spec": {
+        "version": 1,
+        "title": "Central Oxnard population report",
+        "basemap": "topo-3d",
+        "camera": {
+          "center": [
+            -119.08,
+            34.17
+          ],
+          "zoom": 10.4,
+          "heading": 350,
+          "tilt": 55
+        },
+        "legend": true,
+        "layers": [
+          {
+            "url": "https://services.arcgis.com/P3ePLMYs2RVChkJx/arcgis/rest/services/California_Census_2020_Redistricting_Blocks/FeatureServer/0",
+            "type": "feature",
+            "title": "Ventura County census blocks (2020)",
+            "where": "County_Name = 'Ventura County' AND P0010001 > 0",
+            "visible": false
+          }
+        ],
+        "analysis": [
+          {
+            "operation": "random-points",
+            "input": 0,
+            "options": {
+              "field": "P0010001",
+              "unitsPerPoint": 20,
+              "seed": 1
+            },
+            "title": "People, one dot per 20",
+            "visible": false
+          },
+          {
+            "operation": "hexbin",
+            "input": {
+              "step": 0
+            },
+            "options": {
+              "method": "h3",
+              "resolution": 8,
+              "statistic": "sum",
+              "field": "represents",
+              "extrude": true
+            },
+            "title": "Population per H3 cell"
+          }
+        ],
+        "report": {
+          "type": "location",
+          "at": [
+            -119.177,
+            34.197
+          ],
+          "title": "Central Oxnard: where Ventura County's population concentrates",
+          "author": "Agent (example)",
+          "sections": {
+            "summary": "Central Oxnard sits among the tallest hexagons on the map: Ventura County's people are concentrated in a compact urban core here, with far fewer per cell on the farmland around it. The values for the cells at this place are listed under What the map data shows.",
+            "inferences": [
+              {
+                "statement": "Settlement is compact: tall cells cluster around central Oxnard and drop away sharply toward the fields of the Oxnard Plain to the east and south.",
+                "basis": [
+                  "Population per H3 cell"
+                ],
+                "confidence": "medium"
+              },
+              {
+                "statement": "A cell's total is the census population of the blocks under it, carried by dots of 20 people each, so cell sums agree with the census in total while the split between neighbouring cells is an estimate.",
+                "basis": [
+                  "Ventura County census blocks (2020)",
+                  "People, one dot per 20",
+                  "Population per H3 cell"
+                ],
+                "confidence": "high"
+              }
+            ],
+            "context": "Oxnard is the largest city in Ventura County. It lies on the Oxnard Plain, a flat coastal plain between the Santa Clara River and the Santa Monica Mountains that is intensively farmed, notably for strawberries and vegetables. The Port of Hueneme and Naval Base Ventura County are nearby on the coast.",
+            "limitations": [
+              "Counts are from the 2020 census and do not show change since then.",
+              "Dots are placed at random inside each block, so small differences between neighbouring cells are noise."
+            ],
+            "nextSteps": [
+              "Add a land-use or farmland layer to see where housing meets agriculture.",
+              "Add census tract income or age data to compare the dense core with the rest of the county."
+            ]
+          }
+        }
+      },
+      "status": "rendered",
+      "checks": [
+        "Opened on MapLibre: the hexagons were drawn, the place was inspected as South Oxnard Boulevard (census tract 91), and Intelligence offered the Location report.",
+        "The PDF lists the one H3 cell at the place (represents_sum 2,440) under What the map data shows, the agent's sections in order, all three layers as sources, and a map link that reopens this link.",
+        "Download from the panel and the ArcGIS engine not checked."
+      ]
+    }
+  ],
+  "lastTestedVersion": "0.53.0",
+  "resultStatuses": [
+    "prepared",
+    "validated",
+    "loaded",
+    "rendered",
+    "verified",
+    "partial",
+    "failed"
+  ]
+}
