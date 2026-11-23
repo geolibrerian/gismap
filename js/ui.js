@@ -6,7 +6,7 @@ import { refreshMapNoteFilters } from './map-note-filters.js?v=0.4.1';
 import { openDataMapNotesPanel } from "./data-map-notes-panel.js?v=0.73.0-si-notes";
 import { refreshMapNoteWorkflow } from "./map-note-workflow-ui.js?v=0.1.0";
 import { noteFeatureReference } from './map-note-feature.js?v=0.71.0-subsurface';
-import { openMapNotesPanel } from "./map-notes-panel.js?v=0.81.4-report";
+import { openMapNotesPanel } from "./map-notes-panel.js?v=0.82.0-geopdf";
 import { refreshNoteRelationships } from "./note-relationships-ui.js?v=0.1.0";
 import { googleMapsLinkForChapter } from "./google-maps-link.js?v=0.53.0";
 import { POPULAR_SERVICES } from "./catalog.js?v=0.71.0-subsurface";
@@ -16,13 +16,13 @@ import { MapAssistantPanel } from "./assistant-panel.js?v=0.72.0-si-maps";
 import { createAssistantTools, summarizeMapState } from "./map-assistant.js?v=0.72.0-si-maps";
 import { ENTERPRISE_CATALOGS, EnterpriseCatalog, normalizeArcGisDirectoryUrl } from "./enterprise-catalog.js?v=0.71.0-subsurface";
 import { createShareUrl, parseShareParameters } from "./share.js?v=0.71.0-subsurface";
-import { mapSpecFromShareParameters } from "./map-spec.js?v=0.81.4-report";
+import { mapSpecFromShareParameters } from "./map-spec.js?v=0.82.0-geopdf";
 import { createShareLink, hasDataFilter, readBriefingFile } from "./map-share.js?v=0.80.0-grow";
 import { createEmbedIframe, createEmbedUrl } from "./embed-share.js?v=0.65.0-paths";
-import { briefingLayerRef, findBriefingLayer } from "./briefing-api.js?v=0.81.4-report";
+import { briefingLayerRef, findBriefingLayer } from "./briefing-api.js?v=0.82.0-geopdf";
 import { createEmbeddedTourUrl } from "./tour-share.js?v=0.54.0-unified4";
 import { renderMarkdown } from "./markdown.js?v=0.18.2";
-import { buildLocationReportPdf, featuresAtPlace, locationReportFileName, locationReportPrompt, normalizeLocationReport, parseReportMarkdown } from "./location-report.js?v=0.81.4-report";
+import { buildLocationReportPdf, featuresAtPlace, locationReportFileName, locationReportPrompt, normalizeLocationReport, parseReportMarkdown } from "./location-report.js?v=0.82.0-geopdf";
 import { formatAttributeValue } from "./attribute-format.js?v=0.18.2";
 import { normalizeApplicationConfig, presetApplication } from "./application-config.js?v=0.68.0-charts1";
 import { featureFilterFor, featureId, fieldKind, filterRecords, histogram, requestGuard, sortRecords } from "./presentation-query.js?v=0.30.0";
@@ -32,19 +32,19 @@ import { compactMedia } from "./viewport.js?v=0.18.2";
 import { APP_VERSION } from "./version.js?v=0.54.0-print";
 import { bindMobileSheetResize } from "./mobile-sheet-resize.js?v=0.52.7";
 import { BRAND } from "./brand.js";
-import { BRAND_LOGO, PdfDocument, brandedMapImage, brandedQrCanvas, imageToJpeg, loadBrandLogo, printPalette, qrAsset } from "./pdf-document.js?v=0.81.4-report";
-import { DEFAULT_PAGE_FRAME, IMAGE_ANCHORS, MAP_TEMPLATES, getTemplate, loadImage, renderTemplate, templateCompact, templateMapAspect } from "./map-templates.js?v=0.54.0-print";
+import { BRAND_LOGO, PdfDocument, brandedMapImage, brandedQrCanvas, imageToJpeg, loadBrandLogo, printPalette, qrAsset } from "./pdf-document.js?v=0.82.0-geopdf";
+import { DEFAULT_PAGE_FRAME, IMAGE_ANCHORS, MAP_TEMPLATES, getTemplate, loadImage, renderTemplate, templateCompact, templateMapAspect } from "./map-templates.js?v=0.82.0-geopdf";
 import { featureLayerUrl, locationUrl } from "./field-task-share.js?v=0.71.0-subsurface";
 import { dockIcon } from "./dock-icons.js?v=0.24.0";
 import { serviceNameFromUrl } from "./service-name.js?v=0.26.0";
 import { decodeQrFromImage, describeGisMapLink, gisMapLinkFrom, openGisMapLink } from "./qr-import.js?v=0.25.2";
-import { BriefingSlides } from "./briefing-slides.js?v=0.81.4-report";
+import { BriefingSlides } from "./briefing-slides.js?v=0.82.0-geopdf";
 import { addSlide, createSlide, isRoutineField, matchesFilter, normalizeBriefing, normalizeFilter } from "./briefing-document.js?v=0.80.0-grow";
 import { conditionComplete, conditionLabel, conditionToFilter } from "./briefing-conditions.js?v=0.1.0";
 import { createFilterBuilder } from "./filter-builder.js?v=0.1.0";
 import { conditionsToWhere } from "./filter-sql.js?v=0.1.0";
 import { aiDescriptionPrompt, applyAiDescriptions, describeWhere, generateBriefing, readAiDescriptions, rendererTheme } from "./briefing-generator.js?v=0.80.0-grow";
-import { briefingFileStem } from "./briefing-pdf.js?v=0.81.4-report";
+import { briefingFileStem } from "./briefing-pdf.js?v=0.82.0-geopdf";
 import { RAMPS, rampColors, compileRenderer } from "./renderer-spec.js?v=0.29.1";
 import { bindSubsurfaceControls, canDrawBelowGround, subsurfaceControlsMarkup } from "./subsurface-controls.js?v=0.71.0-subsurface";
 import { listedOrder, spatialChartColor, spatialChartGroupColor, spreadColors } from "./spatial-chart.js?v=0.71.0-subsurface";
@@ -2899,29 +2899,38 @@ export class UIController {
   async #templateCapture(aspect) {
     const shot = await this.mapController.captureImage({ format: "jpg", quality: 92, width: 2400, aspect });
     const image = shot?.dataUrl ? await loadImage(shot.dataUrl) : null;
-    const size = this.mapController.getContainerSize();
-    let tilt = 0;
-    try { tilt = this.mapController.getCamera()?.tilt || 0; } catch { /* Flat default. */ }
-    let groundWidth = null;
-    let extent = null;
-    if (size && tilt < 3) {
-      const cropWidth = Math.min(size.width, size.height * aspect);
-      const cropHeight = cropWidth / aspect;
-      const left = (size.width - cropWidth) / 2;
-      const top = (size.height - cropHeight) / 2;
-      const west = this.mapController.screenToMap(left, size.height / 2);
-      const east = this.mapController.screenToMap(left + cropWidth, size.height / 2);
-      const north = this.mapController.screenToMap(size.width / 2, top);
-      const south = this.mapController.screenToMap(size.width / 2, top + cropHeight);
-      if (west && east) {
-        const radians = Math.PI / 180;
-        const lat = ((west[1] + east[1]) / 2) * radians;
-        groundWidth = 6371008.8 * Math.abs(east[0] - west[0]) * radians * Math.cos(lat);
-      }
-      const heading = (() => { try { return Math.abs(this.mapController.getCamera()?.heading || 0); } catch { return 0; } })();
-      if (west && east && north && south && (heading < 0.5 || heading > 359.5)) extent = { west: west[0], east: east[0], north: north[1], south: south[1] };
-    }
+    const { groundWidth = null, extent = null } = this.#viewCrop(aspect) || {};
     return { map: image, groundWidth, extent };
+  }
+
+  /**
+   * The centred crop of the flat map view with this width ÷ height (the whole view without
+   * one), as captureImage takes it: its ground width in metres, and its extent in degrees
+   * when the map is also north up, which georeferences a map PDF. Null in a tilted view.
+   */
+  #viewCrop(aspect = null) {
+    const size = this.mapController.getContainerSize();
+    let camera = null;
+    try { camera = this.mapController.getCamera(); } catch { /* Flat default. */ }
+    if (!size || (camera?.tilt || 0) >= 3) return null;
+    const shape = aspect || size.width / size.height;
+    const cropWidth = Math.min(size.width, size.height * shape);
+    const cropHeight = cropWidth / shape;
+    const left = (size.width - cropWidth) / 2;
+    const top = (size.height - cropHeight) / 2;
+    const west = this.mapController.screenToMap(left, size.height / 2);
+    const east = this.mapController.screenToMap(left + cropWidth, size.height / 2);
+    const north = this.mapController.screenToMap(size.width / 2, top);
+    const south = this.mapController.screenToMap(size.width / 2, top + cropHeight);
+    let groundWidth = null;
+    if (west && east) {
+      const radians = Math.PI / 180;
+      const lat = ((west[1] + east[1]) / 2) * radians;
+      groundWidth = 6371008.8 * Math.abs(east[0] - west[0]) * radians * Math.cos(lat);
+    }
+    const heading = Math.abs(camera?.heading || 0);
+    const extent = west && east && north && south && (heading < 0.5 || heading > 359.5) ? { west: west[0], east: east[0], north: north[1], south: south[1] } : null;
+    return { groundWidth, extent };
   }
 
   /** A template page as a one-page PDF: the page image plus its clickable areas. */
@@ -2932,12 +2941,14 @@ export class UIController {
     const width = template.page.width * 72;
     const height = template.page.height * 72;
     const pdf = new PdfDocument({ header: false, homeUrl: null, pageWidth: width, pageHeight: height, margin: 0 });
-    for (const [index, { canvas, links }] of list.entries()) {
+    for (const [index, { canvas, links, geo }] of list.entries()) {
       if (index) pdf.newPage();
       const asset = await imageToJpeg(canvas.toDataURL("image/png"), { width: canvas.width, height: canvas.height, quality: 0.9 });
       pdf.addImageAt(asset, { x: 0, y: height, width, height });
       const scale = 72 / (canvas.width / template.page.width);
       for (const link of links) pdf.addLink([link.x * scale, height - (link.y + link.h) * scale, (link.x + link.w) * scale, height - link.y * scale], link.url);
+      // A flat, north-up map frame is georeferenced, so GIS apps open the PDF in place.
+      if (geo) pdf.georeference({ x: geo.rect.x * scale, y: height - (geo.rect.y + geo.rect.h) * scale, width: geo.rect.w * scale, height: geo.rect.h * scale }, geo.extent, { name: geo.name });
     }
     return new File([pdf.toBlob()], name, { type: "application/pdf" });
   }
@@ -3011,10 +3022,11 @@ export class UIController {
     const title = this.projectManager.current.name || "Map";
     const now = new Date();
     const [shot] = await this.mapController.captureViews([null], { aspect: 1.45 });
+    const extent = shot ? this.#viewCrop(1.45)?.extent : null;
     const framed = shot ? await brandedMapImage(shot, { title, subtitle: `${now.toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" })} · ${this.#basemapLabel(this.mapController.getBasemapId())}`, palette }) : null;
     const pdf = new PdfDocument({ heading: title.toUpperCase(), logo: await loadBrandLogo(palette), palette, pageWidth: 792, pageHeight: 612 });
     const column = { x: 548, width: 196 };
-    if (framed) pdf.addImageAt(framed, { x: 48, y: pdf.top + 12, width: 484, height: pdf.top - 34, link: link?.url || null });
+    if (framed) pdf.addImageAt(framed, { x: 48, y: pdf.top + 12, width: 484, height: pdf.top - 34, link: link?.url || null, geo: extent });
     let y = pdf.addTextAt("Layers", { x: column.x, y: pdf.top, width: column.width, size: 12, bold: true, color: pdf.colors.accent });
     const styleLabel = (renderer) => {
       const field = renderer?.field1 || renderer?.field;
@@ -10284,10 +10296,11 @@ export class UIController {
     const mapLink = derived && opened ? opened : await this.#mapShareLink().then((link) => link.url).catch(() => null);
     const links = { map: mapLink, place: locationUrl(globalThis.location.href, { latitude: point.latitude, longitude: point.longitude }), partial: derived && !opened };
     const capture = await this.mapController.captureImage().catch(() => null);
+    const geo = capture?.dataUrl ? this.#viewCrop()?.extent : null;
     const mapImage = capture?.dataUrl
       ? await brandedMapImage(capture, { title: String(place.address || "Location").split(",")[0], subtitle: `Location intelligence map · ${new Date().toLocaleString()}` })
       : null;
-    const blob = buildLocationReportPdf({ report, place, features, layers, links, mapImage, logo: await loadBrandLogo(), extent: this.mapController.getCurrentExtentDetails?.() });
+    const blob = buildLocationReportPdf({ report, place, features, layers, links, mapImage, logo: await loadBrandLogo(), extent: this.mapController.getCurrentExtentDetails?.(), geo });
     const file = new File([blob], locationReportFileName(place), { type: "application/pdf" });
     if (download) {
       const anchor = document.createElement("a");

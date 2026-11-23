@@ -20,7 +20,7 @@ import { AGGREGATIONS, CHART_TYPES, normalizeChartStyle } from "./charting-tools
 export const MAP_SPEC_VERSION = 1;
 export const MAP_SPEC_SCHEMA = "https://gismap.online/schemas/map-v1.schema.json";
 import { SPATIAL_OPERATION_IDS, SPATIAL_OPERATIONS } from "./spatial-analysis.js?v=0.69.0-extent";
-import { normalizeLocationReport } from "./location-report.js?v=0.81.4-report";
+import { normalizeLocationReport } from "./location-report.js?v=0.82.0-geopdf";
 
 export { MAP_SPEC_JSON_LIMIT };
 

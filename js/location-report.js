@@ -4,7 +4,7 @@
 // and general knowledge (summary, inferences, context, next steps). Limitations
 // come from both. Every source of report text (the in-app AI, the in-page API, a
 // map link's "report") fills the same sections, so reports read the same way.
-import { PdfDocument, SITE_URL } from "./pdf-document.js?v=0.81.4-report";
+import { PdfDocument, SITE_URL } from "./pdf-document.js?v=0.82.0-geopdf";
 
 export const LOCATION_REPORT_VERSION = 1;
 
@@ -252,8 +252,9 @@ const attributeValue = (value) => (typeof value === "number" ? (Number.isInteger
  * The report as a PDF (Blob). `place` is { longitude, latitude, address, geographies: [{ label, value }] };
  * `features` are identified features { layerTitle, attributes }; `layers` are { title, url, truncated, sentinels, note };
  * `links` are { map, place } URLs (`partial` when the map link leaves out layers made in the browser); `mapImage` and `logo` are PDF image assets.
+ * `geo` is the extent { west, south, east, north } of a flat, north-up `mapImage`, which georeferences its page.
  */
-export function buildLocationReportPdf({ report = { sections: {} }, place = {}, features = [], layers = [], links = {}, mapImage = null, logo = null, extent = null, generatedAt = new Date() } = {}) {
+export function buildLocationReportPdf({ report = { sections: {} }, place = {}, features = [], layers = [], links = {}, mapImage = null, logo = null, extent = null, geo = null, generatedAt = new Date() } = {}) {
   const pdf = new PdfDocument({ heading: "LOCATION INTELLIGENCE REPORT", logo });
   const colors = pdf.colors;
   const sections = report.sections || {};
@@ -319,7 +320,7 @@ export function buildLocationReportPdf({ report = { sections: {} }, place = {}, 
     // The map gets a landscape page of its own, edge to edge, with a slim strip of links below it.
     const [width, height, edge, strip] = [792, 612, 18, 30];
     pdf.newPage({ width, height, header: false });
-    pdf.addImageAt(mapImage, { x: edge, y: height - edge, width: width - edge * 2, height: height - edge * 2 - strip, link: links.map || links.place || null, border: "#cfd8d4" });
+    pdf.addImageAt(mapImage, { x: edge, y: height - edge, width: width - edge * 2, height: height - edge * 2 - strip, link: links.map || links.place || null, border: "#cfd8d4", geo });
     const y = edge + 10;
     // One line in the strip: a long title is shortened.
     const caption = `${SECTION.map.title} · ${report.title || place.address || coordinates || "Location report"}`;

@@ -6,6 +6,11 @@ All notable changes to GIS Map Online are documented here. This project follows
 
 ## Unreleased
 
+- Georeferenced map PDFs (GeoPDF). PDFs with a map now say where on earth the map is, so GDAL, QGIS, ArcGIS, Avenza Maps and Acrobat's geospatial tools open them in place, read coordinates and measure. Each map frame gets an ISO 32000 geospatial viewport in Web Mercator (EPSG:3857), the projection the map is drawn in, covering only the map, not the title, legend or frame around it.
+  - **Where.** Every Print Editor template, one page or one page per bookmark, and `gisMapOnline.print.exportPdf`; the **Map PDF** in Share; and the map page of a Location Intelligence Report.
+  - **When.** Only a flat, north-up view is georeferenced: a tilted or rotated map's pixels do not line up with a grid, so those PDFs stay plain, as before.
+  - **API.** `PdfDocument.georeference(rect, extent)`, a `geo` extent on `addImageAt`, and `geoViewport` / `geoExtent` in `pdf-document.js`. `brandedMapImage` assets carry a `mapBox`, and `renderTemplate` returns the map frame and its extent as `geo`. Georeferenced files are PDF 1.7 with Adobe's extension level 3; others are unchanged.
+- Bump changed module cache versions to 0.82.0-geopdf.
 - Location Intelligence Reports in fixed sections. A report is now always: Summary, Location, What the map data shows, Inferences from the layers together, Geographic context, Limitations, Suggested next steps, Sources and Map.
   - **Who writes what.** The app writes the location (with census tract and postal code from the geocoder), the attributes of every feature at the place, the sources (every layer on the map, noting hidden and browser-made ones) and the map page. An AI or agent writes the summary, inferences (each with its basis layers and a high, medium or low confidence), geographic context and next steps. Limitations come from both; the app adds caveats such as nothing found at the place or a layer held only in part.
   - **Intelligence buttons.** **Write report with AI** has the configured AI write those sections with a report prompt that keeps map evidence and general knowledge apart and explains, for example, that a density of dots is not a count of people. **Download report** on an AI answer now reads its headings into the sections and drops closing chat offers ("Would you like me to…").

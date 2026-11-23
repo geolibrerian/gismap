@@ -160,6 +160,9 @@ export async function brandedQrFile(url, { fileName = "gismap-qr.png", ...option
   return blob ? new File([blob], fileName, { type: "image/png" }) : null;
 }
 
+// The branded map frame's border, header band and legend strip, in canvas pixels.
+const BRANDED_MAP = Object.freeze({ border: 18, header: 118, footer: 64 });
+
 /**
  * Frames a map snapshot like the QR cards, for every PDF the app makes: a border
  * in the skin palette, the GISMap Online mark and name, a title and subtitle above, and an
@@ -178,9 +181,7 @@ export async function brandedMapCanvas(mapImage, {
 } = {}) {
   const [map, logo] = await Promise.all([loadImage(mapImage.dataUrl), loadImage(BRAND_LOGO)]);
   if (!map) return null;
-  const border = 18;
-  const header = 118;
-  const footer = 64;
+  const { border, header, footer } = BRANDED_MAP;
   const mapHeight = Math.round(mapWidth * (mapImage.height / mapImage.width));
   const canvas = document.createElement("canvas");
   canvas.width = mapWidth + border * 2;
@@ -254,11 +255,18 @@ export async function brandedMapCanvas(mapImage, {
   return canvas;
 }
 
+/**
+ * The framed map as a JPEG asset. Its `mapBox` is where the map sits in the frame, so
+ * a PDF can georeference just the map (see PdfDocument.addImageAt's `geo`).
+ */
 export async function brandedMapImage(mapImage, options = {}) {
   const canvas = await brandedMapCanvas(mapImage, options);
   if (!canvas) return null;
   const dataUrl = canvas.toDataURL("image/jpeg", 0.9);
-  return { bytes: dataUrlBytes(dataUrl), width: canvas.width, height: canvas.height };
+  const { border, header } = BRANDED_MAP;
+  const mapWidth = options.mapWidth ?? 1200;
+  const mapBox = { x: border, y: header, w: mapWidth, h: Math.round(mapWidth * (mapImage.height / mapImage.width)) };
+  return { bytes: dataUrlBytes(dataUrl), width: canvas.width, height: canvas.height, mapBox };
 }
 
 // PDF strings escape backslashes and parentheses; URLs are otherwise plain ASCII here.
@@ -290,6 +298,42 @@ const wrap = (value, maxChars) => String(value ?? "").split(/\n/).flatMap((parag
   if (line) lines.push(line);
   return lines;
 });
+
+// Web maps draw in Web Mercator, so a map image is linear in EPSG:3857, not in degrees.
+const WEB_MERCATOR_WKT = 'PROJCS["WGS 84 / Pseudo-Mercator",GEOGCS["WGS 84",DATUM["WGS_1984",SPHEROID["WGS 84",6378137,298.257223563]],PRIMEM["Greenwich",0],UNIT["degree",0.0174532925199433]],PROJECTION["Mercator_1SP"],PARAMETER["central_meridian",0],PARAMETER["scale_factor",1],PARAMETER["false_easting",0],PARAMETER["false_northing",0],UNIT["metre",1],AUTHORITY["EPSG","3857"]]';
+const MERCATOR_LIMIT = 85.0511;
+
+/**
+ * A map extent { west, south, east, north } (degrees, north up) that can georeference a
+ * page, or null. An extent across the antimeridian keeps east above west.
+ */
+export function geoExtent(extent) {
+  if (!extent) return null;
+  const { west, south, north } = extent;
+  let { east } = extent;
+  if (![west, south, east, north].every(Number.isFinite)) return null;
+  if (east <= west) east += 360;
+  if (east - west > 360 || south >= north || south < -MERCATOR_LIMIT || north > MERCATOR_LIMIT) return null;
+  return { west, south, east, north };
+}
+
+/**
+ * The geospatial viewport (ISO 32000-2 / OGC GeoPDF encoding) for a page rectangle
+ * { x, y, width, height } in points that shows a Web Mercator map of `extent`, so GIS
+ * readers (GDAL, QGIS, ArcGIS, Avenza, Acrobat) place it on the earth. Null when the
+ * extent cannot georeference a page.
+ */
+export function geoViewport({ x, y, width, height }, extent, name = "Map") {
+  const geo = geoExtent(extent);
+  if (!geo || !(width > 0 && height > 0)) return null;
+  const n = (value) => Number(value.toFixed(8));
+  // Corners in the measure's unit square, from the lower left clockwise, and each one's latitude and longitude.
+  const corners = [[0, 0, geo.south, geo.west], [0, 1, geo.north, geo.west], [1, 1, geo.north, geo.east], [1, 0, geo.south, geo.east]];
+  const unit = corners.flatMap(([u, v]) => [u, v]).join(" ");
+  const points = corners.flatMap(([, , latitude, longitude]) => [n(latitude), n(longitude)]).join(" ");
+  const box = [x, y, x + width, y + height].map((value) => value.toFixed(2)).join(" ");
+  return `<< /Type /Viewport /BBox [${box}] /Name (${pdfSafeText(name)}) /Measure << /Type /Measure /Subtype /GEO /Bounds [${unit}] /GPTS [${points}] /LPTS [${unit}] /GCS << /Type /PROJCS /EPSG 3857 /WKT (${WEB_MERCATOR_WKT}) >> /PDU [/M /SQM /DEG] >> >>`;
+}
 
 /** Where every PDF links back to: the header band and the "gismap.online" footer link. */
 export const SITE_URL = "https://gismap.online/";
@@ -327,7 +371,7 @@ export class PdfDocument {
     const { margin: left, pageWidth, pageHeight, palette } = this;
     if (!header) {
       // A bare page, for templates that draw their own design.
-      this.page = { commands: [], images: [], links: [], width, height };
+      this.page = { commands: [], images: [], links: [], viewports: [], width, height };
       this.pages.push(this.page);
       this.y = pageHeight - this.margin;
       return;
@@ -340,7 +384,7 @@ export class PdfDocument {
       `${pdfColor(palette.brand)} rg BT /F2 15 Tf ${left + 52} ${band + 25} Td (${pdfSafeText(wordmark.primary)}) Tj ET`,
       `${pdfColor(palette.edge)} rg BT /F2 7.5 Tf 2.2 Tc ${left + 53} ${band + 11} Td (${pdfSafeText(wordmark.secondary)}) Tj ET 0 Tc`,
       `${this.colors.accent} rg BT /F2 11 Tf ${left} ${band - 22} Td (${pdfSafeText(this.heading)}) Tj ET`,
-    ], images: [], links: [], width, height };
+    ], images: [], links: [], viewports: [], width, height };
     if (this.logo) {
       this.page.images.push({ name: "ImLogo", asset: this.logo });
       this.page.commands.push(`q 36 0 0 36 ${left + 12} ${band + 4} cm /ImLogo Do Q`);
@@ -359,6 +403,16 @@ export class PdfDocument {
   /** Makes a rectangle [x1, y1, x2, y2] on the current page open a URL. */
   addLink(rect, url) {
     if (url) this.page.links.push({ rect: rect.map((value) => Number(value).toFixed(2)), url });
+  }
+
+  /**
+   * Georeferences a rectangle { x, y, width, height } (points, from the lower left) of the
+   * current page that shows a north-up Web Mercator map of `extent`. Returns whether it could.
+   */
+  georeference(rect, extent, { name = "Map" } = {}) {
+    const viewport = geoViewport(rect, extent, name);
+    if (viewport) this.page.viewports.push(viewport);
+    return Boolean(viewport);
   }
 
   gap(points) {
@@ -395,8 +449,12 @@ export class PdfDocument {
     return lineY;
   }
 
-  /** An image fitted inside a box, centred; returns the drawn rectangle. */
-  addImageAt(asset, { x, y, width, height, link = null, border = null } = {}) {
+  /**
+   * An image fitted inside a box, centred; returns the drawn rectangle. With `geo` (a map
+   * extent) the map is georeferenced: the whole image, or the asset's `mapBox`
+   * ({ x, y, w, h } in image pixels from the top left) when the map sits in a frame.
+   */
+  addImageAt(asset, { x, y, width, height, link = null, border = null, geo = null } = {}) {
     if (!asset?.bytes?.length) return null;
     const scale = Math.min(width / asset.width, height / asset.height);
     const drawWidth = asset.width * scale;
@@ -408,6 +466,10 @@ export class PdfDocument {
     this.page.commands.push(`q ${drawWidth.toFixed(2)} 0 0 ${drawHeight.toFixed(2)} ${left.toFixed(2)} ${bottom.toFixed(2)} cm /${name} Do Q`);
     if (border) this.page.commands.push(`${pdfColor(border)} RG 1.5 w ${left.toFixed(2)} ${bottom.toFixed(2)} ${drawWidth.toFixed(2)} ${drawHeight.toFixed(2)} re S`);
     if (link) this.addLink([left, bottom, left + drawWidth, bottom + drawHeight], link);
+    if (geo) {
+      const box = asset.mapBox || { x: 0, y: 0, w: asset.width, h: asset.height };
+      this.georeference({ x: left + box.x * scale, y: bottom + (asset.height - box.y - box.h) * scale, width: box.w * scale, height: box.h * scale }, geo);
+    }
     return { x: left, y: bottom, width: drawWidth, height: drawHeight };
   }
 
@@ -508,14 +570,17 @@ export class PdfDocument {
         setObject(annotationId, `<< /Type /Annot /Subtype /Link /Rect [${rect.join(" ")}] /Border [0 0 0] /A << /S /URI /URI (${pdfUri(url)}) >> >>`);
         return `${annotationId} 0 R`;
       });
-      setObject(pageId, `<< /Type /Page /Parent ${pagesId} 0 R /MediaBox [0 0 ${currentPage.width ?? this.pageWidth} ${currentPage.height ?? this.pageHeight}] /Resources << /Font << /F1 ${regularFontId} 0 R /F2 ${boldFontId} 0 R >>${xObjects ? ` /XObject << ${xObjects} >>` : ""} >>${annotations.length ? ` /Annots [${annotations.join(" ")}]` : ""} /Contents ${contentId} 0 R >>`);
+      const viewports = currentPage.viewports?.length ? ` /VP [${currentPage.viewports.join(" ")}]` : "";
+      setObject(pageId, `<< /Type /Page /Parent ${pagesId} 0 R /MediaBox [0 0 ${currentPage.width ?? this.pageWidth} ${currentPage.height ?? this.pageHeight}] /Resources << /Font << /F1 ${regularFontId} 0 R /F2 ${boldFontId} 0 R >>${xObjects ? ` /XObject << ${xObjects} >>` : ""} >>${annotations.length ? ` /Annots [${annotations.join(" ")}]` : ""}${viewports} /Contents ${contentId} 0 R >>`);
       return pageId;
     });
     setObject(pagesId, `<< /Type /Pages /Kids [${pageIds.map((id) => `${id} 0 R`).join(" ")}] /Count ${pageIds.length} >>`);
-    setObject(catalogId, `<< /Type /Catalog /Pages ${pagesId} 0 R >>`);
+    // Geospatial viewports are Adobe's extension level 3 to PDF 1.7 (now ISO 32000-2).
+    const geospatial = this.pages.some((currentPage) => currentPage.viewports?.length);
+    setObject(catalogId, `<< /Type /Catalog /Pages ${pagesId} 0 R${geospatial ? " /Extensions << /ADBE << /BaseVersion /1.7 /ExtensionLevel 3 >> >>" : ""} >>`);
     const name = pdfSafeText(brandName());
     setObject(infoId, `<< /Title (${pdfSafeText(this.heading || brandName())}) /Author (${name}) /Creator (${name}) /Producer (${name}) >>`);
-    const chunks = [textEncoder.encode("%PDF-1.4\n%????\n")];
+    const chunks = [textEncoder.encode(`%PDF-${geospatial ? "1.7" : "1.4"}\n%????\n`)];
     let length = chunks[0].length;
     const offsets = [0];
     objects.slice(1).forEach((object, index) => {

@@ -473,7 +473,7 @@ ${readmeSection(readme, "## Agent API")}
 
 ## Print Editor
 
-\`gisMapOnline.print\` renders the Print Editor's pages and returns files without downloading: templates(), getOptions(), setOptions(options), preview(options), exportPdf(options), exportSmartImage(options), open(options). Exports wait for the map and throw PRINT_LAYERS_NOT_LOADED, PRINT_RENDER_TIMEOUT, PRINT_CANVAS_TAINTED, WEBGL_UNAVAILABLE or UNKNOWN_TEMPLATE rather than render a blank or partial page.
+\`gisMapOnline.print\` renders the Print Editor's pages and returns files without downloading: templates(), getOptions(), setOptions(options), preview(options), exportPdf(options), exportSmartImage(options), open(options). Exports wait for the map and throw PRINT_LAYERS_NOT_LOADED, PRINT_RENDER_TIMEOUT, PRINT_CANVAS_TAINTED, WEBGL_UNAVAILABLE or UNKNOWN_TEMPLATE rather than render a blank or partial page. When the map is flat and north up, each PDF page's map frame is georeferenced (a GeoPDF in EPSG:3857), so GDAL, QGIS, ArcGIS and Avenza open it in place.
 
 \`\`\`js
 const { file, warnings } = await gisMapOnline.print.exportPdf({ template: "poster", title: "Potholes" });
