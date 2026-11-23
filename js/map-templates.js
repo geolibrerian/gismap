@@ -591,7 +591,8 @@ export const DEFAULT_PAGE_FRAME = Object.freeze({ margin: 0, marginColor: "#ffff
  * Draws a template page. `ppi` sets the resolution (150 for print, ~40 for a
  * preview). `frame` adds a margin (inches) around the design and a border
  * (points) at its edge; the design shrinks evenly to fit inside.
- * Returns { canvas, links: [{ x, y, w, h, url }] in canvas pixels }.
+ * Returns { canvas, links: [{ x, y, w, h, url }] in canvas pixels, geo }; `geo` is
+ * { rect, extent, name } when the map has a north-up extent, so a PDF can georeference it.
  */
 export function renderTemplate(id, data, { ppi = 150, frame = DEFAULT_PAGE_FRAME } = {}) {
   const template = getTemplate(id);
@@ -634,5 +635,6 @@ export function renderTemplate(id, data, { ppi = 150, frame = DEFAULT_PAGE_FRAME
     context.lineWidth = line;
     context.strokeRect(offsetX - line / 2, offsetY - line / 2, width * k + line, height * k + line);
   }
-  return { canvas, links, template };
+  const geo = page.extent ? { rect: { ...mapRect, x: mapRect.x + offsetX, y: mapRect.y + offsetY }, extent: page.extent, name: page.title || template.label || "Map" } : null;
+  return { canvas, links, template, geo };
 }

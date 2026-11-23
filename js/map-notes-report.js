@@ -2,7 +2,7 @@
 // authoritative portable record; the PDF contains one self-contained link per note.
 import { makeFieldBundle } from './field-session-bundle.js?v=0.71.0-subsurface';
 import { createFieldNoteUrl } from './field-note-link.js?v=0.71.0-subsurface';
-import { PdfDocument, qrAsset } from './pdf-document.js?v=0.81.4-report';
+import { PdfDocument, qrAsset } from './pdf-document.js?v=0.82.0-geopdf';
 
 export function prepareMapNotesReport(baseUrl, session, notes) {
   const bundle = makeFieldBundle(session, notes);
