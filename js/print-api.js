@@ -23,6 +23,7 @@ export const PRINT_OPTIONS_SCHEMA = Object.freeze({
     showNorthArrow: { type: "boolean" },
     showScaleBar: { type: "boolean" },
     clickableLinks: { type: "boolean" },
+    georeference: { type: "boolean" },
     pages: { enum: ["current-view", "bookmarks"] },
     dpi: { type: "number", minimum: PRINT_LIMITS.minDpi, maximum: PRINT_LIMITS.maxDpi },
     waitFor: { enum: ["layers", "idle"] },
@@ -67,6 +68,7 @@ export function printFrame(options) {
     showNorth: options.showNorthArrow,
     showScale: options.showScaleBar,
     links: options.clickableLinks,
+    georeference: options.georeference,
   };
 }
 
@@ -81,6 +83,9 @@ export function webglIssue() {
   const error = new GisMapError("WEBGL_UNAVAILABLE", "This browser has no WebGL, so the map cannot render.");
   return { level: "error", code: error.code, message: error.message, hint: error.hint };
 }
+
+/** Why a PDF asked to be georeferenced is not: only a flat, north-up map lines up with a grid. */
+export const GEOREFERENCE_SKIPPED = "Not georeferenced: the map is tilted or rotated. Set tilt and heading to 0 (gisMapOnline.camera.set) to make a GeoPDF.";
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -137,6 +142,7 @@ export function createPrintApi({ templates, host, now = Date.now, wait = sleep, 
       throw error;
     }
     if (options.showQr && !output.share?.qr && kind !== "preview") warnings.push("No QR code on the page: the live-map link needs a public web layer or a text box, and must fit a QR code.");
+    if (kind === "pdf" && options.georeference && !output.georeferenced) warnings.push(GEOREFERENCE_SKIPPED);
     return { ...output, template: info(options.template), options, warnings };
   }
 

@@ -97,3 +97,19 @@ test("legacy extensions stay importable and writers use the current ones", async
   assert.match(project, /zip\|gisx\|gmop\|gismap/);
   assert.doesNotMatch(project, /`[^`]*\.gmop?`/);
 });
+
+test("georeference is an option, reaches the frame, and an export says whether it happened", async () => {
+  assert.equal(printFrame({ georeference: false }).georeference, false);
+  assert.throws(() => resolvePrintOptions({ georeference: "yes" }, { template: "branded" }, MAP_TEMPLATES), code("INVALID_SPEC"));
+  const flat = api({ render: async () => ({ blob: new Blob(["x"]), file: new File(["x"], "x"), georeferenced: true, share: { url: "u", qr: true } }) });
+  const placed = await flat.print.exportPdf({ georeference: true });
+  assert.equal(placed.georeferenced, true);
+  assert.deepEqual(placed.warnings, []);
+  const tilted = api({ render: async (kind, options) => ({ blob: new Blob(["x"]), file: new File(["x"], "x"), georeferenced: false, frame: options.frame, share: { url: "u", qr: true } }) });
+  const skipped = await tilted.print.exportPdf({ georeference: true });
+  assert.equal(skipped.georeferenced, false);
+  assert.match(skipped.warnings.join(" "), /Not georeferenced: the map is tilted or rotated/);
+  const off = await tilted.print.exportPdf({ georeference: false });
+  assert.equal(off.frame.georeference, false);
+  assert.deepEqual(off.warnings, [], "no warning when the caller turned it off");
+});

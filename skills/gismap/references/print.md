@@ -26,7 +26,7 @@ const { file, warnings, share } = await gisMapOnline.print.exportPdf({
 });
 ```
 
-Options: `template`, `title`, `subtitle`, `description`, `marginIn`, `marginColor`, `borderPt`, `borderColor`, `showQr`, `showNorthArrow`, `showScaleBar`, `clickableLinks`, `pages` (`current-view` or, for PDFs, `bookmarks`), `dpi` (48–300), `waitFor` (`idle` or `layers`), `timeoutMs` (default 30000) and `allowPartial`. Wall maps are capped at about 6000 pixels on the long side.
+Options: `template`, `title`, `subtitle`, `description`, `marginIn`, `marginColor`, `borderPt`, `borderColor`, `showQr`, `showNorthArrow`, `showScaleBar`, `clickableLinks`, `georeference` (default true), `pages` (`current-view` or, for PDFs, `bookmarks`), `dpi` (48–300), `waitFor` (`idle` or `layers`), `timeoutMs` (default 30000) and `allowPartial`. Wall maps are capped at about 6000 pixels on the long side. A PDF of a flat, north-up map is georeferenced (GeoPDF, EPSG:3857) so GIS apps open it in place; the result's `georeferenced` says whether it was, and a tilted or rotated map adds a warning: set tilt and heading to 0 with `gisMapOnline.camera.set` and export again.
 
 `print.preview()` returns a low-resolution PNG. `print.setOptions()` keeps options for later calls, and `print.open()` opens the editor for a person.
 

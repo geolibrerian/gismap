@@ -85,7 +85,11 @@ test("the Print Editor and Map PDFs georeference their map frames", async () => 
   const templates = await readFile(new URL("../js/map-templates.js", import.meta.url), "utf8");
   assert.match(templates, /return \{ canvas, links, template, geo \}/);
   const templatePdf = ui.slice(ui.indexOf("async #templatePdf("), ui.indexOf("async #bookmarkPages("));
-  assert.match(templatePdf, /pdf\.georeference\(/);
+  assert.match(templatePdf, /frame\.georeference !== false && pdf\.georeference\(/, "the Print Editor's switch can turn it off");
+  assert.match(templatePdf, /georeferenced: placed === list\.length/);
+  assert.match(ui, /data-frame-geo\b/);
+  assert.match(ui, /data-frame-flatten/);
+  assert.match(ui, /georeference: frame\.georeference !== false/, "the editor's choice is the print API default");
   const mapPdf = ui.slice(ui.indexOf("async #mapPdfFile("), ui.indexOf("Turns a layer into a briefing"));
   assert.match(mapPdf, /#viewCrop\(1\.45\)/);
   assert.match(mapPdf, /geo: extent/);

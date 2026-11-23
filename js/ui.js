@@ -32,7 +32,7 @@ import { compactMedia } from "./viewport.js?v=0.18.2";
 import { APP_VERSION } from "./version.js?v=0.54.0-print";
 import { bindMobileSheetResize } from "./mobile-sheet-resize.js?v=0.52.7";
 import { BRAND } from "./brand.js";
-import { BRAND_LOGO, PdfDocument, brandedMapImage, brandedQrCanvas, imageToJpeg, loadBrandLogo, printPalette, qrAsset } from "./pdf-document.js?v=0.82.0-geopdf";
+import { BRAND_LOGO, PdfDocument, brandedMapImage, brandedQrCanvas, geoExtent, imageToJpeg, loadBrandLogo, printPalette, qrAsset } from "./pdf-document.js?v=0.82.0-geopdf";
 import { DEFAULT_PAGE_FRAME, IMAGE_ANCHORS, MAP_TEMPLATES, getTemplate, loadImage, renderTemplate, templateCompact, templateMapAspect } from "./map-templates.js?v=0.82.0-geopdf";
 import { featureLayerUrl, locationUrl } from "./field-task-share.js?v=0.71.0-subsurface";
 import { dockIcon } from "./dock-icons.js?v=0.24.0";
@@ -2569,7 +2569,7 @@ export class UIController {
             <label class="field"><span>Margin colour</span><input type="color" data-frame-margin-color value="${escapeHtml(frame.marginColor)}"></label>
             <label class="opacity-row"><span>Border</span><input type="range" min="0" max="12" step="0.5" data-frame-border value="${frame.borderWidth}"><output>${frame.borderWidth} pt</output></label>
             <label class="field"><span>Border colour</span><input type="color" data-frame-border-color value="${escapeHtml(frame.borderColor)}"></label>
-          </div><label class="menu__toggle map-templates__qr"><input type="checkbox" data-frame-qr${frame.showQr !== false ? " checked" : ""}><span>Show QR code</span></label><label class="menu__toggle"><input type="checkbox" data-frame-north${frame.showNorth !== false ? " checked" : ""}><span>Show north arrow</span></label><label class="menu__toggle"><input type="checkbox" data-frame-scale${frame.showScale !== false ? " checked" : ""}><span>Show scale bar</span></label><label class="menu__toggle"><input type="checkbox" data-frame-links${frame.links !== false ? " checked" : ""}><span>Clickable links in the PDF</span></label><p class="form-note" data-frame-qr-note hidden>No QR code: the live-map link needs a public web layer or a text box on the map.</p></fieldset>
+          </div><label class="menu__toggle map-templates__qr"><input type="checkbox" data-frame-qr${frame.showQr !== false ? " checked" : ""}><span>Show QR code</span></label><label class="menu__toggle"><input type="checkbox" data-frame-north${frame.showNorth !== false ? " checked" : ""}><span>Show north arrow</span></label><label class="menu__toggle"><input type="checkbox" data-frame-scale${frame.showScale !== false ? " checked" : ""}><span>Show scale bar</span></label><label class="menu__toggle"><input type="checkbox" data-frame-links${frame.links !== false ? " checked" : ""}><span>Clickable links in the PDF</span></label><label class="menu__toggle"><input type="checkbox" data-frame-geo${frame.georeference !== false ? " checked" : ""}><span>Georeferenced PDF (GeoPDF)</span></label><p class="form-note" data-frame-geo-note></p><button type="button" class="map-templates__flatten" data-frame-flatten hidden>Flatten the map (north up, no tilt)</button><p class="form-note" data-frame-qr-note hidden>No QR code: the live-map link needs a public web layer or a text box on the map.</p></fieldset>
           <fieldset class="feedback-settings map-templates__images" data-template-images-panel hidden><legend>Images on the map</legend>
             <p class="form-note">Add logos, photos or callouts. They stay in this browser session and are not saved in the project.</p>
             <div data-template-images></div>
@@ -2627,6 +2627,18 @@ export class UIController {
       canvas.height = page.canvas.height;
       canvas.getContext("2d").drawImage(page.canvas, 0, 0);
       status.textContent = `${page.template.label} · ${page.template.page.width} × ${page.template.page.height} in`;
+      showGeo(page);
+    };
+    // Says whether the PDF will carry map coordinates, and offers to flatten a view that cannot.
+    const showGeo = (page) => {
+      const on = frame.georeference !== false;
+      const placed = Boolean(geoExtent(page.geo?.extent));
+      root.querySelector("[data-frame-geo-note]").textContent = !on
+        ? "Off: the PDF will not carry map coordinates."
+        : placed
+          ? "The map frame will be georeferenced (Web Mercator, EPSG:3857), so GIS apps such as QGIS, ArcGIS and Avenza open the PDF in place."
+          : "Not georeferenced: the map is tilted or rotated, so it does not line up with a grid. Flatten it to make a GeoPDF.";
+      root.querySelector("[data-frame-flatten]").hidden = !on || placed;
     };
     const renderImages = () => {
       root.querySelector("[data-template-images]").innerHTML = this.templateImages.map((item, index) => `<div class="map-templates__image" data-template-image="${index}">
@@ -2664,10 +2676,15 @@ export class UIController {
       frame.showNorth = frameInputs.querySelector("[data-frame-north]").checked;
       frame.showScale = frameInputs.querySelector("[data-frame-scale]").checked;
       frame.links = frameInputs.querySelector("[data-frame-links]").checked;
+      frame.georeference = frameInputs.querySelector("[data-frame-geo]").checked;
       frameInputs.querySelector("[data-frame-margin] + output").value = `${frame.margin.toFixed(2)} in`;
       frameInputs.querySelector("[data-frame-border] + output").value = `${frame.borderWidth} pt`;
       try { localStorage.setItem("gismap.mapTemplateFrame", JSON.stringify(frame)); } catch { /* Preference only. */ }
       preview();
+    });
+    // The preview follows the view, so the note updates once the map settles.
+    root.querySelector("[data-frame-flatten]").addEventListener("click", () => {
+      this.mapController.setView({ heading: 0, tilt: 0 }).catch((error) => this.error(error.message));
     });
     const expand = root.querySelector("[data-template-fullwindow]");
     const setFullWindow = (on) => {
@@ -2742,13 +2759,13 @@ export class UIController {
           exporting = true;
           const pages = await this.#bookmarkPages(templateId, data, frame, status);
           const stem = templateId === "branded" ? "" : `-${templateId}`;
-          this.#download(await this.#templatePdf(pages, `${this.#fileStem()}${stem}-bookmarks.pdf`));
+          this.#download((await this.#templatePdf(pages, `${this.#fileStem()}${stem}-bookmarks.pdf`, frame)).file);
           return;
         }
         this.toast(kind === "pdf" ? "Making the map PDF…" : "Rendering the Smart Image…");
         const page = renderTemplate(templateId, await data(), { ppi: this.#templatePpi(templateId, kind === "pdf" ? 150 : 120), frame });
         const stem = (page.template.id === "branded" ? "" : `-${page.template.id}`);
-        if (kind === "pdf") this.#download(await this.#templatePdf(page, `${this.#fileStem()}${stem}-map.pdf`));
+        if (kind === "pdf") this.#download((await this.#templatePdf(page, `${this.#fileStem()}${stem}-map.pdf`, frame)).file);
         else {
           const blob = await new Promise((resolve) => page.canvas.toBlob(resolve, "image/png"));
           await this.projectManager.exportSmartImage({ visual: blob, suffix: `smart-map${stem}`, template: page.template.id });
@@ -2765,7 +2782,7 @@ export class UIController {
 
   /** The saved page frame, or the editor's defaults. */
   #templateFrame() {
-    return { ...DEFAULT_PAGE_FRAME, showQr: true, showNorth: true, showScale: true, links: true, ...(() => { try { return JSON.parse(localStorage.getItem("gismap.mapTemplateFrame")) || {}; } catch { return {}; } })() };
+    return { ...DEFAULT_PAGE_FRAME, showQr: true, showNorth: true, showScale: true, links: true, georeference: true, ...(() => { try { return JSON.parse(localStorage.getItem("gismap.mapTemplateFrame")) || {}; } catch { return {}; } })() };
   }
 
   /** The editor's title, subtitle and description for the current project. */
@@ -2804,7 +2821,7 @@ export class UIController {
     return {
       title, subtitle, description,
       marginIn: frame.margin, marginColor: frame.marginColor, borderPt: frame.borderWidth, borderColor: frame.borderColor,
-      showQr: frame.showQr !== false, showNorthArrow: frame.showNorth !== false, showScaleBar: frame.showScale !== false, clickableLinks: frame.links !== false,
+      showQr: frame.showQr !== false, showNorthArrow: frame.showNorth !== false, showScaleBar: frame.showScale !== false, clickableLinks: frame.links !== false, georeference: frame.georeference !== false,
     };
   }
 
@@ -2821,15 +2838,15 @@ export class UIController {
     const stem = templateId === "branded" ? "" : `-${templateId}`;
     if (kind === "pdf" && pages === "bookmarks") {
       const list = await this.#bookmarkPages(templateId, data, frame, {});
-      const file = await this.#templatePdf(list, `${this.#fileStem()}${stem}-bookmarks.pdf`);
-      return { file, blob: file, share: this.#printShare() };
+      const { file, georeferenced } = await this.#templatePdf(list, `${this.#fileStem()}${stem}-bookmarks.pdf`, frame);
+      return { file, blob: file, georeferenced, share: this.#printShare() };
     }
     const fallback = { preview: 48, pdf: 150, "smart-image": 120 }[kind];
     const page = renderTemplate(templateId, await data(), { ppi: this.#templatePpi(templateId, dpi || fallback), frame });
     const share = this.#printShare();
     if (kind === "pdf") {
-      const file = await this.#templatePdf(page, `${this.#fileStem()}${stem}-map.pdf`);
-      return { file, blob: file, share };
+      const { file, georeferenced } = await this.#templatePdf(page, `${this.#fileStem()}${stem}-map.pdf`, frame);
+      return { file, blob: file, georeferenced, share };
     }
     const png = await new Promise((resolve, reject) => page.canvas.toBlob((blob) => blob ? resolve(blob) : reject(new Error("The browser could not encode the page.")), "image/png"));
     if (kind === "preview") return { blob: png, file: null, share };
@@ -2933,14 +2950,17 @@ export class UIController {
     return { groundWidth, extent };
   }
 
-  /** A template page as a one-page PDF: the page image plus its clickable areas. */
-  /** Template pages as a PDF: each page image plus its clickable areas. */
-  async #templatePdf(pages, name) {
+  /**
+   * Template pages as a PDF: each page image plus its clickable areas. Returns { file,
+   * georeferenced }: whether every page's map is georeferenced (off with frame.georeference false).
+   */
+  async #templatePdf(pages, name, frame = {}) {
     const list = Array.isArray(pages) ? pages : [pages];
     const { template } = list[0];
     const width = template.page.width * 72;
     const height = template.page.height * 72;
     const pdf = new PdfDocument({ header: false, homeUrl: null, pageWidth: width, pageHeight: height, margin: 0 });
+    let placed = 0;
     for (const [index, { canvas, links, geo }] of list.entries()) {
       if (index) pdf.newPage();
       const asset = await imageToJpeg(canvas.toDataURL("image/png"), { width: canvas.width, height: canvas.height, quality: 0.9 });
@@ -2948,9 +2968,9 @@ export class UIController {
       const scale = 72 / (canvas.width / template.page.width);
       for (const link of links) pdf.addLink([link.x * scale, height - (link.y + link.h) * scale, (link.x + link.w) * scale, height - link.y * scale], link.url);
       // A flat, north-up map frame is georeferenced, so GIS apps open the PDF in place.
-      if (geo) pdf.georeference({ x: geo.rect.x * scale, y: height - (geo.rect.y + geo.rect.h) * scale, width: geo.rect.w * scale, height: geo.rect.h * scale }, geo.extent, { name: geo.name });
+      if (geo && frame.georeference !== false && pdf.georeference({ x: geo.rect.x * scale, y: height - (geo.rect.y + geo.rect.h) * scale, width: geo.rect.w * scale, height: geo.rect.h * scale }, geo.extent, { name: geo.name })) placed += 1;
     }
-    return new File([pdf.toBlob()], name, { type: "application/pdf" });
+    return { file: new File([pdf.toBlob()], name, { type: "application/pdf" }), georeferenced: placed === list.length };
   }
 
   /** One rendered page per bookmark; the map visits each and then returns to where it was. */

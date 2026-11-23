@@ -458,6 +458,8 @@ export interface PrintOptions {
   template?: string; title?: string; subtitle?: string; description?: string;
   marginIn?: number; marginColor?: string; borderPt?: number; borderColor?: string;
   showQr?: boolean; showNorthArrow?: boolean; showScaleBar?: boolean; clickableLinks?: boolean;
+  /** Georeference a flat, north-up map frame as a GeoPDF (EPSG:3857). Default true. */
+  georeference?: boolean;
   /** "bookmarks" draws one PDF page per bookmark. */
   pages?: "current-view" | "bookmarks";
   /** 48 to 300; wall maps stay under about 6000 px. Defaults: 150 for PDF, 120 for Smart Images. */
@@ -470,6 +472,8 @@ export interface PrintOptions {
 
 export interface PrintResult {
   file: File; blob: Blob; template: PrintTemplate; options: Required<PrintOptions>;
+  /** PDFs: whether every page's map is georeferenced. */
+  georeferenced?: boolean;
   share?: { url: string; qr: boolean }; warnings: string[];
 }
 
