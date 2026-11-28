@@ -8,7 +8,9 @@ import { COUNTRY_POINTS_ID, COUNTRY_POINTS_REVISION, countryPointLookup } from "
 import { BEVERAGE_FIXTURE_FIELDS, BEVERAGE_FIXTURE_ID, BEVERAGE_FIXTURE_NAME, beverageFixtureRecipe, beverageFixtureRows } from "./flow-fixtures.js";
 import { EXCLUSION_REASONS, FLOW_MAP_MAX_LINKS, LOCAL_ROW_LIMIT, MAX_ANNOTATIONS, buildFlowMapModel, endpointExtent, normalizeFlowRecipe, suggestFlowBindings } from "./flow-map.js";
 import { escapeXml as escape, flowDetail, flowLabel, formatValue, renderFlowMapSvg, scopeLabel } from "./flow-map-svg.js";
-import { flowMapGeo, loadGeoModules } from "./infographics-geo.js";
+import { BOUNDARY_CREDIT, flowMapGeo, loadGeoModules } from "./infographics-geo.js";
+import { flowReportFileStem, flowReportPdf } from "./flow-map-pdf.js";
+import { dataUrlBytes, loadBrandLogo, printPalette } from "../pdf-document.js?v=0.83.0-infographics";
 
 const PAGE_SIZE = 12;
 const fieldLabel = (field) => field.alias && field.alias !== field.name ? `${field.alias} (${field.name})` : field.name;
@@ -64,6 +66,7 @@ export async function openInfographicsEditor(host, { layerUid = null } = {}) {
       { label: "Play", handler: () => play() },
       { label: "Copy recipe", handler: () => copyRecipe() },
       { label: "Export SVG", handler: () => exportSvg() },
+      { label: "Export PDF report", handler: () => exportPdf() },
       { label: "Export PNG", primary: true, handler: () => exportPng() },
     ],
   });
@@ -318,28 +321,55 @@ export async function openInfographicsEditor(host, { layerUid = null } = {}) {
     host.toast("SVG exported.");
   }
 
-  async function exportPng() {
-    if (!state.model) return;
+  /** The standalone SVG drawn onto a canvas: one raster path for PNG and the PDF's graphic page. */
+  async function rasterize(scale = 2) {
     const { svg, width, height } = standaloneSvg();
     const url = URL.createObjectURL(new Blob([svg], { type: "image/svg+xml" }));
     try {
       const image = new Image();
       await new Promise((resolve, reject) => { image.onload = resolve; image.onerror = () => reject(new Error("The graphic could not be rasterized.")); image.src = url; });
-      const scale = 2;
       const canvas = document.createElement("canvas");
       canvas.width = width * scale;
       canvas.height = height * scale;
       const context = canvas.getContext("2d");
       context.scale(scale, scale);
       context.drawImage(image, 0, 0, width, height);
+      return canvas;
+    } finally {
+      URL.revokeObjectURL(url);
+    }
+  }
+
+  async function exportPng() {
+    if (!state.model) return;
+    try {
+      const canvas = await rasterize(2);
       const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/png"));
       if (!blob) throw new Error("The PNG could not be created.");
       download(blob, `${slug(state.recipe.title)}.png`);
       host.toast("PNG exported.");
     } catch (error) {
       host.error(error.message);
+    }
+  }
+
+  /** Flow report: the graphic, every resolved flow, the excluded rows, provenance and method. */
+  async function exportPdf() {
+    if (!state.model) return;
+    setStatus("Building the flow report PDF…");
+    try {
+      const skin = document.documentElement.dataset.skin || null;
+      const canvas = await rasterize(2).catch(() => null);
+      const jpeg = canvas ? canvas.toDataURL("image/jpeg", 0.9) : null;
+      const graphic = jpeg ? { bytes: dataUrlBytes(jpeg), width: canvas.width, height: canvas.height } : null;
+      const logo = await loadBrandLogo(printPalette(skin)).catch(() => null);
+      const blob = flowReportPdf(state.model, { graphic, logo, skin, boundaryCredit: state.geoModules ? BOUNDARY_CREDIT : null });
+      download(blob, `${flowReportFileStem(state.recipe.title)}.pdf`);
+      host.toast(graphic ? "Flow report PDF exported." : "Flow report PDF exported without the graphic, which could not be drawn.");
+    } catch (error) {
+      host.error(error.message || "The PDF could not be created.");
     } finally {
-      URL.revokeObjectURL(url);
+      render();
     }
   }
 

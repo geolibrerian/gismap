@@ -1,7 +1,7 @@
 // Additive, privacy-first projection of the existing registries and state stores.
 // This is not a project serializer: feature data, URLs and free text are excluded.
 import { APPLICATION_PRESETS } from './application-config.js?v=0.68.0-charts1';
-import { INTERFACE_SKINS } from './skin-catalog.js?v=0.57.0-skins2';
+import { INTERFACE_SKINS } from './skin-catalog.js?v=0.83.0-infographics';
 import { listEngines } from './engines/engine-registry.js?v=0.80.0-grow';
 import { LAYER_TOOL_DEFINITIONS } from './layer-tools.js?v=0.29.0';
 import { AUTHORING_TOOL_DEFINITIONS } from './agent-authoring-tools.js?v=0.53.0';

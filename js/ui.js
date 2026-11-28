@@ -26,13 +26,13 @@ import { buildLocationReportPdf, featuresAtPlace, locationReportFileName, locati
 import { formatAttributeValue } from "./attribute-format.js?v=0.18.2";
 import { normalizeApplicationConfig, presetApplication } from "./application-config.js?v=0.68.0-charts1";
 import { featureFilterFor, featureId, fieldKind, filterRecords, histogram, requestGuard, sortRecords } from "./presentation-query.js?v=0.30.0";
-import { DEFAULT_SKIN, INTERFACE_SKINS, applyInterfaceSkin, normalizeSkin, resolveSkinTheme, setSkinThemeResolver, skinIsDark, skinOptionsMarkup, skinTone } from "./skin-catalog.js?v=0.57.0-skins2";
+import { DEFAULT_SKIN, INTERFACE_SKINS, applyInterfaceSkin, normalizeSkin, resolveSkinTheme, setSkinThemeResolver, skinIsDark, skinOptionsMarkup, skinTone } from "./skin-catalog.js?v=0.83.0-infographics";
 import { applyMapColors, MAP_COLOR_COMPONENTS, SKIN_BASEMAP, themeFromComputedStyle } from "./basemap-themes.js?v=0.53.0-mapcolors1";
 import { compactMedia } from "./viewport.js?v=0.18.2";
 import { APP_VERSION } from "./version.js?v=0.54.0-print";
 import { bindMobileSheetResize } from "./mobile-sheet-resize.js?v=0.52.7";
 import { BRAND } from "./brand.js";
-import { BRAND_LOGO, PdfDocument, brandedMapImage, brandedQrCanvas, imageToJpeg, loadBrandLogo, printPalette, qrAsset } from "./pdf-document.js?v=0.82.0-geopdf";
+import { BRAND_LOGO, PdfDocument, brandedMapImage, brandedQrCanvas, imageToJpeg, loadBrandLogo, printPalette, qrAsset } from "./pdf-document.js?v=0.83.0-infographics";
 import { DEFAULT_PAGE_FRAME, IMAGE_ANCHORS, MAP_TEMPLATES, getTemplate, loadImage, renderTemplate, templateCompact, templateMapAspect } from "./map-templates.js?v=0.82.0-geopdf";
 import { featureLayerUrl, locationUrl } from "./field-task-share.js?v=0.71.0-subsurface";
 import { dockIcon } from "./dock-icons.js?v=0.24.0";

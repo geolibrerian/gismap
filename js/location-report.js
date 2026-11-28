@@ -4,7 +4,7 @@
 // and general knowledge (summary, inferences, context, next steps). Limitations
 // come from both. Every source of report text (the in-app AI, the in-page API, a
 // map link's "report") fills the same sections, so reports read the same way.
-import { PdfDocument, SITE_URL } from "./pdf-document.js?v=0.82.0-geopdf";
+import { PdfDocument, SITE_URL } from "./pdf-document.js?v=0.83.0-infographics";
 
 export const LOCATION_REPORT_VERSION = 1;
 

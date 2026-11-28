@@ -389,6 +389,11 @@
       "id": "connect",
       "label": "Connect",
       "tone": "light"
+    },
+    {
+      "id": "trade-desk",
+      "label": "Trade Desk",
+      "tone": "light"
     }
   ],
   "engines": [

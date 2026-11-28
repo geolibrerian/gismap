@@ -13,7 +13,7 @@ import { normalizeBriefing, validateBriefing } from "./briefing-document.js?v=0.
 import { SCENE3D_TYPES, normalizeScene3d, scene3dTypeFor } from "./scene3d.js?v=0.1.0";
 import { normalizeSubsurface, normalizeUnderground } from "./subsurface.js?v=0.71.0-subsurface";
 import { CINEMATIC_EFFECT_TYPES, normalizeLayerEffect } from "./cinematic/cinematic-effects.js?v=0.80.0-grow";
-import { INTERFACE_SKINS } from "./skin-catalog.js?v=0.57.0-skins2";
+import { INTERFACE_SKINS } from "./skin-catalog.js?v=0.83.0-infographics";
 import { GisMapError } from "./gismap-errors.js?v=0.54.0-print";
 import { AGGREGATIONS, CHART_TYPES, normalizeChartStyle } from "./charting-tools.js?v=0.68.0-charts1";
 
