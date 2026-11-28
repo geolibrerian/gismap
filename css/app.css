@@ -3307,3 +3307,44 @@ body.briefing-v2 .briefing-data-dock :is(.briefing-select__add-slides, .briefing
 @keyframes load-progress-sweep { from { background-position:-100% 0; } to { background-position:200% 0; } }
 @media (prefers-reduced-motion: reduce) { .load-progress__stage.is-active:not([style])::after { animation:none; background:var(--green-2); opacity:.5; } .load-progress { transition:none; } }
 @media (max-width: 760px) { .load-progress { top:8px; } .load-progress ol { border-radius:12px; font-size:11px; } }
+
+/* Tools › Infographics (Flow Map editor) */
+.app-dialog:has(.infographic-editor) { width: min(1320px, calc(100% - 32px)); }
+.app-dialog:has(.infographic-editor) .dialog__content { overflow-x: hidden; }
+.infographic-editor { display: grid; grid-template-columns: minmax(260px, 340px) minmax(0, 1fr); gap: 18px; align-items: start; }
+.infographic-editor__inspector { min-width: 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: 6px; }
+.infographic-editor__inspector details, .infographic-editor__preview details { border-top: 1px solid var(--line, rgb(127 127 127 / 25%)); padding: 8px 0 2px; }
+.infographic-editor summary { cursor: pointer; font-weight: 700; padding: 4px 0 8px; }
+.infographic-editor__mode { border: 0; margin: 0; padding: 0; display: grid; gap: 4px; }
+.infographic-editor__mode legend { font-size: 12px; margin-bottom: 4px; }
+.infographic-editor__toggles { border: 0; margin: 0 0 10px; padding: 0; display: flex; flex-wrap: wrap; gap: 6px 14px; }
+.infographic-editor__toggles legend { font-size: 12px; margin-bottom: 6px; width: 100%; }
+.infographic-editor__toggles small, .infographic-editor td small { color: var(--muted); }
+.infographic-editor__note { border-left: 3px solid var(--line, rgb(127 127 127 / 25%)); padding-left: 10px; margin-bottom: 10px; }
+.infographic-editor__note small { color: var(--muted); font-size: 11px; }
+.infographic-editor__preview { min-width: 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; }
+.infographic-editor__status { margin: 0; font-size: 12px; color: var(--muted); min-height: 1.4em; }
+.infographic-editor__status.is-error { color: #b42318; }
+.infographic-editor__canvas { border-radius: 8px; overflow: hidden; box-shadow: 0 0 0 1px rgb(127 127 127 / 25%); background: #f6f3ec; }
+.infographic-editor__canvas svg { display: block; width: 100%; height: auto; }
+.infographic-editor__canvas [data-flow-key] { cursor: pointer; }
+.infographic-editor__selection { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; justify-content: space-between; }
+.infographic-editor__selection p { margin: 0; font-size: 13px; flex: 1 1 320px; }
+.infographic-editor__selection div { display: flex; gap: 8px; }
+.infographic-editor__table-scroll { overflow-x: auto; max-width: 100%; }
+.infographic-editor table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+.infographic-editor th, .infographic-editor td { text-align: left; padding: 5px 8px; border-bottom: 1px solid var(--line, rgb(127 127 127 / 20%)); white-space: nowrap; }
+.infographic-editor .is-number { text-align: right; font-variant-numeric: tabular-nums; }
+.infographic-editor tr.is-selected { background: var(--surface-tint); color: var(--ink); }
+.infographic-editor tr.is-muted td { color: var(--muted); }
+.infographic-editor__pager { display: flex; gap: 10px; align-items: center; justify-content: flex-end; padding-top: 6px; font-size: 12px; }
+.infographic-editor .visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.infographic-editor :focus-visible { outline: 2px solid #1d4ed8; outline-offset: 2px; }
+@media (max-width: 900px) {
+  .infographic-editor { grid-template-columns: minmax(0, 1fr); }
+  .infographic-editor__preview { order: -1; }
+}
+.infographic-editor [hidden] { display: none !important; }
+.infographic-editor__mode label { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+.infographic-editor__mode input, .infographic-editor__toggles input { width: auto; height: auto; min-height: 0; margin: 0; flex: none; }
+.infographic-editor__toggles label { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; }
