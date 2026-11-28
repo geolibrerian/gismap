@@ -89,9 +89,13 @@
 :root[data-skin="slice"] { --ink:#3b2528; --muted:#76565a; --paper:#f5e1db; --surface:#fff4ed; --surface-2:#edc5c5; --green:#704036; --green-2:#9c4058; --amber:#8d5036; --line:#be8583; --danger:#a72d44; --shadow:4px 4px 0 rgb(112 64 54 / 22%); --ui-radius:3px; --ui-radius-small:2px; --ui-font:"DM Sans",system-ui,sans-serif; --ui-heading:"Newsreader",Georgia,serif; --ui-border-width:1px; --ui-panel-shadow:4px 4px 0 rgb(112 64 54 / 22%); color-scheme:light; }
 :root[data-skin="wavelength"] { --ink:#fff4e8; --muted:#d1b8ad; --paper:#202124; --surface:#29282a; --surface-2:#393235; --green:#9a392d; --green-2:#ff9c6d; --amber:#ffc276; --line:#79534b; --danger:#ff9788; --shadow:0 16px 36px rgb(0 0 0 / 35%); --ui-radius:14px; --ui-radius-small:7px; --ui-font:"DM Sans",system-ui,sans-serif; --ui-heading:"DM Sans",system-ui,sans-serif; --ui-border-width:1px; --ui-panel-shadow:0 16px 36px rgb(0 0 0 / 35%); color-scheme:dark; }
 :root[data-skin="connect"] { --ink:#063c40; --muted:#46696a; --paper:#fff0a5; --surface:#fffbea; --surface-2:#ffe45c; --green:#005963; --green-2:#00757b; --amber:#765600; --line:#8aa99d; --danger:#ae3036; --shadow:0 12px 30px rgb(0 73 76 / 16%); --ui-radius:16px; --ui-radius-small:8px; --ui-font:"DM Sans",system-ui,sans-serif; --ui-heading:"DM Sans",system-ui,sans-serif; --ui-border-width:2px; --ui-panel-shadow:0 12px 30px rgb(0 73 76 / 16%); color-scheme:light; }
+:root[data-skin="trade-desk"] { --ink:#23211d; --muted:#5f5a51; --paper:#f6f3ec; --surface:#fffdf8; --surface-2:#ebe5d8; --green:#7a4a2c; --green-2:#9c5a2b; --amber:#3d7f52; --line:#cfc7b7; --danger:#a8321f; --shadow:0 1px 0 rgb(35 33 29 / 10%),0 10px 26px rgb(35 33 29 / 9%); --ui-radius:4px; --ui-radius-small:2px; --ui-font:"DM Sans",system-ui,sans-serif; --ui-heading:"DM Sans",system-ui,sans-serif; --ui-border-width:1px; --ui-panel-shadow:0 1px 0 rgb(35 33 29 / 10%),0 10px 26px rgb(35 33 29 / 9%); color-scheme:light; }
 :root[data-skin="slice"] :is(.brand,.dialog__header) { border-bottom:4px solid #b64f68; }
 :root[data-skin="wavelength"] :is(.brand,.dialog__header) { border-bottom:4px solid #ed7954; }
 :root[data-skin="connect"] :is(.brand,.dialog__header) { border-bottom:4px solid #00757b; box-shadow:0 3px 0 #f4cf22; }
+/* Trade Desk: a hairline ink rule over a cocoa stripe, like a newspaper masthead. */
+:root[data-skin="trade-desk"] :is(.brand,.dialog__header) { border-bottom:1px solid var(--ink); box-shadow:0 3px 0 #d0702d; }
+:root[data-skin="trade-desk"] :is(.menu__label,.eyebrow,.dialog__eyebrow,#dialog-eyebrow) { letter-spacing:.08em; text-transform:uppercase; }
 #app { font-family:var(--ui-font); background:var(--paper); }
 :root:not([data-skin="gismap"]) :is(.sidebar,.application-dock,.dialog__shell,.insights-overlay,.atlas-chapter-overlay,.atlas-chapter-description,.mode-details,.explorer-distribution,.mode-records,.presentation-empty) { border-width:var(--ui-border-width); border-radius:var(--ui-radius); box-shadow:var(--ui-panel-shadow); background-color:var(--surface); color:var(--ink); }
 :root:not([data-skin="gismap"]) :is(button,input,select,textarea,.explorer-counts span,.explorer-counts button) { border-radius:var(--ui-radius-small); }
@@ -654,6 +658,7 @@ body.mobile-workflow-open .field-task-banner { left:auto; right:calc(min(440px,1
 .skin-card--steeler { --preview-paper:#dad5d2;--preview-surface:#f7f3eb;--preview-ink:#303744;--preview-accent:#5b687d;--preview-radius:9px;--preview-shadow:3px 5px 9px #77717a; }
 .skin-card--slice { --preview-paper:#fff4ed;--preview-surface:#d8a8a1;--preview-ink:#3b2528;--preview-accent:#a6405a;--preview-radius:2px;--preview-shadow:3px 3px #704036; }
 .skin-card--wavelength { --preview-paper:#29282a;--preview-surface:#393235;--preview-ink:#fff4e8;--preview-accent:#f58153;--preview-radius:7px;--preview-shadow:0 3px 8px #1c1717; }
+.skin-card--trade-desk { --preview-paper:#fffdf8;--preview-surface:#ebe5d8;--preview-ink:#23211d;--preview-accent:#d0702d;--preview-radius:2px;--preview-shadow:0 2px 0 #7a4a2c; }
 .skin-card--connect { --preview-paper:#fffbea;--preview-surface:#ffe45c;--preview-ink:#063c40;--preview-accent:#00757b;--preview-radius:9px;--preview-shadow:3px 3px #f4cf22; }
 :root[data-skin="dark-analytical"] .sidebar { border-right-color: #174f42; }
 :root[data-skin="retro-print"] .sidebar { border-right-color: #b55d46; }

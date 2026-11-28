@@ -6,7 +6,7 @@ import { normalizeApplicationConfig, presetApplication } from "./application-con
 import { DuckDBBrowserClient } from "./duckdb-client.js?v=0.54.0-analysis1";
 import { normalizeDataCatalog, planNaturalLanguageQuery, validateReadOnlySQL } from "./data-catalog.js?v=0.18.2";
 import { PanelManager } from "./panel-manager.js?v=0.18.2";
-import { applyInterfaceSkin } from "./skin-catalog.js?v=0.57.0-skins2";
+import { applyInterfaceSkin } from "./skin-catalog.js?v=0.83.0-infographics";
 import { CHART_DEFAULT_TOP, chartCategories, chartColors, chartFilterForRow, chartOption, chartSummary, createChartSpec, displayChartRows, loadECharts, queryChart, renderChartFallback, resolveChartTheme } from "./charting-tools.js?v=0.68.0-charts1";
 
 const STATIC_PANELS = {

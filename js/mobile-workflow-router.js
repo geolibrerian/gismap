@@ -1,7 +1,7 @@
 import { googleMapsLink } from "./google-maps-link.js?v=0.52.9";
 import { MobileFeedStore } from "./mobile-feed-store.js?v=0.18.7";
 import { compactMedia } from "./viewport.js?v=0.18.2";
-import { INTERFACE_SKINS, applyInterfaceSkin, normalizeSkin } from "./skin-catalog.js?v=0.57.0-skins2";
+import { INTERFACE_SKINS, applyInterfaceSkin, normalizeSkin } from "./skin-catalog.js?v=0.83.0-infographics";
 import { FIELD_TASK_LIMITS, addressDetails, createFieldTaskUrl, featureLayerUrl, taskSteps } from "./field-task-share.js?v=0.71.0-subsurface";
 import { appUrl } from "./app-root.js?v=0.65.0-paths";
 import { fieldTaskCsv, fieldTaskFileStem, fieldTaskPdf, fieldTaskPoints, photoDataUrl } from "./field-task-report.js?v=0.82.0-geopdf";

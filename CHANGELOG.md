@@ -6,6 +6,12 @@ All notable changes to GIS Map Online are documented here. This project follows
 
 ## Unreleased
 
+- Trade Desk Instant Dashboard. A new editorial skin, the thirteenth: warm paper, ink-black type and coffee, cocoa and tea accents, with a hairline masthead rule over a cocoa stripe. It matches the Flow Map's editorial-light graphic. It has a dark rendering (espresso paper) and its own print colours for PDFs, and `trade-desk` is accepted wherever a skin is (map-v1 links, `create_instant_dashboard`).
+- Flow report PDF. **Export PDF report** in the Flow Map editor writes a report in the active skin's print colours:
+  - **Graphic.** The infographic on its own page, landscape or portrait to match its layout.
+  - **Flows.** Every resolved flow, including those below Top N or in hidden categories, with origin, destination, category, weight, source rows, share of all valid weight and whether it is on the map.
+  - **Excluded rows.** Every excluded row with its reason.
+  - **Provenance and method.** A page giving source, scope and coverage, period, unit, bindings, counts, lookup and boundary credits, the notes and the validation and scale rules.
 - Infographics: Flow Map. **Tools › Infographics › Flow Map** turns a table of origins, destinations and weights into an annotated, publication-ready map with directional ribbons, a ranking, a legend and source notes, and exports it as SVG or PNG. It is the first step of the infographics spec (editor and export); saving to the project, Briefs, share links and Ranked Geography follow.
   - **Data.** A loaded, queryable layer (All records, Current filters or Map extent) or a bundled, clearly labelled illustrative beverage-trade demo. Endpoints come from ISO alpha-3 codes resolved against a versioned country-point lookup, or from WGS84 coordinate fields. Field bindings are suggested by name and type; the unit is always entered by the author.
   - **Validation.** Unmatched or ambiguous IDs, invalid coordinates, missing, non-numeric, negative and zero weights, and same-place flows are left out of the ribbons and listed in a Diagnostics table. Zeros, missing weights and excluded rows are counted separately. Data with several periods asks for one period or an explicit sum across periods.
