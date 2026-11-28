@@ -2185,6 +2185,9 @@ export class UIController {
         case "tools-charts-analytics": // Deep links from the original entry remain valid.
           void this.#openChartsAnalytics({ family: "custom" });
           break;
+        case "tools-infographics":
+          void this.#openInfographics();
+          break;
         case "tools-walkthrough":
           if (document.body.classList.contains("mobile-menu-open")) document.querySelector("#mobile-menu-toggle")?.click();
           this.#startWorkspaceWalkthrough();
@@ -3381,6 +3384,16 @@ export class UIController {
         } },
       ],
     });
+  }
+
+  /** Tools › Infographics: the editor and D3 geography load only when it opens. */
+  async #openInfographics({ layerUid = null } = {}) {
+    try {
+      const { openInfographicsEditor } = await import("./infographics/infographics-editor.js?v=0.83.0-infographics");
+      await openInfographicsEditor(this, { layerUid });
+    } catch (error) {
+      this.error(error.message || "The infographics editor could not open.");
+    }
   }
 
   /** Tools › Chart tools: one layer-aware builder with family presets. */
