@@ -3330,8 +3330,8 @@ body.briefing-v2 .briefing-data-dock :is(.briefing-select__add-slides, .briefing
 .infographic-editor__preview { min-width: 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; }
 .infographic-editor__status { margin: 0; font-size: 12px; color: var(--muted); min-height: 1.4em; }
 .infographic-editor__status.is-error { color: #b42318; }
-.infographic-editor__canvas { border-radius: 8px; overflow: hidden; box-shadow: 0 0 0 1px rgb(127 127 127 / 25%); background: #f6f3ec; }
-.infographic-editor__canvas svg { display: block; width: 100%; height: auto; }
+.infographic-editor__canvas { display: flex; justify-content: center; }
+.infographic-editor__canvas svg { display: block; width: 100%; height: auto; border-radius: 8px; box-shadow: 0 0 0 1px rgb(127 127 127 / 25%); }
 .infographic-editor__canvas [data-flow-key] { cursor: pointer; }
 .infographic-editor__selection { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; justify-content: space-between; }
 .infographic-editor__selection p { margin: 0; font-size: 13px; flex: 1 1 320px; }
@@ -3353,3 +3353,13 @@ body.briefing-v2 .briefing-data-dock :is(.briefing-select__add-slides, .briefing
 .infographic-editor__mode label { display: flex; align-items: center; gap: 8px; font-size: 13px; }
 .infographic-editor__mode input, .infographic-editor__toggles input { width: auto; height: auto; min-height: 0; margin: 0; flex: none; }
 .infographic-editor__toggles label { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; }
+.infographic-editor__add { display: flex; flex-wrap: wrap; gap: 8px; margin: -4px 0 4px; }
+.infographic-editor__add button, .infographic-editor__link button { min-height: 34px; padding: 6px 12px; border: 1px solid var(--line); border-radius: var(--ui-radius-small, 6px); color: var(--ink); background: var(--surface); font: 600 12px/1.2 var(--ui-font, sans-serif); cursor: pointer; }
+.infographic-editor__add button:hover, .infographic-editor__link button:hover { border-color: var(--green-2); }
+.infographic-editor__link { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; align-items: end; }
+.infographic-editor__link .field { margin: 0; }
+[data-ig-add-status].is-error { color: var(--danger, #b42318); }
+/* Full window: the inspector and the preview scroll on their own, and the graphic fits the height. */
+.app-dialog--fullwindow .infographic-editor { height: 100%; grid-template-columns: minmax(280px, 340px) minmax(0, 1fr); gap: 24px; }
+.app-dialog--fullwindow .infographic-editor__inspector, .app-dialog--fullwindow .infographic-editor__preview { max-height: 100%; min-height: 0; overflow-y: auto; padding-right: 6px; align-content: start; }
+.app-dialog--fullwindow .infographic-editor__canvas svg { width: auto; max-width: 100%; max-height: calc(100dvh - var(--fullwindow-top, 0px) - 230px); }

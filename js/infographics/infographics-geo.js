@@ -38,7 +38,10 @@ export function flowMapGeo(modules, kind = "world") {
       let projection;
       if (kind === "regional" && flows.length) {
         const ends = flows.flatMap((flow) => [flow.origin, flow.destination]);
-        const bounds = endpointExtent(ends, 8);
+        // Pad by a share of the data's own spread, so a city region and an ocean basin both fill the frame.
+        const tight = endpointExtent(ends, 0);
+        const spread = Math.max(tight.ymax - tight.ymin, tight.crossesAntimeridian ? tight.xmax + 360 - tight.xmin : tight.xmax - tight.xmin);
+        const bounds = endpointExtent(ends, Math.min(8, Math.max(0.15, spread * 0.12)));
         const span = bounds.crossesAntimeridian ? bounds.xmax + 360 - bounds.xmin : bounds.xmax - bounds.xmin;
         const center = bounds.xmin + span / 2;
         projection = d3.geoMercator().rotate([-center, 0]);

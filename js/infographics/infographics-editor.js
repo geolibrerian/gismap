@@ -5,7 +5,8 @@
 // turns the model into one SVG string used for preview and export alike.
 
 import { COUNTRY_POINTS_ID, COUNTRY_POINTS_REVISION, countryPointLookup } from "./country-points.js";
-import { BEVERAGE_FIXTURE_FIELDS, BEVERAGE_FIXTURE_ID, BEVERAGE_FIXTURE_NAME, beverageFixtureRecipe, beverageFixtureRows } from "./flow-fixtures.js";
+import { BEVERAGE_FIXTURE_ID } from "./flow-fixtures.js";
+import { TABLE_FILE_ACCEPT, addUserTable, demoTables, isTableSource, readTableFile, readTableUrl, tableById, userTables } from "./flow-datasets.js";
 import { EXCLUSION_REASONS, FLOW_MAP_MAX_LINKS, LOCAL_ROW_LIMIT, MAX_ANNOTATIONS, buildFlowMapModel, endpointExtent, normalizeFlowRecipe, suggestFlowBindings } from "./flow-map.js";
 import { escapeXml as escape, flowDetail, flowLabel, formatValue, renderFlowMapSvg, scopeLabel } from "./flow-map-svg.js";
 import { BOUNDARY_CREDIT, flowMapGeo, loadGeoModules } from "./infographics-geo.js";
@@ -46,7 +47,7 @@ export async function openInfographicsEditor(host, { layerUid = null } = {}) {
     rows: [],
     coverage: { complete: true, label: "Complete" },
     extent: null,
-    recipe: normalizeFlowRecipe(beverageFixtureRecipe()),
+    recipe: normalizeFlowRecipe(tableById(BEVERAGE_FIXTURE_ID).recipe),
     model: null,
     selectedKey: null,
     page: 1,
@@ -61,7 +62,7 @@ export async function openInfographicsEditor(host, { layerUid = null } = {}) {
   host.openDialog({
     eyebrow: "Infographics",
     title: "Flow Map",
-    content: shellMarkup(layers, state.source),
+    content: shellMarkup(mapController, state.source),
     actions: [
       { label: "Play", handler: () => play() },
       { label: "Copy recipe", handler: () => copyRecipe() },
@@ -73,6 +74,7 @@ export async function openInfographicsEditor(host, { layerUid = null } = {}) {
   const root = host.dialog.querySelector("[data-infographic]");
   const $ = (selector) => root.querySelector(selector);
   const session = host.dialogSession;
+  enterFullWindow(host);
   const alive = () => host.dialog.open && root.isConnected && (session === undefined || host.dialogSession === session);
 
   // ---- geography (lazy)
@@ -84,13 +86,25 @@ export async function openInfographicsEditor(host, { layerUid = null } = {}) {
     const request = ++state.request;
     state.selectedKey = null;
     state.page = 1;
-    if (state.source === BEVERAGE_FIXTURE_ID) {
-      state.fields = BEVERAGE_FIXTURE_FIELDS.slice();
-      state.rows = beverageFixtureRows();
-      state.coverage = { complete: true, label: "Complete" };
-      state.recipe = normalizeFlowRecipe({ ...beverageFixtureRecipe(), id: state.recipe.id, query: { ...beverageFixtureRecipe().query, scope: { type: "all" } } });
+    if (isTableSource(state.source)) {
+      const table = tableById(state.source);
+      if (!table) { setStatus("This table is no longer available. Add it again.", true); return; }
+      state.fields = table.fields.slice();
+      const source = { layerId: table.id, name: table.name, credit: table.credit };
+      if (table.recipe) {
+        state.recipe = normalizeFlowRecipe({ ...table.recipe, id: state.recipe.id, source, query: { ...table.recipe.query, scope: { type: "all" } } });
+      } else {
+        // An added table: suggested bindings for the author to confirm, and no unit until they type one.
+        const suggested = suggestFlowBindings(table.fields);
+        state.recipe = normalizeFlowRecipe({
+          id: state.recipe.id, title: `${table.name} flows`, subtitle: "", source,
+          query: { scope: { type: "all" } },
+          bindings: { ...suggested, lookup: { id: COUNTRY_POINTS_ID, revision: COUNTRY_POINTS_REVISION } },
+          design: { ...state.recipe.design, hiddenCategories: [] },
+        });
+      }
       renderInspector();
-      render();
+      await queryRows();
       return;
     }
     const layer = mapController.getLayer(state.source);
@@ -127,7 +141,17 @@ export async function openInfographicsEditor(host, { layerUid = null } = {}) {
 
   /** Query the bound fields for the chosen scope. Stale replies are ignored. */
   async function queryRows(loaded = mapController.getLayer(state.source)) {
-    if (state.source === BEVERAGE_FIXTURE_ID) { render(); return; }
+    if (isTableSource(state.source)) {
+      // A table is already in memory: scope is all rows, or the map-extent rule on endpoints.
+      const table = tableById(state.source);
+      const scope = state.recipe.query.scope.type;
+      state.rows = table?.rows || [];
+      state.extent = scope === "extent" ? extentToWgs84(mapController?.getViewExtent?.()) : null;
+      state.coverage = table?.truncated ? { complete: false, label: `Partial (first ${LOCAL_ROW_LIMIT.toLocaleString("en")} of ${table.totalRows.toLocaleString("en")} rows)` } : { complete: true, label: "Complete" };
+      if (scope === "extent" && !state.extent) state.coverage = { complete: false, label: "Extent unavailable" };
+      render();
+      return;
+    }
     const request = ++state.request;
     const { bindings, query } = state.recipe;
     const outFields = [...new Set([bindings.origin.idField, bindings.destination.idField, bindings.origin.lonField, bindings.origin.latField, bindings.destination.lonField, bindings.destination.latField, bindings.weight.field, bindings.categoryField, bindings.periodField].filter(Boolean))];
@@ -408,13 +432,15 @@ export async function openInfographicsEditor(host, { layerUid = null } = {}) {
   root.addEventListener("input", (event) => {
     const target = event.target;
     if (target.matches("[data-ig-source]")) return;
-    if (target.matches('[name="ig-mode"]')) { readInspector(); syncModeVisibility(); if (state.source === BEVERAGE_FIXTURE_ID) render(); else void queryRows(); return; }
+    if (target.matches('[name="ig-mode"]')) { readInspector(); syncModeVisibility(); if (isTableSource(state.source)) render(); else void queryRows(); return; }
     const queried = ["scope", "origin-id", "destination-id", "origin-lon", "origin-lat", "destination-lon", "destination-lat", "weight", "category", "period"].includes(target.dataset.ig);
-    schedule(queried && state.source !== BEVERAGE_FIXTURE_ID);
+    // Tables re-read only when the scope changes; layers re-query for new fields too.
+    schedule(queried && (!isTableSource(state.source) || target.dataset.ig === "scope"));
   });
   root.addEventListener("change", (event) => {
     // Every other control reports through "input"; only the source switch is handled here.
-    if (event.target.matches("[data-ig-source]")) { state.source = event.target.value; void loadSource(); }
+    if (event.target.matches("[data-ig-source]")) { state.source = event.target.value; void loadSource(); return; }
+    if (event.target.matches("[data-ig-file]")) { const [file] = event.target.files || []; event.target.value = ""; if (file) void addTable(() => readTableFile(file), file.name); }
   });
   root.addEventListener("click", (event) => {
     const selectButton = event.target.closest("[data-ig-select]");
@@ -425,9 +451,45 @@ export async function openInfographicsEditor(host, { layerUid = null } = {}) {
     if (page) { state.page += Number(page.dataset.igPage); renderTable(); return; }
     if (event.target.closest("[data-ig-clear]")) { select(null); return; }
     if (event.target.closest("[data-ig-zoom]")) { zoomToEndpoints(); return; }
-    if (event.target.closest("[data-ig-refresh]")) { void queryRows(); }
+    if (event.target.closest("[data-ig-refresh]")) { void queryRows(); return; }
+    if (event.target.closest("[data-ig-add-file]")) { $("[data-ig-file]").click(); return; }
+    if (event.target.closest("[data-ig-add-link]")) { const panel = $("[data-ig-link-panel]"); panel.hidden = !panel.hidden; if (!panel.hidden) $("[data-ig-link]").focus(); return; }
+    if (event.target.closest("[data-ig-link-load]")) { loadLink(); }
   });
+
+  function loadLink() {
+    const value = $("[data-ig-link]").value.trim();
+    if (!value) { $("[data-ig-link]").focus(); return; }
+    void addTable(() => readTableUrl(value), "the link");
+  }
+
+  /** Read a table, add it to this session's list and switch to it. */
+  async function addTable(read, label) {
+    const status = $("[data-ig-add-status]");
+    status.textContent = `Reading ${label}…`;
+    status.classList.remove("is-error");
+    try {
+      const table = addUserTable(await read());
+      if (!alive()) return;
+      $("[data-ig-source]").innerHTML = sourceOptions(mapController, table.id);
+      $("[data-ig-link-panel]").hidden = true;
+      $("[data-ig-link]").value = "";
+      status.textContent = `${table.name}: ${table.rows.length.toLocaleString("en")} rows, ${table.fields.length} columns${table.truncated ? ` (first ${table.rows.length.toLocaleString("en")} of ${table.totalRows.toLocaleString("en")})` : ""}. Check the suggested fields and enter the unit.`;
+      state.source = table.id;
+      await loadSource();
+    } catch (error) {
+      if (!alive()) return;
+      status.textContent = error.message || "The table could not be read.";
+      status.classList.add("is-error");
+    }
+  }
   root.addEventListener("keydown", (event) => {
+    // The app dialog is a method="dialog" form: Enter in a text field would close the editor.
+    if (event.key === "Enter" && event.target.matches("input:not([type=checkbox]):not([type=radio]):not([type=file])")) {
+      event.preventDefault();
+      if (event.target.matches("[data-ig-link]")) loadLink();
+      return;
+    }
     if (event.key === "Escape" && state.selectedKey) { event.stopPropagation(); event.preventDefault(); select(null); }
   });
 
@@ -437,10 +499,32 @@ export async function openInfographicsEditor(host, { layerUid = null } = {}) {
 
 // ---------------------------------------------------------------- markup
 
-function shellMarkup(layers, source) {
+/** The data choices: your added tables, map layers, then the demos. */
+function sourceOptions(mapController, selected) {
+  const option = (value, label) => `<option value="${escape(value)}"${value === selected ? " selected" : ""}>${escape(label)}</option>`;
+  const group = (label, items) => (items.length ? `<optgroup label="${escape(label)}">${items.join("")}</optgroup>` : "");
+  const layers = (mapController?.getLayers?.() || []).filter((layer) => layer.queryable);
+  return [
+    group("Your tables (this device)", userTables().map((table) => option(table.id, table.name))),
+    group("Map layers", layers.map((layer) => option(layer.uid, layer.title || layer.uid))),
+    group("Demo data", demoTables().map((table) => option(table.id, table.name))),
+  ].join("");
+}
+
+function shellMarkup(mapController, source) {
   return `<div class="infographic-editor" data-infographic>
     <aside class="infographic-editor__inspector" aria-label="Infographic settings">
-      <label class="field"><span>Data</span><select data-ig-source><option value="${BEVERAGE_FIXTURE_ID}"${source === BEVERAGE_FIXTURE_ID ? " selected" : ""}>${escape(BEVERAGE_FIXTURE_NAME)}</option>${layers.map((layer) => `<option value="${escape(layer.uid)}"${layer.uid === source ? " selected" : ""}>${escape(layer.title || layer.uid)}</option>`).join("")}</select></label>
+      <label class="field"><span>Data</span><select data-ig-source>${sourceOptions(mapController, source)}</select></label>
+      <div class="infographic-editor__add">
+        <button type="button" data-ig-add-file>Add a file…</button>
+        <button type="button" data-ig-add-link aria-controls="ig-link-panel">From a link…</button>
+        <input type="file" data-ig-file accept="${TABLE_FILE_ACCEPT}" hidden>
+      </div>
+      <div class="infographic-editor__link" id="ig-link-panel" data-ig-link-panel hidden>
+        <label class="field"><span>CSV or JSON link, or a public Google Sheet</span><input type="url" data-ig-link placeholder="https://…" autocomplete="off"></label>
+        <button type="button" data-ig-link-load>Load table</button>
+      </div>
+      <p class="form-note" data-ig-add-status aria-live="polite">Add a CSV, Excel, OpenDocument, JSON or GeoJSON table of flows: one row per origin–destination pair, with country codes or coordinates for each end. Files are read on this device and are not uploaded or saved with the project.</p>
       <label class="field"><span>Template</span><select data-ig-template><option value="flow-map" selected>Flow Map</option><option disabled>Ranked Geography (coming next)</option></select></label>
       <details open><summary>Data</summary><div data-ig-data></div><div data-ig-period-choice hidden></div></details>
       <details open><summary>Design</summary><div data-ig-design></div><div data-ig-categories></div></details>
@@ -464,10 +548,11 @@ function fieldOptions(fields, selected, { numeric = false, allowNone = false, no
 function dataMarkup(state) {
   const { recipe, fields, source } = state;
   const { bindings, query } = recipe;
-  const isFixture = source === BEVERAGE_FIXTURE_ID;
-  const scopes = [["all", "All records"], ["filtered", "Current filters"], ["extent", "Map extent"], ["selected", "Selected records"]];
+  const isTable = isTableSource(source);
+  // Tables have no layer filters or selection; the map-extent rule still applies to their endpoints.
+  const scopes = isTable ? [["all", "All rows"], ["extent", "Map extent"]] : [["all", "All records"], ["filtered", "Current filters"], ["extent", "Map extent"], ["selected", "Selected records"]];
   return `<div class="field-grid">
-    <label class="field"><span>Scope</span><select data-ig="scope"${isFixture ? " disabled" : ""}>${scopes.map(([id, label]) => `<option value="${id}"${query.scope.type === id ? " selected" : ""}${id === "selected" ? " disabled" : ""}>${label}${id === "selected" ? " (not yet)" : ""}</option>`).join("")}</select><small>${isFixture ? "The demo is a bundled table." : "Map extent keeps a flow when either endpoint is in view. <button type=\"button\" class=\"link-button\" data-ig-refresh>Refresh</button>"}</small></label>
+    <label class="field"><span>Scope</span><select data-ig="scope">${scopes.map(([id, label]) => `<option value="${id}"${query.scope.type === id ? " selected" : ""}${id === "selected" ? " disabled" : ""}>${label}${id === "selected" ? " (not yet)" : ""}</option>`).join("")}</select><small>Map extent keeps a flow when either endpoint is in view. <button type="button" class="link-button" data-ig-refresh>Refresh</button></small></label>
     <fieldset class="field infographic-editor__mode"><legend>Endpoints from</legend><label><input type="radio" name="ig-mode" value="ids"${bindings.mode === "ids" ? " checked" : ""}> Country codes</label><label><input type="radio" name="ig-mode" value="coordinates"${bindings.mode === "coordinates" ? " checked" : ""}> Coordinates</label></fieldset>
   </div>
   <div class="field-grid">
@@ -502,4 +587,27 @@ function designMarkup(recipe) {
     <label class="field"><span>Projection</span><select data-ig="projection">${option("world", "World (Equal Earth)", design.projection)}${option("regional", "Regional (Mercator, fitted)", design.projection)}</select></label>
     <label class="field"><span>Top flows</span><input type="number" data-ig="top-n" min="1" max="${FLOW_MAP_MAX_LINKS}" value="${design.topN}"><small>At most ${FLOW_MAP_MAX_LINKS} ribbons.</small></label>
   </div>`;
+}
+
+/**
+ * Cover the map and side panels, leaving the top bar and icon rail, as the
+ * print templates do. Phones keep the bottom sheet; a docked dialog stays docked.
+ */
+function enterFullWindow(host) {
+  const dialog = host.dialog;
+  if (host.mobileMedia?.matches || dialog.classList.contains("app-dialog--docked")) return;
+  const shown = (element) => element.getClientRects().length > 0 && getComputedStyle(element).visibility !== "hidden";
+  const place = () => {
+    const header = [...document.querySelectorAll(".studio-header, .menu-bar")].find(shown);
+    const rail = [...document.querySelectorAll(".workspace-rail")].find(shown);
+    dialog.style.setProperty("--fullwindow-top", `${Math.round(header?.getBoundingClientRect().bottom || 0)}px`);
+    dialog.style.setProperty("--fullwindow-left", `${Math.round(rail?.getBoundingClientRect().right || 0)}px`);
+  };
+  place();
+  dialog.classList.add("app-dialog--fullwindow");
+  globalThis.addEventListener("resize", place);
+  dialog.addEventListener("close", () => {
+    dialog.classList.remove("app-dialog--fullwindow");
+    globalThis.removeEventListener("resize", place);
+  }, { once: true });
 }

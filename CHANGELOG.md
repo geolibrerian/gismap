@@ -6,6 +6,12 @@ All notable changes to GIS Map Online are documented here. This project follows
 
 ## Unreleased
 
+- Flow Map: more datasets and a full-window editor.
+  - **Add a file…** reads a CSV, TSV, Excel (.xlsx), OpenDocument (.ods), JSON or GeoJSON table of flows on this device. No coordinates are needed: country codes are enough. **From a link…** reads a CSV or JSON link or a public Google Sheet.
+  - Column types are inferred, with empty cells kept as missing and codes such as "004" kept as text. Fields are suggested for you to confirm, and the unit is still yours to enter. Tables are capped at 30 MB and 50,000 rows, with the cap disclosed as Partial coverage. Added tables are listed under "Your tables (this device)" for the session; they are not uploaded or saved with the project.
+  - The Data list now groups your tables, map layers and the demos. Two new demos, both marked illustrative: Randstad commuting (coordinates, regional Mercator, rail and road) and trans-Pacific air passengers (coordinates, two years, antimeridian crossings). Tables take the All rows or Map extent scope.
+  - On desktop the editor fills the window below the top bar, beside the icon rail, with the settings and the preview scrolling separately and the graphic sized to the window. Phones keep the bottom sheet. Enter in a text field no longer closes the editor.
+  - The regional projection now pads by a share of the data's spread, so a city region fills the frame instead of shrinking to a dot.
 - Trade Desk Instant Dashboard. A new editorial skin, the thirteenth: warm paper, ink-black type and coffee, cocoa and tea accents, with a hairline masthead rule over a cocoa stripe. It matches the Flow Map's editorial-light graphic. It has a dark rendering (espresso paper) and its own print colours for PDFs, and `trade-desk` is accepted wherever a skin is (map-v1 links, `create_instant_dashboard`).
 - Flow report PDF. **Export PDF report** in the Flow Map editor writes a report in the active skin's print colours:
   - **Graphic.** The infographic on its own page, landscape or portrait to match its layout.
