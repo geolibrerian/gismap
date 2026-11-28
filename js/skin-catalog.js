@@ -23,6 +23,7 @@ export const INTERFACE_SKINS = Object.freeze([
   Object.freeze({ id: "slice", label: "Slice", description: "Geological pink and warm brown", tone: "light" }),
   Object.freeze({ id: "wavelength", label: "Wavelength", description: "Warm signal lines on charcoal", tone: "dark" }),
   Object.freeze({ id: "connect", label: "Connect", description: "Bright yellow and playful teal", tone: "light" }),
+  Object.freeze({ id: "trade-desk", label: "Trade Desk", description: "Editorial paper with commodity inks", tone: "light" }),
 ]);
 
 const SKIN_IDS = new Set(INTERFACE_SKINS.map(({ id }) => id));

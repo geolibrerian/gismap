@@ -7,7 +7,7 @@ import core, { normalizeBriefing, updateSlide, validateBriefingDocument } from "
 import { createShareLink } from "./map-share.js?v=0.80.0-grow";
 import { GisMapError, layerLoadError, toGisMapError } from "./gismap-errors.js?v=0.54.0-print";
 import { featureLayerUrl } from "./field-task-share.js?v=0.71.0-subsurface";
-import { brandedQrFile, printPalette } from "./pdf-document.js?v=0.82.0-geopdf";
+import { brandedQrFile, printPalette } from "./pdf-document.js?v=0.83.0-infographics";
 
 const clone = (value) => structuredClone(value);
 const trimUrl = (value) => String(value || "").replace(/\/+$/, "").toLowerCase();

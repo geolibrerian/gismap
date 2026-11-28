@@ -1,4 +1,4 @@
-import { INTERFACE_SKINS } from "./skin-catalog.js?v=0.57.0-skins2";
+import { INTERFACE_SKINS } from "./skin-catalog.js?v=0.83.0-infographics";
 /**
  * Where things are in GISMap Online, for the Map assistant (and anyone else
  * answering "how do I…?"). Keep it in step with the menus in index.html and
